@@ -125,6 +125,8 @@ body[data-theme="dark"] .cath{background:linear-gradient(180deg,#1c2740,#16203a)
 .ib{display:inline-flex;flex-direction:column;align-items:flex-start;background:var(--inp);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font:inherit;font-size:11.5px;cursor:pointer;color:var(--navytx);line-height:1.2}
 .ib em{font-style:normal;color:var(--blue);font-weight:800}
 .ib .why{font-size:9.5px;color:#8a6d00;font-style:italic;margin-top:1px}
+.ib .ibhead{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;width:100%}
+.ib .why.dsc{color:var(--grey);font-style:normal}
 .ib.dis{opacity:.55;background:var(--lt);border-style:dashed;cursor:help}.ib.dis em{color:var(--grey)}
 .ib.warn{background:var(--warnbg);border-color:var(--warnbd)}.ib.warn .why{color:#b35a00}
 .ib.draw{background:var(--badbg);color:var(--bad)}.ib.draw em{color:var(--bad)}
@@ -967,7 +969,7 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 function buildBuyPanel(b,r,eco,head){
   const buyEl=$('buy'); if(!head){buyEl.innerHTML='<p class="hint">Viewing history — return to <b>live</b> to make purchases.</p>';return;}
   // a buyable button: greys out (with the reason) when not allowed; tap a greyed one to hear why
-  function racialWhy(r){if(!r)return '';if(r.minHD&&b.hd<r.minHD)return 'needs '+r.minHD+' Hit Dice (level '+r.minHD+')';if(r.reqRace){var _o=DATA.racial[r.reqRace];var owns=b.racialTraits.indexOf(r.reqRace)>=0||!!(_o&&_o.pack&&(_o.race===b.species||_o.race===b.species2));if(!owns)return 'requires '+((r.reqRace.split(': ')[1])||r.reqRace);}return '';}function ib(label,cat,payload,reasonExtra){
+  function racialWhy(r){if(!r)return '';if(r.minHD&&b.hd<r.minHD)return 'needs '+r.minHD+' Hit Dice (level '+r.minHD+')';if(r.reqRace){var _o=DATA.racial[r.reqRace];var owns=b.racialTraits.indexOf(r.reqRace)>=0||!!(_o&&_o.pack&&(_o.race===b.species||_o.race===b.species2));if(!owns)return 'requires '+((r.reqRace.split(': ')[1])||r.reqRace);}return '';}function ib(label,cat,payload,reasonExtra,descr){
     if(buyQuery && label.toLowerCase().indexOf(buyQuery)<0) return '';
     const cost=priceOf(cat,payload); const warns=legalCheck(cat,payload);
     const unaff = cat!=='drawback' && cost>eco.available;
@@ -984,10 +986,10 @@ function buildBuyPanel(b,r,eco,head){
     const note = hardReason || soft;
     const _pg=(['feature','subabil','racial'].indexOf(cat)>=0&&typeof FEAT_PG!=='undefined'&&payload&&FEAT_PG[payload.v])?('PHB p.'+FEAT_PG[payload.v]):'';
     const _ttl=[note,_pg].filter(Boolean).join(' · ');
-    return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'">'+label+' <em>'+costlbl+'</em>'+(note?'<small class="why">'+esc(note)+'</small>':'')+'</button>';
+    return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'"><span class="ibhead">'+label+' <em>'+costlbl+'</em></span>'+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
   }
   function db(name){ if(buyQuery && name.toLowerCase().indexOf(buyQuery)<0) return '';
-    return '<button class="ib draw" onclick="takeDrawback(&quot;'+esc(name)+'&quot;)">'+name+' <em>+'+DATA.drawbacks[name]+'</em><small class="why" style="color:var(--bad)">'+esc((DATA.drawbackFx&&DATA.drawbackFx[name])||'')+'</small></button>';}
+    return '<button class="ib draw" onclick="takeDrawback(&quot;'+esc(name)+'&quot;)"><span class="ibhead">'+name+' <em>+'+DATA.drawbacks[name]+'</em></span><small class="why" style="color:var(--bad)">'+esc((DATA.drawbackFx&&DATA.drawbackFx[name])||'')+'</small></button>';}
   // Greyed-out "already purchased" tile — shows up in buy panel for items already owned
   function ibOwned(label,note){
     if(buyQuery && label.toLowerCase().indexOf(buyQuery)<0) return '';
@@ -1027,8 +1029,38 @@ function buildBuyPanel(b,r,eco,head){
     const byCat={};avail.forEach(x=>{const c=(DATA.arts[x]||{}).cat||'Other';(byCat[c]=byCat[c]||[]).push(x);});
     const cats=CATORD.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>CATORD.indexOf(c)<0).sort());
     return cats.map(c=>{const items=byCat[c].slice().sort();return '<div class="atcat" style="width:100%;font-size:10px;color:var(--grey);margin:6px 0 1px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">'+c+(c==='Fighting Style'?' \u2014 11 AP each (feature-granted ones are named free in the \u270E picker)':'')+'</div>'+items.map(renderArt).join('');}).join('') || '<span class="hint">No arts available.</span>';}],
-   ['Boons',()=>DATA.boonList.slice().filter(x=>(_tashaOK||!(DATA.boons[x]||{}).noncore)&&!campBarred('boons',x)).sort((a,c)=>((DATA.boons[a].hd||1)-(DATA.boons[c].hd||1))||a.localeCompare(c)).map(x=>b.boons.includes(x)?ibOwned(x+' (HD '+DATA.boons[x].hd+'+)'):ib(x+' (HD '+DATA.boons[x].hd+'+)','boon',{v:x},b.hd<DATA.boons[x].hd?('needs '+DATA.boons[x].hd+' HD'):'')).join('')],
-   ['Drawbacks (gain AP)',()=>{const {boughtOff:_bo}=activeEvents(null);return DATA.drawbackList.slice().filter(x=>!campBarred('draws',x)).sort((a,c)=>a.localeCompare(c)).map(x=>{if(_bo[x])return ibOwned(x,'Bought off (3× cost paid)');if(b.drawbacks.includes(x))return ibOwned(x,'Active drawback');return db(x);}).join('');}],
+   ['Boons',()=>{
+     const BOON_ORDER=['Combat','Defence','Skill & Utility','Social','Magic','Wild & Story','DM custom','Other'];
+     const avail=DATA.boonList.filter(x=>(_tashaOK||!(DATA.boons[x]||{}).noncore)&&!campBarred('boons',x));
+     const byCat={};avail.forEach(x=>{const c=(DATA.boons[x]||{}).cat||'Other';(byCat[c]=byCat[c]||[]).push(x);});
+     const cats=BOON_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>BOON_ORDER.indexOf(c)<0).sort());
+     return cats.map(c=>{
+       const items=byCat[c].slice().sort((a,d)=>((DATA.boons[a].hd||1)-(DATA.boons[d].hd||1))||a.localeCompare(d));
+       const html=items.map(x=>{
+         const lbl=x+' (HD '+DATA.boons[x].hd+'+)';
+         return b.boons.includes(x)
+           ? ibOwned(lbl, DATA.boons[x].fx)
+           : ib(lbl,'boon',{v:x}, b.hd<DATA.boons[x].hd?('needs '+DATA.boons[x].hd+' HD'):'', DATA.boons[x].fx);
+       }).join('');
+       return html?('<div class="atcat" style="width:100%;font-size:10px;color:var(--grey);margin:6px 0 1px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">'+c+'</div>'+html):'';
+     }).join('') || '<span class="hint">No boons available.</span>';
+   }],
+   ['Drawbacks (gain AP)',()=>{
+     const DRAW_ORDER=['Body','Mind','Social','Magic','Wild & Story','DM custom','Other'];
+     const {boughtOff:_bo}=activeEvents(null);
+     const avail=DATA.drawbackList.filter(x=>!campBarred('draws',x));
+     const byCat={};avail.forEach(x=>{const c=(DATA.drawbackCat&&DATA.drawbackCat[x])||'Other';(byCat[c]=byCat[c]||[]).push(x);});
+     const cats=DRAW_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>DRAW_ORDER.indexOf(c)<0).sort());
+     return cats.map(c=>{
+       const items=byCat[c].slice().sort((a,d)=>a.localeCompare(d));
+       const html=items.map(x=>{
+         if(_bo[x])return ibOwned(x,'Bought off (3× cost paid)');
+         if(b.drawbacks.includes(x))return ibOwned(x,'Active drawback');
+         return db(x);
+       }).join('');
+       return html?('<div class="atcat" style="width:100%;font-size:10px;color:var(--grey);margin:6px 0 1px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">'+c+'</div>'+html):'';
+     }).join('') || '<span class="hint">No drawbacks available.</span>';
+   }],
    ['Ki, Sorcery & Attunement points',()=>ib('Attunement slot '+(b.attune+1),'attune',{to:b.attune+1})
      +ib('Ki / Focus point '+(b.ki+1),'ki',{to:b.ki+1})
      +ib('Sorcery point '+(b.sorcery+1),'sorcery',{to:b.sorcery+1},(!_hasDisc('Sorcerer')?'needs the Sorcerer discipline':((b.hd||1)<2?'needs 2 Hit Dice (T2)':'')))
