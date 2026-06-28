@@ -11,6 +11,8 @@ Add at the TOP. Format:
 
 ---
 
+- **2026-06-28 · UI — Live Sheet buy panel — moved weapon masteries from the 'Languages & masteries' group into 'Weapons & armour'; renamed the languages group to 'Languages'. UI-only; `DATA.version` unchanged.**
+
 - **2026-06-29 · fix — suppress zero-cost non-purchase entries in CharGen→Live Sheet exports** (`DATA.version`
   stayed **v0.322**; exporter-only fix). The export log now skips non-purchase setup entries like
   innate-spell defaults and character-size state, so the Live Sheet no longer shows them as if they were
