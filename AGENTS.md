@@ -19,6 +19,14 @@ Hosted on GitHub Pages at https://chompy78.github.io/PACT/ (served from the repo
 - Persistence today: localStorage + JSON import/export only. Character data: CharGen = a flat build
   JSON; Live Sheet = an event log `{ LOG, SEQ, rules }`. All derived stats (HP, AC, AP, warnings) come
   from `compute()` / `rebuildStateFromEvents()` at runtime — never store derived values.
+- **CharGen → Live Sheet export (D-GH3):** the export button in CharGen produces a Live Sheet JSON by
+  emitting discrete native buy events (one per itemized purchase: boons, drawbacks, skills, saves,
+  expertise, tools, masteries, racial traits, arts, features, subclasses, etc.) plus structural patches
+  for scalar/blob fields. Imported characters must be indistinguishable from hand-built ones — drawbacks
+  must remain buy-off-able and ledger entries must appear per line. Zero-cost non-purchase setup entries
+  (innate-spell defaults, character-size state) are suppressed from the export log.
+- `js/engine.js.working` is a scratch backup created during edits. Treat it as ephemeral — the
+  authoritative file is always `js/engine.js`.
 
 ## Hard rules for any change
 - Keep the three tools working and their UI unchanged unless the task says to change it.
@@ -43,19 +51,24 @@ Before you finish a task / open a PR, update whichever apply (newest entries at 
 These are the project's memory; updating them is part of the change, not an afterthought.
 
 ## File map
-- **App:** `index.html` (menu) · `js/engine.js` · `tools/*.html` · `docs/PACT-Players-Guide.html` ·
-  `testing/tests/engine-parity.html` + `testing/fixtures/`.
+- **App:** `index.html` (menu) · `js/engine.js` · `tools/*.html` · `docs/PACT-Players-Guide.html`.
+- **Testing:** `testing/tests/engine-parity.html` (run this; expect 5/0) ·
+  `testing/expected/expected-results.csv` · `testing/fixtures/builds/` (CG-001 empty, CG-002 valid-50ap,
+  CG-003 over-budget) · `testing/fixtures/live-sheets/` (LS-001 clean generator export) ·
+  `testing/fixtures/events/` (EV-001 award-and-purchase) · `testing/pack-manifest.json` ·
+  `testing/scripts/compare-results.js`.
 - **Live logs (repo root):** `CHANGELOG.md` · `DECISIONS.md`.
 - **Docs folder:** `docs/sessions/` (per-session narratives) · `docs/history/` (archived pre-GitHub
   history — full changelog, old INDEX/CONTEXT, fuzz harness; non-authoritative) · `docs/PWA-BUILD-PLAN.md`
-  (roadmap) · `docs/HOW-TO-WORK.md` (the working guide) · `docs/ENGINE-DATA-UPDATE.md` (the first task).
+  (roadmap) · `docs/HOW-TO-WORK.md` (the working guide) · `docs/ENGINE-DATA-UPDATE.md` + `docs/engine-data-update.json` (data task reference, now complete).
 
 ## Where new work goes (planned — the PWA + Supabase build)
+Tasks 1–5 are still TODO; full prompts and done-criteria are in `docs/PWA-BUILD-PLAN.md`.
 - Repo root: `manifest.json`, `service-worker.js`, `404.html`.
 - `js/`: `supabase-client.js`, `auth.js`, `sync.js`, `campaign.js`, `dm.js`.
 - `sql/`: `schema.sql`, `rls-policies.sql`.
 - Store only the build JSON / event log in the DB (`characters.stats`); the engine derives the rest.
-  `xp` is server-authoritative and DM-only. Full task list + done-criteria: `docs/PWA-BUILD-PLAN.md`.
+  `xp` is server-authoritative and DM-only.
 
 ## Per-change checklist
 1. Work on a branch, one task at a time.
