@@ -287,15 +287,16 @@ fieldset.collapsed .secbody{display:none}
 button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:1px;border-radius:4px}
 .ck:focus-within,.locklab:focus-within{outline:2px solid var(--blue);outline-offset:1px}
 /* mobile-only widgets (hidden on desktop) */
-#mtop,#secjump{display:none}.sumtoggle{display:none}
+#mtop{display:none}#secjump{display:none}.sumtoggle{display:none}
 #secjump{font:inherit;padding:3px 8px;border-radius:7px;border:1px solid var(--line);background:var(--inp);color:var(--navytx)}
+/* AP pill base styles — outside media query so they always apply when #mtop is visible */
+#mtop .mtop-tot{font-size:13px;font-weight:800;padding:2px 8px;border-radius:10px;background:#CDEAD3;color:#14501f;flex-shrink:0;white-space:nowrap}
+#mtop .mtop-tot.bad{background:var(--badbg);color:#7a0000}
 @media(max-width:600px){
  body{font-size:14px}
  /* M5: slim fixed mini-header (name + total) — sticky fails when stickyhead is static */
- #mtop{display:flex;position:fixed;top:0;left:0;right:0;z-index:46;align-items:center;justify-content:space-between;gap:10px;padding:6px 12px;background:var(--navy);color:#fff}
+ #mtop{display:flex!important;position:fixed!important;top:0;left:0;right:0;width:100%;z-index:100;align-items:center;justify-content:space-between;gap:10px;padding:6px 12px;background:var(--navy);color:#fff;-webkit-transform:translateZ(0);transform:translateZ(0);box-sizing:border-box}
  #mtop b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
- #mtop .mtop-tot{font-size:13px;font-weight:800;padding:2px 8px;border-radius:10px;background:#CDEAD3;color:#14501f;flex-shrink:0}
- #mtop .mtop-tot.bad{background:var(--badbg);color:#7a0000}
  /* M7: jump-to-section dropdown replaces the chip strip on phones */
  .secnav{display:none}
  #secjump{display:block;width:100%;margin:6px 0}
