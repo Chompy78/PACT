@@ -25,8 +25,6 @@ Hosted on GitHub Pages at https://chompy78.github.io/PACT/ (served from the repo
   for scalar/blob fields. Imported characters must be indistinguishable from hand-built ones — drawbacks
   must remain buy-off-able and ledger entries must appear per line. Zero-cost non-purchase setup entries
   (innate-spell defaults, character-size state) are suppressed from the export log.
-- `js/engine.js.working` is a scratch backup created during edits. Treat it as ephemeral — the
-  authoritative file is always `js/engine.js`.
 
 ## Hard rules for any change
 - Keep the three tools working and their UI unchanged unless the task says to change it.
