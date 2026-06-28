@@ -294,6 +294,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
  /* M5: slim sticky mini-header (name + total) */
  #mtop{display:flex;position:sticky;top:0;z-index:46;align-items:center;justify-content:space-between;gap:10px;padding:6px 12px;background:var(--navy);color:#fff}
  #mtop b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+ #mtop .mtop-tot{font-size:13px;font-weight:800;padding:2px 8px;border-radius:10px;background:#CDEAD3;color:#14501f;flex-shrink:0}
+ #mtop .mtop-tot.bad{background:var(--badbg);color:#7a0000}
  /* M7: jump-to-section dropdown replaces the chip strip on phones */
  .secnav{display:none}
  #secjump{display:block;width:100%;margin:6px 0}
@@ -370,10 +372,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
    so a disabled nested Expertise box doesn't grey the whole skill/tool/save row. */
 .gridck label.ck > input[type=checkbox]:disabled + * { opacity: 0.5; }
 .gridck label.ck:has(> input:disabled) { opacity: 0.5; cursor: default; }
-#apFloat{position:fixed;top:10px;right:14px;z-index:1500;display:flex;align-items:baseline;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:6px 16px;box-shadow:0 3px 14px rgba(0,0,0,.22);cursor:default;transition:transform .12s ease}#apFloat b{font-size:22px;font-weight:800;color:var(--navytx);line-height:1}#apFloat span{font-size:10px;font-weight:600;color:var(--grey);text-transform:uppercase;letter-spacing:.06em}#apFloat.neg b{color:var(--bad)}#apFloat.flash{transform:scale(1.14)}@media print{#apFloat{display:none!important}}
 </style></head><body>
-<div id="apFloat" title="AP remaining (budget − spent) — updates live as you buy"><b id="apFloatN">0</b><span>AP left</span></div>
-<div id="mtop"><b id="mtop-name">—</b></div>
+<div id="mtop"><b id="mtop-name">—</b><span class="mtop-tot good" id="mtop-tot">—</span></div>
 <div class="stickyhead"><div class="topbar"><h1>PACT — Character Generator</h1><span class="sub">Web Tool · v0.309 · live</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
 <button class="btn ghost" onclick="loadViaPicker()">📂 Load</button>
@@ -2433,8 +2433,8 @@ function render(){
      else{wb.style.display='none';}}}
   $('statsbox').innerHTML=sheetStats(r,b);
   renderLedger(r,b); updateSections(r); buildGuide(b,r);
-  {var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(r.remaining),_prev=_afb.getAttribute('data-v');_afn.textContent=r.remaining;_afb.classList.toggle('neg',r.remaining<0);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   const mn=$('mtop-name');if(mn)mn.textContent=val('cname')||'Unnamed hero';
+  const mtt=$('mtop-tot');if(mtt){mtt.textContent=r.total+' / '+r.budget+' AP';mtt.className='mtop-tot '+(r.remaining<0?'bad':'good');}
 }
 
 
