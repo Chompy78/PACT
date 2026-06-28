@@ -1,0 +1,570 @@
+{
+ "rules": "v0.322",
+ "name": "Aldric Valor",
+ "LOG": [
+  {
+   "type": "award",
+   "amount": 50,
+   "note": "Imported budget",
+   "label": "Award — budget (50 AP)",
+   "seq": 1,
+   "ts": 1782635065907
+  },
+  {
+   "type": "name",
+   "name": "Aldric Valor",
+   "label": "Name — Aldric Valor",
+   "seq": 2,
+   "ts": 1782635065907
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "appearance": {
+      "gender": "male",
+      "age": "23",
+      "height": "4 ft 10 in",
+      "build": "trim",
+      "hair": "ginger, cropped at the ears",
+      "eyes": "brown",
+      "nose": "broad",
+      "skin": "dark brown skin",
+      "marks": "a faded clan tattoo",
+      "voice": "raspy",
+      "demeanour": "warm but wary",
+      "quirk": "sketches strangers",
+      "likes": "a well-told joke",
+      "dislikes": "superstition",
+      "father": "Ulric",
+      "mother": "Tamsin",
+      "hometown": "Stormhaven",
+      "profession": "sang in taverns for coin",
+      "familyfor": "beekeeping",
+      "famevent": "Walked away from a duel they should have lost",
+      "secret": "a body beneath the floorboards",
+      "drink": "ginger beer",
+      "ambition": "to clear the family name",
+      "fear": "snakes",
+      "prized": "a cloak that survived a battle",
+      "faith": "the Dawnfather",
+      "companion": "a clever crow",
+      "overall": "This character is a 23-year-old male Human Warlock from Stormhaven. They are trim and about 4 ft 10 in tall. They have ginger, cropped at the ears hair, brown eyes, dark brown skin, a broad nose, and a faded clan tattoo. By temperament they are warm but wary. They speak with a raspy voice. A characteristic habit: sketches strangers. They sang in taverns for coin. Walked away from a duel they should have lost. Born to Ulric and Tamsin, a family known for beekeeping. The family secret: a body beneath the floorboards. Given the choice, they favour a well-told joke, cannot abide superstition, and always take ginger beer. They are driven to clear the family name, haunted by a fear of snakes, and keeping faith with the Dawnfather. They carry a cloak that survived a battle and are accompanied by a clever crow."
+     }
+    }
+   },
+   "cost": 0,
+   "level": 1,
+   "label": "Appearance & description (0 AP)",
+   "seq": 3,
+   "ts": 1782635065907
+  },
+  {
+   "type": "buy",
+   "cat": "create",
+   "payload": {},
+   "cost": 0,
+   "level": 1,
+   "label": "Level 1 character (Hit Die + base)",
+   "seq": 4,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "houseRules": {
+      "boons": {},
+      "draws": {},
+      "disabled": {
+       "boons": [],
+       "draws": []
+      },
+      "dmAllows": {
+       "bound": true,
+       "boons": true,
+       "drawbacks": true,
+       "tasha": true
+      }
+     }
+    }
+   },
+   "cost": 0,
+   "level": 1,
+   "label": "DM customisations · 0 AP",
+   "seq": 5,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "originClass": "Warlock"
+    }
+   },
+   "cost": 0,
+   "level": 1,
+   "label": "Origin class — Warlock · 0 AP",
+   "seq": 6,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "stats": {
+      "STR": 12,
+      "DEX": 10,
+      "CON": 10,
+      "INT": 12,
+      "WIS": 10,
+      "CHA": 16
+     }
+    }
+   },
+   "cost": 16,
+   "level": 1,
+   "label": "Ability scores",
+   "seq": 7,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "hd": 2
+    }
+   },
+   "cost": 2,
+   "level": 2,
+   "label": "Hit Dice → 2",
+   "seq": 8,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "skills": [
+      "Sleight of Hand"
+     ]
+    }
+   },
+   "cost": 0,
+   "level": 2,
+   "label": "Skills · 0 AP",
+   "seq": 9,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "tools": [
+      "Cobbler's tools",
+      "Jeweler's tools"
+     ],
+     "instruments": [],
+     "customProfs": []
+    }
+   },
+   "cost": 2,
+   "level": 2,
+   "label": "Tools & instruments",
+   "seq": 10,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "weaponProf": {
+      "simple": false,
+      "martial": 0,
+      "allMartial": false,
+      "improvised": false
+     }
+    }
+   },
+   "cost": 0,
+   "level": 2,
+   "label": "Weapon proficiency · 0 AP",
+   "seq": 11,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "armour": {
+      "light": false,
+      "medium": false,
+      "heavy": false,
+      "shield": false
+     }
+    }
+   },
+   "cost": 0,
+   "level": 2,
+   "label": "Armour · 0 AP",
+   "seq": 12,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "traditions": [
+      {
+       "name": "Arcane",
+       "rank": 1,
+       "disciplines": [
+        {
+         "name": "Warlock",
+         "bound": false,
+         "cantrips": 2,
+         "slots": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+         ],
+         "known": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+         ],
+         "pactSlots": 2,
+         "arcanum": [
+          0,
+          0,
+          0,
+          0
+         ],
+         "cantripNames": [
+          "Blade Ward",
+          ""
+         ],
+         "knownNames": [
+          [
+           "Bane"
+          ],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          []
+         ],
+         "arcanumNames": [
+          [],
+          [],
+          [],
+          []
+         ]
+        }
+       ]
+      }
+     ],
+     "dabblerCantrips": 0
+    }
+   },
+   "cost": 31,
+   "level": 2,
+   "label": "Spellcasting",
+   "seq": 13,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "innate": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "cost": 0,
+   "level": 2,
+   "label": "Innate spells · 0 AP",
+   "seq": 14,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "drawbacks": [
+      "Geas of the Road"
+     ]
+    }
+   },
+   "cost": -1,
+   "level": 2,
+   "label": "Drawbacks",
+   "seq": 15,
+   "ts": 1782635065908
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "size": "Small"
+    }
+   },
+   "cost": 0,
+   "level": 2,
+   "label": "Character size · 0 AP",
+   "seq": 16,
+   "ts": 1782635065908
+  },
+  {
+   "type": "names",
+   "dab": [],
+   "inn": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    []
+   ],
+   "feat": {},
+   "lang": [
+    "Common"
+   ],
+   "grants": {},
+   "tr": [
+    {
+     "ti": 0,
+     "di": 0,
+     "cn": [
+      "Blade Ward",
+      ""
+     ],
+     "an": [
+      [],
+      [],
+      [],
+      []
+     ],
+     "kn": [
+      [
+       "Bane"
+      ],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      []
+     ]
+    }
+   ],
+   "label": "Named spells & languages",
+   "swapHD": 0,
+   "fs": [],
+   "fsc": {},
+   "mm": [],
+   "mv": [],
+   "eb": {},
+   "swapN": 0,
+   "cost": 0,
+   "seq": 17,
+   "ts": 1782635094611,
+   "rules": "v0.322"
+  },
+  {
+   "type": "award",
+   "amount": 30,
+   "note": "fdfd",
+   "label": "fdfd",
+   "disc": false,
+   "seq": 18,
+   "ts": 1782635102434,
+   "rules": "v0.322"
+  },
+  {
+   "type": "buy",
+   "cat": "hd",
+   "payload": {
+    "to": 3
+   },
+   "cost": 3,
+   "label": "Level up → Hit Die 3",
+   "level": 2,
+   "warns": [],
+   "seq": 19,
+   "ts": 1782635104159,
+   "rules": "v0.322"
+  },
+  {
+   "type": "buy",
+   "cat": "hd",
+   "payload": {
+    "to": 4
+   },
+   "cost": 3,
+   "label": "Level up → Hit Die 4",
+   "level": 3,
+   "warns": [],
+   "seq": 20,
+   "ts": 1782635105726,
+   "rules": "v0.322"
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 12
+   },
+   "cost": 4,
+   "label": "STR 10→12",
+   "level": 4,
+   "warns": [],
+   "seq": 21,
+   "ts": 1782635107205,
+   "rules": "v0.322"
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "INT",
+    "to": 12
+   },
+   "cost": 4,
+   "label": "INT 10→12",
+   "level": 4,
+   "warns": [],
+   "seq": 22,
+   "ts": 1782635107511,
+   "rules": "v0.322"
+  },
+  {
+   "type": "buy",
+   "cat": "attune",
+   "payload": {
+    "to": 1
+   },
+   "cost": 4,
+   "label": "Attunement slot 1",
+   "level": 4,
+   "warns": [],
+   "seq": 23,
+   "ts": 1782635110601,
+   "rules": "v0.322"
+  },
+  {
+   "type": "buy",
+   "cat": "ki",
+   "payload": {
+    "to": 1
+   },
+   "cost": 1,
+   "label": "Ki / Focus point 1",
+   "level": 4,
+   "warns": [],
+   "seq": 24,
+   "ts": 1782635111111,
+   "rules": "v0.322"
+  },
+  {
+   "type": "buy",
+   "cat": "ki",
+   "payload": {
+    "to": 2
+   },
+   "cost": 2,
+   "label": "Ki / Focus point 2",
+   "level": 4,
+   "warns": [],
+   "seq": 25,
+   "ts": 1782635112366,
+   "rules": "v0.322"
+  },
+  {
+   "type": "buy",
+   "cat": "expertise",
+   "payload": {
+    "v": "Sleight of Hand"
+   },
+   "cost": 3,
+   "label": "Expertise: Sleight of Hand",
+   "level": 4,
+   "warns": [],
+   "seq": 26,
+   "ts": 1782635115604,
+   "rules": "v0.322"
+  },
+  {
+   "type": "buy",
+   "cat": "language",
+   "payload": {
+    "to": 2
+   },
+   "cost": 1,
+   "label": "+1 Language (2)",
+   "level": 4,
+   "warns": [],
+   "seq": 27,
+   "ts": 1782635117539,
+   "rules": "v0.322"
+  },
+  {
+   "type": "buy",
+   "cat": "language",
+   "payload": {
+    "to": 3
+   },
+   "cost": 2,
+   "label": "+1 Language (3)",
+   "level": 4,
+   "warns": [],
+   "seq": 28,
+   "ts": 1782635119144,
+   "rules": "v0.322"
+  }
+ ],
+ "SEQ": 29
+}
