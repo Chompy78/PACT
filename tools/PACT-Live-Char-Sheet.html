@@ -812,7 +812,7 @@ function validate(){
     if(e.cat==='boon'&&!DATA.boons[e.payload.v]) issues.push('Boon no longer in rules: '+e.payload.v);
     if(e.cat==='drawback'&&!(e.payload.v in DATA.drawbacks)) issues.push('Drawback no longer in rules: '+e.payload.v);
   });
-  compute(b).warnings.forEach(w=>issues.push('Rule warning: '+w));
+  compute(b).warnings.filter(w=>!/^OVER BUDGET/.test(w)).forEach(w=>issues.push('Rule warning: '+w));
   {var _un=0;for(var i=0;i<(b.dabblerCantrips||0);i++){if(!((b.dabblerCantripNames||[])[i]||'').trim())_un++;}for(var L=1;L<=9;L++){for(var j=0;j<((b.innate||[])[L-1]||0);j++){if(!(((b.innateNames||[])[L-1]||[])[j]||'').trim())_un++;}}(b.traditions||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(!d.name||d.name==='(none)')return;for(var i=0;i<(d.cantrips||0);i++){if(!((d.cantripNames||[])[i]||'').trim())_un++;}for(var L=1;L<=9;L++){for(var j=0;j<((d.known||[])[L-1]||0);j++){if(!(((d.knownNames||[])[L-1]||[])[j]||'').trim())_un++;}}});});if(_un>0)issues.push(_un+' spell name'+(_un>1?'s':'')+' not filled in — tap ✎ Name to record them (purchases are locked; naming is optional)');}
   return issues;
 }
