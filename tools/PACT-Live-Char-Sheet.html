@@ -1580,6 +1580,7 @@ function redeemGrant(){var code=prompt('Paste the AP grant code from your DM:','
 function showInfo(){document.getElementById('infoModal').classList.add('open');}
 function closeInfo(){document.getElementById('infoModal').classList.remove('open');}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();});document.addEventListener('click',function(e){var m=document.getElementById('moremenu');if(m&&m.classList.contains('open')&&m.parentNode&&!m.parentNode.contains(e.target))m.classList.remove('open');});
+(function(){var el=document.querySelector('.lastedited');if(!el)return;var d=new Date(document.lastModified);if(isNaN(d)||d.getFullYear()<2020)return;var m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),mn=String(d.getMinutes()).padStart(2,'0');el.textContent='Last edited '+d.getFullYear()+'-'+m+'-'+dy+' '+h+':'+mn;})();
 </script><!-- ── info modal ── -->
 <div id="infoModal" onclick="if(event.target===this)closeInfo()">
 <div id="infoBox">

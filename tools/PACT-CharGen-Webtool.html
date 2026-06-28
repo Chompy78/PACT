@@ -105,8 +105,6 @@ body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);font
 .topbar{background:var(--navy);color:#fff;padding:10px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .topbar h1{font-size:17px;margin:0}.topbar .sub{font-size:11px;opacity:.85}
 .topbar .lastedited{font-size:11px;opacity:.75;white-space:nowrap;margin-left:12px}
-.chip{margin-left:auto;background:var(--card);color:var(--navytx);border-radius:18px;padding:5px 13px;font-weight:700}
-.chip.bad{background:var(--badbg);color:#7a0000}.chip.good{background:#CDEAD3;color:#14501f}
 .layout{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:14px;padding:14px;align-items:start}
 #form{min-width:0}
 .summary{position:sticky;top:calc(var(--headh,84px) + 8px);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;max-height:calc(100vh - var(--headh,84px) - 24px);overflow:auto}
@@ -289,15 +287,16 @@ fieldset.collapsed .secbody{display:none}
 button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:1px;border-radius:4px}
 .ck:focus-within,.locklab:focus-within{outline:2px solid var(--blue);outline-offset:1px}
 /* mobile-only widgets (hidden on desktop) */
-#mtop,#secjump{display:none}.sumtoggle{display:none}
+#mtop{display:none}#secjump{display:none}.sumtoggle{display:none}
 #secjump{font:inherit;padding:3px 8px;border-radius:7px;border:1px solid var(--line);background:var(--inp);color:var(--navytx)}
+/* AP pill base styles — outside media query so they always apply when #mtop is visible */
+#mtop .mtop-tot{font-size:13px;font-weight:800;padding:2px 8px;border-radius:10px;background:#CDEAD3;color:#14501f;flex-shrink:0;white-space:nowrap}
+#mtop .mtop-tot.bad{background:var(--badbg);color:#7a0000}
 @media(max-width:600px){
  body{font-size:14px}
- /* M5: slim sticky mini-header (name + total) */
- #mtop{display:flex;position:sticky;top:0;z-index:46;align-items:center;justify-content:space-between;gap:10px;padding:6px 12px;background:var(--navy);color:#fff}
+ /* M5: slim fixed mini-header (name + total) — sticky fails when stickyhead is static */
+ #mtop{display:flex!important;position:fixed!important;top:0;left:0;right:0;width:100%;z-index:100;align-items:center;justify-content:space-between;gap:10px;padding:6px 12px;background:var(--navy);color:#fff;-webkit-transform:translateZ(0);transform:translateZ(0);box-sizing:border-box}
  #mtop b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
- #mtop .mtop-tot{font-size:13px;font-weight:800;padding:2px 8px;border-radius:10px;background:#CDEAD3;color:#14501f}
- #mtop .mtop-tot.bad{background:var(--badbg);color:#7a0000}
  /* M7: jump-to-section dropdown replaces the chip strip on phones */
  .secnav{display:none}
  #secjump{display:block;width:100%;margin:6px 0}
@@ -313,7 +312,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
  .apin,input[type=text]{flex:1 1 100%}
  select,input[type=text],input[type=number]{max-width:100%}
  .secnav{padding:5px 6px}
- .stickyhead{position:static}  /* free up vertical space on phones */
+ .stickyhead{position:static;margin-top:var(--mtopH,36px)}  /* free up vertical space on phones; margin-top clears the fixed #mtop */
  /* remove the desktop 218px left-indents so hints/notes wrap across full width */
  [style*="218px"]{margin-left:6px!important}
  .basics,.namesty,.namelab{margin-left:6px!important}
@@ -374,9 +373,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
    so a disabled nested Expertise box doesn't grey the whole skill/tool/save row. */
 .gridck label.ck > input[type=checkbox]:disabled + * { opacity: 0.5; }
 .gridck label.ck:has(> input:disabled) { opacity: 0.5; cursor: default; }
-#apFloat{position:fixed;top:10px;right:14px;z-index:1500;display:flex;align-items:baseline;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:6px 16px;box-shadow:0 3px 14px rgba(0,0,0,.22);cursor:default;transition:transform .12s ease}#apFloat b{font-size:22px;font-weight:800;color:var(--navytx);line-height:1}#apFloat span{font-size:10px;font-weight:600;color:var(--grey);text-transform:uppercase;letter-spacing:.06em}#apFloat.neg b{color:var(--bad)}#apFloat.flash{transform:scale(1.14)}@media print{#apFloat{display:none!important}}
 </style></head><body>
-<div id="apFloat" title="AP remaining (budget − spent) — updates live as you buy"><b id="apFloatN">0</b><span>AP left</span></div>
 <div id="mtop"><b id="mtop-name">—</b><span class="mtop-tot good" id="mtop-tot">—</span></div>
 <div class="stickyhead"><div class="topbar"><h1>PACT — Character Generator</h1><span class="sub">Web Tool · v0.309 · live</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
@@ -390,7 +387,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button>
 <label style="display:flex;align-items:center;gap:5px;font-size:11px">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label>
-<span class="chip" id="chip">—</span></div>
+</div>
 <div class="secnav" id="secnav"></div><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
 <div id="sheetview"><div class="shtop"><b>📋 Character Sheet</b><button class="btn" onclick="window.print()">🖨 Print</button><button class="btn ghost" onclick="toggleSheet()">✕ Close — back to builder</button></div><div id="sheetbody"></div></div>
@@ -2437,10 +2434,6 @@ function render(){
      else{wb.style.display='none';}}}
   $('statsbox').innerHTML=sheetStats(r,b);
   renderLedger(r,b); updateSections(r); buildGuide(b,r);
-  const c=$('chip');c.textContent=r.total+' / '+r.budget+' AP';c.className='chip '+(r.remaining<0?'bad':'good');
-  // mobile bottom AP bar
-  {var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(r.remaining),_prev=_afb.getAttribute('data-v');_afn.textContent=r.remaining;_afb.classList.toggle('neg',r.remaining<0);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
-  // mobile sticky mini-header (M5): name + total
   const mn=$('mtop-name');if(mn)mn.textContent=val('cname')||'Unnamed hero';
   const mtt=$('mtop-tot');if(mtt){mtt.textContent=r.total+' / '+r.budget+' AP';mtt.className='mtop-tot '+(r.remaining<0?'bad':'good');}
 }
@@ -2652,12 +2645,13 @@ collapseForMobile();
 render();
 // keep the summary's sticky offset in sync with the actual sticky-header height (it grows when the
 // header wraps or the warning banner appears) so the summary's top is never hidden under the header
-function setHeadH(){try{var h=document.querySelector('.stickyhead');if(h)document.documentElement.style.setProperty('--headh',h.offsetHeight+'px');}catch(e){}}
+function setHeadH(){try{var h=document.querySelector('.stickyhead'),mt=document.getElementById('mtop');var mth=(mt&&getComputedStyle(mt).position==='fixed')?mt.offsetHeight:0;if(mth)document.documentElement.style.setProperty('--mtopH',mth+'px');if(h)document.documentElement.style.setProperty('--headh',h.offsetHeight+'px');}catch(e){}}
 setHeadH();window.addEventListener('resize',setHeadH);window.addEventListener('load',setHeadH);
 try{if(window.ResizeObserver){var _hh=document.querySelector('.stickyhead');if(_hh)new ResizeObserver(setHeadH).observe(_hh);}}catch(e){}
 function showInfo(){document.getElementById('infoModal').classList.add('open');}
 function closeInfo(){document.getElementById('infoModal').classList.remove('open');}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();});
+(function(){var el=document.querySelector('.lastedited');if(!el)return;var d=new Date(document.lastModified);if(isNaN(d)||d.getFullYear()<2020)return;var m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),mn=String(d.getMinutes()).padStart(2,'0');el.textContent='Last edited '+d.getFullYear()+'-'+m+'-'+dy+' '+h+':'+mn;})();
 </script><!-- ── info modal ── -->
 <div id="infoModal" onclick="if(event.target===this)closeInfo()">
 <div id="infoBox">
