@@ -1,0 +1,168 @@
+{
+ "campaign": null,
+ "name": "Aldric Valor",
+ "budget": 50,
+ "originClass": "Warlock",
+ "originClass2": "(none)",
+ "species": "Human",
+ "species2": "(none)",
+ "racialTraits": [],
+ "lineage": "",
+ "racialSpells": [],
+ "stats": {
+  "STR": 10,
+  "DEX": 10,
+  "CON": 10,
+  "INT": 10,
+  "WIS": 10,
+  "CHA": 16
+ },
+ "hd": 2,
+ "profBonus": 2,
+ "hardy": 0,
+ "tough": 0,
+ "saves": [],
+ "skills": [
+  "Sleight of Hand"
+ ],
+ "expertise": [],
+ "languages": 1,
+ "tools": [
+  "Cobbler's tools",
+  "Jeweler's tools"
+ ],
+ "instruments": [],
+ "customProfs": [],
+ "toolExpertise": [],
+ "arts": [],
+ "weaponProf": {
+  "simple": false,
+  "martial": 0,
+  "allMartial": false,
+  "improvised": false
+ },
+ "masteries": [],
+ "armour": {
+  "light": false,
+  "medium": false,
+  "heavy": false,
+  "shield": false
+ },
+ "extraClasses": 0,
+ "unlockedClasses": [],
+ "features": [],
+ "traditions": [
+  {
+   "name": "Arcane",
+   "rank": 1,
+   "disciplines": [
+    {
+     "name": "Warlock",
+     "bound": false,
+     "cantrips": 2,
+     "slots": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "known": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "pactSlots": 2,
+     "arcanum": [
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   ]
+  }
+ ],
+ "subAbilities": [],
+ "subSpellBundles": [],
+ "freeSub": {},
+ "drawbacks": [
+  "Geas of the Road"
+ ],
+ "gold": 0,
+ "dabblerCantrips": 0,
+ "attune": 0,
+ "ki": 0,
+ "sorcery": 0,
+ "wornArmour": "",
+ "martiallyBound": "(none)",
+ "boons": [],
+ "innate": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ],
+ "appearance": {
+  "gender": "male",
+  "age": "23",
+  "height": "4 ft 10 in",
+  "build": "trim",
+  "hair": "ginger, cropped at the ears",
+  "eyes": "brown",
+  "nose": "broad",
+  "skin": "dark brown skin",
+  "marks": "a faded clan tattoo",
+  "voice": "raspy",
+  "demeanour": "warm but wary",
+  "quirk": "sketches strangers",
+  "likes": "a well-told joke",
+  "dislikes": "superstition",
+  "father": "Ulric",
+  "mother": "Tamsin",
+  "hometown": "Stormhaven",
+  "profession": "sang in taverns for coin",
+  "familyfor": "beekeeping",
+  "famevent": "Walked away from a duel they should have lost",
+  "secret": "a body beneath the floorboards",
+  "drink": "ginger beer",
+  "ambition": "to clear the family name",
+  "fear": "snakes",
+  "prized": "a cloak that survived a battle",
+  "faith": "the Dawnfather",
+  "companion": "a clever crow",
+  "overall": "This character is a 23-year-old male Human Warlock from Stormhaven. They are trim and about 4 ft 10 in tall. They have ginger, cropped at the ears hair, brown eyes, dark brown skin, a broad nose, and a faded clan tattoo. By temperament they are warm but wary. They speak with a raspy voice. A characteristic habit: sketches strangers. They sang in taverns for coin. Walked away from a duel they should have lost. Born to Ulric and Tamsin, a family known for beekeeping. The family secret: a body beneath the floorboards. Given the choice, they favour a well-told joke, cannot abide superstition, and always take ginger beer. They are driven to clear the family name, haunted by a fear of snakes, and keeping faith with the Dawnfather. They carry a cloak that survived a battle and are accompanied by a clever crow."
+ },
+ "size": "Small",
+ "houseRules": {
+  "boons": {},
+  "draws": {},
+  "disabled": {
+   "boons": [],
+   "draws": []
+  },
+  "dmAllows": {
+   "bound": true,
+   "boons": true,
+   "drawbacks": true,
+   "tasha": true
+  }
+ },
+ "version": "v0.322",
+ "id": "cmqxir28wfxt26"
+}
