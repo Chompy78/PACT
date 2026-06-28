@@ -369,7 +369,7 @@ export function compute(b){
  *   { type:'name',   name }                             - sets character name
  * ========================================================================== */
 
-function baseBuild() { return {name:'',budget:0,originClass:'Fighter',originClass2:'(none)',species:'Human',species2:'(none)',
+export function baseBuild() { return {name:'',budget:0,originClass:'Fighter',originClass2:'(none)',species:'Human',species2:'(none)',
  stats:{STR:10,DEX:10,CON:10,INT:10,WIS:10,CHA:10},hd:1,profBonus:2,hardy:0,tough:0,saves:[],skills:[],expertise:[],toolExpertise:[],
  languages:1,languageNames:[],grantNames:{},tools:[],instruments:[],customProfs:[],weaponProf:{},masteries:[],armour:{},
  arts:[],lineage:'',racialSpells:[],
@@ -379,7 +379,7 @@ function baseBuild() { return {name:'',budget:0,originClass:'Fighter',originClas
  inPlay:true}; }
 
 /* mutators: apply one purchased payload to the build in place */
-const MUT = {campaign:(b,p)=>{b.campaign=p.v;},
+export const MUT = {campaign:(b,p)=>{b.campaign=p.v;},
  create:(b,p)=>{},   // level-1 baseline (Hit Die + starting state); effect already in baseBuild
  patch:(b,p)=>{Object.assign(b,p.patch);},   // imported-from-generator bundle (a whole field set)
  names:(b,p)=>{if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
@@ -407,14 +407,14 @@ const MUT = {campaign:(b,p)=>{b.campaign=p.v;},
  known:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.known[p.L-1]=p.to;},
 };
 
-function activeEvents(events) {
+export function activeEvents(events) {
   const evs = (Array.isArray(events) ? events : []).filter(Boolean);
   const boughtOff = {};
   evs.forEach(e => { if (e.type === 'buyoff') boughtOff[e.refVal] = 1; });
   return { evs, boughtOff };
 }
 
-function economy(evs, boughtOff) {
+export function economy(evs, boughtOff) {
   let earned = 0, spent = 0, drawbackEarned = 0;
   for (const e of evs) {
     if (e.type === 'award') earned += Number(e.amount) || 0;
@@ -428,6 +428,29 @@ function economy(evs, boughtOff) {
   }
   earned += drawbackEarned;
   return { earned, spent, available: earned - spent };
+}
+
+export function foldBuild(events) {
+  const log = (Array.isArray(events) ? events : []).filter(Boolean);
+  const b = seedBuild(null);
+  const { evs, boughtOff } = activeEvents(log);
+
+  for (const e of evs) {
+    if (e.type === 'name') { b.name = e.name; continue; }
+    if (e.type === 'names') { MUT.names(b, e); continue; }
+    if (e.type !== 'buy') continue;
+    if (e.cat === 'drawback' && boughtOff[e.payload && e.payload.v]) continue;
+    (MUT[e.cat] || (() => {}))(b, e.payload || {});
+  }
+
+  ['saves','skills','expertise','toolExpertise','tools','instruments','masteries','racialTraits','racialSpells']
+    .forEach(k => { if (Array.isArray(b[k])) b[k] = b[k].filter((v, i) => b[k].indexOf(v) === i); });
+  (b.traditions || []).forEach(t => (t.disciplines || []).forEach(d => {
+    if (d && (DATA.noCantrip || []).indexOf(d.name) >= 0) { d.cantrips = 0; d.cantripNames = []; }
+  }));
+
+  b.budget = economy(evs, boughtOff).earned;
+  return b;
 }
 
 // Seed a working build from baseBuild() defaults, overlaying any provided
