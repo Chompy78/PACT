@@ -13,7 +13,7 @@ Add at the TOP. Format:
 
 - **2026-06-28 · UI — Both tools: "Last edited" timestamp now reads from document.lastModified (HTTP header set by GitHub Pages from the commit date) instead of a hardcoded string. UI-only; `DATA.version` unchanged.**
 
-- **2026-06-28 · UI — CharGen: removed duplicate AP displays (#chip in topbar, #mtop-tot in mobile mini-header); #apFloat is the single AP indicator. Removed dead .chip and #mtop .mtop-tot CSS. UI-only; `DATA.version` unchanged.**
+- **2026-06-28 · UI — CharGen: AP indicator is now the sticky mini-header (#mtop): character name on left, "X / Y AP" pill on right. Removed #apFloat floating pill (not wanted in CharGen) and #chip (topbar duplicate). UI-only; `DATA.version` unchanged.**
 
 - **2026-06-28 · UI — CharGen: removed mobile bottom AP bar (#mobar); replaced with a floating pill (#apFloat, top-right) identical to the Live Sheet — shows remaining AP, flashes on change, turns red when over budget. UI-only; `DATA.version` unchanged.**
 
