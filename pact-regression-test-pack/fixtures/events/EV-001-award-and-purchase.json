@@ -1,0 +1,25 @@
+{
+  "baseSnapshot": {},
+  "events": [
+    {
+      "type": "award",
+      "amount": 50,
+      "label": "Award — budget (50 AP)",
+      "seq": 1
+    },
+    {
+      "type": "buy",
+      "cat": "abil",
+      "payload": { "ab": "STR", "to": 12 },
+      "cost": 4,
+      "seq": 21
+    },
+    {
+      "type": "buy",
+      "cat": "hd",
+      "payload": { "to": 3 },
+      "cost": 3,
+      "seq": 19
+    }
+  ]
+}
