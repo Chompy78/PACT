@@ -954,7 +954,7 @@ const catOpen={'Core':1,'Proficiencies':1,'Class & subclass':1,'Magic':1,'Herita
 function toggleCat(c){catOpen[c]=catOpen[c]?0:1;refreshBuy();}
 function _catOf(lab){
   if(['Progress','Abilities','Survivability','Saving throws'].indexOf(lab)>=0)return 'Core';
-  if(['Skills','Expertise','Languages','Tools & instruments','Tool expertise','Weapons & armour'].indexOf(lab)>=0)return 'Proficiencies';
+  if(['Skills','Skill expertise','Languages','Tools & instruments','Tool expertise','Weapons & armour'].indexOf(lab)>=0)return 'Proficiencies';
   if(/ features$/.test(lab)||['Cross-class features','Unlock classes','Unlocked-class features','Subclasses & abilities','Subclass spell lists','Eldritch Invocations','Ki, Sorcery & Attunement points'].indexOf(lab)>=0)return 'Class & subclass';
   if(lab==='Spellcasting'||/^Lineage spell/.test(lab))return 'Magic';
   if(lab==='DM house rules')return 'DM / Advanced';
@@ -1005,7 +1005,7 @@ function buildBuyPanel(b,r,eco,head){
    ['Survivability',()=>ib('Vigor rank '+(b.hardy+1),'vigor',{to:b.hardy+1})+ib('Grit +4 HP ('+(b.tough+1)+')','grit',{to:b.tough+1})],
    ['Saving throws',()=>ABILS.map(a=>b.saves.includes(a)?ibOwned(a):ib(a,'save',{v:a})).join('')],
    ['Skills',()=>DATA.skillList.map(s=>b.skills.includes(s[0])?ibOwned(s[0]):ib(s[0],'skill',{v:s[0]})).join('')],
-   ['Expertise',()=>{if(!b.skills.length)return '<span class="hint">Buy a skill first, then you can double down with Expertise.</span>';return b.skills.map(s=>b.expertise.includes(s)?ibOwned('Expertise: '+s):ib('Expertise: '+s,'expertise',{v:s})).join('');}],
+   ['Skill expertise',()=>{if(!b.skills.length)return '<span class="hint">Buy a skill first, then you can double down with Expertise.</span>';return b.skills.map(s=>b.expertise.includes(s)?ibOwned('Expertise: '+s):ib('Expertise: '+s,'expertise',{v:s})).join('');}],
    ['Tools & instruments',()=>DATA.toolList.map(x=>b.tools.includes(x)?ibOwned(x):ib(x,'tool',{v:x})).join('')+DATA.instrumentList.map(x=>b.instruments.includes(x)?ibOwned(x):ib(x,'instrument',{v:x})).join('')],
    ['Tool expertise',()=>{const _own=[].concat(b.tools||[],b.instruments||[],b.customProfs||[]);if(!_own.length)return '<span class="hint">Buy a tool or instrument first, then double down with Expertise.</span>';return _own.map(x=>(b.toolExpertise||[]).includes(x)?ibOwned('Expertise: '+x):ib('Expertise: '+x,'toolexpertise',{v:x})).join('');}],
    ['Languages',()=>ib('+1 Language ('+(b.languages+1)+')','language',{to:b.languages+1})],
