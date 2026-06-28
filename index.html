@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PACT Tools</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; background:#0f172a; color:#e2e8f0; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 2.5rem 1.25rem; }
+    h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+    p.sub { color:#94a3b8; margin:0 0 2rem; }
+    a.card { display:block; text-decoration:none; color:inherit; background:#1e293b; border:1px solid #334155;
+             border-radius:.75rem; padding:1rem 1.25rem; margin-bottom:.85rem; transition:border-color .15s, transform .05s; }
+    a.card:hover { border-color:#38bdf8; }
+    a.card:active { transform: translateY(1px); }
+    .t { font-weight:600; font-size:1.05rem; }
+    .d { color:#94a3b8; font-size:.9rem; margin-top:.2rem; }
+    .test { border-style:dashed; }
+    footer { color:#64748b; font-size:.8rem; margin-top:2rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>PACT Tools</h1>
+    <p class="sub">All tools share one rules engine: <code>js/engine.js</code>.</p>
+
+    <a class="card" href="legacy/PACT-CharGen-Webtool.html">
+      <div class="t">Character Generator</div>
+      <div class="d">Build a character and price it in AP.</div>
+    </a>
+    <a class="card" href="legacy/PACT-Live-Char-Sheet.html">
+      <div class="t">Live Character Sheet</div>
+      <div class="d">Play a character: award AP, buy upgrades, track the sheet.</div>
+    </a>
+    <a class="card" href="legacy/DM%20Console.html">
+      <div class="t">DM Console</div>
+      <div class="d">Review a roster of characters at a glance.</div>
+    </a>
+    <a class="card test" href="pact-regression-test-pack/tests/engine-parity.html">
+      <div class="t">Engine Parity Tests</div>
+      <div class="d">Open and click “Run tests” → expect 5 passed / 0 failed.</div>
+    </a>
+
+    <footer>If a tool loads blank, open the browser console (F12) and check that <code>js/engine.js</code> returned 200.</footer>
+  </div>
+</body>
+</html>
