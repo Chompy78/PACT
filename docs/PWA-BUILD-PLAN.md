@@ -62,11 +62,17 @@ Also output sql/schema.sql and sql/rls-policies.sql for the data model.
 ## Task 4 — Campaigns & DM XP — TODO
 ```
 Add the campaign + DM system.
-- Campaigns: one DM, up to 5 players; join via a 6-char alphanumeric invite code on the campaign row;
-  DM can regenerate the code (invalidating the old one); joining a full campaign errors, creates nothing.
+- Campaigns: one DM, no player cap; roles are PER-CAMPAIGN and may overlap (the same user can DM one
+  campaign and play in another, or even play in their own). Join via a 6-char alphanumeric invite code;
+  DM can regenerate the code (invalidating the old one). (See DECISIONS.md D-GH4 — this overrides the
+  original "up to 5 players / joining a full campaign errors" wording.)
+- The SQL backend already exists (sql/schema.sql, sql/rls-policies.sql, Task 3): joining goes through the
+  join_campaign() RPC, code regen through regenerate_invite_code(), and xp is awarded via award_xp()
+  (DM-only). Wire js/campaign.js / js/dm.js to those RPCs rather than writing the rows directly.
 - Enforce access in Supabase RLS (not just client JS): players read/write only their own character and
-  can NEVER write xp; only the campaign's DM can write xp or campaign rows. The characters UPDATE policy
-  must exclude the xp column from player writes.
+  can NEVER write xp; only the campaign's DM can write xp or campaign rows. xp is locked at the COLUMN
+  level (a GRANT that omits xp) plus the DM-only award_xp() RPC — not a row policy, since Postgres RLS
+  cannot restrict an UPDATE to specific columns.
 - Evolve tools/DM Console.html: read the campaign roster from Supabase (player name, character name,
   current XP), expand a character to read-only full stats via the engine, add an "Award XP" input that
   writes xp (DM-only).
