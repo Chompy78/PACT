@@ -53,15 +53,7 @@
 ═══════════════════════════════════════════════════════════════════════════════
 -->
 <html><head><meta charset="utf-8">
-<link rel="manifest" href="/PACT/manifest.json">
-<script type="module">
-  // Auth gate (offline-safe — see CharGen for notes).
-  import('../js/auth.js')
-    .then(m => m.currentSession())
-    .then(session => { if (!session) location.replace('../login.html'); })
-    .catch(() => {});
-</script>
-<title>PACT — Live Character Sheet (prototype)</title><style>
+<link rel="manifest" href="/PACT/manifest.json"><title>PACT — Live Character Sheet (prototype)</title><style>
 body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background:var(--bg);margin:0;font-size:13px}
 .top{background:var(--navy);color:#fff;padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:50}
 .top h1{margin:0;font-size:18px}.top .v{opacity:.8;font-size:11px}

@@ -3,13 +3,6 @@
 <head>
 <meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json">
-<script type="module">
-  // Auth gate (offline-safe — see CharGen for notes).
-  import('../js/auth.js')
-    .then(m => m.currentSession())
-    .then(session => { if (!session) location.replace('../login.html'); })
-    .catch(() => {});
-</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PACT — DM Console</title>
 <style>

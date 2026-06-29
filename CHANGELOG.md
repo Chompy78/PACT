@@ -4,6 +4,8 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-06-29 · change — login is optional, not enforced** (`index.html` + all three `tools/*.html`). Removed the redirect-to-login gate from the menu and the three tools — every page is open to everyone. The menu's auth bar now shows "Sign in" when signed out and "name + Log out" when signed in; cloud save/sync (next) will activate only when a session exists. Supersedes the auth-gate entry below.
+
 - **2026-06-29 · feature — Task 2 complete: auth gate on all pages** (engine untouched — parity unaffected; `index.html` + all three `tools/*.html`). Added a small `<script type="module">` gate in each page's `<head>` that dynamic-imports `js/auth.js`, checks `currentSession()`, and `location.replace()`s to `login.html` when there's no session. Uses relative paths (works on localhost + GitHub Pages) and is offline-safe: the session is read from localStorage, and if the auth module can't load the page still opens rather than locking the user out.
 
 - **2026-06-29 · feature — Task 1 complete: SW registration added to `tools/*.html`** (engine untouched — parity unaffected; `tools/*.html` only). Added the shared service-worker registration block + `<link rel="manifest" href="/PACT/manifest.json">` to all three tool pages (CharGen, Live Sheet, DM Console), using absolute `/PACT/` paths, with an in-page "new version ready / Reload" bar on `updatefound`. Finishes the SW snippet deferred from the PWA-shell entry below.
