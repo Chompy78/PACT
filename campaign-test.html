@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PACT — Campaign test</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin:0;
+           background:#0f172a; color:#e2e8f0; }
+    .wrap { max-width: 680px; margin:0 auto; padding:2rem 1.25rem; }
+    h1 { font-size:1.3rem; margin:0 0 .25rem; }
+    p.sub { color:#94a3b8; margin:0 0 1.25rem; font-size:.9rem; }
+    fieldset { border:1px solid #334155; border-radius:.6rem; margin:0 0 1.25rem; padding:1rem; }
+    legend { color:#38bdf8; font-size:.85rem; padding:0 .4rem; }
+    input { background:#1e293b; color:#e2e8f0; border:1px solid #334155;
+            border-radius:.4rem; padding:.5rem; font-size:.9rem; }
+    button { background:#38bdf8; color:#0f172a; border:none; border-radius:.4rem;
+             padding:.5rem .9rem; font-weight:600; cursor:pointer; }
+    button.ghost { background:#1e293b; color:#e2e8f0; border:1px solid #334155; }
+    .row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-top:.5rem; }
+    table { width:100%; border-collapse:collapse; font-size:.85rem; margin-top:.5rem; }
+    th, td { text-align:left; padding:.4rem .5rem; border-bottom:1px solid #334155; }
+    th { color:#94a3b8; font-weight:500; }
+    .pill { font-size:.72rem; padding:.1rem .5rem; border-radius:1rem; background:#1e293b; border:1px solid #334155; }
+    .pill.dm { background:#312e81; color:#c7d2fe; }
+    .pill.player { background:#064e3b; color:#4ade80; }
+    .code { font-family:ui-monospace,monospace; letter-spacing:.15em; color:#7dd3fc; font-size:1.1rem; }
+    .log { font-family:ui-monospace,monospace; font-size:.8rem; white-space:pre-wrap;
+           background:#020617; border:1px solid #334155; border-radius:.4rem; padding:.6rem; min-height:3rem; }
+    code { color:#7dd3fc; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Campaign &amp; DM test harness</h1>
+    <p class="sub"><span id="who">checking…</span> — <a href="login.html" style="color:#38bdf8">sign in</a> first if needed.</p>
+
+    <fieldset>
+      <legend>Create / join</legend>
+      <div class="row">
+        <input id="newName" placeholder="New campaign name" value="My Table">
+        <button id="createBtn">Create (as DM)</button>
+      </div>
+      <div class="row">
+        <input id="joinCode" placeholder="6-char code" maxlength="6" style="text-transform:uppercase">
+        <button id="joinBtn" class="ghost">Join by code</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>My campaigns</legend>
+      <button id="refreshBtn" class="ghost">Refresh</button>
+      <table>
+        <thead><tr><th>name</th><th>role</th><th>invite</th><th></th></tr></thead>
+        <tbody id="campRows"></tbody>
+      </table>
+    </fieldset>
+
+    <fieldset id="rosterBox" style="display:none">
+      <legend>Roster — <span id="rosterName"></span></legend>
+      <table>
+        <thead><tr><th>player</th><th>character</th><th>xp</th><th>award</th></tr></thead>
+        <tbody id="rosterRows"></tbody>
+      </table>
+    </fieldset>
+
+    <fieldset><legend>Log</legend><div id="log" class="log"></div></fieldset>
+  </div>
+
+  <script type="module">
+    import { currentUser } from './js/auth.js';
+    import { createCampaign, joinCampaign, regenerateInviteCode, listMyCampaigns, getCampaign } from './js/campaign.js';
+    import { getRoster, awardXp } from './js/dm.js';
+
+    const $ = id => document.getElementById(id);
+    const log = m => { $('log').textContent = '› ' + m + '\n' + $('log').textContent; };
+    let openCampaign = null;
+
+    (async () => {
+      const u = await currentUser();
+      $('who').textContent = u ? ('signed in: ' + u.email) : 'NOT signed in';
+      refresh();
+    })();
+
+    $('createBtn').onclick = async () => {
+      try { const c = await createCampaign($('newName').value.trim());
+        log(`created "${c.name}" — invite ${c.invite_code}`); refresh(); }
+      catch (e) { log('create error: ' + e.message); }
+    };
+    $('joinBtn').onclick = async () => {
+      try { const id = await joinCampaign($('joinCode').value);
+        log('joined campaign ' + id.slice(0,8) + '…'); refresh(); }
+      catch (e) { log('join error: ' + e.message); }
+    };
+    $('refreshBtn').onclick = refresh;
+
+    async function refresh() {
+      try {
+        const list = await listMyCampaigns();
+        $('campRows').innerHTML = list.map(c => `
+          <tr>
+            <td>${c.name}</td>
+            <td><span class="pill ${c.role}">${c.role}</span></td>
+            <td><span class="code">${c.invite_code}</span></td>
+            <td>
+              <button class="ghost" data-roster="${c.id}" data-name="${c.name}">Roster</button>
+              ${c.role === 'dm' ? `<button class="ghost" data-regen="${c.id}">New code</button>` : ''}
+            </td>
+          </tr>`).join('') || '<tr><td colspan="4" style="color:#64748b">none yet</td></tr>';
+        bind();
+      } catch (e) { log('list error: ' + e.message); }
+    }
+
+    function bind() {
+      document.querySelectorAll('[data-roster]').forEach(b => b.onclick = () => showRoster(b.dataset.roster, b.dataset.name));
+      document.querySelectorAll('[data-regen]').forEach(b => b.onclick = async () => {
+        try { const code = await regenerateInviteCode(b.dataset.regen); log('new code: ' + code); refresh(); }
+        catch (e) { log('regen error: ' + e.message); }
+      });
+    }
+
+    async function showRoster(id, name) {
+      openCampaign = id;
+      $('rosterBox').style.display = '';
+      $('rosterName').textContent = name;
+      try {
+        const roster = await getRoster(id);
+        $('rosterRows').innerHTML = roster.map(r => `
+          <tr>
+            <td>${r.player || '—'}</td>
+            <td>${r.name}</td>
+            <td><b>${r.xp}</b></td>
+            <td class="row" style="margin:0">
+              <input type="number" value="10" style="width:4rem" data-amt="${r.id}">
+              <button data-award="${r.id}">Award</button>
+            </td>
+          </tr>`).join('') || '<tr><td colspan="4" style="color:#64748b">no players yet</td></tr>';
+        document.querySelectorAll('[data-award]').forEach(b => b.onclick = async () => {
+          const amt = parseInt(document.querySelector(`[data-amt="${b.dataset.award}"]`).value, 10) || 0;
+          try { const xp = await awardXp(b.dataset.award, amt); log(`awarded ${amt} → new xp ${xp}`); showRoster(id, name); }
+          catch (e) { log('award error: ' + e.message); }
+        });
+      } catch (e) { log('roster error: ' + e.message); }
+    }
+  </script>
+</body>
+</html>
