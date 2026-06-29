@@ -7,7 +7,7 @@
 --       CharGen   -> the flat build JSON
 --       Live Sheet-> the event log { LOG, SEQ, rules }
 --     Derived stats (HP, AC, AP, warnings) are NEVER stored; the engine recomputes them.
---   * characters.xp is a SEPARATE column, not inside stats, so RLS can protect it
+--   * characters.ap is a SEPARATE column, not inside stats, so RLS can protect it
 --     independently — players can never write it; only a campaign's DM can.
 --   * Roles are PER-CAMPAIGN and derived, never a stored flag:
 --       DM of a campaign  = campaigns.dm_id is you
@@ -105,7 +105,7 @@ create trigger trg_campaigns_updated_at
   for each row execute function public.set_updated_at();
 
 -- ---------------------------------------------------------------------------
--- characters — raw build JSON / event log + server-authoritative xp
+-- characters — raw build JSON / event log + server-authoritative ap
 -- ---------------------------------------------------------------------------
 create table if not exists public.characters (
   id          uuid primary key default gen_random_uuid(),
@@ -114,7 +114,7 @@ create table if not exists public.characters (
   name        text not null default 'New Character',
   kind        text not null default 'livesheet' check (kind in ('chargen','livesheet')),
   stats       jsonb not null default '{}'::jsonb,   -- build JSON or { LOG, SEQ, rules }
-  xp          integer not null default 0,           -- DM-authoritative; never written by players
+  ap          integer not null default 0,           -- DM-authoritative; never written by players
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );

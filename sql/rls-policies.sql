@@ -3,10 +3,10 @@
 --
 -- Guarantees enforced here (not just in client JS):
 --   * A user reads/writes only their own characters.
---   * Players can NEVER write characters.xp — enforced by a column-level GRANT,
+--   * Players can NEVER write characters.ap — enforced by a column-level GRANT,
 --     not a policy, because Postgres RLS cannot restrict an UPDATE to columns.
---     The only xp write path is award_xp(), which checks the caller is the DM.
---   * Only a campaign's DM can write campaign rows or award xp.
+--     The only ap write path is award_ap(), which checks the caller is the DM.
+--   * Only a campaign's DM can write campaign rows or award ap.
 --   * Campaign + profile reads are scoped to people you share a campaign with.
 --
 -- Recursion note: a policy subquery against another table is itself subject to
@@ -58,9 +58,9 @@ alter table public.characters enable row level security;
 -- ---------------------------------------------------------------------------
 -- Base table privileges. RLS gates WHICH ROWS the authenticated role may touch,
 -- but the role still needs a table-level GRANT or every query is "permission
--- denied". (Supabase normally auto-grants these; we set them explicitly so a
+-- denied". (Supabase normally auto-grants these; we set them eaplicitly so a
 -- fresh project works.) characters deliberately gets NO blanket UPDATE — only
--- the column list below — so xp stays unwritable by players.
+-- the column list below — so ap stays unwritable by players.
 -- ---------------------------------------------------------------------------
 grant usage on schema public to authenticated, anon;
 
@@ -113,8 +113,8 @@ drop policy if exists characters_insert on public.characters;
 create policy characters_insert on public.characters
   for insert with check (owner_id = auth.uid());
 
--- Players update their own character. The xp column is NOT in the GRANT below,
--- so even though this policy passes, an attempt to write xp is rejected.
+-- Players update their own character. The ap column is NOT in the GRANT below,
+-- so even though this policy passes, an attempt to write ap is rejected.
 drop policy if exists characters_update on public.characters;
 create policy characters_update on public.characters
   for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
@@ -124,36 +124,36 @@ create policy characters_delete on public.characters
   for delete using (owner_id = auth.uid() or is_campaign_dm(campaign_id));
 
 -- ---------------------------------------------------------------------------
--- Column-level xp lockdown — the real xp guard.
+-- Column-level ap lockdown — the real ap guard.
 -- Strip blanket UPDATE, then grant UPDATE only on the player-writable columns.
--- xp is deliberately excluded; it can change ONLY through award_xp().
+-- ap is deliberately excluded; it can change ONLY through award_ap().
 -- ---------------------------------------------------------------------------
 revoke update on public.characters from authenticated, anon;
 grant update (name, campaign_id, kind, stats) on public.characters to authenticated;
 
 -- ---------------------------------------------------------------------------
--- award_xp(character, amount) — the ONLY xp write path. DM-only, runs as
--- definer so it can write the column players have no grant on. Adds to xp
+-- award_ap(character, amount) — the ONLY ap write path. DM-only, runs as
+-- definer so it can write the column players have no grant on. Adds to ap
 -- (pass a negative amount to deduct) and returns the new total.
 -- ---------------------------------------------------------------------------
-create or replace function public.award_xp(p_character uuid, p_amount integer)
+create or replace function public.award_ap(p_character uuid, p_amount integer)
 returns integer language plpgsql security definer set search_path = public as $$
 declare
   v_campaign uuid;
-  v_xp       integer;
+  v_ap       integer;
 begin
   select campaign_id into v_campaign from characters where id = p_character;
   if v_campaign is null then
     raise exception 'Character is not in a campaign';
   end if;
   if not is_campaign_dm(v_campaign) then
-    raise exception 'Only the campaign DM can award xp';
+    raise exception 'Only the campaign DM can award ap';
   end if;
 
-  update characters set xp = xp + p_amount
+  update characters set ap = ap + p_amount
     where id = p_character
-    returning xp into v_xp;
-  return v_xp;
+    returning ap into v_ap;
+  return v_ap;
 end;
 $$;
 
@@ -162,4 +162,4 @@ $$;
 -- ---------------------------------------------------------------------------
 grant execute on function public.join_campaign(text)          to authenticated;
 grant execute on function public.regenerate_invite_code(uuid) to authenticated;
-grant execute on function public.award_xp(uuid, integer)      to authenticated;
+grant execute on function public.award_ap(uuid, integer)      to authenticated;

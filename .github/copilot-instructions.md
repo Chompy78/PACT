@@ -55,7 +55,7 @@ These are the project's memory; updating them is part of the change, not an afte
 - `js/`: `supabase-client.js`, `auth.js`, `sync.js`, `campaign.js`, `dm.js`.
 - `sql/`: `schema.sql`, `rls-policies.sql`.
 - Store only the build JSON / event log in the DB (`characters.stats`); the engine derives the rest.
-  `xp` is server-authoritative and DM-only. Full task list + done-criteria: `docs/PWA-BUILD-PLAN.md`.
+  `ap` (the DM-awarded points column) is server-authoritative and DM-only. Full task list + done-criteria: `docs/PWA-BUILD-PLAN.md`.
 
 ## Per-change checklist
 1. Work on a branch, one task at a time.

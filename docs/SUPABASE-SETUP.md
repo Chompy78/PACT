@@ -26,7 +26,7 @@ In the SQL editor, run:
 ```sql
 select tablename from pg_tables where schemaname = 'public';            -- profiles, campaigns, characters
 select proname from pg_proc where proname in
-  ('join_campaign','regenerate_invite_code','award_xp','gen_invite_code'); -- all four present
+  ('join_campaign','regenerate_invite_code','award_ap','gen_invite_code'); -- all four present
 select tablename, rowsecurity from pg_tables where schemaname='public';   -- rowsecurity = true on all three
 ```
 
@@ -50,10 +50,10 @@ key into anything client-side.
 ## 5. Smoke-test the security model (optional but recommended)
 Once Task 2 auth exists, confirm the guarantees hold:
 - Register two users (A and B). A creates a campaign; B joins with the invite code.
-- As B, try to `update` a `characters` row setting `xp` → must be rejected (column not granted).
+- As B, try to `update` a `characters` row setting `ap` → must be rejected (column not granted).
 - As B, try to `update` A's character → blocked by RLS (not owner).
-- As the DM, call `award_xp(<B's character>, 10)` → succeeds; B's xp goes up.
-- As B, call `award_xp(...)` → rejected ("Only the campaign DM can award xp").
+- As the DM, call `award_ap(<B's character>, 10)` → succeeds; B's ap goes up.
+- As B, call `award_ap(...)` → rejected ("Only the campaign DM can award AP").
 
 ## Notes
 - Re-running `rls-policies.sql` is safe (it drops policies first). Re-running `schema.sql` is safe too
