@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v0.106.html**-->
+<!--**PACT-Live-Char-Sheet v0.107.html**-->
 
 <!doctype html>
 <!--
@@ -52,7 +52,8 @@
    keep the cosmetic version labels in sync, and preserve the no-dependency constraint.
 ═══════════════════════════════════════════════════════════════════════════════
 -->
-<html><head><meta charset="utf-8"><title>PACT — Live Character Sheet (prototype)</title><style>
+<html><head><meta charset="utf-8">
+<link rel="manifest" href="/PACT/manifest.json"><title>PACT — Live Character Sheet (prototype)</title><style>
 body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background:var(--bg);margin:0;font-size:13px}
 .top{background:var(--navy);color:#fff;padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:50}
 .top h1{margin:0;font-size:18px}.top .v{opacity:.8;font-size:11px}
@@ -1610,4 +1611,23 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <p>If you import a file built under an older rules version, the sheet warns you and keeps those prices frozen &mdash; future purchases use the current price list.</p>
   <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT v0.309 &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/PACT/service-worker.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const sw = reg.installing;
+        sw.addEventListener('statechange', () => {
+          if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+            const bar = document.createElement('div');
+            bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e293b;border-top:1px solid #38bdf8;padding:.75rem 1.25rem;display:flex;justify-content:space-between;align-items:center;font-size:.9rem;z-index:999';
+            bar.innerHTML = '<span>A new version of PACT is ready.</span><button style="background:#38bdf8;color:#0f172a;border:none;padding:.35rem .9rem;border-radius:.4rem;cursor:pointer;font-weight:600">Reload</button>';
+            bar.querySelector('button').onclick = () => { sw.postMessage('skipWaiting'); location.reload(); };
+            document.body.appendChild(bar);
+          }
+        });
+      });
+    });
+  }
+</script>
 </body></html>

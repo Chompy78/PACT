@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<link rel="manifest" href="/PACT/manifest.json">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PACT — DM Console</title>
 <style>
@@ -850,7 +851,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v0.014';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v0.015';   // console build version — bump on each non-trivial change
   var roster = [];   // [{id, fileName, summary, raw}]
 
   // DM-set second AC — console-side annotation keyed by character name; never touches the sheet
@@ -1436,6 +1437,25 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   wireColumns();
   wireToggle();
 })();
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/PACT/service-worker.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const sw = reg.installing;
+        sw.addEventListener('statechange', () => {
+          if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+            const bar = document.createElement('div');
+            bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e293b;border-top:1px solid #38bdf8;padding:.75rem 1.25rem;display:flex;justify-content:space-between;align-items:center;font-size:.9rem;z-index:999';
+            bar.innerHTML = '<span>A new version of PACT is ready.</span><button style="background:#38bdf8;color:#0f172a;border:none;padding:.35rem .9rem;border-radius:.4rem;cursor:pointer;font-weight:600">Reload</button>';
+            bar.querySelector('button').onclick = () => { sw.postMessage('skipWaiting'); location.reload(); };
+            document.body.appendChild(bar);
+          }
+        });
+      });
+    });
+  }
 </script>
 </body>
 </html>

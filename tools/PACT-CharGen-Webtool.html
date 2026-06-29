@@ -1,9 +1,9 @@
-<!--**PACT-CharGen-Webtool v0.106.html**-->
+<!--**PACT-CharGen-Webtool v0.107.html**-->
 
 <!doctype html>
 <!--
 ═══════════════════════════════════════════════════════════════════════════════
- AI SESSION CONTEXT — READ FIRST  (PACT tools · v0.309)
+ AI SESSION CONTEXT — READ FIRST  (PACT tools · v0.322)
  Purpose: a fresh AI session can orient from this block alone, no re-briefing.
  Full detail: see  PACT-CONTEXT.md  (authoritative — archive/ is history, do not act on it)
  Rules source of truth:  PACT-Players-Guide-v0.303.docx
@@ -33,9 +33,10 @@
    RULE: any change to the engine or DATA must be mirrored in the other file.
 
  VERSIONING
-   DATA.version (currently "v0.309") is CANONICAL: stamped onto saved/exported JSON
+   DATA.version (currently "v0.322") is CANONICAL: stamped onto saved/exported JSON
    and compared on import to drive the "frozen prices / reprice drift" logic.
-   The <title> and topbar ".sub" label are cosmetic — keep them matching DATA.version.
+   The <title> and header "Web Tool" label show the cosmetic web-tool build (v0.107);
+   the "PACT rules" label tracks DATA.version.
 
  HARD CONSTRAINTS (do not break)
    • Single self-contained .html: inline CSS+JS, NO external deps, NO network/CDN, no build step.
@@ -50,8 +51,9 @@
    keep the cosmetic version labels in sync, and preserve the no-dependency constraint.
 ═══════════════════════════════════════════════════════════════════════════════
 -->
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool (v0.309)</title><style>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="manifest" href="/PACT/manifest.json"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PACT Character Generator — Web Tool v0.107 · Rules v0.322</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -102,9 +104,7 @@ body[data-theme="dark"] .zebra>.ck:nth-child(even){background:rgba(255,255,255,.
 
 *{box-sizing:border-box}
 body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);font-size:13.5px}
-.topbar{background:var(--navy);color:#fff;padding:10px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.topbar h1{font-size:17px;margin:0}.topbar .sub{font-size:11px;opacity:.85}
-.topbar .lastedited{font-size:11px;opacity:.75;white-space:nowrap;margin-left:12px}
+/* .topbar removed in the v0.107 header refactor — header now uses .hd-row1/.hd-row2/.hd-row3 (defined below); .sub/.lastedited are styled under .hd-row2 */
 .layout{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:14px;padding:14px;align-items:start}
 #form{min-width:0}
 .summary{position:sticky;top:calc(var(--headh,84px) + 8px);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;max-height:calc(100vh - var(--headh,84px) - 24px);overflow:auto}
@@ -298,15 +298,16 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .hd-row3{background:var(--navy);color:#fff;padding:5px 14px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,0.15)}
 .hd-mobnav{display:none}
 @media(max-width:768px){
+ /* M8: pin the mobile header with position:fixed (more robust than sticky on phones); offset content by the live --headh so nothing hides under it */
+ .stickyhead{position:static;flex:0 0 auto}.layout{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
+ body{padding-top:0;height:100vh;height:100dvh;overflow:hidden;display:flex;flex-direction:column}
  .hd-row2,.hd-row3,.secnav{display:none}
  .hd-mobnav{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
  .hd-mobnav #secjump{flex:1;min-width:120px;font:inherit;padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--inp);color:var(--navytx)}
 }
 @media(max-width:600px){
  body{font-size:14px}
- /* M5: name+AP row inside stickyhead — stickyhead keeps position:sticky (works on Android); no fixed needed */
- #mtop{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 12px;background:var(--navy);color:#fff;border-bottom:2px solid rgba(255,255,255,0.25)}
- #mtop b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+ /* M5: name+AP row (.hd-row1) is always visible at all widths — styled once above; no mobile-only override needed */
  /* M7: jump-to-section dropdown replaces the chip strip on phones */
  .secnav{display:none}
  /* collapsible summary details (Guide / stats / ledger) */
@@ -383,7 +384,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .gridck label.ck > input[type=checkbox]:disabled + * { opacity: 0.5; }
 .gridck label.ck:has(> input:disabled) { opacity: 0.5; cursor: default; }
 </style></head><body>
-<div class="stickyhead"><div id="mtop"><b id="mtop-name">—</b><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="topbar"><h1>PACT — Character Generator</h1><span class="sub">Web Tool · v0.309 · live</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
+<div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.107</span><span class="hd-pactver">PACT rules · v0.322</span><span class="lastedited">Last edited 2026-06-28 23:10</span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
 <button class="btn ghost" onclick="loadViaPicker()">📂 Load</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -393,8 +394,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="openCampaign()" title="DM: bar boons/drawbacks/arts and share a code; barred items are blocked here too">🛡 Campaign</button><span id="campind" style="font-size:11px;color:var(--good);margin-left:6px;font-weight:700"></span><button class="btn ghost" onclick="exportToLiveSheet()" title="Export this build as a Live Sheet file, then Import it in the Live Sheet to lock it in and progress">⇆ Live Sheet</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
 <button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button>
-<button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button>
-<label style="display:flex;align-items:center;gap:5px;font-size:11px">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div>
+<button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
 <div class="hd-mobnav"><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
 <div class="secnav" id="secnav"></div>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
@@ -2297,10 +2297,10 @@ function toggleSec(id){const f=$(id);if(f)f.classList.toggle('collapsed');}
 function collapseForMobile(){try{if(typeof window==='undefined'||!window.innerWidth||window.innerWidth>600)return;
   document.querySelectorAll('#form fieldset').forEach((f,i)=>{if(i>0)f.classList.add('collapsed');});
   const s=document.querySelector('.summary');if(s)s.classList.add('sumcollapsed');}catch(e){}}
-function jumpTo(id){const el=$(id);if(!el)return;el.classList.remove('collapsed');
+function jumpTo(id){const el=$(id);if(!el)return;el.classList.remove('collapsed');var _h0=document.querySelector('.stickyhead');if(_h0&&getComputedStyle(_h0).position==='static'){el.scrollIntoView({behavior:'smooth',block:'start'});return;}
   // offset the scroll by the sticky header's height so the section title isn't hidden beneath it
   let off=0;const head=document.querySelector('.stickyhead');
-  try{if(head&&getComputedStyle(head).position==='sticky')off=head.offsetHeight+8;}catch(e){}
+  try{if(head){var _hp=getComputedStyle(head).position;if(_hp==='sticky'||_hp==='fixed')off=head.offsetHeight+8;}}catch(e){}
   const y=el.getBoundingClientRect().top+window.pageYOffset-off;
   window.scrollTo({top:y,behavior:'smooth'});}
 // --- warning → control routing: map each warning to the exact control that caused it (fallback: its section) ---
@@ -2318,9 +2318,9 @@ function sectionIdForWarning(w){for(var i=0;i<SECTIONS.length;i++){if(SECTIONS[i
 // informational notes (not hard rule violations) — never counted as "issues" in the banner or section badges
 function isAdvisory(w){return /priced at character-creation|no Ki-using ability/.test(w);}
 function jumpToControl(id){const el=$(id);if(!el)return false;
-  const fs=el.closest?el.closest('fieldset'):null;if(fs)fs.classList.remove('collapsed');
+  const fs=el.closest?el.closest('fieldset'):null;if(fs)fs.classList.remove('collapsed');var _h1=document.querySelector('.stickyhead');if(_h1&&getComputedStyle(_h1).position==='static'){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('flashhl');setTimeout(function(){el.classList.remove('flashhl');},1700);return true;}
   let off=0;const head=document.querySelector('.stickyhead');
-  try{if(head&&getComputedStyle(head).position==='sticky')off=head.offsetHeight+8;}catch(e){}
+  try{if(head){var _hp=getComputedStyle(head).position;if(_hp==='sticky'||_hp==='fixed')off=head.offsetHeight+8;}}catch(e){}
   const y=el.getBoundingClientRect().top+window.pageYOffset-off-40;
   try{window.scrollTo({top:y,behavior:'smooth'});}catch(e){window.scrollTo(0,Math.max(0,y));}
   el.classList.add('flashhl');setTimeout(function(){el.classList.remove('flashhl');},1700);return true;}
@@ -2679,3 +2679,21 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <ul>
     <li><span class="tag">&#x1F4CB; Sheet</span> shows a printable character sheet overlay.</li>
     <li><sp
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/PACT/service-worker.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const sw = reg.installing;
+        sw.addEventListener('statechange', () => {
+          if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+            const bar = document.createElement('div');
+            bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e293b;border-top:1px solid #38bdf8;padding:.75rem 1.25rem;display:flex;justify-content:space-between;align-items:center;font-size:.9rem;z-index:999';
+            bar.innerHTML = '<span>A new version of PACT is ready.</span><button style="background:#38bdf8;color:#0f172a;border:none;padding:.35rem .9rem;border-radius:.4rem;cursor:pointer;font-weight:600">Reload</button>';
+            bar.querySelector('button').onclick = () => { sw.postMessage('skipWaiting'); location.reload(); };
+            document.body.appendChild(bar);
+          }
+        });
+      });
+    });
+  }
+</script>
