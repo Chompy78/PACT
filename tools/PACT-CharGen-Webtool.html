@@ -295,7 +295,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 @media(max-width:600px){
  body{font-size:14px}
  /* M5: slim fixed mini-header (name + total) — sticky fails when stickyhead is static */
- #mtop{display:flex!important;position:fixed!important;top:0;left:0;right:0;width:100%;z-index:100;align-items:center;justify-content:space-between;gap:10px;padding:6px 12px;background:var(--navy);color:#fff;-webkit-transform:translateZ(0);transform:translateZ(0);box-sizing:border-box}
+ #mtop{display:flex!important;position:fixed!important;top:0;left:0;right:0;width:100%;z-index:100;align-items:center;justify-content:space-between;gap:10px;padding:6px 12px;background:var(--navy);color:#fff;-webkit-transform:translateZ(0);transform:translateZ(0);box-sizing:border-box;border-bottom:2px solid rgba(255,255,255,0.25)}
  #mtop b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
  /* M7: jump-to-section dropdown replaces the chip strip on phones */
  .secnav{display:none}
@@ -374,7 +374,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .gridck label.ck > input[type=checkbox]:disabled + * { opacity: 0.5; }
 .gridck label.ck:has(> input:disabled) { opacity: 0.5; cursor: default; }
 </style></head><body>
-<div id="mtop"><b id="mtop-name">—</b><span class="mtop-tot good" id="mtop-tot">—</span></div>
+<div id="mtop"><b id="mtop-name">—</b><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div>
 <div class="stickyhead"><div class="topbar"><h1>PACT — Character Generator</h1><span class="sub">Web Tool · v0.309 · live</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
 <button class="btn ghost" onclick="loadViaPicker()">📂 Load</button>
@@ -2435,7 +2435,7 @@ function render(){
   $('statsbox').innerHTML=sheetStats(r,b);
   renderLedger(r,b); updateSections(r); buildGuide(b,r);
   const mn=$('mtop-name');if(mn)mn.textContent=val('cname')||'Unnamed hero';
-  const mtt=$('mtop-tot');if(mtt){mtt.textContent=r.total+' / '+r.budget+' AP';mtt.className='mtop-tot '+(r.remaining<0?'bad':'good');}
+  const mtt=$('mtop-tot');if(mtt){mtt.textContent=r.total+' / '+r.budget+' AP';var _mb=r.remaining<0;mtt.style.background=_mb?'#f7c5c5':'#CDEAD3';mtt.style.color=_mb?'#7a0000':'#14501f';}
 }
 
 
