@@ -52,34 +52,40 @@ Add cloud save + sync in js/sync.js.
 - Conflict resolution: last-write-wins by updated_at; push local only if newer.
 - Store ONLY raw character data in characters.stats (CharGen = build JSON; Live Sheet =
   the { LOG, SEQ, rules } event log). Never store derived stats; hydrate from stats and recompute.
-- xp is ALWAYS server-authoritative: never overwrite it from localStorage.
+- ap (the DM-awarded points column) is ALWAYS server-authoritative: never overwrite it from localStorage.
 - On a failed write, keep local and retry on the next online event; never delete local until a
   server write is confirmed.
 Also output sql/schema.sql and sql/rls-policies.sql for the data model.
 ```
-**Done when:** edits persist to Supabase, survive going offline, reconcile on reconnect — `xp` never changed by a local push.
+**Done when:** edits persist to Supabase, survive going offline, reconcile on reconnect — `ap` never changed by a local push.
 
-## Task 4 — Campaigns & DM XP — TODO
+## Task 4 — Campaigns & DM AP — TODO
 ```
 Add the campaign + DM system.
-- Campaigns: one DM, up to 5 players; join via a 6-char alphanumeric invite code on the campaign row;
-  DM can regenerate the code (invalidating the old one); joining a full campaign errors, creates nothing.
+- Campaigns: one DM, no player cap; roles are PER-CAMPAIGN and may overlap (the same user can DM one
+  campaign and play in another, or even play in their own). Join via a 6-char alphanumeric invite code;
+  DM can regenerate the code (invalidating the old one). (See DECISIONS.md D-GH4 — this overrides the
+  original "up to 5 players / joining a full campaign errors" wording.)
+- The SQL backend already exists (sql/schema.sql, sql/rls-policies.sql, Task 3): joining goes through the
+  join_campaign() RPC, code regen through regenerate_invite_code(), and ap is awarded via award_ap()
+  (DM-only). Wire js/campaign.js / js/dm.js to those RPCs rather than writing the rows directly.
 - Enforce access in Supabase RLS (not just client JS): players read/write only their own character and
-  can NEVER write xp; only the campaign's DM can write xp or campaign rows. The characters UPDATE policy
-  must exclude the xp column from player writes.
+  can NEVER write ap; only the campaign's DM can write ap or campaign rows. ap is locked at the COLUMN
+  level (a GRANT that omits ap) plus the DM-only award_ap() RPC — not a row policy, since Postgres RLS
+  cannot restrict an UPDATE to specific columns.
 - Evolve tools/DM Console.html: read the campaign roster from Supabase (player name, character name,
-  current XP), expand a character to read-only full stats via the engine, add an "Award XP" input that
-  writes xp (DM-only).
+  current AP), expand a character to read-only full stats via the engine, add an "Award AP" input that
+  writes ap (DM-only).
 Put join/invite logic in js/campaign.js and DM logic in js/dm.js.
 ```
-**Done when:** a DM can award XP; a player cannot change `xp` via the UI, a local sync, or a direct REST call with their token.
+**Done when:** a DM can award AP; a player cannot change `ap` via the UI, a local sync, or a direct REST call with their token.
 
 ## Task 5 — Audit, security & hardening — TODO
 ```
 Audit the finished app. For each item give Pass/Fail/Warning + a fix: PWA (manifest, SW, HTTPS,
 icons 192/512/180); Offline (full load no network, local save offline, sync on reconnect); RLS characters
-(own-only; cannot write xp even via REST with a valid token); RLS campaigns (own campaign read; DM-only
-writes; invite regen DM-only); XP integrity (DM award; player cannot overwrite via dev tools/local sync/API);
+(own-only; cannot write ap even via REST with a valid token); RLS campaigns (own campaign read; DM-only
+writes; invite regen DM-only); AP integrity (DM award; player cannot overwrite via dev tools/local sync/API);
 GitHub Pages (no server logic, 404.html, SW scope "/PACT/"); Security (anon key safe under RLS?, RLS bypass
 via REST, invite-code brute forcing, session token in localStorage/XSS); Performance (Lighthouse mobile >= 90,
 flag assets > 100KB); Regression (engine-parity 5/5).

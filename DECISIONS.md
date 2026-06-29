@@ -6,6 +6,47 @@
 
 ---
 
+## D-GH4 · Data model: per-campaign non-exclusive roles, no player cap, ap locked at the column level
+- **Context:** Task 3 needed the Supabase schema + RLS. The plan assumed a global Player/DM role, a 5-player
+  cap, and "the characters UPDATE policy must exclude the [points] column from player writes." (The plan
+  called the DM-awarded points "xp"; PACT's currency is **AP**, so the column is `ap` — see also the rename.)
+- **Options (roles):** (i) global role flag on the profile; (ii) roles derived per-campaign from the
+  relationship (DM = `campaigns.dm_id`; player = owning a character in that campaign), allowed to overlap
+  even within one campaign.
+- **Options (ap):** (i) a row policy / trigger that rejects ap changes; (ii) revoke blanket UPDATE and grant
+  UPDATE only on player-writable columns, with a DM-only `award_ap()` SECURITY DEFINER RPC as the sole ap
+  write path.
+- **Decision:** per-campaign overlapping roles (no stored role column); **no player cap** (overrides the
+  plan's "up to 5"); ap protected by a column-level GRANT plus `award_ap()`. Joining and code regeneration go
+  through SECURITY DEFINER RPCs (`join_campaign`, `regenerate_invite_code`) so players never need broad read
+  access to `campaigns`. Cross-table RLS checks live in SECURITY DEFINER helpers to avoid policy recursion.
+- **Why:** the same person can run one table and play at another (or even play in their own game), which a
+  global flag can't express. Postgres RLS can't scope an UPDATE to columns, so the column GRANT is the only
+  airtight ap guard — a row policy would still let a player set ap in an otherwise-valid update.
+- **Status:** IN FORCE. Plan doc (`docs/PWA-BUILD-PLAN.md` Task 4) still says "up to 5 players" and needs
+  updating to match.
+
+## D-GH7 · PWA service-worker registration lives in every tool page (Task 1)
+- **Context:** the PWA shell (manifest, `service-worker.js`, `404.html`, icons) had landed and `index.html` registered the SW, but the three `tools/*.html` pages did not — so installing/offline only worked from the menu, not the tools themselves.
+- **Options:** (i) register the SW only from `index.html` and rely on scope to cover the tools; (ii) add the registration block to each tool page explicitly.
+- **Decision:** (ii). The shared registration script + `<link rel="manifest" href="/PACT/manifest.json">` were added to all three tool pages, using absolute `/PACT/` paths, with an in-page "new version ready / Reload" bar on `updatefound`.
+- **Why:** each tool is a directly-bookmarkable/installable entry point; explicit per-page registration guarantees the manifest + update prompt regardless of how the user arrived. Engine logic untouched.
+- **Status:** IN FORCE.
+
+## D-GH6 · Versioning scheme — three independent numbers
+- **Context:** the header now displays version info and it was ambiguous which number means what.
+- **Decision:** keep three independent counters: **(1) Tool/build version** — the `v0.x` in each tool's top comment, `<title>`, and header label (CharGen & Live Sheet bumped 0.106 → **0.107**); **(2) PACT rules version** — `DATA.version`, canonical and stamped on saved JSON, shown as "PACT rules · v0.322", kept in sync CharGen ↔ Live Sheet and bumped only when mechanics change; **(3) DM Console** — its own `TOOL_VERSION` counter (0.014 → **0.015**).
+- **Why:** rules changes and cosmetic tool changes have different audiences and cadences; conflating them would force needless `DATA.version` bumps (and re-validation) for pure UI work.
+- **Status:** IN FORCE.
+
+## D-GH5 · Mobile header uses an "app-shell" layout, not `position:fixed/sticky`
+- **Context:** after the header rebuild, the header would not stay pinned on a real Pixel, even though it worked on desktop and in a narrow desktop window.
+- **Investigation:** a self-reporting diagnostic proved the header was *positioned* correctly on the phone — `getBoundingClientRect().top === 0` at full scroll, `scrollingElement === <html>`, no inner scrollers — but it wasn't being **repainted** at top:0 while the whole window scrolled a heavy (~500 KB) page (a mobile-Chrome compositor limitation). A `transform:translateZ(0)` GPU hint didn't fix it; switching `fixed`↔`sticky` made no difference.
+- **Options:** (i) keep fighting the compositor with GPU hints / position tweaks; (ii) stop scrolling the window on mobile altogether and adopt an app-shell.
+- **Decision:** (ii), mobile (≤768px) only: `body` becomes a flex column with `height:100dvh; overflow:hidden`; the header is a **static** `flex:0 0 auto` bar; `.layout` becomes its own scroll area (`flex:1; overflow-y:auto`). The header is no longer inside the scrolling region, so it can't scroll away. Desktop keeps `position:sticky` + window scroll. "Jump to section" scrolls the inner area via `scrollIntoView` when the header is static. **Header information architecture** alongside this: desktop = 4 rows (name+AP · title+versions+last-edited+theme · action buttons · nav chips); mobile = 2 rows (name+AP · Random/Reset/Jump-to-section). Breakpoints kept independent: header 768px, layout grid 920px, phone tuning 600/380px.
+- **Why:** robust on real hardware and the correct base for the planned PWA (app-shell is the standard PWA layout). Trade-off: in a plain browser tab the mobile address bar no longer auto-hides on scroll — moot once installed as a PWA.
+- **Status:** IN FORCE.
+
 ## D-GH3 · CharGen exports now match the Live Sheet's native event format
 - **Context:** CharGen → Live Sheet exports were bundling itemized purchases into coarse patch events, so imported drawbacks could not be bought off and ledger entries were missing for individual purchases.
 - **Options:** (i) keep the coarse patch export and patch the Live Sheet to infer itemized buys from patches; (ii) change the exporter to emit discrete native buy events for each itemized purchase while preserving the existing totals and ordering.
