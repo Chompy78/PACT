@@ -8,9 +8,19 @@
   <script type="module">
     // Auth gate: redirect to login if there's no session (offline-safe — reads
     // the session locally, and lets the page load if the auth module can't).
+    // When signed in, populate the auth bar (who + Log out).
     import('./js/auth.js')
-      .then(m => m.currentSession())
-      .then(session => { if (!session) location.replace('login.html'); })
+      .then(async (m) => {
+        const session = await m.currentSession();
+        if (!session) { location.replace('login.html'); return; }
+        const who = document.getElementById('whoami');
+        const btn = document.getElementById('logoutBtn');
+        let name = '';
+        try { name = (await m.myProfile())?.display_name || ''; } catch {}
+        who.textContent = 'Signed in as ' + (name || session.user?.email || 'you');
+        btn.hidden = false;
+        btn.onclick = async () => { await m.logout(); location.replace('login.html'); };
+      })
       .catch(() => {});
   </script>
   <style>
@@ -26,10 +36,19 @@
     .d { color:#94a3b8; font-size:.9rem; margin-top:.2rem; }
     .test { border-style:dashed; }
     footer { color:#64748b; font-size:.8rem; margin-top:2rem; }
+    .authbar { display:flex; justify-content:space-between; align-items:center; gap:1rem;
+               font-size:.85rem; color:#94a3b8; margin-bottom:1.5rem; min-height:1.5em; }
+    .authbar button { background:#1e293b; color:#e2e8f0; border:1px solid #334155;
+                      border-radius:.4rem; padding:.35rem .8rem; cursor:pointer; font-size:.8rem; }
+    .authbar button:hover { border-color:#38bdf8; }
   </style>
 </head>
 <body>
   <div class="wrap">
+    <div class="authbar">
+      <span id="whoami"></span>
+      <button id="logoutBtn" hidden>Log out</button>
+    </div>
     <h1>PACT Tools</h1>
     <p class="sub">All tools share one rules engine: <code>js/engine.js</code>.</p>
 
