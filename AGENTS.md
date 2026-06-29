@@ -66,7 +66,7 @@ Tasks 1–5 are still TODO; full prompts and done-criteria are in `docs/PWA-BUIL
 - `js/`: `supabase-client.js`, `auth.js`, `sync.js`, `campaign.js`, `dm.js`.
 - `sql/`: `schema.sql`, `rls-policies.sql`.
 - Store only the build JSON / event log in the DB (`characters.stats`); the engine derives the rest.
-  `xp` is server-authoritative and DM-only.
+  `ap` (the DM-awarded points column) is server-authoritative and DM-only.
 
 ## Per-change checklist
 1. Work on a branch, one task at a time.
