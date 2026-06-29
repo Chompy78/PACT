@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PACT — Redirecting…</title>
+  <script>
+    // GitHub Pages SPA redirect: push the 404'd path into sessionStorage so
+    // the service worker / index.html can restore it after the redirect.
+    var path = window.location.pathname.replace('/PACT', '') || '/';
+    sessionStorage.setItem('pact-redirect', path + window.location.search + window.location.hash);
+    window.location.replace('/PACT/');
+  </script>
+</head>
+<body></body>
+</html>

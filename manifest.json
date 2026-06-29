@@ -1,0 +1,15 @@
+{
+  "name": "PACT Tools",
+  "short_name": "PACT",
+  "description": "PACT tabletop-RPG tool suite: character generation, live sheet, and DM console.",
+  "start_url": "/PACT/",
+  "scope": "/PACT/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#38bdf8",
+  "icons": [
+    { "src": "/PACT/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/PACT/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/PACT/icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}
