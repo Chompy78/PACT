@@ -6,20 +6,26 @@
   <title>PACT Tools</title>
   <link rel="manifest" href="/PACT/manifest.json">
   <script type="module">
-    // Auth gate: redirect to login if there's no session (offline-safe — reads
-    // the session locally, and lets the page load if the auth module can't).
-    // When signed in, populate the auth bar (who + Log out).
+    // The menu is open to everyone — it does NOT force login. The auth bar just
+    // reflects state: "Sign in" when signed out, name + "Log out" when signed in.
     import('./js/auth.js')
       .then(async (m) => {
-        const session = await m.currentSession();
-        if (!session) { location.replace('login.html'); return; }
         const who = document.getElementById('whoami');
         const btn = document.getElementById('logoutBtn');
+        const session = await m.currentSession();
+        if (!session) {
+          who.textContent = 'Not signed in';
+          btn.textContent = 'Sign in';
+          btn.hidden = false;
+          btn.onclick = () => { location.href = 'login.html'; };
+          return;
+        }
         let name = '';
         try { name = (await m.myProfile())?.display_name || ''; } catch {}
         who.textContent = 'Signed in as ' + (name || session.user?.email || 'you');
+        btn.textContent = 'Log out';
         btn.hidden = false;
-        btn.onclick = async () => { await m.logout(); location.replace('login.html'); };
+        btn.onclick = async () => { await m.logout(); location.reload(); };
       })
       .catch(() => {});
   </script>
