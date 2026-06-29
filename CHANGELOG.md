@@ -4,6 +4,8 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-06-29 · feature — Task 1: PWA shell** (engine-parity 5/5; new files only). Added `manifest.json` (standalone, scope+start_url `/PACT/`), `service-worker.js` (cache-first, pre-caches all tool pages + engine, skips icon failures gracefully, "reload to update" banner), `404.html` (GitHub Pages SPA redirect), placeholder icons 192/512/180 in `icons/`. SW registration + manifest link added to `index.html`. SW snippet for `tools/*.html` deferred — prompt provided separately.
+
 ## How to add an entry
 Add at the TOP. Format:
 `- **<date> · <type> — <headline>** (<proof: tests pass, files touched>). <what changed, condensed>.`
