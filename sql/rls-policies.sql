@@ -56,6 +56,19 @@ alter table public.campaigns  enable row level security;
 alter table public.characters enable row level security;
 
 -- ---------------------------------------------------------------------------
+-- Base table privileges. RLS gates WHICH ROWS the authenticated role may touch,
+-- but the role still needs a table-level GRANT or every query is "permission
+-- denied". (Supabase normally auto-grants these; we set them explicitly so a
+-- fresh project works.) characters deliberately gets NO blanket UPDATE — only
+-- the column list below — so xp stays unwritable by players.
+-- ---------------------------------------------------------------------------
+grant usage on schema public to authenticated, anon;
+
+grant select, insert, delete on public.characters to authenticated;
+grant select, insert, update, delete on public.campaigns to authenticated;
+grant select, insert, update on public.profiles to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- profiles
 -- ---------------------------------------------------------------------------
 drop policy if exists profiles_select on public.profiles;
@@ -143,3 +156,10 @@ begin
   return v_xp;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Allow authenticated users to call the controlled RPCs.
+-- ---------------------------------------------------------------------------
+grant execute on function public.join_campaign(text)          to authenticated;
+grant execute on function public.regenerate_invite_code(uuid) to authenticated;
+grant execute on function public.award_xp(uuid, integer)      to authenticated;
