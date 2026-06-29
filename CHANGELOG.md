@@ -4,6 +4,12 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-06-29 · feature — Task 1 complete: SW registration added to `tools/*.html`** (engine untouched — parity unaffected; `tools/*.html` only). Added the shared service-worker registration block + `<link rel="manifest" href="/PACT/manifest.json">` to all three tool pages (CharGen, Live Sheet, DM Console), using absolute `/PACT/` paths, with an in-page "new version ready / Reload" bar on `updatefound`. Finishes the SW snippet deferred from the PWA-shell entry below.
+
+- **2026-06-29 · fix — Mobile CharGen header now stays pinned** (engine untouched; `tools/PACT-CharGen-Webtool.html`). On mobile (≤768px) the page switched to an app-shell: `body` is a flex column at `100dvh; overflow:hidden`, the header is a static `flex:0 0 auto` bar, and `.layout` becomes the scroll area (`flex:1; overflow-y:auto`). Fixes the header scrolling off on real mobile Chrome (a compositor repaint issue that `fixed`/`sticky` + GPU hints couldn't solve). Desktop keeps `position:sticky` + window scroll; "Jump to section" uses `scrollIntoView` on the inner area. See D-GH5.
+
+- **2026-06-29 · chore — Version bump + header polish** (engine untouched; all three `tools/*.html`). CharGen & Live Sheet build → **v0.107**; DM Console `TOOL_VERSION` → **v0.015**. Header now surfaces both the Web Tool build (v0.107) and the PACT rules version (`DATA.version` v0.322, unchanged) and shows a ⚠ warning icon beside the AP total on row 1. Removed the now-unused `.topbar` CSS from CharGen. `DATA.version` unchanged. See D-GH6.
+
 - **2026-06-29 · feature — Task 1: PWA shell** (engine-parity 5/5; new files only). Added `manifest.json` (standalone, scope+start_url `/PACT/`), `service-worker.js` (cache-first, pre-caches all tool pages + engine, skips icon failures gracefully, "reload to update" banner), `404.html` (GitHub Pages SPA redirect), placeholder icons 192/512/180 in `icons/`. SW registration + manifest link added to `index.html`. SW snippet for `tools/*.html` deferred — prompt provided separately.
 
 ## How to add an entry
