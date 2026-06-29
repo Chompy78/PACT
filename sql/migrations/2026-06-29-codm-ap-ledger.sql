@@ -238,10 +238,12 @@ create policy ap_awards_select on public.ap_awards
   );
 -- inserts happen only through award_ap() (definer)
 
--- co-DMs (even without a character) can read the campaign; any DM can edit settings
+-- co-DMs (even without a character) can read the campaign; any DM can edit settings.
+-- dm_id = auth.uid() stays FIRST so the owner can read a just-created campaign
+-- before the add-owner-as-DM trigger row is visible to the RETURNING select.
 drop policy if exists campaigns_select on public.campaigns;
 create policy campaigns_select on public.campaigns
-  for select using (is_campaign_dm(id) or is_campaign_member(id));
+  for select using (dm_id = auth.uid() or is_campaign_dm(id) or is_campaign_member(id));
 
 drop policy if exists campaigns_update on public.campaigns;
 create policy campaigns_update on public.campaigns

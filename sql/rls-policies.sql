@@ -101,9 +101,12 @@ create policy profiles_update on public.profiles
 -- ---------------------------------------------------------------------------
 -- campaigns
 -- ---------------------------------------------------------------------------
+-- dm_id = auth.uid() is kept FIRST so the owner can see a campaign the instant
+-- it's created — before the add-owner-as-DM trigger's campaign_dms row is visible
+-- to the INSERT ... RETURNING select check. co-DMs/members covered by the rest.
 drop policy if exists campaigns_select on public.campaigns;
 create policy campaigns_select on public.campaigns
-  for select using (is_campaign_dm(id) or is_campaign_member(id));   -- co-DMs included
+  for select using (dm_id = auth.uid() or is_campaign_dm(id) or is_campaign_member(id));
 
 drop policy if exists campaigns_insert on public.campaigns;
 create policy campaigns_insert on public.campaigns
