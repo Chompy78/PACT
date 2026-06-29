@@ -13,6 +13,16 @@ Add at the TOP. Format:
 
 ---
 
+- **2026-06-29 · fix — rename XP → AP across the cloud backend** (`js/sync.js`, `js/dm.js`, harnesses; SQL + docs renamed on the data-model branch). PACT's DM-awarded currency is **AP**, not XP: `characters.xp` → `characters.ap`, `award_xp()` → `award_ap()`, and every client reference. Live DBs need the one-off `alter table … rename column xp to ap;` + function recreate.
+
+- **2026-06-29 · feature — Task 4 (partial): campaigns + DM AP logic** (new files `js/campaign.js`, `js/dm.js`, `campaign-test.html`; no engine/tool changes). `campaign.js`: create campaign (auto invite code), join via `join_campaign()` RPC, regenerate code (DM-only), list campaigns tagged by per-campaign role. `dm.js`: read roster (player name + character + ap), award/deduct ap via `award_ap()` RPC, read raw stats for inspection. `campaign-test.html` exercises create/join/regen/roster/award end-to-end. DM Console UI wiring deferred until tool HTML edits settle.
+
+- **2026-06-29 · feature — Task 3 (partial): cloud save + offline sync** (new files `js/sync.js`, `sync-test.html`; no engine/tool changes). Supabase-primary, localStorage-fallback character persistence: save/load/list/delete, last-write-wins by `updated_at`, dirty-flag retry on reconnect, `initSync()` auto-reconciles on load + the `online` event. Only raw `stats` is stored; `ap` is never pushed from local and is overwritten from the server on pull. `sync-test.html` harness verifies it end-to-end.
+
+- **2026-06-29 · feature — Task 2 (partial): standalone login screen** (new file `login.html`; no engine/tool changes). Self-contained sign-in / register / forgot-password page wired to `js/auth.js`, themed to match `index.html`. Lets auth be tested end-to-end before the per-page auth gate is wired in.
+
+- **2026-06-29 · feature — Task 2 (partial): Supabase client + auth helpers** (new files `js/supabase-client.js`, `js/auth.js`; no HTML/engine changes; engine-parity unaffected). Single shared Supabase client (publishable key, RLS-protected; supabase-js loaded from CDN, no build step). Pure-logic auth module: register/login/logout, forgot + update password, current user/session, auth-change subscription, profile fetch. No global role read (roles are per-campaign, D-GH4). Login UI + HTML wiring deferred to the next step.
+
 - **2026-06-29 · UI — CharGen: header fully redesigned with 4-row desktop layout (Row 1: name+AP+warn icon; Row 2: title+versions+timestamp; Row 3: all action buttons, wraps; Row 4: section nav) and 2-row mobile layout (Row 1: name+AP; Row 2: Random+Reset+section jump). New 768px breakpoint for header only; existing 600px breakpoint unchanged. `DATA.version` unchanged.**
 
 - **2026-06-28 · UI — Both tools: "Last edited" timestamp now reads from document.lastModified (HTTP header set by GitHub Pages from the commit date) instead of a hardcoded string. UI-only; `DATA.version` unchanged.**

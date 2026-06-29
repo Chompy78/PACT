@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PACT — Sign in</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0;
+           background:#0f172a; color:#e2e8f0; }
+    .wrap { max-width: 380px; margin: 0 auto; padding: 3rem 1.25rem; }
+    h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+    p.sub { color:#94a3b8; margin:0 0 1.5rem; font-size:.9rem; }
+    .tabs { display:flex; gap:.5rem; margin-bottom:1.25rem; }
+    .tabs button { flex:1; background:#1e293b; color:#94a3b8; border:1px solid #334155;
+                   border-radius:.5rem; padding:.5rem; cursor:pointer; font-size:.9rem; }
+    .tabs button.active { color:#0f172a; background:#38bdf8; border-color:#38bdf8; font-weight:600; }
+    label { display:block; font-size:.8rem; color:#94a3b8; margin:.75rem 0 .25rem; }
+    input { width:100%; box-sizing:border-box; background:#1e293b; color:#e2e8f0;
+            border:1px solid #334155; border-radius:.5rem; padding:.6rem .7rem; font-size:1rem; }
+    input:focus { outline:none; border-color:#38bdf8; }
+    .primary { width:100%; margin-top:1.25rem; background:#38bdf8; color:#0f172a; border:none;
+               border-radius:.5rem; padding:.7rem; font-size:1rem; font-weight:600; cursor:pointer; }
+    .primary:disabled { opacity:.5; cursor:default; }
+    .link { background:none; border:none; color:#38bdf8; cursor:pointer; font-size:.85rem;
+            padding:0; margin-top:1rem; }
+    .msg { margin-top:1rem; font-size:.85rem; min-height:1.2em; }
+    .msg.err { color:#f87171; }
+    .msg.ok  { color:#4ade80; }
+    .hidden { display:none; }
+    .signed { background:#1e293b; border:1px solid #334155; border-radius:.75rem; padding:1.25rem; }
+    .signed a.card { display:block; text-decoration:none; color:inherit; background:#0f172a;
+                     border:1px solid #334155; border-radius:.5rem; padding:.7rem 1rem; margin-top:.6rem; }
+    .signed a.card:hover { border-color:#38bdf8; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>PACT</h1>
+    <p class="sub">Sign in to save characters to the cloud.</p>
+
+    <!-- Signed-out: login / register -->
+    <div id="authView">
+      <div class="tabs">
+        <button id="tabLogin" class="active">Sign in</button>
+        <button id="tabRegister">Register</button>
+      </div>
+
+      <form id="authForm" autocomplete="on">
+        <div id="nameRow" class="hidden">
+          <label for="displayName">Display name</label>
+          <input id="displayName" type="text" autocomplete="name" placeholder="What your DM sees">
+        </div>
+        <label for="email">Email</label>
+        <input id="email" type="email" autocomplete="email" required>
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" required minlength="6">
+        <button id="submitBtn" class="primary" type="submit">Sign in</button>
+      </form>
+
+      <button id="forgotBtn" class="link">Forgot password?</button>
+      <div id="msg" class="msg"></div>
+    </div>
+
+    <!-- Signed-in -->
+    <div id="signedView" class="signed hidden">
+      <div id="whoami"></div>
+      <a class="card" href="index.html">Open PACT tools</a>
+      <a class="card" href="tools/PACT-Live-Char-Sheet.html">Live Character Sheet</a>
+      <button id="logoutBtn" class="link">Log out</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import {
+      register, login, forgotPassword, logout,
+      currentUser, onAuthChange, myProfile
+    } from './js/auth.js';
+
+    const $ = id => document.getElementById(id);
+    let mode = 'login';   // 'login' | 'register'
+
+    function setMode(m) {
+      mode = m;
+      $('tabLogin').classList.toggle('active', m === 'login');
+      $('tabRegister').classList.toggle('active', m === 'register');
+      $('nameRow').classList.toggle('hidden', m !== 'register');
+      $('submitBtn').textContent = m === 'login' ? 'Sign in' : 'Create account';
+      $('password').autocomplete = m === 'login' ? 'current-password' : 'new-password';
+      msg('');
+    }
+    function msg(text, kind) { const el = $('msg'); el.textContent = text; el.className = 'msg ' + (kind || ''); }
+
+    async function showSignedIn() {
+      $('authView').classList.add('hidden');
+      $('signedView').classList.remove('hidden');
+      let name = '';
+      try { name = (await myProfile())?.display_name || ''; } catch {}
+      const user = await currentUser();
+      $('whoami').textContent = 'Signed in as ' + (name || user?.email || 'unknown') + '.';
+    }
+    function showSignedOut() {
+      $('signedView').classList.add('hidden');
+      $('authView').classList.remove('hidden');
+    }
+
+    $('tabLogin').onclick = () => setMode('login');
+    $('tabRegister').onclick = () => setMode('register');
+
+    $('authForm').onsubmit = async (e) => {
+      e.preventDefault();
+      $('submitBtn').disabled = true;
+      msg('Working…');
+      try {
+        const email = $('email').value.trim();
+        const password = $('password').value;
+        if (mode === 'register') {
+          await register(email, password, $('displayName').value.trim());
+          // If email confirmation is OFF, a session exists immediately.
+          if (await currentUser()) { await showSignedIn(); }
+          else { msg('Account created — check your email to confirm, then sign in.', 'ok'); setMode('login'); }
+        } else {
+          await login(email, password);
+          await showSignedIn();
+        }
+      } catch (err) {
+        msg(err.message || String(err), 'err');
+      } finally {
+        $('submitBtn').disabled = false;
+      }
+    };
+
+    $('forgotBtn').onclick = async () => {
+      const email = $('email').value.trim();
+      if (!email) { msg('Enter your email above first, then click Forgot password.', 'err'); return; }
+      try { await forgotPassword(email); msg('Reset email sent to ' + email + '.', 'ok'); }
+      catch (err) { msg(err.message || String(err), 'err'); }
+    };
+
+    $('logoutBtn').onclick = async () => { await logout(); showSignedOut(); };
+
+    // Reflect the current session on load and on any auth change.
+    onAuthChange((event) => { if (event === 'SIGNED_OUT') showSignedOut(); });
+    (async () => { if (await currentUser()) showSignedIn(); else showSignedOut(); })();
+  </script>
+</body>
+</html>
