@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PACT Tools</title>
   <link rel="manifest" href="/PACT/manifest.json">
+  <script type="module">
+    // Auth gate: redirect to login if there's no session (offline-safe — reads
+    // the session locally, and lets the page load if the auth module can't).
+    import('./js/auth.js')
+      .then(m => m.currentSession())
+      .then(session => { if (!session) location.replace('login.html'); })
+      .catch(() => {});
+  </script>
   <style>
     body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; background:#0f172a; color:#e2e8f0; }
     .wrap { max-width: 720px; margin: 0 auto; padding: 2.5rem 1.25rem; }

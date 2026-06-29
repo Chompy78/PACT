@@ -53,6 +53,15 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script type="module">
+  // Auth gate: redirect to login if there's no session. Reads the session from
+  // localStorage so it works offline; if the auth module can't load, the tool
+  // still opens (offline-safe) rather than locking the user out.
+  import('../js/auth.js')
+    .then(m => m.currentSession())
+    .then(session => { if (!session) location.replace('../login.html'); })
+    .catch(() => {});
+</script>
 <title>PACT Character Generator — Web Tool v0.107 · Rules v0.322</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
