@@ -207,7 +207,7 @@ h4{margin:8px 0 2px;color:var(--teal);font-size:12.5px}
 .shledger{width:100%;border-collapse:collapse;font-size:10.5px}.shledger td{padding:1px 3px;border-bottom:1px solid var(--line)}.shledger td:last-child{text-align:right;font-weight:700}
 .shledger tr.tot td{border-top:2px solid var(--navy);font-weight:800;color:var(--navytx)}
 .grow{flex:1}
-@media print{.shcols{grid-template-columns:repeat(3,1fr) !important}.shcols2{grid-template-columns:1fr 2fr !important}.shrow{font-size:10.5px}.stickyhead,.layout,.shtop,#explainview,#portraitview,#mtop{display:none !important}#sheetview{position:static;padding:0}
+@media print{.shcols{grid-template-columns:repeat(3,1fr) !important}.shcols2{grid-template-columns:1fr 2fr !important}.shrow{font-size:10.5px}.stickyhead,.layout,.shtop,#explainview,#portraitview{display:none !important}#sheetview{position:static;padding:0}
  /* force a light palette when printing, whatever theme is on screen */
  body,body[data-theme]{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;--good:#2E7D32;--bad:#C00000;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#fff;--card:#fff;background:#fff!important;color:#222!important}}
 /* --- sticky header (topbar + section nav) --- */
@@ -294,8 +294,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 #mtop .mtop-tot.bad{background:var(--badbg);color:#7a0000}
 @media(max-width:600px){
  body{font-size:14px}
- /* M5: slim fixed mini-header (name + total) — sticky fails when stickyhead is static */
- #mtop{display:flex!important;position:fixed!important;top:0;left:0;right:0;width:100%;z-index:100;align-items:center;justify-content:space-between;gap:10px;padding:6px 12px;background:var(--navy);color:#fff;-webkit-transform:translateZ(0);transform:translateZ(0);box-sizing:border-box;border-bottom:2px solid rgba(255,255,255,0.25)}
+ /* M5: name+AP row inside stickyhead — stickyhead keeps position:sticky (works on Android); no fixed needed */
+ #mtop{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 12px;background:var(--navy);color:#fff;border-bottom:2px solid rgba(255,255,255,0.25)}
  #mtop b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
  /* M7: jump-to-section dropdown replaces the chip strip on phones */
  .secnav{display:none}
@@ -312,7 +312,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
  .apin,input[type=text]{flex:1 1 100%}
  select,input[type=text],input[type=number]{max-width:100%}
  .secnav{padding:5px 6px}
- .stickyhead{position:static;margin-top:var(--mtopH,36px)}  /* free up vertical space on phones; margin-top clears the fixed #mtop */
+ /* stickyhead keeps position:sticky from desktop rule — no override needed on mobile */
  /* remove the desktop 218px left-indents so hints/notes wrap across full width */
  [style*="218px"]{margin-left:6px!important}
  .basics,.namesty,.namelab{margin-left:6px!important}
@@ -374,8 +374,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .gridck label.ck > input[type=checkbox]:disabled + * { opacity: 0.5; }
 .gridck label.ck:has(> input:disabled) { opacity: 0.5; cursor: default; }
 </style></head><body>
-<div id="mtop"><b id="mtop-name">—</b><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div>
-<div class="stickyhead"><div class="topbar"><h1>PACT — Character Generator</h1><span class="sub">Web Tool · v0.309 · live</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
+<div class="stickyhead"><div id="mtop"><b id="mtop-name">—</b><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="topbar"><h1>PACT — Character Generator</h1><span class="sub">Web Tool · v0.309 · live</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
 <button class="btn ghost" onclick="loadViaPicker()">📂 Load</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -2645,7 +2644,7 @@ collapseForMobile();
 render();
 // keep the summary's sticky offset in sync with the actual sticky-header height (it grows when the
 // header wraps or the warning banner appears) so the summary's top is never hidden under the header
-function setHeadH(){try{var h=document.querySelector('.stickyhead'),mt=document.getElementById('mtop');var mth=(mt&&getComputedStyle(mt).position==='fixed')?mt.offsetHeight:0;if(mth)document.documentElement.style.setProperty('--mtopH',mth+'px');if(h)document.documentElement.style.setProperty('--headh',h.offsetHeight+'px');}catch(e){}}
+function setHeadH(){try{var h=document.querySelector('.stickyhead');if(h)document.documentElement.style.setProperty('--headh',h.offsetHeight+'px');}catch(e){}}
 setHeadH();window.addEventListener('resize',setHeadH);window.addEventListener('load',setHeadH);
 try{if(window.ResizeObserver){var _hh=document.querySelector('.stickyhead');if(_hh)new ResizeObserver(setHeadH).observe(_hh);}}catch(e){}
 function showInfo(){document.getElementById('infoModal').classList.add('open');}
