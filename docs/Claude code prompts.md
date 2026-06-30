@@ -13,6 +13,7 @@ the test gate, update CHANGELOG/DECISIONS, graduate the task out of the roadmap 
 into preview. Don't touch js/engine.js unless the task targets the engine.
 
 When you know this, suggest what model and effort I should use for this task. If not using Sonnet and Medium, make sure this if highlighted (Ideally make red) so i can easily notice it. Tell me if there may be some point to changing and what it would do.
+Also do a token efficient analysis if this may cause problems, and suggest if a deep search for problems is warranted despite using more tokens. Give recommendations.
 
 
 
