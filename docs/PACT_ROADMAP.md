@@ -150,6 +150,17 @@ engine change can silently diverge CharGen (they're identical today except the b
 v0.332). CharGen's header warns "mirror engine/DATA changes into BOTH files"; until this task lands,
 **AUD-1** should assert the two stay in sync.
 
+## Externalize CharGen default AP + AP-by-level table — TODO
+Branch feat/ap-by-level. BEST DONE AFTER Task 6 — CharGen (the main consumer) still embeds its own
+engine copy, so until it's on the shared bridge it won't see js/ap-by-level.js (you'd edit two places).
+- Add js/ap-by-level.js exporting AP_BY_LEVEL = {1:50, 2:70, ...} and DEFAULT_LEVEL.
+- js/engine.js imports it and surfaces it on DATA (DATA.apByLevel, DATA.defaultAp). Live Sheet + DM
+  Console then get it automatically via the bridge; CharGen gets it once Task 6 lands.
+- CharGen reads the default budget + level→AP lookup THROUGH the engine bridge — never the file directly.
+- AP-per-level is mechanics: bump DATA.version and update the REV-01 baseline in the same PR.
+**Done when:** editing a value in js/ap-by-level.js changes the default budget / level options in every tool
+that's on the shared engine, with no other code change; engine API stable; parity passes.
+
 ## Feature A — Live Sheet multi-tradition / multi-discipline spellcasting (+ Magically Bound) — TODO
 Branch `feat/multi-tradition-discipline`. **Engine first** (extend `found`, add `dbound`), then the tools.
 ```
