@@ -7,7 +7,7 @@
   <style>
     body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin:0;
            background:#0f172a; color:#e2e8f0; }
-    .wrap { max-width: 680px; margin:0 auto; padding:2rem 1.25rem; }
+    .wrap { max-width: 760px; margin:0 auto; padding:2rem 1.25rem; }
     h1 { font-size:1.3rem; margin:0 0 .25rem; }
     p.sub { color:#94a3b8; margin:0 0 1.25rem; font-size:.9rem; }
     fieldset { border:1px solid #334155; border-radius:.6rem; margin:0 0 1.25rem; padding:1rem; }
@@ -15,19 +15,21 @@
     input { background:#1e293b; color:#e2e8f0; border:1px solid #334155;
             border-radius:.4rem; padding:.5rem; font-size:.9rem; }
     button { background:#38bdf8; color:#0f172a; border:none; border-radius:.4rem;
-             padding:.5rem .9rem; font-weight:600; cursor:pointer; }
+             padding:.45rem .8rem; font-weight:600; cursor:pointer; font-size:.85rem; }
     button.ghost { background:#1e293b; color:#e2e8f0; border:1px solid #334155; }
     .row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-top:.5rem; }
     table { width:100%; border-collapse:collapse; font-size:.85rem; margin-top:.5rem; }
-    th, td { text-align:left; padding:.4rem .5rem; border-bottom:1px solid #334155; }
+    th, td { text-align:left; padding:.4rem .5rem; border-bottom:1px solid #334155; vertical-align:top; }
     th { color:#94a3b8; font-weight:500; }
-    .pill { font-size:.72rem; padding:.1rem .5rem; border-radius:1rem; background:#1e293b; border:1px solid #334155; }
-    .pill.dm { background:#312e81; color:#c7d2fe; }
+    .pill { font-size:.7rem; padding:.1rem .45rem; border-radius:1rem; background:#1e293b; border:1px solid #334155; margin-right:.2rem; }
+    .pill.owner  { background:#7c2d12; color:#fed7aa; }
+    .pill.dm     { background:#312e81; color:#c7d2fe; }
     .pill.player { background:#064e3b; color:#4ade80; }
-    .code { font-family:ui-monospace,monospace; letter-spacing:.15em; color:#7dd3fc; font-size:1.1rem; }
+    .code { font-family:ui-monospace,monospace; letter-spacing:.12em; color:#7dd3fc; }
     .log { font-family:ui-monospace,monospace; font-size:.8rem; white-space:pre-wrap;
-           background:#020617; border:1px solid #334155; border-radius:.4rem; padding:.6rem; min-height:3rem; }
+           background:#020617; border:1px solid #334155; border-radius:.4rem; padding:.6rem; min-height:3rem; max-height:14rem; overflow:auto; }
     code { color:#7dd3fc; }
+    label.chk { font-size:.8rem; color:#94a3b8; display:inline-flex; align-items:center; gap:.3rem; }
   </style>
 </head>
 <body>
@@ -39,11 +41,13 @@
       <legend>Create / join</legend>
       <div class="row">
         <input id="newName" placeholder="New campaign name" value="My Table">
-        <button id="createBtn">Create (as DM)</button>
+        <button id="createBtn">Create (as owner/DM)</button>
       </div>
       <div class="row">
-        <input id="joinCode" placeholder="6-char code" maxlength="6" style="text-transform:uppercase">
-        <button id="joinBtn" class="ghost">Join by code</button>
+        <input id="joinCode" placeholder="player code" maxlength="6" style="text-transform:uppercase;width:8rem">
+        <button id="joinBtn" class="ghost">Join as player</button>
+        <input id="dmCode" placeholder="DM code" maxlength="6" style="text-transform:uppercase;width:8rem">
+        <button id="joinDmBtn" class="ghost">Join as co-DM</button>
       </div>
     </fieldset>
 
@@ -51,17 +55,18 @@
       <legend>My campaigns</legend>
       <button id="refreshBtn" class="ghost">Refresh</button>
       <table>
-        <thead><tr><th>name</th><th>role</th><th>invite</th><th></th></tr></thead>
+        <thead><tr><th>name</th><th>roles</th><th>player code</th><th>DM code</th><th>settings</th><th></th></tr></thead>
         <tbody id="campRows"></tbody>
       </table>
     </fieldset>
 
     <fieldset id="rosterBox" style="display:none">
-      <legend>Roster — <span id="rosterName"></span></legend>
+      <legend>Roster — <span id="rosterName"></span> <span id="rosterFlags" style="color:#94a3b8"></span></legend>
       <table>
-        <thead><tr><th>player</th><th>character</th><th>ap</th><th>award</th></tr></thead>
+        <thead><tr><th>player</th><th>character</th><th>DM&nbsp;AP</th><th>award</th><th></th></tr></thead>
         <tbody id="rosterRows"></tbody>
       </table>
+      <div id="codm" style="margin-top:1rem"></div>
     </fieldset>
 
     <fieldset><legend>Log</legend><div id="log" class="log"></div></fieldset>
@@ -69,12 +74,16 @@
 
   <script type="module">
     import { currentUser } from './js/auth.js';
-    import { createCampaign, joinCampaign, regenerateInviteCode, listMyCampaigns, getCampaign } from './js/campaign.js';
-    import { getRoster, awardAp } from './js/dm.js';
+    import {
+      createCampaign, joinCampaign, joinAsDm, regenerateInviteCode, regenerateDmInviteCode,
+      setIgnorePlayerAp, getCampaignDms, promoteToDm, removeDm, listMyCampaigns
+    } from './js/campaign.js';
+    import { getRoster, awardAp, getAwardHistory } from './js/dm.js';
 
     const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
     const log = m => { $('log').textContent = '› ' + m + '\n' + $('log').textContent; };
-    let openCampaign = null;
+    let open = null;   // { id, name, isOwner, isDm }
 
     (async () => {
       const u = await currentUser();
@@ -82,65 +91,108 @@
       refresh();
     })();
 
-    $('createBtn').onclick = async () => {
-      try { const c = await createCampaign($('newName').value.trim());
-        log(`created "${c.name}" — invite ${c.invite_code}`); refresh(); }
-      catch (e) { log('create error: ' + e.message); }
-    };
-    $('joinBtn').onclick = async () => {
-      try { const id = await joinCampaign($('joinCode').value);
-        log('joined campaign ' + id.slice(0,8) + '…'); refresh(); }
-      catch (e) { log('join error: ' + e.message); }
-    };
+    $('createBtn').onclick = wrap(async () => {
+      const c = await createCampaign($('newName').value.trim());
+      log(`created "${c.name}" — player ${c.invite_code} / DM ${c.dm_invite_code}`); refresh();
+    }, 'create');
+    $('joinBtn').onclick   = wrap(async () => { const id = await joinCampaign($('joinCode').value); log('joined as player ' + id.slice(0,8) + '…'); refresh(); }, 'join');
+    $('joinDmBtn').onclick = wrap(async () => { const id = await joinAsDm($('dmCode').value);   log('joined as co-DM ' + id.slice(0,8) + '…'); refresh(); }, 'join-dm');
     $('refreshBtn').onclick = refresh;
+
+    function wrap(fn, tag){ return async () => { try { await fn(); } catch (e) { log(tag + ' error: ' + e.message); } }; }
+
+    function roles(c){
+      let h = '';
+      if (c.isOwner) h += '<span class="pill owner">owner</span>';
+      if (c.isDm && !c.isOwner) h += '<span class="pill dm">co-DM</span>';
+      if (c.isPlayer) h += '<span class="pill player">player</span>';
+      return h || '—';
+    }
 
     async function refresh() {
       try {
         const list = await listMyCampaigns();
         $('campRows').innerHTML = list.map(c => `
           <tr>
-            <td>${c.name}</td>
-            <td><span class="pill ${c.role}">${c.role}</span></td>
-            <td><span class="code">${c.invite_code}</span></td>
-            <td>
-              <button class="ghost" data-roster="${c.id}" data-name="${c.name}">Roster</button>
-              ${c.role === 'dm' ? `<button class="ghost" data-regen="${c.id}">New code</button>` : ''}
-            </td>
-          </tr>`).join('') || '<tr><td colspan="4" style="color:#64748b">none yet</td></tr>';
-        bind();
+            <td>${esc(c.name)}</td>
+            <td>${roles(c)}</td>
+            <td><span class="code">${c.isDm ? c.invite_code : '••••••'}</span>
+                ${c.isDm ? `<button class="ghost" data-regen="${c.id}">↻</button>` : ''}</td>
+            <td><span class="code">${c.isDm ? c.dm_invite_code : '—'}</span>
+                ${c.isDm ? `<button class="ghost" data-regendm="${c.id}">↻</button>` : ''}</td>
+            <td>${c.isDm
+                  ? `<label class="chk"><input type="checkbox" data-ignore="${c.id}" ${c.ignore_player_ap ? 'checked' : ''}> ignore player AP</label>`
+                  : (c.ignore_player_ap ? 'player AP ignored' : '')}</td>
+            <td><button class="ghost" data-roster="${c.id}" data-name="${esc(c.name)}" data-owner="${c.isOwner}" data-dm="${c.isDm}">Open</button></td>
+          </tr>`).join('') || '<tr><td colspan="6" style="color:#64748b">none yet</td></tr>';
+        bindList();
       } catch (e) { log('list error: ' + e.message); }
     }
 
-    function bind() {
-      document.querySelectorAll('[data-roster]').forEach(b => b.onclick = () => showRoster(b.dataset.roster, b.dataset.name));
-      document.querySelectorAll('[data-regen]').forEach(b => b.onclick = async () => {
-        try { const code = await regenerateInviteCode(b.dataset.regen); log('new code: ' + code); refresh(); }
-        catch (e) { log('regen error: ' + e.message); }
-      });
+    function bindList() {
+      document.querySelectorAll('[data-roster]').forEach(b => b.onclick = () =>
+        openCampaign({ id: b.dataset.roster, name: b.dataset.name, isOwner: b.dataset.owner === 'true', isDm: b.dataset.dm === 'true' }));
+      document.querySelectorAll('[data-regen]').forEach(b => b.onclick = wrap(async () => { const code = await regenerateInviteCode(b.dataset.regen); log('new player code: ' + code); refresh(); }, 'regen'));
+      document.querySelectorAll('[data-regendm]').forEach(b => b.onclick = wrap(async () => { const code = await regenerateDmInviteCode(b.dataset.regendm); log('new DM code: ' + code); refresh(); }, 'regen-dm'));
+      document.querySelectorAll('[data-ignore]').forEach(b => b.onchange = wrap(async () => { await setIgnorePlayerAp(b.dataset.ignore, b.checked); log('ignore player AP → ' + b.checked); }, 'toggle'));
     }
 
-    async function showRoster(id, name) {
-      openCampaign = id;
+    async function openCampaign(c) {
+      open = c;
       $('rosterBox').style.display = '';
-      $('rosterName').textContent = name;
+      $('rosterName').textContent = c.name;
+      $('rosterFlags').textContent = (c.isOwner ? '[owner]' : c.isDm ? '[co-DM]' : '[player]');
       try {
-        const roster = await getRoster(id);
+        const roster = await getRoster(c.id);
         $('rosterRows').innerHTML = roster.map(r => `
           <tr>
-            <td>${r.player || '—'}</td>
-            <td>${r.name}</td>
+            <td>${esc(r.player) || '—'}</td>
+            <td>${esc(r.name)}</td>
             <td><b>${r.ap}</b></td>
             <td class="row" style="margin:0">
-              <input type="number" value="10" style="width:4rem" data-amt="${r.id}">
+              <input type="number" value="10" style="width:3.5rem" data-amt="${r.id}">
+              <input placeholder="note" style="width:7rem" data-note="${r.id}">
               <button data-award="${r.id}">Award</button>
             </td>
-          </tr>`).join('') || '<tr><td colspan="4" style="color:#64748b">no players yet</td></tr>';
-        document.querySelectorAll('[data-award]').forEach(b => b.onclick = async () => {
-          const amt = parseInt(document.querySelector(`[data-amt="${b.dataset.award}"]`).value, 10) || 0;
-          try { const ap = await awardAp(b.dataset.award, amt); log(`awarded ${amt} → new ap ${ap}`); showRoster(id, name); }
-          catch (e) { log('award error: ' + e.message); }
-        });
+            <td>
+              <button class="ghost" data-hist="${r.id}">History</button>
+              ${c.isOwner ? `<button class="ghost" data-promote="${r.owner_id}">Make DM</button>` : ''}
+            </td>
+          </tr>`).join('') || '<tr><td colspan="5" style="color:#64748b">no players yet</td></tr>';
+        bindRoster(c);
+        renderCoDms(c);
       } catch (e) { log('roster error: ' + e.message); }
+    }
+
+    function bindRoster(c) {
+      document.querySelectorAll('[data-award]').forEach(b => b.onclick = wrap(async () => {
+        const id = b.dataset.award;
+        const amt = parseInt(document.querySelector(`[data-amt="${id}"]`).value, 10) || 0;
+        const note = document.querySelector(`[data-note="${id}"]`).value.trim() || null;
+        const ap = await awardAp(id, amt, note);
+        log(`awarded ${amt}${note ? ' ("'+note+'")' : ''} → new DM AP ${ap}`); openCampaign(c);
+      }, 'award'));
+      document.querySelectorAll('[data-hist]').forEach(b => b.onclick = wrap(async () => {
+        const h = await getAwardHistory(b.dataset.hist);
+        if (!h.length) { log('no awards yet for that character'); return; }
+        log('history:\n' + h.map(a => `  ${a.created_at.slice(0,19).replace('T',' ')}  ${a.amount>=0?'+':''}${a.amount}  by ${a.dm||'?'}${a.note?' — '+a.note:''}`).join('\n'));
+      }, 'history'));
+      document.querySelectorAll('[data-promote]').forEach(b => b.onclick = wrap(async () => {
+        await promoteToDm(c.id, b.dataset.promote); log('promoted to co-DM'); openCampaign(c); refresh();
+      }, 'promote'));
+    }
+
+    async function renderCoDms(c) {
+      try {
+        const dms = await getCampaignDms(c.id);
+        $('codm').innerHTML = '<b style="font-size:.85rem;color:#94a3b8">DMs:</b> ' + dms.map(d =>
+          `<span class="pill dm">${esc(d.name) || d.dm_id.slice(0,8)}` +
+          `${c.isOwner ? ` <a href="#" data-rm="${d.dm_id}" style="color:#fca5a5">✕</a>` : ''}</span>`
+        ).join(' ');
+        document.querySelectorAll('[data-rm]').forEach(a => a.onclick = (ev) => { ev.preventDefault(); wrap(async () => {
+          await removeDm(c.id, a.dataset.rm); log('removed co-DM'); openCampaign(c); refresh();
+        }, 'remove')(); });
+      } catch (e) { log('co-DM list error: ' + e.message); }
     }
   </script>
 </body>

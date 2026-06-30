@@ -1,0 +1,4 @@
+# Append-only logs: combine both sides' added lines on merge instead of
+# conflicting. Saves a manual resolve when two branches both add entries.
+CHANGELOG.md merge=union
+DECISIONS.md merge=union
