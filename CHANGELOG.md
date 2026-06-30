@@ -4,6 +4,8 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-01 · chore — CU-3: tidy repo root and test files** (`index.old.html` + `.tmp-verify.mjs` deleted; `campaign-test.html` + `sync-test.html` moved to `testing/` with relative paths updated to `../js/` and `../login.html`; `testing/README.md` replaced stray repo description with a proper harness index). Closes REV-09. No engine/logic change; parity unaffected.
+
 - **2026-06-30 · fix — REV-04: close campaign-join bypass in RLS** (`sql/rls-policies.sql`, `sql/migrations/2026-06-30-rev04-campaign-rls.sql`; no engine/logic change; parity unaffected). Removed `campaign_id` from the player column-level UPDATE grant — `join_campaign()` (SECURITY DEFINER) is now the sole writer. Also tightened the INSERT policy with `AND campaign_id IS NULL` so a player cannot insert a character pre-joined to an arbitrary campaign; `join_campaign()` bypasses RLS as a SECURITY DEFINER function and is unaffected. `DATA.version` unchanged.
 
 - **2026-06-30 · fix — REV-03: service worker now uses network-first for `*.html` + `js/engine.js`** (`service-worker.js`; no engine/logic change; parity 5/0). Added `NETWORK_FIRST_RE` regex; HTML pages and `engine.js` now try the network first and fall back to cache only when offline — so a deployed rules fix reaches returning users on the very next page load without clearing storage. Icons and supporting JS files remain cache-first. `DATA.version` unchanged. (D-GH11)
