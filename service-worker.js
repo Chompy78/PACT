@@ -20,6 +20,10 @@ const PRE_CACHE = [
   '/PACT/icons/apple-touch-icon.png',
 ];
 
+// Network-first: HTML pages + engine.js so deployed fixes reach returning users immediately.
+// Everything else (icons, supporting JS) stays cache-first for speed.
+const NETWORK_FIRST_RE = /\.html$|\/PACT\/$|\/js\/engine\.js$/;
+
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(
@@ -45,10 +49,29 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  // Never cache cross-origin requests (Supabase API, esm.sh CDN, etc.)
+  // Never intercept cross-origin requests (Supabase API, esm.sh CDN, etc.)
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
 
+  if (NETWORK_FIRST_RE.test(url.pathname)) {
+    // Network-first: try the network; serve cached copy only when offline.
+    e.respondWith(
+      fetch(e.request).then(response => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+        }
+        return response;
+      }).catch(() =>
+        caches.match(e.request).then(cached =>
+          cached || (e.request.mode === 'navigate' ? caches.match('/PACT/index.html') : null)
+        )
+      )
+    );
+    return;
+  }
+
+  // Cache-first for everything else (icons, supporting JS files).
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
@@ -58,7 +81,6 @@ self.addEventListener('fetch', e => {
         caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
         return response;
       }).catch(() => {
-        // Offline fallback: return index for navigate requests
         if (e.request.mode === 'navigate') return caches.match('/PACT/index.html');
       });
     })

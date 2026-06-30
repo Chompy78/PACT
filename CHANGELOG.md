@@ -4,6 +4,8 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-06-30 · fix — REV-03: service worker now uses network-first for `*.html` + `js/engine.js`** (`service-worker.js`; no engine/logic change; parity 5/0). Added `NETWORK_FIRST_RE` regex; HTML pages and `engine.js` now try the network first and fall back to cache only when offline — so a deployed rules fix reaches returning users on the very next page load without clearing storage. Icons and supporting JS files remain cache-first. `DATA.version` unchanged. (D-GH11)
+
 - **2026-06-29 · feature — auth bar on menu: optional sign-in, no redirect gate** (`index.html`; no engine change; parity unaffected). Added a small `<script type="module">` auth block that imports `js/auth.js` and shows a "Sign in" button when signed out or "Signed in as X · Log out" when signed in. Every page (menu + tools) is open to everyone — no redirect gate. Cloud save/sync activates only when a session exists.
 
 - **2026-06-30 · fix — REV-02: service worker now skips caching for cross-origin requests** (`service-worker.js`; no engine/logic change; parity 5/0). Added an origin guard (`url.origin !== self.location.origin → return`) to the fetch handler so Supabase API calls, esm.sh CDN responses, and any other cross-origin GETs are never intercepted or cached. Previously the handler claimed same-origin filtering in a comment but had no actual check, causing stale API responses and potential cross-user data to accumulate in Cache Storage. `DATA.version` unchanged.

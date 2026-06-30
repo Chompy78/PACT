@@ -14,7 +14,7 @@
 > pointers resolve. Findings are filed by severity: HIGH → Now, MEDIUM → Next, LOW → Later.
 
 Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page redesign, PHB data,
-**REV-01** regression gate, **REV-02** SW same-origin cache fix) has landed and graduated to `CHANGELOG.md`.
+**REV-01** regression gate, **REV-02** SW same-origin cache fix, **REV-03** SW network-first) has landed and graduated to `CHANGELOG.md`.
 Review findings **REV-08** (docs drift) and **REV-09** (scratch file) will be closed by the
 **still-pending CU-1 / CU-3** tasks below — not done yet.
 
@@ -24,17 +24,6 @@ Review findings **REV-08** (docs drift) and **REV-09** (scratch file) will be cl
 
 > **Quick win first:** CU-1 and CU-2 are ready-to-commit files — knock those out immediately. The HIGH
 > fixes (REV-01…04) are the priority work in this bucket.
-
-## REV-03 — Service worker: network-first for app shell + engine (HIGH) — TODO
-`js/engine.js` is served cache-first from a static `CACHE_NAME`, so a shipped rules fix never reaches
-returning users until the SW's own bytes change.
-```
-Network-first (or stale-while-revalidate) for *.html + js/engine.js, falling back to cache offline;
-cache-first only for content-addressed static assets (icons). Optionally derive CACHE_NAME from BUILD
-so activate purges old caches each release. Log the choice in DECISIONS.md.
-```
-**Done when:** editing only `js/engine.js`, deploying, and reloading an installed PWA serves the NEW
-engine without clearing storage; offline still loads. (Full detail: REV-03.)
 
 ## REV-04 — Close the campaign-join bypass in RLS (HIGH) — TODO
 `campaign_id` is in the player update grant + the insert policy only checks ownership, so a player can set
