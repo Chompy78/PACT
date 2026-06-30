@@ -6,7 +6,7 @@
 
 ## Already built
 - Rules centralised into `js/engine.js` (single source of truth) — **DONE**
-- Three tools refactored to UI-only via the module bridge — **DONE**
+- Live Sheet + DM Console refactored to UI-only via the module bridge — **DONE** (CharGen still has an embedded copy — see Task 6)
 - Deployed to GitHub Pages from the repo root (chompy78.github.io/PACT/) — **DONE**
 - Regression pack `testing/tests/engine-parity.html` → 5/5 — **DONE**
 
@@ -98,6 +98,35 @@ flag assets > 100KB); Regression (engine-parity 5/5).
 - **Icon & asset list** — exact sizes (192, 512, 180), PNG, where referenced, iOS specifics. List only.
 - **Offline UX spec** — a state table (State | indicator | can do | cannot do | automatic).
 - **Future features roadmap** — 5 features that fit this architecture with no server/data-model change.
+
+## Task 6 — CharGen module bridge migration — TODO
+
+```
+Migrate tools/PACT-CharGen-Webtool.html from its embedded DATA + compute() copy to the shared
+module bridge, matching the pattern already used by Live Sheet and DM Console.
+
+Steps:
+1. Add a <script type="module"> that imports
+     { DATA, compute, baseBuild, MUT, activeEvents, economy, foldBuild }
+   from '../js/engine.js', copies each onto window, then dispatches
+     document.dispatchEvent(new Event('engine-ready'))
+2. Gate the existing UI <script> block on that event:
+     document.addEventListener('engine-ready', function() { ... })
+   If the UI code is split across multiple <script> tags, gate each one or hoist them
+   into a single DOMContentLoaded + engine-ready listener.
+3. Delete the inline const DATA = {...} JSON blob (line ~428) and function compute(b){...}
+   entirely — they are the only things to remove.
+
+Key compatibility note: CharGen's embedded compute() differs from engine.js only in the
+budget line (CharGen: `const budget=b.budget||0; const remaining=budget-total`).
+The canonical compute(b, opts) defaults opts to {}, giving dmAp=0 and ignorePlayerAp=false,
+so spendable === b.budget — identical behaviour. CharGen never passes opts, so no UI change.
+The return object gains extra fields (playerAp, dmAp, spendable) that CharGen ignores.
+
+Do not change any UI behaviour, sections, or styling.
+```
+**Done when:** CharGen loads, prices a build correctly, no embedded DATA or compute() remains
+in the HTML file, and `testing/tests/engine-parity.html` still reports 5/5.
 
 ## Other improvements
 - Commit the instructions file (`AGENTS.md` + copies) first.
