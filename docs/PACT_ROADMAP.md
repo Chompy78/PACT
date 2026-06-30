@@ -13,10 +13,9 @@
 > live in **`docs/PACT-Code-Review-2026-06-29.md`** — commit that file alongside this roadmap so the
 > pointers resolve. Findings are filed by severity: HIGH → Now, MEDIUM → Next, LOW → Later.
 
-Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page redesign, PHB data,
-**REV-01** regression gate) has landed and graduated to `CHANGELOG.md`. Review findings **REV-08**
-(docs drift) and **REV-09** (scratch file) will be closed by the **still-pending CU-1 / CU-3** tasks
-below — not done yet.
+Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page redesign, PHB data) has
+landed and graduated to `CHANGELOG.md`. Review findings **REV-08** (docs drift) and **REV-09** (scratch
+file) will be closed by the **still-pending CU-1 / CU-3** tasks below — not done yet.
 
 ---
 
@@ -24,6 +23,21 @@ below — not done yet.
 
 > **Quick win first:** CU-1 and CU-2 are ready-to-commit files — knock those out immediately. The HIGH
 > fixes (REV-01…04) are the priority work in this bucket.
+
+## REV-01 — Make the regression gate actually assert (HIGH) — TODO
+The gate is hollow: the runner hard-codes `pass: true` and `expected-results.csv` columns are all blank,
+so it only proves `compute()` *doesn't throw*. **Do this before trusting any "5/0" below.**
+```
+1. Capture current known-good outputs into testing/expected/expected-results.csv (at least
+   new_engine_ap_total + new_engine_warnings per fixture). DO NOT invent numbers — have the human
+   confirm them against the PHB/guide first.
+2. Rewrite testing/tests/engine-parity.html so each test ASSERTS total === expected and
+   warnings.length === expected, setting pass from the comparison (not a literal).
+3. CG-003: also assert remaining < 0 and the OVER BUDGET warning is present.
+4. LS-001/EV-001: assert rebuildStateFromEvents(...).ok, total, eventsApplied.
+```
+**Done when:** perturbing one price in `DATA` makes the gate report a FAILED test; with no change it's 5/0
+against the captured baseline. (Full detail: REV-01.)
 
 ## REV-02 — Service worker: cache same-origin only (HIGH) — TODO
 The SW caches every 200 GET cache-first, including Supabase API reads → stale rosters/characters + other
