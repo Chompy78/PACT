@@ -218,11 +218,11 @@ Branch feat/theme-random-artwork. Add theme-specific image pools to index.html a
 
 ```text
 - Add separate image pools for light and dark themes (e.g. assets/themes/light/* and assets/themes/dark/*).
-- Detect the active theme *rom the existing theme system.
-- O* page load, randomly select one im*ge from the active theme pool and *pply it to the homepage artwork/ba*ner element.
-- Re-roll the image w*en the user switches theme so ligh* mode always uses a light image an* dark mode always uses a dark imag*.
-- Keep all logic inside index.ht*l (or a dedicated UI helper JS fil* if one already exists); no engine*changes.
-- display-only — do NOT b*mp DATA.version; just log in CHANGELOG.
+- Detect the active theme from the existing theme system.
+- On page load, randomly select one image from the active theme pool and apply it to the homepage artwork/banner element.
+- Re-roll the image when the user switches theme so light mode always uses a light image and dark mode always uses a dark image.
+- Keep all logic inside index.html (or a dedicated UI helper JS file if one already exists); no engine changes.
+- display-only — do NOT bump DATA.version; just log in CHANGELOG.
 - Engine is the single source of truth. All rules live in js/engine.js; do not add rules logic outside the engine.
 ```
 
