@@ -152,6 +152,16 @@
     .install-btn[hidden] { display:none; }
     .install-btn:hover { background:var(--accent); color:var(--page); }
     .install-btn svg { width:15px; height:15px; }
+    /* Auth bar: sign-in status + sign-in / log-out button. */
+    .auth-btn {
+      display:inline-flex; align-items:center; gap:.4rem;
+      background:transparent; color:var(--muted);
+      border:1px solid var(--rule); border-radius:8px;
+      padding:.35rem .75rem; cursor:pointer; font-size:.8rem; font-family:inherit;
+      white-space:nowrap; transition:border-color .15s, color .15s;
+    }
+    .auth-btn:hover { border-color:var(--accent); color:var(--text); }
+    .auth-btn[hidden] { display:none; }
     /* Subtle theme picker: a small icon that opens a tucked-away menu. */
     .theme { position:relative; flex:0 0 auto; }
     .theme-toggle {
@@ -275,6 +285,23 @@
       h1 { font-size:2.1rem; }
     }
   </style>
+  <script type="module">
+    import('./js/auth.js').then(async (m) => {
+      const btn = document.getElementById('authBtn');
+      const session = await m.currentSession();
+      if (!session) {
+        btn.textContent = 'Sign in';
+        btn.hidden = false;
+        btn.onclick = () => { location.href = 'login.html'; };
+        return;
+      }
+      let name = '';
+      try { name = (await m.myProfile())?.display_name || ''; } catch {}
+      btn.textContent = 'Signed in as ' + (name || session.user?.email || 'you') + ' · Log out';
+      btn.hidden = false;
+      btn.onclick = async () => { await m.logout(); location.reload(); };
+    }).catch(() => {});
+  </script>
 </head>
 <body>
   <div class="offline-badge" role="status" hidden>Offline &mdash; tools still work</div>
@@ -285,6 +312,7 @@
         <p class="lead">Build any D&amp;D hero one purchase at a time. Start with the guide, then create and play your character.</p>
       </div>
       <div class="actions">
+        <button class="auth-btn" type="button" hidden id="authBtn" aria-label="Sign in or out"></button>
         <button class="install-btn" type="button" hidden aria-label="Install PACT as an app">
           <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"></path><path d="M8 11l4 4 4-4"></path><path d="M5 19h14"></path></svg>
           Install app
