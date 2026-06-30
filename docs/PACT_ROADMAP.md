@@ -222,6 +222,19 @@ Branch feat/theme-random-artwork. Add theme-specific image pools to index.html a
 
 ---
 
+## Standardise CharGen toolbar spacing — TODO
+Branch fix-toolbar-gap. Remove inconsistent spacing between Campaign and Live Sheet in the CharGen toolbar so all toolbar buttons use the same gap and alignment.
+
+```text
+Review the CharGen toolbar HTML/CSS.
+Identify any custom margin, spacer, flex rule, or grouping that creates extra space between Campaign and Live Sheet.
+Refactor so toolbar button spacing is controlled by the shared toolbar layout only.
+Do not change button order, labels, sizing, or functionality.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+---
+
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
