@@ -7,6 +7,16 @@ PACT is a static, vanilla-JS tabletop-RPG tool suite — no frameworks, no build
 On GitHub Pages at https://chompy78.github.io/PACT/ (served from the `main` branch root; `preview`
 is staging and promotes into `main`).
 
+## Agent and effort guidance
+Before starting any non-trivial task, flag whether it would benefit from a specialised agent or higher
+effort — and why — using this quick rubric:
+- **Explore agent** — searching for symbols, patterns, or files across a large or uncertain portion of the codebase.
+- **Plan agent** — the task touches multiple files with architectural implications or involves a meaningful design trade-off.
+- **code-reviewer / `/code-review ultra`** — independent adversarial review of a diff before merging.
+- **Higher effort (`high`/`max`)** — verification, judge panels, or deep audits where correctness matters more than speed.
+
+If none of these apply, state that and proceed.
+
 ## Architecture — read before editing
 - **`js/engine.js` is the single source of truth for all game rules** (browser ES module). Exports:
   `DATA`, `compute`, `rebuildStateFromEvents`, `baseBuild`, `MUT`, `activeEvents`, `economy`, `foldBuild`.
