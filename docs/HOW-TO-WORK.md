@@ -1,78 +1,126 @@
 # How to work on PACT with VS Code Copilot or Claude Code
 
-Plain-English guide: what goes where, what to do at the start of a session, and the loop for each task.
+Plain-English guide: what goes where, how to run and preview the app, and the loop for each task.
 The big idea: **the agent reads your repo directly.** You never paste your HTML or re-explain the project —
 you commit the instructions once, then paste one task at a time.
 
 ---
 
-## Where everything lives (the neat layout)
-Only a few files are *pinned* to fixed paths by the tools; everything else tucks under `docs/`.
+## The instruction files (no more copy chore)
+There is now **one** source of truth for agent instructions: **`AGENTS.md`** at the repo root.
+- `CLAUDE.md` is a stub that imports it (`@AGENTS.md`) — Claude Code picks it up automatically.
+- `.github/copilot-instructions.md` is a stub that points to `AGENTS.md` (plus the hard rules inline).
 
-**Repo root (must/should be here):**
-| File | Why it's at root |
+**Edit `AGENTS.md` only.** The other two never need hand-editing — the old "keep three copies identical"
+chore is gone.
+
+## Where everything lives
+**Repo root (pinned / by convention):**
+
+| File | Why it's here |
 |---|---|
-| `CLAUDE.md` | **pinned** — Claude Code reads the root `CLAUDE.md` |
-| `.github/copilot-instructions.md` | **pinned** — VS Code Copilot reads this exact path |
-| `AGENTS.md` | master copy (some tools read `AGENTS.md`); keep `CLAUDE.md`/Copilot copies identical to it |
-| `CHANGELOG.md` | convention — GitHub surfaces it; it's a "live" log you touch every change |
-| `DECISIONS.md` | convention — sits next to the changelog |
+| `AGENTS.md` | the single source of truth for agent instructions |
+| `CLAUDE.md` · `.github/copilot-instructions.md` | thin stubs pointing at `AGENTS.md` |
+| `CHANGELOG.md` · `DECISIONS.md` | the live "what" / "why" logs you touch every change |
+| `index.html` · `login.html` · `manifest.json` · `service-worker.js` · `404.html` | the app shell |
 
-**Everything else under `docs/` (the neat folder):**
+**Under `docs/`:**
+
 | Path | What |
 |---|---|
+| `docs/PACT_ROADMAP.md` | the task list (paste one at a time) |
 | `docs/HOW-TO-WORK.md` | this guide |
-| `docs/PWA-BUILD-PLAN.md` | the task list (paste one at a time) |
-| `docs/ENGINE-DATA-UPDATE.md` + `engine-data-update.json` | the first task (PHB pages + drawback text) |
-| `docs/sessions/` | per-session narratives (the discussion history) |
-| `docs/history/` | the archived pre-GitHub history (full changelog, old docs, fuzz harness) |
-| `docs/PACT-Players-Guide.html` | the rules reference (already there) |
-
-> The three instructions files are **identical copies**. Edit `AGENTS.md`, then copy it over `CLAUDE.md`
-> and `.github/copilot-instructions.md`. That's the only sync chore.
-> *(If you'd rather move `CHANGELOG.md` + `DECISIONS.md` into `docs/` too, you can — just change those two
-> paths in `AGENTS.md` so the agents log to the new locations.)*
+| `docs/VERSION-SYNC.md` | how the build version is kept consistent across the tools |
+| `docs/sessions/` | per-session narratives (optional; only when worth keeping) |
+| `docs/history/` | archived pre-GitHub history — **non-authoritative**, don't read unless asked |
+| `docs/PACT-Players-Guide.html` | the rules reference (large — don't load wholesale) |
 
 ---
 
-## ONE-TIME SETUP
-1. Copy the files above into your repo at the paths shown, then commit **before** any task:
-   ```
-   git add AGENTS.md CLAUDE.md .github/copilot-instructions.md CHANGELOG.md DECISIONS.md docs/
-   git commit -m "docs: agent instructions + changelog/decisions/sessions + history"
-   git push
-   ```
-2. Install your assistant:
-   - **VS Code Copilot:** install **GitHub Copilot** + **Copilot Chat**, open the repo, use **Agent** mode.
-   - **Claude Code:** install the CLI, run `claude` in the repo folder (it reads `CLAUDE.md` automatically).
+## Running & previewing the app locally
+It's a PWA with ES modules and a service worker, so **`file://` will not work** — you need a local HTTP
+server, and the paths assume the **`/PACT/` base** (that's how GitHub Pages serves it).
 
-## START OF EACH SESSION
-You barely need a prompt — the instructions file is the standing context. A good opener:
+**Serve the folder that *contains* your PACT repo, then open the `/PACT/` URL** (no npm needed):
+```
+# run this in the PARENT folder of your PACT repo:
+python3 -m http.server 8000
+# then visit:
+http://localhost:8000/PACT/
+```
+Serving the parent (not the repo root) makes the absolute `/PACT/...` paths in `service-worker.js` and
+`manifest.json` resolve exactly like production. If you only want to eyeball a tool and don't care about
+the service worker, you can serve the repo root and open a tool directly — but the SW/install/offline
+behaviour won't match production.
+
+> Tip: when testing service-worker or cache changes, use a private/incognito window or DevTools →
+> Application → Service Workers → "Update on reload" so you're not served a stale worker.
+
+---
+
+## Verifying the engine without a browser (the gate)
+The regression gate is **`testing/tests/engine-parity.html`** — a browser page that must report
+**5 passed / 0 failed**. A CLI agent has no browser, and **there is no headless runner yet** (building one
+is tracked as **REV-11** in the roadmap). Until then, verify the engine by importing it in **Node** (the
+engine is a clean ES module and runs under Node unchanged):
+
+```
+# from the repo root (Node 18+):
+node -e "import('./js/engine.js').then(async m => {
+  const fs = await import('node:fs/promises');
+  for (const f of ['CG-001-default-empty-build','CG-002-valid-50ap-build','CG-003-over-budget-build']) {
+    const b = JSON.parse(await fs.readFile('testing/fixtures/builds/'+f+'.json','utf8'));
+    const r = m.compute(b);
+    console.log(f, 'total', r.total, 'remaining', r.remaining, 'warnings', (r.warnings||[]).length);
+  }
+});"
+```
+Compare the numbers to the baseline in `testing/expected/expected-results.csv`. **Note:** that baseline is
+currently empty — making it real (and making the gate actually *assert*, not just "doesn't throw") is
+**REV-01**, and it should land before you trust any "5/0" elsewhere.
+
+---
+
+## Test fixtures & expected results (how to add or update one)
+- **Fixtures** live in `testing/fixtures/`:
+  - `builds/` — CharGen flat-build JSON (`CG-001` empty, `CG-002` valid-50ap, `CG-003` over-budget)
+  - `live-sheets/` — Live Sheet event logs (`LS-001` clean export)
+  - `events/` — event-sourcing cases (`EV-001` award-and-purchase)
+- **Expected output** is `testing/expected/expected-results.csv`, one row per fixture. Columns:
+  `test_id, test_group, fixture, legacy_ap_total, new_engine_ap_total, legacy_warnings,
+  new_engine_warnings, legacy_valid, new_engine_valid, pass, notes`.
+- **To add a fixture:** drop the JSON in the right subfolder, add a row to the CSV with the fixture path,
+  fill the `new_engine_*` columns with the **confirmed** correct values (run the engine to get them, then
+  verify against the PHB/guide — don't invent numbers), and register it in `testing/pack-manifest.json`.
+- **When a task legitimately changes `compute()` output:** update the affected `new_engine_*` values in the
+  same PR and say so in the changelog. (See `testing/README.md` for the run steps.)
+
+---
+
+## The loop per task
+1. **Branch:** `git checkout -b feat/<short-slug>` (one task per branch; use `type/slug` — `feat/`, `fix/`, `docs/`).
+2. **Paste one task** from `docs/PACT_ROADMAP.md`. No need to re-describe the architecture — `AGENTS.md` is the standing context.
+3. **Review the diff** the agent proposes; accept or push back.
+4. **Verify:** run the gate (browser page, or the headless Node check above) → expect **5 passed / 0 failed**.
+5. **Log it:** confirm `CHANGELOG.md` is updated (+ `DECISIONS.md` / a `docs/sessions/` note if it applies);
+   graduate the task out of the roadmap into the changelog if it's done.
+6. **Commit** as `type(scope): summary`, open a PR, merge → GitHub Pages redeploys.
+
+## Start of each session
+A good opener (the instructions file is the standing context):
 - **Claude Code:** `Read AGENTS.md and CHANGELOG.md, then do the task I paste next. Log it when done.`
 - **Copilot (Agent mode):** `Follow .github/copilot-instructions.md. Here's the task:`
-…then paste **one** task from `docs/PWA-BUILD-PLAN.md`. No need to re-describe the architecture.
+…then paste **one** task from `docs/PACT_ROADMAP.md`.
 
-## THE LOOP PER TASK
-1. Branch: `git checkout -b task-1-pwa-shell` (one task per branch).
-2. Paste one task from `docs/PWA-BUILD-PLAN.md` (start with the data update in `docs/ENGINE-DATA-UPDATE.md`).
-3. Review the diff the agent proposes; accept or push back.
-4. Verify: open `testing/tests/engine-parity.html` → **5 passed / 0 failed**.
-5. Confirm it logged the change in `CHANGELOG.md` (+ `DECISIONS.md` / a `docs/sessions/` note if it applies).
-6. Commit / open a PR. Merge → GitHub Pages redeploys.
-
-## COPILOT vs CLAUDE CODE
+## Copilot vs Claude Code
 | | VS Code Copilot (Agent mode) | Claude Code (CLI) |
 |---|---|---|
-| Reads instructions from | `.github/copilot-instructions.md` | `CLAUDE.md` |
+| Reads instructions from | `.github/copilot-instructions.md` → `AGENTS.md` | `CLAUDE.md` → `AGENTS.md` |
 | Where you work | inside VS Code | a terminal in the repo folder |
-| Best at | quick in-editor edits | multi-file changes, running the test, opening PRs via `gh` |
-| Start a session | open repo → Copilot Chat → Agent | run `claude` in the repo |
+| Best at | quick in-editor edits | multi-file changes, running the headless check, opening PRs via `gh` |
 
-Use either or both — they read the same content under their two filenames, so the rules and the logging
-discipline stay identical.
+Use either or both — they read the same `AGENTS.md`, so the rules and logging discipline stay identical.
 
-## TWO THINGS TO WATCH
+## Two things to watch
 - **Keep `js/engine.js` off-limits** unless a task explicitly targets it; the tools depend on its stable API.
-- The `PACT.tar` snapshot is **behind your live repo** (it exports 3 engine symbols; your instructions list
-  8). Treat your live GitHub repo as the truth — land the data update as a surgical `DATA` edit
-  (`docs/ENGINE-DATA-UPDATE.md`), don't overwrite the live engine wholesale.
+- **Tool/engine build versions must stay in sync** — see `docs/VERSION-SYNC.md` before bumping anything.

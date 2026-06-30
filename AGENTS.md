@@ -1,77 +1,103 @@
 # PACT — instructions for AI coding agents
 
-> **Master copy.** Copy this file to `CLAUDE.md` (Claude Code reads that) and to
-> `.github/copilot-instructions.md` (VS Code Copilot reads that). Keep all three identical —
-> edit this one, then re-copy. (Some tools also read `AGENTS.md` directly.)
+> **Single source of truth.** Edit ONLY this file. `CLAUDE.md` imports it (`@AGENTS.md`);
+> `.github/copilot-instructions.md` is a stub that points here.
 
-PACT is a static, vanilla-JS tabletop-RPG tool suite. No frameworks, no build step, no npm.
-Hosted on GitHub Pages at https://chompy78.github.io/PACT/ (served from the repo root).
+PACT is a static, vanilla-JS tabletop-RPG tool suite — no frameworks, no build step, no npm.
+On GitHub Pages at https://chompy78.github.io/PACT/ (served from the `main` branch root; `preview`
+is staging and promotes into `main`).
 
 ## Architecture — read before editing
-- `js/engine.js` is the SINGLE SOURCE OF TRUTH for all game rules. Plain browser ES module.
-  Exports: `DATA`, `compute(build)`, `rebuildStateFromEvents(base, events)`, `baseBuild`, `MUT`,
-  `activeEvents`, `economy`, `foldBuild`. Never duplicate or re-implement rules logic anywhere else.
-- Three UI-only tools in `tools/`: `PACT-CharGen-Webtool.html`, `PACT-Live-Char-Sheet.html`,
-  `DM Console.html`. Each loads the engine via a "module bridge": a `<script type="module">` that
-  imports `../js/engine.js`, copies the API onto `window`, and dispatches an `engine-ready` event; the
-  tool's classic UI script is gated on that event. `tools/` and `js/` must stay siblings so
-  `../js/engine.js` resolves.
-- Persistence today: localStorage + JSON import/export only. Character data: CharGen = a flat build
-  JSON; Live Sheet = an event log `{ LOG, SEQ, rules }`. All derived stats (HP, AC, AP, warnings) come
-  from `compute()` / `rebuildStateFromEvents()` at runtime — never store derived values.
-- **CharGen → Live Sheet export (D-GH3):** the export button in CharGen produces a Live Sheet JSON by
-  emitting discrete native buy events (one per itemized purchase: boons, drawbacks, skills, saves,
-  expertise, tools, masteries, racial traits, arts, features, subclasses, etc.) plus structural patches
-  for scalar/blob fields. Imported characters must be indistinguishable from hand-built ones — drawbacks
-  must remain buy-off-able and ledger entries must appear per line. Zero-cost non-purchase setup entries
-  (innate-spell defaults, character-size state) are suppressed from the export log.
+- **`js/engine.js` is the single source of truth for all game rules** (browser ES module). Exports:
+  `DATA`, `compute`, `rebuildStateFromEvents`, `baseBuild`, `MUT`, `activeEvents`, `economy`, `foldBuild`.
+  Never re-implement rules logic anywhere else.
+- **Three UI-only tools** in `tools/` (`PACT-CharGen-Webtool.html`, `PACT-Live-Char-Sheet.html`,
+  `DM Console.html`) load the engine via a **module bridge**: a `<script type="module">` imports
+  `../js/engine.js`, copies the API onto `window`, and fires `engine-ready`; the tool's classic UI script
+  waits for that event. `tools/` and `js/` must stay siblings. (CharGen still embeds its own engine copy —
+  migrating it onto the bridge is a pending task, so the others are the reference pattern.)
+- **Persistence:** the app is an installable, offline-capable PWA with **optional sign-in**. Local-only
+  still works (localStorage + JSON import/export); when signed in, characters also save to the **cloud
+  (Supabase)** and DMs run **campaigns**. CharGen = a flat build JSON; Live Sheet = an event log
+  `{ LOG, SEQ, rules }`. Store only raw character data; derive HP/AC/AP/warnings via `compute()` /
+  `rebuildStateFromEvents()` at runtime — **never store derived values.**
+- **CharGen → Live Sheet export (D-GH3, see DECISIONS.md):** emits one native buy event per purchase plus
+  structural patches; imported characters must be indistinguishable from hand-built ones (drawbacks
+  buy-off-able, one ledger entry per line).
 
 ## Hard rules for any change
-- Keep the three tools working and their UI unchanged unless the task says to change it.
-- Vanilla JS only. No frameworks, bundlers, TypeScript, or npm dependencies.
-- GitHub Pages only — no server-side code. Any service-worker scope and manifest `start_url` must be `/PACT/`.
-- Regression gate: after any change, `testing/tests/engine-parity.html` must still report 5 passed / 0
-  failed. If you touch `engine.js`, keep its public API stable and re-confirm the tests.
+- Keep the three tools working and their UI unchanged unless the task says otherwise.
+- Vanilla JS only — no frameworks, bundlers, TypeScript, or npm.
+- GitHub Pages only — **no custom backend code in the repo.** The app is static files; Supabase (hosted
+  database + auth) is the only backend, reached from the browser and protected by row-level security.
+  Service-worker scope and manifest `start_url` = `/PACT/`.
+- **Secrets:** only the Supabase **anon/publishable** key is committed (safe under RLS). **Never commit the
+  `service_role`/secret key** or any private credential.
+- **Target:** modern evergreen browsers on phones and desktops (current Chrome/Edge/Firefox/Safari, incl.
+  iOS Safari). Prefer widely-supported JS/CSS; no legacy/IE shims.
+- After any change, `testing/tests/engine-parity.html` must report **5 passed / 0 failed** (how to run it —
+  browser or headless — is in `docs/HOW-TO-WORK.md`). Keep `engine.js`'s public API stable if you touch it.
 
-## Rules version vs display data (don't over-bump the version)
-- `DATA.version` (currently `v0.322`) is the **rules** version. Bump it ONLY when the *mechanics* change
-  (ladders, prices, gates, what `compute()` does).
-- Some `DATA` maps are **display-only** and are never read by `compute()`: `masteryFx`, `drawbackFx`,
-  `racialFx`, and the `page` fields on `arts` / `masteryFx` (PHB page numbers shown in tooltips). Editing
-  those is a documentation change — do NOT bump `DATA.version`; just log it in `CHANGELOG.md`.
+## Don't read large files wholesale (token budget)
+- **`js/engine.js` (~237 KB)** — don't read end-to-end unless the task targets the engine; `grep` for the
+  symbol you need (full API is the Exports line above).
+- **Never load `docs/PACT-Players-Guide.html` (~657 KB) or `pact-cover.jpg`** — player assets, not code.
+- **`tools/*.html` are 320–520 KB each** — search within for the relevant section; don't read the whole file.
+- **`docs/history/` is a retired architecture** (`src/engine/`, `build.cjs`, a Node audit) — never read it
+  unless asked.
 
-## Project memory — LOG AS YOU GO (this is how context survives between sessions)
-Before you finish a task / open a PR, update whichever apply (newest entries at the TOP):
-- **`CHANGELOG.md`** (repo root) — *what* changed. One condensed line per change.
-- **`DECISIONS.md`** (repo root) — *why*, whenever you make/reverse an architectural/process choice
-  (**Context → Options → Decision → Why → Status**).
-- **`docs/sessions/<date>-<topic>.md`** — the *discussion*: what was explored and landed on (history).
-These are the project's memory; updating them is part of the change, not an afterthought.
+## Versioning — TWO separate numbers (don't conflate or over-bump)
+- **Build version** (`BUILD`, currently `v0.107`) — the cosmetic web-tool/build number. The single source
+  of truth is `export const BUILD` in `js/engine.js`; the three tools must **mirror** it and stay
+  consistent — CharGen (line-1 comment, `<title>`, header `.sub` label), Live Sheet (line-1 comment),
+  DM Console (`TOOL_VERSION`). `index.html` reads `BUILD` live, so **never hand-edit its version.** Full
+  bump procedure: `docs/VERSION-SYNC.md`.
+- **Rules version** (`DATA.version`, currently `v0.332`) — the rules dataset. Bump ONLY when mechanics
+  change (ladders, prices, gates, `compute()` output). The display-only maps `masteryFx`, `drawbackFx`,
+  `racialFx` and `page` fields are never read by `compute()` — editing them is a docs change, so don't
+  bump it; just log it in `CHANGELOG.md`.
 
-## File map
-- **App:** `index.html` (menu) · `js/engine.js` · `tools/*.html` · `docs/PACT-Players-Guide.html`.
-- **Testing:** `testing/tests/engine-parity.html` (run this; expect 5/0) ·
-  `testing/expected/expected-results.csv` · `testing/fixtures/builds/` (CG-001 empty, CG-002 valid-50ap,
-  CG-003 over-budget) · `testing/fixtures/live-sheets/` (LS-001 clean generator export) ·
-  `testing/fixtures/events/` (EV-001 award-and-purchase) · `testing/pack-manifest.json` ·
-  `testing/scripts/compare-results.js`.
-- **Live logs (repo root):** `CHANGELOG.md` · `DECISIONS.md`.
-- **Docs folder:** `docs/sessions/` (per-session narratives) · `docs/history/` (archived pre-GitHub
-  history — full changelog, old INDEX/CONTEXT, fuzz harness; non-authoritative) · `docs/PWA-BUILD-PLAN.md`
-  (roadmap) · `docs/HOW-TO-WORK.md` (the working guide) · `docs/ENGINE-DATA-UPDATE.md` + `docs/engine-data-update.json` (data task reference, now complete).
+## Log as you go (this is how context survives between sessions)
+Before finishing a task / opening a PR, update what applies (newest on top):
+- **`CHANGELOG.md`** — *what* changed, one line.
+- **`DECISIONS.md`** — *why*, on any architectural/process choice (Context → Options → Decision → Why → Status).
+- **`docs/sessions/<date>-<topic>.md`** — the discussion, when it's worth keeping.
+- **Graduate:** when a `docs/PACT_ROADMAP.md` task is DONE, MOVE it into `CHANGELOG.md` in the same change —
+  the roadmap holds only open work.
 
-## Where new work goes (planned — the PWA + Supabase build)
-Tasks 1–5 are still TODO; full prompts and done-criteria are in `docs/PWA-BUILD-PLAN.md`.
-- Repo root: `manifest.json`, `service-worker.js`, `404.html`.
-- `js/`: `supabase-client.js`, `auth.js`, `sync.js`, `campaign.js`, `dm.js`.
-- `sql/`: `schema.sql`, `rls-policies.sql`.
-- Store only the build JSON / event log in the DB (`characters.stats`); the engine derives the rest.
-  `ap` (the DM-awarded points column) is server-authoritative and DM-only.
+## Multiple sessions
+More than one agent may be active. **`docs/PACT_ROADMAP.md` has a single writer** — don't append to it.
+If you have new roadmap items, output them in **this exact format** for the human to fold in, then carry on:
+
+````
+## <short title> — TODO
+```
+<what to do — the agent prompt, paste-ready>
+```
+**Done when:** <objective, checkable condition>
+````
+
+One task per branch (the open branch is the "in flight" signal).
+
+## File & data map
+- **App:** `index.html` (menu) · `login.html` (auth) · `js/engine.js` · `tools/*.html` ·
+  `docs/PACT-Players-Guide.html`.
+- **Engine support:** `js/` — `supabase-client.js`, `auth.js`, `sync.js`, `campaign.js`, `dm.js`;
+  root — `manifest.json`, `service-worker.js`, `404.html`; `sql/` — `schema.sql`, `rls-policies.sql`, `migrations/`.
+- **Testing:** run `testing/tests/engine-parity.html` (expect **5/0**); fixtures in `testing/fixtures/`,
+  expected output in `testing/expected/` (see `testing/README.md`).
+- **Docs:** `docs/PACT_ROADMAP.md` (open work) · `docs/HOW-TO-WORK.md` · `docs/sessions/` ·
+  `docs/history/` (archived, non-authoritative).
+- **Data rule:** the DB stores only raw character data (`characters.stats`) — the engine derives the rest
+  (see *Persistence* above). `ap` (DM-awarded points) is server-authoritative and DM-only — never
+  overwritten by a local push.
 
 ## Per-change checklist
-1. Work on a branch, one task at a time.
-2. Edit `js/engine.js` ONLY if the task targets the engine; otherwise treat its public API as fixed.
-3. Open `testing/tests/engine-parity.html` → expect **5 passed / 0 failed**. If the task changed
+1. One task, one branch — name it `type/short-slug` (e.g. `feat/…`, `fix/…`, `docs/…`).
+2. Touch `js/engine.js` only if the task targets the engine; else treat its API as fixed.
+3. `testing/tests/engine-parity.html` → **5/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
    `compute()` output, update `testing/expected/` in the same change and say so.
-4. Update `CHANGELOG.md` (+ `DECISIONS.md` / `docs/sessions/` if they apply).
-5. Open a PR; let the agent draft the PR body from the changelog entry.
+4. Update `CHANGELOG.md` (+ `DECISIONS.md` / `docs/sessions/` if relevant); graduate the task out of the
+   roadmap if done.
+5. Commit as `type(scope): summary` (Conventional Commits); open a PR and draft its body from the
+   changelog entry.
