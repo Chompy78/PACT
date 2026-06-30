@@ -7,6 +7,11 @@ PACT is a static, vanilla-JS tabletop-RPG tool suite — no frameworks, no build
 On GitHub Pages at https://chompy78.github.io/PACT/ (served from the `main` branch root; `preview`
 is staging and promotes into `main`).
 
+## Shell environment notes
+- **`gh` CLI** is installed but not on the system PATH — my shell tools can't resolve it by name.
+  Always call it via its full path:
+  `C:\Users\JohnChow\AppData\Local\Microsoft\WinGet\Packages\GitHub.cli_Microsoft.Winget.Source_8wekyb3d8bbwe\bin\gh.exe`
+
 ## Agent and effort guidance
 Before starting any non-trivial task, flag whether it would benefit from a specialised agent or higher
 effort — and why — using this quick rubric:
