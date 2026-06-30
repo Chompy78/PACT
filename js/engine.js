@@ -29,7 +29,7 @@ const clone = o => (o == null ? o : JSON.parse(JSON.stringify(o)));
  *     discInfo, tradInfo, size, status, ... }
  * `total` is the total AP cost (read by the parity runner as totalCost).
  * ========================================================================== */
-export function compute(b){
+export function compute(b, opts){
   b=Object.assign({},b);
   ['saves','skills','expertise','feats','masteries','racialTraits','features','drawbacks','traditions','subAbilities','arts','boons','innate','tools','instruments','customProfs','unlockedClasses','dabblerCantripNames','innateNames','toolExpertise','racialSpells','subSpellBundles'].forEach(k=>{if(!Array.isArray(b[k]))b[k]=[];});
   ['hardy','tough','gold','extraClasses','dabblerCantrips','languages','budget','profBonus','attune','ki','sorcery'].forEach(k=>{b[k]=Number(b[k])||0;});
@@ -319,7 +319,8 @@ export function compute(b){
   if(drawGain>14) W.push("Drawbacks grant "+drawGain+" AP — note most tables cap at 14 AP (check with your DM)");
   if((b.drawbacks||[]).length>3) W.push((b.drawbacks||[]).length+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
   add("Starting gold",b.gold||0);
-  const budget=b.budget||0; const remaining=budget-total;
+  const playerAp=b.budget||0; const _opts=opts||{}; const dmAp=Number(_opts.dmAp)||0;
+  const spendable=(_opts.ignorePlayerAp?0:playerAp)+dmAp; const remaining=spendable-total;
   if(remaining<0) W.unshift("OVER BUDGET by "+(-remaining)+" AP");
   // sheet — apply drawback stat effects (#7) and the Initiative skill (#8)
   const dset={};for(const x of (b.drawbacks||[]))dset[x]=1;
@@ -351,7 +352,7 @@ export function compute(b){
     else size='Small';
   }
   else if(_races.indexOf('Tiefling')>=0){ sizeChoosable=true; size=(b.size==='Small')?'Small':'Medium'; }   // v0.194: Tiefling chooses Small or Medium
-  return {total,remaining,budget,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
+  return {total,remaining,budget:spendable,playerAp,dmAp,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
     ac,init,speed,castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
     saveDC:hasDC?(8+prof+castMod):null,spellAtk:hasDC?(prof+castMod):null,hardyCap:vgcap,conMod:cm,goldGp:DATA.goldPurse+(b.gold||0)*50,
     status: remaining<0?("OVER BUDGET by "+(-remaining)+" AP"):remaining===0?"exact — fully spent":(remaining+" AP under budget")};
@@ -490,7 +491,7 @@ function seedBuild(baseSnapshot) {
  * rebuilt state: the folded build, the priced result from compute(), and the
  * AP economy. Mirrors the Live Sheet's foldBuild()+economy()+compute() flow.
  */
-export function rebuildStateFromEvents(baseSnapshot, events) {
+export function rebuildStateFromEvents(baseSnapshot, events, opts) {
   // Resolve the working event log + base build from the shapes the runner and
   // fixtures actually use:
   //   • base + incremental events:  ({...build}, [ ...events ])
@@ -517,7 +518,7 @@ export function rebuildStateFromEvents(baseSnapshot, events) {
   const baseBudget = Number(base && base.budget) || 0;
   b.budget = baseBudget + eco.earned;
 
-  const result = compute(b);
+  const result = compute(b, opts);
   return {
     ok: result.remaining >= 0,
     version: DATA.version,
