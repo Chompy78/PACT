@@ -25,18 +25,6 @@ below — not done yet.
 > **Quick win first:** CU-1 and CU-2 are ready-to-commit files — knock those out immediately. The HIGH
 > fixes (REV-01…04) are the priority work in this bucket.
 
-## REV-02 — Service worker: cache same-origin only (HIGH) — TODO
-The SW caches every 200 GET cache-first, including Supabase API reads → stale rosters/characters + other
-users' data sitting in Cache Storage.
-```
-In service-worker.js fetch handler, bail out for anything not on our origin:
-  const url = new URL(e.request.url);
-  if (url.origin !== self.location.origin) return;   // never touch Supabase / esm.sh
-Then apply the same-origin strategy (see REV-03).
-```
-**Done when:** Cache Storage holds only `/PACT/...` assets, never `*.supabase.co`; a cross-device edit
-reads the server value, not a cached one. (Full detail: REV-02.)
-
 ## REV-03 — Service worker: network-first for app shell + engine (HIGH) — TODO
 `js/engine.js` is served cache-first from a static `CACHE_NAME`, so a shipped rules fix never reaches
 returning users until the SW's own bytes change.
