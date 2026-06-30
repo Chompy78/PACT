@@ -110,7 +110,7 @@ async function reconcile(id) {
   const local = lsGet(id);
   const { data: server, error } = await supabase
     .from('characters')
-    .select('id, name, kind, stats, ap, updated_at')
+    .select('id, name, kind, stats, ap, campaign_id, updated_at')
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
@@ -137,7 +137,7 @@ export async function listCharacters() {
   if (navigator.onLine && await currentUser()) {
     const { data, error } = await supabase
       .from('characters')
-      .select('id, name, kind, ap, updated_at')
+      .select('id, name, kind, ap, campaign_id, updated_at')
       .order('updated_at', { ascending: false });
     if (error) throw error;
     const serverIds = new Set(data.map(c => c.id));
