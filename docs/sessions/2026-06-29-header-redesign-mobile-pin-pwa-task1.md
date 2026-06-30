@@ -1,6 +1,6 @@
 # Session — 2026-06-29 · Header redesign, mobile-sticky fix, version bumps, PWA Task 1
 
-*History / non-authoritative. Authoritative state: `CHANGELOG.md`, `DECISIONS.md` (D-GH5, D-GH6, D-GH7).*
+*History / non-authoritative. Authoritative state: `CHANGELOG.md`, `DECISIONS.md` (D-GH5, D-GH6, D-GH8).*
 
 ## Goal
 Reorganise the tool header into a clean, information-rich layout, get it to stay pinned on real
@@ -29,7 +29,7 @@ worker on the tool pages themselves.
 - `js/engine.js` was **not** touched (commit `ffcbb16` changed only the three `tools/*.html`), so
   engine parity is logically unaffected. The `engine-parity.html` test was not re-run in a browser
   this session — worth a quick 5/0 confirmation before the next release tag.
-- This session's new decisions are **D-GH5–D-GH7**. The previously-dangling **D-GH4** ("roles are
+- This session's new decisions are **D-GH5–D-GH8**. The previously-dangling **D-GH4** ("roles are
   per-campaign") was independently written by the Task 3 SQL data-model work (PR #20) as "D-GH4 ·
   Data model: per-campaign non-exclusive roles…", which lands on the same branch; my interim back-fill
   was dropped during rebase in favour of that fuller canonical version.
