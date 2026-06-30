@@ -44,8 +44,10 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Only handle GET requests for same-origin or GitHub Pages origin
   if (e.request.method !== 'GET') return;
+  // Never cache cross-origin requests (Supabase API, esm.sh CDN, etc.)
+  const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return;
 
   e.respondWith(
     caches.match(e.request).then(cached => {

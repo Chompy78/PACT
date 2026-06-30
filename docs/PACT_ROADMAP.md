@@ -13,9 +13,10 @@
 > live in **`docs/PACT-Code-Review-2026-06-29.md`** — commit that file alongside this roadmap so the
 > pointers resolve. Findings are filed by severity: HIGH → Now, MEDIUM → Next, LOW → Later.
 
-Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page redesign, PHB data) has
-landed and graduated to `CHANGELOG.md`. Review findings **REV-08** (docs drift) and **REV-09** (scratch
-file) will be closed by the **still-pending CU-1 / CU-3** tasks below — not done yet.
+Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page redesign, PHB data,
+**REV-01** regression gate, **REV-02** SW same-origin cache fix) has landed and graduated to `CHANGELOG.md`.
+Review findings **REV-08** (docs drift) and **REV-09** (scratch file) will be closed by the
+**still-pending CU-1 / CU-3** tasks below — not done yet.
 
 ---
 
@@ -23,33 +24,6 @@ file) will be closed by the **still-pending CU-1 / CU-3** tasks below — not do
 
 > **Quick win first:** CU-1 and CU-2 are ready-to-commit files — knock those out immediately. The HIGH
 > fixes (REV-01…04) are the priority work in this bucket.
-
-## REV-01 — Make the regression gate actually assert (HIGH) — TODO
-The gate is hollow: the runner hard-codes `pass: true` and `expected-results.csv` columns are all blank,
-so it only proves `compute()` *doesn't throw*. **Do this before trusting any "5/0" below.**
-```
-1. Capture current known-good outputs into testing/expected/expected-results.csv (at least
-   new_engine_ap_total + new_engine_warnings per fixture). DO NOT invent numbers — have the human
-   confirm them against the PHB/guide first.
-2. Rewrite testing/tests/engine-parity.html so each test ASSERTS total === expected and
-   warnings.length === expected, setting pass from the comparison (not a literal).
-3. CG-003: also assert remaining < 0 and the OVER BUDGET warning is present.
-4. LS-001/EV-001: assert rebuildStateFromEvents(...).ok, total, eventsApplied.
-```
-**Done when:** perturbing one price in `DATA` makes the gate report a FAILED test; with no change it's 5/0
-against the captured baseline. (Full detail: REV-01.)
-
-## REV-02 — Service worker: cache same-origin only (HIGH) — TODO
-The SW caches every 200 GET cache-first, including Supabase API reads → stale rosters/characters + other
-users' data sitting in Cache Storage.
-```
-In service-worker.js fetch handler, bail out for anything not on our origin:
-  const url = new URL(e.request.url);
-  if (url.origin !== self.location.origin) return;   // never touch Supabase / esm.sh
-Then apply the same-origin strategy (see REV-03).
-```
-**Done when:** Cache Storage holds only `/PACT/...` assets, never `*.supabase.co`; a cross-device edit
-reads the server value, not a cached one. (Full detail: REV-02.)
 
 ## REV-03 — Service worker: network-first for app shell + engine (HIGH) — TODO
 `js/engine.js` is served cache-first from a static `CACHE_NAME`, so a shipped rules fix never reaches
@@ -96,11 +70,6 @@ Delete (merged into preview): `data/tools-v0.332`, `engine/data-v0.332`, `featur
 `task3/sql-data-model`, `feature/campaign-play`; on origin also `feature/homepage-index`. KEEP `main`,
 `preview`, `task2/auth-gate`.
 **Done when:** `git branch` shows only `main`, `preview`, `task2/auth-gate` (+ anything active).
-
-## CU-5 — Fix duplicate `D-GH7` in DECISIONS.md — TODO
-Two entries share `D-GH7`. Renumber the OLDER (PWA service-worker) one to `D-GH8`; leave campaign-play
-`D-GH7` (referenced by `js/campaign.js` + `CHANGELOG.md`).
-**Done when:** each `D-GH#` appears once; no reference orphaned.
 
 ## CU-6 — (optional) Rename `DM Console.html` → `DM-Console.html` — TODO
 Drop the space; update index menu link, SW precache, and any other references.
@@ -155,6 +124,17 @@ engine change can silently diverge CharGen (they're identical today except the b
 v0.332). CharGen's header warns "mirror engine/DATA changes into BOTH files"; until this task lands,
 **AUD-1** should assert the two stay in sync.
 
+## Externalize CharGen default AP + AP-by-level table — TODO
+Branch feat/ap-by-level. BEST DONE AFTER Task 6 — CharGen (the main consumer) still embeds its own
+engine copy, so until it's on the shared bridge it won't see js/ap-by-level.js (you'd edit two places).
+- Add js/ap-by-level.js exporting AP_BY_LEVEL = {1:50, 2:70, ...} and DEFAULT_LEVEL.
+- js/engine.js imports it and surfaces it on DATA (DATA.apByLevel, DATA.defaultAp). Live Sheet + DM
+  Console then get it automatically via the bridge; CharGen gets it once Task 6 lands.
+- CharGen reads the default budget + level→AP lookup THROUGH the engine bridge — never the file directly.
+- AP-per-level is mechanics: bump DATA.version and update the REV-01 baseline in the same PR.
+**Done when:** editing a value in js/ap-by-level.js changes the default budget / level options in every tool
+that's on the shared engine, with no other code change; engine API stable; parity passes.
+
 ## Feature A — Live Sheet multi-tradition / multi-discipline spellcasting (+ Magically Bound) — TODO
 Branch `feat/multi-tradition-discipline`. **Engine first** (extend `found`, add `dbound`), then the tools.
 ```
@@ -193,6 +173,27 @@ badge, CharGen sign. Full spec: IMPLEMENT-save-integrity.md (+ ENGINE-INTEGRITY-
 badged in DM Console; CharGen exports are signed; parity stays 5/0.
 ⚠️ Log under a **NEW** decision code (**D-GH10** — the draft's "D-GH4" is taken). Touches CharGen —
 coordinate with **Task 6** so the two CharGen edits don't collide.
+
+## CU-7 — CharGen mobile: surface save/load/livesheet action buttons — TODO
+```
+In tools/PACT-CharGen-Webtool.html, desktop shows character action buttons (Save, Load, Export to
+Live Sheet, etc.) near the top of the page. On mobile the sticky header takes over and those buttons
+become inaccessible — players cannot save, load, or hand off to the Live Sheet without switching to
+desktop mode.
+
+Add a non-sticky action button row for mobile (below the sticky header, above the main content):
+1. Grep for the desktop button group (Save, Load, Export/Live Sheet IDs/classes) — do NOT read the
+   whole file.
+2. Render a <div class="mobile-action-bar"> (or equivalent) immediately after the sticky header
+   container, visible only at the mobile breakpoint already used in the file (CSS media query).
+3. Do NOT place these buttons inside the sticky header element — they must sit outside it.
+4. Avoid duplicate IDs; use classes or data-attributes and re-bind/delegate handlers as needed.
+5. Keep the desktop layout pixel-identical. Parity gate must stay 5/0.
+```
+**Done when:** at a mobile viewport (≤ the file's existing breakpoint), Save, Load, and
+Export-to-Live-Sheet buttons (plus any other character-management actions shown on desktop) appear
+and work at the top of CharGen without being inside the sticky header; desktop layout is unchanged;
+`engine-parity.html` reports 5/0.
 
 ## AUD-1 — Automated health check (static audit + RLS proof) — TODO
 The repeatable "is the system still healthy?" check you asked for — a stdlib Python script, no installs,
