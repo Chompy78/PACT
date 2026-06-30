@@ -150,7 +150,9 @@ create policy characters_select on public.characters
 
 drop policy if exists characters_insert on public.characters;
 create policy characters_insert on public.characters
-  for insert with check (owner_id = auth.uid());
+  -- campaign_id must be null on direct insert; join_campaign() (SECURITY DEFINER) bypasses
+  -- this policy and sets it authoritatively, so the check doesn't block that path.
+  for insert with check (owner_id = auth.uid() and campaign_id is null);
 
 -- Players update their own character. The ap column is NOT in the GRANT below,
 -- so even though this policy passes, an attempt to write ap is rejected.
@@ -166,9 +168,11 @@ create policy characters_delete on public.characters
 -- Column-level ap lockdown — the real ap guard.
 -- Strip blanket UPDATE, then grant UPDATE only on the player-writable columns.
 -- ap is deliberately excluded; it can change ONLY through award_ap().
+-- campaign_id is excluded: join_campaign() / leave_campaign() (SECURITY DEFINER)
+-- are the sole writers; direct player writes are rejected.
 -- ---------------------------------------------------------------------------
 revoke update on public.characters from authenticated, anon;
-grant update (name, campaign_id, kind, stats) on public.characters to authenticated;
+grant update (name, kind, stats) on public.characters to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- award_ap(character, amount, note) — the ONLY ap write path. Any DM of the

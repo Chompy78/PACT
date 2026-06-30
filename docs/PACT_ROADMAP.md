@@ -25,18 +25,6 @@ Review findings **REV-08** (docs drift) and **REV-09** (scratch file) will be cl
 > **Quick win first:** CU-1 and CU-2 are ready-to-commit files — knock those out immediately. The HIGH
 > fixes (REV-01…04) are the priority work in this bucket.
 
-## REV-04 — Close the campaign-join bypass in RLS (HIGH) — TODO
-`campaign_id` is in the player update grant + the insert policy only checks ownership, so a player can set
-`campaign_id` directly, skipping `join_campaign()`. *(Re-verify against the current D-GH7 RLS first — it
-may have shifted.)*
-```
-Preferred: remove campaign_id from the player update grant; make join_campaign() (SECURITY DEFINER) the
-sole writer of campaign_id; add a leave-campaign RPC if needed. Alt: constrain insert/update with
-WITH CHECK (campaign_id is null or is_campaign_member(campaign_id)).
-```
-**Done when:** a manual insert/update setting `campaign_id` to an un-joined campaign is rejected;
-`join_campaign(valid_code)` still works and still blocks double-joins. (Full detail: REV-04.)
-
 ## CU-1 — Single-source agent docs — TODO  *(closes review REV-08)*
 Files provided — just commit: overwrite `AGENTS.md`; replace `CLAUDE.md` with the `@AGENTS.md` stub and
 `.github/copilot-instructions.md` with the pointer stub; update `docs/HOW-TO-WORK.md` (drop the "three
