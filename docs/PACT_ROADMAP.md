@@ -97,11 +97,6 @@ Delete (merged into preview): `data/tools-v0.332`, `engine/data-v0.332`, `featur
 `preview`, `task2/auth-gate`.
 **Done when:** `git branch` shows only `main`, `preview`, `task2/auth-gate` (+ anything active).
 
-## CU-5 — Fix duplicate `D-GH7` in DECISIONS.md — TODO
-Two entries share `D-GH7`. Renumber the OLDER (PWA service-worker) one to `D-GH8`; leave campaign-play
-`D-GH7` (referenced by `js/campaign.js` + `CHANGELOG.md`).
-**Done when:** each `D-GH#` appears once; no reference orphaned.
-
 ## CU-6 — (optional) Rename `DM Console.html` → `DM-Console.html` — TODO
 Drop the space; update index menu link, SW precache, and any other references.
 **Done when:** nothing references "DM Console.html"; console opens + is precached; parity 5/0.
@@ -193,6 +188,27 @@ badge, CharGen sign. Full spec: IMPLEMENT-save-integrity.md (+ ENGINE-INTEGRITY-
 badged in DM Console; CharGen exports are signed; parity stays 5/0.
 ⚠️ Log under a **NEW** decision code (**D-GH10** — the draft's "D-GH4" is taken). Touches CharGen —
 coordinate with **Task 6** so the two CharGen edits don't collide.
+
+## CU-7 — CharGen mobile: surface save/load/livesheet action buttons — TODO
+```
+In tools/PACT-CharGen-Webtool.html, desktop shows character action buttons (Save, Load, Export to
+Live Sheet, etc.) near the top of the page. On mobile the sticky header takes over and those buttons
+become inaccessible — players cannot save, load, or hand off to the Live Sheet without switching to
+desktop mode.
+
+Add a non-sticky action button row for mobile (below the sticky header, above the main content):
+1. Grep for the desktop button group (Save, Load, Export/Live Sheet IDs/classes) — do NOT read the
+   whole file.
+2. Render a <div class="mobile-action-bar"> (or equivalent) immediately after the sticky header
+   container, visible only at the mobile breakpoint already used in the file (CSS media query).
+3. Do NOT place these buttons inside the sticky header element — they must sit outside it.
+4. Avoid duplicate IDs; use classes or data-attributes and re-bind/delegate handlers as needed.
+5. Keep the desktop layout pixel-identical. Parity gate must stay 5/0.
+```
+**Done when:** at a mobile viewport (≤ the file's existing breakpoint), Save, Load, and
+Export-to-Live-Sheet buttons (plus any other character-management actions shown on desktop) appear
+and work at the top of CharGen without being inside the sticky header; desktop layout is unchanged;
+`engine-parity.html` reports 5/0.
 
 ## AUD-1 — Automated health check (static audit + RLS proof) — TODO
 The repeatable "is the system still healthy?" check you asked for — a stdlib Python script, no installs,
