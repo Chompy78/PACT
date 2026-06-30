@@ -213,6 +213,19 @@ column lock) and (b) setting campaign_id to a campaign never joined (proves REV-
 or a player REST write to `ap` that succeeds). Pairs with REV-01/REV-11 — engine-parity joins CI once
 REV-01 makes the gate assert.
 
+## Feature: Theme-aware random homepage artwork — TODO
+Branch feat/theme-random-artwork. Add theme-specific image pools to index.html and randomly select a matching image on page load and theme change.
+
+```text
+- Add separate image pools for light and dark themes (e.g. assets/themes/light/* and assets/themes/dark/*).
+- Detect the active theme *rom the existing theme system.
+- O* page load, randomly select one im*ge from the active theme pool and *pply it to the homepage artwork/ba*ner element.
+- Re-roll the image w*en the user switches theme so ligh* mode always uses a light image an* dark mode always uses a dark imag*.
+- Keep all logic inside index.ht*l (or a dedicated UI helper JS fil* if one already exists); no engine*changes.
+- display-only — do NOT b*mp DATA.version; just log in CHANGELOG.
+- Engine is the single source of truth. All rules live in js/engine.js; do not add rules logic outside the engine.
+```
+
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
