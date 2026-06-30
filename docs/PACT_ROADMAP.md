@@ -75,6 +75,23 @@ Delete (merged into preview): `data/tools-v0.332`, `engine/data-v0.332`, `featur
 Drop the space; update index menu link, SW precache, and any other references.
 **Done when:** nothing references "DM Console.html"; console opens + is precached; parity 5/0.
 
+## CharGen → Live Sheet button does not save character — TODO
+Branch fix/chargen-live-sheet-save. Investigate and repair the character export/save path from tools/PACT-CharGen-Webtool.html into the Live Sheet workflow so pressing the Live Sheet button creates a usable character in the local environment.
+```text
+1. Reproduce the failure from a clean browser profile and confirm whether the button:
+   - does nothing,
+   - throws a JS error,
+   - creates malformed export data,
+   - fails to hand off to the Live Sheet,
+   - or fails local persistence.
+2. Trace the entire flow: CharGen export → transfer payload → Live Sheet import/load → local storage save.
+3. Add console-visible error handling instead of silent failure.
+4. Verify a newly created character can be exported from CharGen, opened in Live Sheet, and is present after page reload.
+5. Add a regression check covering the export/import path.
+6. Best done after Task 6 — or update CharGen's embedded copy too.
+7. If mechanics or compute() output are untouched, treat as display/integration-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
 ---
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
