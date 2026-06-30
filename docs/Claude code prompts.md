@@ -18,3 +18,27 @@ When you know this, suggest what model and effort I should use for this task. if
 
 
 
+
+
+
+
+
+
+#### Commit, push, and merge — plain English:
+
+
+
+Commit is saving a snapshot of your changes locally on your machine. Think of it like hitting Save in a document, but with a label describing what you changed. Nothing leaves your computer.
+
+
+
+Push is uploading those saved snapshots to GitHub (the remote server). Until you push, your commits only exist locally — nobody else can see them, and they're not backed up online.
+
+
+
+Merge is combining two separate lines of work into one. In this project, preview is where work happens first (staging). When it's ready, you merge it into main, which is what the live site on GitHub Pages serves. Merging takes all the commits from preview and folds them into main.
+
+
+
+So the flow is always: commit → push → merge — save locally, upload, then promote to the live branch.
+
