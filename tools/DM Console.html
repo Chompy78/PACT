@@ -301,6 +301,35 @@
   #tableRoot tr.data.sel .exq-chev{ transform:rotate(90deg); }
   #tableRoot .save-prof{ font-weight:800;color:var(--navy); }
   @media (max-width:700px){ #tableRoot .scroll{ display:none; } #tableRoot .tablecard{ display:none; } #tableRoot .cards{ display:block; } }
+
+  /* ---- campaign section ---- */
+  #campSection{margin-bottom:18px;display:none}
+  #campSection .cstitle{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  #campRoster{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  #campRoster table{width:100%;border-collapse:collapse;font-size:13px}
+  #campRoster th{background:var(--light);color:var(--navy);text-align:left;padding:8px 12px;font-size:12px;font-weight:700}
+  #campRoster td{padding:8px 12px;border-top:1px solid var(--line);vertical-align:middle}
+  .camp-empty{text-align:center;padding:30px;color:var(--muted);font-size:14px}
+  .award-form{display:flex;gap:6px;align-items:center}
+  .award-amt{width:64px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:12px}
+  .award-note{flex:1;min-width:80px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:12px}
+  /* ---- bottomctl flex layout ---- */
+  .bottomctl{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;margin-top:12px}
+  .bottomctl #drop{flex:0 0 100%}
+  /* ---- campaign panel ---- */
+  #campPanel{flex:1 1 300px;min-width:260px}
+  #campAuthRow{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
+  #campWho{flex:1;color:var(--light);font-size:12px}
+  #campSel{width:100%;padding:7px 10px;border:1px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.96);color:var(--ink);font:inherit;font-size:13px;margin-bottom:8px}
+  .codechip{display:flex;gap:6px;align-items:center;margin-bottom:5px}
+  .codechip .lbl{font-size:11px;color:var(--light);min-width:56px;flex-shrink:0}
+  .codechip .field.ro{flex:1;font-size:11px;padding:0 7px;min-height:30px}
+  /* ---- history modal ---- */
+  .hist-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center}
+  .hist-modal .inner{background:#fff;border-radius:12px;max-width:640px;width:94%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:16px 20px}
+  .hist-modal table{width:100%;border-collapse:collapse;font-size:12px}
+  .hist-modal th{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);font-weight:700}
+  .hist-modal td{padding:4px 8px;border-bottom:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -319,6 +348,14 @@
     <div class="emoji">🛡️</div>
     <div class="t">Drop your players' exported .json files here</div>
     <div class="s">Imported characters appear as a card grid. Nothing is ever modified.</div>
+  </div>
+
+  <div id="campSection">
+    <div class="cstitle">
+      Campaign Roster — <span id="campRosterName"></span>
+      <button type="button" class="btn sm" id="refreshRosterBtn" style="margin-left:auto">⟳ Refresh</button>
+    </div>
+    <div id="campRoster"><div class="camp-empty">Select a campaign in the panel above to load the live roster.</div></div>
   </div>
 
   <div id="grid"></div>
@@ -369,6 +406,31 @@
         <button type="button" class="btn sm" id="copyBtn">Copy</button>
       </div>
       <div class="grantnote">One code works for the <b>whole party</b> — send it to every player to grant the same AP.</div>
+    </div>
+    <div class="panel" id="campPanel">
+      <div class="ptitle">Campaign (cloud)</div>
+      <div id="campAuthRow">
+        <span id="campWho">Not signed in</span>
+        <a class="btn sm ghost" href="../login.html" id="campSignInBtn">Sign in</a>
+      </div>
+      <div id="campControls" style="display:none">
+        <select id="campSel"><option value="">— select campaign —</option></select>
+        <div id="campCodes" style="display:none">
+          <div class="codechip">
+            <span class="lbl">Players:</span>
+            <input class="field ro" id="campPlayerCode" readonly>
+            <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
+          </div>
+          <div class="codechip">
+            <span class="lbl">DMs:</span>
+            <input class="field ro" id="campDmCode" readonly>
+            <button type="button" class="btn sm ghost" id="copyDmCode">Copy</button>
+          </div>
+          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--light);margin-top:8px;cursor:pointer">
+            <input type="checkbox" id="ignorePlayerAp"> Ignore player-entered AP
+          </label>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1437,6 +1499,169 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   wireColumns();
   wireToggle();
 })();
+</script>
+
+<script type="module">
+  import { currentSession, onAuthChange } from '../js/auth.js';
+  import { listMyCampaigns, setIgnorePlayerAp } from '../js/campaign.js';
+  import { getRoster, awardAp, getAwardHistory } from '../js/dm.js';
+  window._campBridge = { currentSession, onAuthChange, listMyCampaigns, setIgnorePlayerAp, getRoster, awardAp, getAwardHistory };
+  document.dispatchEvent(new Event('campaign-ready'));
+</script>
+
+<script>
+document.addEventListener('campaign-ready', function () {
+  'use strict';
+  var B = window._campBridge;
+  var campWho      = document.getElementById('campWho');
+  var campSignInBtn= document.getElementById('campSignInBtn');
+  var campControls = document.getElementById('campControls');
+  var campSel      = document.getElementById('campSel');
+  var campCodes    = document.getElementById('campCodes');
+  var campSection  = document.getElementById('campSection');
+  var campRoster   = document.getElementById('campRoster');
+  var campRosterName = document.getElementById('campRosterName');
+  var ignoreChk    = document.getElementById('ignorePlayerAp');
+  var currentCampaigns = [];
+  var currentCampId = null;
+
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function updateAuth(session){
+    if(session){
+      campWho.textContent = session.user.email;
+      campSignInBtn.textContent = 'Sign out';
+      campSignInBtn.href = '#';
+      campSignInBtn.onclick = function(e){ e.preventDefault(); };
+      campControls.style.display = '';
+      loadCampaigns();
+    } else {
+      campWho.textContent = 'Not signed in';
+      campSignInBtn.textContent = 'Sign in';
+      campSignInBtn.href = '../login.html';
+      campSignInBtn.onclick = null;
+      campControls.style.display = 'none';
+      campSection.style.display = 'none';
+    }
+  }
+
+  async function loadCampaigns(){
+    var res = await B.listMyCampaigns();
+    if(res.error) return;
+    currentCampaigns = (res.data||[]).filter(function(c){ return c.isDm||c.isOwner; });
+    var prev = campSel.value;
+    campSel.innerHTML = '<option value="">— select campaign —</option>';
+    currentCampaigns.forEach(function(c){
+      var o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = c.name + (c.isOwner ? ' (owner)' : ' (co-DM)');
+      campSel.appendChild(o);
+    });
+    if(prev && currentCampaigns.find(function(c){return c.id===prev;})) campSel.value = prev;
+    if(campSel.value) selectCampaign(campSel.value);
+  }
+
+  async function selectCampaign(id){
+    currentCampId = id;
+    var camp = currentCampaigns.find(function(c){return c.id===id;});
+    if(!camp){ campCodes.style.display='none'; campSection.style.display='none'; return; }
+    campCodes.style.display = '';
+    document.getElementById('campPlayerCode').value = camp.invite_code||'';
+    document.getElementById('campDmCode').value     = camp.dm_invite_code||'';
+    ignoreChk.checked = !!camp.ignore_player_ap;
+    campSection.style.display = '';
+    campRosterName.textContent = camp.name;
+    loadRoster(id);
+  }
+
+  campSel.addEventListener('change', function(){ selectCampaign(campSel.value); });
+
+  document.getElementById('refreshRosterBtn').addEventListener('click', function(){
+    if(currentCampId) loadRoster(currentCampId);
+  });
+  document.getElementById('copyPlayerCode').addEventListener('click', function(){
+    navigator.clipboard.writeText(document.getElementById('campPlayerCode').value);
+  });
+  document.getElementById('copyDmCode').addEventListener('click', function(){
+    navigator.clipboard.writeText(document.getElementById('campDmCode').value);
+  });
+  ignoreChk.addEventListener('change', async function(){
+    if(!currentCampId) return;
+    await B.setIgnorePlayerAp(currentCampId, ignoreChk.checked);
+  });
+
+  async function loadRoster(campId){
+    campRoster.innerHTML = '<div class="camp-empty">Loading…</div>';
+    var res = await B.getRoster(campId);
+    if(res.error){ campRoster.innerHTML='<div class="camp-empty">Error: '+esc(res.error.message)+'</div>'; return; }
+    var rows = res.data||[];
+    if(!rows.length){ campRoster.innerHTML='<div class="camp-empty">No characters in this campaign yet.</div>'; return; }
+    var html = '<table><thead><tr><th>Player</th><th>Character</th><th>DM AP</th><th>Award AP</th><th>History</th></tr></thead><tbody>';
+    rows.forEach(function(row){
+      var cid  = row.id;
+      var cname = (row.stats&&row.stats.name)||row.id.slice(0,8);
+      var pname = (row.profiles&&row.profiles.display_name)||row.user_id.slice(0,8);
+      var ap = row.ap||0;
+      html += '<tr data-cid="'+esc(cid)+'">' +
+        '<td>'+esc(pname)+'</td>' +
+        '<td>'+esc(cname)+'</td>' +
+        '<td><b>'+ap+'</b></td>' +
+        '<td><div class="award-form">' +
+          '<input type="number" value="0" step="1" class="award-amt" title="AP amount (negative to deduct)">' +
+          '<input type="text" placeholder="note" class="award-note">' +
+          '<button type="button" class="btn sm award-btn" data-cid="'+esc(cid)+'" data-cname="'+esc(cname)+'">Award</button>' +
+        '</div></td>' +
+        '<td><button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(cid)+'" data-cname="'+esc(cname)+'">📒</button></td>' +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    campRoster.innerHTML = html;
+
+    campRoster.querySelectorAll('.award-btn').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var tr  = campRoster.querySelector('tr[data-cid="'+btn.dataset.cid+'"]');
+        var amt = parseFloat(tr.querySelector('.award-amt').value)||0;
+        var note= tr.querySelector('.award-note').value.trim();
+        if(amt===0){ alert('Enter a non-zero amount.'); return; }
+        btn.disabled = true;
+        var res = await B.awardAp(btn.dataset.cid, amt, note);
+        btn.disabled = false;
+        if(res.error){ alert('Award failed: '+res.error.message); return; }
+        tr.querySelector('.award-amt').value = 0;
+        tr.querySelector('.award-note').value = '';
+        loadRoster(campId);
+      });
+    });
+
+    campRoster.querySelectorAll('.hist-btn').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var res = await B.getAwardHistory(btn.dataset.cid);
+        if(res.error){ alert('Error: '+res.error.message); return; }
+        var data = res.data||[];
+        var trows = data.map(function(r){
+          var amt = r.amount>0?'+'+r.amount:r.amount;
+          var dm  = (r.profiles&&r.profiles.display_name)||'DM';
+          var ts  = (r.created_at||'').slice(0,16).replace('T',' ');
+          return '<tr><td>'+esc(ts)+'</td><td><b>'+amt+'</b></td><td>'+esc(dm)+'</td><td>'+esc(r.note||'')+'</td></tr>';
+        }).join('');
+        var modal = document.createElement('div');
+        modal.className = 'hist-modal';
+        modal.innerHTML = '<div class="inner">'+
+          '<h3 style="margin:0 0 10px;color:var(--navy)">'+esc(btn.dataset.cname)+' — AP history</h3>'+
+          (trows
+            ? '<table><thead><tr><th>Date</th><th>Amount</th><th>DM</th><th>Note</th></tr></thead><tbody>'+trows+'</tbody></table>'
+            : '<p style="color:var(--muted)">No awards yet.</p>')+
+          '<div style="text-align:right;margin-top:12px"><button class="btn sm" onclick="this.closest(\'.hist-modal\').remove()">Close</button></div>'+
+          '</div>';
+        modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
+        document.body.appendChild(modal);
+      });
+    });
+  }
+
+  B.onAuthChange(function(session){ updateAuth(session); });
+  B.currentSession().then(function(session){ updateAuth(session); });
+});
 </script>
 
 <script>

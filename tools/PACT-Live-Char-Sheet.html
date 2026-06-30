@@ -283,6 +283,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 <button class="btn g" onclick="exportJSON()" title="Export character to a file">⬇ <span class="bl">Export</span></button>
 <button class="btn g" onclick="document.getElementById('imp').click()" title="Import a character file">⬆ <span class="bl">Import</span></button>
 <input type="file" id="imp" style="display:none" accept=".json" onchange="if(this.files[0])importJSON(this.files[0]);this.value=''">
+<span style="position:relative;display:inline-block"><button class="btn g" id="cloudBtn" title="Cloud save / load">☁ <span class="bl">Cloud</span></button><div id="cloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span>
 <button class="btn g" onclick="toggleSheet()" title="Toggle the printable sheet">📋 <span class="bl">Sheet</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" onclick="toggleMore(event)" title="More tools &amp; theme">⋯ <span class="bl">More</span></button><div id="moremenu" class="moremenu"><span class="mi-theme">🎨 <select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></span><button class="mi" onclick="closeMore();openNames()">✎ Name spells &amp; languages</button><button class="mi" onclick="closeMore();openSpellBrowser()">🔍 Spell browser</button><button class="mi" id="miSpellTog" onclick="closeMore();toggleSheetSpell()">🚫 Hide spellcasting on sheet</button><button class="mi" onclick="closeMore();openCampaign()">🛡 Campaign</button><button class="mi" onclick="closeMore();openBonds()">⛓ Bonds</button><button class="mi" onclick="closeMore();resetAll()">↺ Reset</button><button class="mi" onclick="closeMore();showInfo()">&#x2139;&#xFE0F; Info</button></div></span>
 </div>
@@ -1611,6 +1612,102 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <p>If you import a file built under an older rules version, the sheet warns you and keeps those prices frozen &mdash; future purchases use the current price list.</p>
   <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT v0.309 &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
+
+<script type="module">
+  import { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
+  import { currentSession, onAuthChange } from '../js/auth.js';
+  window._syncBridge = { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync };
+  window._authBridge = { currentSession, onAuthChange };
+  initSync();
+  document.dispatchEvent(new Event('sync-ready'));
+</script>
+
+<script>
+document.addEventListener('sync-ready', function () {
+  'use strict';
+  var S = window._syncBridge;
+  var A = window._authBridge;
+  var cloudBtn  = document.getElementById('cloudBtn');
+  var cloudMenu = document.getElementById('cloudMenu');
+  var _session  = null;
+
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  A.onAuthChange(function(s){ _session = s; });
+  A.currentSession().then(function(s){ _session = s; });
+
+  cloudBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    cloudMenu.classList.toggle('open');
+    if(cloudMenu.classList.contains('open')) renderCloudMenu();
+  });
+  document.addEventListener('click', function(e){
+    if(!cloudMenu.contains(e.target) && e.target !== cloudBtn) cloudMenu.classList.remove('open');
+  });
+
+  async function renderCloudMenu(){
+    if(!_session){
+      cloudMenu.innerHTML =
+        '<div style="padding:10px 12px;font-size:13px;color:var(--grey)">Sign in to save characters to the cloud.</div>'+
+        '<a href="../login.html" class="mi" style="display:block;text-decoration:none">🔑 Sign in</a>';
+      return;
+    }
+    cloudMenu.innerHTML =
+      '<div style="padding:6px 12px;font-size:11px;color:var(--grey);border-bottom:1px solid var(--line)">'+esc(_session.user.email)+'</div>'+
+      '<button class="mi" id="cloudSaveBtn">☁ Save to cloud</button>'+
+      '<div style="padding:4px 10px;font-size:11px;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:4px">Load saved character</div>'+
+      '<div id="cloudCharList"><div style="padding:6px 12px;font-size:12px;color:var(--grey)">Loading…</div></div>';
+
+    document.getElementById('cloudSaveBtn').addEventListener('click', async function(){
+      var btn = this; btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        var b     = window.foldBuild ? window.foldBuild(null) : {};
+        var stats = { rules: window.RULES, name: b.name, LOG: window.LOG, SEQ: window.SEQ };
+        var id    = window.currentCharId ? window.currentCharId() : S.newCharacterId();
+        var res   = await S.saveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet', stats: stats });
+        if(res.error) throw res.error;
+        if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
+      } catch(err){ alert('Save failed: '+err.message); }
+      btn.disabled = false; btn.textContent = '☁ Save to cloud';
+    });
+
+    try {
+      var chars = await S.listCharacters();
+      var live  = (chars||[]).filter(function(c){ return c.kind==='livesheet'; });
+      var listEl = document.getElementById('cloudCharList');
+      if(!live.length){ listEl.innerHTML='<div style="padding:6px 12px;font-size:12px;color:var(--grey)">No saved characters yet.</div>'; return; }
+      listEl.innerHTML = live.map(function(c){
+        var ts = (c.updated_at||'').slice(0,10);
+        return '<button class="mi cloud-load-btn" data-cid="'+esc(c.id)+'">'+
+          '<span style="flex:1">'+esc(c.name||'Unnamed')+'</span>'+
+          '<span style="font-size:10px;color:var(--grey);margin-left:6px;flex-shrink:0">'+ts+'</span>'+
+          '</button>';
+      }).join('');
+      listEl.querySelectorAll('.cloud-load-btn').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          var label = btn.querySelector('span').textContent;
+          if(!confirm('Load "'+label+'"? This replaces your current character history.')) return;
+          var rec = await S.loadCharacter(btn.dataset.cid);
+          if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return; }
+          var d = rec.stats;
+          window.LOG = d.LOG;
+          window.SEQ = d.SEQ||(d.LOG.length+1);
+          window.loadedRules = d.rules||null;
+          window.REDO = []; window.viewAt = null;
+          if(window.__charId !== undefined) window.__charId = rec.id;
+          if(typeof window.save   === 'function') window.save();
+          if(typeof window.render === 'function') window.render();
+          cloudMenu.classList.remove('open');
+          if(typeof window.flash  === 'function') window.flash('☁ Loaded: '+esc(label));
+        });
+      });
+    } catch(err){
+      var listEl = document.getElementById('cloudCharList');
+      if(listEl) listEl.innerHTML='<div style="padding:6px 12px;font-size:12px;color:#c00">Error: '+esc(err.message)+'</div>';
+    }
+  }
+});
+</script>
 
 <script>
   if ('serviceWorker' in navigator) {
