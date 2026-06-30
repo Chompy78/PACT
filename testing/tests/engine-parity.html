@@ -7,117 +7,233 @@
   <style>
     body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 1rem; }
     pre { background: #111827; color: #f9fafb; padding: 1rem; border-radius: 0.5rem; overflow: auto; }
-    .warn { color: #92400e; background: #fef3c7; padding: 0.75rem; border-radius: 0.5rem; }
+    .warn { color: #92400e; background: #fef3c7; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    .pass { color: #065f46; background: #d1fae5; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    .fail { color: #7f1d1d; background: #fee2e2; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    button { margin-right: 0.5rem; padding: 0.4rem 1rem; cursor: pointer; }
   </style>
 </head>
 <body>
   <h1>PACT Engine Parity Tests</h1>
   <p class="warn">
-    This runner expects your refactored engine at <code>../../js/engine.js</code> when this pack is placed inside the PWA repo.
-    It uses fixture JSON files from <code>../fixtures</code>.
+    Expects the engine at <code>../../js/engine.js</code> and fixtures in <code>../fixtures/</code>.
+    Must be served over HTTP (not <code>file://</code>).
   </p>
 
-  <button id="runBtn">Run tests</button>
+  <button id="captureBtn">Capture baseline (first run)</button>
+  <button id="runBtn">Run tests (assert)</button>
+  <div id="banner"></div>
   <pre id="output">Not run yet.</pre>
 
   <script type="module">
-    import {
-      DATA,
-      compute,
-      rebuildStateFromEvents
-    } from "../../js/engine.js";
+    import { DATA, compute, rebuildStateFromEvents } from "../../js/engine.js";
 
-    const output = document.getElementById("output");
-    const runBtn = document.getElementById("runBtn");
+    const output  = document.getElementById("output");
+    const banner  = document.getElementById("banner");
 
-    const fixtureManifest = {
+    const FIXTURES = {
       builds: [
-        "../fixtures/builds/CG-001-default-empty-build.json",
-        "../fixtures/builds/CG-002-valid-50ap-build.json",
-        "../fixtures/builds/CG-003-over-budget-build.json"
+        { id: "CG-001", path: "../fixtures/builds/CG-001-default-empty-build.json" },
+        { id: "CG-002", path: "../fixtures/builds/CG-002-valid-50ap-build.json" },
+        { id: "CG-003", path: "../fixtures/builds/CG-003-over-budget-build.json" }
       ],
       liveSheets: [
-        "../fixtures/live-sheets/LS-001-clean-generator-export.json"
+        { id: "LS-001", path: "../fixtures/live-sheets/LS-001-clean-generator-export.json" }
       ],
       eventSets: [
-        "../fixtures/events/EV-001-award-and-purchase.json"
+        { id: "EV-001", path: "../fixtures/events/EV-001-award-and-purchase.json" }
       ]
     };
 
     async function loadJson(url) {
-      const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) throw new Error(`Could not load ${url}: ${response.status}`);
-      return response.json();
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) throw new Error(`Could not load ${url}: ${r.status}`);
+      return r.json();
     }
 
-    function normaliseComputeResult(result) {
-      return {
-        totalCost: result?.totalCost ?? result?.cost ?? result?.total ?? null,
-        warnings: result?.warnings ?? [],
-        ok: result?.ok ?? null,
-        raw: result
-      };
-    }
+    // ── run all fixtures; return raw actuals ──────────────────────────────────
+    async function runAll() {
+      const rows = [];
 
-    async function runBuildTests() {
-      const results = [];
-      for (const fixturePath of fixtureManifest.builds) {
+      for (const { id, path } of FIXTURES.builds) {
         try {
-          const build = await loadJson(fixturePath);
-          const computed = compute(build);
-          results.push({ type: "chargen", fixture: fixturePath, pass: true, result: normaliseComputeResult(computed) });
-        } catch (error) {
-          results.push({ type: "chargen", fixture: fixturePath, pass: false, error: error.message });
+          const build = await loadJson(path);
+          const r = compute(build);
+          rows.push({
+            id, group: "chargen", path,
+            total: r.total,
+            warnings: r.warnings.length,
+            remaining: r.remaining,
+            firstWarning: r.warnings[0] ?? "",
+            ok: r.remaining >= 0,
+            error: null
+          });
+        } catch (e) {
+          rows.push({ id, group: "chargen", path, error: e.message });
         }
       }
-      return results;
-    }
 
-    async function runLiveSheetTests() {
-      const results = [];
-      for (const fixturePath of fixtureManifest.liveSheets) {
+      for (const { id, path } of FIXTURES.liveSheets) {
         try {
-          const liveSheet = await loadJson(fixturePath);
-          const baseSnapshot = liveSheet.snapshot_build ?? liveSheet.baseSnapshot ?? liveSheet.build ?? liveSheet;
-          const events = liveSheet.events ?? liveSheet.event_log ?? [];
-          const rebuilt = rebuildStateFromEvents(baseSnapshot, events);
-          results.push({ type: "live-sheet", fixture: fixturePath, pass: true, result: rebuilt });
-        } catch (error) {
-          results.push({ type: "live-sheet", fixture: fixturePath, pass: false, error: error.message });
+          const liveSheet = await loadJson(path);
+          // Full LOG export: pass whole object as baseSnapshot, events=[]
+          const r = rebuildStateFromEvents(liveSheet, []);
+          rows.push({
+            id, group: "live-sheet", path,
+            total: r.total,
+            warnings: r.warnings.length,
+            remaining: r.remaining,
+            firstWarning: r.warnings[0] ?? "",
+            ok: r.ok,
+            eventsApplied: r.eventsApplied,
+            error: null
+          });
+        } catch (e) {
+          rows.push({ id, group: "live-sheet", path, error: e.message });
         }
       }
-      return results;
-    }
 
-    async function runEventTests() {
-      const results = [];
-      for (const fixturePath of fixtureManifest.eventSets) {
+      for (const { id, path } of FIXTURES.eventSets) {
         try {
-          const fixture = await loadJson(fixturePath);
-          const rebuilt = rebuildStateFromEvents(fixture.baseSnapshot, fixture.events);
-          results.push({ type: "event-sourcing", fixture: fixturePath, pass: true, result: rebuilt });
-        } catch (error) {
-          results.push({ type: "event-sourcing", fixture: fixturePath, pass: false, error: error.message });
+          const fixture = await loadJson(path);
+          const r = rebuildStateFromEvents(fixture.baseSnapshot, fixture.events);
+          rows.push({
+            id, group: "event-sourcing", path,
+            total: r.total,
+            warnings: r.warnings.length,
+            remaining: r.remaining,
+            firstWarning: r.warnings[0] ?? "",
+            ok: r.ok,
+            eventsApplied: r.eventsApplied,
+            error: null
+          });
+        } catch (e) {
+          rows.push({ id, group: "event-sourcing", path, error: e.message });
         }
       }
-      return results;
+
+      return rows;
     }
 
-    runBtn.addEventListener("click", async () => {
-      const startedAt = new Date().toISOString();
-      const results = [];
-      results.push(...await runBuildTests());
-      results.push(...await runLiveSheetTests());
-      results.push(...await runEventTests());
-      const summary = {
-        startedAt,
-        engineVersion: DATA?.version ?? "unknown",
-        total: results.length,
-        passed: results.filter(r => r.pass).length,
-        failed: results.filter(r => !r.pass).length,
-        results
-      };
-      output.textContent = JSON.stringify(summary, null, 2);
+    // ── load and parse expected-results.csv ──────────────────────────────────
+    async function loadExpected() {
+      const r = await fetch("../expected/expected-results.csv", { cache: "no-store" });
+      if (!r.ok) throw new Error("Could not load expected-results.csv");
+      const text = await r.text();
+      const lines = text.trim().split("\n");
+      const headers = lines[0].split(",");
+      const idx = h => headers.indexOf(h);
+      const map = {};
+      for (const line of lines.slice(1)) {
+        const cols = line.split(",");
+        const id = cols[idx("test_id")].trim();
+        map[id] = {
+          total:    cols[idx("new_engine_ap_total")].trim(),
+          warnings: cols[idx("new_engine_warnings")].trim(),
+          valid:    cols[idx("new_engine_valid")].trim(),
+          eventsApplied: cols[idx("new_engine_events_applied")] !== undefined
+                       ? cols[idx("new_engine_events_applied")].trim()
+                       : ""
+        };
+      }
+      return map;
+    }
+
+    // ── CAPTURE MODE ─────────────────────────────────────────────────────────
+    document.getElementById("captureBtn").addEventListener("click", async () => {
+      banner.innerHTML = "";
+      output.textContent = "Running capture…";
+      try {
+        const rows = await runAll();
+        const csvHeader = "test_id,test_group,fixture,legacy_ap_total,new_engine_ap_total,legacy_warnings,new_engine_warnings,legacy_valid,new_engine_valid,new_engine_events_applied,pass,notes";
+        const csvRows = rows.map(row => {
+          if (row.error) return `${row.id},${row.group},${row.path},,ERROR,,,,,,,${row.error}`;
+          const evApplied = row.eventsApplied !== undefined ? row.eventsApplied : "";
+          return `${row.id},${row.group},${row.path},,${row.total},,${row.warnings},,${row.ok},${evApplied},true,`;
+        });
+        const csv = [csvHeader, ...csvRows].join("\n");
+        output.textContent =
+          "── Copy the block below into testing/expected/expected-results.csv after you\n" +
+          "── have confirmed the numbers against the PHB / player guide.\n\n" +
+          csv;
+        banner.innerHTML = `<div class="warn">Review the numbers above, confirm them, then paste into <code>expected-results.csv</code> and click "Run tests (assert)".</div>`;
+      } catch (e) {
+        output.textContent = "Capture failed: " + e.message;
+      }
+    });
+
+    // ── ASSERT MODE ──────────────────────────────────────────────────────────
+    document.getElementById("runBtn").addEventListener("click", async () => {
+      banner.innerHTML = "";
+      output.textContent = "Running…";
+      try {
+        const [actuals, expected] = await Promise.all([runAll(), loadExpected()]);
+
+        const results = actuals.map(row => {
+          if (row.error) return { ...row, pass: false, failures: [`load error: ${row.error}`] };
+
+          const exp = expected[row.id];
+          if (!exp || exp.total === "") {
+            return { ...row, pass: false, failures: [`no expected row in CSV for ${row.id} — run Capture first`] };
+          }
+
+          const failures = [];
+          const expTotal = Number(exp.total);
+          if (row.total !== expTotal)
+            failures.push(`total: got ${row.total}, expected ${expTotal}`);
+
+          const expWarn = Number(exp.warnings);
+          if (row.warnings !== expWarn)
+            failures.push(`warnings count: got ${row.warnings}, expected ${expWarn}`);
+
+          // CG-003: must be over-budget with the right warning text
+          if (row.id === "CG-003") {
+            if (row.remaining >= 0)
+              failures.push(`remaining should be < 0, got ${row.remaining}`);
+            if (!row.firstWarning.startsWith("OVER BUDGET"))
+              failures.push(`first warning should start with "OVER BUDGET", got: "${row.firstWarning}"`);
+          }
+
+          // LS-001 / EV-001: assert ok + eventsApplied
+          if (row.eventsApplied !== undefined) {
+            if (!row.ok) failures.push("ok should be true");
+            if (exp.eventsApplied !== "") {
+              const expEv = Number(exp.eventsApplied);
+              if (row.eventsApplied !== expEv)
+                failures.push(`eventsApplied: got ${row.eventsApplied}, expected ${expEv}`);
+            }
+          }
+
+          return { ...row, pass: failures.length === 0, failures };
+        });
+
+        const passed = results.filter(r => r.pass).length;
+        const failed = results.filter(r => !r.pass).length;
+        const summary = {
+          engineVersion: DATA?.version ?? "unknown",
+          total: results.length,
+          passed,
+          failed,
+          results: results.map(r => ({
+            id: r.id,
+            group: r.group,
+            pass: r.pass,
+            actual: { total: r.total, warnings: r.warnings, ok: r.ok, remaining: r.remaining,
+                      eventsApplied: r.eventsApplied },
+            failures: r.failures
+          }))
+        };
+
+        output.textContent = JSON.stringify(summary, null, 2);
+        if (failed === 0) {
+          banner.innerHTML = `<div class="pass">✓ ${passed} passed / 0 failed</div>`;
+        } else {
+          banner.innerHTML = `<div class="fail">✗ ${failed} FAILED / ${passed} passed — see output below</div>`;
+        }
+      } catch (e) {
+        output.textContent = "Run failed: " + e.message;
+        banner.innerHTML = `<div class="fail">Run error: ${e.message}</div>`;
+      }
     });
   </script>
 </body>
