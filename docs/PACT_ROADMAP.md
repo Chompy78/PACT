@@ -84,12 +84,20 @@ from then on. Move "Subclass spell lists" into the Magic category.
      pre-existing Martially Bound refund bug.
   4. Live Sheet — _catOf: move 'Subclass spell lists' to Magic (2 lines).
   5. Live Sheet — ib() tooltip wiring (1 line) + pass a descr to Martially Bound's ib() call.
+  6. Live Sheet — gate the new "Add discipline" / "Open another tradition" buttons (task 2) on the
+     active campaign's `multiDisciplineAllowed` rule (added after this feature was originally scoped —
+     see D-GH14/D-GH16): if a campaign has it set to `false`, hide/disable those buttons instead of
+     letting the player buy a 2nd tradition/discipline and only finding out at cloud-save that
+     `validate()` rejects it. `window._cloudCampaignRules` (populated by `refreshCloudCampaignRules()`,
+     added in the campaign-rules-live-filter follow-up) already carries this flag — reuse it, don't
+     re-fetch. `validate()` itself needs no change; it already checks total discipline count.
 Full spec: IMPLEMENT-multi-tradition-discipline.md (+ ENGINE-CHANGES-prompt.md for the engine slice);
 snippets are from a v0.322 standalone — read the live code and adapt. Read the Live Sheet HTML ONCE and
-apply tasks 4,5,3,2 in a single editing pass (it's large).
+apply tasks 4,5,3,2,6 in a single editing pass (it's large).
 ```
 **Done when:** multiple traditions/disciplines buy + display correctly; Magically Bound applies +2/−1 with
-no retroactive refund; subclass lists sit under Magic; parity stays 5/0.
+no retroactive refund; subclass lists sit under Magic; a campaign with `multiDisciplineAllowed:false`
+hides the add-discipline/add-tradition buttons instead of only blocking at cloud-save; parity stays 5/0.
 ⚠️ Kit claims `compute()` / `DATA.version` are untouched — **verify that for a pricing feature**; if pricing
 changes, update the REV-01 baseline and follow the version rule. Log under a **NEW** decision code
 (**D-GH9** — the draft's "D-GH3" is already taken).
