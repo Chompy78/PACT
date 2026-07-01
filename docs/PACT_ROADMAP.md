@@ -235,6 +235,29 @@ Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 
 ---
 
+## Feature: DM campaign rules — configure and enforce in DM Console — TODO
+Branch feat/campaign-rules-enforcement. Let DMs set per-campaign restrictions (banned species/masteries/boons/origin class/multi-discipline, house-rule toggles) in DM Console; hard-lock campaign characters against those rules in Live Sheet.
+
+```text
+Design the campaign rules schema — a JSON object stored server-side in the campaign record (Supabase), DM-authoritative. Fields to cover: banned species, banned masteries, banned boons, banned origin classes, banned origin species, multi-discipline allowed (bool), and any house-rule toggle slots.
+
+In DM Console: add a Campaign Rules panel where the DM can set/save these fields. Write rules to the campaign row in Supabase (DM-only, protected by RLS).
+
+Pass campaign rules into compute() (or a new validate(build, campaignRules) export in js/engine.js) so rule violations are returned as structured errors alongside the normal output. Keep all enforcement logic inside the engine — never duplicate it in a tool.
+
+In Live Sheet: fetch the campaign's rules on load (if the character belongs to a campaign). Before allowing a save/submit, call the engine's validation and block the action if any violations are present. Show the player a clear error listing which rules are violated.
+
+Campaign rules are read-only for players — they can see them but not change them.
+
+Decision required — assign D-GH7 when updating DECISIONS.md. Core question: does campaign rule enforcement live entirely in compute(), or as a separate validate() export? Document the trust boundary (DM sets rules server-side; engine enforces client-side on player builds).
+
+This likely changes compute() or adds a new engine export — bump DATA.version and update the REV-01 test baseline in the same PR if compute() output changes.
+```
+
+**Done when:** a DM can save campaign rules in DM Console; a campaign character that violates any rule cannot be saved in Live Sheet and sees a clear error; parity still 5/0.
+
+---
+
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
