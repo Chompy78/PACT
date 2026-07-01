@@ -31,10 +31,6 @@ Files provided — just commit: overwrite `AGENTS.md`; replace `CLAUDE.md` with 
 identical copies" chore).
 **Done when:** `git grep -l "Master copy"` is empty; `CLAUDE.md` is the stub.
 
-## CU-2 — Commit VERSION-SYNC.md + confirm build versions match — TODO
-Add `docs/VERSION-SYNC.md` (provided). Verify `BUILD` in `js/engine.js` equals the CharGen / Live Sheet /
-DM Console labels (all `v0.107` now). `index.html` reads `BUILD` live — don't touch it.
-**Done when:** `docs/VERSION-SYNC.md` committed; `BUILD` matches all three tools.
 
 ## CU-4 — Prune merged branches — TODO  *(after promoting `preview → main`)*
 Delete (merged into preview): `data/tools-v0.332`, `engine/data-v0.332`, `feature/dual-source-ap`,
