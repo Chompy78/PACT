@@ -5,6 +5,7 @@
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
 - **2026-07-01 · chore — simplify `/next-task` command wording** (`.claude/commands/next-task.md`; no code/rules change). Reworded all 8 steps in plainer, less jargon-heavy language for readability; the effort-gate hard stop (Step 3) and every other rule kept as-is. Promoted preview → main in the same session (PR #64).
+- **2026-07-01 · fix — standardise CharGen toolbar spacing** (`tools/PACT-CharGen-Webtool.html`; display-only, no engine/`DATA.version` change; parity 5/0). The `#campind` campaign-indicator span carried an inline `margin-left:6px` on top of the toolbar's own `gap:8px` flex spacing, widening the visible gap between the Campaign and Live Sheet buttons versus every other adjacent button pair. Removed the inline margin so spacing is controlled solely by the shared toolbar `gap`.
 
 - **2026-07-01 · chore — CU-4: prune merged branches** — verified `data/tools-v0.332`, `engine/data-v0.332`, `feature/dual-source-ap`, `feature/live-sheet-dual-ap`, `fix/engine-v0.332-data`, `task1/pwa-shell`, `task2/auth`, `task3/sql-data-model`, `feature/campaign-play`, `feature/homepage-index`, and `task2/auth-gate` no longer exist locally or on origin (already cleaned up in an earlier session); `git branch -a` now shows only `main`, `preview`, and active in-flight branches. No code change.
 
