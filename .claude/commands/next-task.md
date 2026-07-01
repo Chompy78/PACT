@@ -1,13 +1,15 @@
 # PACT — work the next roadmap task
 
-You are a task-execution assistant for the **PACT** project. Multiple Claude Code sessions may be running
-against this repo in parallel, each in its own git worktree — never work directly in the shared checkout.
+You help pick and complete the next task from the PACT roadmap. Other Claude Code sessions might be
+working on this same repo at the same time, each in their own separate copy of the code (a "git
+worktree"). **Never edit files directly in the main shared folder** — always work inside your own
+worktree (set up in Step 4).
 
-## Step 1 — read live context
+## Step 1 — get the latest information
 
-**Don't trust the checked-out working tree** — another parallel session can `git checkout` a different
-branch in this same shared folder between the time you read a file and the time you act on it (this has
-actually happened). Read the *true* shared state straight from the remote instead:
+Don't trust the files sitting in the shared folder right now — another session could switch branches
+in that same folder while you're reading, so what you see on disk might not match what's really on the
+`preview` branch. Instead, pull the real, current versions straight from GitHub:
 
 ```
 git fetch origin
@@ -17,79 +19,84 @@ git show origin/preview:testing/tests/engine-parity.html
 git show origin/preview:testing/expected/expected-results.csv
 ```
 
-Use them for: current per-change checklist, branch naming (`type/short-slug`), and whether the parity
-baseline (the CSV row count / fixture list from `engine-parity.html`) currently covers more than the
-original 5 fixtures — don't assume a fixed pass count, read what's actually there right now.
+These tell you: the current rules for making changes, how to name your branch (`type/short-slug`), and
+how many tests should pass right now (don't assume it's always 5 — check the actual file, since it can
+grow over time).
 
-Only fall back to reading the working-tree copies of these files if `git show origin/preview:...` fails
-(e.g. no network) — and say so if you do.
+If `git show` fails (e.g. no internet), fall back to reading the local copies of these files instead —
+and mention that you had to do that.
 
-## Step 2 — pick the task
+## Step 2 — pick a task
 
-If `$ARGUMENTS` names a specific task (title, slug, or code like `CU-4`), use that one — this lets you run
-several sessions in parallel against different tasks without them colliding.
+- If I gave you a specific task name in `$ARGUMENTS` (a title, a short code, etc.), work on that one.
+- Otherwise, open the roadmap and pick the topmost task marked `— TODO` in the **🔴 NOW** section, skipping
+  any that are explicitly marked as blocked or waiting on something else.
+- If nothing in 🔴 NOW is available, move to the **🟡 NEXT** section instead and say that's what you did.
 
-Otherwise: pick the highest-priority `— TODO` in the 🔴 NOW bucket, top to bottom, **skipping any task
-explicitly marked blocked/waiting** (e.g. "after promoting preview → main"). If NOW has no unblocked task,
-fall through to the top unblocked `— TODO` in 🟡 NEXT and say you did so.
+Tell me in one sentence which task you picked and why. **Then stop and wait for me to say go** — don't
+start any work yet.
 
-Tell me which task you picked with a one-line summary. **WAIT for my OK before changing anything.**
+## Step 3 — two quick checks before starting (after I say go)
 
-## Step 3 — pre-flight checks (after I confirm)
+**Check 1 — is someone already doing this?**
+Work out the branch name (`type/short-slug`) this task would use, then run:
+```
+git ls-remote --heads origin <type/short-slug>
+git branch --list <type/short-slug>
+```
+If that branch already exists, stop and tell me — don't pick a different task instead, and don't touch
+that branch. It means someone (possibly another session) is already on it.
 
-1. **Collision check.** Derive the branch name `type/short-slug`. Run:
-   ```
-   git ls-remote --heads origin <type/short-slug>
-   git branch --list <type/short-slug>
-   ```
-   If either shows the branch already exists, **stop and report it** — don't silently pick a different
-   task or overwrite it. Someone (you, or another parallel session) is already on this.
-2. **Effort check — hard stop.** This kind of investigate-and-fix task benefits from higher reasoning
-   effort than routine edits. If this session isn't already running at High effort (or better), stop here
-   and tell me — this is a second, separate checkpoint from Step 2's OK. Do not proceed to Step 4 until I
-   explicitly reply to continue at the current effort or confirm the session has been bumped to High.
+**Check 2 — is this session running at high enough reasoning effort?**
+Tasks like this go better with more careful reasoning. If this session isn't already set to "High" effort
+(or higher), stop and ask me to either bump it to High or explicitly say to continue anyway. This is a
+separate go/no-go from Step 2 — don't skip it even if I already said go once.
 
-## Step 4 — set up the worktree
+## Step 4 — set up your own worktree
 
-Never `cd` into the shared PACT checkout for this work. Use absolute paths / `git -C <path>` for every git
-command so nothing depends on a persisted working directory.
+Don't work inside the shared PACT folder for this task. Instead, create a separate folder just for this
+work:
 
 ```
 git fetch origin
 git worktree add -b <type/short-slug> C:\Users\JohnChow\pact-worktrees\<short-slug> origin/preview
 ```
 
-Do ALL reading, editing, and testing inside `C:\Users\JohnChow\pact-worktrees\<short-slug>` for the rest of
-this task.
+From here on, do all your reading, editing, and testing inside
+`C:\Users\JohnChow\pact-worktrees\<short-slug>` — not the shared folder. Use full paths for every git
+command so nothing depends on which folder you happen to be "in."
 
 ## Step 5 — do the work
 
-Work token-efficiently per `AGENTS.md`: read each file once, grep instead of reading whole files, one
-editing pass, no re-reads. Don't touch `js/engine.js` unless this task targets the engine.
+Be efficient: read each file once, use search instead of reading whole files when you can, and make your
+edits in one clean pass rather than going back and forth. Only touch `js/engine.js` if this specific task
+is about the game engine — otherwise leave it alone.
 
-Follow the per-change checklist:
-- Run the test gate (`testing/tests/engine-parity.html`) and confirm it matches the **current** expected
-  baseline from Step 1 — not a hardcoded "5/0".
-- Update `CHANGELOG.md` (always) and `DECISIONS.md` (if the change has a non-obvious *why*).
-- Graduate the task out of `docs/PACT_ROADMAP.md` into `CHANGELOG.md` in the same change.
+Before calling it done:
+- Run the test suite (`testing/tests/engine-parity.html`) and check it matches the pass count you saw in
+  Step 1 — not a hardcoded number.
+- Add a line to `CHANGELOG.md` (always). Add a note to `DECISIONS.md` too, if this change involved a
+  non-obvious reason behind a choice you made.
+- Remove the task from `docs/PACT_ROADMAP.md` and move it into `CHANGELOG.md`, in this same change.
 
-## Step 6 — sync before opening the PR
+## Step 6 — catch up before opening the PR
 
-Before pushing, bring the branch up to date with the latest `preview` in case it moved during this task:
+Other work may have landed on `preview` while you were busy. Bring your branch up to date:
 ```
 git -C C:\Users\JohnChow\pact-worktrees\<short-slug> fetch origin
 git -C C:\Users\JohnChow\pact-worktrees\<short-slug> rebase origin/preview
 ```
-Resolve conflicts if any appear, then re-run the test gate.
+Fix any conflicts, then re-run the tests.
 
-## Step 7 — push and open the PR
+## Step 7 — push and open the pull request
 
-Push the branch and open a PR into `preview`. Draft the PR body from the CHANGELOG entry.
+Push your branch and open a PR targeting `preview`. Use your `CHANGELOG.md` entry as the starting point
+for the PR description.
 
-## Step 8 — clean up the worktree
+## Step 8 — clean up
 
-After the PR is open, remove the worktree (leave the branch itself alone — branch pruning is CU-4's job,
-not this task's):
+Once the PR is open, remove your worktree folder (but leave the branch itself — cleaning up old branches
+is a different, separate task, not part of this one):
 ```
 git worktree remove C:\Users\JohnChow\pact-worktrees\<short-slug>
 ```
