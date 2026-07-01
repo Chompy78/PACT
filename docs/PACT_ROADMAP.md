@@ -235,6 +235,98 @@ Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 
 ---
 
+## Feature: DM campaign rules — configure and enforce in DM Console — TODO
+Branch feat/campaign-rules-enforcement. Let DMs set per-campaign restrictions (banned species/masteries/boons/origin class/multi-discipline, house-rule toggles) in DM Console; hard-lock campaign characters against those rules in Live Sheet.
+
+```text
+Design the campaign rules schema — a JSON object stored server-side in the campaign record (Supabase), DM-authoritative. Fields to cover: banned species, banned masteries, banned boons, banned origin classes, banned origin species, multi-discipline allowed (bool), and any house-rule toggle slots.
+
+In DM Console: add a Campaign Rules panel where the DM can set/save these fields. Write rules to the campaign row in Supabase (DM-only, protected by RLS).
+
+Pass campaign rules into compute() (or a new validate(build, campaignRules) export in js/engine.js) so rule violations are returned as structured errors alongside the normal output. Keep all enforcement logic inside the engine — never duplicate it in a tool.
+
+In Live Sheet: fetch the campaign's rules on load (if the character belongs to a campaign). Before allowing a save/submit, call the engine's validation and block the action if any violations are present. Show the player a clear error listing which rules are violated.
+
+Campaign rules are read-only for players — they can see them but not change them.
+
+Decision required — assign D-GH7 when updating DECISIONS.md. Core question: does campaign rule enforcement live entirely in compute(), or as a separate validate() export? Document the trust boundary (DM sets rules server-side; engine enforces client-side on player builds).
+
+This likely changes compute() or adds a new engine export — bump DATA.version and update the REV-01 test baseline in the same PR if compute() output changes.
+```
+
+**Done when:** a DM can save campaign rules in DM Console; a campaign character that violates any rule cannot be saved in Live Sheet and sees a clear error; parity still 5/0.
+
+---
+
+## Feature: Clone campaign character to standalone — TODO
+Branch feat/clone-char-standalone. Let a player copy their campaign-linked character into a new standalone (non-campaign) character they own outright.
+
+```text
+In Live Sheet, add a "Clone to standalone" action for characters that belong to a campaign.
+The clone copies the raw character build data (stats, event log) into a new character record not tied to any campaign.
+ap on the clone is reset to 0 — ap is DM-authoritative and cannot carry over outside the campaign context.
+The original campaign character is untouched.
+The clone appears in the player's own character list and can be edited freely.
+Store only raw character data; derive everything else via compute() / rebuildStateFromEvents() at runtime — do not store derived values.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** a player can clone a campaign character to a standalone record; the clone appears in their character list with ap = 0; the original is unchanged; parity still 5/0.
+
+---
+
+## Feature: DM clone campaign rules to another campaign — TODO
+Branch feat/clone-campaign-rules. Let a DM copy the rules configuration from one campaign and apply it as the starting point for another campaign's rules.
+
+```text
+In DM Console, add a "Copy rules from…" action on the Campaign Rules panel.
+Present the DM with a list of their other campaigns; selecting one copies that campaign's rules JSON into the current campaign's rules fields.
+The DM can then adjust before saving — this is a starting-point copy, not a live link.
+Write the copied rules to Supabase only on explicit save (DM-only, protected by RLS).
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** a DM can copy rules from one of their campaigns into another and save them; the source campaign is unchanged; parity still 5/0.
+
+---
+
+## Feature: Live Sheet low-spend warning — nudge to CharGen — TODO
+Branch feat/livesheet-chargen-nudge. Show a warning in Live Sheet when total AP spent is below 70, advising the player to use CharGen instead.
+
+```text
+In Live Sheet, after each change, check the total AP spent on the character (derived from compute() output — do not re-implement the calculation).
+If total AP spent < 70, display a dismissible warning banner explaining that:
+- character creation options (race discounts, origin bonuses, etc.) are not available in Live Sheet,
+- spending AP in Live Sheet on a new character will cost more than going through CharGen,
+- CharGen is the recommended starting point.
+The warning should be prominent but non-blocking — the player can dismiss it and continue.
+Do not show the warning once total AP spent reaches 70 or above.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** a character with < 70 AP spent in Live Sheet shows the nudge banner; the banner disappears (or stays dismissed) once spend reaches 70; no warning appears for characters already above the threshold; parity still 5/0.
+
+---
+
+## Feature: Advancement tracks + D&D 2024 level equivalency — TODO
+Branch feat/advancement-tracks. Store AP-per-level advancement tracks (slow/average/fast + custom) and a D&D 2024 equivalent level reference table; let DMs select or customise a track per campaign.
+
+```text
+Add advancement track data to js/engine.js DATA (or a separate js/advancement.js imported by the engine) as a display-only reference — never read by compute(). Each track (slow/average/fast) defines cumulative AP thresholds per level. Also add a D&D 2024 equivalent level mapping (PACT AP total → approximate D&D 2024 level) as a display reference only.
+
+In DM Console, add a campaign setting for advancement track: the DM can pick slow/average/fast or define a custom track (AP values per level). Store the selection in the campaign record in Supabase (DM-authoritative, RLS-protected).
+
+In Live Sheet (and optionally DM Console), display the character's current D&D 2024 equivalent level as a read-only label derived from total AP spent + the D&D equivalency table.
+
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+
+Note: this overlaps with the existing "Externalize CharGen default AP + AP-by-level table" task. Best done after that task lands, or coordinate changes to avoid duplicating the AP table.
+```
+
+**Done when:** advancement tracks are stored in engine data; a DM can select or customise a track per campaign; the Live Sheet shows the D&D 2024 equivalent level label; parity still 5/0.
+
+---
+
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
