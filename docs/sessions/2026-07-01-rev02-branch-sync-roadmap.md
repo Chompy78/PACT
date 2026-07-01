@@ -108,3 +108,29 @@ Three new tasks added to `docs/PACT_ROADMAP.md` (roadmap-only PRs, no code chang
 - **🔴 NOW — CharGen → Live Sheet button does not save character** (`fix/chargen-live-sheet-save`).
   Investigate and repair the export/save path from CharGen into the Live Sheet workflow. Covers
   reproduction, full flow trace, error-handling improvements, and a regression check.
+
+---
+
+## CU-1/CU-2/CU-3 graduation + a second roadmap merge conflict
+
+`docs/PACT_ROADMAP.md` picked up another stash/upstream-style conflict marker (`<<<<<<< Updated
+upstream` / `=======` / `>>>>>>> Stashed changes`) straddling the CU-2 and CU-3 entries — a leftover
+from local stash handling, not a branch merge. Resolved by removing all three CU tasks (CU-1, CU-2,
+CU-3 were all already done) from the NOW bucket and updating the completed-work preamble to list them.
+Committed directly to `preview` (docs-only, no branch per convention).
+
+CU-2 itself (`tools/DM Console.html` `TOOL_VERSION` v0.015 → v0.107) was still sitting on an unmerged
+branch, `fix/cu-2-dm-console-version` — PR #56 opened and merged into `preview`. The merge required a
+second local conflict resolution in `PACT_ROADMAP.md` (branch still had the old NOW-bucket text;
+`preview`'s graduated version won). `gh pr merge --merge` transiently reported "not on any branch" /
+left a stale `.git/rebase-merge` directory after the local rebase-and-push actually completed
+successfully in the background — turned out to be inert leftover state, not a real interruption;
+confirmed via `git reflog` and cleaned up with `rm -rf .git/rebase-merge`. The PR merge on GitHub itself
+went through cleanly once retried.
+
+One side effect: the PR merge added its own copy of the CU-2 CHANGELOG line, duplicating the one
+already on `preview` — deduped in a follow-up commit.
+
+**End of session state:** `preview` NOW bucket contains only CU-4 (branch pruning, blocked on
+`preview → main` promotion), CU-6 (optional DM Console rename), and the CharGen → Live Sheet save fix.
+No open PRs.
