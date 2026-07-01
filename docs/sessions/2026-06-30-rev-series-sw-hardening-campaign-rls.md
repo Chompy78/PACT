@@ -62,3 +62,5 @@ backward-compatible — callers with no opts see identical output.
   REV-01 added the assertion layer itself).
 - **2026-07-01:** REV-04 migration applied to live Supabase DB and verified via REST API — a player
   `PATCH` setting `campaign_id` and a player `POST` with `campaign_id` set both returned 403; `join_campaign()` confirmed unaffected.
+- **2026-07-01:** REV-03 implemented and merged (PR #41 into `preview`). `NETWORK_FIRST_RE` added to `service-worker.js`; decision logged as D-GH11. Node.js not present on the machine so the headless check was skipped — engine untouched so parity unaffected.
+- **2026-07-01:** User preference saved to Claude memory: always ask before merging a PR.
