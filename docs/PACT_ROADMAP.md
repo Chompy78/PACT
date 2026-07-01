@@ -36,15 +36,6 @@ const localNewer = local.dirty && Date.parse(local.updated_at) > Date.parse(serv
 ```
 **Done when:** mixed-format timestamps order correctly; add a unit test. (Full detail: REV-05.)
 
-## REV-06 — Offline delete: tombstones so it stays deleted (MEDIUM) — TODO
-Offline, `deleteCharacter` removes local but not server, so the row re-pulls on reconnect.
-```
-Maintain a pact-deletes tombstone list; syncAll/online handler replays delete().eq('id',…) then clears
-it; listCharacters filters out tombstoned ids so they don't reappear.
-```
-**Done when:** delete offline → stays gone in UI; on reconnect server row is removed, never re-pulled.
-(Full detail: REV-06.)
-
 ## REV-07 — Invite codes from a CSPRNG (MEDIUM) — TODO
 `gen_invite_code` uses `floor(random()*36)` (non-CSPRNG), no throttling.
 ```
