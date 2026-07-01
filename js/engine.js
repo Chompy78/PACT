@@ -9,6 +9,7 @@
  *   DATA                                  - the full v0.332 rules dataset
  *   compute(build)                        - price a build, derive the sheet
  *   rebuildStateFromEvents(base, events)  - replay an append-only event log
+ *   validate(build, campaignRules)        - check a build against DM campaign rules (D-GH14)
  *
  * The rules data and the compute() costing logic are lifted verbatim from
  * PACT-CharGen-Webtool-v0.104.html; the event-replay logic mirrors the
@@ -531,4 +532,51 @@ export function rebuildStateFromEvents(baseSnapshot, events, opts) {
     warnings: result.warnings,
     eventsApplied: log.length
   };
+}
+
+/**
+ * validate(b, rules) — check a build against a DM's campaign rules (D-GH14).
+ * `rules` is the campaign's `rules` JSON column (DM-authoritative, read-only
+ * to players): { bannedSpecies, bannedOriginSpecies, bannedMasteries,
+ * bannedBoons, bannedOriginClasses, multiDisciplineAllowed, houseRules }.
+ * Pure and side-effect-free; does not touch compute() or pricing. Returns
+ * { ok, violations: [{code, message}] } — never throws on a malformed/empty
+ * rules object (every field defaults to "no restriction").
+ */
+export function validate(b, rules) {
+  const r = rules || {};
+  const violations = [];
+  const has = (arr, v) => Array.isArray(arr) && v && arr.includes(v);
+
+  for (const sp of [b.species, b.species2]) {
+    if (sp && sp !== '(none)' && has(r.bannedSpecies, sp)) {
+      violations.push({ code: 'bannedSpecies', message: 'Species "' + sp + '" is banned in this campaign.' });
+    }
+  }
+  if (b.species2 && b.species2 !== '(none)' && has(r.bannedOriginSpecies, b.species2)) {
+    violations.push({ code: 'bannedOriginSpecies', message: '"' + b.species2 + '" cannot be taken as a 2nd origin species in this campaign.' });
+  }
+  for (const cls of [b.originClass, b.originClass2]) {
+    if (cls && cls !== '(none)' && has(r.bannedOriginClasses, cls)) {
+      violations.push({ code: 'bannedOriginClasses', message: 'Origin class "' + cls + '" is banned in this campaign.' });
+    }
+  }
+  for (const m of (b.masteries || [])) {
+    if (has(r.bannedMasteries, m)) {
+      violations.push({ code: 'bannedMasteries', message: 'Weapon mastery "' + m + '" is banned in this campaign.' });
+    }
+  }
+  for (const bo of (b.boons || [])) {
+    if (has(r.bannedBoons, bo)) {
+      violations.push({ code: 'bannedBoons', message: 'Boon "' + bo + '" is banned in this campaign.' });
+    }
+  }
+  if (r.multiDisciplineAllowed === false) {
+    const nDisc = (b.traditions || []).reduce((s, t) => s + ((t.disciplines || []).length), 0);
+    if (nDisc > 1) {
+      violations.push({ code: 'multiDisciplineAllowed', message: 'Multi-discipline spellcasting is not allowed in this campaign.' });
+    }
+  }
+
+  return { ok: violations.length === 0, violations };
 }

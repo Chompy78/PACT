@@ -1615,10 +1615,12 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
 <script type="module">
   import { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
-  import { listMyCampaigns } from '../js/campaign.js';
+  import { listMyCampaigns, getCampaign } from '../js/campaign.js';
+  import { validate } from '../js/engine.js';
   window._syncBridge = { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync };
   window._authBridge = { currentSession, onAuthChange };
-  window._campaignBridge = { listMyCampaigns };
+  window._campaignBridge = { listMyCampaigns, getCampaign };
+  window._engineBridge = { validate };
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
 </script>
@@ -1663,8 +1665,21 @@ document.addEventListener('sync-ready', function () {
       var btn = this; btn.disabled = true; btn.textContent = 'Saving…';
       try {
         var b     = window.foldBuild ? window.foldBuild(null) : {};
-        var stats = { rules: window.RULES, name: b.name, LOG: window.LOG, SEQ: window.SEQ };
         var id    = window.currentCharId ? window.currentCharId() : S.newCharacterId();
+        var rec   = await S.loadCharacter(id);
+        if (rec && rec.campaign_id && window._engineBridge) {
+          try {
+            var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
+            var v = camp ? window._engineBridge.validate(b, camp.rules) : { ok: true, violations: [] };
+            if (!v.ok) {
+              btn.disabled = false; btn.textContent = '☁ Save to cloud';
+              alert('This character breaks campaign rules set by your DM — fix these before saving to the cloud:\n\n'+
+                v.violations.map(function(x){ return '• '+x.message; }).join('\n'));
+              return;
+            }
+          } catch(e) { /* non-fatal — can't reach campaign rules right now, don't block the save */ }
+        }
+        var stats = { rules: window.RULES, name: b.name, LOG: window.LOG, SEQ: window.SEQ };
         var res   = await S.saveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet', stats: stats });
         if(res.error) throw res.error;
         if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
