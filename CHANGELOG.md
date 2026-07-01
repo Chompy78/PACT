@@ -4,6 +4,7 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-01 · chore — add `/close-session` command** (`.claude/commands/close-session.md`; no code/rules change). Report-only checklist for wrapping up a session: docs (CHANGELOG/DECISIONS/sessions), roadmap graduation, test gate, working-tree state, this session's worktree, a repo-wide branch/worktree sweep, preview/main sync status, and open PRs — surfaces further actions as a flat `A1`/`A2`/... list for a single yes/no reply instead of one-at-a-time prompts. Promoted preview → main in the same session (PR #69).
 - **2026-07-01 · chore — simplify `/next-task` command wording** (`.claude/commands/next-task.md`; no code/rules change). Reworded all 8 steps in plainer, less jargon-heavy language for readability; the effort-gate hard stop (Step 3) and every other rule kept as-is. Promoted preview → main in the same session (PR #64).
 - **2026-07-01 · fix — standardise CharGen toolbar spacing** (`tools/PACT-CharGen-Webtool.html`; display-only, no engine/`DATA.version` change; parity 5/0). The `#campind` campaign-indicator span carried an inline `margin-left:6px` on top of the toolbar's own `gap:8px` flex spacing, widening the visible gap between the Campaign and Live Sheet buttons versus every other adjacent button pair. Removed the inline margin so spacing is controlled solely by the shared toolbar `gap`.
 
