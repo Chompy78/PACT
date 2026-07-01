@@ -13,7 +13,7 @@ const PRE_CACHE = [
   '/PACT/manifest.json',
   '/PACT/tools/PACT-CharGen-Webtool.html',
   '/PACT/tools/PACT-Live-Char-Sheet.html',
-  '/PACT/tools/DM%20Console.html',
+  '/PACT/tools/DM-Console.html',
   '/PACT/docs/PACT-Players-Guide.html',
   '/PACT/icons/icon-192.png',
   '/PACT/icons/icon-512.png',
