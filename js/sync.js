@@ -24,6 +24,10 @@ const LS_DELETES = 'pact-deletes'; // JSON array of ids pending server deletion
 const nowIso = () => new Date().toISOString();
 export const newCharacterId = () => crypto.randomUUID();
 
+// Compares two ISO-8601 instants regardless of format (`Z` vs `+00:00`, differing
+// sub-second precision) — a plain string `>` breaks across those variations.
+export const isNewerInstant = (a, b) => Date.parse(a) > Date.parse(b);
+
 // --- localStorage helpers ---------------------------------------------------
 function lsGet(id) {
   try { return JSON.parse(localStorage.getItem(LS_PREFIX + id)); }
@@ -139,7 +143,7 @@ async function reconcile(id) {
   }
   if (!local) { lsSet({ ...server, dirty: false }); return; }
 
-  const localNewer = local.dirty && local.updated_at > server.updated_at;
+  const localNewer = local.dirty && isNewerInstant(local.updated_at, server.updated_at);
   if (localNewer) {
     try { await pushCharacter(local); } catch { /* retry later */ }
   } else {

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PACT Sync Timestamp Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 1rem; }
+    pre { background: #111827; color: #f9fafb; padding: 1rem; border-radius: 0.5rem; overflow: auto; }
+    .pass { color: #065f46; background: #d1fae5; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    .fail { color: #7f1d1d; background: #fee2e2; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+    button { margin-right: 0.5rem; padding: 0.4rem 1rem; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>PACT Sync Timestamp Test</h1>
+  <p>Regression test for REV-05: <code>isNewerInstant</code> must compare parsed instants, not raw strings,
+     so mixed <code>Z</code> / <code>+00:00</code> / differing sub-second precision still order correctly.</p>
+
+  <button id="runBtn">Run tests</button>
+  <div id="banner"></div>
+  <pre id="output">Not run yet.</pre>
+
+  <script type="module">
+    import { isNewerInstant } from "../../js/sync.js";
+
+    const CASES = [
+      // [label, local, server, expectedLocalNewer]
+      ["same instant, Z vs +00:00 (string compare would say local IS newer — false positive)",
+        "2026-06-30T12:00:00.000Z", "2026-06-30T12:00:00+00:00", false],
+      ["local later, mixed formats",
+        "2026-06-30T12:00:01Z", "2026-06-30T12:00:00+00:00", true],
+      ["local earlier, mixed formats",
+        "2026-06-30T11:59:59Z", "2026-06-30T12:00:00+00:00", false],
+      ["differing sub-second precision, local later",
+        "2026-06-30T12:00:00.500Z", "2026-06-30T12:00:00.100Z", true],
+      ["differing sub-second precision, equal after rounding to seconds but local earlier at ms",
+        "2026-06-30T12:00:00.050Z", "2026-06-30T12:00:00.400Z", false],
+    ];
+
+    document.getElementById("runBtn").addEventListener("click", () => {
+      const results = CASES.map(([label, local, server, expected]) => {
+        const actual = isNewerInstant(local, server);
+        return { label, local, server, expected, actual, pass: actual === expected };
+      });
+
+      const passed = results.filter(r => r.pass).length;
+      const failed = results.filter(r => !r.pass).length;
+
+      document.getElementById("output").textContent = JSON.stringify(results, null, 2);
+      const banner = document.getElementById("banner");
+      banner.innerHTML = failed === 0
+        ? `<div class="pass">✓ ${passed} passed / 0 failed</div>`
+        : `<div class="fail">✗ ${failed} FAILED / ${passed} passed — see output below</div>`;
+    });
+  </script>
+</body>
+</html>
