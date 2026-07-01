@@ -297,6 +297,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .hd-row2 .lastedited{font-size:11px;opacity:.75;white-space:nowrap}
 .hd-row3{background:var(--navy);color:#fff;padding:5px 14px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,0.15)}
 .hd-mobnav{display:none}
+.mobile-action-bar{display:none}
 @media(max-width:768px){
  /* M8: pin the mobile header with position:fixed (more robust than sticky on phones); offset content by the live --headh so nothing hides under it */
  .stickyhead{position:static;flex:0 0 auto}.layout{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
@@ -304,6 +305,9 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
  .hd-row2,.hd-row3,.secnav{display:none}
  .hd-mobnav{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
  .hd-mobnav #secjump{flex:1;min-width:120px;font:inherit;padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--inp);color:var(--navytx)}
+ /* CU-7: character-management actions (Save/Load/Live Sheet/…) live in the sticky header's .hd-row3 on
+    desktop; that row is hidden on mobile, so this non-sticky bar re-surfaces them just below the header. */
+ .mobile-action-bar{display:flex;flex:0 0 auto;align-items:center;gap:8px;padding:6px 12px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap;overflow-x:auto}
 }
 @media(max-width:600px){
  body{font-size:14px}
@@ -398,6 +402,17 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <div class="hd-mobnav"><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
 <div class="secnav" id="secnav"></div>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
+<div class="mobile-action-bar">
+<button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
+<button class="btn ghost" onclick="loadViaPicker()">📂 Load</button>
+<button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
+<button class="btn ghost" onclick="exportToLiveSheet()" title="Export this build as a Live Sheet file, then Import it in the Live Sheet to lock it in and progress">⇆ Live Sheet</button>
+<button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
+<button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
+<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button>
+<button class="btn ghost" onclick="openCampaign()" title="DM: bar boons/drawbacks/arts and share a code; barred items are blocked here too">🛡 Campaign</button>
+<button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button>
+</div>
 <div id="sheetview"><div class="shtop"><b>📋 Character Sheet</b><button class="btn" onclick="window.print()">🖨 Print</button><button class="btn ghost" onclick="toggleSheet()">✕ Close — back to builder</button></div><div id="sheetbody"></div></div>
 <div id="explainview"><div class="shtop"><b>💡 Explain my cost</b><button class="btn ghost" onclick="closeExplain()">✕ Close</button></div>
 <div style="max-width:640px;margin:0 auto" id="explainbody"></div></div>

@@ -48,9 +48,25 @@ If that branch already exists, stop and tell me — don't pick a different task 
 that branch. It means someone (possibly another session) is already on it.
 
 **Check 2 — is this session running at high enough reasoning effort?**
-Tasks like this go better with more careful reasoning. If this session isn't already set to "High" effort
-(or higher), stop and ask me to either bump it to High or explicitly say to continue anyway. This is a
-separate go/no-go from Step 2 — don't skip it even if I already said go once.
+**"High" is the floor, not just a minimum to clear.** This skill runs a full roadmap task — multi-file
+edits, running `engine-parity.html` to a pass count, rebasing against `preview`, opening a PR — where a
+shallow pass doesn't just mean weaker code, it means a broken rebase, a missed edge case that fails the
+test suite, or a PR that bounces back for a second round-trip. That redo cost is expensive enough to
+justify High as the default; don't ask for more than that by default — `xhigh`/`max` are for genuinely
+ambiguous judgment calls, not routine roadmap work (see Check 3: if that check already flagged the task
+as Opus-worthy, it's reasonable to also suggest `xhigh` here, but that's the exception, not the rule).
+If this session isn't already set to "High" effort (or higher), stop and ask me to either bump it to High
+or explicitly say to continue anyway. This is a separate go/no-go from Step 2 — don't skip it even if I
+already said go once.
+
+**Check 3 — is this session on the right model?**
+Default to **Sonnet** — it's token-efficient and handles most roadmap tasks fine. Only recommend
+switching to **Opus** if the specific task you picked has real rework risk on Sonnet: a genuine
+architectural trade-off, a change that's expensive to get wrong (e.g. touches `js/engine.js` rules logic,
+data-model/migration decisions, or cross-tool contracts), or something you're not confident you can get
+right in one pass. If none of that applies, stay on Sonnet and don't raise this check. If it does apply
+and the session isn't already on Opus, stop and ask me to either switch or explicitly say to continue on
+Sonnet anyway.
 
 ## Step 4 — set up your own worktree
 
