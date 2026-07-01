@@ -35,7 +35,7 @@
   is scoped and safe but NOT yet applied — pending a separate explicit go-ahead.
 
 ---
-## D-GH15 · Campaign rules follow-up: live-filter pickers where a pick surface exists, not everywhere
+## D-GH16 · Campaign rules follow-up: live-filter pickers where a pick surface exists, not everywhere
 - **Context:** D-GH14 shipped enforcement, but only at the last possible moment — Live Sheet's "Save to
   cloud" click. A player who builds around a banned choice only finds out after the fact and has to undo
   work. The obvious full fix (give CharGen, where species/origin class are actually chosen, live
