@@ -818,7 +818,7 @@ function _showVersionBanner(){
 function _apNudgeBanner(spent){
   const id=currentCharId();
   let nb=$('apNudgeBanner');
-  if(window._apNudgeDismissedFor===id||spent>=70){ if(nb)nb.remove(); return; }
+  if(window._apNudgeDismissedFor===id||spent>=50){ if(nb)nb.remove(); return; }
   if(nb)return;  // already shown
   nb=document.createElement('div');nb.id='apNudgeBanner';
   nb.style.cssText='position:sticky;top:0;z-index:49;background:#0d4f6e;color:#fff;padding:6px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px';
