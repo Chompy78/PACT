@@ -797,8 +797,8 @@ function redo(){ if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save
 
 // ---------------- persistence ----------------
 const KEY='pactLiveSheet';
-function save(){ try{localStorage.setItem(KEY,JSON.stringify({LOG,SEQ,rules:RULES,id:currentCharId()}));}catch(e){} }
-function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;}}catch(e){} }
+function save(){ try{localStorage.setItem(KEY,JSON.stringify({LOG,SEQ,rules:RULES,id:currentCharId()}));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); } }
+function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
 function exportJSON(){ const b=foldBuild(null); const blob=new Blob([JSON.stringify({rules:RULES,name:b.name,LOG,SEQ},null,1)],{type:'application/json'});
   const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;const _efn=(b.name||'pact-live-sheet').replace(/[^a-z0-9]+/gi,'_')+'-'+_dstamp()+'.json';a.download=_efn;a.click();URL.revokeObjectURL(u); if(typeof flash==='function')flash('Character saved to your Downloads as “'+_efn+'”.'); }
 // Loading a saved character preserves its frozen prices. If it was stamped under an OLDER rules version,
