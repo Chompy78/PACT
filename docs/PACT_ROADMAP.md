@@ -36,11 +36,6 @@ Add `docs/VERSION-SYNC.md` (provided). Verify `BUILD` in `js/engine.js` equals t
 DM Console labels (all `v0.107` now). `index.html` reads `BUILD` live — don't touch it.
 **Done when:** `docs/VERSION-SYNC.md` committed; `BUILD` matches all three tools.
 
-## CU-3 — Tidy root & test files — TODO  *(closes review REV-09)*
-Delete `index.old.html` + `.tmp-verify.mjs`; move `campaign-test.html` + `sync-test.html` into `testing/`;
-keep `login.html` + `docs/history/`; fix `testing/README.md` (it holds a stray repo description).
-**Done when:** root is clean; harnesses open from `testing/`; `engine-parity.html` still 5/0.
-
 ## CU-4 — Prune merged branches — TODO  *(after promoting `preview → main`)*
 Delete (merged into preview): `data/tools-v0.332`, `engine/data-v0.332`, `feature/dual-source-ap`,
 `feature/live-sheet-dual-ap`, `fix/engine-v0.332-data`, `task1/pwa-shell`, `task2/auth`,
