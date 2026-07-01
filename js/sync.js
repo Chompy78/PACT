@@ -9,12 +9,17 @@
 //   * Last-write-wins by updated_at; we only push local when it's newer AND dirty.
 //   * A failed write keeps the local copy (dirty) and retries on the next "online"
 //     event or syncAll(); local is never deleted until a server write is confirmed.
+//   * Deletes are tombstoned: an offline (or failed) delete is recorded in a local
+//     pending-deletes list so the row can't be resurrected by a later pull; the
+//     tombstone is replayed against the server on reconnect/syncAll and cleared
+//     only once the server delete actually succeeds.
 
 import { supabase } from './supabase-client.js';
 import { currentUser } from './auth.js';
 
-const LS_PREFIX = 'pact-char-';   // one key per character
-const LS_INDEX  = 'pact-chars';   // JSON array of known character ids
+const LS_PREFIX  = 'pact-char-';   // one key per character
+const LS_INDEX   = 'pact-chars';   // JSON array of known character ids
+const LS_DELETES = 'pact-deletes'; // JSON array of ids pending server deletion
 
 const nowIso = () => new Date().toISOString();
 export const newCharacterId = () => crypto.randomUUID();
@@ -36,6 +41,17 @@ function lsIndex() {
 function lsRemove(id) {
   localStorage.removeItem(LS_PREFIX + id);
   localStorage.setItem(LS_INDEX, JSON.stringify(lsIndex().filter(x => x !== id)));
+}
+function lsDeletes() {
+  try { return JSON.parse(localStorage.getItem(LS_DELETES)) || []; }
+  catch { return []; }
+}
+function lsDeletesAdd(id) {
+  const pending = lsDeletes();
+  if (!pending.includes(id)) { pending.push(id); localStorage.setItem(LS_DELETES, JSON.stringify(pending)); }
+}
+function lsDeletesRemove(id) {
+  localStorage.setItem(LS_DELETES, JSON.stringify(lsDeletes().filter(x => x !== id)));
 }
 
 // --- core read/write --------------------------------------------------------
@@ -107,6 +123,7 @@ export async function loadCharacter(id) {
 
 /** Reconcile a single id between local and server (last-write-wins; ap = server). */
 async function reconcile(id) {
+  if (lsDeletes().includes(id)) { await replayDelete(id); return; }
   const local = lsGet(id);
   const { data: server, error } = await supabase
     .from('characters')
@@ -134,6 +151,7 @@ async function reconcile(id) {
 /** List characters. Online: server list merged with not-yet-pushed local ones.
  *  Offline: whatever is in localStorage. */
 export async function listCharacters() {
+  const tombstoned = new Set(lsDeletes());
   if (navigator.onLine && await currentUser()) {
     const { data, error } = await supabase
       .from('characters')
@@ -142,26 +160,39 @@ export async function listCharacters() {
     if (error) throw error;
     const serverIds = new Set(data.map(c => c.id));
     const localOnly = lsIndex().map(lsGet).filter(r => r && !serverIds.has(r.id));
-    return [...data, ...localOnly];
+    return [...data, ...localOnly].filter(c => !tombstoned.has(c.id));
   }
-  return lsIndex().map(lsGet).filter(Boolean);
+  return lsIndex().map(lsGet).filter(Boolean).filter(c => !tombstoned.has(c.id));
 }
 
-/** Delete a character: server first, then local (never local before confirmed). */
+/** Delete a character: local is removed immediately and tombstoned so a later
+ *  pull can't resurrect it; the server delete is attempted right away if
+ *  online, and retried via the tombstone on reconnect/syncAll otherwise. */
 export async function deleteCharacter(id) {
-  if (navigator.onLine && await currentUser()) {
+  lsRemove(id);
+  lsDeletesAdd(id);
+  if (navigator.onLine && await currentUser()) await replayDelete(id);
+}
+
+/** Replay one pending delete against the server; clears its tombstone on success. */
+async function replayDelete(id) {
+  try {
     const { error } = await supabase.from('characters').delete().eq('id', id);
     if (error) throw error;
-  }
-  lsRemove(id);
+    lsDeletesRemove(id);
+  } catch { /* stays tombstoned, retry later */ }
 }
 
-/** Reconcile every known character (local index ∪ server rows). */
+/** Reconcile every known character (local index ∪ server rows), and replay any
+ *  pending deletes first so tombstoned ids aren't resurrected by reconcile. */
 export async function syncAll() {
   if (!navigator.onLine || !(await currentUser())) return { synced: 0 };
+  for (const id of lsDeletes()) await replayDelete(id);
+
   const { data, error } = await supabase.from('characters').select('id');
   if (error) throw error;
-  const ids = new Set([...lsIndex(), ...data.map(c => c.id)]);
+  const tombstoned = new Set(lsDeletes());
+  const ids = new Set([...lsIndex(), ...data.map(c => c.id)].filter(id => !tombstoned.has(id)));
   let n = 0;
   for (const id of ids) { try { await reconcile(id); n++; } catch { /* skip, retry later */ } }
   return { synced: n };
