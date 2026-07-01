@@ -258,6 +258,38 @@ This likely changes compute() or adds a new engine export — bump DATA.version 
 
 ---
 
+## Feature: Clone campaign character to standalone — TODO
+Branch feat/clone-char-standalone. Let a player copy their campaign-linked character into a new standalone (non-campaign) character they own outright.
+
+```text
+In Live Sheet, add a "Clone to standalone" action for characters that belong to a campaign.
+The clone copies the raw character build data (stats, event log) into a new character record not tied to any campaign.
+ap on the clone is reset to 0 — ap is DM-authoritative and cannot carry over outside the campaign context.
+The original campaign character is untouched.
+The clone appears in the player's own character list and can be edited freely.
+Store only raw character data; derive everything else via compute() / rebuildStateFromEvents() at runtime — do not store derived values.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** a player can clone a campaign character to a standalone record; the clone appears in their character list with ap = 0; the original is unchanged; parity still 5/0.
+
+---
+
+## Feature: DM clone campaign rules to another campaign — TODO
+Branch feat/clone-campaign-rules. Let a DM copy the rules configuration from one campaign and apply it as the starting point for another campaign's rules.
+
+```text
+In DM Console, add a "Copy rules from…" action on the Campaign Rules panel.
+Present the DM with a list of their other campaigns; selecting one copies that campaign's rules JSON into the current campaign's rules fields.
+The DM can then adjust before saving — this is a starting-point copy, not a live link.
+Write the copied rules to Supabase only on explicit save (DM-only, protected by RLS).
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** a DM can copy rules from one of their campaigns into another and save them; the source campaign is unchanged; parity still 5/0.
+
+---
+
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
