@@ -235,22 +235,6 @@ Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 
 ---
 
-## Feature: Local AI portrait generation — TODO
-Branch feat/local-ai-portrait. Add a "Generate Portrait" button to CharGen/Live Sheet that sends a prompt to a local image-generation server (e.g. Automatic1111/ComfyUI) and saves the returned image as a local file download.
-
-```text
-Add a "Generate Portrait" button to the character UI (CharGen and/or Live Sheet toolbar).
-On click, build a prompt from character data (name, race, class, etc.) and POST it to a configurable local endpoint (default: http://localhost:7860 for Automatic1111).
-On success, offer the returned image as a browser file download (PNG).
-Store no image data in Supabase or localStorage — download only.
-The endpoint URL should be user-configurable (a settings field or prompt dialog), not hardcoded.
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** clicking the button sends a request to the local endpoint, the response image downloads to the user's machine, and parity is still 5/0.
-
----
-
 ## Feature: DM campaign rules — configure and enforce in DM Console — TODO
 Branch feat/campaign-rules-enforcement. Let DMs set per-campaign restrictions (banned species/masteries/boons/origin class/multi-discipline, house-rule toggles) in DM Console; hard-lock campaign characters against those rules in Live Sheet.
 
