@@ -14,23 +14,12 @@
 > pointers resolve. Findings are filed by severity: HIGH → Now, MEDIUM → Next, LOW → Later.
 
 Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page redesign, PHB data,
-**REV-01** regression gate, **REV-02** SW same-origin cache fix, **REV-03** SW network-first) has landed and graduated to `CHANGELOG.md`.
-Review findings **REV-08** (docs drift) and **REV-09** (scratch file) will be closed by the
-**still-pending CU-1 / CU-3** tasks below — not done yet.
+**REV-01** regression gate, **REV-02** SW same-origin cache fix, **REV-03** SW network-first,
+**CU-1** agent docs, **CU-2** version sync, **CU-3** repo tidy) has landed and graduated to `CHANGELOG.md`.
 
 ---
 
 # 🔴 NOW — high-severity fixes + cleanup
-
-> **Quick win first:** CU-1 and CU-2 are ready-to-commit files — knock those out immediately. The HIGH
-> fixes (REV-01…04) are the priority work in this bucket.
-
-## CU-1 — Single-source agent docs — TODO  *(closes review REV-08)*
-Files provided — just commit: overwrite `AGENTS.md`; replace `CLAUDE.md` with the `@AGENTS.md` stub and
-`.github/copilot-instructions.md` with the pointer stub; update `docs/HOW-TO-WORK.md` (drop the "three
-identical copies" chore).
-**Done when:** `git grep -l "Master copy"` is empty; `CLAUDE.md` is the stub.
-
 
 ## CU-4 — Prune merged branches — TODO  *(after promoting `preview → main`)*
 Delete (merged into preview): `data/tools-v0.332`, `engine/data-v0.332`, `feature/dual-source-ap`,

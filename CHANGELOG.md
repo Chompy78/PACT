@@ -5,10 +5,12 @@
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
 - **2026-07-01 · chore — CU-2: sync DM Console build version to v0.107** (`tools/DM Console.html` `TOOL_VERSION` v0.015 → v0.107; `docs/VERSION-SYNC.md` already committed). All three tools now mirror `BUILD` in `js/engine.js`; `index.html` reads it live. No engine/logic change; parity unaffected.
+- **2026-07-01 · docs — CU-1: single-source agent docs** (`CLAUDE.md` stub → `@AGENTS.md`, `.github/copilot-instructions.md` pointer stub, `docs/HOW-TO-WORK.md` three-copies chore removed; no code change). Closes REV-08. `git grep -l "Master copy"` returns nothing outside the roadmap task description itself.
 
 - **2026-07-01 · chore — REV-10: stop tracking `.claude/` JSON config files** (`.gitignore`, `.claude/launch.json` untracked; no code change). Replaced blanket `.claude/` ignore with `.claude/*.json` so machine-specific config (`launch.json`, `settings*.json`) is ignored while project-specific agent + command definitions remain tracked. Closes REV-10.
 
 - **2026-07-01 · chore — CU-3: tidy repo root and test files** (`index.old.html` + `.tmp-verify.mjs` deleted; `campaign-test.html` + `sync-test.html` moved to `testing/` with relative paths updated to `../js/` and `../login.html`; `testing/README.md` replaced stray repo description with a proper harness index). Closes REV-09. No engine/logic change; parity unaffected.
+- **2026-07-01 · chore — CU-2: sync DM Console build version to v0.107** (`tools/DM Console.html` `TOOL_VERSION` v0.015 → v0.107; `docs/VERSION-SYNC.md` already committed). All three tools now mirror `BUILD` in `js/engine.js`; `index.html` reads it live. No engine/logic change; parity unaffected.
 
 - **2026-06-30 · fix — REV-04: close campaign-join bypass in RLS** (`sql/rls-policies.sql`, `sql/migrations/2026-06-30-rev04-campaign-rls.sql`; no engine/logic change; parity unaffected). Removed `campaign_id` from the player column-level UPDATE grant — `join_campaign()` (SECURITY DEFINER) is now the sole writer. Also tightened the INSERT policy with `AND campaign_id IS NULL` so a player cannot insert a character pre-joined to an arbitrary campaign; `join_campaign()` bypasses RLS as a SECURITY DEFINER function and is unaffected. `DATA.version` unchanged.
 
