@@ -14,32 +14,13 @@
 > pointers resolve. Findings are filed by severity: HIGH → Now, MEDIUM → Next, LOW → Later.
 
 Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page redesign, PHB data,
-**REV-01** regression gate, **REV-02** SW same-origin cache fix, **REV-03** SW network-first) has landed and graduated to `CHANGELOG.md`.
-Review findings **REV-08** (docs drift) and **REV-09** (scratch file) will be closed by the
-**still-pending CU-1 / CU-3** tasks below — not done yet.
+**REV-01** regression gate, **REV-02** SW same-origin cache fix, **REV-03** SW network-first,
+**CU-1** agent docs, **CU-2** version sync, **CU-3** repo tidy, **CU-6** DM Console rename) has landed and
+graduated to `CHANGELOG.md`.
 
 ---
 
 # 🔴 NOW — high-severity fixes + cleanup
-
-> **Quick win first:** CU-1 and CU-2 are ready-to-commit files — knock those out immediately. The HIGH
-> fixes (REV-01…04) are the priority work in this bucket.
-
-## CU-1 — Single-source agent docs — TODO  *(closes review REV-08)*
-Files provided — just commit: overwrite `AGENTS.md`; replace `CLAUDE.md` with the `@AGENTS.md` stub and
-`.github/copilot-instructions.md` with the pointer stub; update `docs/HOW-TO-WORK.md` (drop the "three
-identical copies" chore).
-**Done when:** `git grep -l "Master copy"` is empty; `CLAUDE.md` is the stub.
-
-## CU-2 — Commit VERSION-SYNC.md + confirm build versions match — TODO
-Add `docs/VERSION-SYNC.md` (provided). Verify `BUILD` in `js/engine.js` equals the CharGen / Live Sheet /
-DM Console labels (all `v0.107` now). `index.html` reads `BUILD` live — don't touch it.
-**Done when:** `docs/VERSION-SYNC.md` committed; `BUILD` matches all three tools.
-
-## CU-3 — Tidy root & test files — TODO  *(closes review REV-09)*
-Delete `index.old.html` + `.tmp-verify.mjs`; move `campaign-test.html` + `sync-test.html` into `testing/`;
-keep `login.html` + `docs/history/`; fix `testing/README.md` (it holds a stray repo description).
-**Done when:** root is clean; harnesses open from `testing/`; `engine-parity.html` still 5/0.
 
 ## CU-4 — Prune merged branches — TODO  *(after promoting `preview → main`)*
 Delete (merged into preview): `data/tools-v0.332`, `engine/data-v0.332`, `feature/dual-source-ap`,
@@ -47,10 +28,6 @@ Delete (merged into preview): `data/tools-v0.332`, `engine/data-v0.332`, `featur
 `task3/sql-data-model`, `feature/campaign-play`; on origin also `feature/homepage-index`. KEEP `main`,
 `preview`, `task2/auth-gate`.
 **Done when:** `git branch` shows only `main`, `preview`, `task2/auth-gate` (+ anything active).
-
-## CU-6 — (optional) Rename `DM Console.html` → `DM-Console.html` — TODO
-Drop the space; update index menu link, SW precache, and any other references.
-**Done when:** nothing references "DM Console.html"; console opens + is precached; parity 5/0.
 
 ## CharGen → Live Sheet button does not save character — TODO
 Branch fix/chargen-live-sheet-save. Investigate and repair the character export/save path from tools/PACT-CharGen-Webtool.html into the Live Sheet workflow so pressing the Live Sheet button creates a usable character in the local environment.
@@ -324,6 +301,32 @@ Note: this overlaps with the existing "Externalize CharGen default AP + AP-by-le
 ```
 
 **Done when:** advancement tracks are stored in engine data; a DM can select or customise a track per campaign; the Live Sheet shows the D&D 2024 equivalent level label; parity still 5/0.
+
+---
+
+## Expand engine-parity test coverage — TODO
+Branch test/expand-engine-parity-coverage. `testing/tests/engine-parity.html` currently runs only 5 fixtures (CG-001/002/003, EV-001, LS-001) — budget/empty/over-budget cases only. No coverage of prereq gates, drawback buy-off, racial/mastery pricing, multi-tradition spellcasting paths, or Live Sheet event-log folding beyond the one clean-export case. Before REV-11 (CI) and REV-14 (engine refactor) can trust this gate, it needs to actually prove `compute()` correctness broadly, not just that it doesn't throw.
+
+```text
+1. Audit current fixture coverage against js/engine.js's compute() branches — grep for gates/prereqs/discounts
+   the 5 existing fixtures never exercise (e.g. drawback buy-off, racial discount stacking, invalid
+   prereq purchase, duplicate/cap rejection, HD/AP-by-level edges).
+2. Add new fixtures under testing/fixtures/builds/ and testing/fixtures/live-sheets/ (and events/ if needed)
+   for the highest-value gaps found in step 1 — prioritize cases most likely to silently break during
+   future engine edits (REV-14 split, Task 6 CharGen migration, Feature A multi-tradition work).
+3. Add each new fixture's expected values to testing/expected/expected-results.csv via the existing
+   "Capture baseline" mode in engine-parity.html, then have a human confirm the captured values against
+   the PHB/DATA before committing (same human-review discipline as D-GH13).
+4. Wire the new fixtures into testing/tests/engine-parity.html's FIXTURES list.
+5. Do NOT change compute() or DATA — this task is test-coverage only. If gaps reveal an actual engine bug,
+   file it as a separate roadmap item rather than fixing inline here.
+6. If, after auditing, the gate genuinely is legacy/low-value (e.g. duplicated by something else), stop and
+   write up that finding instead of padding fixtures for their own sake — note it in DECISIONS.md as a
+   NEW decision (next free code: D-GH14) rather than silently doing nothing.
+```
+**Done when:** engine-parity.html reports more than 5 fixtures covering at least prereq-gate rejection,
+drawback buy-off, and one racial/mastery discount case, each with a human-reviewed CSV baseline; parity
+still reports all green (N passed / 0 failed).
 
 ---
 

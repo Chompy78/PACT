@@ -23,7 +23,7 @@ LS-001 and EV-001 assert `rebuildStateFromEvents().ok`, `.total`, and `.eventsAp
 
 | Fixture | total | warnings | notes |
 |---------|------:|:--------:|-------|
-| CG-001 | 2 | 0 | empty build — `languages:1` costs 2 AP (see D-GH13) |
+| CG-001 | 2 | 0 | empty build — `DATA.HD[0].cum = 2`; every character pays 2 AP for Hit Die 1 (see D-GH13) |
 | CG-002 | 50 | 0 | valid 50-AP Warlock; exactly on budget |
 | CG-003 | 67 | 1 | over-budget Sorcerer; remaining = −17 |
 | LS-001 | 78 | 1 | Aldric Valor live sheet; Ki-without-feature warning |
@@ -31,7 +31,7 @@ LS-001 and EV-001 assert `rebuildStateFromEvents().ok`, `.total`, and `.eventsAp
 
 ### Surprising finding: CG-001 total = 2, not 0
 
-The "default empty build" fixture has `languages: 1`. The engine prices the first explicit language slot at 2 AP (there is no free starting language at the engine level — the default `languages: 0` is the true zero-cost baseline). This is correct per the pricing rules; the fixture just happens to start with one language already set. Documented in D-GH13.
+The "default empty build" fixture looks empty but every character automatically pays for Hit Die 1. `DATA.HD[0].cum = 2`, so the engine adds 2 AP for `hd: 1` via `add("Hit Dice", row.cum)`. Languages at `n=1` cost `(n−1)·n/2 = 0`. Confirmed via browser eval: `compute(CG-001).lines` returns `[["Hit Dice", 2]]` with nothing else. Documented in D-GH13.
 
 ## Decisions logged
 
