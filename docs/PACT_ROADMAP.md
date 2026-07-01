@@ -290,6 +290,24 @@ Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 
 ---
 
+## Feature: Live Sheet low-spend warning — nudge to CharGen — TODO
+Branch feat/livesheet-chargen-nudge. Show a warning in Live Sheet when total AP spent is below 70, advising the player to use CharGen instead.
+
+```text
+In Live Sheet, after each change, check the total AP spent on the character (derived from compute() output — do not re-implement the calculation).
+If total AP spent < 70, display a dismissible warning banner explaining that:
+- character creation options (race discounts, origin bonuses, etc.) are not available in Live Sheet,
+- spending AP in Live Sheet on a new character will cost more than going through CharGen,
+- CharGen is the recommended starting point.
+The warning should be prominent but non-blocking — the player can dismiss it and continue.
+Do not show the warning once total AP spent reaches 70 or above.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** a character with < 70 AP spent in Live Sheet shows the nudge banner; the banner disappears (or stays dismissed) once spend reaches 70; no warning appears for characters already above the threshold; parity still 5/0.
+
+---
+
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
