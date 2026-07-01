@@ -57,6 +57,39 @@ engine change can silently diverge CharGen (they're identical today except the b
 v0.332). CharGen's header warns "mirror engine/DATA changes into BOTH files"; until this task lands,
 **AUD-1** should assert the two stay in sync.
 
+## Feature: CharGen campaign-rules awareness (sign-in + live enforcement) — TODO
+Branch feat/chargen-campaign-rules. **Do AFTER Task 6** — CharGen has zero cloud/auth integration today
+(no sign-in, no campaign selection, only a one-way local "Export to Live Sheet" handoff) and still embeds
+its own hand-copied rules engine, so wiring campaign rules in now would mean duplicating `validate()`
+logic outside `js/engine.js` — exactly what AGENTS.md's hard rule forbids. Task 6 must land first so
+CharGen shares the real engine, including its `validate()` export.
+
+```text
+Context: DM campaign rules (banned species/masteries/boons/origin classes, multi-discipline toggle) are
+enforced today only in Live Sheet, at the "Save to cloud" step (see D-GH14) — because that's the only
+tool with cloud/auth wiring. This means a player who builds an entire character in CharGen around a
+banned choice only discovers the problem after exporting into Live Sheet and trying to push to the
+cloud, forcing a trip back to CharGen. A live-filter follow-up (this same session, docs/PACT_ROADMAP.md
+history) closed most of that gap for Live Sheet itself — banned masteries/boons are no longer even
+selectable there — but CharGen, where a character's species/origin class are actually chosen, still has
+no visibility into any campaign's rules at all.
+
+1. After Task 6, add sign-in (js/auth.js) and campaign selection (js/campaign.js listMyCampaigns/getCampaign)
+   to CharGen, matching the bridge pattern already used in Live Sheet.
+2. Fetch the selected campaign's rules and call js/engine.js's validate(build, rules) live as the player
+   builds — filter banned species/origin classes/masteries/boons out of their respective pickers (mirror
+   the Live Sheet live-filter pattern) rather than only warning after the fact.
+3. Decide whether "Export to Live Sheet" should carry the selected campaign_id forward automatically (so
+   the player doesn't have to reselect the campaign in Live Sheet) — needs a decision on data flow between
+   the two tools; document it as a NEW decision code (next free after D-GH14).
+4. Do not duplicate validate()'s rule logic — CharGen must call the shared engine export like Live Sheet
+   does, not reimplement the checks.
+```
+
+**Done when:** a DM's campaign rules are visible to CharGen once a campaign is selected; banned choices
+are filtered out of CharGen's pickers during creation (not just rejected later in Live Sheet); no rules
+logic is duplicated outside `js/engine.js`; parity still 5/0.
+
 ## Externalize CharGen default AP + AP-by-level table — TODO
 Branch feat/ap-by-level. BEST DONE AFTER Task 6 — CharGen (the main consumer) still embeds its own
 engine copy, so until it's on the shared bridge it won't see js/ap-by-level.js (you'd edit two places).

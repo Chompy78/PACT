@@ -1041,7 +1041,7 @@ function buildBuyPanel(b,r,eco,head){
    ['Languages',()=>ib('+1 Language ('+(b.languages+1)+')','language',{to:b.languages+1})],
    
    ['Lineage spell-likes'+(b.lineage?' ('+b.lineage+')':''),()=>{const _lo=(DATA.lineageOf&&(DATA.lineageOf[b.species]||DATA.lineageOf[b.species2]));if(!_lo)return '<span class="hint">Your species has no lineage spell-likes.</span>';if(!b.lineage)return '<span class="hint">Choose your lineage in the Species section first.</span>';const _spells=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[];if(!_spells.length)return '<span class="hint">Dragonborn ancestry sets your damage type — no spell-likes to buy.</span>';return _spells.map(function(sp){const _done=(b.racialSpells||[]).includes(sp[0]);const _L=sp[2];const _need=_L>0?(DATA.hdGate[_L-1]||1):1;const _warn=b.hd<_need?'needs '+_need+' HD':'';return _done?ibOwned(sp[0]+' ('+sp[1]+' AP)'):ib(sp[0]+' ('+sp[1]+' AP)','racialspell',{v:sp[0]},_warn);}).join('');}],
-   ['Weapons & armour',()=>(wp.simple?ibOwned('Simple weapons'):ib('Simple weapons','wprof',{wp:{...wp,simple:true}}))+(wp.allMartial?ibOwned('All martial'):ib('All martial','wprof',{wp:{...wp,simple:true,allMartial:true}}))+(wp.improvised?ibOwned('Improvised weapons'):ib('Improvised weapons','wprof',{wp:{...wp,improvised:true}}))+DATA.masteries.map(x=>b.masteries.includes(x)?ibOwned('Mastery: '+x):ib('Mastery: '+x,'mastery',{v:x})).join('')+(b.armour.light?ibOwned('Light armour'):ib('Light armour','armour',{v:'light'}))+(b.armour.medium?ibOwned('Medium armour'):ib('Medium armour','armour',{v:'medium'},!b.armour.light?'needs Light first':((b.stats.STR||10)<10?'needs STR 10':'')))+(b.armour.heavy?ibOwned('Heavy armour'):ib('Heavy armour','armour',{v:'heavy'},!b.armour.medium?'needs Medium first':''))+(b.armour.shield?ibOwned('Shield'):ib('Shield','armour',{v:'shield'}))+'<div class="row" style="margin-top:6px;align-items:center"><label class="l" style="font-size:11px">Worn armour</label><select onchange="setWornArmour(this.value)" style="flex:1;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink);font:inherit"><option value="">— none / unarmoured (10 + Dex) —</option>'+Object.keys(DATA.armours).map(function(an){var aa=DATA.armours[an];return '<option value="'+an+'"'+(b.wornArmour===an?' selected':'')+'>'+an+' — AC '+aa.base+' ('+aa.cat+')'+(b.armour[aa.cat]?'':' ⚠ no prof')+'</option>';}).join('')+'</select></div>'],
+   ['Weapons & armour',()=>(wp.simple?ibOwned('Simple weapons'):ib('Simple weapons','wprof',{wp:{...wp,simple:true}}))+(wp.allMartial?ibOwned('All martial'):ib('All martial','wprof',{wp:{...wp,simple:true,allMartial:true}}))+(wp.improvised?ibOwned('Improvised weapons'):ib('Improvised weapons','wprof',{wp:{...wp,improvised:true}}))+DATA.masteries.filter(x=>b.masteries.includes(x)||!cloudRuleBarred('masteries',x)).map(x=>b.masteries.includes(x)?ibOwned('Mastery: '+x):ib('Mastery: '+x,'mastery',{v:x})).join('')+(b.armour.light?ibOwned('Light armour'):ib('Light armour','armour',{v:'light'}))+(b.armour.medium?ibOwned('Medium armour'):ib('Medium armour','armour',{v:'medium'},!b.armour.light?'needs Light first':((b.stats.STR||10)<10?'needs STR 10':'')))+(b.armour.heavy?ibOwned('Heavy armour'):ib('Heavy armour','armour',{v:'heavy'},!b.armour.medium?'needs Medium first':''))+(b.armour.shield?ibOwned('Shield'):ib('Shield','armour',{v:'shield'}))+'<div class="row" style="margin-top:6px;align-items:center"><label class="l" style="font-size:11px">Worn armour</label><select onchange="setWornArmour(this.value)" style="flex:1;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink);font:inherit"><option value="">— none / unarmoured (10 + Dex) —</option>'+Object.keys(DATA.armours).map(function(an){var aa=DATA.armours[an];return '<option value="'+an+'"'+(b.wornArmour===an?' selected':'')+'>'+an+' — AC '+aa.base+' ('+aa.cat+')'+(b.armour[aa.cat]?'':' ⚠ no prof')+'</option>';}).join('')+'</select></div>'],
    [b.originClass+' features',()=>Object.keys(DATA.features).filter(l=>DATA.features[l].cls===b.originClass&&!DATA.features[l].inv&&!DATA.features[l].hidden&&(_tashaOK||!DATA.features[l].noncore)).sort((a,c)=>DATA.features[a].tier-DATA.features[c].tier).map(l=>{if(b.features.includes(l))return ibOwned((l.split(': ')[1]||l)+' · T'+DATA.features[l].tier);const f=DATA.features[l];const need=DATA.tierHD[f.tier]||1;var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('')],
    ['Eldritch Invocations',()=>{var hasWL=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Warlock";});});if(!hasWL)return '<span class="hint">🔒 Eldritch Invocations require the <b>Warlock discipline</b> — open Arcane › Warlock in Spellcasting first.</span>';return Object.keys(DATA.features).filter(function(l){return DATA.features[l].inv;}).sort(function(a,c){return DATA.features[a].tier-DATA.features[c].tier;}).map(function(l){var f=DATA.features[l];var nm=(l.split(': ')[1]||l);if(b.features.includes(l))return ibOwned(nm+' · T'+f.tier);var need=Math.max(DATA.tierHD[f.tier]||1,f.lvl||0);var miss=(f.prereq||[]).filter(function(r){return !b.features.includes(r);}).map(function(r){return r.split(': ')[1]||r;});var why=b.hd<need?('needs Lv '+need):(miss.length?('needs '+miss.join(' + ')):'');return ib(nm+' · T'+f.tier,'feature',{v:l},why);}).join('');}],
    ['DM house rules',()=>'<button class="ib" onclick="toggleTasha()" title="Allow or bar non-core (DM-gated) content — XGtE / TCoE items">🜂 Non-core content: <b>'+(_tashaOK?'Allowed':'Barred')+'</b> — click to '+(_tashaOK?'bar':'allow')+'</button>'],
@@ -1061,7 +1061,7 @@ function buildBuyPanel(b,r,eco,head){
     return cats.map(c=>{const items=byCat[c].slice().sort();return '<div class="atcat" style="width:100%;font-size:10px;color:var(--grey);margin:6px 0 1px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">'+c+(c==='Fighting Style'?' \u2014 11 AP each (feature-granted ones are named free in the \u270E picker)':'')+'</div>'+items.map(renderArt).join('');}).join('') || '<span class="hint">No arts available.</span>';}],
    ['Boons',()=>{
      const BOON_ORDER=['Combat','Defence','Skill & Utility','Social','Magic','Wild & Story','DM custom','Other'];
-     const avail=DATA.boonList.filter(x=>(_tashaOK||!(DATA.boons[x]||{}).noncore)&&!campBarred('boons',x));
+     const avail=DATA.boonList.filter(x=>(_tashaOK||!(DATA.boons[x]||{}).noncore)&&!campBarred('boons',x)&&(b.boons.includes(x)||!cloudRuleBarred('boons',x)));
      const byCat={};avail.forEach(x=>{const c=(DATA.boons[x]||{}).cat||'Other';(byCat[c]=byCat[c]||[]).push(x);});
      const cats=BOON_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>BOON_ORDER.indexOf(c)<0).sort());
      return cats.map(c=>{
@@ -1542,6 +1542,10 @@ function _spbRender(){
 function _campEnc(o){var pl=JSON.stringify(o);var c=pl+'|'+_apHash(pl);var u=encodeURIComponent(c);var x='';for(var i=0;i<u.length;i++)x+=String.fromCharCode(u.charCodeAt(i)^_AK.charCodeAt(i%_AK.length));return 'PACTRULES:'+btoa(x);}
 function _campDec(code){if(!code||code.indexOf('PACTRULES:')!==0)return null;try{var x=atob(code.slice(10));var u='';for(var i=0;i<x.length;i++)u+=String.fromCharCode(x.charCodeAt(i)^_AK.charCodeAt(i%_AK.length));var c=decodeURIComponent(u);var p=c.lastIndexOf('|');if(p<0)return null;var pl=c.slice(0,p),hh=c.slice(p+1);if(_apHash(pl)!==hh)return null;var o=JSON.parse(pl);return (o&&typeof o==='object')?{n:String(o.n||''),boons:o.boons||[],draws:o.draws||[],arts:o.arts||[]}:null;}catch(e){return null;}}
 function campBarred(kind,name){var c=(foldBuild(null)||{}).campaign;return !!(c&&c[kind]&&c[kind].indexOf(name)>=0);}
+/* DM-authoritative (Supabase) campaign rules — separate from the PACTRULES code above.
+   window._cloudCampaignRules is populated on load/refresh in the sync-ready module script
+   below (see D-GH14 follow-up). banMap keys here match js/engine.js validate()'s field names. */
+function cloudRuleBarred(kind,name){var r=window._cloudCampaignRules;if(!r)return false;var banMap={masteries:'bannedMasteries',boons:'bannedBoons'};var arr=r[banMap[kind]];return !!(Array.isArray(arr)&&arr.indexOf(name)>=0);}
 function closeCampaign(){var ov=document.getElementById('campOv');if(ov)ov.style.display='none';}
 function _campRows(kind,items,barred){return items.map(function(n){var ck=(barred.indexOf(n)>=0)?' checked':'';return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;width:49%;margin:1px 0;box-sizing:border-box"><input type="checkbox" class="campck" data-kind="'+kind+'" data-name="'+String(n).replace(/"/g,'&quot;')+'"'+ck+'> '+String(n).replace(/</g,'&lt;')+'</label>';}).join('');}
 function openCampaign(){
@@ -1653,7 +1657,21 @@ document.addEventListener('sync-ready', function () {
   function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   A.onAuthChange(function(s){ _session = s; });
-  A.currentSession().then(function(s){ _session = s; });
+  A.currentSession().then(function(s){ _session = s; refreshCloudCampaignRules(); });
+
+  // Fetch the active character's campaign rules on load/sign-in (not just at cloud-save)
+  // so banned masteries/boons are filtered out of the pickers as you build, not just
+  // rejected at the last step. See D-GH14 follow-up.
+  async function refreshCloudCampaignRules(){
+    if(!_session || typeof window.currentCharId !== 'function') return;
+    try {
+      var rec = await S.loadCharacter(window.currentCharId());
+      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; return; }
+      var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
+      window._cloudCampaignRules = camp ? (camp.rules || {}) : null;
+    } catch(e) { /* non-fatal — pickers just fall back to unfiltered until this succeeds */ }
+    if(typeof window.render === 'function') window.render();
+  }
 
   cloudBtn.addEventListener('click', function(e){
     e.stopPropagation();
@@ -1723,12 +1741,13 @@ document.addEventListener('sync-ready', function () {
           if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return; }
           window._dmAp = rec.ap || 0;
           window._ignorePlayerAp = false;
+          window._cloudCampaignRules = null;
           if(rec.campaign_id && window._campaignBridge) {
             try {
               var camps = await window._campaignBridge.listMyCampaigns();
               var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
-              if(camp) window._ignorePlayerAp = !!camp.ignore_player_ap;
-            } catch(e) { /* non-fatal — ignore_player_ap defaults to false */ }
+              if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; }
+            } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds */ }
           }
           var d = rec.stats;
           window.LOG = d.LOG;
