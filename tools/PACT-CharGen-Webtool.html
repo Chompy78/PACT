@@ -1840,6 +1840,7 @@ function buildToLiveLog(b){
   if(b.campaign&&b.campaign.n)ev({type:'buy',cat:'campaign',payload:{v:b.campaign},cost:0,level:1,label:'Campaign rules — '+b.campaign.n});
   return {rules:DATA.version,name:b.name,LOG,SEQ};}
 async function exportToLiveSheet(){
+ try{
   const b=readBuild();
   if(!b.originClass||b.originClass==='(none)')return flash('Set an origin class (§2 Species/Classes) before exporting — the Live Sheet needs a class baseline.');
   const d=buildToLiveLog(b);const data=JSON.stringify(d,null,1);
@@ -1849,6 +1850,7 @@ async function exportToLiveSheet(){
   if(_eIsIOS){const _eUri='data:application/json;charset=utf-8,'+encodeURIComponent(data);const _ew=window.open(_eUri,'_blank');flash(_ew?('“'+nm+'” opened — tap Share → Save to Files, then ⬆ Import it in the Live Sheet.'):'Allow pop-ups and try again.');return;}
   const blob=new Blob([data],{type:'application/json'});const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=nm;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u);
   if(typeof flash==='function')flash('Live-Sheet file saved to your Downloads as “'+nm+'”. Open the Live Sheet and use ⬆ Import to load it.');
+ }catch(e){console.error('PACT CharGen: export to Live Sheet failed',e);flash('⚠ Export to Live Sheet failed — '+(e&&e.message?e.message:'see console for details')+'. Nothing was saved.');}
 }
 // stable per-character id so hand-typed sheet fields survive renames (and are tagged per tool)
 let __charId=null;

@@ -15,36 +15,14 @@
 
 Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page redesign, PHB data,
 **REV-01** regression gate, **REV-02** SW same-origin cache fix, **REV-03** SW network-first,
-**CU-1** agent docs, **CU-2** version sync, **CU-3** repo tidy, **CU-6** DM Console rename) has landed and
-graduated to `CHANGELOG.md`.
+**CU-1** agent docs, **CU-2** version sync, **CU-3** repo tidy, **CU-6** DM Console rename, **CU-4** branch
+prune) has landed and graduated to `CHANGELOG.md`.
 
 ---
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## CU-4 — Prune merged branches — TODO  *(after promoting `preview → main`)*
-Delete (merged into preview): `data/tools-v0.332`, `engine/data-v0.332`, `feature/dual-source-ap`,
-`feature/live-sheet-dual-ap`, `fix/engine-v0.332-data`, `task1/pwa-shell`, `task2/auth`,
-`task3/sql-data-model`, `feature/campaign-play`; on origin also `feature/homepage-index`. KEEP `main`,
-`preview`, `task2/auth-gate`.
-**Done when:** `git branch` shows only `main`, `preview`, `task2/auth-gate` (+ anything active).
-
-## CharGen → Live Sheet button does not save character — TODO
-Branch fix/chargen-live-sheet-save. Investigate and repair the character export/save path from tools/PACT-CharGen-Webtool.html into the Live Sheet workflow so pressing the Live Sheet button creates a usable character in the local environment.
-```text
-1. Reproduce the failure from a clean browser profile and confirm whether the button:
-   - does nothing,
-   - throws a JS error,
-   - creates malformed export data,
-   - fails to hand off to the Live Sheet,
-   - or fails local persistence.
-2. Trace the entire flow: CharGen export → transfer payload → Live Sheet import/load → local storage save.
-3. Add console-visible error handling instead of silent failure.
-4. Verify a newly created character can be exported from CharGen, opened in Live Sheet, and is present after page reload.
-5. Add a regression check covering the export/import path.
-6. Best done after Task 6 — or update CharGen's embedded copy too.
-7. If mechanics or compute() output are untouched, treat as display/integration-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
+*(No open NOW items — CU-4 and CU-6 graduated; the CharGen → Live Sheet save bug is closed by this change.)*
 
 ---
 
