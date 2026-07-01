@@ -4,6 +4,8 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-01 · chore — CU-6: rename `DM Console.html` → `DM-Console.html`** (`tools/DM Console.html` → `tools/DM-Console.html`; `index.html` card link, `service-worker.js` PRE_CACHE entry, `AGENTS.md`, `docs/VERSION-SYNC.md` updated to match). No engine/logic change; parity unaffected — verified 5/0 and console loads at the new path with the SW precache URL updated.
+
 - **2026-07-01 · docs — CU-1: single-source agent docs** (`CLAUDE.md` stub → `@AGENTS.md`, `.github/copilot-instructions.md` pointer stub, `docs/HOW-TO-WORK.md` three-copies chore removed; no code change). Closes REV-08. `git grep -l "Master copy"` returns nothing outside the roadmap task description itself.
 
 - **2026-07-01 · chore — REV-10: stop tracking `.claude/` JSON config files** (`.gitignore`, `.claude/launch.json` untracked; no code change). Replaced blanket `.claude/` ignore with `.claude/*.json` so machine-specific config (`launch.json`, `settings*.json`) is ignored while project-specific agent + command definitions remain tracked. Closes REV-10.

@@ -15,7 +15,8 @@
 
 Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page redesign, PHB data,
 **REV-01** regression gate, **REV-02** SW same-origin cache fix, **REV-03** SW network-first,
-**CU-1** agent docs, **CU-2** version sync, **CU-3** repo tidy) has landed and graduated to `CHANGELOG.md`.
+**CU-1** agent docs, **CU-2** version sync, **CU-3** repo tidy, **CU-6** DM Console rename) has landed and
+graduated to `CHANGELOG.md`.
 
 ---
 
@@ -27,10 +28,6 @@ Delete (merged into preview): `data/tools-v0.332`, `engine/data-v0.332`, `featur
 `task3/sql-data-model`, `feature/campaign-play`; on origin also `feature/homepage-index`. KEEP `main`,
 `preview`, `task2/auth-gate`.
 **Done when:** `git branch` shows only `main`, `preview`, `task2/auth-gate` (+ anything active).
-
-## CU-6 — (optional) Rename `DM Console.html` → `DM-Console.html` — TODO
-Drop the space; update index menu link, SW precache, and any other references.
-**Done when:** nothing references "DM Console.html"; console opens + is precached; parity 5/0.
 
 ## CharGen → Live Sheet button does not save character — TODO
 Branch fix/chargen-live-sheet-save. Investigate and repair the character export/save path from tools/PACT-CharGen-Webtool.html into the Live Sheet workflow so pressing the Live Sheet button creates a usable character in the local environment.

@@ -27,7 +27,7 @@ If none of these apply, state that and proceed.
   `DATA`, `compute`, `rebuildStateFromEvents`, `baseBuild`, `MUT`, `activeEvents`, `economy`, `foldBuild`.
   Never re-implement rules logic anywhere else.
 - **Three UI-only tools** in `tools/` (`PACT-CharGen-Webtool.html`, `PACT-Live-Char-Sheet.html`,
-  `DM Console.html`) load the engine via a **module bridge**: a `<script type="module">` imports
+  `DM-Console.html`) load the engine via a **module bridge**: a `<script type="module">` imports
   `../js/engine.js`, copies the API onto `window`, and fires `engine-ready`; the tool's classic UI script
   waits for that event. `tools/` and `js/` must stay siblings. (CharGen still embeds its own engine copy —
   migrating it onto the bridge is a pending task, so the others are the reference pattern.)
