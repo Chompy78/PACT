@@ -215,3 +215,8 @@ grant execute on function public.remove_dm(uuid, uuid)              to authentic
 grant execute on function public.regenerate_invite_code(uuid)       to authenticated;
 grant execute on function public.regenerate_dm_invite_code(uuid)    to authenticated;
 grant execute on function public.award_ap(uuid, integer, text)      to authenticated;
+
+-- Postgres grants EXECUTE to PUBLIC by default on every new function; revoke it here
+-- so award_ap is authenticated-only rather than relying solely on its internal
+-- is_campaign_dm() guard. See sql/migrations/2026-07-02-drop-legacy-award-xp-lock-award-ap.sql.
+revoke execute on function public.award_ap(uuid, integer, text) from public;
