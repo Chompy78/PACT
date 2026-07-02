@@ -277,7 +277,9 @@ Branch test/expand-engine-parity-coverage. `testing/tests/engine-parity.html` cu
    file it as a separate roadmap item rather than fixing inline here.
 6. If, after auditing, the gate genuinely is legacy/low-value (e.g. duplicated by something else), stop and
    write up that finding instead of padding fixtures for their own sake — note it in DECISIONS.md as a
-   NEW decision (next free code: D-GH14) rather than silently doing nothing.
+   NEW decision (next free code: D-GH18 — D-GH14 is taken by the campaign-rules decision; verify
+   against DECISIONS.md's current highest number when this task is actually picked up) rather than
+   silently doing nothing.
 ```
 **Done when:** engine-parity.html reports more than 5 fixtures covering at least prereq-gate rejection,
 drawback buy-off, and one racial/mastery discount case, each with a human-reviewed CSV baseline; parity
@@ -348,14 +350,27 @@ copy).
 **Done when:** audit.py fails loudly if any version string diverges from js/engine.js; passes clean on
 the current tree.
 
+## REV-11 — Add CI: headless engine-parity gate on every PR — TODO
+Branch chore/rev11-ci-engine-parity. Promoted from LATER — no CI exists today, so a regression is only
+caught if a human remembers to open engine-parity.html.
+
+```text
+1. Add a headless Node runner (dev-tooling only, not a runtime dependency of the shipped app) that
+   imports js/engine.js as an ES module, runs the same FIXTURES engine-parity.html uses, and asserts each
+   result against testing/expected/expected-results.csv.
+2. Wire it as a GitHub Action that runs on every PR touching js/engine.js or testing/**.
+3. No npm runtime deps for the app itself — this tooling lives entirely in the CI job/devDependencies,
+   consistent with the "vanilla JS, no build step" rule for the shipped app.
+```
+**Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 5/0
+when run locally too.
+
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
 - **REV-10** — `.claude/` is tracked despite `.gitignore`. Fix: `git rm --cached -r .claude` (keep on disk), commit.
-- **REV-11** — No CI. Add a headless Node runner that imports `js/engine.js`, runs the fixtures, and asserts
-  against `expected-results.csv` (pairs with REV-01); wire as a GitHub Action on PRs. No npm *runtime* deps.
 - **REV-12** — Make "every player-controlled value passes through `esc()`" a hard invariant; add a line to
   `AGENTS.md` Hard rules. Rises in importance once cloud data crosses users.
 - **REV-13** — Dead grant maps `grantSk/grantTl/grantIn` in `engine.js` (~:62) are never populated. Wire up
