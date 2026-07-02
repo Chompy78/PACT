@@ -209,7 +209,7 @@ Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 
 ## Lock down remaining Supabase function EXECUTE grants (anon) — TODO
 Branch fix/lock-down-remaining-function-grants. Revoke the default Postgres EXECUTE-to-PUBLIC grant on the
-~12 remaining flagged functions, matching the award_ap/award_xp fix already applied.
+~13 remaining flagged functions, matching the award_ap/award_xp fix already applied.
 
 ```text
 Apply as a new migration (sql/migrations/<date>-lock-down-remaining-function-grants.sql) and mirror the
@@ -223,25 +223,27 @@ grants into sql/rls-policies.sql. Full plan and safety verification already done
   revoke from public, so authenticated behaviour doesn't change.
 Apply live via the Supabase MCP (apply_migration), verify has_function_privilege('anon', ..., 'EXECUTE')
 = false for all of them, then commit the migration file + rls-policies.sql update.
+
+Re-verified live 2026-07-02 (post-hoc audit of that day's merged work), independent of the plan above —
+confirms the analysis still holds and nothing is currently exploitable, so this stays a hygiene/defense-
+in-depth task, not an urgent one:
+- Queried `pg_proc.prorettype` directly for handle_new_user/add_owner_as_dm/set_updated_at: all three
+  genuinely `returns trigger`. Postgres rejects any direct RPC/SELECT call to a trigger-returning
+  function ("trigger functions can only be called as triggers") regardless of its EXECUTE grant, so
+  these three are safe today even though the Supabase advisor still flags them.
+- Queried the source of every remaining function: the internal-only helpers
+  (is_campaign_owner/is_campaign_dm/is_campaign_member/shares_campaign), and the higher-stakes RPCs
+  (join_campaign, join_as_dm, promote_to_dm, remove_dm, regenerate_invite_code,
+  regenerate_dm_invite_code) all gate on `auth.uid()` equality checks or an explicit
+  `if auth.uid() is null then raise exception` — since anon's `auth.uid()` is NULL, `dm_id = NULL` /
+  `owner_id = NULL` correctly evaluates to false in Postgres, so every one of these safely rejects an
+  anonymous caller today. Full live query results (via Supabase MCP `execute_sql`) available in this
+  session's transcript if a future agent wants to re-derive rather than re-run them.
+- Only `award_ap` is currently actually locked down (`anon_can_execute=false`); all ~13 others still show
+  `anon_can_execute=true` live — confirming this task is still fully open, not partially done.
 ```
-**Done when:** all ~12 functions show `anon_can_execute = false` / `authenticated_can_execute = true` live,
+**Done when:** all ~13 functions show `anon_can_execute = false` / `authenticated_can_execute = true` live,
 migration file committed, `sql/rls-policies.sql` matches.
-
-## Verify REV-07 invite-code migration live in Supabase — TODO
-Branch chore/verify-invite-code-migration-live. Do AFTER PR #82 (REV-07 CSPRNG fix) merges into `preview`
-— the migration file doesn't exist on `preview` yet.
-
-```text
-1. Apply sql/migrations/2026-07-02-rev07-csprng-invite-codes.sql to the live Supabase project (via the
-   Supabase MCP apply_migration, or the SQL editor).
-2. Spot-check: trigger gen_invite_code() (e.g. via regenerate_invite_code/regenerate_dm_invite_code on a
-   test campaign) and confirm the returned code matches ^[A-Z0-9]{6}$ and is unique against existing
-   invite_code/dm_invite_code values.
-3. No code change expected — this is an operational verification step, not a fix. If the migration
-   reveals a problem, file a follow-up fix rather than patching live.
-```
-**Done when:** the migration is applied to the live Supabase project; a spot-checked generated code
-matches the check regex and is confirmed unique; no code changes (parity unaffected).
 
 ## Task 6 — CharGen module bridge migration — TODO
 ```
