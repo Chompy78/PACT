@@ -711,11 +711,12 @@ const MUT={campaign:(b,p)=>{b.campaign=p.v;},
  freesub:(b,p)=>{(b.freeSub=b.freeSub||{})[p.cls]=p.sub;},
  subabil:(b,p)=>{(b.subAbilities=b.subAbilities||[]).push(p.v);},
  tasharule:(b,p)=>{(b.houseRules=b.houseRules||{}).dmAllows=Object.assign({},(b.houseRules||{}).dmAllows||{},{tasha:p.v});},
- found:(b,p)=>{const ti=p.ti??0;const newTrad={name:p.trad,rank:0,disciplines:[{name:p.disc,bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]}]};if(ti===0&&!b.traditions.length){b.traditions=[newTrad];}else if(!b.traditions[ti]){b.traditions[ti]=newTrad;}},
+ found:(b,p)=>{const ti=p.ti??0;const newDisc={name:p.disc,bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]};if(ti===0&&!b.traditions.length){b.traditions=[{name:p.trad,rank:0,disciplines:[newDisc]}];}else if(!b.traditions[ti]){b.traditions[ti]={name:p.trad,rank:0,disciplines:[newDisc]};}else{(b.traditions[ti].disciplines=b.traditions[ti].disciplines||[]).push(newDisc);}},
  rank:(b,p)=>{const ti=p.ti??0;if(b.traditions[ti])b.traditions[ti].rank=p.to;},
  cantrip:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.cantrips=p.to;},
  slot:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.slots[p.L-1]=p.to;},
  known:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.known[p.L-1]=p.to;},
+ dbound:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.bound=!!p.v;},
 };
 
 function activeEvents(uptoIdx){
@@ -755,6 +756,7 @@ function priceOf(cat,payload){
   const cur=foldBuild(null);
   if(cat==='abil'){var _fr=(cur.stats&&cur.stats[payload.ab])||10;
     return (DATA.ABIL[Math.min(20,(+payload.to))]||0)-(DATA.ABIL[Math.min(20,_fr)]||0);}   // in-play: price the ability raise off its score
+  if(cat==='mbound'||cat==='dbound')return -2;   // flat +2 AP gain, one-way — a full recompute diff would also retroactively discount already-owned features/spells (the refund bug)
   const before=compute(cur).total;
   const cand=clone(cur); (MUT[cat]||(()=>{}))(cand,payload);
   return compute(cand).total - before;
@@ -985,8 +987,8 @@ function toggleCat(c){catOpen[c]=catOpen[c]?0:1;refreshBuy();}
 function _catOf(lab){
   if(['Progress','Abilities','Survivability','Saving throws'].indexOf(lab)>=0)return 'Core';
   if(['Skills','Skill expertise','Languages','Tools & instruments','Tool expertise','Weapons & armour'].indexOf(lab)>=0)return 'Proficiencies';
-  if(/ features$/.test(lab)||['Cross-class features','Unlock classes','Unlocked-class features','Subclasses & abilities','Subclass spell lists','Eldritch Invocations','Ki, Sorcery & Attunement points'].indexOf(lab)>=0)return 'Class & subclass';
-  if(lab==='Spellcasting'||/^Lineage spell/.test(lab))return 'Magic';
+  if(/ features$/.test(lab)||['Cross-class features','Unlock classes','Unlocked-class features','Subclasses & abilities','Eldritch Invocations','Ki, Sorcery & Attunement points'].indexOf(lab)>=0)return 'Class & subclass';
+  if(lab==='Spellcasting'||lab==='Subclass spell lists'||/^Lineage spell/.test(lab))return 'Magic';
   if(lab==='DM house rules')return 'DM / Advanced';
   return 'Heritage & extras';
 }
@@ -1015,7 +1017,7 @@ function buildBuyPanel(b,r,eco,head){
     const click = blocked ? ('flash(&quot;'+esc(hardReason)+'&quot;)') : pay;
     const note = hardReason || soft;
     const _pg=(['feature','subabil','racial'].indexOf(cat)>=0&&typeof FEAT_PG!=='undefined'&&payload&&FEAT_PG[payload.v])?('PHB p.'+FEAT_PG[payload.v]):'';
-    const _ttl=[note,_pg].filter(Boolean).join(' · ');
+    const _ttl=[note,descr,_pg].filter(Boolean).join(' · ');
     return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'"><span class="ibhead">'+label+' <em>'+costlbl+'</em></span>'+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
   }
   function db(name){ if(buyQuery && name.toLowerCase().indexOf(buyQuery)<0) return '';
@@ -1094,7 +1096,7 @@ function buildBuyPanel(b,r,eco,head){
    ['Ki, Sorcery & Attunement points',()=>ib('Attunement slot '+(b.attune+1),'attune',{to:b.attune+1})
      +ib('Ki / Focus point '+(b.ki+1),'ki',{to:b.ki+1})
      +ib('Sorcery point '+(b.sorcery+1),'sorcery',{to:b.sorcery+1},(!_hasDisc('Sorcerer')?'needs the Sorcerer discipline':((b.hd||1)<2?'needs 2 Hit Dice (T2)':'')))
-     +((b.martiallyBound==='(none)')?ib('Martially Bound: '+b.originClass+' (+2 AP)','mbound',{v:b.originClass}):'')],
+     +((b.martiallyBound==='(none)')?ib('Martially Bound: '+b.originClass+' (+2 AP)','mbound',{v:b.originClass},'','−1 AP on '+b.originClass+' features from here on (floor 1) — permanent, no retroactive refund; reverse only by undo'):'')],
    ['Cross-class features',()=>{var others=DATA.classes.filter(function(c){return c!==b.originClass&&c!==b.originClass2;});if(!others.length)return '<span class="hint">No other classes available.</span>';var sel=(buyCls&&others.indexOf(buyCls)>=0)?buyCls:'';var opts='<option value="">— pick a class to buy its features cross-class —</option>'+others.map(function(c){var u=(b.unlockedClasses||[]).indexOf(c)>=0;return '<option value="'+c+'"'+(c===sel?' selected':'')+'>'+c+(u?' (unlocked — discounted)':'')+'</option>';}).join('');var pick='<select onchange="setBuyCls(this.value)" style="width:100%;box-sizing:border-box;padding:5px 8px;margin-bottom:6px;border:1px solid var(--line);border-radius:6px;font:inherit;background:var(--inp);color:var(--ink)">'+opts+'</select>';if(!sel)return pick+'<span class="hint">Any class’s features can be bought here at the cross-class price (†). Unlock the class (below) to drop them to the discounted rate.</span>';return pick+Object.keys(DATA.features).filter(function(l){return DATA.features[l].cls===sel&&!DATA.features[l].inv&&!DATA.features[l].hidden&&(_tashaOK||!DATA.features[l].noncore);}).sort(function(a,c){return DATA.features[a].tier-DATA.features[c].tier;}).map(function(l){if(b.features.includes(l))return ibOwned((l.split(': ')[1]||l)+' · T'+DATA.features[l].tier);var f=DATA.features[l];var need=DATA.tierHD[f.tier]||1;var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('');}],
    ['Unlock classes',()=>{return DATA.classes.filter(function(c){return c!==b.originClass;}).map(function(c){
        if((b.unlockedClasses||[]).indexOf(c)>=0)return ibOwned('✓ '+c+' unlocked','Its features now price at the origin (discounted) rate');
@@ -1122,9 +1124,40 @@ function buildBuyPanel(b,r,eco,head){
        var lbl='Spell list: '+sub+cn;
        if((b.subSpellBundles||[]).indexOf(id)>=0)s+=ibOwned(lbl,'Always-prepared bundle bought');else s+=ib(lbl,'subbundle',{v:id});});
      return s||'<span class="hint">No subclass with an expanded spell list is open yet — pick one in CharGen and import.</span>';}],
-   ['Spellcasting',()=>{ if(!b.traditions[0]){let s='';for(const t of ["Arcane","Divine","Primal"])for(const d of (DATA.disc[t]||[]))s+=ib('Open '+t+' / '+d,'found',{trad:t,disc:d});return s;}
-     const t=b.traditions[0],d=t.disciplines[0];let s=(t.rank<9?ib('Rank '+(t.rank+1),'rank',{to:t.rank+1}):'')+((DATA.noCantrip||[]).indexOf(d.name)<0?ib('Cantrip ('+(d.cantrips+1)+')','cantrip',{to:d.cantrips+1}):'');
-     for(let L=1;L<=9;L++){const need=DATA.hdGate[L-1];const gate=(t.rank<L||b.hd<need)?('needs Rank '+L+' & '+need+' HD'):'';s+=ib('L'+L+' slot ('+((d.slots[L-1]||0)+1)+')','slot',{L,to:(d.slots[L-1]||0)+1},gate)+(!(DATA.prepared||[]).includes(d.name)?ib('L'+L+' known ('+((d.known[L-1]||0)+1)+')','known',{L,to:(d.known[L-1]||0)+1},gate):'');} return s;}],
+   ['Spellcasting',()=>{
+     const multiOK=!(window._cloudCampaignRules&&window._cloudCampaignRules.multiDisciplineAllowed===false);
+     if(!b.traditions.length||!b.traditions[0]){let s='';for(const t of ["Arcane","Divine","Primal"])for(const d of (DATA.disc[t]||[]))s+=ib('Open '+t+' / '+d,'found',{ti:0,trad:t,disc:d});return s;}
+     let s='';
+     b.traditions.forEach(function(t,ti){
+       if(!t||!t.name||t.name==='(none)')return;
+       s+='<div style="font-weight:700;color:var(--navytx);margin:8px 0 2px">'+esc(t.name)+'</div>';
+       s+=(t.rank<9?ib(t.name+' Rank '+(t.rank+1),'rank',{ti,to:t.rank+1}):'');
+       (t.disciplines||[]).forEach(function(d,di){
+         if(!d||!d.name||d.name==='(none)')return;
+         s+='<div style="font-weight:600;color:var(--grey);margin:4px 0 1px 8px">'+esc(t.name)+' › '+esc(d.name)+(d.bound?' 🔒':'')+'</div>';
+         s+=((DATA.noCantrip||[]).indexOf(d.name)<0?ib('Cantrip ('+(d.cantrips+1)+')','cantrip',{ti,di,to:d.cantrips+1}):'');
+         for(let L=1;L<=9;L++){const need=DATA.hdGate[L-1];const gate=(t.rank<L||b.hd<need)?('needs Rank '+L+' & '+need+' HD'):'';
+           s+=ib('L'+L+' slot ('+((d.slots[L-1]||0)+1)+')','slot',{ti,di,L,to:(d.slots[L-1]||0)+1},gate)+(!(DATA.prepared||[]).includes(d.name)?ib('L'+L+' known ('+((d.known[L-1]||0)+1)+')','known',{ti,di,L,to:(d.known[L-1]||0)+1},gate):'');}
+         s+=d.bound
+           ?ibOwned('Magically Bound','+2 AP gained — permanent, undo-only; −1 spell discount (floor 1) applies from here on')
+           :ib('Magically Bound (+2 AP)','dbound',{ti,di,v:true},'','−1 spell discount (cantrips/slots/known, floor 1) applies from here on — no retroactive refund; reverse only by undo');
+       });
+       if(multiOK){
+         const openDiscs=(DATA.disc[t.name]||[]).filter(function(nm){return !(t.disciplines||[]).some(function(d){return d&&d.name===nm;});});
+         if(openDiscs.length)s+=openDiscs.map(function(nm){return ib('Add discipline: '+nm,'found',{ti,trad:t.name,disc:nm});}).join('');
+       }
+     });
+     if(multiOK){
+       const openTrads=["Arcane","Divine","Primal"].filter(function(nm){return !(b.traditions||[]).some(function(t){return t&&t.name===nm;});});
+       if(openTrads.length){
+         s+='<div style="font-weight:700;color:var(--navytx);margin:8px 0 2px">Open another tradition</div>';
+         s+=openTrads.map(function(nm){return (DATA.disc[nm]||[]).map(function(d){return ib('Open '+nm+' / '+d,'found',{ti:b.traditions.length,trad:nm,disc:d});}).join('');}).join('');
+       }
+     } else {
+       s+='<span class="hint" style="display:block;margin-top:6px">This campaign only allows a single discipline — multi-discipline spellcasting is barred.</span>';
+     }
+     return s;
+   }],
   ];
   let html='';
   const _CATS=['Core','Proficiencies','Class & subclass','Magic','Heritage & extras','DM / Advanced'];
