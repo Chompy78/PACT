@@ -108,6 +108,27 @@ and there is no section-level collapse on mobile at all today:
 ```
 **Done when:** on a real small-phone viewport (~375-400px wide), no section of the Live Sheet forces unreadable multi-column cramming; text and tap targets are legible without pinch-zooming; the three top-level sections (Buy/progress, Character, History & ledger) can each be collapsed/expanded independently on mobile; desktop/tablet layout unchanged; parity still 5/0.
 
+## Live Sheet: undo doesn't work properly — TODO
+Branch `fix/livesheet-undo-bug`. Reported by the user: in `tools/PACT-Live-Char-Sheet.html`, undoing an action produces incorrect state. Root cause not yet confirmed — needs investigation before a fix.
+
+```text
+1. Reproduce: exercise undo() (tools/PACT-Live-Char-Sheet.html:797) across a range of action types
+   (normal buys, drawback buy-off, level/HD swaps, and specifically the Martially Bound / Magically
+   Bound toggles) and compare pre- and post-undo compute() output for correctness.
+2. Known lead to check first: Martially Bound (~line 1099) and Magically Bound (~line 1142-1143) apply
+   a permanent "−1 AP, floor 1" discount that their own tooltips say is "reverse only by undo" — verify
+   whether undo() actually restores this discount/flag correctly, since undo() (line 797) only pops the
+   last LOG entry and re-renders; it does not appear to special-case floored/permanent discounts.
+3. Also check the AP-award lock path in undo() ("AP awards lock your history — buys made before an
+   award can't be undone") for edge cases (e.g. undoing right up to a lock boundary).
+4. Once the actual defect is identified, fix it in the event-log replay / compute() path — do not
+   patch around it with tool-local state; undo must stay correct via LOG replay (rebuildStateFromEvents).
+5. If the bug turns out to affect compute() output/pricing, bump DATA.version and update the REV-01
+   baseline in the same PR. If it's purely a Live Sheet display/state-sync issue, it's display-only —
+   do NOT bump DATA.version; just log in CHANGELOG.
+```
+**Done when:** undo() produces state identical to what compute()/rebuildStateFromEvents() would derive from the LOG with the last entry removed, across normal buys, drawback buy-off, and the Martially/Magically Bound floor-1 discount case; parity still 5/0.
+
 ---
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
