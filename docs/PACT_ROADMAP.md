@@ -207,6 +207,21 @@ Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 ```
 **Done when:** the theme selector is reachable in CharGen on both a real mobile-width screen and a narrow/zoomed desktop window; Live Sheet's selector is confirmed not to have the same mobile-hide gap (or is fixed identically if it does); a first-time visitor (no saved theme) sees CharGen/Live Sheet open in dark mode when their device is in dark mode, and in the previously-saved theme otherwise; parity still 5/0.
 
+## Enable Supabase Auth leaked-password protection — TODO
+Manual, dashboard-only — no branch, no code change. Found by the Supabase security advisor during the
+2026-07-02 post-merge audit: leaked-password protection (checks new/changed passwords against
+HaveIBeenPwned before accepting them) is currently disabled for this project.
+
+```text
+There is no MCP tool or SQL migration that reaches Supabase's Auth config — this is a project-settings
+toggle, not a database object, so it can't be applied the way the other security fixes from that audit
+were. Enable it by hand: Supabase dashboard → Authentication → Sign In / Providers → Password →
+"Leaked password protection". Low effort, no downside for legitimate users (it only rejects passwords
+already known to be compromised in other breaches).
+```
+**Done when:** the toggle is enabled in the Supabase dashboard; re-running the security advisor no longer
+flags `auth_leaked_password_protection`.
+
 ## Lock down remaining Supabase function EXECUTE grants (anon) — TODO
 Branch fix/lock-down-remaining-function-grants. Revoke the default Postgres EXECUTE-to-PUBLIC grant on the
 ~13 remaining flagged functions, matching the award_ap/award_xp fix already applied.
