@@ -22,49 +22,6 @@ prune) has landed and graduated to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## Fix crash exporting to Live Sheet when a species/racial trait is selected — TODO
-Branch fix/chargen-livesheet-racialtraits-crash. `tools/PACT-CharGen-Webtool.html`'s "⇆ Live Sheet"
-button throws for any character with ≥1 species/racial trait (the common case).
-
-```text
-Root cause (confirmed by reading the code, not yet fixed):
-- buildToLiveLog() (behind the Live Sheet export button) builds its working object via a local
-  liveBase() helper (~line 1741) — CharGen's own hand-copied duplicate of the engine's baseBuild()
-  shape, not the real js/engine.js one.
-- liveBase() initializes saves:[], skills:[], expertise:[], racialSpells:[], and a dozen other
-  arrays, but is MISSING racialTraits:[].
-- buildToLiveLog's local MUT object (~line 1816) mutator for racial traits is unguarded:
-  `racial:(b,p)=>b.racialTraits.push(p.v)`.
-- Result: any character with a species/racial trait throws `TypeError: Cannot read properties of
-  undefined (reading 'push')` on export. exportToLiveSheet()'s own try/catch (~line 1857-1869) catches
-  it and shows a flash error + console.error instead of a raw crash, but nothing gets saved.
-- For comparison, js/engine.js's real baseBuild() DOES include racialTraits:[] (~line 378) and uses
-  the same unguarded push — safe there only because baseBuild() always sets the field. This is
-  copy-paste drift specific to CharGen's local liveBase() duplicate, the same class of drift the
-  "Fix AGENTS.md's stale module bridge claim" NOW item above already flags (CharGen hand-copies
-  DATA/compute/MUT/baseBuild-shaped things instead of importing them).
-
-1. Add `racialTraits:[]` to liveBase()'s object literal, matching every other array field already
-   listed there.
-2. Broader sweep (do this, not just the one-line fix): diff liveBase()'s full field list against
-   js/engine.js's baseBuild() field list for any OTHER missing array fields, and audit
-   buildToLiveLog's local MUT object for any other unguarded `.push()` call that assumes a field
-   exists without either a `(b.X=b.X||[]).push(...)` guard or a corresponding liveBase() initializer
-   (compare against sibling entries that already guard: toolexpertise/art/subbundle/unlockclass/
-   subabil/racialspell). Fix every gap found, not just this one field — this exact bug shape could
-   recur elsewhere.
-3. Display/integration-only fix — do NOT bump DATA.version, UNLESS the broader sweep in step 2 turns
-   up something that actually touches compute() output, in which case bump DATA.version and update
-   the REV-01 baseline instead, and say so in the changelog.
-4. Verify: build a character in CharGen with at least one species/racial trait, press Live Sheet,
-   confirm no console error and the file exports/imports cleanly into the Live Sheet.
-5. If a DECISIONS.md entry turns out to be warranted by the broader sweep, use the next free D-GH#
-   (verify DECISIONS.md's current highest at pickup time — was D-GH17 as of this writing, so D-GH18).
-```
-**Done when:** exporting a character with ≥1 species/racial trait from CharGen to Live Sheet no longer
-throws; the liveBase()-vs-baseBuild() field diff and MUT unguarded-push audit have been run and any
-other gaps found are fixed in the same PR; parity still 5/0.
-
 ## PWA stale-version bug: users never get the "new version ready" reload prompt (HIGH) — TODO
 Branch fix/pwa-stale-version-cache-bypass. Reported by the user: loading PACT — both as an installed
 standalone PWA and in a regular browser tab — consistently serves an old cached version on every page
