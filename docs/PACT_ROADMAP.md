@@ -22,7 +22,32 @@ prune) has landed and graduated to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-*(No open NOW items — CU-4 and CU-6 graduated; the CharGen → Live Sheet save bug is closed by this change.)*
+## Fix AGENTS.md's stale "module bridge" claim for Live Sheet/DM Console (HIGH) — TODO
+AGENTS.md's Architecture section says Live Sheet and DM Console already load `DATA`/`compute`/`MUT`/
+`baseBuild`/`activeEvents`/`economy`/`foldBuild` from `js/engine.js` via a module bridge, with only
+CharGen (Task 6) still embedding its own copy. This is false: both tools' only `<script type="module">`
+block bridges `validate()` plus sync/auth/campaign/dm helpers — `DATA`/`compute`/`MUT` are still hand-
+copied top-level declarations in each tool's own HTML, exactly like CharGen (Live Sheet's own header
+comment even documents this: "SHARED, DUPLICATED CODE ... copy-pasted into BOTH html files"). Discovered
+while implementing Feature A (multi-tradition spellcasting, PR #85) — an engine.js-only MUT edit would
+have shipped a feature that passed `engine-parity.html` while doing nothing in the actual tool, because
+that gate only ever imports `js/engine.js`, never the tools' embedded copies. Full writeup: DECISIONS.md
+D-GH9.
+```
+Marked HIGH because AGENTS.md is the first thing every agent session reads for architecture ground truth
+— a wrong claim here doesn't just mislead a human, it can cause a future agent to silently ship a
+no-op change while every automated check stays green. Two ways to close this, pick one:
+(a) Correct AGENTS.md's wording to describe what's actually bridged (validate()/sync/auth/campaign/dm)
+    vs. what's still hand-copied (DATA/compute/MUT/baseBuild/activeEvents/economy/foldBuild) per tool.
+(b) Actually finish the bridge migration for all three tools' DATA/compute/MUT — Task 6 currently only
+    scopes CharGen; this would need to become a 3-tool migration (bigger, higher-risk — touches every
+    tool's rules-purchasing logic at once).
+Recommend (a) first (cheap, immediately closes the misleading-docs risk) with (b) filed as its own
+separate, larger migration task if the team decides the duplication itself is worth removing.
+```
+**Done when:** AGENTS.md's Architecture section accurately describes what's bridged vs. hand-copied in
+each of the three tools (CharGen, Live Sheet, DM Console) — no agent reading it going forward would make
+the same wrong assumption this session caught.
 
 ---
 
@@ -141,7 +166,7 @@ badged in DM Console; CharGen exports are signed; parity stays 5/0.
 ⚠️ Log under a **NEW** decision code (**D-GH10** — the draft's "D-GH4" is taken). Touches CharGen —
 coordinate with **Task 6** so the two CharGen edits don't collide.
 
-## AUD-1 — Automated health check (static audit + RLS proof) — TODO
+## AUD-1 — Automated health check (static audit + RLS proof) (HIGH — scope widened) — TODO
 The repeatable "is the system still healthy?" check you asked for — a stdlib Python script, no installs,
 runs in seconds.
 ```
@@ -150,14 +175,19 @@ testing/scripts/audit.py (Python stdlib only) — file-based checks, run before 
 - manifest has required fields, scope + start_url = /PACT/, and a maskable icon
 - SW registration present in every HTML page; no unconditional skipWaiting() in the install handler
 - flag any asset > 100 KB
-- CharGen's embedded DATA/compute still matches js/engine.js (until Task 6 removes the copy)
+- DATA/compute/MUT drift check, ALL THREE tools (widened while implementing Feature A / PR #85 — see
+  DECISIONS.md D-GH9): CharGen, Live Sheet, and DM Console each hand-copy their own DATA/compute/MUT
+  from js/engine.js (none of the three are actually bridged for these — see the "Fix AGENTS.md's stale
+  module bridge claim" NOW item above). Extend the original CharGen-only check to diff all three tools'
+  embedded copies against js/engine.js's exports and fail loudly on any mismatch, not just CharGen's.
+  This becomes unnecessary for whichever tool(s) eventually get migrated onto a real bridge.
 Optional RLS proof (Python + requests, credentials entered at runtime — never commit them): as a non-DM
 player, confirm BOTH writes are REJECTED via the Supabase REST API — (a) writing characters.ap (the DM-only
 column lock) and (b) setting campaign_id to a campaign never joined (proves REV-04 is closed).
 ```
 **Done when:** runs clean on a healthy tree and fails loudly on a planted break (a missing PRE_CACHE file,
-or a player REST write to `ap` that succeeds). Pairs with REV-01/REV-11 — engine-parity joins CI once
-REV-01 makes the gate assert.
+a player REST write to `ap` that succeeds, or a hand-edited mismatch between any tool's embedded copy and
+js/engine.js). Pairs with REV-01/REV-11 — engine-parity joins CI once REV-01 makes the gate assert.
 
 ## Feature: Theme-aware random homepage artwork — TODO
 Branch feat/theme-random-artwork. Add theme-specific image pools to index.html and randomly select a matching image on page load and theme change.
