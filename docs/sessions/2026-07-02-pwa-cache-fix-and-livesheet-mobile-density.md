@@ -50,3 +50,28 @@ override) likely affects other properties in that same 600px/1000px block that w
 scope to check exhaustively (e.g. `.bg h4` font-size, `.top h1` font-size vs. the later
 `@media(max-width:880px)` block). Worth a dedicated audit pass if more "this mobile fix isn't visibly
 doing anything" reports come in for this file.
+
+## Duplicate-PR discovery, port, and merge to main
+After opening PR #101 for the above, a `/close-session` sweep found another session had independently
+opened **PR #97** ~12 minutes earlier, fixing the identical PWA bug (same root cause, same
+`cache:'no-store'` fix, same `login.html` banner alignment, even the same next-free `D-GH19` decision
+code — pure coincidence, neither session could see the other's in-flight work). Comparing the two full
+diffs found one real, non-trivial difference: #97 also called `reg.update()` *immediately* on
+registration (not just on `visibilitychange`/`focus`), which #101 was missing. Ported that one line into
+all 5 pages in #101, closed #97 with a comment crediting the port and explaining the supersession
+(no CI or review activity existed on #97 to lose), then amended the CHANGELOG entry to describe the
+immediate-update call accurately.
+
+`main` had moved twice more by then (other sessions merging in parallel), so merging `origin/main` into
+the PR branch was needed before it could land. Dry-ran the merge first (`git merge --no-commit --no-ff`)
+to scope the blast radius: exactly one real conflict, in `docs/PACT_ROADMAP.md`, because `main` had
+picked up a new roadmap item (Live Sheet undo bug) in the same NOW section this PR deleted from.
+`CHANGELOG.md` and the touched tool files auto-merged cleanly despite both branches editing them.
+Resolved by keeping this PR's deletions (the two now-done items) plus the genuinely new items `main` had
+added (iOS Save/Export reliability, Live Sheet undo bug) — nothing from either side was discarded.
+Re-ran the engine sanity check post-merge (still matched baseline), then merged PR #101 into `main`
+(`c977285`).
+
+Net result: both original fixes shipped, no CHANGELOG/DECISIONS.md duplication despite two independent
+sessions racing the same task, and the one improvement worth keeping from the closed duplicate wasn't
+lost.
