@@ -75,3 +75,14 @@ Re-ran the engine sanity check post-merge (still matched baseline), then merged 
 Net result: both original fixes shipped, no CHANGELOG/DECISIONS.md duplication despite two independent
 sessions racing the same task, and the one improvement worth keeping from the closed duplicate wasn't
 lost.
+
+## `/close-session` itself had a gap
+A `/close-session` re-run reported this note as "done" purely because a file with the right name existed —
+it never re-read the note's *content* against everything that had happened since it was last written (by
+that point: the duplicate-PR discovery, the port, the merge-conflict resolution, and the PR #101 merge, none
+of which were in the note yet). The user caught this with a plain "is sessions updated?" Patched
+`.claude/commands/close-session.md`'s docs-check step to say explicitly: if a note for the session already
+exists, re-read its content against everything that's happened since, every time this step runs — not just
+confirm one exists. Both that patch and the note update it prompted were small, low-risk, docs/tooling-only
+changes with no open conflicts against `main`, so — per explicit instruction — pushed directly via a clean
+fast-forward rather than going through another PR.
