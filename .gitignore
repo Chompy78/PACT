@@ -2,3 +2,4 @@
 # Local Claude Code config (machine-specific — launch.json, settings*.json not shared)
 # Agents and commands subdirs ARE tracked as shared project context.
 .claude/*.json
+.claude/.fpp-reminder-state
