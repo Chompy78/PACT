@@ -16,99 +16,12 @@
 Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page redesign, PHB data,
 **REV-01** regression gate, **REV-02** SW same-origin cache fix, **REV-03** SW network-first,
 **CU-1** agent docs, **CU-2** version sync, **CU-3** repo tidy, **CU-6** DM Console rename, **CU-4** branch
-prune) has landed and graduated to `CHANGELOG.md`.
+prune, PWA stale-version reload-prompt fix, Live Sheet mobile density/collapse) has landed and graduated
+to `CHANGELOG.md`.
 
 ---
 
 # 🔴 NOW — high-severity fixes + cleanup
-
-## PWA stale-version bug: users never get the "new version ready" reload prompt (HIGH) — TODO
-Branch fix/pwa-stale-version-cache-bypass. Reported by the user: loading PACT — both as an installed
-standalone PWA and in a regular browser tab — consistently serves an old cached version on every page
-(index.html and all three tools), and the "A new version of PACT is ready — Reload" banner (already
-wired into index.html + all three tools) never appears, even after multiple reloads.
-
-```text
-Diagnosis (from reading service-worker.js and all 5 pages' SW registration code on `main`, post the
-2026-07-02 preview→main promotion — REV-02/REV-03 and the banner ARE already live, but staleness
-persists):
-
-1. Most likely root cause, fix first: service-worker.js's network-first fetch path (NETWORK_FIRST_RE,
-   matching *.html and js/engine.js) calls plain `fetch(e.request)` with no cache-control override.
-   "Network-first" as an SW *strategy* does not make the underlying fetch() bypass the browser's/CDN's
-   ordinary HTTP cache — if response headers permit it, that fetch can still silently return a stale
-   cached response. Fix: pass `{cache:'no-store'}` (or reconstruct the request with `cache:'reload'`)
-   on that fetch call.
-2. Contributing factor: no page calls `registration.update()` proactively — every page relies solely on
-   the browser's own default periodic SW update-check timing (can be hours to 24h; can be even less
-   frequent for installed/standalone PWAs). Add an explicit `reg.update()` call on page load and on
-   `visibilitychange`/`focus`, in all 5 pages' SW registration blocks.
-3. Separate inconsistency bug, fix in the same PR: login.html's `updatefound` handler silently calls
-   `location.reload()` the instant a new SW is detected — no banner, no user action — unlike the other
-   four pages (index.html, CharGen, Live Sheet, DM Console), which show a dismissible banner and only
-   reload on click. Align login.html to the same banner pattern.
-4. Robust fallback layer (do after 1-3, do not block on it): fetch a small version marker with an
-   explicit `cache:'no-store'` fetch on load + periodically/on visibilitychange, compare to the
-   currently-loaded version, and surface the same reload banner if they differ — independent of the
-   SW's own updatefound event entirely, so it can't silently fail the same way. Reuse the BUILD value
-   from the already-filed "Add BUILD export to js/engine.js + wire index.html to read it live" NEXT-
-   bucket task once that lands; don't block items 1-3 on it.
-5. Verify across both an installed PWA and a plain browser tab (the user reported both): deploy a
-   trivial content change, confirm the reload banner appears without needing 24h+ or a manual hard
-   refresh, and that clicking Reload actually shows the new content.
-6. Display/infrastructure-only — do NOT bump DATA.version; log the fix in CHANGELOG.md.
-```
-**Done when:** a fresh deploy is detected and the reload banner appears within a normal page
-load/revisit (not dependent on the browser's own 24h heuristic) in both installed-PWA and browser-tab
-modes, on every page including login.html; login.html's handler matches the other four pages' banner
-pattern; parity still 5/0 (no engine change expected).
-
-## Live Sheet unusably cramped on small mobile screens — TODO
-Branch fix/mobile-livesheet-density. On small phone widths, the Live Sheet packs too many items into single rows, uses text too small to read comfortably, and has no way to collapse sections — all three "Buy/progress", "Character", and "History & ledger" cards stack into one long, always-fully-expanded column with heavy scrolling.
-
-```text
-Context: the Live Sheet has only one mobile breakpoint (@media(max-width:600px), ~line 70) tuning things
-like ability-score columns (6→3) and touch targets. Several sections got missed or only partially tuned,
-and there is no section-level collapse on mobile at all today:
-- .slotgrid (spell slots, line ~191) is hardcoded to `grid-template-columns:repeat(9,1fr)` with NO mobile
-  override anywhere — 9 columns (spell levels 1-9) squeeze into one row at any width, including phones.
-- .spcols (spell-list columns, line ~196) only narrows 3→2 at 760px (line ~209); nothing narrows it
-  further for small phones (e.g. ~375-400px wide).
-- .shabrow/.shkpis (printable character-sheet ability/stat rows, lines ~171/177) are hardcoded to 3
-  columns with no width-specific tuning at all.
-- Buy-list item buttons (.ib, lines ~78/120/139) and category headers (.cath, line ~95) sit at 11.5-13px
-  font — workable on a tablet-width phone but tight on smaller screens.
-- There is no breakpoint tier below 600px, so there's no separate treatment for genuinely small phones
-  (~375-400px, e.g. iPhone SE/mini-class widths) vs. larger phones (~412-428px).
-- .layout (~line 300+) holds three top-level cards — "Buy / progress", "Character", "History & ledger" —
-  in a CSS grid that collapses to a single column under 1000px (@media(max-width:1000px)); on mobile all
-  three are always fully expanded and stacked, forcing long scrolling to move between sections.
-- A collapse/expand pattern already EXISTS for buy-list category groups (.bgcat/.cath, ▾/▸ toggle via the
-  .clp class, ~lines 135-136) — reuse this same interaction pattern for the new section-level collapse
-  rather than inventing a second one.
-
-1. Audit every grid/flex layout and font-size in tools/PACT-Live-Char-Sheet.html's mobile-relevant CSS
-   against a real small-phone viewport (~375-390px width): the existing @media(max-width:600px) block
-   plus the un-tuned spots above (.slotgrid/.spcols/.shabrow/.shkpis).
-2. Fix .slotgrid specifically: it must not force 9 columns at small widths — wrap to fewer columns
-   (e.g. 3-5 per row with the grid flowing to multiple rows) or make it horizontally scrollable, whichever
-   keeps each slot cell legible.
-3. Add a narrower breakpoint tier (e.g. @media(max-width:400px)) for further column/font reduction where
-   the 600px tuning still isn't enough, rather than assuming one breakpoint covers all phone sizes.
-4. Re-check font sizes on buy-list items and category headers at small widths; bump if needed for legibility.
-5. Add collapse/expand to the three top-level cards (Buy/progress, Character, History & ledger) on mobile
-   (≤1000px, matching the existing single-column breakpoint): a tap on each card's header (h3) toggles
-   that card's body open/closed, mirroring the existing .bgcat/.cath ▾/▸ pattern. Default state (all open
-   vs. remembering last state vs. only "Character" open by default) is an implementation call — pick
-   whichever needs the least new state-persistence machinery, and say what was chosen in the PR/CHANGELOG.
-6. Do not change desktop/tablet layout (existing >1000px behaviour) or engine/rules logic.
-   Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-7. Related to (but separate from) the "Mobile sticky buttons regression" task already on the roadmap —
-   both are mobile-usability gaps in the same file; can be picked up independently or together.
-```
-**Done when:** on a real small-phone viewport (~375-400px wide), no section of the Live Sheet forces unreadable multi-column cramming; text and tap targets are legible without pinch-zooming; the three top-level sections (Buy/progress, Character, History & ledger) can each be collapsed/expanded independently on mobile; desktop/tablet layout unchanged; parity still 5/0.
-
----
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
