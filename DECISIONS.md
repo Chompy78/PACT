@@ -6,6 +6,34 @@
 
 ---
 
+## D-GH19 · PWA stale-version fix: `cache:'no-store'` on the SW fetch, and deferring the version-marker fallback layer
+- **Context:** users on both an installed PWA and a plain browser tab kept getting served a stale build
+  with the "new version ready" reload banner never appearing, even though REV-02/REV-03 (same-origin cache
+  fix, network-first strategy) and the banner UI were already live on `main`. Root cause: `service-worker.js`'s
+  network-first fetch path called plain `fetch(e.request)` — an SW *strategy* being "network-first" doesn't
+  make the underlying `fetch()` bypass the browser's own ordinary HTTP cache; if response headers permit
+  it, that call can still silently return a cached response. Compounding it, no page ever called
+  `registration.update()`, so update checks depended entirely on the browser's own default timing (can be
+  24h+, and can be even less frequent for installed/standalone PWAs).
+- **Options considered for the fetch fix:** (i) `fetch(e.request, {cache:'no-store'})` — skip the HTTP
+  cache read AND write for this request; (ii) reconstruct the request with `cache:'reload'` — skip the
+  cache read but still store the response. Chose (i): the SW already explicitly writes the response into
+  its own `CACHE_NAME` cache a few lines later (`cache.put`), so a browser-HTTP-cache write on top of that
+  would be redundant double-caching for content this path already treats as network-authoritative.
+- **Decision:** `cache:'no-store'` on the network-first fetch; `reg.update()` called once immediately after
+  registration and again on `visibilitychange`/`focus`, in all 5 pages (`index.html`, `login.html`, and the
+  three tools). Also aligned `login.html`'s `updatefound` handler — it previously called `location.reload()`
+  the instant a new SW installed, with no banner and no user action — to the same dismissible-banner pattern
+  the other four pages already use.
+- **Why not the "robust fallback layer" (item 4 of the roadmap diagnosis) in this same PR:** that layer
+  (an independent version-marker fetch + comparison, decoupled from the SW's own `updatefound` event) is
+  explicitly designed to reuse the `BUILD` export from the still-open "Add `BUILD` export to `js/engine.js`"
+  roadmap task, which hasn't landed yet. Building a one-off version marker now would mean redoing it once
+  `BUILD` exists — the roadmap item itself says not to block items 1-3 on it, so it stays open as a
+  follow-up rather than being duplicated here.
+- **Status:** DONE for items 1-3 (the fetch bypass, proactive `reg.update()`, and `login.html` banner
+  parity). Item 4 (the independent version-marker fallback) remains open, gated on the `BUILD` export task.
+
 ## D-GH18 · CharGen's `liveBase()` field diff vs `baseBuild()`: fixed the missing array, left `inPlay` out on purpose
 - **Context:** CharGen's `⇆ Live Sheet` export crashed for any character with ≥1 species/racial trait —
   `buildToLiveLog()`'s local `liveBase()` (its own hand-copied duplicate of `js/engine.js`'s `baseBuild()`

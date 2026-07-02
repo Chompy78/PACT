@@ -22,47 +22,6 @@ prune) has landed and graduated to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## PWA stale-version bug: users never get the "new version ready" reload prompt (HIGH) — TODO
-Branch fix/pwa-stale-version-cache-bypass. Reported by the user: loading PACT — both as an installed
-standalone PWA and in a regular browser tab — consistently serves an old cached version on every page
-(index.html and all three tools), and the "A new version of PACT is ready — Reload" banner (already
-wired into index.html + all three tools) never appears, even after multiple reloads.
-
-```text
-Diagnosis (from reading service-worker.js and all 5 pages' SW registration code on `main`, post the
-2026-07-02 preview→main promotion — REV-02/REV-03 and the banner ARE already live, but staleness
-persists):
-
-1. Most likely root cause, fix first: service-worker.js's network-first fetch path (NETWORK_FIRST_RE,
-   matching *.html and js/engine.js) calls plain `fetch(e.request)` with no cache-control override.
-   "Network-first" as an SW *strategy* does not make the underlying fetch() bypass the browser's/CDN's
-   ordinary HTTP cache — if response headers permit it, that fetch can still silently return a stale
-   cached response. Fix: pass `{cache:'no-store'}` (or reconstruct the request with `cache:'reload'`)
-   on that fetch call.
-2. Contributing factor: no page calls `registration.update()` proactively — every page relies solely on
-   the browser's own default periodic SW update-check timing (can be hours to 24h; can be even less
-   frequent for installed/standalone PWAs). Add an explicit `reg.update()` call on page load and on
-   `visibilitychange`/`focus`, in all 5 pages' SW registration blocks.
-3. Separate inconsistency bug, fix in the same PR: login.html's `updatefound` handler silently calls
-   `location.reload()` the instant a new SW is detected — no banner, no user action — unlike the other
-   four pages (index.html, CharGen, Live Sheet, DM Console), which show a dismissible banner and only
-   reload on click. Align login.html to the same banner pattern.
-4. Robust fallback layer (do after 1-3, do not block on it): fetch a small version marker with an
-   explicit `cache:'no-store'` fetch on load + periodically/on visibilitychange, compare to the
-   currently-loaded version, and surface the same reload banner if they differ — independent of the
-   SW's own updatefound event entirely, so it can't silently fail the same way. Reuse the BUILD value
-   from the already-filed "Add BUILD export to js/engine.js + wire index.html to read it live" NEXT-
-   bucket task once that lands; don't block items 1-3 on it.
-5. Verify across both an installed PWA and a plain browser tab (the user reported both): deploy a
-   trivial content change, confirm the reload banner appears without needing 24h+ or a manual hard
-   refresh, and that clicking Reload actually shows the new content.
-6. Display/infrastructure-only — do NOT bump DATA.version; log the fix in CHANGELOG.md.
-```
-**Done when:** a fresh deploy is detected and the reload banner appears within a normal page
-load/revisit (not dependent on the browser's own 24h heuristic) in both installed-PWA and browser-tab
-modes, on every page including login.html; login.html's handler matches the other four pages' banner
-pattern; parity still 5/0 (no engine change expected).
-
 ## Live Sheet unusably cramped on small mobile screens — TODO
 Branch fix/mobile-livesheet-density. On small phone widths, the Live Sheet packs too many items into single rows, uses text too small to read comfortably, and has no way to collapse sections — all three "Buy/progress", "Character", and "History & ledger" cards stack into one long, always-fully-expanded column with heavy scrolling.
 

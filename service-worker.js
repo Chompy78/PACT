@@ -56,7 +56,7 @@ self.addEventListener('fetch', e => {
   if (NETWORK_FIRST_RE.test(url.pathname)) {
     // Network-first: try the network; serve cached copy only when offline.
     e.respondWith(
-      fetch(e.request).then(response => {
+      fetch(e.request, { cache: 'no-store' }).then(response => {
         if (response && response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
