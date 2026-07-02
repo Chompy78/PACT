@@ -10,7 +10,7 @@
 import { supabase } from './supabase-client.js';
 import { currentUser } from './auth.js';
 
-const CAMPAIGN_COLS = 'id, name, invite_code, dm_invite_code, ignore_player_ap, dm_id';
+const CAMPAIGN_COLS = 'id, name, invite_code, dm_invite_code, ignore_player_ap, rules, dm_id';
 
 /** Create a campaign you will own/DM. Both invite codes are generated server-side. */
 export async function createCampaign(name) {
@@ -78,6 +78,15 @@ export async function setIgnorePlayerAp(campaignId, value) {
   const { error } = await supabase
     .from('campaigns')
     .update({ ignore_player_ap: !!value })
+    .eq('id', campaignId);
+  if (error) throw error;
+}
+
+/** DM-only: set the campaign rules object (see DECISIONS.md D-GH14 for the schema). */
+export async function setCampaignRules(campaignId, rules) {
+  const { error } = await supabase
+    .from('campaigns')
+    .update({ rules: rules || {} })
     .eq('id', campaignId);
   if (error) throw error;
 }

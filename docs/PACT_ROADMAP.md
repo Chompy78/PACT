@@ -84,12 +84,20 @@ from then on. Move "Subclass spell lists" into the Magic category.
      pre-existing Martially Bound refund bug.
   4. Live Sheet — _catOf: move 'Subclass spell lists' to Magic (2 lines).
   5. Live Sheet — ib() tooltip wiring (1 line) + pass a descr to Martially Bound's ib() call.
+  6. Live Sheet — gate the new "Add discipline" / "Open another tradition" buttons (task 2) on the
+     active campaign's `multiDisciplineAllowed` rule (added after this feature was originally scoped —
+     see D-GH14/D-GH16): if a campaign has it set to `false`, hide/disable those buttons instead of
+     letting the player buy a 2nd tradition/discipline and only finding out at cloud-save that
+     `validate()` rejects it. `window._cloudCampaignRules` (populated by `refreshCloudCampaignRules()`,
+     added in the campaign-rules-live-filter follow-up) already carries this flag — reuse it, don't
+     re-fetch. `validate()` itself needs no change; it already checks total discipline count.
 Full spec: IMPLEMENT-multi-tradition-discipline.md (+ ENGINE-CHANGES-prompt.md for the engine slice);
 snippets are from a v0.322 standalone — read the live code and adapt. Read the Live Sheet HTML ONCE and
-apply tasks 4,5,3,2 in a single editing pass (it's large).
+apply tasks 4,5,3,2,6 in a single editing pass (it's large).
 ```
 **Done when:** multiple traditions/disciplines buy + display correctly; Magically Bound applies +2/−1 with
-no retroactive refund; subclass lists sit under Magic; parity stays 5/0.
+no retroactive refund; subclass lists sit under Magic; a campaign with `multiDisciplineAllowed:false`
+hides the add-discipline/add-tradition buttons instead of only blocking at cloud-save; parity stays 5/0.
 ⚠️ Kit claims `compute()` / `DATA.version` are untouched — **verify that for a pricing feature**; if pricing
 changes, update the REV-01 baseline and follow the version rule. Log under a **NEW** decision code
 (**D-GH9** — the draft's "D-GH3" is already taken).
@@ -140,29 +148,6 @@ Branch feat/theme-random-artwork. Add theme-specific image pools to index.html a
 
 ---
 
-## Feature: DM campaign rules — configure and enforce in DM Console — TODO
-Branch feat/campaign-rules-enforcement. Let DMs set per-campaign restrictions (banned species/masteries/boons/origin class/multi-discipline, house-rule toggles) in DM Console; hard-lock campaign characters against those rules in Live Sheet.
-
-```text
-Design the campaign rules schema — a JSON object stored server-side in the campaign record (Supabase), DM-authoritative. Fields to cover: banned species, banned masteries, banned boons, banned origin classes, banned origin species, multi-discipline allowed (bool), and any house-rule toggle slots.
-
-In DM Console: add a Campaign Rules panel where the DM can set/save these fields. Write rules to the campaign row in Supabase (DM-only, protected by RLS).
-
-Pass campaign rules into compute() (or a new validate(build, campaignRules) export in js/engine.js) so rule violations are returned as structured errors alongside the normal output. Keep all enforcement logic inside the engine — never duplicate it in a tool.
-
-In Live Sheet: fetch the campaign's rules on load (if the character belongs to a campaign). Before allowing a save/submit, call the engine's validation and block the action if any violations are present. Show the player a clear error listing which rules are violated.
-
-Campaign rules are read-only for players — they can see them but not change them.
-
-Decision required — assign D-GH7 when updating DECISIONS.md. Core question: does campaign rule enforcement live entirely in compute(), or as a separate validate() export? Document the trust boundary (DM sets rules server-side; engine enforces client-side on player builds).
-
-This likely changes compute() or adds a new engine export — bump DATA.version and update the REV-01 test baseline in the same PR if compute() output changes.
-```
-
-**Done when:** a DM can save campaign rules in DM Console; a campaign character that violates any rule cannot be saved in Live Sheet and sees a clear error; parity still 5/0.
-
----
-
 ## Feature: Clone campaign character to standalone — TODO
 Branch feat/clone-char-standalone. Let a player copy their campaign-linked character into a new standalone (non-campaign) character they own outright.
 
@@ -192,24 +177,6 @@ Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 ```
 
 **Done when:** a DM can copy rules from one of their campaigns into another and save them; the source campaign is unchanged; parity still 5/0.
-
----
-
-## Feature: Live Sheet low-spend warning — nudge to CharGen — TODO
-Branch feat/livesheet-chargen-nudge. Show a warning in Live Sheet when total AP spent is below 70, advising the player to use CharGen instead.
-
-```text
-In Live Sheet, after each change, check the total AP spent on the character (derived from compute() output — do not re-implement the calculation).
-If total AP spent < 70, display a dismissible warning banner explaining that:
-- character creation options (race discounts, origin bonuses, etc.) are not available in Live Sheet,
-- spending AP in Live Sheet on a new character will cost more than going through CharGen,
-- CharGen is the recommended starting point.
-The warning should be prominent but non-blocking — the player can dismiss it and continue.
-Do not show the warning once total AP spent reaches 70 or above.
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** a character with < 70 AP spent in Live Sheet shows the nudge banner; the banner disappears (or stays dismissed) once spend reaches 70; no warning appears for characters already above the threshold; parity still 5/0.
 
 ---
 

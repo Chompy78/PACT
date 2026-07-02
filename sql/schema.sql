@@ -104,6 +104,7 @@ create table if not exists public.campaigns (
   dm_invite_code   text not null unique default public.gen_invite_code()
                    check (dm_invite_code ~ '^[A-Z0-9]{6}$'),
   ignore_player_ap boolean not null default false,   -- when true, only DM-granted AP counts
+  rules            jsonb not null default '{}'::jsonb, -- DM-authoritative campaign rules (D-GH14)
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
