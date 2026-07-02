@@ -2711,6 +2711,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
           }
         });
       });
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update(); });
+      window.addEventListener('focus', () => reg.update());
     });
   }
 </script>

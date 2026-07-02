@@ -488,6 +488,10 @@
             }
           });
         });
+        // Don't wait on the browser's own (hours-to-24h) periodic update check —
+        // proactively re-check for a new SW whenever the user returns to the page.
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') reg.update(); });
+        window.addEventListener('focus', function () { reg.update(); });
       });
     }
   </script>

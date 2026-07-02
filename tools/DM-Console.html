@@ -1800,6 +1800,8 @@ document.addEventListener('campaign-ready', function () {
           }
         });
       });
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update(); });
+      window.addEventListener('focus', () => reg.update());
     });
   }
 </script>
