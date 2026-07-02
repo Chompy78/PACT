@@ -22,12 +22,260 @@ prune) has landed and graduated to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-*(No open NOW items — CU-4 and CU-6 graduated; the CharGen → Live Sheet save bug is closed by this change.)*
+## Fix AGENTS.md's stale "module bridge" claim for Live Sheet/DM Console (HIGH) — TODO
+AGENTS.md's Architecture section says Live Sheet and DM Console already load `DATA`/`compute`/`MUT`/
+`baseBuild`/`activeEvents`/`economy`/`foldBuild` from `js/engine.js` via a module bridge, with only
+CharGen (Task 6) still embedding its own copy. This is false: both tools' only `<script type="module">`
+block bridges `validate()` plus sync/auth/campaign/dm helpers — `DATA`/`compute`/`MUT` are still hand-
+copied top-level declarations in each tool's own HTML, exactly like CharGen (Live Sheet's own header
+comment even documents this: "SHARED, DUPLICATED CODE ... copy-pasted into BOTH html files"). Discovered
+while implementing Feature A (multi-tradition spellcasting, PR #85) — an engine.js-only MUT edit would
+have shipped a feature that passed `engine-parity.html` while doing nothing in the actual tool, because
+that gate only ever imports `js/engine.js`, never the tools' embedded copies. Full writeup: DECISIONS.md
+D-GH9.
+```
+Marked HIGH because AGENTS.md is the first thing every agent session reads for architecture ground truth
+— a wrong claim here doesn't just mislead a human, it can cause a future agent to silently ship a
+no-op change while every automated check stays green. Two ways to close this, pick one:
+(a) Correct AGENTS.md's wording to describe what's actually bridged (validate()/sync/auth/campaign/dm)
+    vs. what's still hand-copied (DATA/compute/MUT/baseBuild/activeEvents/economy/foldBuild) per tool.
+(b) Actually finish the bridge migration for all three tools' DATA/compute/MUT — Task 6 currently only
+    scopes CharGen; this would need to become a 3-tool migration (bigger, higher-risk — touches every
+    tool's rules-purchasing logic at once).
+Recommend (a) first (cheap, immediately closes the misleading-docs risk) with (b) filed as its own
+separate, larger migration task if the team decides the duplication itself is worth removing.
+```
+**Done when:** AGENTS.md's Architecture section accurately describes what's bridged vs. hand-copied in
+each of the three tools (CharGen, Live Sheet, DM Console) — no agent reading it going forward would make
+the same wrong assumption this session caught.
+
+## Fix crash exporting to Live Sheet when a species/racial trait is selected — TODO
+Branch fix/chargen-livesheet-racialtraits-crash. `tools/PACT-CharGen-Webtool.html`'s "⇆ Live Sheet"
+button throws for any character with ≥1 species/racial trait (the common case).
+
+```text
+Root cause (confirmed by reading the code, not yet fixed):
+- buildToLiveLog() (behind the Live Sheet export button) builds its working object via a local
+  liveBase() helper (~line 1741) — CharGen's own hand-copied duplicate of the engine's baseBuild()
+  shape, not the real js/engine.js one.
+- liveBase() initializes saves:[], skills:[], expertise:[], racialSpells:[], and a dozen other
+  arrays, but is MISSING racialTraits:[].
+- buildToLiveLog's local MUT object (~line 1816) mutator for racial traits is unguarded:
+  `racial:(b,p)=>b.racialTraits.push(p.v)`.
+- Result: any character with a species/racial trait throws `TypeError: Cannot read properties of
+  undefined (reading 'push')` on export. exportToLiveSheet()'s own try/catch (~line 1857-1869) catches
+  it and shows a flash error + console.error instead of a raw crash, but nothing gets saved.
+- For comparison, js/engine.js's real baseBuild() DOES include racialTraits:[] (~line 378) and uses
+  the same unguarded push — safe there only because baseBuild() always sets the field. This is
+  copy-paste drift specific to CharGen's local liveBase() duplicate, the same class of drift the
+  "Fix AGENTS.md's stale module bridge claim" NOW item above already flags (CharGen hand-copies
+  DATA/compute/MUT/baseBuild-shaped things instead of importing them).
+
+1. Add `racialTraits:[]` to liveBase()'s object literal, matching every other array field already
+   listed there.
+2. Broader sweep (do this, not just the one-line fix): diff liveBase()'s full field list against
+   js/engine.js's baseBuild() field list for any OTHER missing array fields, and audit
+   buildToLiveLog's local MUT object for any other unguarded `.push()` call that assumes a field
+   exists without either a `(b.X=b.X||[]).push(...)` guard or a corresponding liveBase() initializer
+   (compare against sibling entries that already guard: toolexpertise/art/subbundle/unlockclass/
+   subabil/racialspell). Fix every gap found, not just this one field — this exact bug shape could
+   recur elsewhere.
+3. Display/integration-only fix — do NOT bump DATA.version, UNLESS the broader sweep in step 2 turns
+   up something that actually touches compute() output, in which case bump DATA.version and update
+   the REV-01 baseline instead, and say so in the changelog.
+4. Verify: build a character in CharGen with at least one species/racial trait, press Live Sheet,
+   confirm no console error and the file exports/imports cleanly into the Live Sheet.
+5. If a DECISIONS.md entry turns out to be warranted by the broader sweep, use the next free D-GH#
+   (verify DECISIONS.md's current highest at pickup time — was D-GH17 as of this writing, so D-GH18).
+```
+**Done when:** exporting a character with ≥1 species/racial trait from CharGen to Live Sheet no longer
+throws; the liveBase()-vs-baseBuild() field diff and MUT unguarded-push audit have been run and any
+other gaps found are fixed in the same PR; parity still 5/0.
+
+## PWA stale-version bug: users never get the "new version ready" reload prompt (HIGH) — TODO
+Branch fix/pwa-stale-version-cache-bypass. Reported by the user: loading PACT — both as an installed
+standalone PWA and in a regular browser tab — consistently serves an old cached version on every page
+(index.html and all three tools), and the "A new version of PACT is ready — Reload" banner (already
+wired into index.html + all three tools) never appears, even after multiple reloads.
+
+```text
+Diagnosis (from reading service-worker.js and all 5 pages' SW registration code on `main`, post the
+2026-07-02 preview→main promotion — REV-02/REV-03 and the banner ARE already live, but staleness
+persists):
+
+1. Most likely root cause, fix first: service-worker.js's network-first fetch path (NETWORK_FIRST_RE,
+   matching *.html and js/engine.js) calls plain `fetch(e.request)` with no cache-control override.
+   "Network-first" as an SW *strategy* does not make the underlying fetch() bypass the browser's/CDN's
+   ordinary HTTP cache — if response headers permit it, that fetch can still silently return a stale
+   cached response. Fix: pass `{cache:'no-store'}` (or reconstruct the request with `cache:'reload'`)
+   on that fetch call.
+2. Contributing factor: no page calls `registration.update()` proactively — every page relies solely on
+   the browser's own default periodic SW update-check timing (can be hours to 24h; can be even less
+   frequent for installed/standalone PWAs). Add an explicit `reg.update()` call on page load and on
+   `visibilitychange`/`focus`, in all 5 pages' SW registration blocks.
+3. Separate inconsistency bug, fix in the same PR: login.html's `updatefound` handler silently calls
+   `location.reload()` the instant a new SW is detected — no banner, no user action — unlike the other
+   four pages (index.html, CharGen, Live Sheet, DM Console), which show a dismissible banner and only
+   reload on click. Align login.html to the same banner pattern.
+4. Robust fallback layer (do after 1-3, do not block on it): fetch a small version marker with an
+   explicit `cache:'no-store'` fetch on load + periodically/on visibilitychange, compare to the
+   currently-loaded version, and surface the same reload banner if they differ — independent of the
+   SW's own updatefound event entirely, so it can't silently fail the same way. Reuse the BUILD value
+   from the already-filed "Add BUILD export to js/engine.js + wire index.html to read it live" NEXT-
+   bucket task once that lands; don't block items 1-3 on it.
+5. Verify across both an installed PWA and a plain browser tab (the user reported both): deploy a
+   trivial content change, confirm the reload banner appears without needing 24h+ or a manual hard
+   refresh, and that clicking Reload actually shows the new content.
+6. Display/infrastructure-only — do NOT bump DATA.version; log the fix in CHANGELOG.md.
+```
+**Done when:** a fresh deploy is detected and the reload banner appears within a normal page
+load/revisit (not dependent on the browser's own 24h heuristic) in both installed-PWA and browser-tab
+modes, on every page including login.html; login.html's handler matches the other four pages' banner
+pattern; parity still 5/0 (no engine change expected).
+
+## Live Sheet unusably cramped on small mobile screens — TODO
+Branch fix/mobile-livesheet-density. On small phone widths, the Live Sheet packs too many items into single rows, uses text too small to read comfortably, and has no way to collapse sections — all three "Buy/progress", "Character", and "History & ledger" cards stack into one long, always-fully-expanded column with heavy scrolling.
+
+```text
+Context: the Live Sheet has only one mobile breakpoint (@media(max-width:600px), ~line 70) tuning things
+like ability-score columns (6→3) and touch targets. Several sections got missed or only partially tuned,
+and there is no section-level collapse on mobile at all today:
+- .slotgrid (spell slots, line ~191) is hardcoded to `grid-template-columns:repeat(9,1fr)` with NO mobile
+  override anywhere — 9 columns (spell levels 1-9) squeeze into one row at any width, including phones.
+- .spcols (spell-list columns, line ~196) only narrows 3→2 at 760px (line ~209); nothing narrows it
+  further for small phones (e.g. ~375-400px wide).
+- .shabrow/.shkpis (printable character-sheet ability/stat rows, lines ~171/177) are hardcoded to 3
+  columns with no width-specific tuning at all.
+- Buy-list item buttons (.ib, lines ~78/120/139) and category headers (.cath, line ~95) sit at 11.5-13px
+  font — workable on a tablet-width phone but tight on smaller screens.
+- There is no breakpoint tier below 600px, so there's no separate treatment for genuinely small phones
+  (~375-400px, e.g. iPhone SE/mini-class widths) vs. larger phones (~412-428px).
+- .layout (~line 300+) holds three top-level cards — "Buy / progress", "Character", "History & ledger" —
+  in a CSS grid that collapses to a single column under 1000px (@media(max-width:1000px)); on mobile all
+  three are always fully expanded and stacked, forcing long scrolling to move between sections.
+- A collapse/expand pattern already EXISTS for buy-list category groups (.bgcat/.cath, ▾/▸ toggle via the
+  .clp class, ~lines 135-136) — reuse this same interaction pattern for the new section-level collapse
+  rather than inventing a second one.
+
+1. Audit every grid/flex layout and font-size in tools/PACT-Live-Char-Sheet.html's mobile-relevant CSS
+   against a real small-phone viewport (~375-390px width): the existing @media(max-width:600px) block
+   plus the un-tuned spots above (.slotgrid/.spcols/.shabrow/.shkpis).
+2. Fix .slotgrid specifically: it must not force 9 columns at small widths — wrap to fewer columns
+   (e.g. 3-5 per row with the grid flowing to multiple rows) or make it horizontally scrollable, whichever
+   keeps each slot cell legible.
+3. Add a narrower breakpoint tier (e.g. @media(max-width:400px)) for further column/font reduction where
+   the 600px tuning still isn't enough, rather than assuming one breakpoint covers all phone sizes.
+4. Re-check font sizes on buy-list items and category headers at small widths; bump if needed for legibility.
+5. Add collapse/expand to the three top-level cards (Buy/progress, Character, History & ledger) on mobile
+   (≤1000px, matching the existing single-column breakpoint): a tap on each card's header (h3) toggles
+   that card's body open/closed, mirroring the existing .bgcat/.cath ▾/▸ pattern. Default state (all open
+   vs. remembering last state vs. only "Character" open by default) is an implementation call — pick
+   whichever needs the least new state-persistence machinery, and say what was chosen in the PR/CHANGELOG.
+6. Do not change desktop/tablet layout (existing >1000px behaviour) or engine/rules logic.
+   Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+7. Related to (but separate from) the "Mobile sticky buttons regression" task already on the roadmap —
+   both are mobile-usability gaps in the same file; can be picked up independently or together.
+```
+**Done when:** on a real small-phone viewport (~375-400px wide), no section of the Live Sheet forces unreadable multi-column cramming; text and tap targets are legible without pinch-zooming; the three top-level sections (Buy/progress, Character, History & ledger) can each be collapsed/expanded independently on mobile; desktop/tablet layout unchanged; parity still 5/0.
 
 ---
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## Cloud/campaign state is invisible to players (CharGen + Live Sheet) — TODO
+Branch fix/cloud-campaign-status-visibility. Players can't tell, at a glance, whether they're working
+locally or connected to a cloud campaign, or whether an attached campaign's DM rules are actually live.
+
+```text
+Confirmed findings (read directly from the code):
+1. CharGen has zero cloud/auth integration at all — confirmed via a dev comment in the file itself
+   ("Persistence is localStorage only") and zero references to Supabase/auth/sign-in anywhere in
+   tools/PACT-CharGen-Webtool.html. Nothing tells the player this passively.
+2. CharGen's "🛡 Campaign" button is a naming collision — it's a local, code-paste house-rules feature
+   (CG_CAMPAIGN / openCampaign() / applyCampaignCode(), ~line 1709-1739) where a DM types up banned
+   boons/drawbacks/arts and shares a text code pasted in manually. It has nothing to do with the real
+   cloud campaign system in Live Sheet/DM Console (Supabase campaigns table, campaign_id, DM Console's
+   Campaign Rules panel). Same word, two unrelated features.
+3. Live Sheet's cloud/sign-in state is only visible inside the "☁ Cloud" dropdown menu — nothing on the
+   main character sheet passively shows sign-in state.
+4. Even when a character genuinely IS attached to a real cloud campaign, there's no visible confirmation
+   that the DM's rules are actually being fetched/enforced right now. The enforcement mechanics already
+   exist and work (all landed 2026-07-02 per CHANGELOG): rules configured in DM Console, stored in
+   campaigns.rules (D-GH14); Live Sheet fetches them via refreshCloudCampaignRules() and live-filters
+   banned weapon masteries/boons (D-GH16); species/origin-class/multi-discipline bans enforced at
+   "Save to cloud" via validate() (D-GH14); Feature A's multi-discipline gating reads the same
+   window._cloudCampaignRules (D-GH9). All of this state is currently silent/internal — never surfaced
+   to the player. No way to tell, at a glance, whether you're actually subject to the DM's rules right
+   now, versus the fetch having failed silently, versus not being in a campaign at all.
+
+IMPORTANT — this exact area has been under very active, fast-moving concurrent development (D-GH9,
+D-GH14, D-GH16 all landed the same day). Before implementing, re-verify the current state of
+campaign-rules fetching/enforcement against CHANGELOG.md and the live code first — confirm which of the
+mechanics above are still accurate versus what's changed since this was written. Do not build UI on top
+of a possibly-stale assumption about window._cloudCampaignRules's shape or availability.
+
+Scope (minimal clarity/labeling only — NOT new enforcement mechanics):
+1. CharGen: add a persistent, always-visible label near the top indicating it's local-only, e.g.
+   "🔒 Local only — not connected to any cloud campaign." Clarify or rename the "🛡 Campaign" button (or
+   at minimum strengthen its tooltip) so it can't be mistaken for the real cloud campaign system — e.g.
+   rename to "🛡 House rules code" or add explicit "(local, not cloud)" wording.
+2. Live Sheet: add a persistent badge (not hidden inside the ☁ Cloud dropdown) showing sign-in state,
+   and when the loaded character has a campaign_id, the campaign name plus a live confirmation that DM
+   rules were actually fetched successfully — e.g. "☁ Campaign: <name> — DM rules active" vs a warning
+   state like "⚠ Campaign: <name> — rules unavailable" if the fetch failed or returned nothing.
+3. Do not change any enforcement/validation logic (validate(), cloudRuleBarred(), the live-filter
+   pickers) — this task only adds visibility into state that already exists internally.
+4. Display-only — do NOT bump DATA.version; log the fix in CHANGELOG.md.
+```
+**Done when:** CharGen shows a persistent local-only indicator and its "Campaign" button can no longer
+be mistaken for the cloud campaign system; Live Sheet shows a persistent sign-in + campaign-rules-active
+badge outside the ☁ Cloud dropdown; no enforcement/validation behavior changed; parity still 5/0.
+
+## CharGen/Live Sheet: theme selector hidden/clipped + no system dark-mode default — TODO
+Branch fix/chargen-livesheet-theme-selector. The theme selector (🎨 Default/Dark/D&D/Royal/Forest dropdown) is inaccessible in real conditions, and neither tool follows the device's dark/light setting on first use.
+
+```text
+Context: tools/PACT-CharGen-Webtool.html and tools/PACT-Live-Char-Sheet.html both persist the chosen theme
+to the SAME localStorage key ('pactTheme') via an identical setTheme()/restore IIFE pattern (CharGen
+~line 2657-2659, Live Sheet ~line 1459-1461) — so they're already meant to stay in sync, just missing two
+things. index.html (landing page) already solves both of these correctly for its OWN separate theme system
+(different localStorage key 'pact-theme', different theme names parchment/midnight/dragonfire/contrast) —
+use its pattern (index.html ~line 49-63) as the reference, don't invent a new one.
+
+Bug 1 — selector hidden on mobile (CharGen):
+- .hd-row2 (contains the #themesel dropdown, ~line 391) is set to `display:none` at
+  @media(max-width:768px) (~line 305), alongside .hd-row3.
+- Unlike .hd-row3's action buttons (Save/Load/Share/Live Sheet/AI Portrait/Campaign/etc.), which get
+  re-surfaced in `.mobile-action-bar` (~line 405-415), the theme selector was never added anywhere on
+  mobile — it's simply gone. Add it (or an equivalent compact control) to the mobile-visible header/bar.
+- Confirm whether Live Sheet has the same mobile hide-without-re-surface gap for its own #themesel
+  (Live Sheet's `.top` header, ~line 281-288) and fix identically if so.
+
+Bug 2 — selector can overflow/clip on desktop:
+- .hd-row2 (~line 294) has no `flex-wrap` and no overflow handling, unlike .hd-row3 which explicitly has
+  `flex-wrap:wrap`. It packs the tool title, version tag, "last edited" timestamp, AND the theme dropdown
+  (pushed to the far right via `margin-left:auto`) into one non-wrapping row — on a narrower or zoomed
+  desktop window this can overflow and visually clip the theme selector even though it's "present" in the
+  DOM. Add flex-wrap (or move the theme selector to a spot that can't be squeezed out) so it's always
+  visible/reachable at any desktop width.
+
+Feature — default to system dark/light when there's no saved choice:
+- Add the same "saved choice wins, else follow prefers-color-scheme:dark, else default" logic index.html
+  already uses (~line 49-63) to BOTH CharGen's and Live Sheet's theme-restore IIFEs. Map system dark mode
+  to the tools' existing 'dark' theme option (there's no separate "system" entry needed — just resolve
+  the initial value the same way index.html does).
+- Apply it early enough to avoid a flash of the wrong theme before JS runs — index.html runs its check
+  inline in <head> before first paint; CharGen/Live Sheet currently run their restore IIFE near the bottom
+  of the file (CharGen ~line 2659, Live Sheet ~line 1461), after the page has already rendered in the
+  default theme. Move the check earlier (inline in <head>, matching index.html) if feasible without
+  breaking the tools' existing load order; note in the PR if that's not practical and why.
+- "Default to last used" already works today (both tools already read the saved 'pactTheme' value) —
+  this task only needs to ADD the system-preference fallback for the case where nothing is saved yet.
+
+Do not touch DM-Console.html (it has no theme system today — out of scope) or engine/rules logic.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+**Done when:** the theme selector is reachable in CharGen on both a real mobile-width screen and a narrow/zoomed desktop window; Live Sheet's selector is confirmed not to have the same mobile-hide gap (or is fixed identically if it does); a first-time visitor (no saved theme) sees CharGen/Live Sheet open in dark mode when their device is in dark mode, and in the previously-saved theme otherwise; parity still 5/0.
 
 ## Lock down remaining Supabase function EXECUTE grants (anon) — TODO
 Branch fix/lock-down-remaining-function-grants. Revoke the default Postgres EXECUTE-to-PUBLIC grant on the
@@ -128,40 +376,6 @@ engine copy, so until it's on the shared bridge it won't see js/ap-by-level.js (
 **Done when:** editing a value in js/ap-by-level.js changes the default budget / level options in every tool
 that's on the shared engine, with no other code change; engine API stable; parity passes.
 
-## Feature A — Live Sheet multi-tradition / multi-discipline spellcasting (+ Magically Bound) — TODO
-Branch `feat/multi-tradition-discipline`. **Engine first** (extend `found`, add `dbound`), then the tools.
-```
-Allow buying >1 tradition and >1 discipline per tradition, each shown by name on its own row.
-Per-discipline "Magically Bound" (one-way; reverse only by undo): Binding awards a flat +2 AP with NO
-retroactive refund; the −1 spell discount (cantrips/slots/known, floor 1; not Foundation/Rank) applies
-from then on. Move "Subclass spell lists" into the Magic category.
-5 tasks across 2 files (parity stays 5/0 throughout). Execution order: 1 → verify parity → 4 → 5 → 3 → 2.
-  1. js/engine.js (MUT) — extend `found` (add a discipline to an existing tradition) + add a `dbound`
-     setter (sets d.bound on {ti,di}). Additive only, ZERO compute() change. VERIFY PARITY after task 1.
-  2. Live Sheet — 'Spellcasting' GROUPS closure: iterate all traditions + disciplines, per-discipline
-     headers, a Magically Bound toggle, and "Add discipline" / "Open another tradition" buttons.
-  3. Live Sheet — priceOf: 3 lines so dbound/mbound flat-price ±2 AP (no full recompute). Also fixes a
-     pre-existing Martially Bound refund bug.
-  4. Live Sheet — _catOf: move 'Subclass spell lists' to Magic (2 lines).
-  5. Live Sheet — ib() tooltip wiring (1 line) + pass a descr to Martially Bound's ib() call.
-  6. Live Sheet — gate the new "Add discipline" / "Open another tradition" buttons (task 2) on the
-     active campaign's `multiDisciplineAllowed` rule (added after this feature was originally scoped —
-     see D-GH14/D-GH16): if a campaign has it set to `false`, hide/disable those buttons instead of
-     letting the player buy a 2nd tradition/discipline and only finding out at cloud-save that
-     `validate()` rejects it. `window._cloudCampaignRules` (populated by `refreshCloudCampaignRules()`,
-     added in the campaign-rules-live-filter follow-up) already carries this flag — reuse it, don't
-     re-fetch. `validate()` itself needs no change; it already checks total discipline count.
-Full spec: IMPLEMENT-multi-tradition-discipline.md (+ ENGINE-CHANGES-prompt.md for the engine slice);
-snippets are from a v0.322 standalone — read the live code and adapt. Read the Live Sheet HTML ONCE and
-apply tasks 4,5,3,2,6 in a single editing pass (it's large).
-```
-**Done when:** multiple traditions/disciplines buy + display correctly; Magically Bound applies +2/−1 with
-no retroactive refund; subclass lists sit under Magic; a campaign with `multiDisciplineAllowed:false`
-hides the add-discipline/add-tradition buttons instead of only blocking at cloud-save; parity stays 5/0.
-⚠️ Kit claims `compute()` / `DATA.version` are untouched — **verify that for a pricing feature**; if pricing
-changes, update the REV-01 baseline and follow the version rule. Log under a **NEW** decision code
-(**D-GH9** — the draft's "D-GH3" is already taken).
-
 ## Feature B — Save-file integrity (tamper-evidence) — TODO
 Branch `feat/save-integrity`. **Do AFTER Feature A.** Engine first (sign/verify helpers), then the tools.
 ```
@@ -175,7 +389,7 @@ badged in DM Console; CharGen exports are signed; parity stays 5/0.
 ⚠️ Log under a **NEW** decision code (**D-GH10** — the draft's "D-GH4" is taken). Touches CharGen —
 coordinate with **Task 6** so the two CharGen edits don't collide.
 
-## AUD-1 — Automated health check (static audit + RLS proof) — TODO
+## AUD-1 — Automated health check (static audit + RLS proof) (HIGH — scope widened) — TODO
 The repeatable "is the system still healthy?" check you asked for — a stdlib Python script, no installs,
 runs in seconds.
 ```
@@ -184,14 +398,19 @@ testing/scripts/audit.py (Python stdlib only) — file-based checks, run before 
 - manifest has required fields, scope + start_url = /PACT/, and a maskable icon
 - SW registration present in every HTML page; no unconditional skipWaiting() in the install handler
 - flag any asset > 100 KB
-- CharGen's embedded DATA/compute still matches js/engine.js (until Task 6 removes the copy)
+- DATA/compute/MUT drift check, ALL THREE tools (widened while implementing Feature A / PR #85 — see
+  DECISIONS.md D-GH9): CharGen, Live Sheet, and DM Console each hand-copy their own DATA/compute/MUT
+  from js/engine.js (none of the three are actually bridged for these — see the "Fix AGENTS.md's stale
+  module bridge claim" NOW item above). Extend the original CharGen-only check to diff all three tools'
+  embedded copies against js/engine.js's exports and fail loudly on any mismatch, not just CharGen's.
+  This becomes unnecessary for whichever tool(s) eventually get migrated onto a real bridge.
 Optional RLS proof (Python + requests, credentials entered at runtime — never commit them): as a non-DM
 player, confirm BOTH writes are REJECTED via the Supabase REST API — (a) writing characters.ap (the DM-only
 column lock) and (b) setting campaign_id to a campaign never joined (proves REV-04 is closed).
 ```
 **Done when:** runs clean on a healthy tree and fails loudly on a planted break (a missing PRE_CACHE file,
-or a player REST write to `ap` that succeeds). Pairs with REV-01/REV-11 — engine-parity joins CI once
-REV-01 makes the gate assert.
+a player REST write to `ap` that succeeds, or a hand-edited mismatch between any tool's embedded copy and
+js/engine.js). Pairs with REV-01/REV-11 — engine-parity joins CI once REV-01 makes the gate assert.
 
 ## Feature: Theme-aware random homepage artwork — TODO
 Branch feat/theme-random-artwork. Add theme-specific image pools to index.html and randomly select a matching image on page load and theme change.
@@ -205,6 +424,36 @@ Branch feat/theme-random-artwork. Add theme-specific image pools to index.html a
 - display-only — do NOT bump DATA.version; just log in CHANGELOG.
 - Engine is the single source of truth. All rules live in js/engine.js; do not add rules logic outside the engine.
 ```
+
+---
+
+## Mobile sticky buttons regression (Save/Load/Share/Live Sheet/AI Portrait/Campaign) — TODO
+Branch fix/mobile-sticky-buttons. On mobile, several action buttons (Export/"Save", Import/"Load", Cloud/"Share", Sheet/"Live Sheet" toggle, AI Portrait, Campaign) stay pinned to the viewport while scrolling when they should scroll normally with the page.
+
+```text
+Context: D-GH5 (DECISIONS.md) already decided mobile (≤768px) headers use a static "app-shell" layout
+(body becomes a flex column with height:100dvh/overflow:hidden; header is a static flex:0 0 auto bar;
+.layout is the scrolling region) specifically BECAUSE position:fixed/sticky was unreliable on real mobile
+hardware. That app-shell CSS does not appear to currently exist in tools/PACT-Live-Char-Sheet.html — the
+header bar `.top` is `position:sticky;top:0` (~line 58) and `#lmobar` (bottom AP/Undo/Redo bar) is
+`position:fixed` (~line 97), both unconditional, not scoped out on mobile.
+
+1. Audit tools/PACT-Live-Char-Sheet.html for sticky/fixed rules affecting the button bar(s): `.top`
+   (line ~58, contains Undo/Redo/Export/Import/Cloud/Sheet/More→Campaign), `#lmobar` (line ~97),
+   `#buysearch` (line ~85), `#apFloat` (line ~278), `.shtop` (line ~164, AI Portrait/Print/Close inside
+   the printable sheet overlay).
+2. Determine whether D-GH5's app-shell layout was reverted, never fully implemented, or superseded by a
+   later change (check CHANGELOG.md / git history for `.top`/`position:sticky` edits after D-GH5 landed).
+3. Fix so these buttons are NOT sticky/fixed on mobile — reintroduce D-GH5's static-header app-shell
+   pattern (or equivalent) at the ≤768px breakpoint, matching the already-decided approach rather than
+   inventing a new one.
+4. Also check index.html and tools/DM-Console.html / tools/PACT-CharGen-Webtool.html for the same
+   unconditional sticky/fixed buttons on their action bars — fix any found with the same pattern for
+   consistency, or note in the PR if they're intentionally sticky and out of scope.
+5. Do not change desktop behaviour (D-GH5 keeps position:sticky + window scroll on desktop) or engine/rules
+   logic. Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+**Done when:** on a real mobile viewport (≤768px), Save/Export, Load/Import, Share/Cloud, Live Sheet/Sheet toggle, AI Portrait, and Campaign buttons scroll out of view with the page instead of staying pinned; desktop layout unchanged; parity still 5/0.
 
 ---
 
@@ -277,7 +526,9 @@ Branch test/expand-engine-parity-coverage. `testing/tests/engine-parity.html` cu
    file it as a separate roadmap item rather than fixing inline here.
 6. If, after auditing, the gate genuinely is legacy/low-value (e.g. duplicated by something else), stop and
    write up that finding instead of padding fixtures for their own sake — note it in DECISIONS.md as a
-   NEW decision (next free code: D-GH14) rather than silently doing nothing.
+   NEW decision (next free code: D-GH18 — D-GH14 is taken by the campaign-rules decision; verify
+   against DECISIONS.md's current highest number when this task is actually picked up) rather than
+   silently doing nothing.
 ```
 **Done when:** engine-parity.html reports more than 5 fixtures covering at least prereq-gate rejection,
 drawback buy-off, and one racial/mastery discount case, each with a human-reviewed CSV baseline; parity
@@ -285,12 +536,122 @@ still reports all green (N passed / 0 failed).
 
 ---
 
+## Add Supabase advisor/log check to the per-change checklist — TODO
+Branch docs/audit-checklist-supabase. Add a step to AGENTS.md's per-change checklist.
+
+```text
+After any migration/RLS/schema change, run the Supabase advisor (get_advisors) and skim recent logs
+(get_logs) before opening the PR. This project has already been bitten twice by grant/RLS drift that
+internal guards masked (D-GH15, D-GH12) — the advisor catches that class of issue for free.
+```
+**Done when:** AGENTS.md's per-change checklist includes this step; no code change.
+
+## Docs-consistency audit: DECISIONS.md / CHANGELOG.md / roadmap cross-check — TODO
+Branch docs/consistency-audit. One-time pass checking the three logging docs agree with each other and
+with the code.
+
+```text
+1. Read DECISIONS.md, CHANGELOG.md, and docs/PACT_ROADMAP.md together.
+2. Flag contradictions: a decision marked IN FORCE that no longer matches the code, a roadmap item
+   that's actually already done, or a stale D-GH# reservation (already found one live: the "Expand
+   engine-parity test coverage" task reserves "D-GH14" but that code is now taken by the campaign-rules
+   decision — correct it to the next free code at time of fix).
+3. Write findings to docs/sessions/<date>-docs-consistency-audit.md. Do not silently fix code — apply
+   only doc corrections (roadmap-graduation moves, D-GH# corrections) directly; anything code-shaped
+   becomes its own follow-up roadmap item.
+4. Re-running this pass periodically (e.g. after a batch of merges) is a good habit but is a process
+   note, not part of this task's completion condition.
+```
+**Done when:** docs/sessions/<date>-docs-consistency-audit.md exists with the findings; the known D-GH14
+reservation collision is corrected in the same pass.
+
+## Add a pre-release manual QA checklist to docs/HOW-TO-WORK.md — TODO
+Branch docs/pre-release-qa-checklist. Document the click-through the parity gate can't cover.
+
+```text
+1. Add a checklist to docs/HOW-TO-WORK.md: build a character in CharGen → export to Live Sheet → verify
+   buy-off works and ledger entries are per-item → push to cloud in a test campaign → confirm DM Console
+   sees it and can award AP → check the browser console for errors at each step.
+2. Add a one-line pointer to this checklist in AGENTS.md's per-change checklist (alongside the parity
+   gate step), scoped to release-shaped PRs (not every doc/small fix).
+```
+**Done when:** docs/HOW-TO-WORK.md has the checklist and AGENTS.md's per-change checklist links to it.
+
+## Document a rules-correctness review pass in docs/HOW-TO-WORK.md — TODO
+Branch docs/rules-review-note. `/code-review`'s default lens is bugs/reuse, not domain (PHB) correctness.
+
+```text
+Add a short note + example prompt: for any PR touching js/engine.js's compute()/DATA, run /code-review
+with an explicit instruction to check the math against the Player's Guide (caps, gates, prices) rather
+than only generic code-quality issues.
+```
+**Done when:** docs/HOW-TO-WORK.md documents this usage pattern with a copy-pasteable example prompt.
+
+## Add `BUILD` export to js/engine.js + wire index.html to read it live — TODO
+Branch fix/engine-build-export. Closes a docs/architecture-drift gap found in a 2026-07-02 audit: AGENTS.md
+and docs/VERSION-SYNC.md both document `export const BUILD = "v0.107"` living in js/engine.js with
+index.html reading it live so it "never drifts" — neither exists in the code (`git log -S"export const
+BUILD"` returns zero hits ever, across all branches; index.html has no BUILD/version-reading code at all).
+The three tools' v0.107 labels currently match only by hand-maintained convention. **Worse than a docs gap:**
+CHANGELOG.md's 2026-07-01 "CU-2: sync DM Console build version" entry explicitly claims "All three tools
+now mirror BUILD in js/engine.js; index.html reads it live" — that claim is false on `preview` as of this
+writing (verified live: no BUILD export, no index.html version code). This is the actual prerequisite for
+the "AUD-1 follow-up: version/build-sync check" task below, which assumes BUILD already exists.
+
+```text
+1. Add `export const BUILD = "v0.107";` to js/engine.js (near the DATA/version constants), matching the
+   value already hand-maintained across the three tools.
+2. Wire index.html to import BUILD from js/engine.js via the module bridge and render it live somewhere
+   sensible (index.html currently has zero version-reading code — this is new UI, not a fix to existing
+   UI; pick the least intrusive spot, e.g. footer).
+3. Do NOT hand-edit index.html's version display after this lands — it should always reflect BUILD from
+   js/engine.js.
+4. Leave the three tools' own hand-maintained version labels as-is for now (CharGen line-1 comment/title/
+   header, Live Sheet line-1 comment, DM Console TOOL_VERSION) — Task 6 (CharGen module bridge migration)
+   is the natural point to also wire those to read BUILD live; note that follow-up but don't do it here.
+5. Update docs/VERSION-SYNC.md only if implementation details end up differing from what it already
+   describes — otherwise it's accurate once BUILD exists.
+6. Correct CHANGELOG.md's 2026-07-01 CU-2 entry (or add a follow-up entry) once this lands so the log
+   stops asserting the mechanism existed before it actually did.
+7. Display-only / tooling — do NOT bump DATA.version; log the fix in CHANGELOG.md.
+```
+**Done when:** `js/engine.js` exports `BUILD`; `index.html` displays it live (no hardcoded version
+string); `docs/VERSION-SYNC.md` matches reality; the false CU-2 CHANGELOG claim is corrected; parity
+still 5/0.
+
+## AUD-1 follow-up: version/build-sync check — TODO
+Branch chore/aud1-version-sync-check. Do AFTER AUD-1 (Automated health check) lands.
+
+```text
+Extend testing/scripts/audit.py (from AUD-1) with a check that BUILD (js/engine.js) and its mirrors
+(CharGen title/header, Live Sheet line-1 comment, DM Console TOOL_VERSION) all match, and that
+DATA.version is mirrored between CharGen's embedded copy and js/engine.js (until Task 6 removes the
+copy).
+```
+**Done when:** audit.py fails loudly if any version string diverges from js/engine.js; passes clean on
+the current tree.
+
+## REV-11 — Add CI: headless engine-parity gate on every PR — TODO
+Branch chore/rev11-ci-engine-parity. Promoted from LATER — no CI exists today, so a regression is only
+caught if a human remembers to open engine-parity.html.
+
+```text
+1. Add a headless Node runner (dev-tooling only, not a runtime dependency of the shipped app) that
+   imports js/engine.js as an ES module, runs the same FIXTURES engine-parity.html uses, and asserts each
+   result against testing/expected/expected-results.csv.
+2. Wire it as a GitHub Action that runs on every PR touching js/engine.js or testing/**.
+3. No npm runtime deps for the app itself — this tooling lives entirely in the CI job/devDependencies,
+   consistent with the "vanilla JS, no build step" rule for the shipped app.
+```
+**Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 5/0
+when run locally too.
+
+---
+
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
 - **REV-10** — `.claude/` is tracked despite `.gitignore`. Fix: `git rm --cached -r .claude` (keep on disk), commit.
-- **REV-11** — No CI. Add a headless Node runner that imports `js/engine.js`, runs the fixtures, and asserts
-  against `expected-results.csv` (pairs with REV-01); wire as a GitHub Action on PRs. No npm *runtime* deps.
 - **REV-12** — Make "every player-controlled value passes through `esc()`" a hard invariant; add a line to
   `AGENTS.md` Hard rules. Rises in importance once cloud data crosses users.
 - **REV-13** — Dead grant maps `grantSk/grantTl/grantIn` in `engine.js` (~:62) are never populated. Wire up
@@ -336,6 +697,15 @@ still reports all green (N passed / 0 failed).
 - **A8 — AI working defaults.** Add a short "working efficiently" note to `docs/HOW-TO-WORK.md`: Sonnet +
   default effort for spec-driven execution (Opus only for ambiguous/architectural), one task per fresh
   session, read big files once.
+- **A9 — Orphaned-export sweep.** One-time audit: grep every named export in `js/engine.js`'s Exports
+  line and confirm each is referenced by at least one of the three tools; write findings to
+  `docs/sessions/<date>-orphaned-export-sweep.md` (find-and-report only — no deletion inline). File any
+  confirmed zero-reference export as its own follow-up roadmap item, same pattern as REV-13's dead grant
+  maps.
+- **A10 — Pre-release full-audit trigger note.** Document in `docs/HOW-TO-WORK.md` when a full
+  multi-agent Workflow audit (rules-logic + security/RLS + usability click-through + docs-consistency
+  lenses) is worth running — major releases/big refactors only, not routine PRs — with a sample workflow
+  shape for reference.
 
 ---
 
