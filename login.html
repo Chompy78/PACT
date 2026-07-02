@@ -140,6 +140,7 @@
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/PACT/service-worker.js').then(function (reg) {
+        reg.update();
         reg.addEventListener('updatefound', function () {
           var sw = reg.installing;
           sw.addEventListener('statechange', function () {

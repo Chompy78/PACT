@@ -1828,6 +1828,7 @@ document.addEventListener('sync-ready', function () {
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/PACT/service-worker.js').then(reg => {
+      reg.update();
       reg.addEventListener('updatefound', () => {
         const sw = reg.installing;
         sw.addEventListener('statechange', () => {
