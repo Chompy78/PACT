@@ -476,6 +476,7 @@
     /* ---- PWA service worker + update prompt ---- */
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/PACT/service-worker.js').then(function (reg) {
+        reg.update();
         reg.addEventListener('updatefound', function () {
           var sw = reg.installing;
           sw.addEventListener('statechange', function () {
@@ -488,6 +489,10 @@
             }
           });
         });
+        // Don't wait on the browser's own (hours-to-24h) periodic update check —
+        // proactively re-check for a new SW whenever the user returns to the page.
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') reg.update(); });
+        window.addEventListener('focus', function () { reg.update(); });
       });
     }
   </script>

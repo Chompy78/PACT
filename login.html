@@ -140,15 +140,21 @@
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/PACT/service-worker.js').then(function (reg) {
+        reg.update();
         reg.addEventListener('updatefound', function () {
           var sw = reg.installing;
           sw.addEventListener('statechange', function () {
             if (sw.state === 'installed' && navigator.serviceWorker.controller) {
-              sw.postMessage('skipWaiting');
-              location.reload();
+              var bar = document.createElement('div');
+              bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e293b;border-top:1px solid #38bdf8;padding:.75rem 1.25rem;display:flex;justify-content:space-between;align-items:center;font-size:.9rem;z-index:999';
+              bar.innerHTML = '<span>A new version of PACT is ready.</span><button style="background:#38bdf8;color:#0f172a;border:none;padding:.35rem .9rem;border-radius:.4rem;cursor:pointer;font-weight:600">Reload</button>';
+              bar.querySelector('button').onclick = function () { sw.postMessage('skipWaiting'); location.reload(); };
+              document.body.appendChild(bar);
             }
           });
         });
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') reg.update(); });
+        window.addEventListener('focus', function () { reg.update(); });
       });
     }
 
