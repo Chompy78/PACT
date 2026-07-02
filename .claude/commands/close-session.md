@@ -14,6 +14,10 @@ sessions may have their own worktrees and branches in flight; don't touch those.
   why.
 - `docs/sessions/<date>-<topic>.md` — only needed if this session involved real discussion or spanned
   multiple areas worth preserving. Most single-task sessions don't need this — say so if you skip it.
+  **If a note for this session already exists, don't just confirm it exists — re-read its content against
+  everything that's happened since it was last written.** A note written mid-session goes stale the moment
+  more work happens after it (e.g. this same `/close-session` pass surfacing a decision that gets acted on,
+  a rebase, a merge). Check its content, not just its presence, every time this step runs.
 
 **2. Roadmap graduation**
 If a `docs/PACT_ROADMAP.md` task was completed this session, confirm it was actually moved into
