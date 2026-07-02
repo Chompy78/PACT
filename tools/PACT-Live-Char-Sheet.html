@@ -1004,7 +1004,7 @@ function buildBuyPanel(b,r,eco,head){
   function racialWhy(r){if(!r)return '';if(r.minHD&&b.hd<r.minHD)return 'needs '+r.minHD+' Hit Dice (level '+r.minHD+')';if(r.reqRace){var _o=DATA.racial[r.reqRace];var owns=b.racialTraits.indexOf(r.reqRace)>=0||!!(_o&&_o.pack&&(_o.race===b.species||_o.race===b.species2));if(!owns)return 'requires '+((r.reqRace.split(': ')[1])||r.reqRace);}return '';}function ib(label,cat,payload,reasonExtra,descr){
     if(buyQuery && label.toLowerCase().indexOf(buyQuery)<0) return '';
     const cost=priceOf(cat,payload); const warns=legalCheck(cat,payload);
-    const unaff = cat!=='drawback' && cost>eco.available;
+    const unaff = cat!=='drawback' && cat!=='mbound' && cat!=='dbound' && cost>eco.available;
     if(affordOnly && unaff) return '';   // "Affordable only": hide every buy you can't afford (warned or not)
     // HARD block (flash only): unmet prerequisite (reasonExtra) or not enough AP.
     // SOFT warning: the purchase is allowed — buy() asks to confirm and flags it for review. Don't dead-end it.
@@ -1012,7 +1012,7 @@ function buildBuyPanel(b,r,eco,head){
     const soft = (!hardReason && warns.length)?warns[0]:'';
     const blocked=!!hardReason;
     if(hideUnavail && blocked) return '';   // "Hide unavailable": drop the greyed can't-buy tiles (default off → shown greyed+clickable with the reason)
-    const costlbl = cat==='drawback'?('+'+(-cost)):(''+cost);
+    const costlbl = (cat==='drawback'||cat==='mbound'||cat==='dbound')?('+'+(-cost)):(''+cost);
     const pay='buy(&quot;'+cat+'&quot;,'+esc(JSON.stringify(payload))+',&quot;'+esc(label)+'&quot;)';
     const click = blocked ? ('flash(&quot;'+esc(hardReason)+'&quot;)') : pay;
     const note = hardReason || soft;
