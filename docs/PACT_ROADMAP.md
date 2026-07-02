@@ -285,6 +285,71 @@ still reports all green (N passed / 0 failed).
 
 ---
 
+## Add Supabase advisor/log check to the per-change checklist — TODO
+Branch docs/audit-checklist-supabase. Add a step to AGENTS.md's per-change checklist.
+
+```text
+After any migration/RLS/schema change, run the Supabase advisor (get_advisors) and skim recent logs
+(get_logs) before opening the PR. This project has already been bitten twice by grant/RLS drift that
+internal guards masked (D-GH15, D-GH12) — the advisor catches that class of issue for free.
+```
+**Done when:** AGENTS.md's per-change checklist includes this step; no code change.
+
+## Docs-consistency audit: DECISIONS.md / CHANGELOG.md / roadmap cross-check — TODO
+Branch docs/consistency-audit. One-time pass checking the three logging docs agree with each other and
+with the code.
+
+```text
+1. Read DECISIONS.md, CHANGELOG.md, and docs/PACT_ROADMAP.md together.
+2. Flag contradictions: a decision marked IN FORCE that no longer matches the code, a roadmap item
+   that's actually already done, or a stale D-GH# reservation (already found one live: the "Expand
+   engine-parity test coverage" task reserves "D-GH14" but that code is now taken by the campaign-rules
+   decision — correct it to the next free code at time of fix).
+3. Write findings to docs/sessions/<date>-docs-consistency-audit.md. Do not silently fix code — apply
+   only doc corrections (roadmap-graduation moves, D-GH# corrections) directly; anything code-shaped
+   becomes its own follow-up roadmap item.
+4. Re-running this pass periodically (e.g. after a batch of merges) is a good habit but is a process
+   note, not part of this task's completion condition.
+```
+**Done when:** docs/sessions/<date>-docs-consistency-audit.md exists with the findings; the known D-GH14
+reservation collision is corrected in the same pass.
+
+## Add a pre-release manual QA checklist to docs/HOW-TO-WORK.md — TODO
+Branch docs/pre-release-qa-checklist. Document the click-through the parity gate can't cover.
+
+```text
+1. Add a checklist to docs/HOW-TO-WORK.md: build a character in CharGen → export to Live Sheet → verify
+   buy-off works and ledger entries are per-item → push to cloud in a test campaign → confirm DM Console
+   sees it and can award AP → check the browser console for errors at each step.
+2. Add a one-line pointer to this checklist in AGENTS.md's per-change checklist (alongside the parity
+   gate step), scoped to release-shaped PRs (not every doc/small fix).
+```
+**Done when:** docs/HOW-TO-WORK.md has the checklist and AGENTS.md's per-change checklist links to it.
+
+## Document a rules-correctness review pass in docs/HOW-TO-WORK.md — TODO
+Branch docs/rules-review-note. `/code-review`'s default lens is bugs/reuse, not domain (PHB) correctness.
+
+```text
+Add a short note + example prompt: for any PR touching js/engine.js's compute()/DATA, run /code-review
+with an explicit instruction to check the math against the Player's Guide (caps, gates, prices) rather
+than only generic code-quality issues.
+```
+**Done when:** docs/HOW-TO-WORK.md documents this usage pattern with a copy-pasteable example prompt.
+
+## AUD-1 follow-up: version/build-sync check — TODO
+Branch chore/aud1-version-sync-check. Do AFTER AUD-1 (Automated health check) lands.
+
+```text
+Extend testing/scripts/audit.py (from AUD-1) with a check that BUILD (js/engine.js) and its mirrors
+(CharGen title/header, Live Sheet line-1 comment, DM Console TOOL_VERSION) all match, and that
+DATA.version is mirrored between CharGen's embedded copy and js/engine.js (until Task 6 removes the
+copy).
+```
+**Done when:** audit.py fails loudly if any version string diverges from js/engine.js; passes clean on
+the current tree.
+
+---
+
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
@@ -336,6 +401,15 @@ still reports all green (N passed / 0 failed).
 - **A8 — AI working defaults.** Add a short "working efficiently" note to `docs/HOW-TO-WORK.md`: Sonnet +
   default effort for spec-driven execution (Opus only for ambiguous/architectural), one task per fresh
   session, read big files once.
+- **A9 — Orphaned-export sweep.** One-time audit: grep every named export in `js/engine.js`'s Exports
+  line and confirm each is referenced by at least one of the three tools; write findings to
+  `docs/sessions/<date>-orphaned-export-sweep.md` (find-and-report only — no deletion inline). File any
+  confirmed zero-reference export as its own follow-up roadmap item, same pattern as REV-13's dead grant
+  maps.
+- **A10 — Pre-release full-audit trigger note.** Document in `docs/HOW-TO-WORK.md` when a full
+  multi-agent Workflow audit (rules-logic + security/RLS + usability click-through + docs-consistency
+  lenses) is worth running — major releases/big refactors only, not routine PRs — with a sample workflow
+  shape for reference.
 
 ---
 
