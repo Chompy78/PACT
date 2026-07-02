@@ -402,11 +402,12 @@ export const MUT = {campaign:(b,p)=>{b.campaign=p.v;},
  freesub:(b,p)=>{(b.freeSub=b.freeSub||{})[p.cls]=p.sub;},
  subabil:(b,p)=>{(b.subAbilities=b.subAbilities||[]).push(p.v);},
  tasharule:(b,p)=>{(b.houseRules=b.houseRules||{}).dmAllows=Object.assign({},(b.houseRules||{}).dmAllows||{},{tasha:p.v});},
- found:(b,p)=>{const ti=p.ti??0;const newTrad={name:p.trad,rank:0,disciplines:[{name:p.disc,bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]}]};if(ti===0&&!b.traditions.length){b.traditions=[newTrad];}else if(!b.traditions[ti]){b.traditions[ti]=newTrad;}},
+ found:(b,p)=>{const ti=p.ti??0;const newDisc={name:p.disc,bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]};if(ti===0&&!b.traditions.length){b.traditions=[{name:p.trad,rank:0,disciplines:[newDisc]}];}else if(!b.traditions[ti]){b.traditions[ti]={name:p.trad,rank:0,disciplines:[newDisc]};}else{(b.traditions[ti].disciplines=b.traditions[ti].disciplines||[]).push(newDisc);}},
  rank:(b,p)=>{const ti=p.ti??0;if(b.traditions[ti])b.traditions[ti].rank=p.to;},
  cantrip:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.cantrips=p.to;},
  slot:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.slots[p.L-1]=p.to;},
  known:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.known[p.L-1]=p.to;},
+ dbound:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.bound=!!p.v;},
 };
 
 export function activeEvents(events) {
