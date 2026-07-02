@@ -29,15 +29,6 @@ prune) has landed and graduated to `CHANGELOG.md`.
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
 
-## REV-07 — Invite codes from a CSPRNG (MEDIUM) — TODO
-`gen_invite_code` uses `floor(random()*36)` (non-CSPRNG), no throttling.
-```
-Build the code from gen_random_bytes(n) (pgcrypto already enabled) mapped onto the alphabet; consider 8
-chars and/or rate-limiting join_campaign. Keep the check regex (update it if you lengthen).
-```
-**Done when:** codes still unique + match the check regex, sourced from `gen_random_bytes`.
-(Full detail: REV-07.)
-
 ## Task 6 — CharGen module bridge migration — TODO
 ```
 Migrate tools/PACT-CharGen-Webtool.html from its embedded DATA + compute() copy to the shared
