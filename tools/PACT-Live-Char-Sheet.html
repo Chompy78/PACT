@@ -811,11 +811,26 @@ function _showVersionBanner(){
   vb.innerHTML='⚠ Loaded <b>'+loadedRules+'</b> character in <b>'+RULES+'</b> rules — past prices frozen; new buys use current rates. <button onclick="this.parentNode.remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px">✕</button>';
   document.body.insertBefore(vb,document.body.firstChild);
 }
+// Low-spend nudge: Live Sheet has no character-creation discounts (race/origin bonuses etc.),
+// so building a new character here from scratch costs more AP than starting in CharGen.
+// Dismissal is remembered per-character (window._apNudgeDismissedFor) so switching/importing
+// a different character (fresh charId) shows it again; resetAll() clears it explicitly.
+function _apNudgeBanner(spent){
+  const id=currentCharId();
+  let nb=$('apNudgeBanner');
+  if(window._apNudgeDismissedFor===id||spent>=50){ if(nb)nb.remove(); return; }
+  if(nb)return;  // already shown
+  nb=document.createElement('div');nb.id='apNudgeBanner';
+  nb.style.cssText='position:sticky;top:0;z-index:49;background:#0d4f6e;color:#fff;padding:6px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px';
+  nb.innerHTML='<span>💡 Only '+spent+' AP spent so far. Live Sheet doesn\'t apply character-creation options (race discounts, origin bonuses, etc.) — building a new character here costs more AP than starting in <b>CharGen</b>, which is the recommended starting point.</span><button onclick="window._apNudgeDismissedFor=currentCharId();this.parentNode.remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;flex-shrink:0">✕</button>';
+  document.body.insertBefore(nb,document.body.firstChild);
+}
 function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=JSON.parse(e.target.result); if(d.LOG){LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;REDO=[];viewAt=null;save();render();
   if(loadedRules&&loadedRules!==RULES){flash('Loaded a '+loadedRules+' character into '+RULES+' rules — old prices are frozen.');_showVersionBanner();}  else flash('Loaded character.');try{if(!LOG.some(function(e){return e.type==='names';}))openNames();}catch(e){}}}catch(err){alert('Bad file: '+err.message);}}; fr.readAsText(file); }
 function resetAll(){ if(confirm('Wipe this character and its whole history? This starts a clean '+RULES+' character.')){
   LOG=[];REDO=[];SEQ=1;viewAt=null;loadedRules=null;   // a reset character is born under the current rules
   const _vb=$('versionBanner');if(_vb)_vb.remove();   // clear any stale version-mismatch banner
+  window._apNudgeDismissedFor=null;   // a freshly wiped character should see the low-spend nudge again
   seedNew();   // re-seed a fresh level-1 character so the budget isn't empty (no false "over budget")
   save();render();} }
 
@@ -884,6 +899,7 @@ function render(){
   const head = viewAt==null;
   const idx = viewAt;
   const b=foldBuild(idx); const eco=economy(idx); const _dmAp=window._dmAp||0,_ignPlr=!!window._ignorePlayerAp; b.budget=(_ignPlr?0:eco.earned)+_dmAp; const r=compute(b); const m=r.mods;
+  _apNudgeBanner(eco.spent);
   // --- top economy ---
   const committed = LOG.filter(e=>e.type==='buy'&&e.cat!=='drawback').reduce((s,e)=>s+e.cost,0);
   // Reprice on the CREATION basis (inPlay:false) so an imported creation character shows no phantom drift.
@@ -1615,10 +1631,12 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
 <script type="module">
   import { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
-  import { listMyCampaigns } from '../js/campaign.js';
+  import { listMyCampaigns, getCampaign } from '../js/campaign.js';
+  import { validate } from '../js/engine.js';
   window._syncBridge = { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync };
   window._authBridge = { currentSession, onAuthChange };
-  window._campaignBridge = { listMyCampaigns };
+  window._campaignBridge = { listMyCampaigns, getCampaign };
+  window._engineBridge = { validate };
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
 </script>
@@ -1663,8 +1681,21 @@ document.addEventListener('sync-ready', function () {
       var btn = this; btn.disabled = true; btn.textContent = 'Saving…';
       try {
         var b     = window.foldBuild ? window.foldBuild(null) : {};
-        var stats = { rules: window.RULES, name: b.name, LOG: window.LOG, SEQ: window.SEQ };
         var id    = window.currentCharId ? window.currentCharId() : S.newCharacterId();
+        var rec   = await S.loadCharacter(id);
+        if (rec && rec.campaign_id && window._engineBridge) {
+          try {
+            var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
+            var v = camp ? window._engineBridge.validate(b, camp.rules) : { ok: true, violations: [] };
+            if (!v.ok) {
+              btn.disabled = false; btn.textContent = '☁ Save to cloud';
+              alert('This character breaks campaign rules set by your DM — fix these before saving to the cloud:\n\n'+
+                v.violations.map(function(x){ return '• '+x.message; }).join('\n'));
+              return;
+            }
+          } catch(e) { /* non-fatal — can't reach campaign rules right now, don't block the save */ }
+        }
+        var stats = { rules: window.RULES, name: b.name, LOG: window.LOG, SEQ: window.SEQ };
         var res   = await S.saveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet', stats: stats });
         if(res.error) throw res.error;
         if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');

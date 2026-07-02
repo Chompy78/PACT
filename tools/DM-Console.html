@@ -324,6 +324,12 @@
   .codechip{display:flex;gap:6px;align-items:center;margin-bottom:5px}
   .codechip .lbl{font-size:11px;color:var(--light);min-width:56px;flex-shrink:0}
   .codechip .field.ro{flex:1;font-size:11px;padding:0 7px;min-height:30px}
+  .ruleblock{margin-bottom:6px}
+  .ruleblock>.lbl{font-size:11px;color:var(--light);font-weight:700;opacity:.9;margin-bottom:3px}
+  .rulegrid{display:flex;flex-wrap:wrap;gap:4px 10px}
+  .rulegrid label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--light);cursor:pointer;white-space:nowrap}
+  .hrchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--light);background:rgba(255,255,255,.08);border-radius:12px;padding:3px 8px;margin:2px 4px 2px 0}
+  .hrchip button{background:none;border:none;color:var(--light);cursor:pointer;font-size:12px;line-height:1;padding:0}
   /* ---- history modal ---- */
   .hist-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center}
   .hist-modal .inner{background:#fff;border-radius:12px;max-width:640px;width:94%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:16px 20px}
@@ -429,6 +435,32 @@
           <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--light);margin-top:8px;cursor:pointer">
             <input type="checkbox" id="ignorePlayerAp"> Ignore player-entered AP
           </label>
+          <details id="campRulesDetails" style="margin-top:10px">
+            <summary style="cursor:pointer;font-size:11px;color:var(--light);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
+            <div style="margin-top:8px">
+              <div class="ruleblock"><div class="lbl">Banned species</div><div class="rulegrid" id="ruleBannedSpecies"></div></div>
+              <div class="ruleblock"><div class="lbl">Banned as 2nd origin species</div><div class="rulegrid" id="ruleBannedOriginSpecies"></div></div>
+              <div class="ruleblock"><div class="lbl">Banned origin classes</div><div class="rulegrid" id="ruleBannedOriginClasses"></div></div>
+              <div class="ruleblock"><div class="lbl">Banned weapon masteries</div><div class="rulegrid" id="ruleBannedMasteries"></div></div>
+              <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
+              <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--light);margin:8px 0;cursor:pointer">
+                <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
+              </label>
+              <div class="ruleblock">
+                <div class="lbl">House-rule toggles</div>
+                <div id="ruleHouseRules"></div>
+                <div style="display:flex;gap:6px;margin-top:5px">
+                  <input class="field" type="text" id="ruleHouseRuleName" placeholder="toggle name" style="flex:1">
+                  <button type="button" class="btn sm ghost" id="ruleAddHouseRule">+ Add</button>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+                <button type="button" class="btn sm" id="ruleSaveBtn">Save rules</button>
+                <span id="ruleSaveStatus" style="font-size:11px;color:var(--light)"></span>
+              </div>
+              <div class="grantnote">Read-only for players — they see these rules in the Live Sheet but can't change them.</div>
+            </div>
+          </details>
         </div>
       </div>
     </div>
@@ -1503,9 +1535,9 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 
 <script type="module">
   import { currentSession, onAuthChange } from '../js/auth.js';
-  import { listMyCampaigns, setIgnorePlayerAp } from '../js/campaign.js';
+  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules } from '../js/campaign.js';
   import { getRoster, awardAp, getAwardHistory } from '../js/dm.js';
-  window._campBridge = { currentSession, onAuthChange, listMyCampaigns, setIgnorePlayerAp, getRoster, awardAp, getAwardHistory };
+  window._campBridge = { currentSession, onAuthChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory };
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
 
@@ -1522,10 +1554,98 @@ document.addEventListener('campaign-ready', function () {
   var campRoster   = document.getElementById('campRoster');
   var campRosterName = document.getElementById('campRosterName');
   var ignoreChk    = document.getElementById('ignorePlayerAp');
+  var ruleMultiDisc = document.getElementById('ruleMultiDisc');
+  var ruleHouseRules = document.getElementById('ruleHouseRules');
+  var ruleHouseRuleName = document.getElementById('ruleHouseRuleName');
+  var ruleSaveStatus = document.getElementById('ruleSaveStatus');
   var currentCampaigns = [];
   var currentCampId = null;
+  var currentHouseRules = {};
 
   function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  // ---- Campaign Rules panel (D-GH14) ----
+  var _D = (typeof DATA !== 'undefined') ? DATA : {};
+  var RULE_GRIDS = [
+    ['ruleBannedSpecies', function(){ return Object.keys(_D.pack||{}); }],
+    ['ruleBannedOriginSpecies', function(){ return Object.keys(_D.pack||{}); }],
+    ['ruleBannedOriginClasses', function(){ return _D.classes||[]; }],
+    ['ruleBannedMasteries', function(){ return Object.keys(_D.masteryFx||{}); }],
+    ['ruleBannedBoons', function(){ return Object.keys(_D.boons||{}); }]
+  ];
+  function renderRuleGrids(){
+    RULE_GRIDS.forEach(function(pair){
+      var el = document.getElementById(pair[0]);
+      if(!el || el.childElementCount) return;   // render option list once
+      el.innerHTML = pair[1]().map(function(name){
+        return '<label><input type="checkbox" value="'+esc(name)+'">'+esc(name)+'</label>';
+      }).join('');
+    });
+  }
+  function setRuleGridChecked(gridId, checkedList){
+    var set = new Set(checkedList||[]);
+    document.querySelectorAll('#'+gridId+' input[type=checkbox]').forEach(function(cb){
+      cb.checked = set.has(cb.value);
+    });
+  }
+  function getRuleGridChecked(gridId){
+    return Array.prototype.slice.call(document.querySelectorAll('#'+gridId+' input[type=checkbox]:checked')).map(function(cb){ return cb.value; });
+  }
+  function renderHouseRules(){
+    var names = Object.keys(currentHouseRules);
+    ruleHouseRules.innerHTML = names.map(function(name){
+      return '<span class="hrchip"><label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer">'+
+        '<input type="checkbox" data-hr="'+esc(name)+'" '+(currentHouseRules[name]?'checked':'')+'>'+esc(name)+'</label>'+
+        '<button type="button" data-hrdel="'+esc(name)+'" title="Remove">×</button></span>';
+    }).join('') || '<span style="font-size:11px;color:var(--light);opacity:.7">No house rules yet.</span>';
+    ruleHouseRules.querySelectorAll('input[data-hr]').forEach(function(cb){
+      cb.addEventListener('change', function(){ currentHouseRules[cb.dataset.hr] = cb.checked; });
+    });
+    ruleHouseRules.querySelectorAll('button[data-hrdel]').forEach(function(btn){
+      btn.addEventListener('click', function(){ delete currentHouseRules[btn.dataset.hrdel]; renderHouseRules(); });
+    });
+  }
+  function loadRulesIntoPanel(rules){
+    var r = rules || {};
+    renderRuleGrids();
+    setRuleGridChecked('ruleBannedSpecies', r.bannedSpecies);
+    setRuleGridChecked('ruleBannedOriginSpecies', r.bannedOriginSpecies);
+    setRuleGridChecked('ruleBannedOriginClasses', r.bannedOriginClasses);
+    setRuleGridChecked('ruleBannedMasteries', r.bannedMasteries);
+    setRuleGridChecked('ruleBannedBoons', r.bannedBoons);
+    ruleMultiDisc.checked = r.multiDisciplineAllowed !== false;
+    currentHouseRules = Object.assign({}, r.houseRules || {});
+    renderHouseRules();
+    ruleSaveStatus.textContent = '';
+  }
+  document.getElementById('ruleAddHouseRule').addEventListener('click', function(){
+    var name = (ruleHouseRuleName.value||'').trim();
+    if(!name) return;
+    currentHouseRules[name] = true;
+    ruleHouseRuleName.value = '';
+    renderHouseRules();
+  });
+  document.getElementById('ruleSaveBtn').addEventListener('click', async function(){
+    if(!currentCampId) return;
+    var rules = {
+      bannedSpecies: getRuleGridChecked('ruleBannedSpecies'),
+      bannedOriginSpecies: getRuleGridChecked('ruleBannedOriginSpecies'),
+      bannedOriginClasses: getRuleGridChecked('ruleBannedOriginClasses'),
+      bannedMasteries: getRuleGridChecked('ruleBannedMasteries'),
+      bannedBoons: getRuleGridChecked('ruleBannedBoons'),
+      multiDisciplineAllowed: ruleMultiDisc.checked,
+      houseRules: currentHouseRules
+    };
+    ruleSaveStatus.textContent = 'Saving…';
+    try {
+      await B.setCampaignRules(currentCampId, rules);
+      var camp = currentCampaigns.find(function(c){return c.id===currentCampId;});
+      if(camp) camp.rules = rules;
+      ruleSaveStatus.textContent = 'Saved.';
+    } catch(err){
+      ruleSaveStatus.textContent = 'Error: '+err.message;
+    }
+  });
 
   function updateAuth(session){
     if(session){
@@ -1569,6 +1689,7 @@ document.addEventListener('campaign-ready', function () {
     document.getElementById('campPlayerCode').value = camp.invite_code||'';
     document.getElementById('campDmCode').value     = camp.dm_invite_code||'';
     ignoreChk.checked = !!camp.ignore_player_ap;
+    loadRulesIntoPanel(camp.rules);
     campSection.style.display = 'block';
     campRosterName.textContent = camp.name;
     var emptyEl = document.getElementById('empty');
