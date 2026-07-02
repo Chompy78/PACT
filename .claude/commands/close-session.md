@@ -62,6 +62,14 @@ later.
 **8. Open PRs from this session**
 Any PR opened this session that's still unmerged — list it and ask if it needs a decision now.
 
+**9. Cross-project hints**
+Did this session surface a lesson general to AI-assisted coding, not specific to PACT (e.g. a
+cross-platform gotcha, a git/worktree pattern, a prompting/agent-design lesson)? If yes, draft a
+candidate entry — a one-line trigger (the concrete scenario) plus a one-line generalized rule —
+and list "push it to `ai-lessons-learned`" as one of the lettered follow-up actions. Don't write
+it anywhere without approval, same as every other action in this skill. If nothing general came
+up, say so and skip this.
+
 ## Output format
 
 Give a short punch list, grouped by the numbers above — done / not needed / needs action.
