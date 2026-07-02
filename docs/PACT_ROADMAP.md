@@ -334,6 +334,38 @@ than only generic code-quality issues.
 ```
 **Done when:** docs/HOW-TO-WORK.md documents this usage pattern with a copy-pasteable example prompt.
 
+## Add `BUILD` export to js/engine.js + wire index.html to read it live — TODO
+Branch fix/engine-build-export. Closes a docs/architecture-drift gap found in a 2026-07-02 audit: AGENTS.md
+and docs/VERSION-SYNC.md both document `export const BUILD = "v0.107"` living in js/engine.js with
+index.html reading it live so it "never drifts" — neither exists in the code (`git log -S"export const
+BUILD"` returns zero hits ever, across all branches; index.html has no BUILD/version-reading code at all).
+The three tools' v0.107 labels currently match only by hand-maintained convention. **Worse than a docs gap:**
+CHANGELOG.md's 2026-07-01 "CU-2: sync DM Console build version" entry explicitly claims "All three tools
+now mirror BUILD in js/engine.js; index.html reads it live" — that claim is false on `preview` as of this
+writing (verified live: no BUILD export, no index.html version code). This is the actual prerequisite for
+the "AUD-1 follow-up: version/build-sync check" task below, which assumes BUILD already exists.
+
+```text
+1. Add `export const BUILD = "v0.107";` to js/engine.js (near the DATA/version constants), matching the
+   value already hand-maintained across the three tools.
+2. Wire index.html to import BUILD from js/engine.js via the module bridge and render it live somewhere
+   sensible (index.html currently has zero version-reading code — this is new UI, not a fix to existing
+   UI; pick the least intrusive spot, e.g. footer).
+3. Do NOT hand-edit index.html's version display after this lands — it should always reflect BUILD from
+   js/engine.js.
+4. Leave the three tools' own hand-maintained version labels as-is for now (CharGen line-1 comment/title/
+   header, Live Sheet line-1 comment, DM Console TOOL_VERSION) — Task 6 (CharGen module bridge migration)
+   is the natural point to also wire those to read BUILD live; note that follow-up but don't do it here.
+5. Update docs/VERSION-SYNC.md only if implementation details end up differing from what it already
+   describes — otherwise it's accurate once BUILD exists.
+6. Correct CHANGELOG.md's 2026-07-01 CU-2 entry (or add a follow-up entry) once this lands so the log
+   stops asserting the mechanism existed before it actually did.
+7. Display-only / tooling — do NOT bump DATA.version; log the fix in CHANGELOG.md.
+```
+**Done when:** `js/engine.js` exports `BUILD`; `index.html` displays it live (no hardcoded version
+string); `docs/VERSION-SYNC.md` matches reality; the false CU-2 CHANGELOG claim is corrected; parity
+still 5/0.
+
 ## AUD-1 follow-up: version/build-sync check — TODO
 Branch chore/aud1-version-sync-check. Do AFTER AUD-1 (Automated health check) lands.
 
