@@ -58,6 +58,22 @@ chars and/or rate-limiting join_campaign. Keep the check regex (update it if you
 **Done when:** codes still unique + match the check regex, sourced from `gen_random_bytes`.
 (Full detail: REV-07.)
 
+## Verify REV-07 invite-code migration live in Supabase — TODO
+Branch chore/verify-invite-code-migration-live. Do AFTER PR #82 (REV-07 CSPRNG fix) merges into `preview`
+— the migration file doesn't exist on `preview` yet.
+
+```text
+1. Apply sql/migrations/2026-07-02-rev07-csprng-invite-codes.sql to the live Supabase project (via the
+   Supabase MCP apply_migration, or the SQL editor).
+2. Spot-check: trigger gen_invite_code() (e.g. via regenerate_invite_code/regenerate_dm_invite_code on a
+   test campaign) and confirm the returned code matches ^[A-Z0-9]{6}$ and is unique against existing
+   invite_code/dm_invite_code values.
+3. No code change expected — this is an operational verification step, not a fix. If the migration
+   reveals a problem, file a follow-up fix rather than patching live.
+```
+**Done when:** the migration is applied to the live Supabase project; a spot-checked generated code
+matches the check regex and is confirmed unique; no code changes (parity unaffected).
+
 ## Task 6 — CharGen module bridge migration — TODO
 ```
 Migrate tools/PACT-CharGen-Webtool.html from its embedded DATA + compute() copy to the shared
