@@ -39,17 +39,21 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- Invite-code generator: 6 chars, A-Z0-9 (matches the campaigns check).
+-- Sourced from gen_random_bytes (pgcrypto, CSPRNG) rather than random(), which
+-- is a plain PRNG not fit for anything that acts as a shared secret (REV-07).
 -- ---------------------------------------------------------------------------
 create or replace function public.gen_invite_code()
 returns text language plpgsql as $$
 declare
   alphabet constant text := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   code text;
+  raw  bytea;
 begin
   loop
+    raw := gen_random_bytes(6);
     code := '';
-    for i in 1..6 loop
-      code := code || substr(alphabet, 1 + floor(random()*36)::int, 1);
+    for i in 0..5 loop
+      code := code || substr(alphabet, 1 + (get_byte(raw, i) % 36), 1);
     end loop;
     exit when not exists (
       select 1 from public.campaigns where invite_code = code or dm_invite_code = code
