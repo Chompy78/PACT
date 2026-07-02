@@ -27,10 +27,16 @@ If none of these apply, state that and proceed.
   `DATA`, `compute`, `rebuildStateFromEvents`, `baseBuild`, `MUT`, `activeEvents`, `economy`, `foldBuild`.
   Never re-implement rules logic anywhere else.
 - **Three UI-only tools** in `tools/` (`PACT-CharGen-Webtool.html`, `PACT-Live-Char-Sheet.html`,
-  `DM-Console.html`) load the engine via a **module bridge**: a `<script type="module">` imports
-  `../js/engine.js`, copies the API onto `window`, and fires `engine-ready`; the tool's classic UI script
-  waits for that event. `tools/` and `js/` must stay siblings. (CharGen still embeds its own engine copy —
-  migrating it onto the bridge is a pending task, so the others are the reference pattern.)
+  `DM-Console.html`) each **hand-copy** their own `DATA`/`compute()`/`MUT`/`baseBuild`/`activeEvents`/
+  `economy`/`foldBuild` — **none of the three import these from `js/engine.js` today** (see DECISIONS.md
+  D-GH9). What each tool's `<script type="module">` block actually bridges is narrower, and differs per
+  tool: Live Sheet imports `validate()` from `js/engine.js` plus sync/auth/campaign helpers (`js/sync.js`,
+  `js/auth.js`, `js/campaign.js`), copies them onto `window`, and fires `sync-ready`. DM Console's module
+  script imports only auth/campaign/dm helpers (`js/auth.js`, `js/campaign.js`, `js/dm.js`) — it imports
+  nothing from `js/engine.js`, not even `validate()` — and fires `campaign-ready`. CharGen has no module
+  bridge at all: no cloud/auth wiring, fully local. `tools/` and `js/` must stay siblings. Migrating all
+  three tools' `DATA`/`compute`/`MUT`/etc. onto a real engine-module bridge is pending work (Task 6 scopes
+  CharGen first; see `docs/PACT_ROADMAP.md`).
 - **Persistence:** the app is an installable, offline-capable PWA with **optional sign-in**. Local-only
   still works (localStorage + JSON import/export); when signed in, characters also save to the **cloud
   (Supabase)** and DMs run **campaigns**. CharGen = a flat build JSON; Live Sheet = an event log
