@@ -22,33 +22,6 @@ prune) has landed and graduated to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## Fix AGENTS.md's stale "module bridge" claim for Live Sheet/DM Console (HIGH) — TODO
-AGENTS.md's Architecture section says Live Sheet and DM Console already load `DATA`/`compute`/`MUT`/
-`baseBuild`/`activeEvents`/`economy`/`foldBuild` from `js/engine.js` via a module bridge, with only
-CharGen (Task 6) still embedding its own copy. This is false: both tools' only `<script type="module">`
-block bridges `validate()` plus sync/auth/campaign/dm helpers — `DATA`/`compute`/`MUT` are still hand-
-copied top-level declarations in each tool's own HTML, exactly like CharGen (Live Sheet's own header
-comment even documents this: "SHARED, DUPLICATED CODE ... copy-pasted into BOTH html files"). Discovered
-while implementing Feature A (multi-tradition spellcasting, PR #85) — an engine.js-only MUT edit would
-have shipped a feature that passed `engine-parity.html` while doing nothing in the actual tool, because
-that gate only ever imports `js/engine.js`, never the tools' embedded copies. Full writeup: DECISIONS.md
-D-GH9.
-```
-Marked HIGH because AGENTS.md is the first thing every agent session reads for architecture ground truth
-— a wrong claim here doesn't just mislead a human, it can cause a future agent to silently ship a
-no-op change while every automated check stays green. Two ways to close this, pick one:
-(a) Correct AGENTS.md's wording to describe what's actually bridged (validate()/sync/auth/campaign/dm)
-    vs. what's still hand-copied (DATA/compute/MUT/baseBuild/activeEvents/economy/foldBuild) per tool.
-(b) Actually finish the bridge migration for all three tools' DATA/compute/MUT — Task 6 currently only
-    scopes CharGen; this would need to become a 3-tool migration (bigger, higher-risk — touches every
-    tool's rules-purchasing logic at once).
-Recommend (a) first (cheap, immediately closes the misleading-docs risk) with (b) filed as its own
-separate, larger migration task if the team decides the duplication itself is worth removing.
-```
-**Done when:** AGENTS.md's Architecture section accurately describes what's bridged vs. hand-copied in
-each of the three tools (CharGen, Live Sheet, DM Console) — no agent reading it going forward would make
-the same wrong assumption this session caught.
-
 ## Fix crash exporting to Live Sheet when a species/racial trait is selected — TODO
 Branch fix/chargen-livesheet-racialtraits-crash. `tools/PACT-CharGen-Webtool.html`'s "⇆ Live Sheet"
 button throws for any character with ≥1 species/racial trait (the common case).
