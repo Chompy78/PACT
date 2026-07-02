@@ -128,40 +128,6 @@ engine copy, so until it's on the shared bridge it won't see js/ap-by-level.js (
 **Done when:** editing a value in js/ap-by-level.js changes the default budget / level options in every tool
 that's on the shared engine, with no other code change; engine API stable; parity passes.
 
-## Feature A — Live Sheet multi-tradition / multi-discipline spellcasting (+ Magically Bound) — TODO
-Branch `feat/multi-tradition-discipline`. **Engine first** (extend `found`, add `dbound`), then the tools.
-```
-Allow buying >1 tradition and >1 discipline per tradition, each shown by name on its own row.
-Per-discipline "Magically Bound" (one-way; reverse only by undo): Binding awards a flat +2 AP with NO
-retroactive refund; the −1 spell discount (cantrips/slots/known, floor 1; not Foundation/Rank) applies
-from then on. Move "Subclass spell lists" into the Magic category.
-5 tasks across 2 files (parity stays 5/0 throughout). Execution order: 1 → verify parity → 4 → 5 → 3 → 2.
-  1. js/engine.js (MUT) — extend `found` (add a discipline to an existing tradition) + add a `dbound`
-     setter (sets d.bound on {ti,di}). Additive only, ZERO compute() change. VERIFY PARITY after task 1.
-  2. Live Sheet — 'Spellcasting' GROUPS closure: iterate all traditions + disciplines, per-discipline
-     headers, a Magically Bound toggle, and "Add discipline" / "Open another tradition" buttons.
-  3. Live Sheet — priceOf: 3 lines so dbound/mbound flat-price ±2 AP (no full recompute). Also fixes a
-     pre-existing Martially Bound refund bug.
-  4. Live Sheet — _catOf: move 'Subclass spell lists' to Magic (2 lines).
-  5. Live Sheet — ib() tooltip wiring (1 line) + pass a descr to Martially Bound's ib() call.
-  6. Live Sheet — gate the new "Add discipline" / "Open another tradition" buttons (task 2) on the
-     active campaign's `multiDisciplineAllowed` rule (added after this feature was originally scoped —
-     see D-GH14/D-GH16): if a campaign has it set to `false`, hide/disable those buttons instead of
-     letting the player buy a 2nd tradition/discipline and only finding out at cloud-save that
-     `validate()` rejects it. `window._cloudCampaignRules` (populated by `refreshCloudCampaignRules()`,
-     added in the campaign-rules-live-filter follow-up) already carries this flag — reuse it, don't
-     re-fetch. `validate()` itself needs no change; it already checks total discipline count.
-Full spec: IMPLEMENT-multi-tradition-discipline.md (+ ENGINE-CHANGES-prompt.md for the engine slice);
-snippets are from a v0.322 standalone — read the live code and adapt. Read the Live Sheet HTML ONCE and
-apply tasks 4,5,3,2,6 in a single editing pass (it's large).
-```
-**Done when:** multiple traditions/disciplines buy + display correctly; Magically Bound applies +2/−1 with
-no retroactive refund; subclass lists sit under Magic; a campaign with `multiDisciplineAllowed:false`
-hides the add-discipline/add-tradition buttons instead of only blocking at cloud-save; parity stays 5/0.
-⚠️ Kit claims `compute()` / `DATA.version` are untouched — **verify that for a pricing feature**; if pricing
-changes, update the REV-01 baseline and follow the version rule. Log under a **NEW** decision code
-(**D-GH9** — the draft's "D-GH3" is already taken).
-
 ## Feature B — Save-file integrity (tamper-evidence) — TODO
 Branch `feat/save-integrity`. **Do AFTER Feature A.** Engine first (sign/verify helpers), then the tools.
 ```
