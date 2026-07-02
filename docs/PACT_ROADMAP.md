@@ -49,15 +49,6 @@ Apply live via the Supabase MCP (apply_migration), verify has_function_privilege
 **Done when:** all ~12 functions show `anon_can_execute = false` / `authenticated_can_execute = true` live,
 migration file committed, `sql/rls-policies.sql` matches.
 
-## REV-07 — Invite codes from a CSPRNG (MEDIUM) — TODO
-`gen_invite_code` uses `floor(random()*36)` (non-CSPRNG), no throttling.
-```
-Build the code from gen_random_bytes(n) (pgcrypto already enabled) mapped onto the alphabet; consider 8
-chars and/or rate-limiting join_campaign. Keep the check regex (update it if you lengthen).
-```
-**Done when:** codes still unique + match the check regex, sourced from `gen_random_bytes`.
-(Full detail: REV-07.)
-
 ## Verify REV-07 invite-code migration live in Supabase — TODO
 Branch chore/verify-invite-code-migration-live. Do AFTER PR #82 (REV-07 CSPRNG fix) merges into `preview`
 — the migration file doesn't exist on `preview` yet.
