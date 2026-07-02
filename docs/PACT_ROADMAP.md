@@ -29,6 +29,26 @@ prune) has landed and graduated to `CHANGELOG.md`.
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
 
+## Lock down remaining Supabase function EXECUTE grants (anon) — TODO
+Branch fix/lock-down-remaining-function-grants. Revoke the default Postgres EXECUTE-to-PUBLIC grant on the
+~12 remaining flagged functions, matching the award_ap/award_xp fix already applied.
+
+```text
+Apply as a new migration (sql/migrations/<date>-lock-down-remaining-function-grants.sql) and mirror the
+grants into sql/rls-policies.sql. Full plan and safety verification already done in DECISIONS.md D-GH15:
+- Trigger-only functions (handle_new_user, add_owner_as_dm, set_updated_at): revoke execute from public,
+  no replacement grant needed (Postgres blocks direct calls to `returns trigger` functions anyway).
+- Client-facing RPCs already granted to authenticated (join_campaign, join_as_dm, promote_to_dm,
+  remove_dm, regenerate_invite_code, regenerate_dm_invite_code): revoke execute from public.
+- Internal-only helpers with no explicit grant today (gen_invite_code, is_campaign_dm,
+  is_campaign_member, is_campaign_owner, shares_campaign): grant execute to authenticated FIRST, then
+  revoke from public, so authenticated behaviour doesn't change.
+Apply live via the Supabase MCP (apply_migration), verify has_function_privilege('anon', ..., 'EXECUTE')
+= false for all of them, then commit the migration file + rls-policies.sql update.
+```
+**Done when:** all ~12 functions show `anon_can_execute = false` / `authenticated_can_execute = true` live,
+migration file committed, `sql/rls-policies.sql` matches.
+
 ## REV-07 — Invite codes from a CSPRNG (MEDIUM) — TODO
 `gen_invite_code` uses `floor(random()*36)` (non-CSPRNG), no throttling.
 ```
