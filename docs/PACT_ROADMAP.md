@@ -231,6 +231,52 @@ Scope (minimal clarity/labeling only — NOT new enforcement mechanics):
 be mistaken for the cloud campaign system; Live Sheet shows a persistent sign-in + campaign-rules-active
 badge outside the ☁ Cloud dropdown; no enforcement/validation behavior changed; parity still 5/0.
 
+## CharGen/Live Sheet: theme selector hidden/clipped + no system dark-mode default — TODO
+Branch fix/chargen-livesheet-theme-selector. The theme selector (🎨 Default/Dark/D&D/Royal/Forest dropdown) is inaccessible in real conditions, and neither tool follows the device's dark/light setting on first use.
+
+```text
+Context: tools/PACT-CharGen-Webtool.html and tools/PACT-Live-Char-Sheet.html both persist the chosen theme
+to the SAME localStorage key ('pactTheme') via an identical setTheme()/restore IIFE pattern (CharGen
+~line 2657-2659, Live Sheet ~line 1459-1461) — so they're already meant to stay in sync, just missing two
+things. index.html (landing page) already solves both of these correctly for its OWN separate theme system
+(different localStorage key 'pact-theme', different theme names parchment/midnight/dragonfire/contrast) —
+use its pattern (index.html ~line 49-63) as the reference, don't invent a new one.
+
+Bug 1 — selector hidden on mobile (CharGen):
+- .hd-row2 (contains the #themesel dropdown, ~line 391) is set to `display:none` at
+  @media(max-width:768px) (~line 305), alongside .hd-row3.
+- Unlike .hd-row3's action buttons (Save/Load/Share/Live Sheet/AI Portrait/Campaign/etc.), which get
+  re-surfaced in `.mobile-action-bar` (~line 405-415), the theme selector was never added anywhere on
+  mobile — it's simply gone. Add it (or an equivalent compact control) to the mobile-visible header/bar.
+- Confirm whether Live Sheet has the same mobile hide-without-re-surface gap for its own #themesel
+  (Live Sheet's `.top` header, ~line 281-288) and fix identically if so.
+
+Bug 2 — selector can overflow/clip on desktop:
+- .hd-row2 (~line 294) has no `flex-wrap` and no overflow handling, unlike .hd-row3 which explicitly has
+  `flex-wrap:wrap`. It packs the tool title, version tag, "last edited" timestamp, AND the theme dropdown
+  (pushed to the far right via `margin-left:auto`) into one non-wrapping row — on a narrower or zoomed
+  desktop window this can overflow and visually clip the theme selector even though it's "present" in the
+  DOM. Add flex-wrap (or move the theme selector to a spot that can't be squeezed out) so it's always
+  visible/reachable at any desktop width.
+
+Feature — default to system dark/light when there's no saved choice:
+- Add the same "saved choice wins, else follow prefers-color-scheme:dark, else default" logic index.html
+  already uses (~line 49-63) to BOTH CharGen's and Live Sheet's theme-restore IIFEs. Map system dark mode
+  to the tools' existing 'dark' theme option (there's no separate "system" entry needed — just resolve
+  the initial value the same way index.html does).
+- Apply it early enough to avoid a flash of the wrong theme before JS runs — index.html runs its check
+  inline in <head> before first paint; CharGen/Live Sheet currently run their restore IIFE near the bottom
+  of the file (CharGen ~line 2659, Live Sheet ~line 1461), after the page has already rendered in the
+  default theme. Move the check earlier (inline in <head>, matching index.html) if feasible without
+  breaking the tools' existing load order; note in the PR if that's not practical and why.
+- "Default to last used" already works today (both tools already read the saved 'pactTheme' value) —
+  this task only needs to ADD the system-preference fallback for the case where nothing is saved yet.
+
+Do not touch DM-Console.html (it has no theme system today — out of scope) or engine/rules logic.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+**Done when:** the theme selector is reachable in CharGen on both a real mobile-width screen and a narrow/zoomed desktop window; Live Sheet's selector is confirmed not to have the same mobile-hide gap (or is fixed identically if it does); a first-time visitor (no saved theme) sees CharGen/Live Sheet open in dark mode when their device is in dark mode, and in the previously-saved theme otherwise; parity still 5/0.
+
 ## Lock down remaining Supabase function EXECUTE grants (anon) — TODO
 Branch fix/lock-down-remaining-function-grants. Revoke the default Postgres EXECUTE-to-PUBLIC grant on the
 ~12 remaining flagged functions, matching the award_ap/award_xp fix already applied.
