@@ -133,6 +133,51 @@ load/revisit (not dependent on the browser's own 24h heuristic) in both installe
 modes, on every page including login.html; login.html's handler matches the other four pages' banner
 pattern; parity still 5/0 (no engine change expected).
 
+## Live Sheet unusably cramped on small mobile screens — TODO
+Branch fix/mobile-livesheet-density. On small phone widths, the Live Sheet packs too many items into single rows, uses text too small to read comfortably, and has no way to collapse sections — all three "Buy/progress", "Character", and "History & ledger" cards stack into one long, always-fully-expanded column with heavy scrolling.
+
+```text
+Context: the Live Sheet has only one mobile breakpoint (@media(max-width:600px), ~line 70) tuning things
+like ability-score columns (6→3) and touch targets. Several sections got missed or only partially tuned,
+and there is no section-level collapse on mobile at all today:
+- .slotgrid (spell slots, line ~191) is hardcoded to `grid-template-columns:repeat(9,1fr)` with NO mobile
+  override anywhere — 9 columns (spell levels 1-9) squeeze into one row at any width, including phones.
+- .spcols (spell-list columns, line ~196) only narrows 3→2 at 760px (line ~209); nothing narrows it
+  further for small phones (e.g. ~375-400px wide).
+- .shabrow/.shkpis (printable character-sheet ability/stat rows, lines ~171/177) are hardcoded to 3
+  columns with no width-specific tuning at all.
+- Buy-list item buttons (.ib, lines ~78/120/139) and category headers (.cath, line ~95) sit at 11.5-13px
+  font — workable on a tablet-width phone but tight on smaller screens.
+- There is no breakpoint tier below 600px, so there's no separate treatment for genuinely small phones
+  (~375-400px, e.g. iPhone SE/mini-class widths) vs. larger phones (~412-428px).
+- .layout (~line 300+) holds three top-level cards — "Buy / progress", "Character", "History & ledger" —
+  in a CSS grid that collapses to a single column under 1000px (@media(max-width:1000px)); on mobile all
+  three are always fully expanded and stacked, forcing long scrolling to move between sections.
+- A collapse/expand pattern already EXISTS for buy-list category groups (.bgcat/.cath, ▾/▸ toggle via the
+  .clp class, ~lines 135-136) — reuse this same interaction pattern for the new section-level collapse
+  rather than inventing a second one.
+
+1. Audit every grid/flex layout and font-size in tools/PACT-Live-Char-Sheet.html's mobile-relevant CSS
+   against a real small-phone viewport (~375-390px width): the existing @media(max-width:600px) block
+   plus the un-tuned spots above (.slotgrid/.spcols/.shabrow/.shkpis).
+2. Fix .slotgrid specifically: it must not force 9 columns at small widths — wrap to fewer columns
+   (e.g. 3-5 per row with the grid flowing to multiple rows) or make it horizontally scrollable, whichever
+   keeps each slot cell legible.
+3. Add a narrower breakpoint tier (e.g. @media(max-width:400px)) for further column/font reduction where
+   the 600px tuning still isn't enough, rather than assuming one breakpoint covers all phone sizes.
+4. Re-check font sizes on buy-list items and category headers at small widths; bump if needed for legibility.
+5. Add collapse/expand to the three top-level cards (Buy/progress, Character, History & ledger) on mobile
+   (≤1000px, matching the existing single-column breakpoint): a tap on each card's header (h3) toggles
+   that card's body open/closed, mirroring the existing .bgcat/.cath ▾/▸ pattern. Default state (all open
+   vs. remembering last state vs. only "Character" open by default) is an implementation call — pick
+   whichever needs the least new state-persistence machinery, and say what was chosen in the PR/CHANGELOG.
+6. Do not change desktop/tablet layout (existing >1000px behaviour) or engine/rules logic.
+   Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+7. Related to (but separate from) the "Mobile sticky buttons regression" task already on the roadmap —
+   both are mobile-usability gaps in the same file; can be picked up independently or together.
+```
+**Done when:** on a real small-phone viewport (~375-400px wide), no section of the Live Sheet forces unreadable multi-column cramming; text and tap targets are legible without pinch-zooming; the three top-level sections (Buy/progress, Character, History & ledger) can each be collapsed/expanded independently on mobile; desktop/tablet layout unchanged; parity still 5/0.
+
 ---
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
