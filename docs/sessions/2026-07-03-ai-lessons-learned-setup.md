@@ -50,7 +50,7 @@ left off, instead of re-deriving all of the design decisions from scratch.
      failed with `remote: Repository not found. / fatal: Authentication failed`, even though
      the repo demonstrably exists.
 
-## Current blocker / what to check next
+## Current blocker / what to check next (superseded — see "Retest result" below)
 The user regenerated the fine-grained PAT and confirmed, on GitHub's token summary screen:
 - Repository access: `Chompy78/ai-lessons-learned` (correct repo, singular, selected)
 - Repository permissions: "Read access to metadata" + "Read and Write access to code" (this
@@ -71,6 +71,47 @@ git clone https://x-access-token:$AI_LESSONS_TOKEN@github.com/chompy78/ai-lesson
 If that succeeds, also run `.claude/hooks/session-start.sh` directly (already committed to
 PACT) with `CLAUDE_CODE_REMOTE=true` to confirm the whole hook works end-to-end, not just a
 raw clone. Clean up `/tmp/test-clone` afterward.
+
+## Retest result (2026-07-03, follow-up session) — root cause was NOT the token
+Re-ran the clone in a fresh session against the same environment. `AI_LESSONS_TOKEN` was
+confirmed present (93 chars). The raw clone still failed identically:
+```
+git clone https://x-access-token:$AI_LESSONS_TOKEN@github.com/chompy78/ai-lessons-learned.git
+→ remote: Repository not found. / fatal: Authentication failed
+```
+Probing further, `curl -H "Authorization: Bearer $AI_LESSONS_TOKEN" https://api.github.com/user`
+returned a real 200 (token is valid, resolves to `Chompy78`), but
+`.../repos/chompy78/ai-lessons-learned` returned an **Anthropic-proxy** 403 —
+`"GitHub access to this repository is not enabled for this session. Use add_repo to request
+access."` — not a GitHub error at all.
+
+**Actual root cause:** Claude Code on the web sessions route all `github.com`/`api.github.com`
+traffic through a policy-enforcing egress proxy that injects the *session's own* scoped GitHub
+App credentials (`gitConfigInjection: true` — see `/root/.ccr/README.md`), which override
+whatever token is embedded in the clone URL or `Authorization` header. A session is only
+authorized for the repos explicitly in its scope (here, just `chompy78/pact`); any other repo
+gets rejected as "not found" regardless of PAT validity, correctness of fine-grained
+permissions, or whether the env var is set. **The fine-grained PAT was a dead end for this
+environment type from the start** — it can never work here, no matter how it's configured.
+
+**The actual fix:** the agent must call the `add_repo` tool (owner=`chompy78`,
+repo=`ai-lessons-learned`) from *inside* an agent turn — this grants the session GitHub scope
+for that repo for the rest of the session, no PAT involved. After that, a plain
+`git clone --depth 1 https://github.com/chompy78/ai-lessons-learned /workspace/ai-lessons-learned`
+succeeded immediately (commit `e61dc0b`, `README.md` only — the starter kit tarball with
+`INDEX.md`/`topics/`/workflows was never actually pushed to the repo).
+
+**This breaks the `SessionStart` hook design as built.** `.claude/hooks/session-start.sh` does
+a raw PAT-based `git clone` from a non-interactive shell script — it has no way to call
+`add_repo` (an agent tool, not a shell command), so it will **never succeed** in a remote
+session, independent of `AI_LESSONS_TOKEN`. Worse, `add_repo`'s own tool contract says it must
+only be invoked when the user *explicitly* asks in that turn — which is fundamentally at odds
+with "auto-load silently on every session start" with no per-session prompt. This is a real
+design gap, not a config error: **the remote/cloud half of the original plan (SessionStart hook
++ PAT) needs to be rethought**, e.g. the agent explicitly calling `add_repo` itself early in a
+session when the user's request is about `ai-lessons-learned` (as happened in this very
+session), rather than a hook silently fetching it. Left for the next session to decide; not
+fixed here since it's a scope/architecture change, not a "flip a bug" fix.
 
 ## Still outstanding after that (lower priority, not blocking)
 - Historical backfill: mine `docs/sessions/*.md` and the generalizable parts of `DECISIONS.md`
