@@ -113,6 +113,36 @@ session when the user's request is about `ai-lessons-learned` (as happened in th
 session), rather than a hook silently fetching it. Left for the next session to decide; not
 fixed here since it's a scope/architecture change, not a "flip a bug" fix.
 
+## Redesign decision (2026-07-03, same follow-up session) — remote hook now nudges, doesn't fetch
+Considered three options for the remote/cloud half of the design once the PAT approach was
+confirmed dead:
+- **A — split into a private source repo + a public mirror of just `INDEX.md`** (auto-published
+  by a GitHub Action on push, fetched by the hook via a plain unauthenticated `curl` of
+  `raw.githubusercontent.com`). Empirically verified this domain is **not** gated by the
+  session's GitHub-scoping proxy — tested with a public repo (`octocat/Hello-World`) and a
+  public Gist totally outside this session's scope, both returned real `200`s; the private
+  `ai-lessons-learned` repo's raw URL correctly `404`s unauthenticated, confirming the split
+  would work exactly as designed. Rejected anyway — see decision below.
+- **B — GitHub Pages on the private repo** — dead end, Pages built from a private repo still
+  requires GitHub auth to view, so it hits the same scoping wall.
+- **C — agent calls `add_repo` explicitly only when a task looks relevant** — fully private,
+  fully manual, no automatic coverage on unrelated sessions.
+
+**Decision: C.** The user expects to store a lot of session detail in this repo over time and
+wants it to **stay private**, full stop — option A's "small public mirror" would have worked,
+but pushing anything (even a curated index) to a public location was a bigger tradeoff than the
+convenience it bought, especially before the repo has any real usage pattern to judge what's
+safe to make public. Chose to keep everything private and accept manual-but-directed loading
+instead.
+
+**What changed as a result:** `.claude/hooks/session-start.sh` no longer attempts any `git
+clone`/`AI_LESSONS_TOKEN` logic at all — in a remote session it now just prints a short,
+fixed-cost reminder telling the agent that `chompy78/ai-lessons-learned` exists and to call
+`add_repo` + read `INDEX.md` itself if the current task looks relevant. This removes the
+`AI_LESSONS_TOKEN` dependency entirely (the env var can be deleted from the environment's
+config whenever convenient — nothing in the repo reads it anymore) and trades "fully automatic
+every session" for "near-zero token cost on unrelated sessions, full pull-in on relevant ones."
+
 ## Still outstanding after that (lower priority, not blocking)
 - Historical backfill: mine `docs/sessions/*.md` and the generalizable parts of `DECISIONS.md`
   for lessons that predate this system, using an Explore-type agent.
