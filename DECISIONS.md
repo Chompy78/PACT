@@ -6,6 +6,44 @@
 
 ---
 
+## D-GH23 · `/pick-task` Step 1 delegates its four `git show` fetches to an Explore subagent
+- **Context:** `/pick-task` (née `/next-task` Step 1) needs the live `preview`-branch copies of
+  `AGENTS.md`, `docs/PACT_ROADMAP.md`, `testing/tests/engine-parity.html`, and
+  `testing/expected/expected-results.csv` before it can pick or pre-flight a task — but reading all four
+  inline puts their full content in the picking session's own context for a result that's really just
+  four facts (branch convention, pass count, NOW/NEXT TODOs, highest `D-GH#`).
+- **Options considered:** (A) keep the four `git show` calls inline, as `/next-task` always did; (B)
+  delegate the fetch-and-summarize step to an `Explore`-type subagent via the `Agent` tool, returning only
+  the compact summary.
+- **Decision:** (B). `/log-ai-lessons` already uses this exact pattern for its directory/glob case (delegate
+  the bulk reading, keep only the drafted output) — this extends the same convention to `/pick-task`.
+- **Why:** the picking session doesn't need the raw file contents to stay in its own context for the rest
+  of the conversation; only the four derived facts do. Not retrofitted onto `/close-session`, which reads
+  local repo state rather than fetching remote files, so the same justification doesn't apply there.
+- **Status:** DONE.
+
+## D-GH22 · `/run-task` uses native Claude Code worktrees (`EnterWorktree`), superseding the "Option A" sibling `pact-worktrees/` folder layout
+- **Context:** `/next-task`'s manual worktree code (`git worktree add -b <slug> <worktrees-root>/pact-worktrees/<slug> origin/preview`, plus `-C <path>` on every later git call) had a path-arithmetic bug — `worktrees-root` was already defined as ending in `pact-worktrees`, so the `git worktree add` line doubled it into `.../pact-worktrees/pact-worktrees/<slug>`. Fixing that bug was itself an open question at the same time Claude Code's native `--worktree` flag / `EnterWorktree` tool (v2.1.50+) became available, which does the create/branch/cleanup automatically instead of via ~30 lines of manual prompt logic.
+- **Options considered:** (A) fix the doubled-path bug in place, keeping the sibling
+  `<repo-parent>/pact-worktrees/<slug>` folder layout previously agreed as the intended structure
+  ("Option A" — one `pact-worktrees/` folder next to the PACT folder, each task inside it); (B) adopt
+  native `EnterWorktree`/`--worktree`, which always creates worktrees under `.claude/worktrees/<name>/`
+  inside the repo itself — there is no setting to redirect that location short of a `WorktreeCreate` hook,
+  which replaces the tool's git logic entirely and was ruled out of scope for this change.
+- **Decision:** (B). **This explicitly supersedes the earlier "Option A: sibling `pact-worktrees/` folder"
+  decision** — worktrees now live at `.claude/worktrees/<slug>/` (added to `.gitignore`), not next to the
+  repo. `EnterWorktree` sanitizes `/` out of its `name` argument (`feat/foo` → directory
+  `feat+foo`, branch `worktree-feat+foo`), so `/run-task` Step 4 renames the branch with `git branch -m`
+  immediately after creation — verified working directly in-session (see `run-task.md` Step 4 for the
+  exact caveats). Worktrees branch from the repository's actual GitHub default branch, confirmed to be
+  `preview` (`git remote show origin` → `HEAD branch: preview`), so no `worktree.baseRef` override is
+  needed.
+- **Why:** the automation/safety wins (trust handling, automatic branch creation, cleanup on exit,
+  project-scoped plugin inheritance) outweigh the cosmetic location change, and there's no way to keep
+  both the native tooling and the old sibling-folder layout without adding a new hook, which this change
+  was scoped to avoid.
+- **Status:** DONE.
+
 ## D-GH21 · `/plan-for-review` output is a trust-boundary crossing artifact — secrets excluded by instruction, not by gate
 - **Context:** the new `/plan-for-review` skill (`.claude/commands/plan-for-review.md`) drafts a plan and
   writes it to `docs/plans/<date>-<slug>.md`, explicitly designed so a *different* AI tool with no repo

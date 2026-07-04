@@ -1,3 +1,9 @@
+---
+description: Report-only wrap-up check for docs, tests, working tree, worktrees, and sync status
+allowed-tools: Read, Grep, Glob, Bash(git status *), Bash(git log *), Bash(git branch *), Bash(git worktree list *), Bash(git fetch *), mcp__github__pull_request_read, mcp__github__list_pull_requests, mcp__github__search_pull_requests
+disallowed-tools: Edit, Write, NotebookEdit, Bash(git push *), Bash(git commit *), Bash(git merge *), Bash(git rebase *), Bash(git reset *), Bash(git branch -d *), Bash(git branch -D *), Bash(git worktree add *), Bash(git worktree remove *)
+---
+
 # PACT — close off this session
 
 You check whether this session is safe to wrap up, and report anything left dangling. This is a
@@ -32,7 +38,10 @@ If a `docs/PACT_ROADMAP.md` task was completed this session, confirm it was actu
 `CHANGELOG.md` in the same change, not just left checked off or forgotten in the roadmap.
 
 **3. Test gate**
-Confirm `testing/tests/engine-parity.html` was run this session and passed the *current* baseline (read
+First check whether this session's changes are docs-only: `git status` and classify every touched path.
+If everything touched is under `docs/`, or is `CHANGELOG.md`, `DECISIONS.md`, or `PACT_ROADMAP.md`, skip
+the check and report: "3. Test gate — skipped, this session was docs-only." Otherwise, confirm
+`testing/tests/engine-parity.html` was run this session and passed the *current* baseline (read
 `testing/expected/expected-results.csv` — don't assume a fixed pass count). If you can't confirm it was
 run, say so rather than assuming it passed.
 
@@ -42,8 +51,9 @@ created this session that isn't committed yet is at risk in a shared checkout �
 leaving it as an untracked/uncommitted file.
 
 **5. This session's branch/worktree**
-If this session used a `pact-worktrees/<slug>` worktree (per `/next-task`), confirm it was removed with
-`git worktree remove` after its PR opened. If it's still there, say so and ask whether to remove it now.
+If this session used a `.claude/worktrees/<slug>` worktree (per `/run-task`), confirm it was exited and
+removed (`ExitWorktree(action: "remove")`) after its PR opened. If it's still there, say so and ask
+whether to remove it now.
 
 **6. Repo-wide branch and worktree sweep**
 This is separate from #5 — it looks at *all* worktrees and local branches, not just this session's:
@@ -53,9 +63,10 @@ git branch -vv
 git fetch origin --prune
 ```
 For each local branch/worktree, report:
-- **Merged & safe to clean up** — its PR has merged (check with `gh pr list --state merged --head <branch>`
-  or `git log origin/main..<branch>` / `origin/preview..<branch>` being empty) but the local branch/worktree
-  still exists. Flag these as cleanup candidates.
+- **Merged & safe to clean up** — its PR has merged (check with the `pull_request_read` /
+  `list_pull_requests` MCP tools for `state: merged, head: <branch>`, or `git log origin/main..<branch>`
+  / `origin/preview..<branch>` being empty) but the local branch/worktree still exists. Flag these as
+  cleanup candidates.
 - **Active elsewhere** — has real commits ahead of `preview`/`main` and no merged PR. Leave alone, just
   note it exists (likely another session's in-flight work).
 - **Orphaned** — local branch whose remote counterpart was deleted (shows `: gone]` in `git branch -vv`)

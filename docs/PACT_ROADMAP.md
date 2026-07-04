@@ -89,6 +89,42 @@ Branch `fix/livesheet-undo-bug`. Reported by the user: in `tools/PACT-Live-Char-
 ```
 **Done when:** undo() produces state identical to what compute()/rebuildStateFromEvents() would derive from the LOG with the last entry removed, across normal buys, drawback buy-off, and the Martially/Magically Bound floor-1 discount case; parity still 5/0.
 
+## Full engine module-bridge migration — CharGen, Live Sheet, DM Console — TODO
+Branch feat/engine-bridge-all-tools. All three tools hand-copy DATA/compute()/MUT/baseBuild/
+activeEvents/economy/foldBuild from js/engine.js instead of importing them — a direct violation of
+AGENTS.md's "js/engine.js is the single source of truth... never re-implement rules logic anywhere
+else." This supersedes Task 6 (CharGen-only) by extending the same migration to Live Sheet and DM
+Console.
+
+```text
+1. CharGen (tools/PACT-CharGen-Webtool.html) — this is Task 6's scope, folded in here: add a
+   <script type="module"> importing { DATA, compute, baseBuild, MUT, activeEvents, economy,
+   foldBuild } from '../js/engine.js', copy each onto window, dispatch new Event('engine-ready');
+   gate the existing UI <script> on that event; delete the inline DATA/compute() entirely.
+2. Live Sheet (tools/PACT-Live-Char-Sheet.html) — its module script today only imports validate()
+   plus sync/auth/campaign helpers (see D-GH9). Extend it to also import DATA, compute, baseBuild,
+   MUT, activeEvents, economy, foldBuild from js/engine.js and copy them onto window alongside the
+   existing bridge; delete its embedded DATA/compute/MUT/etc. copies.
+3. DM Console (tools/DM-Console.html) — its module script today imports nothing from js/engine.js
+   (only auth/campaign/dm helpers). Add a new import of DATA, compute, baseBuild, MUT, activeEvents,
+   economy, foldBuild, validate from js/engine.js, copy onto window, wire into the existing
+   campaign-ready gating; delete its embedded copies.
+4. Compat check: CharGen's compute() differs from the canonical one only in the budget line
+   (compute(b, opts={}) defaults spendable === b.budget). Before deleting Live Sheet's and DM
+   Console's embedded copies, diff them the same way and log any real behavioral differences found.
+5. Update AGENTS.md's "Architecture — read before editing" section to remove the "none of the three
+   tools import these from js/engine.js today" language and describe the new bridged state.
+6. Shrink/remove AUD-1's DATA/compute/MUT drift check (docs/PACT_ROADMAP.md) once all three tools
+   are bridged — that audit step becomes unnecessary.
+7. Log under a NEW decision code — next free is D-GH24 — documenting why all three tools were
+   migrated together rather than one at a time.
+```
+
+**Done when:** no tool has an embedded copy of DATA/compute/MUT/baseBuild/activeEvents/economy/
+foldBuild; CharGen, Live Sheet, and DM Console all import them from js/engine.js via their module
+bridges; testing/tests/engine-parity.html still reports 5/0; AGENTS.md's architecture section
+reflects the bridged state; Task 6 is closed/graduated by this task landing.
+
 ---
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
@@ -574,6 +610,23 @@ caught if a human remembers to open engine-parity.html.
 **Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 5/0
 when run locally too.
 
+## A2 — PR template with review-cadence checklist — TODO
+Branch docs/pr-template-review-cadence. Promoted from LATER — makes the review habit sticky instead of
+relying on memory (ties into this session's audit push).
+
+```text
+1. Add .github/pull_request_template.md containing the per-change checklist from AGENTS.md (parity gate,
+   CHANGELOG/DECISIONS/sessions updates, version-sync check) so every PR auto-includes it.
+2. Add a review-cadence line to the template: run /code-review (low/medium effort) on every PR before
+   merge; run /code-review ultra specifically for PRs touching js/engine.js or sql/ (RLS/migrations)
+   before merge, given the engine is the single source of truth and RLS is the only security boundary.
+3. Optional follow-up (not required for this task): a fuller CONTRIBUTING.md if more people start
+   contributing — caveat: a template isn't force-read the way a CI check is, so treat this as a nudge,
+   not an enforcement mechanism.
+```
+**Done when:** .github/pull_request_template.md exists, includes the per-change checklist and the
+review-cadence line, and appears automatically when opening a new PR against this repo.
+
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
@@ -604,9 +657,6 @@ when run locally too.
 - **A1 — Engine API contract.** Add a JSDoc block atop `js/engine.js` (signatures + one line per export) so
   agents grasp the API without reading 238 KB. *Then (optional):* a dev-only `engine.d.ts` for IDE
   autocomplete — *caveat:* a new format to maintain; can read as "TypeScript creeping in."
-- **A2 — PR template.** Add `.github/pull_request_template.md` with the per-change checklist so every PR
-  auto-includes it. *Then (optional):* a fuller `CONTRIBUTING.md` if you onboard more people — *caveat:* it
-  isn't auto-inserted, so it's easy to skip.
 - **A3 — Client error visibility.** Add a global `onerror`/`unhandledrejection` handler logging to the
   console + a "Report issue" link in the footer. *Then (lower priority):* log errors to a Supabase table
   once sign-in is the default — *caveats:* extra write traffic + a privacy note to document.

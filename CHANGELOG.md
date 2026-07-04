@@ -4,6 +4,50 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-04 · docs(sessions) — record the audit/checking roadmap-additions session** (`docs/sessions/2026-07-04-audit-roadmap-session.md`; no code/rules change). Session note covering 7 new audit/checking roadmap items (Supabase advisor/log checklist step, docs-consistency audit, pre-release QA checklist, rules-correctness review note, AUD-1 version-sync follow-up, plus LATER bullets A9/A10), REV-11's promotion to NEXT, the stale D-GH14 reservation fix (corrected to D-GH18), A2's promotion to NEXT with the `/code-review` cadence folded in, and two separate collisions with concurrent sessions' work on `preview` (a rejected push absorbing 86 commits, then a further fast-forward mid-close-out).
+- **2026-07-04 · feat — add `.worktreeinclude`** (`.worktreeinclude`; no code/rules change). Copies
+  `.claude/*.json` and `.claude/.fpp-reminder-state` — the actual gitignored config this repo has (PACT
+  has no `.env`/build-step config at all) — into every new worktree `/run-task` creates.
+- **2026-07-04 · feat — add YAML frontmatter to every `.claude/commands/*.md` skill** (all six command
+  files; no code/rules change). Each now declares `description`/`argument-hint`; the report-only or
+  draft-only ones (`close-session`, `plan-for-review`, `cleanup-branches`, `pick-task`) also get
+  `disallowed-tools` as the actual hard gate (`allowed-tools` alone only pre-approves tools, it doesn't
+  block them) — Edit/Write and any push/commit/merge/destructive-git tool are explicitly disallowed on
+  those four.
+- **2026-07-04 · feat — split `/next-task` into `/pick-task` + `/run-task`** (`.claude/commands/next-task.md`
+  deleted; `.claude/commands/pick-task.md`, `.claude/commands/run-task.md` new; no code/rules change).
+  `/pick-task` fetches live state, picks a task, and pre-flights it with no editing or worktree tools
+  available at all; `/run-task <slug>` does the actual work. Splits one "go" that used to authorize the
+  whole fetch→pick→edit→test→rebase→push→PR pipeline into two separate invocations, with a real tool-level
+  gate (not just prompt wording) preventing `/pick-task` from touching anything.
+- **2026-07-04 · feat — `/run-task` adopts native Claude Code worktrees (`EnterWorktree`)** (`run-task.md`,
+  `.gitignore`, `AGENTS.md`, `DECISIONS.md` D-GH22; no code/rules change). Replaces ~30 lines of manual
+  `git worktree add` / `-C <path>` arithmetic (which had a doubled-path bug: `pact-worktrees/pact-worktrees/<slug>`)
+  with `EnterWorktree`/`ExitWorktree`. Worktrees now land at `.claude/worktrees/<slug>/` (added to
+  `.gitignore`) instead of a sibling `pact-worktrees/` folder — supersedes the earlier "Option A" layout
+  decision. Added a rebase-conflict gate in Step 6: a non-trivial conflict stops for a human look instead
+  of resolving silently under the earlier "go."
+- **2026-07-04 · feat — `/pick-task` Step 1 delegates to an Explore subagent** (`pick-task.md`,
+  `DECISIONS.md` D-GH23; no code/rules change). The four `git show` fetches (`AGENTS.md`,
+  `docs/PACT_ROADMAP.md`, `engine-parity.html`, `expected-results.csv`) are now delegated to an
+  `Explore`-type subagent that returns only the derived facts, keeping the raw file content out of the
+  picking session's own context — mirrors the pattern `/log-ai-lessons` already uses for glob input.
+- **2026-07-04 · fix — remove `/add-roadmap-task`'s "test mode"** (`.claude/commands/add-roadmap-task.md`;
+  no code/rules change). Never used, and its bare-word "test" trigger could misfire on a legitimate task
+  like "add a task to write more engine tests," causing an unwanted second commit to `preview`.
+- **2026-07-04 · fix — `/close-session` skips the test-gate check on docs-only sessions**
+  (`.claude/commands/close-session.md`; no code/rules change). A session that only touched `docs/`,
+  `CHANGELOG.md`, `DECISIONS.md`, or `PACT_ROADMAP.md` now gets "test gate — skipped, docs-only" instead
+  of a false "can't confirm tests ran" flag. Also fixed a leftover bare `gh pr list` invocation in item 6
+  to reference the GitHub MCP read tools instead.
+- **2026-07-04 · fix — `/log-ai-lessons` Step 4 discloses the push-to-`main` consequence**
+  (`.claude/commands/log-ai-lessons.md`; no code/rules change). The approval prompt said "Write C1 and
+  C3?" without stating that approval commits and pushes to `main` on the external `ai-lessons-learned`
+  repo — same class of hidden-consequence bug already fixed elsewhere in `/add-roadmap-task`.
+- **2026-07-04 · feat — add `/cleanup-branches` skill** (`.claude/commands/cleanup-branches.md`; new file,
+  no code/rules change). Does what `/close-session` item 6 identifies but refuses to act on: scans for
+  merged/orphaned branches and worktrees, presents lettered cleanup candidates, and deletes only the ones
+  explicitly approved (`-d` before escalating to `-D`). No push/edit/remote-write tools granted.
 - **2026-07-03 · fix — resolve duplicate `D-GH19` reservation in `DECISIONS.md`** (`DECISIONS.md`, `.claude/commands/log-ai-lessons.md`; no code/rules change). Two independent sessions' merges landed the same day and both claimed `D-GH19` for unrelated decisions (`ai-lessons-learned` auto-load nudge vs. this session's Live Sheet mobile CSS cascade fix), with no separator between them — a clean auto-merge on both sides masked the collision until this was next read. Renumbered the `ai-lessons-learned` entry (chronologically later, already sorted at the top) to `D-GH20`, added the missing `---` separator, and fixed the one stale cross-reference in `.claude/commands/log-ai-lessons.md`. No other stale `D-GH19` references found.
 - **2026-07-03 · chore — `/close-session`: loosen the session-note trigger from "spanned multiple areas" to "anything not fully captured by a one-line CHANGELOG entry"** (`.claude/commands/close-session.md`; no code/rules change). The prior bar ("real discussion or spanned multiple areas") would have let this same session skip its own note right up until the CSS cascade-order bug was found — scope, not surprise, isn't actually what makes a session worth narrating. New criteria: a root cause that differed from the task's diagnosis, a judgment call between valid approaches, a plan that changed mid-session, a collision with another session's work, or two-plus roadmap items done together. Explicitly not about task complexity or tool-call count.
 - **2026-07-04 · docs(sessions) — record the `/plan-for-review` build, dogfood test, and rebase-time D-GH collision** (`docs/sessions/2026-07-04-plan-for-review-skill.md`; no code/rules change). Session note covering the skill's design, the 3-review dogfood pass and what it changed, and the D-GH20→D-GH21 collision caught mid-rebase (same failure mode as 2026-07-03's D-GH19 collision, this time before merge).
