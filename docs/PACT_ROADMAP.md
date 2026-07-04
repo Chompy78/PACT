@@ -23,51 +23,6 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## iOS Save/Export unreliable — silent data loss risk (HIGH) — TODO
-Branch `fix/ios-save-export-reliability`. In `tools/PACT-CharGen-Webtool.html` and `tools/PACT-Live-Char-Sheet.html`, the Save/Export path (blob + `<a download>`, e.g. Live Sheet `exportJSON()` line ~804) fails silently on iOS Safari and in the installed iOS PWA — it often opens the raw JSON in a new tab instead of saving a file. Import is unaffected (both tools already use a standard `<input type="file">` picker, which works natively on iOS) — this task is Export/Save only.
-
-Severity differs by tool — CharGen is the true emergency:
-- **CharGen has no localStorage autosave at all** (confirmed: only the theme preference persists to
-  `localStorage`, no character-data key exists). Export is the *only* save mechanism — if it silently
-  fails on iOS, the build is lost the moment the tab closes/refreshes/backgrounds. Total, permanent loss.
-- **Live Sheet auto-saves to `localStorage` on every action** (`save()`, line ~802), so a failed Export
-  there doesn't lose the character immediately — only its ability to be backed up, transferred, or shared
-  with a DM. Lower urgency, but not zero: iOS Safari's Intelligent Tracking Prevention (ITP) is documented
-  to purge script-writable storage (including `localStorage`) after ~7 days of no user interaction with
-  the site, so Live Sheet's "safety net" is not permanent on iOS either — reinforcing why reliable export
-  still matters there.
-
-```text
-1. Feature-detect capability, don't sniff user-agent: check `navigator.canShare && navigator.canShare({files:[...]})`
-   at the point of export in both tools.
-2. Where Web Share is available (this is the iOS path in practice today, but detect by capability so it
-   also benefits any other browser lacking reliable anchor-download): build the same JSON Blob already
-   built today, wrap it in a `File`, and call `navigator.share({files:[file], title: <char name>})` —
-   this opens the native share sheet (Save to Files, AirDrop, Mail, etc.) instead of the anchor-download
-   trick.
-3. Where Web Share for files is NOT available: keep the existing blob + `<a download>` path unchanged —
-   this already works correctly on desktop and Android Chrome; do not alter that behavior.
-4. Bulletproof the failure mode itself, not just the happy path: `navigator.share()` can throw/reject
-   (user cancels the share sheet, or the call fails) — catch that and show a clear, specific flash/warning
-   message rather than failing silently. If neither Web Share nor the anchor-download path is available at
-   all (older/unsupported browser), warn the user BEFORE they think their work is saved, not after.
-5. CharGen-specific, higher priority: since CharGen has no fallback persistence, also add a lightweight
-   localStorage autosave of the in-progress build (mirroring Live Sheet's existing `save()` pattern) as a
-   safety net independent of Export — so a failed/abandoned Export doesn't mean total loss. This is a new
-   persistence behavior, not just an export fix; scope it minimally (autosave the raw build JSON, restore
-   on next visit, same "store raw, derive the rest" rule as Live Sheet).
-6. Make button behavior legible per-platform — e.g. label/tooltip text can differ (iOS: "Save (via Share
-   menu)" vs desktop/Android: "Save to Downloads") rather than an identical button that behaves invisibly
-   differently. Do not hide Save/Export on iOS — that removes the only path to preserving work; the fix is
-   making the working path reliable and clearly labeled, not removing capability.
-7. Apply to every blob+`<a download>` call site in both files (Live Sheet ~line 804 and ~1866 pattern),
-   not just the primary Save button.
-8. Test on real iOS Safari (tab) AND an installed iOS home-screen PWA (they behave differently) plus
-   confirm no regression on desktop Chrome/Firefox/Safari and Android Chrome.
-9. Display/reliability-only — do NOT bump DATA.version; log the fix in CHANGELOG.md.
-```
-**Done when:** on real iOS Safari and an installed iOS PWA, tapping Save/Export in CharGen and Live Sheet results in a file the user can confirm was actually saved (via the share sheet), with a clear error/warning shown if it isn't; CharGen additionally autosaves in-progress builds to localStorage so a failed Export is not total loss; desktop and Android Save/Export behavior is unchanged; button/tooltip text clearly communicates what will happen per-platform; parity still 5/0.
-
 ## Live Sheet: undo doesn't work properly — TODO
 Branch `fix/livesheet-undo-bug`. Reported by the user: in `tools/PACT-Live-Char-Sheet.html`, undoing an action produces incorrect state. Root cause not yet confirmed — needs investigation before a fix.
 
@@ -177,52 +132,6 @@ Scope (minimal clarity/labeling only — NOT new enforcement mechanics):
 **Done when:** CharGen shows a persistent local-only indicator and its "Campaign" button can no longer
 be mistaken for the cloud campaign system; Live Sheet shows a persistent sign-in + campaign-rules-active
 badge outside the ☁ Cloud dropdown; no enforcement/validation behavior changed; parity still 5/0.
-
-## CharGen/Live Sheet: theme selector hidden/clipped + no system dark-mode default — TODO
-Branch fix/chargen-livesheet-theme-selector. The theme selector (🎨 Default/Dark/D&D/Royal/Forest dropdown) is inaccessible in real conditions, and neither tool follows the device's dark/light setting on first use.
-
-```text
-Context: tools/PACT-CharGen-Webtool.html and tools/PACT-Live-Char-Sheet.html both persist the chosen theme
-to the SAME localStorage key ('pactTheme') via an identical setTheme()/restore IIFE pattern (CharGen
-~line 2657-2659, Live Sheet ~line 1459-1461) — so they're already meant to stay in sync, just missing two
-things. index.html (landing page) already solves both of these correctly for its OWN separate theme system
-(different localStorage key 'pact-theme', different theme names parchment/midnight/dragonfire/contrast) —
-use its pattern (index.html ~line 49-63) as the reference, don't invent a new one.
-
-Bug 1 — selector hidden on mobile (CharGen):
-- .hd-row2 (contains the #themesel dropdown, ~line 391) is set to `display:none` at
-  @media(max-width:768px) (~line 305), alongside .hd-row3.
-- Unlike .hd-row3's action buttons (Save/Load/Share/Live Sheet/AI Portrait/Campaign/etc.), which get
-  re-surfaced in `.mobile-action-bar` (~line 405-415), the theme selector was never added anywhere on
-  mobile — it's simply gone. Add it (or an equivalent compact control) to the mobile-visible header/bar.
-- Confirm whether Live Sheet has the same mobile hide-without-re-surface gap for its own #themesel
-  (Live Sheet's `.top` header, ~line 281-288) and fix identically if so.
-
-Bug 2 — selector can overflow/clip on desktop:
-- .hd-row2 (~line 294) has no `flex-wrap` and no overflow handling, unlike .hd-row3 which explicitly has
-  `flex-wrap:wrap`. It packs the tool title, version tag, "last edited" timestamp, AND the theme dropdown
-  (pushed to the far right via `margin-left:auto`) into one non-wrapping row — on a narrower or zoomed
-  desktop window this can overflow and visually clip the theme selector even though it's "present" in the
-  DOM. Add flex-wrap (or move the theme selector to a spot that can't be squeezed out) so it's always
-  visible/reachable at any desktop width.
-
-Feature — default to system dark/light when there's no saved choice:
-- Add the same "saved choice wins, else follow prefers-color-scheme:dark, else default" logic index.html
-  already uses (~line 49-63) to BOTH CharGen's and Live Sheet's theme-restore IIFEs. Map system dark mode
-  to the tools' existing 'dark' theme option (there's no separate "system" entry needed — just resolve
-  the initial value the same way index.html does).
-- Apply it early enough to avoid a flash of the wrong theme before JS runs — index.html runs its check
-  inline in <head> before first paint; CharGen/Live Sheet currently run their restore IIFE near the bottom
-  of the file (CharGen ~line 2659, Live Sheet ~line 1461), after the page has already rendered in the
-  default theme. Move the check earlier (inline in <head>, matching index.html) if feasible without
-  breaking the tools' existing load order; note in the PR if that's not practical and why.
-- "Default to last used" already works today (both tools already read the saved 'pactTheme' value) —
-  this task only needs to ADD the system-preference fallback for the case where nothing is saved yet.
-
-Do not touch DM-Console.html (it has no theme system today — out of scope) or engine/rules logic.
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-**Done when:** the theme selector is reachable in CharGen on both a real mobile-width screen and a narrow/zoomed desktop window; Live Sheet's selector is confirmed not to have the same mobile-hide gap (or is fixed identically if it does); a first-time visitor (no saved theme) sees CharGen/Live Sheet open in dark mode when their device is in dark mode, and in the previously-saved theme otherwise; parity still 5/0.
 
 ## Enable Supabase Auth leaked-password protection — TODO
 Manual, dashboard-only — no branch, no code change. Found by the Supabase security advisor during the
