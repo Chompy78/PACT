@@ -1509,7 +1509,9 @@ function closePortrait(){var ov=$('portraitview');if(ov)ov.style.display='none';
 SHEET_TOOL='livesheet';
 function setTheme(t){if(t)document.body.setAttribute('data-theme',t);else document.body.removeAttribute('data-theme');
   try{localStorage.setItem('pactTheme',t||'');}catch(e){}}
-(function(){let t='';try{t=localStorage.getItem('pactTheme')||'';}catch(e){}if(t){setTheme(t);const s=$('themesel');if(s)s.value=t;}})();
+(function(){let t='';try{t=localStorage.getItem('pactTheme')||'';}catch(e){}
+  if(!t&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)t='dark';
+  if(t){setTheme(t);const s=$('themesel');if(s)s.value=t;}})();
 var _nameSwapUsed=false;
 function _swapAvailFrom(hd,log){var cap=2,used=0;(log||[]).forEach(function(e){if(e&&e.type==='names'&&typeof e.swapHD==='number'&&e.swapHD===hd)used+=(e.swapN||1);});var avail=(hd>=2)?Math.max(0,cap-used):0;return {ok:(avail>0),avail:avail,cap:cap,hd:hd,used:used};}
 function _nameSwapAvail(){return _swapAvailFrom((foldBuild(null).hd)||1,LOG);}

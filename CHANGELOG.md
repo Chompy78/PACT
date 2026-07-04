@@ -21,6 +21,22 @@
   no code/rules change). Drops the `testing/tests/engine-parity.html` `git show` (10KB) since it contributes
   nothing toward the "current expected pass count" fact — that number is just the row count in
   `testing/expected/expected-results.csv`, which is fetched separately and far cheaper (735B).
+- **2026-07-04 · fix — theme selector reachable on mobile, no longer clips on desktop; add system
+  dark-mode default** (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`;
+  display-only, no `DATA.version` bump). CharGen's `.hd-row2` (title/version/last-edited/🎨 theme
+  dropdown) was `display:none` below 768px with no mobile substitute — the theme selector was simply
+  unreachable on phones. Added a compact `#themeselMobile` select to `.hd-mobnav`, kept in sync with the
+  desktop `#themesel` via `setTheme()`. Also gave `.hd-row2` `flex-wrap:wrap` so it can no longer
+  visually clip the dropdown at narrow/zoomed desktop widths (previously one non-wrapping flex row).
+  Live Sheet's `#themesel` already lives inside its always-reachable "More" dropdown, so no layout
+  change was needed there. Both tools' theme-restore IIFE now falls back to
+  `prefers-color-scheme: dark` (mapped to the existing `dark` theme) when nothing is saved in
+  `localStorage`, matching `index.html`'s pattern — first-time visitors on a dark-preferring device now
+  get dark mode by default. Left the restore check running where it already did (near the end of
+  `<body>`, not inline in `<head>` like `index.html`) — the tools' theme CSS is scoped to
+  `body[data-theme=...]`, not `:root`/`html`, so an early `<head>`-run script can't apply the theme
+  before body parses without also converting every theme selector; that's a larger refactor left for a
+  follow-up rather than folded into this fix.
 - **2026-07-04 · docs(sessions) — record the audit/checking roadmap-additions session** (`docs/sessions/2026-07-04-audit-roadmap-session.md`; no code/rules change). Session note covering 7 new audit/checking roadmap items (Supabase advisor/log checklist step, docs-consistency audit, pre-release QA checklist, rules-correctness review note, AUD-1 version-sync follow-up, plus LATER bullets A9/A10), REV-11's promotion to NEXT, the stale D-GH14 reservation fix (corrected to D-GH18), A2's promotion to NEXT with the `/code-review` cadence folded in, and two separate collisions with concurrent sessions' work on `preview` (a rejected push absorbing 86 commits, then a further fast-forward mid-close-out).
 - **2026-07-04 · feat — add `.worktreeinclude`** (`.worktreeinclude`; no code/rules change). Copies
   `.claude/*.json` and `.claude/.fpp-reminder-state` — the actual gitignored config this repo has (PACT
