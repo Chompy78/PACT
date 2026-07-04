@@ -89,6 +89,42 @@ Branch `fix/livesheet-undo-bug`. Reported by the user: in `tools/PACT-Live-Char-
 ```
 **Done when:** undo() produces state identical to what compute()/rebuildStateFromEvents() would derive from the LOG with the last entry removed, across normal buys, drawback buy-off, and the Martially/Magically Bound floor-1 discount case; parity still 5/0.
 
+## Full engine module-bridge migration — CharGen, Live Sheet, DM Console — TODO
+Branch feat/engine-bridge-all-tools. All three tools hand-copy DATA/compute()/MUT/baseBuild/
+activeEvents/economy/foldBuild from js/engine.js instead of importing them — a direct violation of
+AGENTS.md's "js/engine.js is the single source of truth... never re-implement rules logic anywhere
+else." This supersedes Task 6 (CharGen-only) by extending the same migration to Live Sheet and DM
+Console.
+
+```text
+1. CharGen (tools/PACT-CharGen-Webtool.html) — this is Task 6's scope, folded in here: add a
+   <script type="module"> importing { DATA, compute, baseBuild, MUT, activeEvents, economy,
+   foldBuild } from '../js/engine.js', copy each onto window, dispatch new Event('engine-ready');
+   gate the existing UI <script> on that event; delete the inline DATA/compute() entirely.
+2. Live Sheet (tools/PACT-Live-Char-Sheet.html) — its module script today only imports validate()
+   plus sync/auth/campaign helpers (see D-GH9). Extend it to also import DATA, compute, baseBuild,
+   MUT, activeEvents, economy, foldBuild from js/engine.js and copy them onto window alongside the
+   existing bridge; delete its embedded DATA/compute/MUT/etc. copies.
+3. DM Console (tools/DM-Console.html) — its module script today imports nothing from js/engine.js
+   (only auth/campaign/dm helpers). Add a new import of DATA, compute, baseBuild, MUT, activeEvents,
+   economy, foldBuild, validate from js/engine.js, copy onto window, wire into the existing
+   campaign-ready gating; delete its embedded copies.
+4. Compat check: CharGen's compute() differs from the canonical one only in the budget line
+   (compute(b, opts={}) defaults spendable === b.budget). Before deleting Live Sheet's and DM
+   Console's embedded copies, diff them the same way and log any real behavioral differences found.
+5. Update AGENTS.md's "Architecture — read before editing" section to remove the "none of the three
+   tools import these from js/engine.js today" language and describe the new bridged state.
+6. Shrink/remove AUD-1's DATA/compute/MUT drift check (docs/PACT_ROADMAP.md) once all three tools
+   are bridged — that audit step becomes unnecessary.
+7. Log under a NEW decision code — next free is D-GH24 — documenting why all three tools were
+   migrated together rather than one at a time.
+```
+
+**Done when:** no tool has an embedded copy of DATA/compute/MUT/baseBuild/activeEvents/economy/
+foldBuild; CharGen, Live Sheet, and DM Console all import them from js/engine.js via their module
+bridges; testing/tests/engine-parity.html still reports 5/0; AGENTS.md's architecture section
+reflects the bridged state; Task 6 is closed/graduated by this task landing.
+
 ---
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
