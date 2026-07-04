@@ -1,7 +1,7 @@
 ---
 description: Fetch live roadmap state, pick the next task, and pre-flight it — no editing, no worktree
 argument-hint: [task title or code]
-allowed-tools: Read, Grep, Glob, Agent, Bash(git fetch *), Bash(git ls-remote *), Bash(git branch --list *)
+allowed-tools: Read, Grep, Glob, Agent, AskUserQuestion, Skill, Bash(git fetch *), Bash(git ls-remote *), Bash(git branch --list *)
 disallowed-tools: Edit, Write, NotebookEdit, Bash(git push *), Bash(git commit *), Bash(git worktree add *), Bash(git worktree remove *)
 ---
 
@@ -9,8 +9,8 @@ disallowed-tools: Edit, Write, NotebookEdit, Bash(git push *), Bash(git commit *
 
 You help pick the next task from the PACT roadmap and pre-flight it. Other Claude Code sessions might be
 working on this same repo at the same time. This command only reads and reports — it never edits a file
-or creates a worktree. Once you're done, the user invokes `/run-task <slug>` (a separate command) to
-actually do the work.
+or creates a worktree itself. Once you're done, Step 4 asks whether to hand off into `/run-task` (a
+separate command that does the actual work) right away, via a clickable confirmation.
 
 ## Step 1 — get the latest information
 
@@ -80,8 +80,26 @@ fires:
 ## Step 4 — hand off
 
 Tell me which task you picked and why, the result of both pre-flight checks, and whether either
-escalation trigger fired. Then stop with: **"Say `/run-task <type/short-slug>` to start doing work."**
-Don't edit anything, don't create a worktree — that's `/run-task`'s job.
+escalation trigger fired. Don't edit anything, don't create a worktree yet — that's `/run-task`'s job,
+gated on the confirmation below.
+
+Then, instead of ending with plain text to copy-paste, ask with **`AskUserQuestion`** (one question,
+`multiSelect: false`):
+
+- **Question:** "Start work on `<type/short-slug>` now?"
+- **Options:**
+  1. **"Run `/run-task <type/short-slug>` now"** (Recommended) — invoke the `run-task` skill
+     immediately, in this same turn, passing `<type/short-slug>` as its argument.
+  2. **"Not yet"** — stop here. Don't touch anything else; tell me I can run
+     `/run-task <type/short-slug>` myself whenever I'm ready.
+  3. **"Choose a different task"** — go back to the roadmap items already gathered in Step 1 (NOW, then
+     NEXT, then LATER) and list the remaining TODO candidates as plain text (skip the one just
+     pre-flighted). Ask which one to try instead — another `AskUserQuestion` if 4 or fewer reasonable
+     candidates remain, otherwise plain text. Once I name one, go back to **Step 3** for it (re-run both
+     pre-flight checks — don't assume they still hold), then repeat this Step 4 hand-off for the new pick.
+
+The click itself is the confirmation — if option 1 comes back, invoke `run-task` right away without
+asking again.
 
 ---
 
