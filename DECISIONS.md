@@ -6,8 +6,7 @@
 
 ---
 
-## D-GH20 · `ai-lessons-learned` auto-load in remote sessions: nudge-and-let-the-agent-decide, not auto-clone
-## D-GH20 · `/plan-for-review` output is a trust-boundary crossing artifact — secrets excluded by instruction, not by gate
+## D-GH21 · `/plan-for-review` output is a trust-boundary crossing artifact — secrets excluded by instruction, not by gate
 - **Context:** the new `/plan-for-review` skill (`.claude/commands/plan-for-review.md`) drafts a plan and
   writes it to `docs/plans/<date>-<slug>.md`, explicitly designed so a *different* AI tool with no repo
   access can review it cold. That means the doc is expected to leave PACT's trust boundary (pasted into
@@ -28,7 +27,7 @@
 - **Status:** DONE. No secret has ever actually been written via this skill; this is a preventive
   instruction, not a response to an incident.
 
-## D-GH19 · `ai-lessons-learned` auto-load in remote sessions: nudge-and-let-the-agent-decide, not auto-clone
+## D-GH20 · `ai-lessons-learned` auto-load in remote sessions: nudge-and-let-the-agent-decide, not auto-clone
 - **Context:** a `SessionStart` hook (`.claude/hooks/session-start.sh`) was built to auto-load a
   separate, private cross-project repo (`chompy78/ai-lessons-learned`) into every remote/cloud
   session's context, using a fine-grained PAT (`AI_LESSONS_TOKEN`) to `git clone` it. Retesting
