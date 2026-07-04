@@ -54,8 +54,9 @@ Design choices made, each a real judgment call rather than a mechanical implemen
   first time this actually fires, verify the derived name lands cleanly through `EnterWorktree`'s `/`→`+`
   sanitization the same way single-slug names do (see `run-task.md` Step 4's existing verified caveats).
 - Documented as the one explicit exception to `AGENTS.md`'s "one task per branch" line, and as
-  `DECISIONS.md` `D-GH25` — this is a decision about the repo's workflow, not just a feature, so it
-  belongs there rather than only in `CHANGELOG.md`.
+  `DECISIONS.md` `D-GH27` (originally logged as `D-GH25`, renumbered after a collision — see below) —
+  this is a decision about the repo's workflow, not just a feature, so it belongs there rather than only
+  in `CHANGELOG.md`.
 
 ## Also folded in
 `run-task.md` Step 4 now carries the worktree-cwd-after-context-resume caution directly as a standing
@@ -69,8 +70,16 @@ only in the `ai-lessons-learned` inbox.
   the actual test.
 - A `/close-session` pass mid-way surfaced that this session's own commits (`f2ba260`, `b60c707`,
   `21c19ca`) had no CHANGELOG/DECISIONS entries and no PR open at all — fixed in this same session as a
-  follow-up (see the two "feat" lines in `CHANGELOG.md` dated today, and `D-GH25` above), alongside
-  merging the previous session's leftover open PR (#110) first so this session's new `D-GH25` didn't
-  collide with `D-GH24`, which that PR had already claimed on its own unmerged branch. `D-GH19`/`D-GH20`
-  collided this exact way twice before (see the `2026-07-04-plan-for-review-skill.md` note) — sequencing
-  the merge before picking a number this time avoided a third occurrence.
+  follow-up (see the "feat" lines in `CHANGELOG.md` dated today, and `D-GH27` above), alongside merging
+  the previous session's leftover open PR (#110) first so this session's new entry didn't collide with
+  `D-GH24`, which that PR had already claimed on its own unmerged branch. That sequencing worked — but a
+  *different*, unforeseen collision still got through: a separate concurrent session's PR (#113,
+  retiring the leaked-password-protection roadmap item) independently claimed the same `D-GH25` this
+  session had picked, and both squash-merged into `preview` cleanly with no conflict, silently
+  concatenating the duplicate header rather than surfacing it. Not caught until promoting `preview` →
+  `main` afterward and diffing the two branches. `D-GH19`/`D-GH20` collided this exact way twice before
+  (see the `2026-07-04-plan-for-review-skill.md` note) — this makes at least a third occurrence, and this
+  time neither session was even aware of the other at pick-time, so no amount of local sequencing
+  discipline alone would have caught it; only the later cross-branch diff did. Fixed by renumbering this
+  session's entry to `D-GH27` and correcting the roadmap's "next free" reference. Worth treating as a
+  standing risk of "highest existing + 1" ID assignment under concurrent AI sessions, not a one-off.

@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-05 · fix — resolve a `D-GH25` collision on `preview`, plus a squash-merge duplicate line**
+  (`DECISIONS.md`, `docs/PACT_ROADMAP.md`; no code/rules change). Two independent sessions both claimed
+  `D-GH25` (this session's `/pick-task` batching decision, and PR #113's leaked-password-protection
+  retirement) — both squash-merges landed cleanly with no conflict, silently concatenating the duplicate
+  header instead of surfacing it, the same failure mode as the prior `D-GH19`/`D-GH20` incidents.
+  Renumbered the batching decision to `D-GH27` (`D-GH26` stays reserved for the engine module-bridge
+  migration task) and fixed the roadmap's now-stale "next free" reference. Also found and fixed an
+  unrelated duplicated line in the `D-GH24` entry, introduced by the same squash-merge.
 - **2026-07-04 · docs — retire the "enable Supabase Auth leaked-password protection" roadmap item** (`docs/PACT_ROADMAP.md`, `DECISIONS.md` D-GH25; no code/rules change). Supabase gates this Auth feature behind a paid plan tier; the project owner declined to upgrade for it. Removed from the roadmap rather than left open indefinitely — the security advisor (`auth_leaked_password_protection`) will keep flagging it, so the gap stays visible without a stale TODO.
 - **2026-07-04 · docs — session note + D-GH24 for the theme-selector fix's `<head>` trade-off**
   (`DECISIONS.md`, `docs/PACT_ROADMAP.md`, `docs/sessions/2026-07-04-theme-selector-and-worktree-cwd.md`;
@@ -24,7 +32,9 @@
   its own edit, its own commit, and its own `CHANGELOG.md`/roadmap-graduation line — only the
   worktree/branch, the final `engine-parity` run, the rebase, and the PR are shared once across the
   batch, amortizing that fixed overhead instead of paying it per task. `AGENTS.md`'s "one task per
-  branch" note now documents this as the one explicit exception (see `DECISIONS.md` D-GH25).
+  branch" note now documents this as the one explicit exception (see `DECISIONS.md` D-GH27 — originally
+  logged as D-GH25, renumbered after colliding with PR #113's independent use of the same number; see
+  `docs/PACT_ROADMAP.md`'s follow-up fix in this same change).
 - **2026-07-04 · feat — `/pick-task` ends with a clickable confirmation instead of copy-paste text**
   (`.claude/commands/pick-task.md`; no code/rules change). Step 4's hand-off now asks via
   `AskUserQuestion` whether to start work, with options to run `/run-task <slug>` immediately in the
