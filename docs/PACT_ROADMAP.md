@@ -134,21 +134,6 @@ Scope (minimal clarity/labeling only — NOT new enforcement mechanics):
 be mistaken for the cloud campaign system; Live Sheet shows a persistent sign-in + campaign-rules-active
 badge outside the ☁ Cloud dropdown; no enforcement/validation behavior changed; parity still 5/0.
 
-## Enable Supabase Auth leaked-password protection — TODO
-Manual, dashboard-only — no branch, no code change. Found by the Supabase security advisor during the
-2026-07-02 post-merge audit: leaked-password protection (checks new/changed passwords against
-HaveIBeenPwned before accepting them) is currently disabled for this project.
-
-```text
-There is no MCP tool or SQL migration that reaches Supabase's Auth config — this is a project-settings
-toggle, not a database object, so it can't be applied the way the other security fixes from that audit
-were. Enable it by hand: Supabase dashboard → Authentication → Sign In / Providers → Password →
-"Leaked password protection". Low effort, no downside for legitimate users (it only rejects passwords
-already known to be compromised in other breaches).
-```
-**Done when:** the toggle is enabled in the Supabase dashboard; re-running the security advisor no longer
-flags `auth_leaked_password_protection`.
-
 ## Lock down remaining Supabase function EXECUTE grants (anon) — TODO
 Branch fix/lock-down-remaining-function-grants. Revoke the default Postgres EXECUTE-to-PUBLIC grant on the
 ~13 remaining flagged functions, matching the award_ap/award_xp fix already applied.
