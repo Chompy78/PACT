@@ -303,7 +303,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 <div id="apFloat" title="AP available (earned − spent) — updates live as you buy, undo, or gain awards"><b id="apFloatN">0</b><span>AP left</span></div>
 <div class="top"><h1>🧬 PACT — Live Character Sheet</h1><span class="v" id="verline">event-sourced · prices freeze at purchase</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
 <button class="btn g" onclick="undo()" title="Undo">↶ <span class="bl">Undo</span></button><button class="btn g" onclick="redo()" title="Redo">↷ <span class="bl">Redo</span></button>
-<button class="btn g" onclick="exportJSON()" title="Export character to a file">⬇ <span class="bl">Export</span></button>
+<button class="btn g" id="exportBtn" onclick="exportJSON()" title="Export character to a file">⬇ <span class="bl">Export</span></button>
 <button class="btn g" onclick="document.getElementById('imp').click()" title="Import a character file">⬆ <span class="bl">Import</span></button>
 <input type="file" id="imp" style="display:none" accept=".json" onchange="if(this.files[0])importJSON(this.files[0]);this.value=''">
 <span style="position:relative;display:inline-block"><button class="btn g" id="cloudBtn" title="Cloud save / load">☁ <span class="bl">Cloud</span></button><div id="cloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span>
@@ -824,8 +824,29 @@ function redo(){ if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save
 const KEY='pactLiveSheet';
 function save(){ try{localStorage.setItem(KEY,JSON.stringify({LOG,SEQ,rules:RULES,id:currentCharId()}));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); } }
 function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
-function exportJSON(){ const b=foldBuild(null); const blob=new Blob([JSON.stringify({rules:RULES,name:b.name,LOG,SEQ},null,1)],{type:'application/json'});
-  const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;const _efn=(b.name||'pact-live-sheet').replace(/[^a-z0-9]+/gi,'_')+'-'+_dstamp()+'.json';a.download=_efn;a.click();URL.revokeObjectURL(u); if(typeof flash==='function')flash('Character saved to your Downloads as “'+_efn+'”.'); }
+// Feature-detect Web Share (files) rather than sniffing the user agent — this is the reliable
+// save path on iOS Safari/PWA, where a plain blob+<a download> is known to silently fail (it
+// often just opens the JSON in a new tab instead of saving a file). Falls back to the existing
+// anchor-download, which already works fine on desktop and Android Chrome.
+async function _pactShareOrSave(blob,filename,sharedMsg,savedMsg){
+  try{
+    const file=new File([blob],filename,{type:blob.type||'application/json'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:filename}); if(typeof flash==='function')flash(sharedMsg); return; }
+      catch(err){ if(err&&err.name==='AbortError'){ if(typeof flash==='function')flash('Save cancelled — nothing was saved.'); return; } console.error('PACT Live Sheet: share failed, falling back to download',err); }
+    }
+  }catch(err){ console.error('PACT Live Sheet: share detection failed',err); }
+  try{
+    const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u);
+    if(typeof flash==='function')flash(savedMsg);
+  }catch(err){
+    console.error('PACT Live Sheet: download fallback failed',err);
+    if(typeof flash==='function')flash('⚠ Could not save the file — your browser blocked the download and Share isn\'t available. Try a different browser.');
+  }
+}
+async function exportJSON(){ const b=foldBuild(null); const blob=new Blob([JSON.stringify({rules:RULES,name:b.name,LOG,SEQ},null,1)],{type:'application/json'});
+  const _efn=(b.name||'pact-live-sheet').replace(/[^a-z0-9]+/gi,'_')+'-'+_dstamp()+'.json';
+  await _pactShareOrSave(blob,_efn,'“'+_efn+'” sent to the share sheet — choose Save to Files to keep it.','Character saved to your Downloads as “'+_efn+'”.'); }
 // Loading a saved character preserves its frozen prices. If it was stamped under an OLDER rules version,
 // we keep those prices (grandfathered) and surface the drift; with only the current version live this stays silent.
 function _showVersionBanner(){
@@ -1288,6 +1309,13 @@ load(); if(!LOG.length) seedNew(); else _showVersionBanner();  // show banner if
 $('tt').addEventListener('input',function(){const v=+this.value;viewAt=(v>=LOG.length?null:v);render();});
 render();
 _lsSpellTogLabel();  // B1: sync the More-menu toggle label with the persisted no-Spellcasting state
+// capability-detect (not UA-sniff) whether Export will use the Share sheet or go straight to Downloads,
+// and say so up front — a button that behaves invisibly differently per platform is worse than none
+(function(){try{
+  var probe=new File(['x'],'x.json',{type:'application/json'});
+  var shareOK=!!(navigator.canShare && navigator.canShare({files:[probe]}));
+  var eb=$('exportBtn'); if(eb)eb.title=shareOK?'Save (via Share menu — choose Save to Files to keep it)':'Save to Downloads';
+}catch(e){}})();
 
 
 // ---- manual (hand-typed) field persistence, keyed by a STABLE character id, tagged per tool ----
