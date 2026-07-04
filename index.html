@@ -127,6 +127,13 @@
       * { transition:none !important; animation:none !important; scroll-behavior:auto !important; }
     }
 
+    /* ---- Homepage artwork banner (theme-matched, randomly picked; see .home-art JS) ---- */
+    .home-art {
+      display:block; width:100%; max-height:160px; object-fit:cover;
+      border:1px solid var(--hero-edge); border-radius:6px; margin-bottom:24px;
+    }
+    @media (max-width:560px) { .home-art { max-height:110px; } }
+
     /* ---- Masthead + theme switcher ---- */
     .masthead {
       display:flex; flex-wrap:wrap; justify-content:space-between;
@@ -310,6 +317,7 @@
 <body>
   <div class="offline-badge" role="status" hidden>Offline &mdash; tools still work</div>
   <div class="wrap">
+    <img class="home-art" id="homeArt" src="" alt="" aria-hidden="true">
     <header class="masthead">
       <div class="brand">
         <h1>PACT Tools</h1>
@@ -397,10 +405,17 @@
     /* ---- Theme switcher: subtle popover. "Auto" follows the device's light/dark setting and is the default. ---- */
     (function () {
       var themes = ['parchment', 'midnight', 'dragonfire', 'contrast'];
+      var darkThemes = ['midnight', 'dragonfire'];   // the rest (parchment, contrast) are light-background
       var root = document.documentElement;
       var toggle = document.querySelector('.theme-toggle');
       var menu = document.querySelector('.theme-menu');
       var opts = document.querySelectorAll('.theme-opt');
+      var artEl = document.getElementById('homeArt');
+      var artPools = {
+        light: ['assets/themes/light/parchment-scroll.svg', 'assets/themes/light/heraldic-crest.svg'],
+        dark: ['assets/themes/dark/starfield.svg', 'assets/themes/dark/dragon-ember.svg'],
+      };
+      var lastArtBucket = null, lastArtSrc = null;
 
       function systemDark() {
         return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -411,8 +426,22 @@
       }
       function selection() { return saved() || 'auto'; }                                   // what the menu shows as chosen
       function resolved() { return saved() || (systemDark() ? 'midnight' : 'parchment'); }  // the theme actually applied
+      function applyArt(theme) {
+        if (!artEl) return;
+        var bucket = darkThemes.indexOf(theme) !== -1 ? 'dark' : 'light';
+        var pool = artPools[bucket];
+        // Re-roll on every theme switch; avoid repeating the same image twice in a row within a bucket.
+        var pick = pool[Math.floor(Math.random() * pool.length)];
+        if (pool.length > 1 && bucket === lastArtBucket && pick === lastArtSrc) {
+          pick = pool[(pool.indexOf(pick) + 1) % pool.length];
+        }
+        lastArtBucket = bucket; lastArtSrc = pick;
+        artEl.src = pick;
+      }
       function render() {
-        root.setAttribute('data-theme', resolved());
+        var theme = resolved();
+        root.setAttribute('data-theme', theme);
+        applyArt(theme);
         var sel = selection();
         opts.forEach(function (o) {
           o.setAttribute('aria-checked', String(o.dataset.setTheme === sel));

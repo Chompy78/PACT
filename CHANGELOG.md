@@ -12,6 +12,16 @@
   Renumbered the batching decision to `D-GH27` (`D-GH26` stays reserved for the engine module-bridge
   migration task) and fixed the roadmap's now-stale "next free" reference. Also found and fixed an
   unrelated duplicated line in the `D-GH24` entry, introduced by the same squash-merge.
+- **2026-07-04 · feat — theme-aware random homepage artwork** (`index.html`; new `assets/themes/light/*.svg`,
+  `assets/themes/dark/*.svg`; display-only, no `DATA.version` change). Adds a decorative banner above the
+  masthead that randomly picks one image from the active theme's pool on load and re-rolls on every theme
+  switch — `parchment`/`contrast` draw from the light pool, `midnight`/`dragonfire` from the dark pool
+  (matches the existing theme system's own light/dark split), with immediate-repeat avoidance so switching
+  within the same bucket doesn't show the same image twice in a row. Artwork is hand-authored original SVG
+  (no image-generation tool available, and fetching third-party art risked unclear licensing), palette-matched
+  to each theme's existing CSS custom properties. Verified with a headless Chromium run cycling every theme
+  option and confirming the art src/bucket pairing and image load (see D-GH26 for why SVG over photos).
+
 - **2026-07-04 · docs — retire the "enable Supabase Auth leaked-password protection" roadmap item** (`docs/PACT_ROADMAP.md`, `DECISIONS.md` D-GH25; no code/rules change). Supabase gates this Auth feature behind a paid plan tier; the project owner declined to upgrade for it. Removed from the roadmap rather than left open indefinitely — the security advisor (`auth_leaked_password_protection`) will keep flagging it, so the gap stays visible without a stale TODO.
 - **2026-07-04 · docs — session note + D-GH24 for the theme-selector fix's `<head>` trade-off**
   (`DECISIONS.md`, `docs/PACT_ROADMAP.md`, `docs/sessions/2026-07-04-theme-selector-and-worktree-cwd.md`;
