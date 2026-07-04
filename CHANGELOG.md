@@ -12,6 +12,23 @@
   note also covers the `/pick-task` difficulty-word fix and a mid-session worktree-cwd hiccup (absolute-path
   `Edit`/`Write` calls landed in the shared main repo instead of the active worktree after a context
   continuation). Also fixes `docs/PACT_ROADMAP.md`'s stale "next free is D-GH24" reference (now D-GH25).
+- **2026-07-04 · feat — `/pick-task` can batch several quick, non-overlapping tasks into one PR**
+  (`.claude/commands/pick-task.md`, `.claude/commands/run-task.md`, `AGENTS.md`; no code/rules change).
+  When `/pick-task`'s difficulty-filter path (e.g. "quick"/"fast"/"easy") picks a task, it now also scans
+  the rest of NOW/NEXT/LATER for up to 2 more independently small, low-risk, non-file-overlapping
+  candidates, pre-flights each one separately (branch collision + effort/model escalation — a candidate
+  that fires either drops out of the batch rather than blocking the primary pick), and offers a
+  "batch `<primary>` + N more" option alongside "run just the primary" in its confirmation.
+  `/run-task` now accepts multiple space-separated `<type/short-slug>` arguments: each task still gets
+  its own edit, its own commit, and its own `CHANGELOG.md`/roadmap-graduation line — only the
+  worktree/branch, the final `engine-parity` run, the rebase, and the PR are shared once across the
+  batch, amortizing that fixed overhead instead of paying it per task. `AGENTS.md`'s "one task per
+  branch" note now documents this as the one explicit exception (see `DECISIONS.md` D-GH25).
+- **2026-07-04 · feat — `/pick-task` ends with a clickable confirmation instead of copy-paste text**
+  (`.claude/commands/pick-task.md`; no code/rules change). Step 4's hand-off now asks via
+  `AskUserQuestion` whether to start work, with options to run `/run-task <slug>` immediately in the
+  same turn, wait, or go back and choose a different roadmap item (looping back through Step 3's
+  pre-flight for the new pick) — replacing the old "Say `/run-task <slug>`" line that had to be retyped.
 - **2026-07-04 · fix — reliable Save/Export on iOS Safari & PWA, plus a CharGen autosave safety net**
   (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; display/reliability-only, no
   `DATA.version` bump). Every blob+`<a download>` save/export site (CharGen `saveBuild()`,
