@@ -2699,6 +2699,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/PACT/service-worker.js').then(reg => {
+      reg.update();
       reg.addEventListener('updatefound', () => {
         const sw = reg.installing;
         sw.addEventListener('statechange', () => {
@@ -2711,6 +2712,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
           }
         });
       });
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update(); });
+      window.addEventListener('focus', () => reg.update());
     });
   }
 </script>

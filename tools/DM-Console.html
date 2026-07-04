@@ -1788,6 +1788,7 @@ document.addEventListener('campaign-ready', function () {
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/PACT/service-worker.js').then(reg => {
+      reg.update();
       reg.addEventListener('updatefound', () => {
         const sw = reg.installing;
         sw.addEventListener('statechange', () => {
@@ -1800,6 +1801,8 @@ document.addEventListener('campaign-ready', function () {
           }
         });
       });
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update(); });
+      window.addEventListener('focus', () => reg.update());
     });
   }
 </script>
