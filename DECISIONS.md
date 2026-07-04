@@ -6,7 +6,7 @@
 
 ---
 
-## D-GH25 · `/pick-task` may bundle several quick tasks into one branch/PR — the one exception to "one task per branch"
+## D-GH27 · `/pick-task` may bundle several quick tasks into one branch/PR — the one exception to "one task per branch"
 - **Context:** each `/pick-task` → `/run-task` cycle pays a fixed overhead regardless of task size — a
   live roadmap fetch, an `engine-parity` run, a rebase onto `preview`, and a PR — on top of the actual
   edit. For a genuinely small/low-risk task (docs-only, config, single-tool CSS/UI, the same class
@@ -33,9 +33,14 @@
   that gain nothing from individual branches/PRs. (B) keeps the collision-safety property for everything
   it doesn't cover, and keeps per-task traceability (commits, CHANGELOG lines) even for what it does.
 - **Status:** DONE.
+- **Addendum (2026-07-05):** originally logged as `D-GH25`, picked on a branch rebased before another
+  session's PR (#113, retiring the leaked-password-protection roadmap item) independently claimed the
+  same number. Both landed on `preview` via squash-merges that silently concatenated rather than
+  conflicting — the same "clean auto-merge hides the collision" failure mode as the prior `D-GH19`/
+  `D-GH20` incidents. Renumbered to `D-GH27` in a follow-up fix once found; `D-GH26` stays reserved for
+  the engine module-bridge migration task per `docs/PACT_ROADMAP.md`.
 
 ## D-GH24 · CharGen/Live Sheet theme-restore check stays at the bottom of `<body>`, not inline in `<head>`
-- **Context:** the theme-selector fix (PR #109) added a `prefers-color-scheme: dark` fallback to both
 - **Context:** the theme-selector fix (PR #109) added a `prefers-color-scheme: dark` fallback to both
   tools' theme-restore IIFE, matching `index.html`'s "saved choice wins, else system dark, else default"
   logic. The roadmap task that spawned this fix explicitly suggested also moving the check inline into

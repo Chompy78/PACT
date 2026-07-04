@@ -71,9 +71,11 @@ Console.
    tools import these from js/engine.js today" language and describe the new bridged state.
 6. Shrink/remove AUD-1's DATA/compute/MUT drift check (docs/PACT_ROADMAP.md) once all three tools
    are bridged — that audit step becomes unnecessary.
-7. Log under a NEW decision code — next free is D-GH26 (D-GH24 was claimed by the theme-selector fix's
-   restore-script-position decision; D-GH25 by the `/pick-task` batching decision) — documenting why all
-   three tools were migrated together rather than one at a time.
+7. Log under a NEW decision code — next free is D-GH26, reserved for this task specifically (D-GH24:
+   theme-selector restore-script-position decision; D-GH25: leaked-password-protection retirement;
+   D-GH27: `/pick-task` batching decision, renumbered off a D-GH25 collision with the leaked-password
+   entry — don't reuse D-GH26 for anything else in the meantime) — documenting why all three tools were
+   migrated together rather than one at a time.
 ```
 
 **Done when:** no tool has an embedded copy of DATA/compute/MUT/baseBuild/activeEvents/economy/
