@@ -132,6 +132,28 @@ paste it elsewhere. If they do want it committed, commit it directly (docs-only,
 and ask which branch (default `preview`, matching `/add-roadmap-task`'s convention, unless told
 otherwise). Pushing is a further, equally separate ask — don't assume commit implies push.
 
+## Step 7 — handle returned review feedback
+
+The user may come back later in the same conversation and paste in what a reviewer said. Expect this
+loosely, not rigidly:
+- **Format is not fixed.** It could be free prose, a bulleted list, a structured multi-section report, or
+  something else entirely — read it for content, don't expect any particular shape.
+- **There may be more than one response** (different reviewers, different AI tools, or the same reviewer
+  asked twice). Don't assume a single paste is the whole picture: after the first one arrives, ask
+  "any other review responses to add before I go through this, or is that everything?" and wait for an
+  explicit answer before triaging. If more come in, ask again the same way until the user says that's all.
+- Once you have everything, **triage, don't blindly apply**:
+  - If multiple responses came in, note where they agree vs. disagree — agreement across independent
+    reviewers is a stronger signal than a single opinion; disagreement is itself a finding worth surfacing,
+    not something to silently resolve by picking one side.
+  - Apply a finding directly (edit the plan or, if it's feedback on the skill itself, the skill file) only
+    when it's low-risk and clearly correct against this repo's own stated conventions.
+  - Stop and ask the user before acting on anything that: touches security/secrets, contradicts an
+    existing `DECISIONS.md` entry, reflects reviewers disagreeing with each other, or is a change you're
+    genuinely not confident about. Say specifically which finding and why you're pausing on it — don't
+    make the user re-read the whole review to figure out what needs their call.
+- Summarize what you applied, what you skipped (and why), and what's waiting on the user's decision.
+
 ---
 
 $ARGUMENTS
