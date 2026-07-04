@@ -98,7 +98,11 @@ If you have new roadmap items, output them in **this exact format** for the huma
 **Done when:** <objective, checkable condition>
 ````
 
-One task per branch (the open branch is the "in flight" signal).
+One task per branch (the open branch is the "in flight" signal) — except a small, explicitly-approved
+**batch** of low-risk tasks (docs-only, config, single-tool CSS/UI — the same class `/pick-task`'s
+"quick" filter identifies), which `/pick-task` may offer to bundle into one branch/PR for token
+efficiency. Each bundled task still gets its own commit and its own `CHANGELOG.md`/roadmap-graduation
+line; only the branch/PR/rebase/test-run machinery is shared.
 
 **Worktrees.** `/pick-task` + `/run-task` are the two-step workflow for a roadmap task: `/pick-task`
 fetches live state and pre-flights a task with no editing; `/run-task <type/short-slug>` does the actual
