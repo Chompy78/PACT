@@ -23,51 +23,6 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## iOS Save/Export unreliable — silent data loss risk (HIGH) — TODO
-Branch `fix/ios-save-export-reliability`. In `tools/PACT-CharGen-Webtool.html` and `tools/PACT-Live-Char-Sheet.html`, the Save/Export path (blob + `<a download>`, e.g. Live Sheet `exportJSON()` line ~804) fails silently on iOS Safari and in the installed iOS PWA — it often opens the raw JSON in a new tab instead of saving a file. Import is unaffected (both tools already use a standard `<input type="file">` picker, which works natively on iOS) — this task is Export/Save only.
-
-Severity differs by tool — CharGen is the true emergency:
-- **CharGen has no localStorage autosave at all** (confirmed: only the theme preference persists to
-  `localStorage`, no character-data key exists). Export is the *only* save mechanism — if it silently
-  fails on iOS, the build is lost the moment the tab closes/refreshes/backgrounds. Total, permanent loss.
-- **Live Sheet auto-saves to `localStorage` on every action** (`save()`, line ~802), so a failed Export
-  there doesn't lose the character immediately — only its ability to be backed up, transferred, or shared
-  with a DM. Lower urgency, but not zero: iOS Safari's Intelligent Tracking Prevention (ITP) is documented
-  to purge script-writable storage (including `localStorage`) after ~7 days of no user interaction with
-  the site, so Live Sheet's "safety net" is not permanent on iOS either — reinforcing why reliable export
-  still matters there.
-
-```text
-1. Feature-detect capability, don't sniff user-agent: check `navigator.canShare && navigator.canShare({files:[...]})`
-   at the point of export in both tools.
-2. Where Web Share is available (this is the iOS path in practice today, but detect by capability so it
-   also benefits any other browser lacking reliable anchor-download): build the same JSON Blob already
-   built today, wrap it in a `File`, and call `navigator.share({files:[file], title: <char name>})` —
-   this opens the native share sheet (Save to Files, AirDrop, Mail, etc.) instead of the anchor-download
-   trick.
-3. Where Web Share for files is NOT available: keep the existing blob + `<a download>` path unchanged —
-   this already works correctly on desktop and Android Chrome; do not alter that behavior.
-4. Bulletproof the failure mode itself, not just the happy path: `navigator.share()` can throw/reject
-   (user cancels the share sheet, or the call fails) — catch that and show a clear, specific flash/warning
-   message rather than failing silently. If neither Web Share nor the anchor-download path is available at
-   all (older/unsupported browser), warn the user BEFORE they think their work is saved, not after.
-5. CharGen-specific, higher priority: since CharGen has no fallback persistence, also add a lightweight
-   localStorage autosave of the in-progress build (mirroring Live Sheet's existing `save()` pattern) as a
-   safety net independent of Export — so a failed/abandoned Export doesn't mean total loss. This is a new
-   persistence behavior, not just an export fix; scope it minimally (autosave the raw build JSON, restore
-   on next visit, same "store raw, derive the rest" rule as Live Sheet).
-6. Make button behavior legible per-platform — e.g. label/tooltip text can differ (iOS: "Save (via Share
-   menu)" vs desktop/Android: "Save to Downloads") rather than an identical button that behaves invisibly
-   differently. Do not hide Save/Export on iOS — that removes the only path to preserving work; the fix is
-   making the working path reliable and clearly labeled, not removing capability.
-7. Apply to every blob+`<a download>` call site in both files (Live Sheet ~line 804 and ~1866 pattern),
-   not just the primary Save button.
-8. Test on real iOS Safari (tab) AND an installed iOS home-screen PWA (they behave differently) plus
-   confirm no regression on desktop Chrome/Firefox/Safari and Android Chrome.
-9. Display/reliability-only — do NOT bump DATA.version; log the fix in CHANGELOG.md.
-```
-**Done when:** on real iOS Safari and an installed iOS PWA, tapping Save/Export in CharGen and Live Sheet results in a file the user can confirm was actually saved (via the share sheet), with a clear error/warning shown if it isn't; CharGen additionally autosaves in-progress builds to localStorage so a failed Export is not total loss; desktop and Android Save/Export behavior is unchanged; button/tooltip text clearly communicates what will happen per-platform; parity still 5/0.
-
 ## Live Sheet: undo doesn't work properly — TODO
 Branch `fix/livesheet-undo-bug`. Reported by the user: in `tools/PACT-Live-Char-Sheet.html`, undoing an action produces incorrect state. Root cause not yet confirmed — needs investigation before a fix.
 
