@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-04 · docs — session note + D-GH24 for the theme-selector fix's `<head>` trade-off**
+  (`DECISIONS.md`, `docs/PACT_ROADMAP.md`, `docs/sessions/2026-07-04-theme-selector-and-worktree-cwd.md`;
+  no code/rules change). Follow-up to PR #109: `D-GH24` records why the theme-restore check stayed at
+  the end of `<body>` instead of moving inline into `<head>` like `index.html` (the tools' theme CSS is
+  `body`-scoped, not `documentElement`-scoped, so the early-run trick isn't a drop-in port). The session
+  note also covers the `/pick-task` difficulty-word fix and a mid-session worktree-cwd hiccup (absolute-path
+  `Edit`/`Write` calls landed in the shared main repo instead of the active worktree after a context
+  continuation). Also fixes `docs/PACT_ROADMAP.md`'s stale "next free is D-GH24" reference (now D-GH25).
 - **2026-07-04 · fix — reliable Save/Export on iOS Safari & PWA, plus a CharGen autosave safety net**
   (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; display/reliability-only, no
   `DATA.version` bump). Every blob+`<a download>` save/export site (CharGen `saveBuild()`,
