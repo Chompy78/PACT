@@ -86,3 +86,24 @@ exists, re-read its content against everything that's happened since, every time
 confirm one exists. Both that patch and the note update it prompted were small, low-risk, docs/tooling-only
 changes with no open conflicts against `main`, so — per explicit instruction — pushed directly via a clean
 fast-forward rather than going through another PR.
+
+## The note-writing trigger itself got refined, and a second D-GH19 collision turned up
+Follow-up discussion questioned the "spanned multiple areas" trigger directly: it would have let this very
+session skip its own note right up until the CSS cascade-order discovery, since strictly speaking scope
+wasn't really what made it worth writing — the surprise was. Refined the trigger to five concrete
+conditions (root cause differed from diagnosis, a second-guessable judgment call, a mid-session pivot,
+a collision with another session's work, or two-plus roadmap items combined) and patched
+`.claude/commands/close-session.md` accordingly, after walking through a range of trigger/no-trigger
+example scenarios together first.
+
+Immediately validated by its own criterion: syncing with `main` for the patch surfaced that an unrelated,
+same-day `ai-lessons-learned` session had independently claimed `D-GH19` in `DECISIONS.md` too (their
+auto-load-nudge decision, merged after mine), with no separator between the two entries — the same
+"race with another session" class of collision as PR #97 earlier in this session, just in a different
+file. Renumbered their entry to `D-GH20` (chronologically later, already sorted at the top), added the
+missing `---` separator, and fixed the one stale cross-reference in `.claude/commands/log-ai-lessons.md`.
+Bundled both fixes (the trigger refinement and the D-GH19 renumber) into one commit and pushed directly
+to `main`, same low-risk/no-conflict reasoning as the previous direct pushes.
+
+Also added `chompy78/ai-lessons-learned` to this session and cloned it to `/workspace/` on request, ready
+for whoever picks this session back up to mine it for cross-project lessons (see item 9 below).
