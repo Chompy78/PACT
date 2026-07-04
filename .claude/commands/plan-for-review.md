@@ -1,3 +1,10 @@
+---
+description: Turn a task/idea into a self-contained plan formatted for a cold AI/human reviewer
+argument-hint: [task or idea — omit to use this session's existing plan]
+allowed-tools: Read, Grep, Glob, Edit, Bash(git add *), Bash(git commit *)
+disallowed-tools: Bash(git push *)
+---
+
 # PACT — draft a plan for cross-AI review
 
 You turn a task or idea into a written plan, then save it as a self-contained markdown file formatted
