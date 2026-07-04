@@ -18,11 +18,17 @@ anything itself.
 Research whatever the plan touches (read the relevant files; check `AGENTS.md` / `docs/PACT_ROADMAP.md` /
 `DECISIONS.md` for constraints that apply) and work out a real plan, not a placeholder. Think through:
 - the concrete goal, and how you'd know it's done
-- the proposed approach, broken into ordered steps
+- the proposed approach, broken into ordered steps, naming concrete files/functions/line numbers where you
+  already know them
 - alternatives you considered and why you didn't pick them — even briefly, since a reviewer without your
   research can't tell "the only option" from "the option you happened to think of first"
 - risks and open questions you're genuinely unsure about
 - which files/areas the plan touches
+
+Assume the reviewer has **no access to this repo** — the usual destination for this doc is being pasted
+into a different AI tool with nothing but the text you hand it. Any rule, constraint, or prior decision
+that shapes the plan needs to be quoted or paraphrased inline in Step 3's Context section; a reference
+like "see AGENTS.md" is useless to a reader who can't open that file.
 
 Don't skip the alternatives/risks sections just because the plan feels obvious to you. The point of this
 skill is to hand the plan to someone with none of your context, so make the reasoning visible, not just
@@ -40,8 +46,8 @@ give a useful review:
 <what this plan achieves and why, in a sentence or two — assume the reader has never heard of this task>
 
 ## Context
-<the constraints/background a reviewer needs: relevant repo rules, prior decisions, why this is being
-done now — pull from AGENTS.md/DECISIONS.md/the roadmap where relevant; don't make the reviewer look it up>
+<the constraints/background a reviewer needs, quoted or paraphrased inline — not "see AGENTS.md", since
+the reviewer likely can't open it: relevant repo rules, prior decisions, why this is being done now>
 
 ## Proposed approach
 1. <step>
