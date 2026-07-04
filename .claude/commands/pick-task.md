@@ -36,9 +36,21 @@ and mention that you had to do that.
 
 ## Step 2 — pick a task
 
-- If I gave you a specific task name in `$ARGUMENTS` (a title, a short code, etc.), work on that one.
-- Otherwise, pick the topmost task marked `— TODO` in the **🔴 NOW** section from the subagent's summary,
-  skipping any that are explicitly marked as blocked or waiting on something else.
+- If `$ARGUMENTS` names a specific task (a title, a short code, etc.), work on that one.
+- Else if `$ARGUMENTS` expresses a difficulty/size preference instead of naming a task — words like
+  "quick", "fast", "easy", "small", "simple" — treat it as a filter, not a no-op: scan **NOW, then NEXT,
+  then LATER** for the topmost TODO item that looks genuinely small and low-risk, skipping over bigger
+  items even if they rank higher. Say which items you skipped and why.
+  - **Looks small/quick:** docs-only edits (`AGENTS.md`, `docs/*.md`, `CHANGELOG.md`), a config/manifest
+    tweak, a single-file CSS/copy/UI fix scoped to one tool, a small isolated bug fix with an obvious cause.
+  - **Not quick, skip it:** anything touching `js/engine.js` rules logic (`compute`, `rebuildStateFromEvents`,
+    event replay), cross-tool/module-bridge migrations, data-model or migration decisions, or anything
+    whose description says it needs root-cause investigation first.
+  - If nothing in NOW/NEXT/LATER looks small under this test, say so plainly and fall back to the default
+    rule below rather than guessing.
+- Otherwise (no task name, no difficulty preference), pick the topmost task marked `— TODO` in the
+  **🔴 NOW** section from the subagent's summary, skipping any that are explicitly marked as blocked or
+  waiting on something else.
 - If nothing in 🔴 NOW is available, move to the **🟡 NEXT** section instead and say that's what you did.
 
 ## Step 3 — pre-flight checks
