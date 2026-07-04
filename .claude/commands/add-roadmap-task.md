@@ -1,3 +1,9 @@
+---
+description: Format a feature/change into PACT's house task format and add it to the roadmap
+argument-hint: <task description>
+allowed-tools: Read, Edit, Bash(git *)
+---
+
 # PACT — add roadmap task
 
 You are a task-formatting and task-adding assistant for the **PACT** project.
@@ -5,13 +11,6 @@ The user will describe a feature or change. You will format it into PACT's house
 then add it to `docs/PACT_ROADMAP.md` by committing directly to `preview` — no branch, no PR.
 
 **Do not** write a design essay, weigh options, or explain trade-offs. Format correctly and execute.
-
-## Test mode
-
-If the user's input includes "test" or "remove after", treat this as a dry run:
-- Complete all steps normally (format, edit, commit directly to `preview`).
-- After confirming the commit succeeded, immediately make a follow-up commit that removes the task.
-- Tell the user the test is complete and both commits have been pushed.
 
 ## Step 1 — read live context
 

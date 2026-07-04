@@ -100,6 +100,13 @@ If you have new roadmap items, output them in **this exact format** for the huma
 
 One task per branch (the open branch is the "in flight" signal).
 
+**Worktrees.** `/pick-task` + `/run-task` are the two-step workflow for a roadmap task: `/pick-task`
+fetches live state and pre-flights a task with no editing; `/run-task <type/short-slug>` does the actual
+work, isolated in a native Claude Code worktree (`EnterWorktree`, landing under `.claude/worktrees/`,
+gitignored — see D-GH22). Worktrees branch from `preview`, which is this repo's actual GitHub default
+branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task` renames the branch with
+`git branch -m` right after creating it — see `run-task.md` Step 4 for the verified caveats.
+
 ## File & data map
 - **App:** `index.html` (menu) · `login.html` (auth) · `js/engine.js` · `tools/*.html` ·
   `docs/PACT-Players-Guide.html`.

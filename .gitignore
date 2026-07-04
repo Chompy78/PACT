@@ -3,3 +3,6 @@
 # Agents and commands subdirs ARE tracked as shared project context.
 .claude/*.json
 .claude/.fpp-reminder-state
+
+# Native Claude Code worktrees (created by /run-task via EnterWorktree) — local scratch, not shared.
+.claude/worktrees/

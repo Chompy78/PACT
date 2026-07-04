@@ -1,3 +1,9 @@
+---
+description: Mine a session/file/glob for generalizable AI-coding lessons and draft ai-lessons-learned entries
+argument-hint: [file|dir|glob — omit to mine this session]
+allowed-tools: Read, Grep, Glob, Agent, Bash(git clone *), Edit
+---
+
 # PACT — mine a session for cross-project lessons
 
 You read a session, session file, or transcript and draft candidate entries for the separate,
@@ -63,7 +69,9 @@ rule visible in the list itself (not just buried in the full block) so the user 
 without opening anything else. If you found none, say so plainly — don't force an entry that
 doesn't earn its place.
 
-Ask once which candidates (if any) to commit: "Write C1 and C3? Say the letters, or 'none'."
+Ask once which candidates (if any) to commit, spelling out what approval actually does: "Approving
+writes each selected candidate as its own file in `inbox/` on `chompy78/ai-lessons-learned`, commits it,
+and pushes to `main`. Which candidates to write? Say the letters (`C1`, `C3`, ...) or `none`."
 Wait for that reply.
 
 ## Step 5 — write, commit, push (only approved candidates)
