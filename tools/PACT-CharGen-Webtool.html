@@ -291,7 +291,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 /* ── header rows ── */
 .hd-row1{display:flex;align-items:center;gap:10px;padding:6px 14px;background:var(--navy);color:#fff}
 .hd-row1 b{font-size:14px;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hd-row2{display:flex;align-items:center;gap:14px;padding:5px 14px;background:var(--navy);color:#fff;border-top:1px solid rgba(255,255,255,0.15)}
+.hd-row2{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:5px 14px;background:var(--navy);color:#fff;border-top:1px solid rgba(255,255,255,0.15)}
 .hd-title{font-size:15px;margin:0;font-weight:700}
 .hd-row2 .sub,.hd-pactver{font-size:11px;opacity:.85}
 .hd-row2 .lastedited{font-size:11px;opacity:.75;white-space:nowrap}
@@ -399,7 +399,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
 <button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
-<div class="hd-mobnav"><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
+<div class="hd-mobnav"><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
 <div class="secnav" id="secnav"></div>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
 <div class="mobile-action-bar">
@@ -2679,8 +2679,11 @@ function closePortrait(){var ov=$('portraitview');if(ov)ov.style.display='none';
 
 SHEET_TOOL='chargen';   // tag hand-typed sheet records as belonging to the generator
 function setTheme(t){if(t)document.body.setAttribute('data-theme',t);else document.body.removeAttribute('data-theme');
-  try{localStorage.setItem('pactTheme',t||'');}catch(e){}}
-(function(){let t='';try{t=localStorage.getItem('pactTheme')||'';}catch(e){}if(t){setTheme(t);const s=$('themesel');if(s)s.value=t;}})();
+  try{localStorage.setItem('pactTheme',t||'');}catch(e){}
+  const s1=$('themesel');if(s1)s1.value=t||'';const s2=$('themeselMobile');if(s2)s2.value=t||'';}
+(function(){let t='';try{t=localStorage.getItem('pactTheme')||'';}catch(e){}
+  if(!t&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)t='dark';
+  if(t)setTheme(t);})();
 buildForm($('form'));
 buildSecNav();
 buildClassPickers();
