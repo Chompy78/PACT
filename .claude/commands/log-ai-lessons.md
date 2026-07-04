@@ -24,7 +24,7 @@ of that same check).
 - **Remote/cloud session:** if `chompy78/ai-lessons-learned` isn't already cloned locally this
   session, call `add_repo(owner="chompy78", repo="ai-lessons-learned")` yourself (you're the
   agent running this command — this is fine here, unlike a `SessionStart` hook, which can't do
-  this; see `DECISIONS.md` D-GH19), then `git clone --depth 1` it if the clone doesn't already
+  this; see `DECISIONS.md` D-GH20), then `git clone --depth 1` it if the clone doesn't already
   exist.
 - **Persistent local machine:** use whatever local clone already exists (see
   `SETUP-NEW-WINDOWS-PC.md` if one was sent to you, or just `git clone`/`git pull` it yourself

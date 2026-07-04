@@ -12,8 +12,16 @@ sessions may have their own worktrees and branches in flight; don't touch those.
 - `DECISIONS.md` — only needed if a change involved a non-obvious *why* (a trust boundary, a data-model
   trade-off, something a future agent would wonder about). Say clearly if you judge this isn't needed and
   why.
-- `docs/sessions/<date>-<topic>.md` — only needed if this session involved real discussion or spanned
-  multiple areas worth preserving. Most single-task sessions don't need this — say so if you skip it.
+- `docs/sessions/<date>-<topic>.md` — write one if **any** of these are true, otherwise skip it and say so:
+  - the actual root cause differed from what the task's diagnosis/roadmap entry assumed
+  - you picked between multiple valid approaches in a way a future agent could reasonably second-guess
+  - the plan changed mid-session — blocked, pivoted, or scope grew because it had to, not because it was
+    a nice-to-have
+  - work collided with another session's work (duplicate PR, merge conflict, race)
+  - two or more roadmap items got done together in one sitting
+
+  None of these are about task complexity or tool-call count — a fiddly but uneventful task still skips
+  the note; a one-line fix that uncovered a surprise still gets one.
   **If a note for this session already exists, don't just confirm it exists — re-read its content against
   everything that's happened since it was last written.** A note written mid-session goes stale the moment
   more work happens after it (e.g. this same `/close-session` pass surfacing a decision that gets acted on,

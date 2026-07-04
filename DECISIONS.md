@@ -6,7 +6,7 @@
 
 ---
 
-## D-GH19 · `ai-lessons-learned` auto-load in remote sessions: nudge-and-let-the-agent-decide, not auto-clone
+## D-GH20 · `ai-lessons-learned` auto-load in remote sessions: nudge-and-let-the-agent-decide, not auto-clone
 - **Context:** a `SessionStart` hook (`.claude/hooks/session-start.sh`) was built to auto-load a
   separate, private cross-project repo (`chompy78/ai-lessons-learned`) into every remote/cloud
   session's context, using a fine-grained PAT (`AI_LESSONS_TOKEN`) to `git clone` it. Retesting
@@ -41,6 +41,9 @@
 - **Status:** DONE. Hook rewritten and verified (remote: prints reminder, exit 0; non-remote:
   silent, exit 0). Local-machine loading (`~/.claude/CLAUDE.md` `@`-import of `INDEX.md`) is
   unaffected — it never went through this proxy in the first place.
+
+---
+
 ## D-GH19 · Live Sheet mobile CSS: `!important` to fix a silent cascade-order shadowing bug
 - **Context:** While fixing the "Live Sheet unusably cramped on small mobile screens" roadmap task,
   found that most of the existing `@media(max-width:600px)` mobile-tuning block (`.abrow`/`.kpis`
