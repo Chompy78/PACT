@@ -4,6 +4,7 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-04 · docs — retire the "enable Supabase Auth leaked-password protection" roadmap item** (`docs/PACT_ROADMAP.md`, `DECISIONS.md` D-GH25; no code/rules change). Supabase gates this Auth feature behind a paid plan tier; the project owner declined to upgrade for it. Removed from the roadmap rather than left open indefinitely — the security advisor (`auth_leaked_password_protection`) will keep flagging it, so the gap stays visible without a stale TODO.
 - **2026-07-04 · docs — session note + D-GH24 for the theme-selector fix's `<head>` trade-off**
   (`DECISIONS.md`, `docs/PACT_ROADMAP.md`, `docs/sessions/2026-07-04-theme-selector-and-worktree-cwd.md`;
   no code/rules change). Follow-up to PR #109: `D-GH24` records why the theme-restore check stayed at
