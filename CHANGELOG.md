@@ -17,6 +17,10 @@
   static string. CharGen also gains a `pactCharGenAutosave` localStorage safety net (mirrors Live Sheet's
   existing `save()`/`load()` pattern, raw build JSON only) — until now Export was CharGen's *only*
   persistence, so a failed/abandoned export meant total, permanent loss of the in-progress build.
+- **2026-07-04 · feat — narrow `/pick-task` Step 1's fetch from four files to three** (`.claude/commands/pick-task.md`;
+  no code/rules change). Drops the `testing/tests/engine-parity.html` `git show` (10KB) since it contributes
+  nothing toward the "current expected pass count" fact — that number is just the row count in
+  `testing/expected/expected-results.csv`, which is fetched separately and far cheaper (735B).
 - **2026-07-04 · docs(sessions) — record the audit/checking roadmap-additions session** (`docs/sessions/2026-07-04-audit-roadmap-session.md`; no code/rules change). Session note covering 7 new audit/checking roadmap items (Supabase advisor/log checklist step, docs-consistency audit, pre-release QA checklist, rules-correctness review note, AUD-1 version-sync follow-up, plus LATER bullets A9/A10), REV-11's promotion to NEXT, the stale D-GH14 reservation fix (corrected to D-GH18), A2's promotion to NEXT with the `/code-review` cadence folded in, and two separate collisions with concurrent sessions' work on `preview` (a rejected push absorbing 86 commits, then a further fast-forward mid-close-out).
 - **2026-07-04 · feat — add `.worktreeinclude`** (`.worktreeinclude`; no code/rules change). Copies
   `.claude/*.json` and `.claude/.fpp-reminder-state` — the actual gitignored config this repo has (PACT

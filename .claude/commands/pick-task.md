@@ -17,19 +17,19 @@ actually do the work.
 Don't trust the files sitting in the shared folder right now — another session could switch branches
 in that same folder while you're reading, so what you see on disk might not match what's really on the
 `preview` branch. Instead, delegate to an `Explore`-type subagent (via the `Agent` tool) so this session's
-own context stays clean: give it these four paths and ask it to pull them straight from GitHub —
+own context stays clean: give it these three paths and ask it to pull them straight from GitHub —
 
 ```
 git fetch origin
 git show origin/preview:AGENTS.md
 git show origin/preview:docs/PACT_ROADMAP.md
-git show origin/preview:testing/tests/engine-parity.html
 git show origin/preview:testing/expected/expected-results.csv
 ```
 
 — and to return only compact text, not the raw files: the branch-naming convention, the current expected
-pass count, every roadmap `— TODO` item in NOW/NEXT/LATER, and the highest existing `D-GH#` decision
-number.
+pass count (the number of data rows in `expected-results.csv` — that's the live "N passed / 0 failed"
+target, not a number to hardcode), every roadmap `— TODO` item in NOW/NEXT/LATER, and the highest existing
+`D-GH#` decision number.
 
 If `git show` fails (e.g. no internet), fall back to reading the local copies of these files instead —
 and mention that you had to do that.

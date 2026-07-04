@@ -21,6 +21,13 @@
   of the conversation; only the four derived facts do. Not retrofitted onto `/close-session`, which reads
   local repo state rather than fetching remote files, so the same justification doesn't apply there.
 - **Status:** DONE.
+- **Addendum (2026-07-04):** the subagent delegation isolates the read cost from the *picking session's*
+  context, but doesn't reduce the *total* tokens spent — the subagent still pays for all four files, fresh,
+  on every invocation. Auditing that cost found `testing/tests/engine-parity.html` (10KB) contributed
+  nothing toward the "current expected pass count" fact: that number is just the row count in
+  `testing/expected/expected-results.csv`, which is fetched separately. Dropped the `engine-parity.html`
+  fetch; Step 1 now pulls three files, not four. `testing/tests/engine-parity.html` is unaffected — it's
+  still the actual test harness `/run-task` runs; only its role in the `/pick-task` fetch is gone.
 
 ## D-GH22 · `/run-task` uses native Claude Code worktrees (`EnterWorktree`), superseding the "Option A" sibling `pact-worktrees/` folder layout
 - **Context:** `/next-task`'s manual worktree code (`git worktree add -b <slug> <worktrees-root>/pact-worktrees/<slug> origin/preview`, plus `-C <path>` on every later git call) had a path-arithmetic bug — `worktrees-root` was already defined as ending in `pact-worktrees`, so the `git worktree add` line doubled it into `.../pact-worktrees/pact-worktrees/<slug>`. Fixing that bug was itself an open question at the same time Claude Code's native `--worktree` flag / `EnterWorktree` tool (v2.1.50+) became available, which does the create/branch/cleanup automatically instead of via ~30 lines of manual prompt logic.
