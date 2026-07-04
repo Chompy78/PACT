@@ -68,15 +68,24 @@ separate go/no-go from Step 2 — don't skip it even if I already said go once.
 ## Step 4 — set up your own worktree
 
 Don't work inside the shared PACT folder for this task. Instead, create a separate folder just for this
-work:
+work, as a sibling of the repo so it works the same on Windows and Linux:
 
 ```
 git fetch origin
-git worktree add -b <type/short-slug> C:\Users\JohnChow\pact-worktrees\<short-slug> origin/preview
+git rev-parse --show-toplevel
+```
+
+Take the parent directory of that path and call it `<worktrees-root>/pact-worktrees` (e.g. if the repo is
+at `/home/user/PACT` or `C:\Users\JohnChow\PACT`, the worktrees root is `/home/user/pact-worktrees` or
+`C:\Users\JohnChow\pact-worktrees` respectively — same idea, native path syntax for whichever OS you're
+on). Then:
+
+```
+git worktree add -b <type/short-slug> <worktrees-root>/pact-worktrees/<short-slug> origin/preview
 ```
 
 From here on, do all your reading, editing, and testing inside
-`C:\Users\JohnChow\pact-worktrees\<short-slug>` — not the shared folder. Use full paths for every git
+`<worktrees-root>/pact-worktrees/<short-slug>` — not the shared folder. Use full paths for every git
 command so nothing depends on which folder you happen to be "in."
 
 ## Step 5 — do the work
@@ -96,8 +105,8 @@ Before calling it done:
 
 Other work may have landed on `preview` while you were busy. Bring your branch up to date:
 ```
-git -C C:\Users\JohnChow\pact-worktrees\<short-slug> fetch origin
-git -C C:\Users\JohnChow\pact-worktrees\<short-slug> rebase origin/preview
+git -C <worktrees-root>/pact-worktrees/<short-slug> fetch origin
+git -C <worktrees-root>/pact-worktrees/<short-slug> rebase origin/preview
 ```
 Fix any conflicts, then re-run the tests.
 
@@ -111,7 +120,7 @@ for the PR description.
 Once the PR is open, remove your worktree folder (but leave the branch itself — cleaning up old branches
 is a different, separate task, not part of this one):
 ```
-git worktree remove C:\Users\JohnChow\pact-worktrees\<short-slug>
+git worktree remove <worktrees-root>/pact-worktrees/<short-slug>
 ```
 
 ---
