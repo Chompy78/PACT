@@ -67,6 +67,15 @@
   the project owner) and deleted. The light pool still uses the original SVGs — no equivalent real art
   provided yet for that bucket. `source-assets/images/` was added alongside this for the full-resolution
   originals behind the new webp files (see `source-assets/README.md`).
+- **Update (2026-07-05, superseding the above):** the project owner supplied dedicated banner art for
+  all four named themes (2 images each), not just the dark ones. The light/dark-bucket model this
+  decision originally established is retired — `artPools` is now keyed directly by theme name
+  (`parchment`/`midnight`/`dragonfire`/`contrast`), each theme showing only art actually made for it.
+  `assets/themes/light/` and `assets/themes/dark/` (including the interim book-art webp files) are
+  deleted; replaced by `assets/themes/{parchment,midnight,dragonfire,contrast}/`. No SVG placeholders
+  remain anywhere in the pools — every theme now has real supplied art. The Player's Guide cover
+  (`pact-cover.jpg`) was also swapped to a smaller `assets/pact-cover.webp` in the same change, unrelated
+  to the theme pools but supplied in the same asset batch.
 
 ## D-GH24 · CharGen/Live Sheet theme-restore check stays at the bottom of `<body>`, not inline in `<head>`
 - **Context:** the theme-selector fix (PR #109) added a `prefers-color-scheme: dark` fallback to both
