@@ -40,6 +40,34 @@
   `D-GH20` incidents. Renumbered to `D-GH27` in a follow-up fix once found; `D-GH26` stays reserved for
   the engine module-bridge migration task per `docs/PACT_ROADMAP.md`.
 
+## D-GH28 · Homepage theme artwork is hand-authored SVG, not photos/illustrations
+- **Context:** the roadmap task asked for theme-specific image pools for a new homepage banner, randomly
+  selected per active theme and re-rolled on switch. No image-generation tool was available in this
+  session, and fetching real photos/illustrations from the web carries unclear licensing (and the project
+  has a hard rule against generating/guessing URLs not related to programming help).
+- **Options considered:** (A) fetch freely-licensed stock art from the web; (B) leave the feature as
+  scaffolding only (pool/selection/re-roll logic wired, no real images) for a human to fill in later; (C)
+  hand-author small original SVG banners, palette-matched to each theme's existing CSS custom properties.
+- **Decision:** (C). Four SVGs added: `assets/themes/light/{parchment-scroll,heraldic-crest}.svg`,
+  `assets/themes/dark/{starfield,dragon-ember}.svg`.
+- **Why:** avoids any licensing risk entirely, needs no build step or external fetch (fits the "vanilla JS,
+  static files only" hard rule), stays lightweight (a few KB of vector paths vs. photo-sized rasters), and
+  reuses the same hex values as each theme's `--bg`/`--accent`/etc. so the artwork reads as intentional
+  rather than a generic placeholder. (B) was rejected because a fully-wired feature with empty pools isn't
+  actually demoable or "done"; (A) was rejected on licensing grounds.
+- **Status:** DONE. Revisit if a human wants to swap in real illustrated art later — the pool arrays in
+  `index.html`'s theme-switcher script are the only place that needs updating (`artPools.light`/`.dark`).
+- **Addendum (2026-07-05):** originally logged as `D-GH26`, picked before a rebase surfaced that number
+  as explicitly reserved for the engine module-bridge migration task (`docs/PACT_ROADMAP.md`, "don't
+  reuse D-GH26 for anything else in the meantime"). Renumbered to `D-GH28` before this branch's PR
+  landed — same class of collision as the `D-GH19`/`D-GH20`/`D-GH25` incidents, caught this time before
+  merge rather than after.
+- **Update (2026-07-05):** the SVG placeholders in the dark pool (`starfield.svg`, `dragon-ember.svg`)
+  were superseded by real artwork (`assets/themes/dark/book-{closed,open}{,-banner}.webp`, supplied by
+  the project owner) and deleted. The light pool still uses the original SVGs — no equivalent real art
+  provided yet for that bucket. `source-assets/images/` was added alongside this for the full-resolution
+  originals behind the new webp files (see `source-assets/README.md`).
+
 ## D-GH24 · CharGen/Live Sheet theme-restore check stays at the bottom of `<body>`, not inline in `<head>`
 - **Context:** the theme-selector fix (PR #109) added a `prefers-color-scheme: dark` fallback to both
   tools' theme-restore IIFE, matching `index.html`'s "saved choice wins, else system dark, else default"
