@@ -35,7 +35,9 @@
   explicit **Assumptions-vs-verified-facts**, **Files involved**, **Verification**, and **Review outcome**
   sections; reviewer instructions are reframed for a no-repo cold reviewer with an anti-churn "say so if it's
   solid" note. Adds a short `## Active Priorities` block near the top of `AGENTS.md` (cached pointer to the
-  roadmap, not a second copy). Rationale and the rejected alternatives (OneDrive mirror, separate
+  roadmap, not a second copy, filled with the current 🔴 NOW focus) and documents the cold-review loop —
+  with its trigger rule — in the AGENTS.md Agent-guidance rubric so future sessions know when to reach for
+  it. Rationale and the rejected alternatives (OneDrive mirror, separate
   PACT-AI-CONTEXT.md, Copilot as repo-aware planner) are in this session's notes; no `DATA.version` change.
   (`index.html`, `AGENTS.md`; new `source-assets/README.md`; moved `images/book-*.webp` →
   `assets/themes/dark/`, `images/originals/*` → `source-assets/images/`; deleted the now-superseded
