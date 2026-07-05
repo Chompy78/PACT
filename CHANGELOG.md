@@ -4,6 +4,26 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-05 · feat — dedicated per-theme homepage artwork for all 4 themes; swap the Player's Guide cover to webp**
+  (`index.html`, `AGENTS.md`; new `assets/themes/{parchment,midnight,dragonfire,contrast}/*.webp`,
+  `assets/pact-cover.webp`; deleted `pact-cover.jpg`, the now-superseded `assets/themes/light/`,
+  `assets/themes/dark/`, and duplicate `images/` originals already archived in `source-assets/images/`;
+  display-only, no `DATA.version` change). The project owner supplied dedicated banner art for all four
+  named themes (2 images each), superseding the previous light/dark-bucket model from the prior entry —
+  `artPools` in `index.html`'s theme-switcher script is now keyed by theme name directly
+  (`parchment`/`midnight`/`dragonfire`/`contrast`), each re-rolling independently on switch with
+  immediate-repeat avoidance, so a theme only ever shows art actually made for it. Also swaps the
+  `<img class="cover">` Player's Guide thumbnail (and its `og:image`/`twitter:image` meta tags) from
+  `pact-cover.jpg` to a smaller `assets/pact-cover.webp`, supplied by the project owner. The project owner
+  also asked to keep the two original dark-theme book banners (`book-closed-banner.webp`,
+  `book-open-banner.webp`, previously in the deleted `assets/themes/dark/`) rather than discard them —
+  restored from git history into `assets/themes/midnight/` and added to `artPools.midnight` alongside its
+  2 dedicated images (now 4 total in that pool; static asset pools are hand-listed in `index.html`, not
+  auto-discovered from the directory — every file has to be named explicitly). Verified with a headless
+  Chromium run cycling all 4 themes and 12 re-rolls within `midnight` alone, confirming each theme (and
+  all 4 midnight variants) loads its own art and the cover image loads correctly; engine sanity check
+  unaffected (asset-only change). See `DECISIONS.md` D-GH28's update for why the light/dark bucket model
+  was retired.
 - **2026-07-05 · feat — swap in real dark-theme homepage artwork; add a `source-assets/` originals archive**
   (`index.html`, `AGENTS.md`; new `source-assets/README.md`; moved `images/book-*.webp` →
   `assets/themes/dark/`, `images/originals/*` → `source-assets/images/`; deleted the now-superseded
