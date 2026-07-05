@@ -25,6 +25,18 @@
   unaffected (asset-only change). See `DECISIONS.md` D-GH28's update for why the light/dark bucket model
   was retired.
 - **2026-07-05 · feat — swap in real dark-theme homepage artwork; add a `source-assets/` originals archive**
+- **2026-07-05 · docs — gate + tighten the `plan-for-review` skill for cold M365 Copilot review; add an AGENTS.md Active Priorities block**
+  (`.claude/commands/plan-for-review.md`, `AGENTS.md`; no code/rules change). Formalises the observed-useful
+  Claude→Copilot→Claude loop: Claude drafts a self-contained plan, M365 Copilot critiques it *cold* (no repo
+  access, judging plan quality not code correctness), Claude triages the feedback and implements. The skill
+  now opens with a trigger gate — *use cold review only if a wrong approach would cost more than one
+  implementation cycle to undo* — so trivial/single-file/mechanical work skips it. The generated package is
+  built from context already gathered while planning (no re-reading to pad), capped at ≤1.5 pages, and gains
+  explicit **Assumptions-vs-verified-facts**, **Files involved**, **Verification**, and **Review outcome**
+  sections; reviewer instructions are reframed for a no-repo cold reviewer with an anti-churn "say so if it's
+  solid" note. Adds a short `## Active Priorities` block near the top of `AGENTS.md` (cached pointer to the
+  roadmap, not a second copy). Rationale and the rejected alternatives (OneDrive mirror, separate
+  PACT-AI-CONTEXT.md, Copilot as repo-aware planner) are in this session's notes; no `DATA.version` change.
   (`index.html`, `AGENTS.md`; new `source-assets/README.md`; moved `images/book-*.webp` →
   `assets/themes/dark/`, `images/originals/*` → `source-assets/images/`; deleted the now-superseded
   `starfield.svg`/`dragon-ember.svg` placeholders; no `DATA.version` change). The project owner supplied

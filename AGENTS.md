@@ -7,6 +7,17 @@ PACT is a static, vanilla-JS tabletop-RPG tool suite — no frameworks, no build
 On GitHub Pages at https://chompy78.github.io/PACT/ (served from the `main` branch root; `preview`
 is staging and promotes into `main`).
 
+## Active Priorities
+<!-- Lets an agent start from current focus WITHOUT reading docs/PACT_ROADMAP.md; cached, so ~free after
+     turn one. Keep it short, refresh when focus shifts, prune when stale (stale is worse than empty). The
+     roadmap stays the single writer of the full task list — this is a pointer to it, not a second copy. -->
+
+- Current focus:
+- High-risk files:
+- Preferred task shape:
+- Avoid:
+- Verification expectations:
+
 ## Shell environment notes
 - **`gh` CLI** is installed but not on the system PATH — my shell tools can't resolve it by name.
   Always call it via its full path:
