@@ -4,6 +4,13 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-05 · docs(sessions) — record the BUILD-export/leaked-password/theme-artwork session**
+  (`docs/sessions/2026-07-05-theme-artwork-and-worktree-base.md`; no code/rules change). Covers PRs
+  #111, #113, #114, #120: the theme-artwork task's pivot history (SVG placeholders → real dark art →
+  per-theme restructuring → restoring old assets into `midnight`), the `D-GH26` decision-number
+  collision caught pre-merge, and a recurring `EnterWorktree` stale-base-branch gotcha worth
+  checking for on every future worktree entry.
+
 - **2026-07-05 · feat — dedicated per-theme homepage artwork for all 4 themes; swap the Player's Guide cover to webp**
   (`index.html`, `AGENTS.md`; new `assets/themes/{parchment,midnight,dragonfire,contrast}/*.webp`,
   `assets/pact-cover.webp`; deleted `pact-cover.jpg`, the now-superseded `assets/themes/light/`,
