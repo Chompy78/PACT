@@ -66,6 +66,10 @@ If none of these apply, state that and proceed.
 - **`tools/*.html` are 320–520 KB each** — search within for the relevant section; don't read the whole file.
 - **`docs/history/` is a retired architecture** (`src/engine/`, `build.cjs`, a Node audit) — never read it
   unless asked.
+- **`source-assets/` holds full-resolution/pre-optimization originals** (images today, possibly other
+  media later) behind the actual served files in `assets/`. Never read, glob, or summarize it wholesale —
+  these are large binaries, not something to reason about. See `source-assets/README.md` for what goes
+  there and how the optimized-vs-source split works.
 
 ## Versioning — TWO separate numbers (don't conflate or over-bump)
 - **Build version** (`BUILD`, currently `v0.107`) — the cosmetic web-tool/build number. The single source
