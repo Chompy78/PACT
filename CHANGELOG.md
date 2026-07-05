@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-05 · feat — swap in real dark-theme homepage artwork; add a `source-assets/` originals archive**
+  (`index.html`, `AGENTS.md`; new `source-assets/README.md`; moved `images/book-*.webp` →
+  `assets/themes/dark/`, `images/originals/*` → `source-assets/images/`; deleted the now-superseded
+  `starfield.svg`/`dragon-ember.svg` placeholders; no `DATA.version` change). The project owner supplied
+  real dark-theme artwork (4 grimoire/spellbook `.webp` images); `artPools.dark` in `index.html` now uses
+  those instead of the placeholder SVGs from the previous entry. Introduces `source-assets/` as a general
+  (not image-specific) home for full-resolution originals behind any optimized/served asset, kept out of
+  every agent's read path via a new `AGENTS.md` "don't read wholesale" bullet plus its own README
+  explaining the optimize-then-commit workflow. Renumbers this branch's own `D-GH26` decision to `D-GH28`
+  after a rebase surfaced that `D-GH26` is explicitly reserved for the engine module-bridge migration task
+  — see `DECISIONS.md` D-GH28's addendum. Light theme pool unchanged (still placeholder SVGs; no real
+  light-theme art supplied yet). Re-verified with the same headless Chromium theme-cycling check; engine
+  sanity check unaffected (asset-only change).
 - **2026-07-05 · fix — resolve a `D-GH25` collision on `preview`, plus a squash-merge duplicate line**
   (`DECISIONS.md`, `docs/PACT_ROADMAP.md`; no code/rules change). Two independent sessions both claimed
   `D-GH25` (this session's `/pick-task` batching decision, and PR #113's leaked-password-protection
@@ -20,7 +33,7 @@
   within the same bucket doesn't show the same image twice in a row. Artwork is hand-authored original SVG
   (no image-generation tool available, and fetching third-party art risked unclear licensing), palette-matched
   to each theme's existing CSS custom properties. Verified with a headless Chromium run cycling every theme
-  option and confirming the art src/bucket pairing and image load (see D-GH26 for why SVG over photos).
+  option and confirming the art src/bucket pairing and image load (see D-GH28 for why SVG over photos).
 
 - **2026-07-04 · docs — retire the "enable Supabase Auth leaked-password protection" roadmap item** (`docs/PACT_ROADMAP.md`, `DECISIONS.md` D-GH25; no code/rules change). Supabase gates this Auth feature behind a paid plan tier; the project owner declined to upgrade for it. Removed from the roadmap rather than left open indefinitely — the security advisor (`auth_leaked_password_protection`) will keep flagging it, so the gap stays visible without a stale TODO.
 - **2026-07-04 · docs — session note + D-GH24 for the theme-selector fix's `<head>` trade-off**
