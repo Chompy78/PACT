@@ -147,7 +147,8 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task`
   root — `manifest.json`, `service-worker.js`, `404.html`; `sql/` — `schema.sql`, `rls-policies.sql`, `migrations/`.
 - **Testing:** run `testing/tests/engine-parity.html` (expect **5/0**); fixtures in `testing/fixtures/`,
   expected output in `testing/expected/` (see `testing/README.md`).
-- **Docs:** `docs/PACT_ROADMAP.md` (open work) · `docs/HOW-TO-WORK.md` · `docs/sessions/` ·
+- **Docs:** `docs/PACT_ROADMAP.md` (open work) · `docs/HOW-TO-WORK.md` (app/test mechanics) ·
+  `docs/SKILLS.md` (skills + workflow, human-readable) · `docs/sessions/` ·
   `docs/history/` (archived, non-authoritative).
 - **Data rule:** the DB stores only raw character data (`characters.stats`) — the engine derives the rest
   (see *Persistence* above). `ap` (DM-awarded points) is server-authoritative and DM-only — never
