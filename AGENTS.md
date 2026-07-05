@@ -62,7 +62,7 @@ If none of these apply, state that and proceed.
 ## Don't read large files wholesale (token budget)
 - **`js/engine.js` (~237 KB)** — don't read end-to-end unless the task targets the engine; `grep` for the
   symbol you need (full API is the Exports line above).
-- **Never load `docs/PACT-Players-Guide.html` (~657 KB) or `pact-cover.jpg`** — player assets, not code.
+- **Never load `docs/PACT-Players-Guide.html` (~657 KB) or `assets/pact-cover.webp`** — player assets, not code.
 - **`tools/*.html` are 320–520 KB each** — search within for the relevant section; don't read the whole file.
 - **`docs/history/` is a retired architecture** (`src/engine/`, `build.cjs`, a Node audit) — never read it
   unless asked.

@@ -35,17 +35,17 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2358180D'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='22' font-weight='700' text-anchor='middle' fill='%23fbf7ec'%3EP%3C/text%3E%3C/svg%3E">
 
   <!-- Link preview (Open Graph / Twitter). For reliable previews on every platform, set
-       og:image to your full Pages URL, e.g. https://YOURNAME.github.io/PACT/pact-cover.jpg,
-       and commit pact-cover.jpg alongside this file. -->
+       og:image to your full Pages URL, e.g. https://YOURNAME.github.io/PACT/assets/pact-cover.webp,
+       and commit that file alongside this one. -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="PACT">
   <meta property="og:title" content="PACT Tools">
   <meta property="og:description" content="The PACT Player's Guide plus character-building tools for a points-buy take on 2024 D&amp;D.">
-  <meta property="og:image" content="https://chompy78.github.io/PACT/pact-cover.jpg">
+  <meta property="og:image" content="https://chompy78.github.io/PACT/assets/pact-cover.webp">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="PACT Tools">
   <meta name="twitter:description" content="The PACT Player's Guide plus character-building tools for a points-buy take on 2024 D&amp;D.">
-  <meta name="twitter:image" content="https://chompy78.github.io/PACT/pact-cover.jpg">
+  <meta name="twitter:image" content="https://chompy78.github.io/PACT/assets/pact-cover.webp">
   <script>
     /* Pick the theme before first paint: a saved choice wins; otherwise
        follow the device's dark-mode setting (Midnight), and fall back to Parchment. */
@@ -348,7 +348,7 @@
     </header>
 
     <a class="guide-hero" href="docs/PACT-Players-Guide.html">
-      <img class="cover" src="pact-cover.jpg" decoding="async" alt="PACT Player&rsquo;s Guide cover">
+      <img class="cover" src="assets/pact-cover.webp" decoding="async" alt="PACT Player&rsquo;s Guide cover">
       <div class="guide-hero-body">
         <p class="guide-eyebrow">Start here</p>
         <h2 class="guide-title">PACT Player&rsquo;s Guide</h2>
@@ -405,22 +405,25 @@
     /* ---- Theme switcher: subtle popover. "Auto" follows the device's light/dark setting and is the default. ---- */
     (function () {
       var themes = ['parchment', 'midnight', 'dragonfire', 'contrast'];
-      var darkThemes = ['midnight', 'dragonfire'];   // the rest (parchment, contrast) are light-background
       var root = document.documentElement;
       var toggle = document.querySelector('.theme-toggle');
       var menu = document.querySelector('.theme-menu');
       var opts = document.querySelectorAll('.theme-opt');
       var artEl = document.getElementById('homeArt');
+      // Each theme has its own dedicated art set (not a shared light/dark bucket) -
+      // mismatched pairing (e.g. Dragonfire art under Contrast) looks worse than no variety.
       var artPools = {
-        light: ['assets/themes/light/parchment-scroll.svg', 'assets/themes/light/heraldic-crest.svg'],
-        dark: [
-          'assets/themes/dark/book-closed.webp',
-          'assets/themes/dark/book-closed-banner.webp',
-          'assets/themes/dark/book-open.webp',
-          'assets/themes/dark/book-open-banner.webp',
+        parchment: ['assets/themes/parchment/pact-index-parchment-v1.webp', 'assets/themes/parchment/pact-index-parchment-v2.webp'],
+        midnight: [
+          'assets/themes/midnight/pact-index-midnight-v1.webp',
+          'assets/themes/midnight/pact-index-midnight-v2.webp',
+          'assets/themes/midnight/book-closed-banner.webp',
+          'assets/themes/midnight/book-open-banner.webp',
         ],
+        dragonfire: ['assets/themes/dragonfire/pact-index-dragonfire-v1.webp', 'assets/themes/dragonfire/pact-index-dragonfire-v2.webp'],
+        contrast: ['assets/themes/contrast/pact-index-contrast-v1.webp', 'assets/themes/contrast/pact-index-contrast-v2.webp'],
       };
-      var lastArtBucket = null, lastArtSrc = null;
+      var lastArtTheme = null, lastArtSrc = null;
 
       function systemDark() {
         return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -433,14 +436,14 @@
       function resolved() { return saved() || (systemDark() ? 'midnight' : 'parchment'); }  // the theme actually applied
       function applyArt(theme) {
         if (!artEl) return;
-        var bucket = darkThemes.indexOf(theme) !== -1 ? 'dark' : 'light';
-        var pool = artPools[bucket];
-        // Re-roll on every theme switch; avoid repeating the same image twice in a row within a bucket.
+        var pool = artPools[theme];
+        if (!pool || !pool.length) return;
+        // Re-roll on every theme switch; avoid repeating the same image twice in a row within a theme.
         var pick = pool[Math.floor(Math.random() * pool.length)];
-        if (pool.length > 1 && bucket === lastArtBucket && pick === lastArtSrc) {
+        if (pool.length > 1 && theme === lastArtTheme && pick === lastArtSrc) {
           pick = pool[(pool.indexOf(pick) + 1) % pool.length];
         }
-        lastArtBucket = bucket; lastArtSrc = pick;
+        lastArtTheme = theme; lastArtSrc = pick;
         artEl.src = pick;
       }
       function render() {
