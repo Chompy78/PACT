@@ -42,7 +42,8 @@
   plus the cold-review loop) and refreshes `docs/HOW-TO-WORK.md` to be Claude-Code-centric — Claude Code as
   the primary tool with M365 Copilot as cold reviewer only, dropping the stale "VS Code Copilot as co-equal
   coding tool" framing. Rationale and the rejected alternatives (OneDrive mirror, separate
-  PACT-AI-CONTEXT.md, Copilot as repo-aware planner) are in this session's notes; no `DATA.version` change.
+  PACT-AI-CONTEXT.md, Copilot as repo-aware planner) are in `DECISIONS.md` D-GH29 and this session's notes;
+  no `DATA.version` change.
   (`index.html`, `AGENTS.md`; new `source-assets/README.md`; moved `images/book-*.webp` →
   `assets/themes/dark/`, `images/originals/*` → `source-assets/images/`; deleted the now-superseded
   `starfield.svg`/`dragon-ember.svg` placeholders; no `DATA.version` change). The project owner supplied

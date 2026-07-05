@@ -38,10 +38,26 @@ scope, missing tests/criteria), not raw tokens.
   already-gathered context (no re-reading to pad); ≤1.5-page cap; added Assumptions-vs-verified-facts,
   Files involved, Verification, and Review-outcome sections; reframed reviewer instructions for a no-repo
   cold reviewer with an anti-churn note; Step-7 accept/reject/defer/→test/→doc/→roadmap triage.
-- Added `## Active Priorities` block near the top of `AGENTS.md` (blank fields for the owner to fill).
+- Added `## Active Priorities` block near the top of `AGENTS.md`, filled with the current 🔴 NOW focus
+  (Live Sheet `undo()` bug + engine module-bridge migration).
+- Added a **Cold plan review** entry to `AGENTS.md`'s Agent-guidance rubric (with the trigger rule), so
+  future sessions know *when* to reach for `/plan-for-review` — AGENTS.md is read every session; the skill
+  file only when invoked.
+- Created human-readable **`docs/SKILLS.md`** — what each skill does + how they chain into the task
+  lifecycle, plus the cold-review loop — and refreshed **`docs/HOW-TO-WORK.md`** to be Claude-Code-centric
+  (Claude primary; M365 Copilot as cold reviewer only; dropped the stale VS-Code-Copilot co-tool framing).
+- Logged the workflow decision in `DECISIONS.md` **D-GH29**.
+- Added two `dev/learnings.md` entries (cross-project, outside the repo): *M365 Copilot ≠ GitHub Copilot —
+  cold reviewer of self-contained artifacts, not repo-aware*; and *Claude Code cost is dominated by cache
+  reads (context × turns), not doc reads — measure transcripts before optimising.*
+- All of the above landed via **PR #124**, squash-merged into `preview`.
+
+## Merge note (collision)
+PR #124 hit a merge conflict at merge time: `preview` had advanced with a concurrent homepage-artwork PR
+that also added a top entry to `CHANGELOG.md`. Resolved by rebasing the branch onto `origin/preview` — the
+two competing changelog top-entries auto-merged cleanly (both kept, no content lost), then force-pushed and
+squash-merged. Same *class* of "clean auto-merge around a shared top-of-file section" that the D-GH19/20/25
+collisions warn about, but here it surfaced as a real conflict and was resolved before merge.
 
 ## Open follow-ups
-- Owner to fill the five `Active Priorities` fields.
-- Optional: a `dev/learnings.md` entry — *M365 Copilot ≠ GitHub Copilot; use it as a cold reviewer of
-  self-contained artifacts, not a repo-aware assistant; Claude Code cost is dominated by cache reads
-  (context × turns), not doc reads — measure transcripts before optimising.*
+- None outstanding. (Active Priorities filled; learnings entries written; decision logged.)
