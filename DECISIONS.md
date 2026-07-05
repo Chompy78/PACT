@@ -6,6 +6,78 @@
 
 ---
 
+## D-GH27 · `/pick-task` may bundle several quick tasks into one branch/PR — the one exception to "one task per branch"
+- **Context:** each `/pick-task` → `/run-task` cycle pays a fixed overhead regardless of task size — a
+  live roadmap fetch, an `engine-parity` run, a rebase onto `preview`, and a PR — on top of the actual
+  edit. For a genuinely small/low-risk task (docs-only, config, single-tool CSS/UI, the same class
+  `/pick-task`'s "quick" filter already identifies), that fixed cost dominates the total token spend.
+  The repo's existing convention is "one task per branch" (the open branch is the concurrency-safety
+  signal for other sessions), so any batching has to not break that signal for tasks it doesn't cover.
+- **Options considered:** (A) leave batching out of scope — every task, however small, still pays the
+  full per-task overhead; (B) let `/pick-task` bundle several *quick-filtered* tasks into one shared
+  branch/worktree/PR, provided each one is independently pre-flighted (branch-collision + effort/model
+  checks) and none touch overlapping files; (C) batch any tasks regardless of size/risk classification.
+- **Decision:** (B). Bundling is opt-in (offered via a clickable `AskUserQuestion`, never automatic),
+  capped at 3 tasks total (primary pick + up to 2 more), and restricted to tasks that already passed
+  Step 2's "looks small/quick" test *and* Step 3's per-task pre-flight individually — a candidate that
+  fires the Opus/xhigh escalation trigger, or collides on files with another batch member, drops out of
+  the batch rather than being forced through. Each bundled task still gets its own commit and its own
+  `CHANGELOG.md`/roadmap-graduation line; only the branch/worktree/rebase/`engine-parity`-run/PR
+  machinery is shared.
+- **Why:** (C) was rejected because "one task per branch" exists specifically so a branch's existence
+  reliably tells a concurrent session "someone's already on this," and so a PR stays one reviewable/
+  revertible unit — bundling anything above quick/low-risk size would erode both properties for no
+  proportionate token savings (a large task's edit cost dwarfs the fixed per-task overhead anyway, so
+  there's nothing to amortize). (A) was rejected because the fixed overhead is real and the roadmap
+  already has several genuinely independent quick items (docs-only checklist additions, config toggles)
+  that gain nothing from individual branches/PRs. (B) keeps the collision-safety property for everything
+  it doesn't cover, and keeps per-task traceability (commits, CHANGELOG lines) even for what it does.
+- **Status:** DONE.
+- **Addendum (2026-07-05):** originally logged as `D-GH25`, picked on a branch rebased before another
+  session's PR (#113, retiring the leaked-password-protection roadmap item) independently claimed the
+  same number. Both landed on `preview` via squash-merges that silently concatenated rather than
+  conflicting — the same "clean auto-merge hides the collision" failure mode as the prior `D-GH19`/
+  `D-GH20` incidents. Renumbered to `D-GH27` in a follow-up fix once found; `D-GH26` stays reserved for
+  the engine module-bridge migration task per `docs/PACT_ROADMAP.md`.
+
+## D-GH24 · CharGen/Live Sheet theme-restore check stays at the bottom of `<body>`, not inline in `<head>`
+- **Context:** the theme-selector fix (PR #109) added a `prefers-color-scheme: dark` fallback to both
+  tools' theme-restore IIFE, matching `index.html`'s "saved choice wins, else system dark, else default"
+  logic. The roadmap task that spawned this fix explicitly suggested also moving the check inline into
+  `<head>` (as `index.html` does) to avoid a flash of the wrong theme before JS runs, and asked to "note
+  in the PR if that's not practical and why."
+- **Options considered:** (A) move the restore IIFE into an inline `<head>` `<script>`, matching
+  `index.html`'s pattern exactly; (B) leave the check where it already ran (near the end of `<body>`,
+  after the header markup), only adding the `matchMedia` fallback in place.
+- **Decision:** (B).
+- **Why:** `index.html`'s theme system is `documentElement`-scoped (`html[data-theme=...]`), which is set
+  before `<body>` exists — that's *why* it can safely run in `<head>`. CharGen's and Live Sheet's theme
+  CSS is `body`-scoped (`body[data-theme="dark"]`, etc., dozens of selectors across both files'
+  stylesheets) and `document.body` doesn't exist yet while `<head>` is parsing, so the same early-run
+  trick isn't a drop-in port — it would require converting every `body[data-theme=...]` selector in both
+  tools to `html[data-theme=...]` first, a materially larger and riskier CSS change than this fix's scope
+  (mobile-hidden + desktop-clipped selector, plus the dark-mode default). A future agent picking up the
+  "flash of wrong theme on load" follow-up should start from the CSS-scope conversion, not from the
+  restore-script's position — the script's position was never the blocker.
+- **Status:** DONE (for this fix's scope). The `<head>`-timed version remains open as unclaimed follow-up
+  work, not currently tracked as its own roadmap item.
+
+## D-GH25 · Leaked-password-protection roadmap item retired, not enabled
+- **Context:** the 2026-07-02 post-merge security audit flagged `auth_leaked_password_protection`
+  (Supabase Auth checks new/changed passwords against HaveIBeenPwned) as disabled, and a roadmap item
+  asked for it to be enabled by hand in the Supabase dashboard (no code/migration involved — Auth config
+  isn't reachable via any MCP tool or SQL). On attempting the toggle, the project owner found Supabase
+  gates this feature behind a paid plan tier.
+- **Options considered:** (A) upgrade the Supabase plan to enable it; (B) leave the toggle off and drop
+  the roadmap item.
+- **Decision:** (B). The project owner declined to pay for a plan upgrade for this one feature.
+- **Why:** cost/benefit — PACT is a hobby tabletop-tool suite, not a project with a security budget; the
+  underlying risk (reused/breached passwords) is mitigated by the free `auth_leaked_password_protection`
+  advisor continuing to flag it on every future security-advisor check, so the gap stays visible even
+  though it's not fixed.
+- **Status:** DONE (roadmap item removed; not revisited unless the plan tier changes or the owner
+  reconsiders).
+
 ## D-GH23 · `/pick-task` Step 1 delegates its four `git show` fetches to an Explore subagent
 - **Context:** `/pick-task` (née `/next-task` Step 1) needs the live `preview`-branch copies of
   `AGENTS.md`, `docs/PACT_ROADMAP.md`, `testing/tests/engine-parity.html`, and

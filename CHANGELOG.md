@@ -4,6 +4,42 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-05 · fix — resolve a `D-GH25` collision on `preview`, plus a squash-merge duplicate line**
+  (`DECISIONS.md`, `docs/PACT_ROADMAP.md`; no code/rules change). Two independent sessions both claimed
+  `D-GH25` (this session's `/pick-task` batching decision, and PR #113's leaked-password-protection
+  retirement) — both squash-merges landed cleanly with no conflict, silently concatenating the duplicate
+  header instead of surfacing it, the same failure mode as the prior `D-GH19`/`D-GH20` incidents.
+  Renumbered the batching decision to `D-GH27` (`D-GH26` stays reserved for the engine module-bridge
+  migration task) and fixed the roadmap's now-stale "next free" reference. Also found and fixed an
+  unrelated duplicated line in the `D-GH24` entry, introduced by the same squash-merge.
+- **2026-07-04 · docs — retire the "enable Supabase Auth leaked-password protection" roadmap item** (`docs/PACT_ROADMAP.md`, `DECISIONS.md` D-GH25; no code/rules change). Supabase gates this Auth feature behind a paid plan tier; the project owner declined to upgrade for it. Removed from the roadmap rather than left open indefinitely — the security advisor (`auth_leaked_password_protection`) will keep flagging it, so the gap stays visible without a stale TODO.
+- **2026-07-04 · docs — session note + D-GH24 for the theme-selector fix's `<head>` trade-off**
+  (`DECISIONS.md`, `docs/PACT_ROADMAP.md`, `docs/sessions/2026-07-04-theme-selector-and-worktree-cwd.md`;
+  no code/rules change). Follow-up to PR #109: `D-GH24` records why the theme-restore check stayed at
+  the end of `<body>` instead of moving inline into `<head>` like `index.html` (the tools' theme CSS is
+  `body`-scoped, not `documentElement`-scoped, so the early-run trick isn't a drop-in port). The session
+  note also covers the `/pick-task` difficulty-word fix and a mid-session worktree-cwd hiccup (absolute-path
+  `Edit`/`Write` calls landed in the shared main repo instead of the active worktree after a context
+  continuation). Also fixes `docs/PACT_ROADMAP.md`'s stale "next free is D-GH24" reference (now D-GH25).
+- **2026-07-04 · feat — `/pick-task` can batch several quick, non-overlapping tasks into one PR**
+  (`.claude/commands/pick-task.md`, `.claude/commands/run-task.md`, `AGENTS.md`; no code/rules change).
+  When `/pick-task`'s difficulty-filter path (e.g. "quick"/"fast"/"easy") picks a task, it now also scans
+  the rest of NOW/NEXT/LATER for up to 2 more independently small, low-risk, non-file-overlapping
+  candidates, pre-flights each one separately (branch collision + effort/model escalation — a candidate
+  that fires either drops out of the batch rather than blocking the primary pick), and offers a
+  "batch `<primary>` + N more" option alongside "run just the primary" in its confirmation.
+  `/run-task` now accepts multiple space-separated `<type/short-slug>` arguments: each task still gets
+  its own edit, its own commit, and its own `CHANGELOG.md`/roadmap-graduation line — only the
+  worktree/branch, the final `engine-parity` run, the rebase, and the PR are shared once across the
+  batch, amortizing that fixed overhead instead of paying it per task. `AGENTS.md`'s "one task per
+  branch" note now documents this as the one explicit exception (see `DECISIONS.md` D-GH27 — originally
+  logged as D-GH25, renumbered after colliding with PR #113's independent use of the same number; see
+  `docs/PACT_ROADMAP.md`'s follow-up fix in this same change).
+- **2026-07-04 · feat — `/pick-task` ends with a clickable confirmation instead of copy-paste text**
+  (`.claude/commands/pick-task.md`; no code/rules change). Step 4's hand-off now asks via
+  `AskUserQuestion` whether to start work, with options to run `/run-task <slug>` immediately in the
+  same turn, wait, or go back and choose a different roadmap item (looping back through Step 3's
+  pre-flight for the new pick) — replacing the old "Say `/run-task <slug>`" line that had to be retyped.
 - **2026-07-04 · fix — reliable Save/Export on iOS Safari & PWA, plus a CharGen autosave safety net**
   (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; display/reliability-only, no
   `DATA.version` bump). Every blob+`<a download>` save/export site (CharGen `saveBuild()`,
@@ -21,6 +57,23 @@
   no code/rules change). Drops the `testing/tests/engine-parity.html` `git show` (10KB) since it contributes
   nothing toward the "current expected pass count" fact — that number is just the row count in
   `testing/expected/expected-results.csv`, which is fetched separately and far cheaper (735B).
+- **2026-07-04 · fix — theme selector reachable on mobile, no longer clips on desktop; add system
+  dark-mode default** (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`;
+  display-only, no `DATA.version` bump). CharGen's `.hd-row2` (title/version/last-edited/🎨 theme
+  dropdown) was `display:none` below 768px with no mobile substitute — the theme selector was simply
+  unreachable on phones. Added a compact `#themeselMobile` select to `.hd-mobnav`, kept in sync with the
+  desktop `#themesel` via `setTheme()`. Also gave `.hd-row2` `flex-wrap:wrap` so it can no longer
+  visually clip the dropdown at narrow/zoomed desktop widths (previously one non-wrapping flex row).
+  Live Sheet's `#themesel` already lives inside its always-reachable "More" dropdown, so no layout
+  change was needed there. Both tools' theme-restore IIFE now falls back to
+  `prefers-color-scheme: dark` (mapped to the existing `dark` theme) when nothing is saved in
+  `localStorage`, matching `index.html`'s pattern — first-time visitors on a dark-preferring device now
+  get dark mode by default. Left the restore check running where it already did (near the end of
+  `<body>`, not inline in `<head>` like `index.html`) — the tools' theme CSS is scoped to
+  `body[data-theme=...]`, not `:root`/`html`, so an early `<head>`-run script can't apply the theme
+  before body parses without also converting every theme selector; that's a larger refactor left for a
+  follow-up rather than folded into this fix.
+- **2026-07-04 · fix — add `BUILD` export to `js/engine.js`, wire `index.html` to read it live** (`js/engine.js` now exports `BUILD = "v0.107"`; `index.html` imports it in a new module-script block and renders it in the footer). Closes a docs/code drift found in a 2026-07-02 audit: `docs/VERSION-SYNC.md` and the 2026-07-01 CU-2 entry below both claimed this mechanism already existed — it didn't (`git log -S"export const BUILD"` had zero hits ever). This corrects that false claim. The three tools' hand-maintained version labels (CharGen title/header, Live Sheet comment, DM Console `TOOL_VERSION`) are unchanged for now — Task 6 (CharGen module-bridge migration) is the natural point to wire those to read `BUILD` live too. Display-only/tooling; `DATA.version` untouched; parity still 5/0.
 - **2026-07-04 · docs(sessions) — record the audit/checking roadmap-additions session** (`docs/sessions/2026-07-04-audit-roadmap-session.md`; no code/rules change). Session note covering 7 new audit/checking roadmap items (Supabase advisor/log checklist step, docs-consistency audit, pre-release QA checklist, rules-correctness review note, AUD-1 version-sync follow-up, plus LATER bullets A9/A10), REV-11's promotion to NEXT, the stale D-GH14 reservation fix (corrected to D-GH18), A2's promotion to NEXT with the `/code-review` cadence folded in, and two separate collisions with concurrent sessions' work on `preview` (a rejected push absorbing 86 commits, then a further fast-forward mid-close-out).
 - **2026-07-04 · feat — add `.worktreeinclude`** (`.worktreeinclude`; no code/rules change). Copies
   `.claude/*.json` and `.claude/.fpp-reminder-state` — the actual gitignored config this repo has (PACT

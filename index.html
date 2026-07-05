@@ -286,6 +286,10 @@
     }
   </style>
   <script type="module">
+    import('./js/engine.js').then((m) => {
+      const el = document.getElementById('buildVer');
+      if (el) el.textContent = 'Build ' + m.BUILD;
+    }).catch(() => {});
     import('./js/auth.js').then(async (m) => {
       const btn = document.getElementById('authBtn');
       const session = await m.currentSession();
@@ -386,7 +390,7 @@
       </div>
     </section>
 
-    <footer>If a tool loads blank, open the browser console (F12) and check that <code>js/engine.js</code> returned 200.</footer>
+    <footer>If a tool loads blank, open the browser console (F12) and check that <code>js/engine.js</code> returned 200. <span id="buildVer"></span></footer>
   </div>
 
   <script>
