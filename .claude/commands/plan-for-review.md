@@ -25,10 +25,17 @@ something to bake into whether the plan itself is "done."
   of re-deriving it from scratch.
 - If neither gives you enough to go on, ask the user directly what they want a plan for. Don't guess.
 
-Use judgment on whether this skill is the right size for the ask: skip it for a one-line/trivial change
-(the ceremony isn't worth it), and for a genuinely large effort, split it into more than one linked plan
-rather than one unreviewable mega-doc — say so and propose the split instead of forcing everything into
-one file.
+**Trigger rule — only run this skill when external review would pay for itself:**
+
+> Use Copilot/cold review only if a wrong approach would cost **more than one implementation cycle to undo.**
+
+So skip it — and just tell the user to proceed directly — for one-line, single-file, or mechanical changes,
+or anything where the approach is obvious and the blast radius is small; the review round-trip costs more
+than it saves there. Reach for it when the task touches multiple files, has architectural implications,
+changes `compute()` output/rules, involves tool-parity work, has contested/unclear scope, or you're
+genuinely uncertain about the framing. For a genuinely large effort, split it into more than one linked
+plan rather than one unreviewable mega-doc — say so and propose the split instead of forcing everything
+into one file.
 
 ## Step 2 — check for an existing plan on the same topic
 
@@ -65,6 +72,13 @@ Don't skip the alternatives/risks/out-of-scope sections just because the plan fe
 point of this skill is to hand the plan to someone with none of your context, so make the reasoning
 visible, not just the conclusion.
 
+**Build the package from what you already gathered while planning — do not re-read files just to pad it.**
+The reviewer needs your reasoning, not a repo tour. **Target ≤1.5 pages / one screen the reviewer can hold
+at once;** if it won't fit, that's the Step-1 signal to split into linked plans, not to write a mega-doc.
+Keep an explicit line between **things you verified in the code** and **things you're assuming** — the cold
+reviewer is especially good at attacking hidden assumptions, so surface them pre-sorted rather than blurred
+into the approach.
+
 ## Step 4 — package it for a cold reviewer
 
 Write the plan into this exact shape so another AI (or person) can pick it up with zero prior context and
@@ -84,10 +98,17 @@ write it, not the person invoking this skill:
 the reviewer likely can't open it: relevant repo rules, prior decisions, why this is being done now. Never
 include secrets/credentials/tokens themselves — describe the constraint, not the value.>
 
+## Assumptions vs. verified facts
+- **Verified (checked in the code/docs):** <facts you confirmed — so the reviewer knows these are solid>
+- **Assumed (not yet confirmed):** <guesses the plan rests on — the reviewer is invited to attack these>
+
 ## Proposed approach
 1. <step>
 2. <step>
 ...
+
+## Files involved
+- <path — what changes in it and why. Name concrete files/functions/symbols, not line numbers (they rot).>
 
 ## Out of scope
 - <things this plan deliberately does not attempt, so a reviewer doesn't suggest scope creep>
@@ -98,6 +119,12 @@ include secrets/credentials/tokens themselves — describe the constraint, not t
 ## Risks / open questions
 - <anything genuinely uncertain that a reviewer should weigh in on>
 
+## Verification
+<how you'll prove the goal was actually met — concrete, runnable checks, not "it works". For PACT that
+almost always includes `testing/tests/engine-parity.html` → 5/0, plus any task-specific check (a fixture,
+a manual UI step, version numbers mirrored per VERSION-SYNC.md). The reviewer should be able to spot a
+missing verification step from this alone.>
+
 ## Done when
 <the objective, checkable condition(s) for the plan's own deliverable. Do not fold "committed"/"pushed"
 into this — those are separate optional stages this skill's workflow handles after the plan is written,
@@ -106,16 +133,28 @@ not part of what makes the plan itself complete.>
 ---
 
 ## Reviewer instructions
-You are reviewing this plan cold, with no context beyond what's written above. Your job is to find gaps,
-unstated risks, and better alternatives — including structural or redesign suggestions, not just
-"missing detail" — but not to implement anything. Specifically:
+You are reviewing this plan **cold, with no access to the codebase** — only the text above. You are a
+general reasoner, not a code analyzer: judge the plan's **logic, clarity, scope, and risk — not code
+correctness you cannot verify.** If the plan relies on knowledge you don't have, that itself is a finding.
+Find gaps, unstated risks, and better alternatives — including structural/redesign suggestions, not just
+"missing detail" — but do not implement anything. Specifically:
 1. Does the proposed approach actually achieve the stated goal?
-2. Is anything in "Alternatives considered" actually better than the chosen approach?
-3. What's missing — an edge case, a risk, a dependency the plan doesn't mention?
-4. Is "Done when" actually checkable, or does it hide ambiguity?
+2. Which of the plan's **assumptions** look shaky, and what happens if one is wrong?
+3. Is anything in "Alternatives considered" actually better, or is the plan overcomplicated for the goal?
+4. What's missing — an edge case, a risk, a dependency, a **verification step** the plan doesn't mention?
+5. Are "Verification" and "Done when" objectively checkable, or do they hide ambiguity?
+6. Should this task be split? Is anything in "Out of scope" actually load-bearing?
 
-Write your findings as a plain list (gaps found, suggested improvements, verdict) — don't rewrite the
-plan yourself unless asked.
+Write your findings as a plain list (gaps found, suggested improvements, verdict) — don't rewrite the plan
+yourself unless asked. **If a section is genuinely solid, say so briefly rather than inventing concerns** —
+false findings cost the implementer a wasted cycle.
+
+---
+
+## Review outcome (fill in after the review + implementation — not part of the cold review)
+- Reviewer findings: <N> → accept <A> / reject <R> / defer+convert <C>
+- Materially changed the plan? <yes/no — one line on what changed>
+- Without the review, what would have happened: <one line — a real risk caught, or "nothing, plan was fine">
 ```
 
 ## Step 5 — show it before writing anything
@@ -160,6 +199,12 @@ loosely, not rigidly:
     genuinely not confident about. Say specifically which finding and why you're pausing on it — don't
     make the user re-read the whole review to figure out what needs their call.
 - Summarize what you applied, what you skipped (and why), and what's waiting on the user's decision.
+- **Categorise each finding** as one of: accept / reject / defer / →test / →doc-note / →roadmap item — and
+  treat every finding as a hypothesis to verify against the actual code, not an instruction (a cold reviewer
+  with no repo access will sometimes be wrong precisely *because* it couldn't see the code).
+- If the plan file was written to disk, fill in its **"Review outcome"** stub (findings count, whether the
+  review materially changed the plan, what it caught). This is the only tracking we keep — a few one-line
+  entries across plans tell you whether the review loop is earning its keep or is theatre.
 
 ---
 

@@ -7,6 +7,25 @@ PACT is a static, vanilla-JS tabletop-RPG tool suite — no frameworks, no build
 On GitHub Pages at https://chompy78.github.io/PACT/ (served from the `main` branch root; `preview`
 is staging and promotes into `main`).
 
+## Active Priorities
+<!-- Lets an agent start from current focus WITHOUT reading docs/PACT_ROADMAP.md; cached, so ~free after
+     turn one. Keep it short, refresh when focus shifts, prune when stale (stale is worse than empty). The
+     roadmap stays the single writer of the full task list — this is a pointer to it, not a second copy. -->
+
+- **Current focus:** the two 🔴 NOW roadmap items — Live Sheet `undo()` correctness bug
+  (`fix/livesheet-undo-bug`) and the full engine module-bridge migration across all three tools
+  (`feat/engine-bridge-all-tools`). See `docs/PACT_ROADMAP.md` NOW section for the authoritative task text.
+- **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); the three tools'
+  hand-copied `DATA`/`compute()`/`MUT`/etc. (parity risk until the bridge lands); Live Sheet `undo()` /
+  event-log replay path.
+- **Preferred task shape:** one task per branch (`type/short-slug`), small focused PRs into `preview`; use
+  `/pick-task` → `/run-task`; for big/risky work draft a plan for cold review first (see Agent guidance below).
+- **Avoid:** re-implementing rules logic anywhere but `engine.js`; patching `undo()` with tool-local state
+  instead of LOG replay; bumping `DATA.version` for display-only changes; reading large files wholesale.
+- **Verification expectations:** `testing/tests/engine-parity.html` → **5/0**; if `compute()` output changed,
+  update `testing/expected/` in the same PR and bump `DATA.version`; mirror build/version numbers per
+  `docs/VERSION-SYNC.md`.
+
 ## Shell environment notes
 - **`gh` CLI** is installed but not on the system PATH — my shell tools can't resolve it by name.
   Always call it via its full path:
@@ -19,6 +38,12 @@ effort — and why — using this quick rubric:
 - **Plan agent** — the task touches multiple files with architectural implications or involves a meaningful design trade-off.
 - **code-reviewer / `/code-review ultra`** — independent adversarial review of a diff before merging.
 - **Higher effort (`high`/`max`)** — verification, judge panels, or deep audits where correctness matters more than speed.
+- **Cold plan review (`/plan-for-review`)** — for a big/risky change (multi-file, engine/rules, tool-parity,
+  ambiguous scope, or where a missing test/criterion would cause rework), draft a *self-contained* plan for an
+  external cold reviewer (e.g. M365 Copilot) **before** implementing. **Trigger:** only when a wrong approach
+  would cost more than one implementation cycle to undo — skip it for trivial/single-file/mechanical work. The
+  reviewer judges *plan quality, not code* (it has no repo access); Claude stays the final authority and
+  verifies every finding against the actual code before acting on it.
 
 If none of these apply, state that and proceed.
 
@@ -122,7 +147,8 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task`
   root — `manifest.json`, `service-worker.js`, `404.html`; `sql/` — `schema.sql`, `rls-policies.sql`, `migrations/`.
 - **Testing:** run `testing/tests/engine-parity.html` (expect **5/0**); fixtures in `testing/fixtures/`,
   expected output in `testing/expected/` (see `testing/README.md`).
-- **Docs:** `docs/PACT_ROADMAP.md` (open work) · `docs/HOW-TO-WORK.md` · `docs/sessions/` ·
+- **Docs:** `docs/PACT_ROADMAP.md` (open work) · `docs/HOW-TO-WORK.md` (app/test mechanics) ·
+  `docs/SKILLS.md` (skills + workflow, human-readable) · `docs/sessions/` ·
   `docs/history/` (archived, non-authoritative).
 - **Data rule:** the DB stores only raw character data (`characters.stats`) — the engine derives the rest
   (see *Persistence* above). `ap` (DM-awarded points) is server-authoritative and DM-only — never

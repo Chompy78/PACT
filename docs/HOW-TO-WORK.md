@@ -1,8 +1,13 @@
-# How to work on PACT with VS Code Copilot or Claude Code
+# How to work on PACT with Claude Code
 
 Plain-English guide: what goes where, how to run and preview the app, and the loop for each task.
 The big idea: **the agent reads your repo directly.** You never paste your HTML or re-explain the project —
 you commit the instructions once, then paste one task at a time.
+
+> **Primary tool: Claude Code** (CLI in a terminal in the repo). **Microsoft 365 Copilot** is used only as a
+> *cold reviewer* of self-contained plans — it is not repo-aware and never edits code.
+> **For the skills (`/pick-task`, `/run-task`, `/plan-for-review`, …) and how they chain, see
+> [`docs/SKILLS.md`](SKILLS.md).** This guide covers the app/test mechanics; SKILLS.md covers the workflow.
 
 ---
 
@@ -29,7 +34,8 @@ chore is gone.
 | Path | What |
 |---|---|
 | `docs/PACT_ROADMAP.md` | the task list (paste one at a time) |
-| `docs/HOW-TO-WORK.md` | this guide |
+| `docs/HOW-TO-WORK.md` | this guide (app/test mechanics) |
+| `docs/SKILLS.md` | the skills (`/pick-task`, `/run-task`, …) + workflow, human-readable |
 | `docs/VERSION-SYNC.md` | how the build version is kept consistent across the tools |
 | `docs/sessions/` | per-session narratives (optional; only when worth keeping) |
 | `docs/history/` | archived pre-GitHub history — **non-authoritative**, don't read unless asked |
@@ -98,28 +104,34 @@ currently empty — making it real (and making the gate actually *assert*, not j
 ---
 
 ## The loop per task
+The skills automate most of this — **`/pick-task` then `/run-task`** is the normal two-step path (see
+[`docs/SKILLS.md`](SKILLS.md)). For a big/risky task, run **`/plan-for-review`** first and send the plan to
+M365 Copilot for a cold review before implementing. The underlying mechanics `/run-task` performs, if you
+ever do it by hand:
 1. **Branch:** `git checkout -b feat/<short-slug>` (one task per branch; use `type/slug` — `feat/`, `fix/`, `docs/`).
 2. **Paste one task** from `docs/PACT_ROADMAP.md`. No need to re-describe the architecture — `AGENTS.md` is the standing context.
-3. **Review the diff** the agent proposes; accept or push back.
+3. **Review the diff** the agent proposes; accept or push back (`/code-review` for an adversarial pass).
 4. **Verify:** run the gate (browser page, or the headless Node check above) → expect **5 passed / 0 failed**.
 5. **Log it:** confirm `CHANGELOG.md` is updated (+ `DECISIONS.md` / a `docs/sessions/` note if it applies);
    graduate the task out of the roadmap into the changelog if it's done.
 6. **Commit** as `type(scope): summary`, open a PR, merge → GitHub Pages redeploys.
 
 ## Start of each session
-A good opener (the instructions file is the standing context):
-- **Claude Code:** `Read AGENTS.md and CHANGELOG.md, then do the task I paste next. Log it when done.`
-- **Copilot (Agent mode):** `Follow .github/copilot-instructions.md. Here's the task:`
-…then paste **one** task from `docs/PACT_ROADMAP.md`.
+Claude Code reads `AGENTS.md` (via `CLAUDE.md`'s `@AGENTS.md` import) automatically, so you don't re-explain
+the project. A good opener: `Run /pick-task` — or paste **one** task from `docs/PACT_ROADMAP.md` directly.
+For big/risky work, ask for a plan first (`/plan-for-review`) and route it through M365 Copilot before
+building.
 
-## Copilot vs Claude Code
-| | VS Code Copilot (Agent mode) | Claude Code (CLI) |
+## Claude Code + M365 Copilot — who does what
+| | Claude Code (CLI) — primary | M365 Copilot — cold reviewer only |
 |---|---|---|
-| Reads instructions from | `.github/copilot-instructions.md` → `AGENTS.md` | `CLAUDE.md` → `AGENTS.md` |
-| Where you work | inside VS Code | a terminal in the repo folder |
-| Best at | quick in-editor edits | multi-file changes, running the headless check, opening PRs via `gh` |
+| Role | does all the work: edits, tests, refactors, PRs | critiques a *self-contained plan* or prose |
+| Repo access | reads the repo directly (`CLAUDE.md` → `AGENTS.md`) | **none** — sees only what you paste |
+| Judges | code + plan | plan quality / clarity — **not** code correctness |
+| Authority | final; verifies every reviewer finding against the code | advisory |
 
-Use either or both — they read the same `AGENTS.md`, so the rules and logging discipline stay identical.
+Claude is always the final authority; Copilot is a second pair of eyes on the *plan*, never on the code, and
+only when a wrong approach would be expensive to unwind.
 
 ## Two things to watch
 - **Keep `js/engine.js` off-limits** unless a task explicitly targets it; the tools depend on its stable API.
