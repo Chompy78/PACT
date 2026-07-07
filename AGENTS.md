@@ -52,16 +52,25 @@ If none of these apply, state that and proceed.
   `DATA`, `compute`, `rebuildStateFromEvents`, `baseBuild`, `MUT`, `activeEvents`, `economy`, `foldBuild`.
   Never re-implement rules logic anywhere else.
 - **Three UI-only tools** in `tools/` (`PACT-CharGen-Webtool.html`, `PACT-Live-Char-Sheet.html`,
-  `DM-Console.html`) each **hand-copy** their own `DATA`/`compute()`/`MUT`/`baseBuild`/`activeEvents`/
-  `economy`/`foldBuild` — **none of the three import these from `js/engine.js` today** (see DECISIONS.md
-  D-GH9). What each tool's `<script type="module">` block actually bridges is narrower, and differs per
-  tool: Live Sheet imports `validate()` from `js/engine.js` plus sync/auth/campaign helpers (`js/sync.js`,
-  `js/auth.js`, `js/campaign.js`), copies them onto `window`, and fires `sync-ready`. DM Console's module
-  script imports only auth/campaign/dm helpers (`js/auth.js`, `js/campaign.js`, `js/dm.js`) — it imports
-  nothing from `js/engine.js`, not even `validate()` — and fires `campaign-ready`. CharGen has no module
-  bridge at all: no cloud/auth wiring, fully local. `tools/` and `js/` must stay siblings. Migrating all
-  three tools' `DATA`/`compute`/`MUT`/etc. onto a real engine-module bridge is pending work (Task 6 scopes
-  CharGen first; see `docs/PACT_ROADMAP.md`).
+  `DM-Console.html`). As of D-GH26 (a **safe-subset** migration), all three now import **`DATA`,
+  `compute`, `baseBuild`** from `js/engine.js` in a `<script type="module">` bridge that copies them onto
+  `window` and fires a new **`engine-ready`** event; each tool's UI bootstrap is gated on that event
+  (deferred modules run *after* the classic scripts, so the engine symbols aren't present at parse time).
+  Live Sheet also imports **`MUT`** (its copy was byte-identical to the engine's) plus `validate()` and
+  sync/auth/campaign helpers, and still fires `sync-ready` after `engine-ready`. DM Console additionally
+  imports auth/campaign/dm helpers and still fires `campaign-ready` after `engine-ready`. CharGen — which
+  had **no** module bridge before — gained its first one here (still no cloud/auth wiring; `DATA`+`compute`
+  only). The per-tool display-only `DATA.racialFx` map is set inside each module bridge (it mutates the
+  imported `DATA`; never read by `compute()`).
+- **Still hand-copied / local in the tools** (NOT yet bridged — a follow-up migration; see D-GH26):
+  `activeEvents`/`economy`/`foldBuild` in **all three** tools are **index-based closures over a
+  script-level `LOG`** (`foldBuild(uptoIdx)`), *not* the engine's array-parameter API
+  (`foldBuild(events)`) — they drive the Live Sheet/DM event-sourcing + time-travel and the CharGen
+  import-fold, and are **not** signature-compatible with the engine exports. `MUT` is also still local in
+  **CharGen** (specialized closures inside `_lsImportFold`/`buildToLiveLog`, the D-GH3 export bridge) and
+  **DM Console** (its `MUT` *diverges* from the engine's — stale `found`, missing `dbound`; bridging it is
+  a deliberate behavioral change, not done yet). Never re-implement rules logic anywhere else; `tools/`
+  and `js/` must stay siblings.
 - **Persistence:** the app is an installable, offline-capable PWA with **optional sign-in**. Local-only
   still works (localStorage + JSON import/export); when signed in, characters also save to the **cloud
   (Supabase)** and DMs run **campaigns**. CharGen = a flat build JSON; Live Sheet = an event log
