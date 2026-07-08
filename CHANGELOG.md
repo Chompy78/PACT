@@ -4,6 +4,11 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-08 · docs — fold the `feat/ap-model-reconcile` item into the roadmap**
+  (`docs/PACT_ROADMAP.md`, `AGENTS.md`; no code/rules change). The owner reviewed the output block from
+  the prior commit and asked for it to be added directly — folds in the NEXT item deferred from D-GH30
+  (whether `js/engine.js` should grow a frozen-ledger-aware remaining-AP export, or the current per-tool
+  compute()/economy() split is the permanent design).
 - **2026-07-08 · docs — session note for the AP-display fix; revert a roadmap single-writer slip**
   (`docs/sessions/2026-07-08-livesheet-ap-display-fix.md`; `docs/PACT_ROADMAP.md`, `AGENTS.md`; no
   code/rules change). `docs/PACT_ROADMAP.md` is single-writer — agents must output new items for the
