@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-08 · fix(live-sheet) — "AP left" now reads the frozen ledger instead of a retroactive recompute**
+  (`tools/PACT-Live-Char-Sheet.html`; display-only, no `js/engine.js` change, no `DATA.version` bump).
+  Investigating the reported `fix/livesheet-undo-bug` roadmap task disproved its premise — `undo()` was
+  already correct (verified against a full LOG re-fold across every event type). The actual bug: buying a
+  cross-class feature then binding that class (Martially/Magically Bound) made the headline "AP left"
+  drift 1 AP above what the buy-gate would actually let you spend, because it read `compute().remaining`
+  (which retroactively discounts earlier purchases of the bound class) instead of the frozen-ledger
+  `economy().available` already used to gate purchases. Fixed all three "AP left" displays (desktop econ
+  line, mobile sticky bar, floating badge) to read `eco.available`. See D-GH30 in `DECISIONS.md` for the
+  full write-up and the deferred long-term reconciliation, now tracked as a new NEXT roadmap item
+  (`feat/ap-model-reconcile`).
 - **2026-07-05 · docs(sessions) — record the engine module-bridge safe-subset session** (`docs/sessions/2026-07-05-engine-bridge-safe-subset.md`; no code/rules change). Covers PR #121 / D-GH26: the roadmap task's premise being wrong (three of the seven "hand-copied" symbols are signature-incompatible `LOG`-closures, DM's `MUT` diverges), the owner's choice of the safe subset (`DATA`/`compute`/`baseBuild` + Live Sheet `MUT`) over the full migration, the ES-module-deferral `engine-ready` gating gotcha, in-browser verification, and the two rebases (PR #108/#109 bootstrap conflicts + D-GH24→26 number churn, with D-GH26 turning out to be the number preview reserved for this task).
 - **2026-07-05 · docs(sessions) — record the BUILD-export/leaked-password/theme-artwork session**
   (`docs/sessions/2026-07-05-theme-artwork-and-worktree-base.md`; no code/rules change). Covers PRs

@@ -23,27 +23,6 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## Live Sheet: undo doesn't work properly — TODO
-Branch `fix/livesheet-undo-bug`. Reported by the user: in `tools/PACT-Live-Char-Sheet.html`, undoing an action produces incorrect state. Root cause not yet confirmed — needs investigation before a fix.
-
-```text
-1. Reproduce: exercise undo() (tools/PACT-Live-Char-Sheet.html:797) across a range of action types
-   (normal buys, drawback buy-off, level/HD swaps, and specifically the Martially Bound / Magically
-   Bound toggles) and compare pre- and post-undo compute() output for correctness.
-2. Known lead to check first: Martially Bound (~line 1099) and Magically Bound (~line 1142-1143) apply
-   a permanent "−1 AP, floor 1" discount that their own tooltips say is "reverse only by undo" — verify
-   whether undo() actually restores this discount/flag correctly, since undo() (line 797) only pops the
-   last LOG entry and re-renders; it does not appear to special-case floored/permanent discounts.
-3. Also check the AP-award lock path in undo() ("AP awards lock your history — buys made before an
-   award can't be undone") for edge cases (e.g. undoing right up to a lock boundary).
-4. Once the actual defect is identified, fix it in the event-log replay / compute() path — do not
-   patch around it with tool-local state; undo must stay correct via LOG replay (rebuildStateFromEvents).
-5. If the bug turns out to affect compute() output/pricing, bump DATA.version and update the REV-01
-   baseline in the same PR. If it's purely a Live Sheet display/state-sync issue, it's display-only —
-   do NOT bump DATA.version; just log in CHANGELOG.
-```
-**Done when:** undo() produces state identical to what compute()/rebuildStateFromEvents() would derive from the LOG with the last entry removed, across normal buys, drawback buy-off, and the Martially/Magically Bound floor-1 discount case; parity still 5/0.
-
 ## Full engine module-bridge migration — CharGen, Live Sheet, DM Console — TODO
 Branch feat/engine-bridge-all-tools. All three tools hand-copy DATA/compute()/MUT/baseBuild/
 activeEvents/economy/foldBuild from js/engine.js instead of importing them — a direct violation of
@@ -86,6 +65,41 @@ reflects the bridged state; Task 6 is closed/graduated by this task landing.
 ---
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
+
+## Reconcile compute()'s retroactive discount vs frozen-ledger economy() — TODO
+Branch `feat/ap-model-reconcile`. Follow-up to `fix/livesheet-undo-bug` (see `CHANGELOG.md` and D-GH30 in
+`DECISIONS.md`): that task's premise was wrong — `undo()` already works correctly (verified byte-for-byte
+against a full LOG re-fold across every event type). The real bug was a display divergence: buying a
+cross-class feature *then* binding that class makes the Live Sheet's headline "AP left"
+(`compute().remaining`, which retroactively discounts every feature of the bound class, including ones
+bought earlier) drift above the frozen-ledger `economy().available` that actually gates purchases — a
+phantom AP the sheet advertises but won't let you spend. D-GH30 fixed the *symptom*
+(tools/PACT-Live-Char-Sheet.html's three "AP left" displays now read `eco.available`, display-only, no
+engine change) but left the underlying model conflict unresolved: `js/engine.js`'s `compute()` is a
+stateless, order-free recompute — correct for CharGen (no purchase order exists) but wrong for any
+event-sourced tool that freezes prices at purchase. That logic is duplicated ad hoc today (see
+`priceOf()`'s `-2` hardcode + "refund bug" comment, tools/PACT-Live-Char-Sheet.html:421).
+
+```text
+1. Decide (product/design call, not mechanical): should js/engine.js grow an event-sourcing-aware
+   "frozen-ledger remaining AP" export so Live Sheet/DM Console stop needing local economy()-vs-compute()
+   patchwork? Or is the current split (CharGen uses compute().remaining; event-sourced tools use their
+   own local economy()) the intended, permanent design? Log the outcome as a new decision either way.
+2. If engine work is warranted: it must be additive (a new export or compute() option) — do NOT change
+   compute()'s existing output for current callers, so CharGen and DATA.version are unaffected unless the
+   decision is deliberately to change shared behavior. Add fixtures/expected rows covering the
+   bind-after-purchase case either way.
+3. Audit DM Console (tools/DM-Console.html) for the same headline-AP display pattern before this lands —
+   as of D-GH30 it has no such display, but feat/engine-bridge-all-tools (NOW) could reintroduce the same
+   divergence if DM Console starts computing (rather than importing) an "AP left" number.
+4. Coordinate with feat/engine-bridge-all-tools (NOW): once all three tools import economy()/foldBuild
+   directly from js/engine.js instead of hand-copying them, make sure whichever fix lands here is
+   preserved in the shared import, not re-forked per tool.
+```
+**Done when:** either (a) a DECISIONS.md entry documents that the current per-tool split is the permanent
+design and no engine change is needed, or (b) a new engine-level frozen-ledger-aware remaining-AP export
+exists and every tool displaying "AP left" for an event-sourced character uses it consistently, with
+fixtures covering the bind-after-purchase case and parity still N/0.
 
 ## Cloud/campaign state is invisible to players (CharGen + Live Sheet) — TODO
 Branch fix/cloud-campaign-status-visibility. Players can't tell, at a glance, whether they're working
