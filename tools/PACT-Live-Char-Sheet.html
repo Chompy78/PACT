@@ -57,6 +57,9 @@
 body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background:var(--bg);margin:0;font-size:13px}
 .top{background:var(--navy);color:#fff;padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:50}
 .top h1{margin:0;font-size:18px}.top .v{opacity:.8;font-size:11px}
+.cloudstatus{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.13);border-radius:12px;padding:3px 11px;font-size:11px;font-weight:700;white-space:nowrap}
+.cloudstatus.good{background:rgba(60,200,120,.22);color:#d6ffe6}
+.cloudstatus.warn{background:rgba(230,160,40,.28);color:#ffe9b3}
 .bar{background:#16294d;color:#cfe0f7;font-size:11px;padding:4px 16px}
 .btn{background:var(--blue);color:#fff;border:0;border-radius:6px;padding:6px 10px;font:inherit;font-weight:700;cursor:pointer}
 .btn.g{background:var(--card);color:var(--blue);border:1px solid var(--blue)}
@@ -307,6 +310,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 <button class="btn g" onclick="document.getElementById('imp').click()" title="Import a character file">⬆ <span class="bl">Import</span></button>
 <input type="file" id="imp" style="display:none" accept=".json" onchange="if(this.files[0])importJSON(this.files[0]);this.value=''">
 <span style="position:relative;display:inline-block"><button class="btn g" id="cloudBtn" title="Cloud save / load">☁ <span class="bl">Cloud</span></button><div id="cloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span>
+<span id="cloudStatusBadge" class="cloudstatus">🔒 Not signed in</span>
 <button class="btn g" onclick="toggleSheet()" title="Toggle the printable sheet">📋 <span class="bl">Sheet</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" onclick="toggleMore(event)" title="More tools &amp; theme">⋯ <span class="bl">More</span></button><div id="moremenu" class="moremenu"><span class="mi-theme">🎨 <select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></span><button class="mi" onclick="closeMore();openNames()">✎ Name spells &amp; languages</button><button class="mi" onclick="closeMore();openSpellBrowser()">🔍 Spell browser</button><button class="mi" id="miSpellTog" onclick="closeMore();toggleSheetSpell()">🚫 Hide spellcasting on sheet</button><button class="mi" onclick="closeMore();openCampaign()">🛡 Campaign</button><button class="mi" onclick="closeMore();openBonds()">⛓ Bonds</button><button class="mi" onclick="closeMore();resetAll()">↺ Reset</button><button class="mi" onclick="closeMore();showInfo()">&#x2139;&#xFE0F; Info</button></div></span>
 </div>
@@ -1387,23 +1391,52 @@ document.addEventListener('sync-ready', function () {
   var cloudBtn  = document.getElementById('cloudBtn');
   var cloudMenu = document.getElementById('cloudMenu');
   var _session  = null;
+  var _campaignName = null;   // name of the campaign_id on the currently loaded character, if any
+  var _rulesStatus  = 'none'; // 'none' | 'active' | 'unavailable' — see renderCloudStatusBadge()
 
   function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-  A.onAuthChange(function(s){ _session = s; });
-  A.currentSession().then(function(s){ _session = s; refreshCloudCampaignRules(); });
+  // Persistent status badge (top toolbar, outside the ☁ Cloud dropdown) — surfaces sign-in
+  // and campaign-rules-fetch state that was previously silent/internal-only. Display-only;
+  // does not affect validate()/cloudRuleBarred()/the live-filter pickers.
+  function renderCloudStatusBadge(){
+    var el = document.getElementById('cloudStatusBadge');
+    if(!el) return;
+    el.classList.remove('good','warn');
+    if(!_session){
+      el.textContent = '🔒 Not signed in';
+      el.title = 'Working locally. Sign in via the ☁ Cloud menu to save to a campaign.';
+    } else if(_rulesStatus === 'active' && _campaignName){
+      el.classList.add('good');
+      el.textContent = '☁ Campaign: ' + _campaignName + ' — DM rules active';
+      el.title = 'Signed in as ' + _session.user.email + '. Bound to "' + _campaignName + '" — the DM\'s campaign rules were fetched successfully and are being enforced.';
+    } else if(_rulesStatus === 'unavailable'){
+      el.classList.add('warn');
+      el.textContent = '⚠ Campaign' + (_campaignName ? (': ' + _campaignName) : '') + ' — rules unavailable';
+      el.title = 'Signed in as ' + _session.user.email + '. This character is attached to a campaign but its DM rules could not be fetched — banned items may not be filtered until this succeeds.';
+    } else {
+      el.textContent = '☁ Signed in';
+      el.title = 'Signed in as ' + _session.user.email + '. Not attached to a campaign.';
+    }
+  }
+
+  A.onAuthChange(function(s){ _session = s; renderCloudStatusBadge(); });
+  A.currentSession().then(function(s){ _session = s; renderCloudStatusBadge(); refreshCloudCampaignRules(); });
 
   // Fetch the active character's campaign rules on load/sign-in (not just at cloud-save)
   // so banned masteries/boons are filtered out of the pickers as you build, not just
   // rejected at the last step. See D-GH14 follow-up.
   async function refreshCloudCampaignRules(){
-    if(!_session || typeof window.currentCharId !== 'function') return;
+    if(!_session || typeof window.currentCharId !== 'function') { renderCloudStatusBadge(); return; }
     try {
       var rec = await S.loadCharacter(window.currentCharId());
-      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; return; }
+      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; _rulesStatus = 'none'; renderCloudStatusBadge(); return; }
       var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
       window._cloudCampaignRules = camp ? (camp.rules || {}) : null;
-    } catch(e) { /* non-fatal — pickers just fall back to unfiltered until this succeeds */ }
+      _campaignName = camp ? camp.name : null;
+      _rulesStatus = camp ? 'active' : 'unavailable';
+    } catch(e) { _rulesStatus = 'unavailable'; /* non-fatal — pickers just fall back to unfiltered until this succeeds */ }
+    renderCloudStatusBadge();
     if(typeof window.render === 'function') window.render();
   }
 
@@ -1476,13 +1509,15 @@ document.addEventListener('sync-ready', function () {
           window._dmAp = rec.ap || 0;
           window._ignorePlayerAp = false;
           window._cloudCampaignRules = null;
+          _campaignName = null; _rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
           if(rec.campaign_id && window._campaignBridge) {
             try {
               var camps = await window._campaignBridge.listMyCampaigns();
               var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
-              if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; }
+              if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; _rulesStatus = 'active'; }
             } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds */ }
           }
+          renderCloudStatusBadge();
           var d = rec.stats;
           window.LOG = d.LOG;
           window.SEQ = d.SEQ||(d.LOG.length+1);

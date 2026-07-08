@@ -17,6 +17,12 @@ this command doesn't re-derive the task(s) or re-run the pre-flight checks itsel
 only valid because `/pick-task` already confirmed every member is independently low-risk and touches no
 overlapping files.
 
+**Engine check.** `/pick-task`'s Check 2 also worked out a suggested engine tier (Haiku/Sonnet/Opus) and
+effort level per task — restate it here before starting Step 4. This command inherits whatever model the
+session is already running; it does not and cannot switch it. If the running model doesn't match what
+`/pick-task` suggested, stop and tell the user to run `/model <engine>` first, then re-invoke `/run-task`
+— don't silently proceed on the wrong tier.
+
 ## Step 4 — enter your own worktree
 
 Don't work inside the shared PACT folder for this task. Use the native worktree tool instead of manual
