@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-08 · feat(engine) — automatic `creationLocked` now requires campaign binding (D-GH32, Phase 2 step 1)**
+  (`js/engine.js`; `DATA.version` v0.333→v0.334; 2 new fixtures `EV-008`/`EV-009`; `EV-003`/`EV-007`
+  updated to include a `campaignBound` event; `testing/tests/engine-parity.html` → 13/0). First engine
+  increment of Phase 2 (see `docs/plans/2026-07-08-chargen-livesheet-unification-phase2.md`): the
+  automatic (threshold-crossing) `creationLocked` trigger now only fires for a character that has a
+  `campaignBound` event somewhere in its LOG — a purely local, never-campaign-bound character (CharGen's
+  standalone use case) never auto-locks via spend alone, only via an explicit action. The explicit
+  `creationLocked` event stays unconditional. A late `campaignBound` event fires the automatic lock
+  retroactively at the point of binding, not applied to purchases before it. `campaignBound` is unrelated
+  to the existing `cat:'campaign'`/`b.campaign` mutator, which is Live Sheet's local offline house-rules
+  code-paste feature (`applyCampaignCode()`) — flagged clearly in code comments and D-GH32 to prevent
+  future confusion between the two. See D-GH32 for the full rationale.
 - **2026-07-08 · chore — freeze a CharGen v0 snapshot for Phase 2 side-by-side comparison**
   (new `tools/PACT-CharGen-Webtool-v0.html`, new `js/engine-v0-snapshot.js`; `index.html` gets a new
   linked card; no rules change, `DATA.version` untouched). Ahead of the Phase 2 CharGen rewrite (the

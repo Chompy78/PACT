@@ -1,5 +1,5 @@
 {
-  "description": "Creation-pricing-lock (D-GH31/D-GH32) fixture: a campaignBound event (required under D-GH32 for the automatic threshold to ever fire) is followed by cumulative spend crossing DATA.level1AP mid-LOG, between two different non-pack own-race Halfling trait purchases. Asserts PER-PURCHASE tagging, not a whole-build flag: 'Halfling: Brave' (bought before the crossing) prices at the flat creation rate (origin=2); 'Halfling: Naturally Stealthy' (bought after) prices at the tier-2 locked rate (MASTER[2][band2]=7), in the SAME build.",
+  "description": "creationLocked gate fixture (D-GH32): a LOCALLY-ONLY character (no campaignBound event anywhere in the LOG) whose spend crosses DATA.level1AP mid-LOG. Asserts the automatic threshold trigger does NOT fire for a character never bound to a campaign — both racial traits price at the flat creation rate (2+4=6) despite total spend (57) exceeding the anchor, because only an explicit creationLocked event (not present here) can lock a purely local character.",
   "baseSnapshot": {
     "name": "Test Halfling",
     "budget": 0,
@@ -27,11 +27,6 @@
     "inPlay": true
   },
   "events": [
-    {
-      "type": "campaignBound",
-      "campaignId": "camp-test-001",
-      "label": "Campaign — Test Campaign"
-    },
     {
       "type": "award",
       "amount": 60,
@@ -64,7 +59,7 @@
       "payload": {
         "v": "Halfling: Naturally Stealthy"
       },
-      "cost": 7,
+      "cost": 4,
       "level": 2,
       "label": "Species trait — Halfling: Naturally Stealthy"
     }
