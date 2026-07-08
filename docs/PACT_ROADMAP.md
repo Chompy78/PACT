@@ -87,55 +87,6 @@ reflects the bridged state; Task 6 is closed/graduated by this task landing.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## Cloud/campaign state is invisible to players (CharGen + Live Sheet) — TODO
-Branch fix/cloud-campaign-status-visibility. Players can't tell, at a glance, whether they're working
-locally or connected to a cloud campaign, or whether an attached campaign's DM rules are actually live.
-
-```text
-Confirmed findings (read directly from the code):
-1. CharGen has zero cloud/auth integration at all — confirmed via a dev comment in the file itself
-   ("Persistence is localStorage only") and zero references to Supabase/auth/sign-in anywhere in
-   tools/PACT-CharGen-Webtool.html. Nothing tells the player this passively.
-2. CharGen's "🛡 Campaign" button is a naming collision — it's a local, code-paste house-rules feature
-   (CG_CAMPAIGN / openCampaign() / applyCampaignCode(), ~line 1709-1739) where a DM types up banned
-   boons/drawbacks/arts and shares a text code pasted in manually. It has nothing to do with the real
-   cloud campaign system in Live Sheet/DM Console (Supabase campaigns table, campaign_id, DM Console's
-   Campaign Rules panel). Same word, two unrelated features.
-3. Live Sheet's cloud/sign-in state is only visible inside the "☁ Cloud" dropdown menu — nothing on the
-   main character sheet passively shows sign-in state.
-4. Even when a character genuinely IS attached to a real cloud campaign, there's no visible confirmation
-   that the DM's rules are actually being fetched/enforced right now. The enforcement mechanics already
-   exist and work (all landed 2026-07-02 per CHANGELOG): rules configured in DM Console, stored in
-   campaigns.rules (D-GH14); Live Sheet fetches them via refreshCloudCampaignRules() and live-filters
-   banned weapon masteries/boons (D-GH16); species/origin-class/multi-discipline bans enforced at
-   "Save to cloud" via validate() (D-GH14); Feature A's multi-discipline gating reads the same
-   window._cloudCampaignRules (D-GH9). All of this state is currently silent/internal — never surfaced
-   to the player. No way to tell, at a glance, whether you're actually subject to the DM's rules right
-   now, versus the fetch having failed silently, versus not being in a campaign at all.
-
-IMPORTANT — this exact area has been under very active, fast-moving concurrent development (D-GH9,
-D-GH14, D-GH16 all landed the same day). Before implementing, re-verify the current state of
-campaign-rules fetching/enforcement against CHANGELOG.md and the live code first — confirm which of the
-mechanics above are still accurate versus what's changed since this was written. Do not build UI on top
-of a possibly-stale assumption about window._cloudCampaignRules's shape or availability.
-
-Scope (minimal clarity/labeling only — NOT new enforcement mechanics):
-1. CharGen: add a persistent, always-visible label near the top indicating it's local-only, e.g.
-   "🔒 Local only — not connected to any cloud campaign." Clarify or rename the "🛡 Campaign" button (or
-   at minimum strengthen its tooltip) so it can't be mistaken for the real cloud campaign system — e.g.
-   rename to "🛡 House rules code" or add explicit "(local, not cloud)" wording.
-2. Live Sheet: add a persistent badge (not hidden inside the ☁ Cloud dropdown) showing sign-in state,
-   and when the loaded character has a campaign_id, the campaign name plus a live confirmation that DM
-   rules were actually fetched successfully — e.g. "☁ Campaign: <name> — DM rules active" vs a warning
-   state like "⚠ Campaign: <name> — rules unavailable" if the fetch failed or returned nothing.
-3. Do not change any enforcement/validation logic (validate(), cloudRuleBarred(), the live-filter
-   pickers) — this task only adds visibility into state that already exists internally.
-4. Display-only — do NOT bump DATA.version; log the fix in CHANGELOG.md.
-```
-**Done when:** CharGen shows a persistent local-only indicator and its "Campaign" button can no longer
-be mistaken for the cloud campaign system; Live Sheet shows a persistent sign-in + campaign-rules-active
-badge outside the ☁ Cloud dropdown; no enforcement/validation behavior changed; parity still 5/0.
-
 ## Lock down remaining Supabase function EXECUTE grants (anon) — TODO
 Branch fix/lock-down-remaining-function-grants. Revoke the default Postgres EXECUTE-to-PUBLIC grant on the
 ~13 remaining flagged functions, matching the award_ap/award_xp fix already applied.
