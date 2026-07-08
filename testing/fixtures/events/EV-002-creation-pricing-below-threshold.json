@@ -1,0 +1,47 @@
+{
+  "description": "Creation-pricing-lock (D-GH31) fixture: spend stays well under DATA.level1AP throughout, so a non-pack own-race trait (Halfling: Brave) prices at the flat creation rate (origin=2), not the tier-based locked rate. Exercises rebuildStateFromEvents with no creationLocked event and spend never crossing the threshold.",
+  "baseSnapshot": {
+    "name": "Test Halfling",
+    "budget": 0,
+    "originClass": "Rogue",
+    "species": "Halfling",
+    "hd": 2,
+    "profBonus": 2,
+    "stats": {
+      "STR": 10,
+      "DEX": 14,
+      "CON": 12,
+      "INT": 10,
+      "WIS": 10,
+      "CHA": 10
+    },
+    "saves": [],
+    "skills": [],
+    "tools": [],
+    "weaponProf": {
+      "simple": true
+    },
+    "armour": {
+      "light": true
+    },
+    "inPlay": true
+  },
+  "events": [
+    {
+      "type": "award",
+      "amount": 30,
+      "note": "Quest reward",
+      "label": "Award — Quest reward (30 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "racial",
+      "payload": {
+        "v": "Halfling: Brave"
+      },
+      "cost": 2,
+      "level": 2,
+      "label": "Species trait — Halfling: Brave"
+    }
+  ]
+}
