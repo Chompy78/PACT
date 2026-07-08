@@ -4,6 +4,7 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-05 · docs(sessions) — record the engine module-bridge safe-subset session** (`docs/sessions/2026-07-05-engine-bridge-safe-subset.md`; no code/rules change). Covers PR #121 / D-GH26: the roadmap task's premise being wrong (three of the seven "hand-copied" symbols are signature-incompatible `LOG`-closures, DM's `MUT` diverges), the owner's choice of the safe subset (`DATA`/`compute`/`baseBuild` + Live Sheet `MUT`) over the full migration, the ES-module-deferral `engine-ready` gating gotcha, in-browser verification, and the two rebases (PR #108/#109 bootstrap conflicts + D-GH24→26 number churn, with D-GH26 turning out to be the number preview reserved for this task).
 - **2026-07-05 · docs(sessions) — record the BUILD-export/leaked-password/theme-artwork session**
   (`docs/sessions/2026-07-05-theme-artwork-and-worktree-base.md`; no code/rules change). Covers PRs
   #111, #113, #114, #120: the theme-artwork task's pivot history (SVG placeholders → real dark art →
