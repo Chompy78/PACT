@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-08 · fix(chargen) — import real js/engine.js MUT/foldBuild/activeEvents/economy/baseBuild; fixes a real multi-discipline import bug (D-GH33, Phase 2 step 2)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change, `DATA.version` untouched by this step). CharGen's
+  module bridge now imports `MUT`/`foldBuild`/`activeEvents`/`economy`/`baseBuild` from `js/engine.js`
+  alongside its existing `DATA`/`compute`, replacing two local throwaway copies. A parity check (required
+  by the Phase 2 plan before this swap) found real drift matching a divergence already documented for DM
+  Console's separate local `MUT`: the local `found` mutator silently dropped a second discipline added to
+  an already-founded tradition, and `dbound` (discipline-bound flag) didn't exist locally at all — so a
+  multi-discipline or bound-discipline character exported from Live Sheet and re-imported into CharGen
+  silently lost that data. Fixed automatically by the swap, verified in a real browser (a synthetic
+  two-discipline-plus-`dbound` LOG now round-trips correctly; a representative build round-trips through
+  export→import at an identical price). CharGen's live editing UI (~75 handler sites, `readBuild()`,
+  `render()`) is untouched — only the import/export paths changed. See D-GH33.
 - **2026-07-08 · feat(engine) — automatic `creationLocked` now requires campaign binding (D-GH32, Phase 2 step 1)**
   (`js/engine.js`; `DATA.version` v0.333→v0.334; 2 new fixtures `EV-008`/`EV-009`; `EV-003`/`EV-007`
   updated to include a `campaignBound` event; `testing/tests/engine-parity.html` → 13/0). First engine

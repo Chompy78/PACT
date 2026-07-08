@@ -365,4 +365,20 @@ files.** Switching views should feel like switching tabs, not like exporting/imp
 - **The one real engine-side addition** is gating Phase 1's existing `creationLocked` automatic-threshold
   inference (in `_replay`, `js/engine.js`) on a new `campaignBound` LOG event having occurred first
   (decision #6.2) — this is genuinely new, small, scoped engine work, not "surface expansion" of
-  already-exported functions.
+  already-exported functions. **Done** (see D-GH32): `DATA.version` v0.333→v0.334, two existing D-GH31
+  fixtures updated, two new fixtures (`EV-008`/`EV-009`) added, `engine-parity.html` → 13/0.
+- **Step 2 done (see D-GH33).** The parity check the plan itself required before swapping found real
+  drift: CharGen's local `found` mutator silently dropped a second discipline added to an
+  already-founded tradition (no else-branch), and `dbound` didn't exist locally at all — matching a
+  divergence this project had already documented for DM Console's separate local `MUT` copy. Fixed
+  automatically as a byproduct of the swap (not a separate patch). CharGen's module bridge now imports
+  `MUT`/`foldBuild`/`activeEvents`/`economy`/`baseBuild` from `js/engine.js`; both local throwaway
+  copies (`_lsImportFold`'s full local re-implementation, `buildToLiveLog`'s smaller `MUT` subset) are
+  deleted. Verified in a real browser: clean boot, the multi-discipline/`dbound` fix confirmed working,
+  and a representative build round-trips through export→import at an identical `compute()` price.
+  CharGen's live editing UI (~75 handler sites, `readBuild`/`render`) is untouched — exactly as scoped.
+  `js/engine-v0-snapshot.js` (the frozen comparison copy) is deliberately left un-updated, so it stays a
+  clean pre-Phase-2 baseline for the eventual side-by-side comparison.
+
+**Next up: Step 3** (rewiring all ~75 CharGen handler sites to `emit()` instead of mutating DOM directly)
+— the large mechanical lift, not yet started as of this note.

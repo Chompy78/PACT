@@ -441,11 +441,14 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
   </aside>
 </div>
 <script type="module">
-  // Engine module bridge (D-GH26): DATA + compute come from js/engine.js — the single
-  // source of truth — instead of hand-copied inline duplicates. UI boot waits on engine-ready.
-  import { DATA, compute } from '../js/engine.js';
+  // Engine module bridge (D-GH26, extended Phase 2 step 2): DATA + compute + MUT + foldBuild +
+  // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
+  // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
+  // on engine-ready.
+  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild } from '../js/engine.js';
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (CharGen); never read by compute()
-  window.DATA = DATA; window.compute = compute;
+  window.DATA = DATA; window.compute = compute; window.MUT = MUT; window.foldBuild = foldBuild;
+  window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild;
   document.dispatchEvent(new Event('engine-ready'));
 </script>
 <script>
@@ -1332,74 +1335,14 @@ function loadFromHash(){try{if(typeof location==='undefined'||!location.hash)ret
 // ---- bridge: convert the current build into a Live-Sheet event log (frozen per-step prices) ----
 
 function _lsImportFold(LOG){
-function baseBuild(){return {name:'',budget:0,originClass:'Fighter',originClass2:'(none)',species:'Human',species2:'(none)',
- stats:{STR:10,DEX:10,CON:10,INT:10,WIS:10,CHA:10},hd:1,profBonus:2,hardy:0,tough:0,saves:[],skills:[],expertise:[],toolExpertise:[],
- languages:1,languageNames:[],grantNames:{},tools:[],instruments:[],customProfs:[],weaponProf:{},masteries:[],armour:{},
- arts:[],lineage:'',racialSpells:[],
- racialTraits:[],extraClasses:0,unlockedClasses:[],dabblerCantripNames:[],innateNames:[],featNames:{},features:[],traditions:[],subAbilities:[],freeSub:{},subSpellBundles:[],boons:[],innate:[],drawbacks:[],gold:0,
- attune:0,ki:0,sorcery:0,martiallyBound:'(none)',appearance:{},size:'Medium',
- lineage:'',racialSpells:[],
- inPlay:true};}
-function activeEvents(uptoIdx){
-  const evs = (uptoIdx==null?LOG:LOG.slice(0,uptoIdx));
-  const boughtOff={};
-  evs.forEach(e=>{ if(e.type==='buyoff')boughtOff[e.refVal]=1; });
-  return {evs, boughtOff};
-}
-function economy(uptoIdx){
-  const {evs,boughtOff}=activeEvents(uptoIdx); let earned=0,spent=0,drawbackEarned=0;
-  for(const e of evs){
-    if(e.type==='award')earned+=e.amount;
-    else if(e.type==='buy'){
-      if(e.cat==='drawback'){ if(!boughtOff[e.payload.v]) drawbackEarned+=(-e.cost); }  // drawback grants AP (capped below)
-      else spent+=e.cost; }
-    else if(e.type==='buyoff')spent+=e.cost;else if(e.type==='names')spent+=(e.cost||0);        // pay 3x to remove a drawback
-  }
-  earned+=drawbackEarned;  // drawbacks grant their full AP (no hard cap; compute() warns if >12)
-  return {earned,spent,available:earned-spent};
-}
-const MUT={campaign:(b,p)=>{b.campaign=p.v;},
- create:(b,p)=>{},   // level-1 baseline (Hit Die + starting state); effect already in baseBuild
- patch:(b,p)=>{Object.assign(b,p.patch);},   // imported-from-generator bundle (a whole field set)
- names:(b,p)=>{if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
- hd:(b,p)=>b.hd=p.to, prof:(b,p)=>b.profBonus=p.to, abil:(b,p)=>b.stats[p.ab]=p.to,
- skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
- lineage:(b,p)=>b.lineage=p.v,wornArmour:(b,p)=>b.wornArmour=p.v, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
- feat:()=>0, feature:(b,p)=>b.features.push(p.v), art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v), mvbuy:(b,p)=>{b.maneuverBuys=(b.maneuverBuys||0)+1;},
- tool:(b,p)=>b.tools.push(p.v), instrument:(b,p)=>b.instruments.push(p.v), mastery:(b,p)=>b.masteries.push(p.v),
- language:(b,p)=>b.languages=p.to, vigor:(b,p)=>b.hardy=p.to, grit:(b,p)=>b.tough=p.to,
- armour:(b,p)=>b.armour[p.v]=true, wprof:(b,p)=>b.weaponProf=clone(p.wp),
- species:(b,p)=>b.species=p.v, oclass:(b,p)=>b.originClass=p.v,
- racial:(b,p)=>b.racialTraits.push(p.v),   // own-species traits only (cross-race is creation-only, guide §10)
- drawback:(b,p)=>b.drawbacks.push(p.v),
- attune:(b,p)=>b.attune=p.to, ki:(b,p)=>b.ki=p.to, sorcery:(b,p)=>b.sorcery=p.to,
- mbound:(b,p)=>b.martiallyBound=p.v,
- subbundle:(b,p)=>{(b.subSpellBundles=b.subSpellBundles||[]).push(p.v);},
- unlockclass:(b,p)=>{(b.unlockedClasses=b.unlockedClasses||[]).push(p.v);},
- freesub:(b,p)=>{(b.freeSub=b.freeSub||{})[p.cls]=p.sub;},
- subabil:(b,p)=>{(b.subAbilities=b.subAbilities||[]).push(p.v);},
- tasharule:(b,p)=>{(b.houseRules=b.houseRules||{}).dmAllows=Object.assign({},(b.houseRules||{}).dmAllows||{},{tasha:p.v});},
- found:(b,p)=>{const ti=p.ti??0;const newTrad={name:p.trad,rank:0,disciplines:[{name:p.disc,bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]}]};if(ti===0&&!b.traditions.length){b.traditions=[newTrad];}else if(!b.traditions[ti]){b.traditions[ti]=newTrad;}},
- rank:(b,p)=>{const ti=p.ti??0;if(b.traditions[ti])b.traditions[ti].rank=p.to;},
- cantrip:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.cantrips=p.to;},
- slot:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.slots[p.L-1]=p.to;},
- known:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.known[p.L-1]=p.to;},
-};
-function foldBuild(uptoIdx){
-  const {evs,boughtOff}=activeEvents(uptoIdx); const b=baseBuild();
-  for(const e of evs){
-    if(e.type==='name'){b.name=e.name;continue;}
-    if(e.type==='names'){MUT.names(b,e);continue;}   // spell/feat names → fold into build (else they never reach the sheet)
-    if(e.type!=='buy')continue;
-    if(e.cat==='drawback'&&boughtOff[e.payload.v])continue; // bought off: removed
-    (MUT[e.cat]||(()=>{}))(b,e.payload);
-  }
-  b.budget=economy(uptoIdx).earned;   // budget = AP earned so over-budget reflects reality
-  ["saves","skills","expertise","toolExpertise","tools","instruments","masteries","racialTraits","racialSpells"].forEach(function(k){if(Array.isArray(b[k]))b[k]=b[k].filter(function(v,i){return b[k].indexOf(v)===i;});});  // single-instance proficiency lists never hold duplicates (guards flooded patch-imports)
-  (b.traditions||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(d&&(DATA.noCantrip||[]).indexOf(d.name)>=0){d.cantrips=0;d.cantripNames=[];}});});
-  return b;
-}
-  return foldBuild(null);
+  // Phase 2 step 2 (D-GH33): was a full local re-implementation of baseBuild/activeEvents/economy/
+  // MUT/foldBuild (index-based closures over this LOG param) — replaced with a direct call to the
+  // real, imported js/engine.js foldBuild(events), which takes the array directly. This also fixes
+  // two real bugs the local copy had (see D-GH33): MUT.found silently dropped a second discipline
+  // added to an already-founded tradition (no else-branch), and MUT.dbound (discipline-bound flag)
+  // didn't exist in the local copy at all, so imported Live-Sheet files with either of these ever
+  // silently lost that data on import into CharGen.
+  return foldBuild(LOG);
 }
 
 
@@ -1509,14 +1452,8 @@ function buildToLiveLog(b){
   // de-dup single-instance proficiency lists so the exported Live-Sheet log never carries duplicates (matches the fold-side guard)
   ["saves","skills","expertise","toolExpertise","tools","instruments","masteries","racialTraits","racialSpells"].forEach(function(k){if(Array.isArray(b[k]))b[k]=b[k].filter(function(v,i){return b[k].indexOf(v)===i;});});
   const C=o=>JSON.parse(JSON.stringify(o));let LOG=[],SEQ=1;const ev=o=>{o.seq=SEQ++;o.ts=Date.now();LOG.push(o);};
-  const MUT={
-    skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
-    racial:(b,p)=>b.racialTraits.push(p.v), feature:(b,p)=>b.features.push(p.v), art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v),
-    tool:(b,p)=>b.tools.push(p.v), instrument:(b,p)=>b.instruments.push(p.v), mastery:(b,p)=>b.masteries.push(p.v),
-    subbundle:(b,p)=>{(b.subSpellBundles=b.subSpellBundles||[]).push(p.v);}, unlockclass:(b,p)=>{(b.unlockedClasses=b.unlockedClasses||[]).push(p.v);},
-    subabil:(b,p)=>{(b.subAbilities=b.subAbilities||[]).push(p.v);}, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
-    drawback:(b,p)=>b.drawbacks.push(p.v)
-  };
+  // Phase 2 step 2 (D-GH33): was a second local throwaway MUT subset — the imported js/engine.js MUT
+  // is a superset (same mutators for every category used below, plus more), so it's used directly now.
   const run=liveBase(), base0=liveBase();
   ev({type:'award',amount:b.budget||0,note:'Imported budget',label:'Award — budget ('+(b.budget||0)+' AP)'});
   if(b.name) ev({type:'name',name:b.name,label:'Name — '+b.name});
