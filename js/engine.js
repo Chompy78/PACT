@@ -453,15 +453,25 @@ export function economy(events) {
 // after), so a purchase whose own cost crosses the threshold still prices as the one
 // that crossed it, not as already-locked — matching this codebase's existing
 // "prices freeze at time of purchase" rule (see priceOf() in the Live Sheet tool).
+//
+// e.noLock: an event (buy/buyoff/names) may opt its own cost OUT of the automatic
+// threshold accumulation below — real AP accounting (economy()) is unaffected, this
+// ONLY excludes the cost from counting toward crossing DATA.level1AP. For a one-shot
+// import/creation burst (e.g. a future CharGen-style export) whose total legitimately
+// exceeds the anchor (a higher-level starting character), tagging every event in that
+// burst noLock:true keeps it from self-triggering the automatic lock before an
+// explicit creationLocked event (or genuine later spending) actually earns it.
 function _replay(b, log) {
   const { evs, boughtOff } = activeEvents(log);
   let _locked = false, _spent = 0;
   const _lockedAt = evs.map(e => {
     const wasLocked = _locked;
     if (e.type === 'creationLocked') _locked = true;
-    else if (e.type === 'buy' && e.cat !== 'drawback') _spent += Number(e.cost) || 0;
-    else if (e.type === 'buyoff') _spent += Number(e.cost) || 0;
-    else if (e.type === 'names') _spent += Number(e.cost) || 0;
+    else if (!e.noLock) {
+      if (e.type === 'buy' && e.cat !== 'drawback') _spent += Number(e.cost) || 0;
+      else if (e.type === 'buyoff') _spent += Number(e.cost) || 0;
+      else if (e.type === 'names') _spent += Number(e.cost) || 0;
+    }
     if (_spent > DATA.level1AP) _locked = true;
     return wasLocked;
   });

@@ -64,41 +64,6 @@ state.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## Reconcile compute()'s retroactive discount vs frozen-ledger economy() — TODO
-Branch `feat/ap-model-reconcile`. Follow-up to `fix/livesheet-undo-bug` (see `CHANGELOG.md` and D-GH30 in
-`DECISIONS.md`): that task's premise was wrong — `undo()` already works correctly (verified byte-for-byte
-against a full LOG re-fold across every event type). The real bug was a display divergence: buying a
-cross-class feature *then* binding that class makes the Live Sheet's headline "AP left"
-(`compute().remaining`, which retroactively discounts every feature of the bound class, including ones
-bought earlier) drift above the frozen-ledger `economy().available` that actually gates purchases — a
-phantom AP the sheet advertises but won't let you spend. D-GH30 fixed the *symptom*
-(tools/PACT-Live-Char-Sheet.html's three "AP left" displays now read `eco.available`, display-only, no
-engine change) but left the underlying model conflict unresolved: `js/engine.js`'s `compute()` is a
-stateless, order-free recompute — correct for CharGen (no purchase order exists) but wrong for any
-event-sourced tool that freezes prices at purchase. That logic is duplicated ad hoc today (see
-`priceOf()`'s `-2` hardcode + "refund bug" comment, tools/PACT-Live-Char-Sheet.html:421).
-
-```text
-1. Decide (product/design call, not mechanical): should js/engine.js grow an event-sourcing-aware
-   "frozen-ledger remaining AP" export so Live Sheet/DM Console stop needing local economy()-vs-compute()
-   patchwork? Or is the current split (CharGen uses compute().remaining; event-sourced tools use their
-   own local economy()) the intended, permanent design? Log the outcome as a new decision either way.
-2. If engine work is warranted: it must be additive (a new export or compute() option) — do NOT change
-   compute()'s existing output for current callers, so CharGen and DATA.version are unaffected unless the
-   decision is deliberately to change shared behavior. Add fixtures/expected rows covering the
-   bind-after-purchase case either way.
-3. Audit DM Console (tools/DM-Console.html) for the same headline-AP display pattern before this lands —
-   as of D-GH30 it has no such display, but feat/engine-bridge-all-tools (NOW) could reintroduce the same
-   divergence if DM Console starts computing (rather than importing) an "AP left" number.
-4. Coordinate with feat/engine-bridge-all-tools (NOW): once all three tools import economy()/foldBuild
-   directly from js/engine.js instead of hand-copying them, make sure whichever fix lands here is
-   preserved in the shared import, not re-forked per tool.
-```
-**Done when:** either (a) a DECISIONS.md entry documents that the current per-tool split is the permanent
-design and no engine change is needed, or (b) a new engine-level frozen-ledger-aware remaining-AP export
-exists and every tool displaying "AP left" for an event-sourced character uses it consistently, with
-fixtures covering the bind-after-purchase case and parity still N/0.
-
 ## Cloud/campaign state is invisible to players (CharGen + Live Sheet) — TODO
 Branch fix/cloud-campaign-status-visibility. Players can't tell, at a glance, whether they're working
 locally or connected to a cloud campaign, or whether an attached campaign's DM rules are actually live.

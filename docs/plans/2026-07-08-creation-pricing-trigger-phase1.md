@@ -239,3 +239,30 @@ false findings cost the implementer a wasted cycle.
   original Phase 1 design, if implemented as first drafted, would have shipped a second instance of the
   exact bug class this entire multi-session effort exists to eliminate — a later event retroactively
   repricing earlier purchases — inside the very mechanism meant to prevent it.
+
+## Implementation notes (added while building Phase 1 — corrections to this plan's own claims)
+- **`DATA.level1AP` correction:** this plan's "Assumptions vs. verified facts" section stated
+  `DATA.level1AP` "is not actually defined anywhere" and Step 0 proposed defining it as a precursor commit.
+  Both were **wrong**. The verification search used a regex (`level1AP\s*:`) that missed the real text —
+  `js/engine.js`'s entire `DATA` object is a single ~194,000-character line, and the field is written
+  `"level1AP":50` (a quoted JSON-style key with no whitespace before the colon). `DATA.level1AP` already
+  existed, as `50`. Step 0 was skipped entirely; the real value was used directly in Step 6's threshold
+  check. Flagged here so a future reader trusts the DECISIONS.md D-GH31 entry (which has the corrected
+  version) over this plan document where they disagree.
+- **A gap not caught by cold review, found only by building and testing the mechanism:** a one-shot
+  import/creation burst whose total legitimately exceeds `DATA.level1AP` (e.g. a higher-level starting
+  character) self-triggered the automatic lock partway through the burst, mispricing racial traits bought
+  later in that *same* burst — verified concretely: a simulated CharGen-style import (150 AP budget, an
+  80 AP bulk creation cost, two racial traits) priced both traits at 22 AP total instead of the correct 6.
+  Presented to the project owner as three options; **resolved by adding `e.noLock: true`**, an optional
+  field on `buy`/`buyoff`/`names` events that excludes that event's cost from the automatic-threshold
+  accumulation (real AP accounting via `economy()` is unaffected). A future Phase 2 CharGen export would
+  tag its entire synthetic burst this way; genuine post-import spending (untagged) still triggers the lock
+  normally. Verified by two new fixtures, `EV-006` (import burst stays unlocked) and `EV-007` (genuine
+  post-import spend still locks a later purchase). This gap existed in every version of this plan the cold
+  reviewer saw — it was invisible without actually running the mechanism against a realistic import shape.
+- **Final Phase 1 status:** shipped on branch `claude/live-sheet-task-fkqj92` (commits implementing the
+  mechanism, then the `noLock` fix). `testing/tests/engine-parity.html` → **11/0** (5 pre-existing +
+  6 new: `EV-002` through `EV-007`). All 5 pre-existing fixtures verified byte-identical to their
+  pre-change output. Replay determinism verified across all 7 event-log fixtures. `DATA.version`
+  v0.332→v0.333. See `DECISIONS.md` D-GH31 for the authoritative record.

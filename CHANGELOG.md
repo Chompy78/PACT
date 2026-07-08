@@ -4,6 +4,23 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-08 · feat(engine) — `creationLocked` event/threshold replaces the dead `b.inPlay` flag (D-GH31, Phase 1 of 3)**
+  (`js/engine.js`; `DATA.version` v0.332→v0.333; 6 new fixtures `EV-002`–`EV-007`;
+  `testing/tests/engine-parity.html` → 11/0). Engine-only phase of a larger CharGen/Live-Sheet
+  unification: a new `creationLocked` LOG event, plus automatic inference once cumulative AP spend
+  crosses `DATA.level1AP`, now drives racial/species-trait pricing — replacing a flag that was
+  unconditionally `true` for every character and therefore inert. Tagging is **per-purchase** (via
+  `_replay`), not a whole-build flag, specifically because a whole-build flag would reproduce D-GH30's
+  exact bug shape (a later state retroactively repricing earlier purchases) — caught by a cold review of
+  the implementation plan before any code was written. A second gap, found only by actually building and
+  testing the mechanism: a one-shot import/creation burst above the anchor would self-trigger the
+  automatic lock partway through, mispricing traits bought later in that same burst. Fixed with an
+  event-level `noLock: true` flag that exempts specific events from the automatic-threshold accumulation
+  (real AP accounting is unaffected) — verified by `EV-006`/`EV-007`. See D-GH31 for the full design
+  record, the cold-review outcome, and a build-time correction (the implementation plan wrongly assumed
+  `DATA.level1AP` didn't exist; it already did, as `50`). No tool UI changes in this phase — CharGen,
+  Live Sheet, and DM Console are all untouched, so nothing about either tool's real behavior changes yet.
+  Supersedes and closes the `feat/ap-model-reconcile` NEXT item (D-GH30's deferred follow-up).
 - **2026-07-08 · docs — correct stale roadmap text around the engine module-bridge migration; graduate "Task 6"**
   (`docs/PACT_ROADMAP.md`; no code/rules change). `/pick-task` surfaced that the NOW item "Full engine
   module-bridge migration" still described the original all-seven-symbols scope even though a first pass
