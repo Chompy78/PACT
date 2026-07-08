@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-08 · chore(skills) — `/pick-task` and `/run-task` now suggest a Haiku/Sonnet/Opus engine tier per task**
+  (`.claude/commands/pick-task.md`, `.claude/commands/run-task.md`; skill-only, no rules/code change).
+  `pick-task`'s Step 3 "Check 2" was a binary Sonnet-floor/Opus-escalation check; it's now a three-tier
+  recommendation — Haiku for tasks that came through Step 2's quick/difficulty filter (docs-only,
+  config/manifest, single-file CSS/copy, isolated obvious-cause fixes), Sonnet as the floor for a normal
+  full roadmap task, Opus only for real rework risk (engine rules logic, data-model/migration decisions,
+  cross-tool contracts, genuine architectural trade-offs). Effort stays a separate axis (default High,
+  escalate to `xhigh`/`max` only for genuinely ambiguous judgment calls). Step 4's hand-off now reports
+  the suggested engine per task and tells the user to run `/model <engine>` first if the session isn't
+  already on it, since neither skill can switch the running model itself; `run-task` restates the
+  inherited suggestion before Step 4 (enter worktree) for the same reason.
 - **2026-07-05 · docs(sessions) — record the engine module-bridge safe-subset session** (`docs/sessions/2026-07-05-engine-bridge-safe-subset.md`; no code/rules change). Covers PR #121 / D-GH26: the roadmap task's premise being wrong (three of the seven "hand-copied" symbols are signature-incompatible `LOG`-closures, DM's `MUT` diverges), the owner's choice of the safe subset (`DATA`/`compute`/`baseBuild` + Live Sheet `MUT`) over the full migration, the ES-module-deferral `engine-ready` gating gotcha, in-browser verification, and the two rebases (PR #108/#109 bootstrap conflicts + D-GH24→26 number churn, with D-GH26 turning out to be the number preview reserved for this task).
 - **2026-07-05 · docs(sessions) — record the BUILD-export/leaked-password/theme-artwork session**
   (`docs/sessions/2026-07-05-theme-artwork-and-worktree-base.md`; no code/rules change). Covers PRs
