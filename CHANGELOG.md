@@ -4,6 +4,25 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-08 · fix(engine) — restore racial-trait pricing in Live Sheet & DM Console; wire noLock into CharGen's export (D-GH34)**
+  (`js/engine.js`; `tools/PACT-CharGen-Webtool.html`; `DATA.version` v0.334→v0.335; 3 new fixtures
+  `CG-004`–`CG-006`; `testing/tests/engine-parity.html` → 16/0). An 8-angle code review of D-GH31/32/33
+  found a live, shipping regression: `compute()`'s racial-trait pricing had switched from an
+  always-`true` whole-build flag to a per-trait map only the engine's own internal replay populates —
+  and Live Sheet and DM Console each have their own separate, hand-copied local fold logic that never
+  calls that replay, so racial-trait pricing in both tools silently and permanently dropped to the cheap
+  creation rate for every character. A related display feature (the "paying a premium vs. creation-basis
+  pricing" banner) went inert for the same reason. Separately, `buildToLiveLog()` never tagged its
+  emitted events `noLock:true`, leaving the mechanism built specifically for that scenario (D-GH31)
+  unused in the one function that needed it. Fixed via a cold-reviewed plan
+  (`docs/plans/2026-07-08-racial-trait-pricing-regression-fix.md`): `compute()` now checks
+  `_raceTraitLocked` by key **presence**, not truthiness, falling back to the old `inPlay`-based
+  behavior when a trait has no entry at all — restoring the two affected tools' exact pre-regression
+  pricing with no changes to either tool's own files. `buildToLiveLog()`'s single event-emission funnel
+  now tags every event `noLock:true` unconditionally. Verified directly (both the pricing restoration and
+  the noLock fix) and via three new fixtures, one specifically constructed so a future regression back to
+  truthiness-only checking would fail a test instead of shipping silently. See D-GH34 for the full record
+  and the general lesson about replay-derived engine state and independently-constructed callers.
 - **2026-07-08 · fix(chargen) — import real js/engine.js MUT/foldBuild/activeEvents/economy/baseBuild; fixes a real multi-discipline import bug (D-GH33, Phase 2 step 2)**
   (`tools/PACT-CharGen-Webtool.html`; no rules change, `DATA.version` untouched by this step). CharGen's
   module bridge now imports `MUT`/`foldBuild`/`activeEvents`/`economy`/`baseBuild` from `js/engine.js`

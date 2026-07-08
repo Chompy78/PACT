@@ -1451,7 +1451,17 @@ function saveNames(){var _dup=_cgNameDupes();if(_dup.length){flash('⛔ “'+_du
 function buildToLiveLog(b){
   // de-dup single-instance proficiency lists so the exported Live-Sheet log never carries duplicates (matches the fold-side guard)
   ["saves","skills","expertise","toolExpertise","tools","instruments","masteries","racialTraits","racialSpells"].forEach(function(k){if(Array.isArray(b[k]))b[k]=b[k].filter(function(v,i){return b[k].indexOf(v)===i;});});
-  const C=o=>JSON.parse(JSON.stringify(o));let LOG=[],SEQ=1;const ev=o=>{o.seq=SEQ++;o.ts=Date.now();LOG.push(o);};
+  const C=o=>JSON.parse(JSON.stringify(o));let LOG=[],SEQ=1;
+  // D-GH34: this function emits a synthetic creation/import event burst (a whole finished character's
+  // worth of purchases, fabricated in one pass from a flat build) — NOT a live-authored editing history.
+  // Every event is intentionally tagged noLock:true so the burst can never self-trigger the engine's
+  // automatic creation-pricing-lock threshold (DATA.level1AP) on its own total, regardless of how large
+  // that total is (a higher-level starting character can legitimately exceed the anchor). Do not remove
+  // this blanket tagging thinking it's an oversight — it's the fix for a real bug (D-GH34) where imported
+  // higher-budget characters with racial traits were mispriced on later re-fold. noLock is harmless on
+  // event types that don't check it (name, creationLocked, etc.) so tagging every event uniformly here,
+  // rather than per-call-site, is deliberate — it can't be missed for a future addition to this function.
+  const ev=o=>{o.seq=SEQ++;o.ts=Date.now();o.noLock=true;LOG.push(o);};
   // Phase 2 step 2 (D-GH33): was a second local throwaway MUT subset — the imported js/engine.js MUT
   // is a superset (same mutators for every category used below, plus more), so it's used directly now.
   const run=liveBase(), base0=liveBase();

@@ -1,0 +1,36 @@
+{
+  "name": "Fallback Test",
+  "budget": 100,
+  "originClass": "Rogue",
+  "species": "Halfling",
+  "species2": "Gnome",
+  "hd": 2,
+  "profBonus": 2,
+  "stats": {
+    "STR": 10,
+    "DEX": 14,
+    "CON": 12,
+    "INT": 10,
+    "WIS": 10,
+    "CHA": 10
+  },
+  "saves": [],
+  "skills": [],
+  "tools": [],
+  "weaponProf": {
+    "simple": true
+  },
+  "armour": {
+    "light": true
+  },
+  "racialTraits": [
+    "Halfling: Brave",
+    "Halfling: Naturally Stealthy",
+    "Gnome: Rock Clockwork Device"
+  ],
+  "_raceTraitLocked": {
+    "Halfling: Brave": true,
+    "Halfling: Naturally Stealthy": false
+  },
+  "inPlay": true
+}
