@@ -128,6 +128,14 @@ Before finishing a task / opening a PR, update what applies (newest on top):
 More than one agent may be active. **`docs/PACT_ROADMAP.md` has a single writer** — don't append to it.
 If you have new roadmap items, output them in **this exact format** for the human to fold in, then carry on:
 
+**`D-GH<N>` numbering (see D-GH30).** Three collisions have already happened (D-GH19/20, D-GH25/27,
+D-GH26/28) from computing "next = highest + 1" off a stale local read. Before claiming a new number, check
+the **live** remote, not an earlier read this session:
+`git fetch origin preview && git show origin/preview:DECISIONS.md | grep -oE 'D-GH[0-9]+' | sort -t H -k2 -n -u | tail -1`.
+If a collision still slips through post-merge, the accepted fix is: keep the earlier-merged entry's number,
+renumber the later one to the next free number, and add an addendum note under it — no scramble needed,
+this is expected, documented behavior.
+
 ````
 ## <short title> — TODO
 ```
