@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-08 · chore — freeze a CharGen v0 snapshot for Phase 2 side-by-side comparison**
+  (new `tools/PACT-CharGen-Webtool-v0.html`, new `js/engine-v0-snapshot.js`; `index.html` gets a new
+  linked card; no rules change, `DATA.version` untouched). Ahead of the Phase 2 CharGen rewrite (the
+  D-GH31 unification effort), snapshot the pre-Phase-2 tool + its exact engine dependency as of commit
+  `eb113be` so the owner can compare old-vs-new behavior side by side once Phase 2 lands on the real
+  `tools/PACT-CharGen-Webtool.html`. `PACT-CharGen-Webtool-v0.html` pins its module-bridge import to
+  `js/engine-v0-snapshot.js` (a frozen copy of `js/engine.js`, `DATA.version` v0.333) instead of the live
+  engine, so its behavior can't drift as Phase 2 work continues — deliberately breaks the "one engine"
+  rule for this one throwaway comparison artifact only, flagged in both files' headers. Not added to
+  `service-worker.js`'s `PRE_CACHE` list (a temporary comparison tool doesn't need offline pre-caching).
+  Delete both files (and the `index.html` card) once the comparison is no longer needed.
 - **2026-07-08 · feat(engine) — `creationLocked` event/threshold replaces the dead `b.inPlay` flag (D-GH31, Phase 1 of 3)**
   (`js/engine.js`; `DATA.version` v0.332→v0.333; 6 new fixtures `EV-002`–`EV-007`;
   `testing/tests/engine-parity.html` → 11/0). Engine-only phase of a larger CharGen/Live-Sheet
