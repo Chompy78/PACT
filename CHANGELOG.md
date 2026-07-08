@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-08 · docs — session note for the AP-display fix; revert a roadmap single-writer slip**
+  (`docs/sessions/2026-07-08-livesheet-ap-display-fix.md`; `docs/PACT_ROADMAP.md`, `AGENTS.md`; no
+  code/rules change). `docs/PACT_ROADMAP.md` is single-writer — agents must output new items for the
+  human to fold in, never append directly. The prior commit did that correctly when it *removed* the
+  resolved `fix/livesheet-undo-bug` item, but then directly appended the new `feat/ap-model-reconcile`
+  NEXT item instead of outputting it. This commit reverts that append (the item is re-posted as a plain
+  output block below, for the owner to fold in by hand) and adds the session note documenting the wrong
+  root-cause premise and the Option A/B decision behind D-GH30.
 - **2026-07-08 · fix(live-sheet) — "AP left" now reads the frozen ledger instead of a retroactive recompute**
   (`tools/PACT-Live-Char-Sheet.html`; display-only, no `js/engine.js` change, no `DATA.version` bump).
   Investigating the reported `fix/livesheet-undo-bug` roadmap task disproved its premise — `undo()` was

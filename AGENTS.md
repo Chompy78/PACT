@@ -16,8 +16,9 @@ is staging and promotes into `main`).
   tools (`feat/engine-bridge-all-tools`). See `docs/PACT_ROADMAP.md` NOW section for the authoritative
   task text. (The Live Sheet `undo()` correctness bug closed as D-GH30: `undo()` itself was already
   correct; the real defect was a display divergence, fixed display-only. The deferred long-term question —
-  whether `js/engine.js` should grow a frozen-ledger-aware remaining-AP export — is now a NEXT item,
-  `feat/ap-model-reconcile`.)
+  whether `js/engine.js` should grow a frozen-ledger-aware remaining-AP export — was handed to the owner
+  as a proposed NEXT item, `feat/ap-model-reconcile` — see the output block at the end of this session's
+  turn, not yet folded into `docs/PACT_ROADMAP.md`.)
 - **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); the three tools'
   hand-copied `DATA`/`compute()`/`MUT`/etc. (parity risk until the bridge lands); Live Sheet's
   `compute()`-vs-frozen-`economy()` divergence (see D-GH30 and `feat/ap-model-reconcile`) — any UI that
