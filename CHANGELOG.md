@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-08 · docs — correct stale roadmap text around the engine module-bridge migration; graduate "Task 6"**
+  (`docs/PACT_ROADMAP.md`; no code/rules change). `/pick-task` surfaced that the NOW item "Full engine
+  module-bridge migration" still described the original all-seven-symbols scope even though a first pass
+  already shipped a reduced "safe subset" (D-GH26, PR #121) — rewrote it to describe only the actually
+  remaining work (`activeEvents`/`economy`/`foldBuild` reconciliation, CharGen's and DM Console's
+  divergent `MUT`). Also found the separate NEXT item "Task 6 — CharGen module bridge migration" was
+  already fully done by that same D-GH26 pass (CharGen's `DATA`/`compute()` bridge) but never graduated —
+  removed it and updated the four other roadmap items that still gated on "Task 6" as if it were open
+  (`feat/chargen-campaign-rules` now correctly blocked on CharGen not yet importing `validate()`, not the
+  old gate; `feat/ap-by-level` and AUD-1's version-sync follow-up are now unblocked; `feat/save-integrity`'s
+  stale coordination note dropped; AUD-1's main drift check narrowed to just `MUT`, since `DATA`/`compute`/
+  `baseBuild` can no longer drift now that they're live imports).
 - **2026-07-08 · docs — fold the `feat/ap-model-reconcile` item into the roadmap**
   (`docs/PACT_ROADMAP.md`, `AGENTS.md`; no code/rules change). The owner reviewed the output block from
   the prior commit and asked for it to be added directly — folds in the NEXT item deferred from D-GH30
