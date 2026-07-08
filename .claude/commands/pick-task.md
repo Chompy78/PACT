@@ -79,29 +79,40 @@ that branch. It means someone (possibly another session) is already on it. For a
 just drops it from the batch; for the primary pick, it stands as before (don't substitute a different
 primary task).
 
-**Check 2 — effort & model calibration**
-Assume `/run-task` will run at **High** reasoning effort and on **Sonnet** — that's the floor and the
-default for a full roadmap task (multi-file edits, running `engine-parity.html` to a pass count, rebasing
-against `preview`, opening a PR). Don't verify this or ask me to confirm it.
+**Check 2 — engine & effort calibration**
+`/run-task` inherits whatever model and reasoning effort this session is already running — a skill can't
+switch those mid-command. Your job here is to work out what each task *should* run on and say so, not to
+silently assume Sonnet and move on.
 
-Instead, judge each task (primary pick, and every surviving batch candidate) against two escalation
-triggers, and only speak up if one fires:
-- **Effort above High** (`xhigh`/`max`): only for a genuinely ambiguous judgment call, not routine roadmap
-  work.
-- **Model to Opus**: only if the task has real rework risk on Sonnet — a genuine architectural trade-off,
-  a change that's expensive to get wrong (e.g. touches `js/engine.js` rules logic, data-model/migration
-  decisions, or cross-tool contracts), or something you're not confident can be gotten right in one pass.
+Pick one engine tier per task (primary pick, and every surviving batch candidate):
+- **Haiku** — only when Step 2's quick/difficulty filter is what picked this task: docs-only edits, a
+  config/manifest tweak, a single-file CSS/copy/UI fix, or an isolated bug fix with an obvious cause.
+  These are mechanical enough that Sonnet-level judgment isn't buying anything.
+- **Sonnet** — the floor and default for a full roadmap task reached via the normal Step 2 path (topmost
+  🔴 NOW / 🟡 NEXT item, no quick filter): multi-file edits, running `engine-parity.html` to a pass count,
+  rebasing against `preview`, opening a PR.
+- **Opus** — escalate from either floor only if the task has real rework risk: a genuine architectural
+  trade-off, a change that's expensive to get wrong (e.g. touches `js/engine.js` rules logic, data-model/
+  migration decisions, or cross-tool contracts), or something you're not confident can be gotten right in
+  one pass.
 
-A batch candidate that fires either trigger contradicts its own "quick" classification from Step 2 — drop
-it from the batch instead of escalating it; a batch is only worth its token savings when every member
-stays at the routine High/Sonnet floor.
+Effort is a separate axis: default to **High** for every tier, and only flag **above High** (`xhigh`/`max`)
+for a genuinely ambiguous judgment call, not routine roadmap work.
+
+A batch candidate that needs Opus, or needs more than High effort, contradicts its own "quick"
+classification from Step 2 — drop it from the batch instead of escalating it; a batch is only worth its
+token savings when every member stays at the routine Haiku/High floor.
 
 ## Step 4 — hand off
 
-Tell me which task you picked and why, the result of both pre-flight checks, and whether either
-escalation trigger fired. If a batch survived Step 3, list each surviving member with its own one-line
-reason. Don't edit anything, don't create a worktree yet — that's `/run-task`'s job, gated on the
-confirmation below.
+Tell me which task you picked and why, the result of both pre-flight checks, the suggested engine tier
+(Haiku/Sonnet/Opus) and effort level for it, and whether either escalation trigger fired. If a batch
+survived Step 3, list each surviving member with its own one-line reason and engine tier. Don't edit
+anything, don't create a worktree yet — that's `/run-task`'s job, gated on the confirmation below.
+
+If the suggested engine differs from whatever this session is currently running on, say so explicitly and
+tell me to run `/model <engine>` before confirming below — `/run-task` inherits the session's model as-is
+and won't switch it for you.
 
 Then, instead of ending with plain text to copy-paste, ask with **`AskUserQuestion`** (one question,
 `multiSelect: false`). Build the option list from whichever of these apply — always at most 4 options,
