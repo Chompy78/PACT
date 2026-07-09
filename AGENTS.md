@@ -71,11 +71,16 @@ If none of these apply, state that and proceed.
   `activeEvents`/`economy`/`foldBuild` in **all three** tools are **index-based closures over a
   script-level `LOG`** (`foldBuild(uptoIdx)`), *not* the engine's array-parameter API
   (`foldBuild(events)`) — they drive the Live Sheet/DM event-sourcing + time-travel and the CharGen
-  import-fold, and are **not** signature-compatible with the engine exports. `MUT` is also still local in
-  **CharGen** (specialized closures inside `_lsImportFold`/`buildToLiveLog`, the D-GH3 export bridge) and
-  **DM Console** (its `MUT` *diverges* from the engine's — stale `found`, missing `dbound`; bridging it is
-  a deliberate behavioral change, not done yet). Never re-implement rules logic anywhere else; `tools/`
-  and `js/` must stay siblings.
+  import-fold, and are **not** signature-compatible with the engine exports. Bridging this pair for Live
+  Sheet/DM Console was attempted (`docs/plans/2026-07-09-engine-bridge-live-dm-console.md`) and found to
+  conflict with **D-GH34**: the engine's real `foldBuild()`/`_replay()` populates a per-trait
+  `b._raceTraitLocked` map that these two tools' local folds never produce, and `compute()`'s
+  racial-trait pricing depends on that map's presence — bridging without first solving the historical
+  lock-state migration would silently change AP totals for existing characters. Paused pending that
+  design work, not done. `MUT` is also still local in **CharGen** (specialized closures inside
+  `_lsImportFold`/`buildToLiveLog`, the D-GH3 export bridge) — **DM Console's own `MUT` is bridged**
+  (D-GH36: imports the engine's `MUT` directly, fixing the `found`/`dbound` drift noted below). Never
+  re-implement rules logic anywhere else; `tools/` and `js/` must stay siblings.
 - **Persistence:** the app is an installable, offline-capable PWA with **optional sign-in**. Local-only
   still works (localStorage + JSON import/export); when signed in, characters also save to the **cloud
   (Supabase)** and DMs run **campaigns**. CharGen = a flat build JSON; Live Sheet = an event log

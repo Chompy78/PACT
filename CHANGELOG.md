@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · fix(dm-console) — bridge `MUT` to js/engine.js (D-GH36)** (`tools/DM-Console.html`; no rules
+  change; engine untouched → `engine-parity` 20/0). DM Console now imports `MUT` from `js/engine.js` instead
+  of a local copy, fixing two confirmed bugs: `found` previously had no else-branch for a second/later
+  founded tradition (silently dropped it) and `dbound` wasn't handled at all (DM Console couldn't process
+  that event type). The matching `foldBuild`/`activeEvents`/`economy` bridge (the other half of the same
+  cold-reviewed plan) is **paused** — it conflicts with D-GH34's already-shipped racial-trait-pricing fix;
+  see `docs/plans/2026-07-09-engine-bridge-live-dm-console.md` and D-GH36.
+
 - **2026-07-09 · chore(release) — bump build v0.107 → v0.200; remove the v0 comparison snapshot**
   (`js/engine.js`, `tools/*.html`, `index.html`, `docs/VERSION-SYNC.md`; no rules change; `DATA.version`
   unchanged at v0.332; engine-parity 20/0). Release-prep for the Phase-2 CharGen rewrite (Steps 3–5 + the
