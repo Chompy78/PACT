@@ -2069,7 +2069,14 @@ function applyBuild(b){
   set('oclass',b.originClass||'(none)');set('oclass2',b.originClass2||'(none)');
   set('spec',b.species||'(none)');set('spec2',b.species2||'(none)');
   set('hd',b.hd||1);set('profBonus',b.profBonus||2);set('budget',b.budget||DATA.level1AP);
-  render();
+  // Phase 2 Step 3 (Chunk 5, Category E): rebuild LOG from the freshly-written DOM so every whole-build-
+  // replacement flow that funnels through applyBuild (loadFile — both the CharGen-flat and Live-Sheet-LOG
+  // branches — loadFromHash, _cgRestoreAutosave, and Reset) leaves LOG in sync with the loaded build, not
+  // just at boot. This supersedes the partial LOG mutations the add-row/add-disc nudges made while this
+  // function was writing the DOM (they fired mid-write; this wipes and rebuilds cleanly, exactly as boot's
+  // own post-restore resync does). render() happens inside replaceWholeLogFromBuild.
+  if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
+  else render();
 }
 
 // ---- lightweight autosave of the in-progress build (safety net independent of Export) ----
@@ -2180,6 +2187,9 @@ function randomizeRoll(){
   for(let q=0;q<8;q++){tryAct(actBoon);tryAct(actArt);tryAct(actRacial);tryAct(actRacial);}
   applyBuild(b);
   try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}
+  // Phase 2 Step 3 (Chunk 5): randomiseAppearance()/genName() write appearance + name straight to the DOM
+  // (direct .value, no events) AFTER applyBuild's own resync — so re-sync LOG once more to capture them.
+  if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
   const spent=C(b).total;
   const _changed=JSON.stringify(b)!==_snap0;
   if(typeof flash==='function') flash(_changed?('🎲 Rolled a random character — '+spent+' / '+budget+' AP spent'+(trad?' (incl. a starter spell kit)':'')+'.'):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');

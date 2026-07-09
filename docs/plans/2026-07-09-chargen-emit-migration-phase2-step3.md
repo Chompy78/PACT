@@ -3,7 +3,7 @@
 ## Status
 **Cold-reviewed and amended.** Reviewer approved the core design (`user action → CharGen-local LOG
 mutation helper → LOG changes → foldBuild(LOG) → render from folded build`) and requested 18 amendments,
-all folded in below. **Chunks 0, 1, 2, 3, 4A, and 4B are DONE** (see "Chunk log" at the bottom); Chunks 5–6 remain.
+all folded in below. **Chunks 0, 1, 2, 3, 4A, 4B, and 5 are DONE** (see "Chunk log" at the bottom); Chunk 6 remains.
 
 ## Chunk log
 
@@ -172,7 +172,37 @@ all folded in below. **Chunks 0, 1, 2, 3, 4A, and 4B are DONE** (see "Chunk log"
   full regression suite green; `engine-parity.html` 16/0. Independently reviewed (9/9 checks passed,
   including the three highest-risk — no indexed events, ✕ behavior-preservation, no double-handling — no
   fixes needed). Also resolves the `unlockclass`-staleness note carried from Chunk 3 (fixed in 4A).
-- Chunks 5–6: not started.
+- **Chunk 5 — DONE (2026-07-09).** Category E, whole-build replacement convergence. Every flow that
+  funnels through `applyBuild(b)` (loadFile's CharGen-flat and Live-Sheet-LOG branches, loadFromHash,
+  `_cgRestoreAutosave`, Reset) now ends by rebuilding LOG from the freshly-written DOM via
+  `replaceWholeLogFromBuild(_domReadBuild())` — so a mid-session load/restore/reset leaves LOG in sync with
+  the loaded build, not just at boot (it supersedes the partial LOG mutations the add-row/add-disc nudges
+  made while `applyBuild` was writing the DOM). `randomizeRoll` gets a second resync at its tail because
+  `randomiseAppearance()`/`genName()` write appearance+name straight to the DOM (no events) *after* its
+  `applyBuild` call. Reading `_domReadBuild()` (not the passed `b`) is deliberate and load-bearing: under
+  Option A `readBuild()` returns `_domReadBuild()`, so seeding LOG from it guarantees LOG matches what the
+  UI shows — and critically, randomize's scratch `b` never holds appearance/name (those go to the DOM
+  only), so seeding from `b` would drop them. `buildToEventLog`/`_buildEventBurst` was already the shared
+  export+resync implementation (Chunk 0), so no parallel-converter reconciliation was needed.
+  Verified all five plan scenarios in a browser: CG-002 flat build load, LS-001 Live-Sheet-LOG load,
+  shared-link `_encB`/`_decB` round-trip, pre-migration flat autosave restore, and randomize — each leaving
+  `foldBuild(LOG)` reproducing the DOM's full structural field set and compute total (50/78/50/50/50, all
+  matching; randomize legal and within budget). Full regression suite green; `engine-parity.html` 16/0.
+  Independently reviewed (8/8 checks passed).
+  **Deferred to Chunk 6 (the flip):** incremental LIVE typing of `name` (a `type:'name'` event) and
+  `budget` (a `type:'award'` event) — both tie into how the `readBuild()=foldBuild(LOG)` flip reconstructs
+  them (`foldBuild(LOG).budget` is 0 because award events feed `economy()`, not `b.budget`), so those
+  belong with the flip. Chunk 5's resync already captures name/budget for LOADED builds; only live typing
+  of those two after a load is un-synced (invisible under Option A). The review also noted a pre-existing
+  `annotate()`-purity gap on malformed input (`species2===species` / `originClass2===originClass`), where
+  `annotate` resets the duplicate to `(none)` and LOG can briefly hold the stale duplicate — the general
+  "annotate still corrects state" Option-A gap that Chunk 6 retires; affects invalid input only, self-heals.
+- Chunk 6: not started. **Pre-flip checklist (carried in):** (1) wire incremental `name`/`budget` editing;
+  (2) decide how the flipped `readBuild()` reattaches `budget` (award events feed `economy()`, not
+  `b.budget` — likely `{...foldBuild(LOG), budget: <sum of award amounts>}`); (3) retire `annotate()`'s
+  state-correction (the `.checked`/`.value` writes) so LOG can't hold a stale duplicate on malformed input;
+  (4) the Chunk-3-noted `unlockclass`-staleness class was already fixed in 4A; (5) run the Category G
+  programmatic-writer audit and the shadow-diff clean-sweep before flipping.
 
 Builds directly on Phase 2 Steps 1–2, both DONE (see D-GH33 and the "Implementation notes" section at the
 bottom of `docs/plans/2026-07-08-chargen-livesheet-unification-phase2.md`). `js/engine.js` already exports

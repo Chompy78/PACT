@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 5: whole-build-replacement convergence (LOG synced after every load flow)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Seventh
+  chunk of the CharGen emit()-migration plan. Every whole-build-replacement flow (loadFile — both the
+  CharGen-flat and Live-Sheet-LOG branches — loadFromHash, autosave-restore, Reset, randomize) now rebuilds
+  LOG from the freshly-written DOM via `replaceWholeLogFromBuild(_domReadBuild())`, so a mid-session load
+  leaves LOG in sync with the loaded build (not just at boot). Reading `_domReadBuild()` rather than the
+  passed build is load-bearing — randomize's scratch build never holds appearance/name, which go to the DOM
+  only. Verified all five plan scenarios (flat load, Live-Sheet-LOG load, shared-link round-trip,
+  pre-migration autosave restore, randomize) leave `foldBuild(LOG)` reproducing the DOM's structure and
+  compute total; independently reviewed (8/8 passed). Incremental live typing of `name`/`budget` (which
+  tie into the Chunk 6 `readBuild()` flip's reconstruction) is deferred to Chunk 6. No user-facing behavior
+  change (Option A).
+
 - **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 4B: traditions/disciplines → one coalescing TRADITIONS patch**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Sixth
   and riskiest chunk of the CharGen emit()-migration plan (its own rollback boundary). The whole
