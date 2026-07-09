@@ -1150,7 +1150,141 @@ function addDisc(btn){
   card.querySelector('.disc-box').appendChild(d);render();
 }
 
-function readBuild(){
+// ---- Phase 2 Step 3 (Chunk 0): CharGen-local event-sourcing scaffolding ----
+// See docs/plans/2026-07-09-chargen-emit-migration-phase2-step3.md. This chunk adds the LOG mutation
+// API and dev-only verification scaffolding; it changes NO user-facing behavior — readBuild() still
+// returns _domReadBuild() (Option A: the flip to foldBuild(LOG) is deferred to the final cleanup
+// chunk). LOG is bootstrapped once at boot (see _cgBoot) and, until later chunks convert handlers,
+// stays a frozen snapshot of the build as it stood at load time — CG_SHADOW mode is expected to warn
+// on nearly every subsequent interaction until Chunk 1+ lands; that is expected, not a bug.
+let LOG=[],SEQ=1;
+
+// Categories whose MUT mutator is a flat array push with no positional/index dependents — the only
+// categories retractFlatEvent() may remove from LOG, and only from wherever they sit (LOG invariant #6).
+const RETRACTABLE_FLAT_CATS=new Set(['save','skill','expertise','toolexpertise','tool','instrument','mastery',
+  'racial','racialspell','boon','drawback','art','feature','subabil','subbundle','unlockclass']);
+// The indexed tradition/discipline mutators — must NEVER be emitted or retracted by a CharGen live-edit
+// handler in Step 3 (LOG invariant #7). Traditions/disciplines stay one coalescing patch (PATCH_SLOTS.TRADITIONS).
+const INDEXED_TRADITION_CATS=new Set(['found','rank','cantrip','slot','known','dbound']);
+
+// Canonical coalescing-patch slot ids — replacePatchSlot() only accepts these; handlers must not invent
+// inline _slot strings (a typo would silently produce a duplicate patch event instead of replacing the old one).
+const PATCH_SLOTS=Object.freeze({IDENTITY:'identity',STATS:'stats',HD_PROF:'hdProf',ECONOMY:'economy',
+  LANGUAGES:'languages',ATTUNEMENT:'attunement',KI:'ki',SORCERY:'sorcery',ARMOUR:'armour',
+  WEAPON_PROF:'weaponProf',APPEARANCE:'appearance',HOUSE_RULES:'houseRules',CUSTOM_PROFS:'customProfs',
+  FREE_SUB:'freeSub',TRADITIONS:'traditions',NAMES:'names',CAMPAIGN:'campaign'});
+
+// Dev-only diagnostic mode: ?cgShadow=1. Never affects normal users; only console.warns.
+const CG_SHADOW=(function(){try{return new URLSearchParams(location.search).get('cgShadow')==='1';}catch(e){return false;}})();
+
+function nextSeq(log){let max=0;(log||[]).forEach(function(e){if(e&&typeof e.seq==='number'&&e.seq>max)max=e.seq;});return max+1;}
+
+// ---- LOG mutation API — the ONLY functions permitted to change LOG (no handler pushes/splices/reassigns it directly) ----
+function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;LOG.push(ev);markStateHandled('emit');render();}
+
+function retractFlatEvent(cat,predicate){
+  if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
+  const i=LOG.findIndex(function(e){return e.type==='buy'&&e.cat===cat&&predicate(e);});
+  if(i===-1)return;
+  LOG.splice(i,1);markStateHandled('retractFlatEvent');render();
+}
+
+function replacePatchSlot(slot,patch,label){
+  if(!Object.values(PATCH_SLOTS).includes(slot))throw new Error("replacePatchSlot: '"+slot+"' is not a canonical PATCH_SLOTS value");
+  // price against the build with this slot's OWN PRIOR event removed, not the current full LOG (which
+  // still holds the old contribution and would double-count it) — see the plan's "Coalescing patch cost delta"
+  const withoutSlot=LOG.filter(function(e){return !(e.type==='buy'&&e.cat==='patch'&&e._slot===slot);});
+  const before=compute(foldBuild(withoutSlot)).total;
+  const candidate=withoutSlot.concat([{type:'buy',cat:'patch',payload:{patch:patch},_slot:slot}]);
+  const after=compute(foldBuild(candidate)).total;
+  const newEvent={type:'buy',cat:'patch',payload:{patch:patch},cost:after-before,label:label,_slot:slot,
+    seq:SEQ++,ts:Date.now(),rules:DATA.version};
+  LOG=withoutSlot.concat([newEvent]);markStateHandled('replacePatchSlot');render();
+}
+
+function replaceWholeLogFromBuild(b,opts){
+  LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);markStateHandled('replaceWholeLogFromBuild');render();
+}
+
+// ---- temporary state-event audit (Chunks 0-5 only; removed in Chunk 6) ----
+// Flags whether the LOG-mutation API was invoked in response to the most recent user-facing input/change
+// event. Until later chunks convert handlers, this is expected to warn on nearly everything.
+let CG_STATE_EVENT_HANDLED=false;
+function markStateHandled(reason){CG_STATE_EVENT_HANDLED=reason||true;}
+function _cgWireStateEventAudit(){
+  const form=$('form');if(!form)return;
+  const watch=function(e){CG_STATE_EVENT_HANDLED=false;setTimeout(function(){
+    if(CG_SHADOW&&!CG_STATE_EVENT_HANDLED)console.warn('[CG_SHADOW] input/change on',e.target,'was not accounted for by emit()/retractFlatEvent()/replacePatchSlot()/replaceWholeLogFromBuild()');
+  },0);};
+  form.addEventListener('input',watch,true);form.addEventListener('change',watch,true);
+}
+
+// ---- shadow-diff (dev-only): compares the DOM-derived build against foldBuild(LOG), before AND after
+// each render — a post-render-only check can miss "control changes, no event emitted, DOM snaps back on
+// repaint" since both sides would agree again once the repaint completes.
+const _CG_UNORDERED_FIELDS=['saves','skills','expertise','toolExpertise','tools','instruments','masteries',
+  'racialTraits','racialSpells','boons','drawbacks','arts','features','subAbilities','subSpellBundles','unlockedClasses'];
+// Fields _domReadBuild() never produces (engine-only replay bookkeeping) or that legitimately take an
+// "empty" shape from either side (missing key vs null vs '' vs [] vs an all-zero array — all mean the
+// same thing here) — stripped so a real divergence isn't buried under this noise.
+const _CG_IGNORE_FIELDS=['id','version','inPlay','_raceTraitLocked'];
+function _cgIsEmptyish(v){
+  if(v==null||v==='')return true;
+  if(Array.isArray(v))return v.length===0||v.every(function(x){return x===0||_cgIsEmptyish(x);});
+  if(typeof v==='object')return Object.keys(v).every(function(k){return _cgIsEmptyish(v[k]);});
+  return false;
+}
+function canonicalBuild(b){
+  if(!b)return b;
+  const c=JSON.parse(JSON.stringify(b));
+  _CG_UNORDERED_FIELDS.forEach(function(k){if(Array.isArray(c[k]))c[k]=c[k].slice().sort();});
+  _CG_IGNORE_FIELDS.forEach(function(k){delete c[k];});
+  Object.keys(c).forEach(function(k){if(_cgIsEmptyish(c[k]))delete c[k];});   // normalise missing/null/''/[]/all-zero as equivalent
+  return c;
+}
+function shadowCompare(phase,fromDom,fromLog){
+  if(!CG_SHADOW)return;
+  if(JSON.stringify(fromDom)===JSON.stringify(fromLog))return;
+  const keys=new Set(Object.keys(fromDom||{}).concat(Object.keys(fromLog||{})));
+  const diffs=[];keys.forEach(function(k){if(JSON.stringify(fromDom&&fromDom[k])!==JSON.stringify(fromLog&&fromLog[k]))diffs.push(k);});
+  console.warn('[CG_SHADOW] '+phase+' divergence in fields:',diffs,{fromDom:fromDom,fromLog:fromLog});
+  try{const ta=compute(fromDom).total,tb=compute(fromLog).total;if(ta!==tb)console.warn('[CG_SHADOW] '+phase+' computed total mismatch: DOM='+ta+' LOG='+tb);}catch(e){}
+}
+
+// ---- dev assertions (guardrails only) — must not break legacy import/export paths that legitimately
+// use the older found/rank/cantrip/slot/known/dbound vocabulary; these target CharGen's own live-edit
+// handlers, not the mere presence of such events in an imported LOG.
+function assertFoldDoesNotMutateLog(log){
+  if(!CG_SHADOW)return true;
+  try{const before=JSON.stringify(log);foldBuild(log);
+    if(JSON.stringify(log)!==before){console.warn('[CG_SHADOW] LOG invariant #2 violated: foldBuild(LOG) mutated LOG.');return false;}
+  }catch(e){console.warn('[CG_SHADOW] assertFoldDoesNotMutateLog: foldBuild threw',e);return false;}
+  return true;
+}
+function assertNoUnsafeRetracts(log){
+  // Best-effort secondary sweep confirming LOG still replays cleanly (LOG invariant #3). The real
+  // enforcement point is retractFlatEvent()'s RETRACTABLE_FLAT_CATS throw at the API entry point.
+  if(!CG_SHADOW)return true;
+  try{foldBuild(log);return true;}catch(e){console.warn('[CG_SHADOW] assertNoUnsafeRetracts: LOG failed to replay — possible indexed-event corruption',e);return false;}
+}
+function assertNoLiveIndexedTraditionEvents(log){
+  if(!CG_SHADOW)return true;
+  const bad=(log||[]).filter(function(e){return e&&e.type==='buy'&&INDEXED_TRADITION_CATS.has(e.cat);});
+  if(bad.length){console.warn('[CG_SHADOW] LOG invariant #7 violated: live indexed tradition/discipline events found in CharGen LOG',bad);return false;}
+  return true;
+}
+function assertPatchSlotsKnown(log){
+  if(!CG_SHADOW)return true;
+  const known=new Set(Object.values(PATCH_SLOTS));
+  const bad=(log||[]).filter(function(e){return e&&e.type==='buy'&&e.cat==='patch'&&e._slot!=null&&!known.has(e._slot);});
+  if(bad.length){console.warn('[CG_SHADOW] unknown patch slot(s) found in LOG',bad);return false;}
+  return true;
+}
+
+// ---- readBuild(): Option A — stays a passthrough to the original DOM-reader until the Chunk 6 flip ----
+function readBuild(){return _domReadBuild();}
+
+function _domReadBuild(){
   const stats={};for(const a of ABILS)stats[a]=+val('st_'+a);
   const wp={simple:chk('wp_simple'),martial:+val('wp_martial'),allMartial:chk('wp_all'),improvised:chk('wp_improv')};
   const trads=[...document.querySelectorAll('.tcard')].map(card=>{
@@ -1438,7 +1572,12 @@ function saveNames(){var _dup=_cgNameDupes();if(_dup.length){flash('⛔ “'+_du
     else if(p[0]==='tr'){var ti=+p[1],di=+p[2],kk=ti+'_'+di;trMap[kk]=trMap[kk]||{ti:ti,di:di,cn:[],kn:[[],[],[],[],[],[],[],[],[]]};if(p[3]==='c')trMap[kk].cn[+p[4]]=v;else trMap[kk].kn[+p[4]-1][+p[5]]=v;}});
   CG_NAMES={dab:dab,inn:inn,feat:feat,lang:lang,grants:grants,tr:Object.keys(trMap).map(function(k){return trMap[k];})};closeNames();flash('Spell & language names saved — they will export with your Live Sheet file.');}
 // ---- bridge: convert the current build into a Live-Sheet event log (frozen per-step prices) ----
-function buildToLiveLog(b){
+function _buildEventBurst(b){
+  // Shared "flat build -> canonically-serialized noLock:true event burst" builder (Phase 2 Step 3,
+  // Chunk 0). Originally lived only inside buildToLiveLog() (the CharGen->Live-Sheet export path);
+  // factored out here so buildToEventLog() (used by replaceWholeLogFromBuild() for all whole-build-
+  // replacement flows: initial LOG bootstrap, load, shared link, autosave restore, randomize) reuses
+  // this exact, already-D-GH34-fixed logic instead of maintaining a second, independently-drifting copy.
   // de-dup single-instance proficiency lists so the exported Live-Sheet log never carries duplicates (matches the fold-side guard)
   ["saves","skills","expertise","toolExpertise","tools","instruments","masteries","racialTraits","racialSpells"].forEach(function(k){if(Array.isArray(b[k]))b[k]=b[k].filter(function(v,i){return b[k].indexOf(v)===i;});});
   const C=o=>JSON.parse(JSON.stringify(o));let LOG=[],SEQ=1;
@@ -1488,7 +1627,13 @@ function buildToLiveLog(b){
   emitPatch('Character size',{size:b.size});emitPatch('Starting gold',{gold:b.gold});
   if(CG_NAMES&&((CG_NAMES.lang&&CG_NAMES.lang.length)||(CG_NAMES.dab&&CG_NAMES.dab.length)||(CG_NAMES.inn&&CG_NAMES.inn.some(function(a){return a&&a.length;}))||(CG_NAMES.tr&&CG_NAMES.tr.length)||(CG_NAMES.grants&&Object.keys(CG_NAMES.grants).length)||(CG_NAMES.feat&&Object.keys(CG_NAMES.feat).length)))ev({type:'names',dab:CG_NAMES.dab||[],inn:CG_NAMES.inn||[[],[],[],[],[],[],[],[],[]],feat:CG_NAMES.feat||{},lang:CG_NAMES.lang||[],grants:CG_NAMES.grants||{},tr:CG_NAMES.tr||[],label:'Named spells & languages'});
   if(b.campaign&&b.campaign.n)ev({type:'buy',cat:'campaign',payload:{v:b.campaign},cost:0,level:1,label:'Campaign rules — '+b.campaign.n});
-  return {rules:DATA.version,name:b.name,LOG,SEQ};}
+  return LOG;
+}
+function buildToLiveLog(b){const LOG=_buildEventBurst(b);return {rules:DATA.version,name:b.name,LOG,SEQ:nextSeq(LOG)};}
+// Phase 2 Step 3 (Chunk 0): the LOG-mutation-API's whole-build-replacement helper. opts is currently
+// unused but kept in the signature — Chunk 5 (full convergence of loadFile/loadFromHash/autosave-restore/
+// randomize) is expected to need it (e.g. to distinguish "fresh boot" from "user-initiated replace").
+function buildToEventLog(b,opts){return _buildEventBurst(b);}
 async function exportToLiveSheet(){
  try{
   const b=readBuild();
@@ -2078,11 +2223,23 @@ function buildGuide(b,r){const tips=[];
   if(r.remaining>0 && tips.length<2)tips.push('<b>'+r.remaining+' AP</b> still unspent.');
   $('guide').innerHTML=tips.length?('<ul>'+tips.map(t=>'<li>'+t+'</li>').join('')+'</ul>'):'<span class="hint">Looking solid — no suggestions right now.</span>';
 }
+// Phase 2 Step 3 (Chunk 0): render() is wrapped, not restructured — the paintFormControls/
+// paintDerivedOutputs/annotate split described in the plan's Target architecture happens naturally as
+// later chunks convert handlers; Chunk 0 only adds dev-only shadow-diff/assertion checks around the
+// existing, unmodified render body (renamed _cgRenderInner). No user-facing behavior changes here.
 function render(){
+  if(CG_SHADOW){try{shadowCompare('pre-render',canonicalBuild(_domReadBuild()),canonicalBuild(foldBuild(LOG)));}catch(e){console.warn('[CG_SHADOW] pre-render compare failed',e);}}
+  _cgRenderInner();
+  if(CG_SHADOW){
+    try{shadowCompare('post-render',canonicalBuild(_domReadBuild()),canonicalBuild(foldBuild(LOG)));}catch(e){console.warn('[CG_SHADOW] post-render compare failed',e);}
+    assertFoldDoesNotMutateLog(LOG);assertNoUnsafeRetracts(LOG);assertNoLiveIndexedTraditionEvents(LOG);assertPatchSlotsKnown(LOG);
+  }
+}
+function _cgRenderInner(){
   const b=readBuild();
   {var _ci=document.getElementById('campind');if(_ci)_ci.innerHTML=(b.campaign&&b.campaign.n)?('🛡 '+String(b.campaign.n).replace(/</g,'&lt;')+' ('+((b.campaign.boons||[]).length+(b.campaign.draws||[]).length+(b.campaign.arts||[]).length)+' barred)'):'';}
   // Medium/Heavy armour require STR 10 — auto-deselect if Strength drops below 10
-  if((((b.stats&&b.stats.STR)||10)<10)){var _am=$('a_med'),_ah=$('a_heavy'),_ch=false;if(_am&&_am.checked){_am.checked=false;b.armour.medium=false;_ch=true;}if(_ah&&_ah.checked){_ah.checked=false;b.armour.heavy=false;_ch=true;}if(_ch){if(typeof flash==='function')flash('Medium/Heavy armour deselected — requires STR 10.');return render();}}
+  if((((b.stats&&b.stats.STR)||10)<10)){var _am=$('a_med'),_ah=$('a_heavy'),_ch=false;if(_am&&_am.checked){_am.checked=false;b.armour.medium=false;_ch=true;}if(_ah&&_ah.checked){_ah.checked=false;b.armour.heavy=false;_ch=true;}if(_ch){if(typeof flash==='function')flash('Medium/Heavy armour deselected — requires STR 10.');return _cgRenderInner();}}
   const r=compute(b);annotate(b,r);
   const ov=$('sheetview');if(ov&&ov.style.display==='block'){$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());}
   $('total').innerHTML=r.total+' <span style="font-size:13px;color:var(--grey)">/ '+r.budget+' AP</span>';
@@ -2311,11 +2468,17 @@ buildArtGrid(); buildBoonGrid();
 buildDrawGrid();
 buildDmList();
 $('form').addEventListener('input',render);$('form').addEventListener('change',render);
+_cgWireStateEventAudit();   // Phase 2 Step 3 (Chunk 0): dev-only, see LOG mutation API above
 let _cgHadShared=false;
 try{_cgHadShared=!!loadFromHash();}catch(e){}
 if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}
 window.addEventListener('hashchange',function(){try{if(loadFromHash())render();}catch(e){}});
 collapseForMobile();
+// Phase 2 Step 3 (Chunk 0): seed LOG once from the build as it stands at boot (after any shared-link/
+// autosave restore above has already written the DOM the old way). LOG is NOT kept in sync with further
+// DOM edits until later chunks convert their handlers to the LOG mutation API — see the scaffolding
+// comment above readBuild().
+try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}
 render();
 // capability-detect (not UA-sniff) whether Save/Export will use the Share sheet or go straight to
 // Downloads, and say so up front — a button that behaves invisibly differently per platform is worse

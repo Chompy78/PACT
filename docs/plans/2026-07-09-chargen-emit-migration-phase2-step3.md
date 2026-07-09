@@ -3,8 +3,24 @@
 ## Status
 **Cold-reviewed and amended.** Reviewer approved the core design (`user action → CharGen-local LOG
 mutation helper → LOG changes → foldBuild(LOG) → render from folded build`) and requested 18 amendments,
-all folded in below. Not started — this is the plan to be implemented next, in the sequenced chunks under
-"Proposed approach."
+all folded in below. **Chunk 0 is DONE** (see "Chunk log" at the bottom); Chunks 1–6 remain.
+
+## Chunk log
+
+- **Chunk 0 — DONE (2026-07-09).** `LOG`/`SEQ`, the LOG mutation API (`emit`, `retractFlatEvent`,
+  `replacePatchSlot`, `replaceWholeLogFromBuild`), `RETRACTABLE_FLAT_CATS`, `PATCH_SLOTS`,
+  `buildToEventLog`/`nextSeq` (via a `_buildEventBurst` extracted from `buildToLiveLog`, confirmed
+  behavior-preserving by round-trip), the pre/post-render shadow-diff (`?cgShadow=1`), the four dev
+  assertions, the temporary state-event audit marker, and the initial `LOG` bootstrap at boot all landed.
+  `readBuild()` still returns `_domReadBuild()` (Option A — untouched). Verified: `engine-parity.html`
+  16/0 unaffected; a live DOM interaction (checking a racial trait) still re-prices correctly with `LOG`
+  staying frozen at its boot snapshot (no handler converted yet, as expected); shadow-diff at boot is
+  clean except one pre-existing, separately-tracked gap (`size` never exported by the burst — see
+  CHANGELOG). `wornArmour` (also never exported by the burst) didn't surface at boot because CharGen's
+  default value for it is empty on both sides; it's the same class of gap and is tracked with `size`.
+  Neither was fixed in this chunk (would change `buildToLiveLog`'s live export behavior — out of scope
+  for a "no behavior change" scaffolding chunk).
+- Chunks 1–6: not started.
 
 Builds directly on Phase 2 Steps 1–2, both DONE (see D-GH33 and the "Implementation notes" section at the
 bottom of `docs/plans/2026-07-08-chargen-livesheet-unification-phase2.md`). `js/engine.js` already exports

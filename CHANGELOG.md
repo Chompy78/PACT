@@ -4,6 +4,26 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 0: LOG mutation API + shadow-diff scaffolding (no behavior change)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change, `DATA.version` untouched; `testing/tests/engine-parity.html`
+  → 16/0). First chunk of the CharGen emit()-migration plan (cold-reviewed:
+  `docs/plans/2026-07-09-chargen-emit-migration-phase2-step3.md`). Adds CharGen-local `LOG`/`SEQ` and the
+  sole LOG-mutation surface (`emit`, `retractFlatEvent`, `replacePatchSlot`, `replaceWholeLogFromBuild`),
+  a runtime-enforced `RETRACTABLE_FLAT_CATS` allowlist and `PATCH_SLOTS` registry, and a dev-only
+  (`?cgShadow=1`) pre/post-render shadow-diff comparing the DOM-derived build against `foldBuild(LOG)`,
+  backed by four LOG-invariant assertions. `readBuild()` (renamed original kept as `_domReadBuild()`) still
+  returns the DOM-derived build — Option A, the flip to `foldBuild(LOG)` is deferred to the plan's final
+  cleanup chunk — so this chunk changes no visible behavior; verified via a live DOM interaction (racial
+  trait checkbox still re-prices correctly, `LOG` stays frozen at its boot snapshot since no handler is
+  converted yet) and a full parity run. `buildToLiveLog()`'s event-burst logic is factored out into a
+  shared `_buildEventBurst()`/`buildToEventLog()` (used to seed `LOG` once at boot) with no behavior change
+  to `buildToLiveLog()` itself — confirmed via the same before/after round-trip check used for the D-GH34
+  fix. Building the shadow-diff surfaced two pre-existing, unrelated gaps in the CharGen→Live-Sheet export
+  burst (present before this chunk, not introduced by it): `size` is never exported (an unconditional
+  `||` in `emitPatch`'s `skipZeroCostPatch` check always skips the "Character size" patch), and
+  `wornArmour` has a real `MUT` mutator but was never wired into the burst at all. Deliberately not fixed
+  here — output as a roadmap item for a human to fold in (see chat) rather than slipped into a
+  "no behavior change" scaffolding chunk.
 - **2026-07-09 · refactor(engine,chargen,testing) — post-D-GH34 code review cleanup pass**
   (`js/engine.js`; `tools/PACT-CharGen-Webtool.html`; `testing/tests/engine-parity.html`;
   `testing/fixtures/events/*`; `DATA.version` unchanged — no `compute()` behavior change;
