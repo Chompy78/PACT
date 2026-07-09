@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk A: snapshot-based undo/redo history core (no UI yet)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` stays 20/0). First
+  chunk of the CharGen undo/redo + persistence work (see
+  `docs/plans/2026-07-09-chargen-undo-persist-phase2-step4.md`). Adds a `HIST`/`REDO` snapshot stack (frames
+  carry a deep-cloned LOG + the name/budget/id shims), a `commitHistory()` choke point wrapped into the four
+  LOG-API functions, `restoreFrame()` (build-equality restore via `applyBuild`, per D5), and `undo()`/`redo()`
+  — exercised from the console, not yet wired to buttons (Chunk D). Edit coalescing (D3): only user text
+  keystrokes carry a coalesce key; consecutive same-field keystrokes within a 600 ms idle window collapse to
+  one undo step, sealed permanently by blur / cross-field / discrete action / undo; net-zero groups are
+  dropped (compared on the folded build, not raw LOG bytes). Verified in a real browser 16/16: V1 snapshot
+  immutability, V2 undo round-trip (checkbox + patch field + add-row), V3 all four coalescing cases, V7 redo
+  symmetry. applyBuild/boot suspension + button UI are Chunks B/D.
+
 - **2026-07-09 · chore(merge) — merge `preview` into `feat/chargen-emit-migration` (parity 16/0 → 20/0)**
   (`testing/`; no rules/tool-logic change). Brought the emit-migration branch up to date with `preview`,
   which had advanced with PR #131 (Live Sheet cloud-status label — auto-merged clean) and PR #136 (four

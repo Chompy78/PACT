@@ -1213,14 +1213,102 @@ const PATCH_SLOTS=Object.freeze({IDENTITY:'identity',STATS:'stats',HD_PROF:'hdPr
 
 function nextSeq(log){let max=0;(log||[]).forEach(function(e){if(e&&typeof e.seq==='number'&&e.seq>max)max=e.seq;});return max+1;}
 
+// ---- Phase 2 Step 4 (Chunk A): snapshot-based undo/redo history core ----
+// See docs/plans/2026-07-09-chargen-undo-persist-phase2-step4.md. CharGen's LOG is NOT append-only
+// (replacePatchSlot filters+appends, retractFlatEvent splices, reconcile removes several in one action),
+// so "the last event" is not a poppable unit — undo restores a whole-LOG SNAPSHOT. A frame also carries
+// the name/budget DOM shims and the character id, which foldBuild(LOG) does not reproduce. The undo
+// contract is BUILD equality, not event equality: restoreFrame repaints via applyBuild (the single
+// canonical LOG builder, which rebuilds LOG from the DOM it writes). See D1/D3/D5 in the plan.
+let HIST=[],REDO=[];
+let _histSuspended=false;      // set by whole-build flows (Chunk B) so their internal mutations don't record
+const HIST_MAX=100;            // cap: each frame is a full LOG clone — bound a long session's memory
+const COALESCE_MS=600;         // consecutive same-field keystrokes within this idle window = one undo step
+let _coalesceKey=null;         // non-null ONLY during a user text-edit turn (set by the input delegations)
+let _turnLatched=false;        // at most one frame per synchronous event turn (coalesces intra-handler cascades)
+let _openKey=null,_openTs=0;   // the still-coalescing group (top of HIST) — its key + last-activity time
+let _hkSeq=0;                  // lazy stable keys for id-less text inputs (e.g. cprof rows)
+
+function _histClone(x){return JSON.parse(JSON.stringify(x));}
+function _snapshotFrame(){return {log:_histClone(LOG),seq:SEQ,name:val('cname'),budget:val('budget'),id:__charId};}
+function _fieldKey(el){if(!el)return null;if(el.id)return el.id;if(!el._hk)el._hk='hk'+(++_hkSeq);return el._hk;}
+function _isTextish(el){return !!el&&(el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&/^(text|number|search|tel|url|email|)$/i.test(el.type)));}
+// Only a user text keystroke supplies a coalesce key; select/checkbox `change` and everything else stays
+// null → its own discrete undo step. Called at the top of the text-field delegations (D3).
+function _setCoalesceForEvent(e){_coalesceKey=(e&&e.type==='input'&&_isTextish(e.target))?_fieldKey(e.target):null;}
+function _scheduleTurnReset(){Promise.resolve().then(function(){_turnLatched=false;_coalesceKey=null;});}
+
+// Seal the open coalescing group. Drops its frame if the group ended up changing nothing (e.g. type a
+// char then delete it inside the window) so a no-op edit never leaves a dead undo step. The comparison is
+// on the FOLDED BUILD, not raw LOG bytes: a net-zero patch edit rewrites its slot event with a fresh
+// seq/ts, so the LOG bytes differ even when the build is identical — and build equality is the undo
+// contract (D5). Sealing is permanent — a later edit to the same field starts a fresh group.
+function _sealOpenGroup(){
+  if(_openKey!==null&&HIST.length){
+    const f=HIST[HIST.length-1];
+    if(JSON.stringify(canonicalBuild(foldBuild(f.log)))===JSON.stringify(canonicalBuild(foldBuild(LOG))))HIST.pop();
+  }
+  _openKey=null;
+}
+
+// Record the PRE-mutation state. The four LOG-API functions call this immediately before they change LOG.
+function commitHistory(){
+  if(_histSuspended)return;
+  if(_turnLatched)return;                 // intra-turn: only the first mutation of a handler records
+  _turnLatched=true;_scheduleTurnReset();
+  const key=_coalesceKey,now=Date.now();
+  if(key!==null&&key===_openKey&&(now-_openTs)<=COALESCE_MS){_openTs=now;return;}  // continue the open group
+  _sealOpenGroup();                        // close the previous group (drops it if it was a no-op)
+  HIST.push(_snapshotFrame());
+  if(HIST.length>HIST_MAX)HIST.shift();
+  REDO.length=0;                           // a fresh user action invalidates redo
+  _openKey=key;_openTs=now;                // key===null never coalesces onto (the guard requires key!==null)
+}
+
+// Repaint the whole UI from a frame. Build-equality contract (D5): applyBuild rebuilds LOG from the DOM it
+// writes; we then restore the name/budget/id shims foldBuild can't reproduce.
+// Known Step-5 limitation: name/budget are captured into every frame (not tracked as their own LOG
+// events), so undo restores them to the frame's values. This is REQUIRED for whole-build-load undo
+// (Chunk B — a load changes name/budget and undo must revert them), but it means undoing a buy made
+// *before* a later name edit also reverts that name. Step 5 (budget-as-award, name events) removes the
+// shim and makes name/budget independently undoable.
+function restoreFrame(f){
+  _histSuspended=true;
+  try{
+    LOG=_histClone(f.log);SEQ=f.seq;
+    applyBuild(foldBuild(LOG));            // paints every control; rebuilds LOG from DOM (single canonical builder)
+    __charId=f.id||__charId;
+    const cn=$('cname');if(cn)cn.value=f.name;
+    const bg=$('budget');if(bg)bg.value=f.budget;
+    render();
+  }finally{_histSuspended=false;}
+  _openKey=null;_turnLatched=false;_coalesceKey=null;
+  try{_cgAutosave(readBuild());}catch(e){}
+}
+
+function undo(){
+  if(_histSuspended)return;
+  _sealOpenGroup();                        // seal-before-undo: never land mid-word
+  if(!HIST.length)return;
+  REDO.push(_snapshotFrame());
+  restoreFrame(HIST.pop());
+}
+function redo(){
+  if(_histSuspended)return;
+  _sealOpenGroup();
+  if(!REDO.length)return;
+  HIST.push(_snapshotFrame());
+  restoreFrame(REDO.pop());
+}
+
 // ---- LOG mutation API — the ONLY functions permitted to change LOG (no handler pushes/splices/reassigns it directly) ----
-function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;LOG.push(ev);render();}
+function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);render();}
 
 function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
   const i=LOG.findIndex(function(e){return e.type==='buy'&&e.cat===cat&&predicate(e);});
   if(i===-1)return;
-  LOG.splice(i,1);render();
+  commitHistory();LOG.splice(i,1);render();
 }
 
 function replacePatchSlot(slot,patch,label){
@@ -1233,11 +1321,11 @@ function replacePatchSlot(slot,patch,label){
   const after=compute(foldBuild(candidate)).total;
   const newEvent={type:'buy',cat:'patch',payload:{patch:patch},cost:after-before,label:label,_slot:slot,
     seq:SEQ++,ts:Date.now(),rules:DATA.version};
-  LOG=withoutSlot.concat([newEvent]);render();
+  commitHistory();LOG=withoutSlot.concat([newEvent]);render();
 }
 
 function replaceWholeLogFromBuild(b,opts){
-  LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);render();
+  commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);render();
 }
 
 // ---- canonicalBuild(): retained past the Chunk-6 flip (the shadow-diff scaffolding around it is gone).
@@ -1585,8 +1673,11 @@ function onPatchFieldChange(el){
 
 function _cgWirePatchDelegation(){
   const form=$('form');if(!form)return;
-  const watch=function(e){if(e.target&&e.target.id)onPatchFieldChange(e.target);};
+  const watch=function(e){_setCoalesceForEvent(e);if(e.target&&e.target.id)onPatchFieldChange(e.target);};
   form.addEventListener('change',watch);form.addEventListener('input',watch);
+  // blur/focus-change permanently seals the open coalescing group (D3): a later edit to the same field
+  // starts a fresh undo step, and a group that changed nothing is dropped.
+  form.addEventListener('focusout',function(){_sealOpenGroup();});
 }
 
 // ---- Phase 2 Step 3 (Chunk 4A): Category B coalescing patches reached by CLASS, not id ----
@@ -1603,6 +1694,7 @@ function _cgWirePatchClassDelegation(){
     const el=e.target;if(!el||!el.classList)return;
     const cls=[...el.classList].find(function(c){return c in PATCH_CLASS_SLOT;});
     if(!cls)return;
+    _setCoalesceForEvent(e);   // cprof rows are id-less text inputs — key them so typing coalesces (D3)
     _cgSyncPatchSlot(PATCH_CLASS_SLOT[cls]);
   };
   form.addEventListener('input',watch);form.addEventListener('change',watch);
