@@ -1294,7 +1294,7 @@ function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
     // Detect Live Sheet format (has LOG array) vs CharGen save (flat build object)
     if(d.LOG&&Array.isArray(d.LOG)){
       // Reconstruct CharGen build from Live Sheet LOG by replaying all patch events
-      const b=_lsImportFold(d.LOG);
+      const b=foldBuild(d.LOG);
       if(d.name&&!b.name)b.name=d.name;
       // Fill in defaults for any missing CharGen fields
       if(!b.originClass)b.originClass='Fighter';
@@ -1332,20 +1332,6 @@ function shareLink(){try{const enc=_encB(readBuild());const base=location.href.s
   }catch(err){flash('Could not build a share link.');}}
 function loadFromHash(){try{if(typeof location==='undefined'||!location.hash)return false;
   if(location.hash.indexOf('#b=')!==0)return false;_fileHandle=null;applyBuild(_decB(location.hash.slice(3)));flash('Shared build loaded ✓');return true;}catch(e){return false;}}
-// ---- bridge: convert the current build into a Live-Sheet event log (frozen per-step prices) ----
-
-function _lsImportFold(LOG){
-  // Phase 2 step 2 (D-GH33): was a full local re-implementation of baseBuild/activeEvents/economy/
-  // MUT/foldBuild (index-based closures over this LOG param) — replaced with a direct call to the
-  // real, imported js/engine.js foldBuild(events), which takes the array directly. This also fixes
-  // two real bugs the local copy had (see D-GH33): MUT.found silently dropped a second discipline
-  // added to an already-founded tradition (no else-branch), and MUT.dbound (discipline-bound flag)
-  // didn't exist in the local copy at all, so imported Live-Sheet files with either of these ever
-  // silently lost that data on import into CharGen.
-  return foldBuild(LOG);
-}
-
-
 /* ── Campaign Rules (DM bar tool) — mirrored into CharGen ── */
 var CG_CAMPAIGN=null;
 var _AK='DragonReachForgePACT';
@@ -1379,13 +1365,16 @@ function _campCollect(){var camp={n:(document.getElementById('campName').value||
 function genCampaignCode(){var camp=_campCollect();if(!camp.n){flash('Give the campaign a name first.');return;}document.getElementById('campCode').value=_campEnc(camp);flash('Code generated — copy it and share it with your players.');}
 function applyCampaignCode(){var raw=(document.getElementById('campCode').value||'').trim();var camp=raw?_campDec(raw):_campCollect();if(raw&&!camp){flash('That is not a valid PACTRULES code.');return;}if(!camp.n){flash('Name the campaign (or paste a valid code) first.');return;}CG_CAMPAIGN=camp;closeCampaign();if(typeof render==='function')render();buildArtGrid();buildBoonGrid();buildDrawGrid();flash('Campaign “'+camp.n+'” loaded — '+((camp.boons||[]).length+(camp.draws||[]).length+(camp.arts||[]).length)+' items barred. Saved with this character.');}
 
-function liveBase(){return {name:'',budget:0,originClass:'Fighter',originClass2:'(none)',species:'Human',species2:'(none)',
- stats:{STR:10,DEX:10,CON:10,INT:10,WIS:10,CHA:10},hd:1,profBonus:2,hardy:0,tough:0,saves:[],skills:[],expertise:[],toolExpertise:[],
- languages:1,tools:[],instruments:[],customProfs:[],weaponProf:{},masteries:[],armour:{},
- arts:[],lineage:'',racialSpells:[],
- racialTraits:[],extraClasses:0,unlockedClasses:[],features:[],traditions:[],subAbilities:[],freeSub:{},subSpellBundles:[],boons:[],innate:[],drawbacks:[],gold:0,
- attune:0,ki:0,sorcery:0,martiallyBound:'(none)',appearance:{},
- houseRules:{boons:{},draws:{},disabled:{boons:[],draws:[]}}};}
+function liveBase(){
+  // Scratch base for buildToLiveLog()'s synthetic import burst — derives from the engine's
+  // baseBuild() but forces inPlay=false. That's load-bearing, not a leftover: compute()'s
+  // D-GH34 fallback prices a racial trait at the locked/expensive rate when inPlay is true,
+  // so this override keeps the import burst priced at the creation rate (matching what the
+  // player actually paid), not the post-lock rate baseBuild() defaults to.
+  var b=baseBuild();
+  b.inPlay=false;
+  return b;
+}
 
 /* ── Spell/Language name picker (ported from Live Sheet, v0.099) — CharGen-side; names export via buildToLiveLog ── */
 var CG_NAMES=null;
@@ -1448,6 +1437,7 @@ function saveNames(){var _dup=_cgNameDupes();if(_dup.length){flash('⛔ “'+_du
     else if(p[0]==='lang')lang[+p[1]]=v;else if(p[0]==='feat')feat[p[1]]=v;else if(p[0]==='dab')dab[+p[1]]=v;else if(p[0]==='inn')inn[+p[1]-1][+p[2]]=v;
     else if(p[0]==='tr'){var ti=+p[1],di=+p[2],kk=ti+'_'+di;trMap[kk]=trMap[kk]||{ti:ti,di:di,cn:[],kn:[[],[],[],[],[],[],[],[],[]]};if(p[3]==='c')trMap[kk].cn[+p[4]]=v;else trMap[kk].kn[+p[4]-1][+p[5]]=v;}});
   CG_NAMES={dab:dab,inn:inn,feat:feat,lang:lang,grants:grants,tr:Object.keys(trMap).map(function(k){return trMap[k];})};closeNames();flash('Spell & language names saved — they will export with your Live Sheet file.');}
+// ---- bridge: convert the current build into a Live-Sheet event log (frozen per-step prices) ----
 function buildToLiveLog(b){
   // de-dup single-instance proficiency lists so the exported Live-Sheet log never carries duplicates (matches the fold-side guard)
   ["saves","skills","expertise","toolExpertise","tools","instruments","masteries","racialTraits","racialSpells"].forEach(function(k){if(Array.isArray(b[k]))b[k]=b[k].filter(function(v,i){return b[k].indexOf(v)===i;});});
@@ -1984,7 +1974,7 @@ function warnTarget(w){var m;
   return null;}
 function sectionIdForWarning(w){for(var i=0;i<SECTIONS.length;i++){if(SECTIONS[i].warns.some(function(k){return w.indexOf(k)>=0;}))return 'sec'+(i+1);}return null;}
 // informational notes (not hard rule violations) — never counted as "issues" in the banner or section badges
-function isAdvisory(w){return /priced at character-creation|no Ki-using ability/.test(w);}
+function isAdvisory(w){return /no Ki-using ability/.test(w);}
 function jumpToControl(id){const el=$(id);if(!el)return false;
   const fs=el.closest?el.closest('fieldset'):null;if(fs)fs.classList.remove('collapsed');var _h1=document.querySelector('.stickyhead');if(_h1&&getComputedStyle(_h1).position==='static'){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('flashhl');setTimeout(function(){el.classList.remove('flashhl');},1700);return true;}
   let off=0;const head=document.querySelector('.stickyhead');

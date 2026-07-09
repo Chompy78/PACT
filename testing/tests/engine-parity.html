@@ -62,6 +62,15 @@
       return r.json();
     }
 
+    // Several event-set fixtures share one baseSnapshot; rather than duplicate it in every
+    // file, a fixture may carry baseSnapshotRef (a path relative to the fixture's own file)
+    // instead of an inline baseSnapshot.
+    async function resolveBaseSnapshot(fixture, path) {
+      if (fixture.baseSnapshot) return fixture.baseSnapshot;
+      if (fixture.baseSnapshotRef) return loadJson(new URL(fixture.baseSnapshotRef, new URL(path, location.href)));
+      throw new Error(`Fixture ${path} has neither baseSnapshot nor baseSnapshotRef`);
+    }
+
     // ── run all fixtures; return raw actuals ──────────────────────────────────
     async function runAll() {
       const rows = [];
@@ -107,7 +116,8 @@
       for (const { id, path } of FIXTURES.eventSets) {
         try {
           const fixture = await loadJson(path);
-          const r = rebuildStateFromEvents(fixture.baseSnapshot, fixture.events);
+          const baseSnapshot = await resolveBaseSnapshot(fixture, path);
+          const r = rebuildStateFromEvents(baseSnapshot, fixture.events);
           rows.push({
             id, group: "event-sourcing", path,
             total: r.total,

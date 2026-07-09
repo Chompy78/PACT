@@ -438,18 +438,26 @@ export function activeEvents(events) {
   return { evs, boughtOff };
 }
 
+// AP-spend contribution of a single event — 0 for anything that isn't a spend-bearing buy/buyoff/names
+// event (drawback buys never count as spend; see economy()'s drawbackEarned handling instead). Shared
+// by economy() (final totals) and _replay() (D-GH34: needs the running value at each event, not just
+// the final total, so it can't just call economy() once at the end).
+function _spendCost(e) {
+  if (e.type === 'buy' && e.cat !== 'drawback') return Number(e.cost) || 0;
+  if (e.type === 'buyoff') return Number(e.cost) || 0;
+  if (e.type === 'names') return Number(e.cost) || 0;
+  return 0;
+}
+
 export function economy(events) {
   const { evs, boughtOff } = activeEvents(events);
   let earned = 0, spent = 0, drawbackEarned = 0;
   for (const e of evs) {
     if (e.type === 'award') earned += Number(e.amount) || 0;
-    else if (e.type === 'buy') {
-      if (e.cat === 'drawback') {
-        if (!boughtOff[e.payload && e.payload.v]) drawbackEarned += (-(Number(e.cost) || 0));
-      } else spent += Number(e.cost) || 0;
+    else if (e.type === 'buy' && e.cat === 'drawback') {
+      if (!boughtOff[e.payload && e.payload.v]) drawbackEarned += (-(Number(e.cost) || 0));
     }
-    else if (e.type === 'buyoff') spent += Number(e.cost) || 0;
-    else if (e.type === 'names') spent += Number(e.cost) || 0;
+    else spent += _spendCost(e);
   }
   earned += drawbackEarned;
   return { earned, spent, available: earned - spent };
@@ -467,18 +475,17 @@ export function economy(events) {
 // the threshold — only an explicit creationLocked event can lock it). If `campaignBound`
 // occurs AFTER spend has already crossed the threshold, it fires the automatic lock
 // retroactively, right at the point of binding (not applied to purchases before it).
-// Mirrors economy()'s spent accounting (drawback buys never count as spend); kept here,
-// not in economy(), because economy() only returns final totals and this needs the
-// running value at each event. racial-trait purchases are tagged with the locked state
-// AS OF JUST BEFORE that purchase (not after), so a purchase whose own cost crosses the
-// threshold still prices as the one that crossed it, not as already-locked — matching
-// this codebase's existing "prices freeze at time of purchase" rule (see priceOf() in
-// the Live Sheet tool). NOTE: `campaignBound` (real cloud-campaign membership, gating this
-// mechanism) is unrelated to the existing `cat:'campaign'` buy event/`b.campaign` field —
-// that's CharGen/Live Sheet's local, offline, code-paste house-rules feature (see
-// applyCampaignCode() in the Live Sheet tool); real campaign membership today lives only
-// as a `campaign_id` column in Supabase, invisible to pure LOG replay, which is exactly
-// why a LOG-level `campaignBound` event is needed here at all.
+// Mirrors economy()'s spent accounting via the shared _spendCost() helper (drawback buys never
+// count as spend); kept here, not in economy(), because economy() only returns final totals and
+// this needs the running value at each event. racial-trait purchases are tagged with the locked
+// state AS OF JUST BEFORE that purchase (not after), so a purchase whose own cost crosses the
+// threshold still prices as the one that crossed it, not as already-locked — matching this
+// codebase's existing "prices freeze at time of purchase" rule (see priceOf() in the Live Sheet
+// tool). NOTE: `campaignBound` (real cloud-campaign membership, gating this mechanism) is unrelated
+// to the existing `cat:'campaign'` buy event/`b.campaign` field — that's CharGen/Live Sheet's
+// local, offline, code-paste house-rules feature (see applyCampaignCode() in the Live Sheet tool);
+// real campaign membership today lives only as a `campaign_id` column in Supabase, invisible to
+// pure LOG replay, which is exactly why a LOG-level `campaignBound` event is needed here at all.
 //
 // e.noLock: an event (buy/buyoff/names) may opt its own cost OUT of the automatic
 // threshold accumulation below — real AP accounting (economy()) is unaffected, this
@@ -487,29 +494,27 @@ export function economy(events) {
 // exceeds the anchor (a higher-level starting character), tagging every event in that
 // burst noLock:true keeps it from self-triggering the automatic lock before an
 // explicit creationLocked event (or genuine later spending) actually earns it.
+//
+// Single pass: the lock/spend bookkeeping for event i never depends on anything the build-mutation
+// half of the loop does, so both run interleaved per-event rather than as two separate passes over
+// `evs` — `_wasLocked` is captured before advancing state for this event, same as before.
 function _replay(b, log) {
   const { evs, boughtOff } = activeEvents(log);
   let _locked = false, _spent = 0, _campaignBound = false;
-  const _lockedAt = evs.map(e => {
-    const wasLocked = _locked;
-    if (e.type === 'creationLocked') _locked = true;
-    else if (e.type === 'campaignBound') _campaignBound = true;
-    else if (!e.noLock) {
-      if (e.type === 'buy' && e.cat !== 'drawback') _spent += Number(e.cost) || 0;
-      else if (e.type === 'buyoff') _spent += Number(e.cost) || 0;
-      else if (e.type === 'names') _spent += Number(e.cost) || 0;
-    }
-    if (_campaignBound && _spent > DATA.level1AP) _locked = true;
-    return wasLocked;
-  });
   for (let _i = 0; _i < evs.length; _i++) {
     const e = evs[_i];
+    const _wasLocked = _locked;
+    if (e.type === 'creationLocked') _locked = true;
+    else if (e.type === 'campaignBound') _campaignBound = true;
+    else if (!e.noLock) _spent += _spendCost(e);
+    if (_campaignBound && _spent > DATA.level1AP) _locked = true;
+
     if (e.type === 'name') { b.name = e.name; continue; }
     if (e.type === 'names') { MUT.names(b, e); continue; }   // names take the whole event
     if (e.type !== 'buy') continue;                          // award/buyoff affect economy only
     if (e.cat === 'drawback' && boughtOff[e.payload && e.payload.v]) continue; // bought off: removed
     if (e.cat === 'racial' && e.payload && e.payload.v)
-      (b._raceTraitLocked = b._raceTraitLocked || {})[e.payload.v] = _lockedAt[_i];
+      (b._raceTraitLocked = b._raceTraitLocked || {})[e.payload.v] = _wasLocked;
     (MUT[e.cat] || (() => {}))(b, e.payload || {});
   }
   // single-instance proficiency lists never hold duplicates

@@ -1,31 +1,6 @@
 {
   "description": "creationLocked gate fixture (D-GH32): spend crosses DATA.level1AP BEFORE any campaignBound event; a campaignBound event then arrives late (spend already over the anchor). Asserts the automatic lock fires RETROACTIVELY at the moment of binding, not applied to purchases before it, but locking any racial-trait purchase that happens after: 'Halfling: Brave' (bought while still local/unbound, spend already over threshold) prices at creation rate (2, since nothing had locked it yet); 'Halfling: Naturally Stealthy' (bought after the campaignBound event) prices at the locked tier-2 rate (7).",
-  "baseSnapshot": {
-    "name": "Test Halfling",
-    "budget": 0,
-    "originClass": "Rogue",
-    "species": "Halfling",
-    "hd": 2,
-    "profBonus": 2,
-    "stats": {
-      "STR": 10,
-      "DEX": 14,
-      "CON": 12,
-      "INT": 10,
-      "WIS": 10,
-      "CHA": 10
-    },
-    "saves": [],
-    "skills": [],
-    "tools": [],
-    "weaponProf": {
-      "simple": true
-    },
-    "armour": {
-      "light": true
-    },
-    "inPlay": true
-  },
+  "baseSnapshotRef": "_shared/base-halfling.json",
   "events": [
     {
       "type": "award",

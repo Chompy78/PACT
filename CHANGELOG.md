@@ -4,6 +4,29 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · refactor(engine,chargen,testing) — post-D-GH34 code review cleanup pass**
+  (`js/engine.js`; `tools/PACT-CharGen-Webtool.html`; `testing/tests/engine-parity.html`;
+  `testing/fixtures/events/*`; `DATA.version` unchanged — no `compute()` behavior change;
+  `testing/tests/engine-parity.html` → 16/0). Follow-up cleanup for six lower-priority findings
+  from the D-GH34 code review, all verified to change no engine output: (1) `_replay()`'s two
+  passes merged into one loop, with spend-classification logic factored into a shared
+  `_spendCost()` helper used by both `_replay()` and `economy()`; (2) dead `SOFT_WARN`/`isAdvisory`
+  regex clauses referencing the removed "priced at character-creation" warning text removed from
+  both `tools/PACT-Live-Char-Sheet.html` and `tools/PACT-CharGen-Webtool.html`; (3) the v0 snapshot's
+  pre-existing rule exception left as-is (already disclosed and intentional, no code change needed);
+  (4) CharGen's `liveBase()` — a standalone scratch-object constructor that had drifted out of sync
+  with the engine's `baseBuild()` — now derives from the imported `baseBuild()` with an explicit
+  `inPlay=false` override; a naive delete-and-reuse of `baseBuild()` was checked first and found to
+  silently regress `buildToLiveLog()`'s racial-trait export pricing (`baseBuild()`'s `inPlay:true`
+  default now has real pricing meaning under D-GH34's fallback), so the override is kept and
+  commented as load-bearing, not a leftover; (5) `_lsImportFold()`, a one-line pass-through wrapper
+  left over from the D-GH33 swap to the real `foldBuild()`, deleted and inlined at its single call
+  site; (6) the 8 near-identical `baseSnapshot` objects duplicated across `EV-002`–`EV-009` collapsed
+  into one shared fixture (`testing/fixtures/events/_shared/base-halfling.json`), referenced via a new
+  `baseSnapshotRef` field the harness's loader resolves relative to each fixture's own path. Verified
+  via the full parity suite (still 16/0), a browser round-trip re-check of `buildToLiveLog()`'s racial-
+  trait pricing (unchanged), and a live run of the browser test harness confirming every
+  `baseSnapshotRef` resolves correctly.
 - **2026-07-08 · fix(engine) — restore racial-trait pricing in Live Sheet & DM Console; wire noLock into CharGen's export (D-GH34)**
   (`js/engine.js`; `tools/PACT-CharGen-Webtool.html`; `DATA.version` v0.334→v0.335; 3 new fixtures
   `CG-004`–`CG-006`; `testing/tests/engine-parity.html` → 16/0). An 8-angle code review of D-GH31/32/33

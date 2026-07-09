@@ -433,7 +433,7 @@ function emit(ev){ ev.seq=SEQ++; ev.ts=Date.now(); ev.rules=ev.rules||RULES; LOG
 function award(amount,note,disc){ if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
 // these stay confirm-through. Everything else a purchase raises is a hard rules violation → blocked with a popup.
-const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|priced at character-creation|needs DM approval|to benefit|add no benefit|no Ki-using ability/i;
+const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability/i;
 // single-instance proficiencies: buying one you already own is never legal (can't stack) → blocked with a popup.
 const DUP_FIELD={save:'saves',skill:'skills',expertise:'expertise',toolexpertise:'toolExpertise',tool:'tools',instrument:'instruments',mastery:'masteries',racial:'racialTraits',racialspell:'racialSpells'};
 function setWornArmour(v){emit({type:'buy',cat:'wornArmour',payload:{v:v},cost:0,label:v?('Worn armour — '+v):'Worn armour — none (unarmoured)',level:foldBuild(null).hd});}

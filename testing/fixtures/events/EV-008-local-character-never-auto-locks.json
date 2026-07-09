@@ -1,31 +1,6 @@
 {
   "description": "creationLocked gate fixture (D-GH32): a LOCALLY-ONLY character (no campaignBound event anywhere in the LOG) whose spend crosses DATA.level1AP mid-LOG. Asserts the automatic threshold trigger does NOT fire for a character never bound to a campaign — both racial traits price at the flat creation rate (2+4=6) despite total spend (57) exceeding the anchor, because only an explicit creationLocked event (not present here) can lock a purely local character.",
-  "baseSnapshot": {
-    "name": "Test Halfling",
-    "budget": 0,
-    "originClass": "Rogue",
-    "species": "Halfling",
-    "hd": 2,
-    "profBonus": 2,
-    "stats": {
-      "STR": 10,
-      "DEX": 14,
-      "CON": 12,
-      "INT": 10,
-      "WIS": 10,
-      "CHA": 10
-    },
-    "saves": [],
-    "skills": [],
-    "tools": [],
-    "weaponProf": {
-      "simple": true
-    },
-    "armour": {
-      "light": true
-    },
-    "inPlay": true
-  },
+  "baseSnapshotRef": "_shared/base-halfling.json",
   "events": [
     {
       "type": "award",

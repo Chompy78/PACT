@@ -1,31 +1,6 @@
 {
   "description": "Creation-pricing-lock (D-GH31/D-GH32) fixture: a campaignBound event (required under D-GH32) plus a small noLock-tagged import burst (well under the anchor on its own) is followed by genuine, non-noLock post-import spending that crosses DATA.level1AP, then a racial-trait purchase. Asserts noLock only exempts the tagged events themselves — real spending after the burst still triggers the automatic lock normally (now that campaignBound has occurred): 'Halfling: Brave' (in the noLock burst) prices at creation rate (2); 'Halfling: Naturally Stealthy' (bought after genuine spend crosses the threshold) prices at the locked tier-2 rate (7).",
-  "baseSnapshot": {
-    "name": "Test Halfling",
-    "budget": 0,
-    "originClass": "Rogue",
-    "species": "Halfling",
-    "hd": 2,
-    "profBonus": 2,
-    "stats": {
-      "STR": 10,
-      "DEX": 14,
-      "CON": 12,
-      "INT": 10,
-      "WIS": 10,
-      "CHA": 10
-    },
-    "saves": [],
-    "skills": [],
-    "tools": [],
-    "weaponProf": {
-      "simple": true
-    },
-    "armour": {
-      "light": true
-    },
-    "inPlay": true
-  },
+  "baseSnapshotRef": "_shared/base-halfling.json",
   "events": [
     {
       "type": "campaignBound",
