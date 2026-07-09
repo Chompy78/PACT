@@ -1,0 +1,201 @@
+{
+ "campaign": null,
+ "name": "Ysolde Farwind",
+ "budget": 85,
+ "originClass": "Wizard",
+ "originClass2": "Cleric",
+ "species": "Human",
+ "species2": "(none)",
+ "racialTraits": [],
+ "lineage": "",
+ "racialSpells": [],
+ "stats": {
+  "STR": 10,
+  "DEX": 10,
+  "CON": 12,
+  "INT": 14,
+  "WIS": 14,
+  "CHA": 10
+ },
+ "hd": 1,
+ "profBonus": 2,
+ "hardy": 0,
+ "tough": 0,
+ "saves": [],
+ "skills": [],
+ "expertise": [],
+ "languages": 1,
+ "tools": [],
+ "instruments": [],
+ "customProfs": [],
+ "toolExpertise": [],
+ "arts": [],
+ "weaponProf": {
+  "simple": true,
+  "martial": 0,
+  "allMartial": false,
+  "improvised": false
+ },
+ "masteries": [],
+ "armour": {
+  "light": false,
+  "medium": false,
+  "heavy": false,
+  "shield": false
+ },
+ "extraClasses": 0,
+ "unlockedClasses": [],
+ "features": [],
+ "traditions": [
+  {
+   "name": "Arcane",
+   "rank": 1,
+   "disciplines": [
+    {
+     "name": "Wizard",
+     "bound": false,
+     "cantrips": 2,
+     "slots": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "known": [
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "pactSlots": 0,
+     "arcanum": [
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Divine",
+   "rank": 1,
+   "disciplines": [
+    {
+     "name": "Cleric",
+     "bound": false,
+     "cantrips": 2,
+     "slots": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "known": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "pactSlots": 0,
+     "arcanum": [
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   ]
+  }
+ ],
+ "subAbilities": [],
+ "subSpellBundles": [],
+ "freeSub": {},
+ "drawbacks": [],
+ "gold": 0,
+ "dabblerCantrips": 0,
+ "attune": 0,
+ "ki": 0,
+ "sorcery": 0,
+ "wornArmour": "",
+ "martiallyBound": "(none)",
+ "boons": [],
+ "innate": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ],
+ "appearance": {
+  "gender": "",
+  "age": "",
+  "height": "",
+  "build": "",
+  "hair": "",
+  "eyes": "",
+  "nose": "",
+  "skin": "",
+  "marks": "",
+  "voice": "",
+  "demeanour": "",
+  "quirk": "",
+  "likes": "",
+  "dislikes": "",
+  "father": "",
+  "mother": "",
+  "hometown": "",
+  "profession": "",
+  "familyfor": "",
+  "famevent": "",
+  "secret": "",
+  "drink": "",
+  "ambition": "",
+  "fear": "",
+  "prized": "",
+  "faith": "",
+  "companion": "",
+  "overall": ""
+ },
+ "size": "Medium",
+ "houseRules": {
+  "boons": {},
+  "draws": {},
+  "disabled": {
+   "boons": [],
+   "draws": []
+  },
+  "dmAllows": {
+   "bound": true,
+   "boons": true,
+   "drawbacks": true,
+   "tasha": true
+  }
+ },
+ "version": "v0.322",
+ "id": "test-cg006-multi-tradition-spellcasting"
+}
