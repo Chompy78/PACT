@@ -3,7 +3,7 @@
 ## Status
 **Cold-reviewed and amended.** Reviewer approved the core design (`user action → CharGen-local LOG
 mutation helper → LOG changes → foldBuild(LOG) → render from folded build`) and requested 18 amendments,
-all folded in below. **Chunks 0, 1, and 2 are DONE** (see "Chunk log" at the bottom); Chunks 3–6 remain.
+all folded in below. **Chunks 0, 1, 2, and 3 are DONE** (see "Chunk log" at the bottom); Chunks 4A–6 remain.
 
 ## Chunk log
 
@@ -95,7 +95,43 @@ all folded in below. **Chunks 0, 1, and 2 are DONE** (see "Chunk log" at the bot
   ids, verified toggling one no longer creates an appearance patch; (4) `budget`'s exclusion (same
   reasoning as `name`) was undocumented — added a one-line comment. Full regression suite reconfirmed
   green after all four fixes.
-- Chunks 3–6: not started.
+- **Chunk 3 — DONE (2026-07-09).** Category C (add-row lists: `features`/`subAbilities`/`subSpellBundles`)
+  plus `unlockedClasses`. `unlockedClasses` reused the existing Chunk 1 `CHECKLIST_CAT`/`onChecklistToggle`
+  mechanism (a stable checkbox-per-value control, same shape as Category A) — with one wrinkle:
+  `classunlock` checkboxes carry no `value` attribute (defaults to `"on"`), so `onChecklistToggle` now
+  branches to read `el.dataset.cls` for that one class, plus a guard mirroring `_domReadBuild()`'s own
+  origin-class exclusion filter exactly.
+
+  `feat2`/`subabil`/`subbundle` needed a genuinely different mechanism: unlike Category A's stable
+  one-checkbox-per-value model, these rows are dynamic (added via `addRow()`, sometimes free-typed,
+  removed via a `✕` button that fires no event) and features can legitimately repeat
+  (`DATA.features[x].rep`). Introduced a *multiset reconciliation* function (`_cgSyncFlatCategory(cat)`)
+  that compares the DOM's current value **counts** (not just set membership — a plain set-diff would
+  silently collapse two identical repeatable-feature rows into one LOG event) against LOG's current
+  counts for the whole category, and retracts/emits exactly the difference. Invoked from the existing
+  delegated `#form` listener (for genuine typing) plus three explicit call sites added where the code
+  sets a row's value via direct `.value=` assignment without dispatching any event — `addRow()`'s preset
+  path, the `✕` removal handler, and the autocomplete's `pick()` function — all three confirmed to be
+  real gaps (same class of "bypass" issue Chunk 1's post-commit fix found for `annotate()`'s
+  auto-corrections). Gating (Warlock discipline / Tasha / needsKi / needsSorc / prerequisite /
+  duplicate-block) is NOT re-implemented — `buildClassPickers()`'s `.classpick` and `buildSubPickers()`'s
+  `.subpick` change handlers already gate before calling `addRow()`, so by the time a row exists the pick
+  has already passed those checks. One new guard added: a feat2 row's free-typed value must be a real
+  `DATA.features` key before being emitted, since `rowsVals()` performs no such validation and a
+  mid-typing string would otherwise reach the reconciler.
+
+  Verified, independently reviewed (8/8 checks passed): the multiset reconciliation traced by hand for
+  both the 2-picks-of-a-repeatable-feature case (emits exactly 2) and the stale-LOG-has-more-than-DOM
+  case (retracts exactly the difference); confirmed via a real click test (2 picks → 2 DOM + 2 LOG
+  entries; removing one row → 1/1 remaining, not 0/0 or 2/1); feature/subability/subbundle add+remove via
+  their real dropdown flows; `unlockedClasses` check/uncheck with the origin-class exclusion; full
+  regression suite green throughout. One latent, pre-existing-class gap noted (not fixed — same
+  self-healing pattern already accepted for Chunk 1's `annotate()` bypasses): if a class is unlocked via
+  checkbox and *later* becomes the character's origin class, no cascade retracts the now-redundant
+  `unlockclass` LOG entry — invisible under Option A (DOM stays authoritative through Chunk 5) and
+  self-heals via the existing idempotency guard on the next real toggle, but flagged here for Chunk 4A/6
+  to explicitly check via the shadow-diff before the `readBuild()` flip.
+- Chunks 4A–6: not started.
 
 Builds directly on Phase 2 Steps 1–2, both DONE (see D-GH33 and the "Implementation notes" section at the
 bottom of `docs/plans/2026-07-08-chargen-livesheet-unification-phase2.md`). `js/engine.js` already exports

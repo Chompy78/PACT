@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 3: Category C add-row lists + unlockedClasses wired to LOG**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Fourth
+  chunk of the CharGen emit()-migration plan. `unlockedClasses` reused Chunk 1's checkbox-per-value
+  mechanism (with a branch for `classunlock`'s `dataset.cls`-not-`value` quirk). `features`/
+  `subAbilities`/`subSpellBundles` needed a new multiset-reconciliation function (`_cgSyncFlatCategory`)
+  instead, since their add-row UI is dynamic and features can legitimately repeat — a plain set-diff
+  would collapse two identical repeatable-feature picks into one LOG event. Found and closed three
+  "direct assignment, no event fires" gaps (`addRow()`'s preset path, the row-removal button, and the
+  autocomplete's `pick()`), the same class of bug Chunk 1's post-commit fix found for `annotate()`'s
+  auto-corrections. Independently reviewed (8/8 checks passed); verified the repeatable-feature case
+  directly (2 picks → 2 LOG entries; removing one row → exactly 1 remaining). One latent, pre-existing-
+  class gap noted but not fixed (self-heals, invisible under Option A): flagged for Chunk 4A/6.
+
 - **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 2: Category B scalar/object fields wired to replacePatchSlot()**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Third
   chunk of the CharGen emit()-migration plan. All Category B scalar/object fields (stats, hd, profBonus,

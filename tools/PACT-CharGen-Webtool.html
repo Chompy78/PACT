@@ -1062,11 +1062,20 @@ function addRow(kind,preset){
   else{const arr=kind==='rac'?DATA.racialList:DATA.drawbackList;
     const labelize=v=>kind==='rac'?(v+' ('+DATA.racial[v].origin+'/'+DATA.racial[v].cross+' AP)'):(v+' (+'+DATA.drawbacks[v]+' AP)');
     line.innerHTML='<select class="'+kind+'row"><option value="(none)">(none)</option>'+arr.map(v=>'<option value="'+v+'">'+labelize(v)+'</option>').join('')+'</select><span class="price"></span><button class="btn x" type="button">✕</button>';}
-  line.querySelector('.btn.x').onclick=()=>{const _f2=line.querySelector('.feat2row');if(_f2&&_f2._acMenu)_f2._acMenu.remove();line.remove();render();};
+  line.querySelector('.btn.x').onclick=()=>{const _f2=line.querySelector('.feat2row');if(_f2&&_f2._acMenu)_f2._acMenu.remove();line.remove();
+    // Phase 2 Step 3 (Chunk 3): removal doesn't fire input/change, so the LOG reconciliation (which only
+    // runs from those events, see _cgWireRowReconcileDelegation) needs an explicit nudge here.
+    if(typeof RECONCILE_CAT!=='undefined'&&kind+'row' in RECONCILE_CAT)_cgSyncFlatCategory(RECONCILE_CAT[kind+'row']);
+    render();};
   line.addEventListener('input',render);line.addEventListener('change',render);
   box.appendChild(line);
   if(kind==='feat2'){_pruneAC();_featAC(line.querySelector('.feat2row'));}
   if(preset!==undefined){const inp=line.querySelector('.'+kind+'row');if(inp)inp.value=preset;}
+  // Phase 2 Step 3 (Chunk 3): preset values above are set via direct .value assignment (feat2) or were
+  // already baked into the innerHTML at row creation (subabil/subbundle) — neither dispatches an
+  // input/change event, so _cgWireRowReconcileDelegation's event listener never sees a row addition.
+  // Explicit nudge here, same reasoning as the '✕' removal handler above.
+  if(typeof RECONCILE_CAT!=='undefined'&&kind+'row' in RECONCILE_CAT)_cgSyncFlatCategory(RECONCILE_CAT[kind+'row']);
   render();
 }
 // Remove any orphaned feature-search menus whose input has left the DOM (rebuilds, reset, import).
@@ -1085,7 +1094,9 @@ function _featAC(inp){
   const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
   // Set the value and recompute directly — do NOT re-dispatch 'input' (that re-ran the filter and
   // re-opened this menu, leaving a fixed overlay over the form that swallowed clicks). v0.314 fix.
-  const pick=v=>{inp.value=v;close();if(typeof render==='function')render();};
+  // Phase 2 Step 3 (Chunk 3): direct .value assignment, no input/change event — same reconciliation
+  // nudge as addRow()'s preset path and the '✕' removal handler (see there for the full rationale).
+  const pick=v=>{inp.value=v;close();if(typeof _cgSyncFlatCategory==='function')_cgSyncFlatCategory('feature');if(typeof render==='function')render();};
   const draw=()=>{menu.innerHTML=items.length?items.map((f,i)=>{const nm=(f.split(': ')[1]||f),cl=f.split(': ')[0];
       return '<div class="featac-i" data-i="'+i+'" style="padding:6px 10px;cursor:pointer;white-space:nowrap;'+(i===active?'background:var(--line,#e3ebf7)':'')+'"><b>'+esc(nm)+'</b> <span style="color:var(--grey,#888);font-size:10px">'+esc(cl)+'</span></div>';}).join('')
     :'<div style="padding:6px 10px;color:var(--grey,#888)">no matching feature</div>';};
@@ -1305,11 +1316,16 @@ function assertPatchSlotsKnown(log){
 // snapshot until their own chunks land), so pricing off foldBuild(LOG) here would use the wrong context
 // for anything context-dependent (e.g. racial-trait own-race/cross-race pricing). Confirmed by direct
 // test that this delta-pricing exactly reproduces the existing hardcoded drawback-cost formula.
+// classunlock:'unlockclass' added in Chunk 3 (Phase 2 Step 3) — a stable checkbox-per-value control,
+// same shape as the other 12 categories, so it reuses this exact mechanism rather than Chunk 3's new
+// reconciliation-based approach (which exists specifically for the dynamic add/remove feat2/subabil/
+// subbundle rows, not needed here).
 const CHECKLIST_CAT={racck:'racial',saveck:'save',skillck:'skill',expck:'expertise',toolexpck:'toolexpertise',
-  mastck:'mastery',toolck:'tool',instck:'instrument',boonck:'boon',drawck:'drawback',artck:'art',linspellck:'racialspell'};
+  mastck:'mastery',toolck:'tool',instck:'instrument',boonck:'boon',drawck:'drawback',artck:'art',linspellck:'racialspell',
+  classunlock:'unlockclass'};
 const _CG_CHECKLIST_LABEL={racial:'Species trait',save:'Saving throw',skill:'Skill',expertise:'Expertise',
   toolexpertise:'Tool expertise',mastery:'Weapon mastery',tool:'Tool',instrument:'Instrument',boon:'Boon',
-  drawback:'Drawback',art:'Art / Technique',racialspell:'Racial spell'};
+  drawback:'Drawback',art:'Art / Technique',racialspell:'Racial spell',unlockclass:'Class unlocked'};
 
 // Same illegality condition annotate() already auto-corrects (line ~1851: an origin-only trait picked
 // cross-race) — added HERE as a pre-emit guard so LOG never records an illegal pick even for the brief
@@ -1324,7 +1340,10 @@ function raceTraitLegal(v,domBuild){
 
 function onChecklistToggle(el){
   const cls=[...el.classList].find(function(c){return c in CHECKLIST_CAT;});if(!cls)return;
-  const cat=CHECKLIST_CAT[cls],v=el.value;
+  const cat=CHECKLIST_CAT[cls];
+  // classunlock checkboxes (Chunk 3) carry no `value` attribute (defaults to the string "on") — the
+  // real value lives in data-cls, matching how _domReadBuild() reads them (e.dataset.cls, not e.value).
+  const v=(cls==='classunlock')?el.dataset.cls:el.value;
   const dom=_domReadBuild();
   const _hasEntry=LOG.some(function(e){return e.type==='buy'&&e.cat===cat&&e.payload&&e.payload.v===v;});
   if(el.checked){
@@ -1335,6 +1354,10 @@ function onChecklistToggle(el){
     // emit a genuine duplicate LOG entry (MUT's flat-push mutators have no dedup) instead of a no-op.
     if(_hasEntry)return;
     if(cat==='racial'&&!raceTraitLegal(v,dom)){el.checked=false;return;}
+    // _domReadBuild() excludes a checked classunlock box from unlockedClasses when it matches the
+    // character's own origin class(es) (already free/included) — mirrored here so LOG never records an
+    // entry _domReadBuild() would filter out anyway.
+    if(cat==='unlockclass'&&(v===dom.originClass||v===dom.originClass2))return;
     const before=compute(dom).total;
     const cand=JSON.parse(JSON.stringify(dom));(MUT[cat]||function(){})(cand,{v:v});
     const cost=compute(cand).total-before;
@@ -1354,6 +1377,71 @@ function _cgWireChecklistDelegation(){
     if(![...el.classList].some(function(c){return c in CHECKLIST_CAT;}))return;
     onChecklistToggle(el);
   });
+}
+
+// ---- Phase 2 Step 3 (Chunk 3): Category C (add-row lists) reconciled into the LOG mutation API ----
+// Unlike Category A's stable one-checkbox-per-value model, feat2/subabil/subbundle rows are dynamic:
+// added via addRow(), free-typed (feat2, via the search/autocomplete box) or fixed-at-creation
+// (subabil/subbundle, <input type="hidden"> set only from a controlled <select>), and removed via a '✕'
+// button that does not dispatch any input/change event. Rather than mapping individual DOM elements to
+// individual LOG events (fragile once a row's own value can change post-creation, and feat2 rows can),
+// this reconciles the WHOLE category's current value MULTISET against LOG on every relevant DOM event:
+// retract whatever LOG has more of than the DOM currently shows, emit whatever the DOM shows more of
+// than LOG currently tracks. Multiset (count-based), not set-based, because features may legitimately
+// repeat (DATA.features[x].rep — e.g. "Fighter: Extra Attack" taken more than once; buildClassPickers()'s
+// own duplicate-block only fires for non-repeatable features) — a plain set-diff would silently collapse
+// two identical rows into one LOG event. Still uses only the existing emit()/retractFlatEvent()
+// primitives — 'feature'/'subabil'/'subbundle' are already in RETRACTABLE_FLAT_CATS (flat pushes, no
+// positional dependents, from Chunk 0).
+//
+// Gating (Warlock discipline / Tasha / needsKi / needsSorc / prerequisite / duplicate-block) is NOT
+// re-implemented here — buildClassPickers()'s '.classpick' and buildSubPickers()'s '.subpick' change
+// handlers already gate BEFORE calling addRow(), so by the time a row exists in the DOM the pick has
+// already passed those checks (Category F's guards, already correctly positioned relative to this
+// reconciliation layer — nothing to move). The one guard this layer DOES add: a feat2 row's free-typed
+// value must be a real DATA.features key before being emitted — an incomplete/invalid mid-typing string
+// is skipped (not tracked in LOG) rather than corrupting it with garbage, since rowsVals() itself
+// performs no such validation. subabil/subbundle get the same defensive check even though their values
+// are only ever set programmatically (never free-typed), for the same discipline at negligible cost.
+const RECONCILE_CAT={feat2row:'feature',subabilrow:'subabil',subbundlerow:'subbundle'};
+const _CG_RECONCILE_FIELD={feature:'features',subabil:'subAbilities',subbundle:'subSpellBundles'};
+const _CG_RECONCILE_VALID={
+  feature:function(v){return !!DATA.features[v];},
+  subabil:function(v){return !!DATA.subAbilMap[v];},
+  subbundle:function(v){const p=String(v).split('|');return !!((DATA.subclasses[p[0]]||{})[p[1]]);}
+};
+const _CG_RECONCILE_LABEL={feature:'Class feature',subabil:'Subclass ability',subbundle:'Subclass spell bundle'};
+
+function _cgSyncFlatCategory(cat){
+  const domField=_CG_RECONCILE_FIELD[cat];if(!domField)return;
+  const isValid=_CG_RECONCILE_VALID[cat]||function(){return true;};
+  const currentValues=(_domReadBuild()[domField]||[]).filter(isValid);
+  const currentCounts={};currentValues.forEach(function(v){currentCounts[v]=(currentCounts[v]||0)+1;});
+  const logCounts={};LOG.forEach(function(e){if(e.type==='buy'&&e.cat===cat){const v=e.payload.v;logCounts[v]=(logCounts[v]||0)+1;}});
+  Object.keys(logCounts).forEach(function(v){
+    let excess=logCounts[v]-(currentCounts[v]||0);
+    while(excess-->0)retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;});
+  });
+  Object.keys(currentCounts).forEach(function(v){
+    let missing=currentCounts[v]-(logCounts[v]||0);
+    while(missing-->0){
+      const cur=_domReadBuild();const before=compute(cur).total;
+      const cand=JSON.parse(JSON.stringify(cur));(MUT[cat]||function(){})(cand,{v:v});
+      const cost=compute(cand).total-before;
+      emit({type:'buy',cat:cat,payload:{v:v},cost:cost,level:cur.hd,label:(_CG_RECONCILE_LABEL[cat]||cat)+' — '+v});
+    }
+  });
+}
+
+function _cgWireRowReconcileDelegation(){
+  const form=$('form');if(!form)return;
+  const watch=function(e){
+    const el=e.target;if(!el||!el.classList)return;
+    const cls=[...el.classList].find(function(c){return c in RECONCILE_CAT;});
+    if(!cls)return;
+    _cgSyncFlatCategory(RECONCILE_CAT[cls]);
+  };
+  form.addEventListener('input',watch);form.addEventListener('change',watch);
 }
 
 // ---- Phase 2 Step 3 (Chunk 2): Category B (scalar/object coalescing patches) wired to replacePatchSlot() ----
@@ -2654,6 +2742,7 @@ $('form').addEventListener('input',render);$('form').addEventListener('change',r
 _cgWireStateEventAudit();   // Phase 2 Step 3 (Chunk 0): dev-only, see LOG mutation API above
 _cgWireChecklistDelegation();   // Phase 2 Step 3 (Chunk 1): Category A checkbox lists -> LOG mutation API
 _cgWirePatchDelegation();   // Phase 2 Step 3 (Chunk 2): Category B scalar/object fields -> replacePatchSlot()
+_cgWireRowReconcileDelegation();   // Phase 2 Step 3 (Chunk 3): Category C add-row lists -> LOG mutation API
 let _cgHadShared=false;
 try{_cgHadShared=!!loadFromHash();}catch(e){}
 if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}
