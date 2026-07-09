@@ -3,7 +3,7 @@
 ## Status
 **Cold-reviewed and amended.** Reviewer approved the core design (`user action → CharGen-local LOG
 mutation helper → LOG changes → foldBuild(LOG) → render from folded build`) and requested 18 amendments,
-all folded in below. **Chunks 0 and 1 are DONE** (see "Chunk log" at the bottom); Chunks 2–6 remain.
+all folded in below. **Chunks 0, 1, and 2 are DONE** (see "Chunk log" at the bottom); Chunks 3–6 remain.
 
 ## Chunk log
 
@@ -60,7 +60,42 @@ all folded in below. **Chunks 0 and 1 are DONE** (see "Chunk log" at the bottom)
   the three Category-D grid rebuilds, not after) — shares the same root cause but doesn't itself create
   `LOG` duplicates (campaign-code application never emits/retracts events), so it's left as a one-frame
   possible display staleness, not fixed.
-- Chunks 2–6: not started.
+- **Chunk 2 — DONE (2026-07-09).** Category B scalar/object fields wired to `replacePatchSlot()` via one
+  delegated `#form` listener (`onPatchFieldChange`/`_cgWirePatchDelegation`, id-keyed rather than
+  class-keyed since these fields don't share Category A's checkbox-class pattern). Every slot's patch is
+  always built as the *full* field set for that slot from a fresh `_domReadBuild()` (`_cgSlotPatch`),
+  never just the one field that changed — required because `replacePatchSlot()` replaces a slot's whole
+  LOG event on every write, so a partial patch would silently drop a co-located field's value.
+  **Taxonomy gap found and resolved**: `originClass`/`originClass2`/`species`/`species2`/`lineage` are
+  genuine Category B fields (confirmed via `_buildEventBurst`) missing from every category (A-G) in the
+  cold-reviewed plan's enumeration. Grouped under the already-declared-but-unused `PATCH_SLOTS.IDENTITY`
+  alongside `size` (also missing from the plan). Two more orphaned fields (`hardy`/`tough` "Vigor & Grit",
+  `innate` spell counts) and two fields with no fitting slot (`martiallyBound`, `dabblerCantrips`) got
+  three new canonical slots added to the registry (`VIGOR`, `INNATE`, `MISC`) rather than being crammed
+  into a semantically-unrelated existing slot. `name` and `budget` are deliberately excluded — both use a
+  different event mechanism (`type:'name'`/`type:'award'`, not `cat:'patch'`), deferred to Chunk 5. The
+  STR<10 armour guard (Category F) is enforced two ways: directly in `_cgSlotPatch`'s `ARMOUR` case, and
+  via a cascade in `onPatchFieldChange` that re-patches `ARMOUR` whenever `STATS` changes (without it, a
+  stale illegal armour patch could sit in `LOG` until the next unrelated armour edit, since the OLD
+  DOM-side correction bypasses change events the same way Chunk 1's `annotate()` guards did).
+  Verified: `engine-parity.html` 16/0 unaffected; 21 fields directly tested matching between DOM and
+  `foldBuild(LOG)` after interaction; the repeated-edit cost-delta invariant holds through the full UI
+  path (raising a stat in 3 steps vs. one direct edit — same total, one slot event, no accumulation);
+  the STR<10 cascade fires correctly.
+
+  **Pre-commit fixes (independent review, before this chunk landed):** an independent review of the
+  diff, run before committing, found: (1) `lineage` (confirmed via the same `_buildEventBurst`
+  cross-check that found the other IDENTITY-slot fields) was still missing — added to `PATCH_FIELD_SLOT`
+  and `_cgSlotPatch`'s `IDENTITY` case, verified directly; (2) the STATS→ARMOUR cascade fired
+  unconditionally on *any* stat edit (not just STR crossing the threshold), producing needless no-op
+  `LOG` churn — fixed by comparing the recomputed armour patch against the current LOG event and skipping
+  the write when unchanged, verified an unrelated stat edit (CHA) no longer touches the armour slot's
+  `seq`; (3) the `ap_` prefix match for the `APPEARANCE` slot false-positively matched ~15 `ap_*_lock`
+  UI-only "don't randomize" checkboxes (never read by `_domReadBuild()`) — fixed by excluding `_lock`-suffixed
+  ids, verified toggling one no longer creates an appearance patch; (4) `budget`'s exclusion (same
+  reasoning as `name`) was undocumented — added a one-line comment. Full regression suite reconfirmed
+  green after all four fixes.
+- Chunks 3–6: not started.
 
 Builds directly on Phase 2 Steps 1–2, both DONE (see D-GH33 and the "Implementation notes" section at the
 bottom of `docs/plans/2026-07-08-chargen-livesheet-unification-phase2.md`). `js/engine.js` already exports

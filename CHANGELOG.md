@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 2: Category B scalar/object fields wired to replacePatchSlot()**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Third
+  chunk of the CharGen emit()-migration plan. All Category B scalar/object fields (stats, hd, profBonus,
+  hardy/tough, weaponProf, armour, wornArmour, languages, attune, ki, sorcery, gold, martiallyBound,
+  dabblerCantrips, houseRules/DM toggles, appearance, innate spells) now dual-write into `LOG` via
+  `replacePatchSlot()`, id-keyed through one delegated `#form` listener. Found and closed a real taxonomy
+  gap: `originClass`/`originClass2`/`species`/`species2`/`lineage` were genuine Category B fields missing
+  from the cold-reviewed plan's entire field enumeration — grouped under the already-declared-but-unused
+  `PATCH_SLOTS.IDENTITY`. Added three new canonical slots (`VIGOR`, `INNATE`, `MISC`) for other orphaned
+  fields rather than overloading an unrelated existing slot. The STR<10 armour guard (Category F) is
+  enforced both directly and via a STATS→ARMOUR re-patch cascade. An independent review before this
+  landed found and fixed: a still-missing `lineage` field, needless LOG churn from an unconditional
+  cascade and from `ap_*_lock` UI-only checkboxes false-matching the appearance-field prefix, and an
+  undocumented `budget` exclusion. Verified: 21 fields directly confirmed matching between DOM and
+  `foldBuild(LOG)`; the repeated-edit cost-delta invariant holds through the full UI path; full regression
+  suite green.
 - **2026-07-09 · fix(chargen) — Phase 2 Step 3, Chunk 1 follow-up: prevent duplicate LOG entries from DOM-side bypass unchecks**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). A second
   independent review of Chunk 1's diff (below) found a real bug after it had already landed:

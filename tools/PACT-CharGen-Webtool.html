@@ -1174,10 +1174,19 @@ const INDEXED_TRADITION_CATS=new Set(['found','rank','cantrip','slot','known','d
 
 // Canonical coalescing-patch slot ids — replacePatchSlot() only accepts these; handlers must not invent
 // inline _slot strings (a typo would silently produce a duplicate patch event instead of replacing the old one).
+// Chunk 2 (Phase 2 Step 3) extended this with VIGOR/INNATE/MISC: hardy/tough ("Vigor & Grit") and innate
+// spell counts are real Category B coalescing-patch fields (confirmed via _buildEventBurst's emitPatch
+// calls) with no fitting existing slot; MISC is a narrow, deliberate catch-all for the two remaining
+// odds-and-ends fields (martiallyBound, dabblerCantrips) that don't share a concept with anything else.
+// Adding named slots for these — rather than cramming them into an unrelated existing slot — matters
+// because replacePatchSlot() replaces a slot's whole patch on every write: two unrelated fields sharing
+// one slot is only safe if every write always includes the FULL field set for that slot (see the Chunk 2
+// scaffolding comment below), and giving each concept its own slot avoids relying on that discipline.
 const PATCH_SLOTS=Object.freeze({IDENTITY:'identity',STATS:'stats',HD_PROF:'hdProf',ECONOMY:'economy',
   LANGUAGES:'languages',ATTUNEMENT:'attunement',KI:'ki',SORCERY:'sorcery',ARMOUR:'armour',
   WEAPON_PROF:'weaponProf',APPEARANCE:'appearance',HOUSE_RULES:'houseRules',CUSTOM_PROFS:'customProfs',
-  FREE_SUB:'freeSub',TRADITIONS:'traditions',NAMES:'names',CAMPAIGN:'campaign'});
+  FREE_SUB:'freeSub',TRADITIONS:'traditions',NAMES:'names',CAMPAIGN:'campaign',
+  VIGOR:'vigor',INNATE:'innate',MISC:'misc'});
 
 // Dev-only diagnostic mode: ?cgShadow=1. Never affects normal users; only console.warns.
 const CG_SHADOW=(function(){try{return new URLSearchParams(location.search).get('cgShadow')==='1';}catch(e){return false;}})();
@@ -1345,6 +1354,114 @@ function _cgWireChecklistDelegation(){
     if(![...el.classList].some(function(c){return c in CHECKLIST_CAT;}))return;
     onChecklistToggle(el);
   });
+}
+
+// ---- Phase 2 Step 3 (Chunk 2): Category B (scalar/object coalescing patches) wired to replacePatchSlot() ----
+// Same Option A dual-write approach as Chunk 1: DOM stays authoritative, LOG tracks in parallel. Every
+// slot's patch is always constructed as the FULL set of fields belonging to that slot, read fresh from
+// _domReadBuild() on every call — required because replacePatchSlot() replaces a slot's LOG event
+// wholesale; if two unrelated fields shared a slot and a handler passed only the ONE field that changed,
+// the other field's prior contribution would be silently dropped from LOG on the next fold.
+//
+// Field-taxonomy gap found during implementation: originClass/originClass2/species/species2 are real
+// Category B coalescing-patch fields (confirmed via _buildEventBurst's emitPatch calls) but are absent
+// from every category (A-G) in the cold-reviewed plan's field enumeration. PATCH_SLOTS.IDENTITY exists
+// and is otherwise unused — treated as its intended purpose, grouped here with `size` (another orphaned
+// field, also missing from the plan's taxonomy). `name` is deliberately NOT included here — it uses a
+// different event mechanism entirely (`type:'name'`, handled directly by foldBuild()'s core replay loop,
+// not `cat:'patch'`/`_slot`), so wiring it through replacePatchSlot() would be a mismatch; deferred to
+// Chunk 5 (Category E), which already needs new event-vocabulary decisions for whole-build replacement.
+const PATCH_FIELD_SLOT={
+  st_STR:PATCH_SLOTS.STATS,st_DEX:PATCH_SLOTS.STATS,st_CON:PATCH_SLOTS.STATS,st_INT:PATCH_SLOTS.STATS,st_WIS:PATCH_SLOTS.STATS,st_CHA:PATCH_SLOTS.STATS,
+  hd:PATCH_SLOTS.HD_PROF,profBonus:PATCH_SLOTS.HD_PROF,
+  hardy:PATCH_SLOTS.VIGOR,tough:PATCH_SLOTS.VIGOR,
+  wp_simple:PATCH_SLOTS.WEAPON_PROF,wp_martial:PATCH_SLOTS.WEAPON_PROF,wp_all:PATCH_SLOTS.WEAPON_PROF,wp_improv:PATCH_SLOTS.WEAPON_PROF,
+  a_light:PATCH_SLOTS.ARMOUR,a_med:PATCH_SLOTS.ARMOUR,a_heavy:PATCH_SLOTS.ARMOUR,a_shield:PATCH_SLOTS.ARMOUR,wornArmour:PATCH_SLOTS.ARMOUR,
+  languages:PATCH_SLOTS.LANGUAGES,attune:PATCH_SLOTS.ATTUNEMENT,ki:PATCH_SLOTS.KI,sorcery:PATCH_SLOTS.SORCERY,
+  gold:PATCH_SLOTS.ECONOMY,
+  martiallyBound:PATCH_SLOTS.MISC,dabblerCantrips:PATCH_SLOTS.MISC,
+  oclass:PATCH_SLOTS.IDENTITY,oclass2:PATCH_SLOTS.IDENTITY,spec:PATCH_SLOTS.IDENTITY,spec2:PATCH_SLOTS.IDENTITY,charsize:PATCH_SLOTS.IDENTITY,
+  lineage:PATCH_SLOTS.IDENTITY,
+  dm_bound:PATCH_SLOTS.HOUSE_RULES,dm_boons:PATCH_SLOTS.HOUSE_RULES,dm_tasha:PATCH_SLOTS.HOUSE_RULES,dm_draws:PATCH_SLOTS.HOUSE_RULES
+  // `budget` (id="budget") is deliberately excluded: it's a type:'award' event (see _buildEventBurst),
+  // not a cat:'patch', same reason `name` is excluded — both are Category E (Chunk 5) territory.
+};
+// appearance (28 ap_* ids) and innate spells (9 innate_N ids) use prefix matching instead of per-id entries.
+// Excludes the *_lock ids (ap_gender_lock, ap_overall_lock, etc. — see apField()) that also start with
+// "ap_": those are UI-only "don't randomize this field" checkboxes never read by _domReadBuild(), so
+// matching them would create needless no-op LOG churn (found by independent review).
+function _cgPatchSlotForId(id){
+  if(PATCH_FIELD_SLOT[id])return PATCH_FIELD_SLOT[id];
+  if(id.indexOf('ap_')===0&&!/_lock$/.test(id))return PATCH_SLOTS.APPEARANCE;
+  if(id.indexOf('innate_')===0)return PATCH_SLOTS.INNATE;
+  return null;
+}
+
+// Builds the FULL patch object for a slot from the current DOM state (never just the one field that
+// changed — see the safety note above). The ARMOUR case also re-applies the STR<10 medium/heavy-armour
+// guard (Category F) directly in the constructed patch: the OLD DOM-side auto-correction in
+// _cgRenderInner() bypasses change events (same class of gap Chunk 1 hit with annotate()'s force-unchecks),
+// so without this, a stale illegal armour patch could sit in LOG until the next unrelated armour edit.
+function _cgSlotPatch(slot,dom){
+  switch(slot){
+    case PATCH_SLOTS.STATS: return {stats:dom.stats};
+    case PATCH_SLOTS.HD_PROF: return {hd:dom.hd,profBonus:dom.profBonus};
+    case PATCH_SLOTS.VIGOR: return {hardy:dom.hardy,tough:dom.tough};
+    case PATCH_SLOTS.WEAPON_PROF: return {weaponProf:dom.weaponProf};
+    case PATCH_SLOTS.ARMOUR:{
+      const armour=Object.assign({},dom.armour);
+      if(((dom.stats&&dom.stats.STR)||10)<10){armour.medium=false;armour.heavy=false;}
+      return {armour:armour,wornArmour:dom.wornArmour};
+    }
+    case PATCH_SLOTS.LANGUAGES: return {languages:dom.languages};
+    case PATCH_SLOTS.ATTUNEMENT: return {attune:dom.attune};
+    case PATCH_SLOTS.KI: return {ki:dom.ki};
+    case PATCH_SLOTS.SORCERY: return {sorcery:dom.sorcery};
+    case PATCH_SLOTS.ECONOMY: return {gold:dom.gold};
+    case PATCH_SLOTS.MISC: return {martiallyBound:dom.martiallyBound,dabblerCantrips:dom.dabblerCantrips};
+    case PATCH_SLOTS.IDENTITY: return {originClass:dom.originClass,originClass2:dom.originClass2,species:dom.species,species2:dom.species2,size:dom.size,lineage:dom.lineage};
+    case PATCH_SLOTS.HOUSE_RULES: return {houseRules:dom.houseRules};
+    case PATCH_SLOTS.APPEARANCE: return {appearance:dom.appearance};
+    case PATCH_SLOTS.INNATE: return {innate:dom.innate};
+    default: return null;
+  }
+}
+
+const _CG_SLOT_LABEL=(function(){const m={};
+  m[PATCH_SLOTS.STATS]='Ability scores';m[PATCH_SLOTS.HD_PROF]='Hit Dice & Proficiency';
+  m[PATCH_SLOTS.VIGOR]='Vigor & Grit';m[PATCH_SLOTS.WEAPON_PROF]='Weapon proficiency';
+  m[PATCH_SLOTS.ARMOUR]='Armour';m[PATCH_SLOTS.LANGUAGES]='Languages';
+  m[PATCH_SLOTS.ATTUNEMENT]='Attunement';m[PATCH_SLOTS.KI]='Ki points';
+  m[PATCH_SLOTS.SORCERY]='Sorcery points';m[PATCH_SLOTS.ECONOMY]='Starting gold';
+  m[PATCH_SLOTS.MISC]='Martial binding & dabbler cantrips';m[PATCH_SLOTS.IDENTITY]='Identity';
+  m[PATCH_SLOTS.HOUSE_RULES]='DM customisations';m[PATCH_SLOTS.APPEARANCE]='Appearance & description';
+  m[PATCH_SLOTS.INNATE]='Innate spells';
+  return m;})();
+
+function onPatchFieldChange(el){
+  const id=el.id;if(!id)return;
+  const slot=_cgPatchSlotForId(id);if(!slot)return;
+  const dom=_domReadBuild();
+  const patch=_cgSlotPatch(slot,dom);if(!patch)return;
+  replacePatchSlot(slot,patch,_CG_SLOT_LABEL[slot]||slot);
+  // The ARMOUR slot's STR<10 guard depends on STATS — without this cascade, dropping STR below 10 via a
+  // stat field leaves LOG's ARMOUR patch stale (still showing medium/heavy=true) until the next unrelated
+  // armour edit, even though DOM's own render()-based correction already unchecked the boxes. Skipped
+  // when the recomputed patch is unchanged (e.g. editing an ability score that isn't STR, or STR staying
+  // ≥10) so this doesn't create needless no-op LOG churn on every stat edit (found by independent review).
+  if(slot===PATCH_SLOTS.STATS){
+    const dom2=_domReadBuild();
+    const armourPatch=_cgSlotPatch(PATCH_SLOTS.ARMOUR,dom2);
+    const currentArmourEvent=LOG.find(function(e){return e.type==='buy'&&e.cat==='patch'&&e._slot===PATCH_SLOTS.ARMOUR;});
+    const unchanged=currentArmourEvent&&JSON.stringify(currentArmourEvent.payload.patch)===JSON.stringify(armourPatch);
+    if(armourPatch&&!unchanged)replacePatchSlot(PATCH_SLOTS.ARMOUR,armourPatch,_CG_SLOT_LABEL[PATCH_SLOTS.ARMOUR]);
+  }
+}
+
+function _cgWirePatchDelegation(){
+  const form=$('form');if(!form)return;
+  const watch=function(e){if(e.target&&e.target.id)onPatchFieldChange(e.target);};
+  form.addEventListener('change',watch);form.addEventListener('input',watch);
 }
 
 // ---- readBuild(): Option A — stays a passthrough to the original DOM-reader until the Chunk 6 flip ----
@@ -2536,6 +2653,7 @@ buildDmList();
 $('form').addEventListener('input',render);$('form').addEventListener('change',render);
 _cgWireStateEventAudit();   // Phase 2 Step 3 (Chunk 0): dev-only, see LOG mutation API above
 _cgWireChecklistDelegation();   // Phase 2 Step 3 (Chunk 1): Category A checkbox lists -> LOG mutation API
+_cgWirePatchDelegation();   // Phase 2 Step 3 (Chunk 2): Category B scalar/object fields -> replacePatchSlot()
 let _cgHadShared=false;
 try{_cgHadShared=!!loadFromHash();}catch(e){}
 if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}
