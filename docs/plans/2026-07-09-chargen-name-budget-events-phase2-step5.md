@@ -1,6 +1,9 @@
 # Phase 2 Step 5 — fold name + budget into the LOG (retire the DOM shims)
 
-> **Status:** DRAFT — for review before implementation.
+> **Status:** DONE — both chunks implemented and browser-verified. Chunk A 15/15 (V1–V3), Chunk B 10/10
+> (V4–V5); full Step-4 regression (66 checks) + both bug-fix suites + engine-parity 20/0 all green. No engine
+> change. Implementation matched the plan; the one back-compat edge (stale Step-4 award/name) is healed by
+> the `_cgApplyEnvelope` reconcile. `genName()` also needed wiring to `_cgSyncName` (it set `#cname` directly).
 > **Branch:** `feat/chargen-name-budget-events` (from `preview`, post-Step-4 merge).
 > **Scope:** `tools/PACT-CharGen-Webtool.html` only. **No `js/engine.js` change** — the engine already
 > folds both event types (verified: line 512 `if (e.type==='name') b.name=e.name`; line 456 `award → earned`

@@ -1232,7 +1232,7 @@ let _openKey=null,_openTs=0;   // the still-coalescing group (top of HIST) — i
 let _hkSeq=0;                  // lazy stable keys for id-less text inputs (e.g. cprof rows)
 
 function _histClone(x){return JSON.parse(JSON.stringify(x));}
-function _snapshotFrame(){return {log:_histClone(LOG),seq:SEQ,name:val('cname'),budget:val('budget'),id:__charId};}
+function _snapshotFrame(){return {log:_histClone(LOG),seq:SEQ,id:__charId};}   // Step 5: name/budget live in the LOG now
 function _fieldKey(el){if(!el)return null;if(el.id)return el.id;if(!el._hk)el._hk='hk'+(++_hkSeq);return el._hk;}
 function _isTextish(el){return !!el&&(el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&/^(text|number|search|tel|url|email|)$/i.test(el.type)));}
 // Only a user text keystroke supplies a coalesce key; select/checkbox `change` and everything else stays
@@ -1268,20 +1268,16 @@ function commitHistory(){
 }
 
 // Repaint the whole UI from a frame. Build-equality contract (D5): applyBuild rebuilds LOG from the DOM it
-// writes; we then restore the name/budget/id shims foldBuild can't reproduce.
-// Known Step-5 limitation: name/budget are captured into every frame (not tracked as their own LOG
-// events), so undo restores them to the frame's values. This is REQUIRED for whole-build-load undo
-// (Chunk B — a load changes name/budget and undo must revert them), but it means undoing a buy made
-// *before* a later name edit also reverts that name. Step 5 (budget-as-award, name events) removes the
-// shim and makes name/budget independently undoable.
+// writes; it repaints every control from foldBuild(f.log). As of Step 5, name/budget are first-class LOG
+// events (singleton `name`/`award`), so applyBuild paints them from the folded build too — the frame no
+// longer special-cases them, and the old Step-4 wrinkle (undoing a buy reverting a later name edit) is
+// gone: name/budget are now independently undoable steps.
 function restoreFrame(f){
   _histSuspended=true;
   try{
     LOG=_histClone(f.log);SEQ=f.seq;
-    applyBuild(foldBuild(LOG));            // paints every control; rebuilds LOG from DOM (single canonical builder)
+    applyBuild(foldBuild(LOG));            // paints every control (incl. name/budget from the LOG); rebuilds LOG from DOM
     __charId=f.id||__charId;
-    const cn=$('cname');if(cn)cn.value=f.name;
-    const bg=$('budget');if(bg)bg.value=f.budget;
     render();
   }finally{_histSuspended=false;}
   _openKey=null;_turnLatched=false;_coalesceKey=null;
@@ -2265,9 +2261,11 @@ function applyBuild(b,opts){
 // (the iOS issue the Share-based fix above addresses) the whole build is otherwise lost the
 // moment the tab closes. Mirrors Live Sheet's own localStorage save()/load(): raw build JSON only.
 // Phase 2 Step 4 (Chunk C): persist in the event-log shape {schema,rules,name,budget,LOG,SEQ,id} — a
-// CharGen character is stored as WHAT THE PLAYER DID, matching the Live Sheet. `name` and `budget` are
-// top-level because they are Step-5 DOM shims that foldBuild(LOG) does not carry (omitting budget would
-// reset it on reload). The autosave key is versioned so the old flat-build autosave migrates once.
+// CharGen character is stored as WHAT THE PLAYER DID, matching the Live Sheet. As of Step 5, `name` and
+// `budget` also live IN the LOG (singleton `name`/`award` events); they're still mirrored top-level for
+// human-readability and Live-Sheet-export shape, and used to heal older (Step-4) files whose LOG name/award
+// went stale (see _cgApplyEnvelope's reconcile). The autosave key is versioned so the old flat-build
+// autosave migrates once.
 const CG_SCHEMA='pact-chargen/1';
 var CG_AUTOSAVE_KEY='pactCharGenAutosaveV2';
 var CG_AUTOSAVE_KEY_LEGACY='pactCharGenAutosave';   // pre-Step-4 flat-build autosave — migrated then deleted
@@ -2287,7 +2285,13 @@ function _cgApplyEnvelope(d,opts){
   // makes save↔load exact ("what you saved is what you load"); direct assignment bypasses the mutation API
   // so it records no history frame. (Undo keeps the DOM-rebuild default per D5; a file load is different —
   // it must reproduce the persisted event log exactly.)
-  LOG=JSON.parse(JSON.stringify(d.LOG));SEQ=d.SEQ||nextSeq(LOG);render();
+  LOG=JSON.parse(JSON.stringify(d.LOG));SEQ=d.SEQ||nextSeq(LOG);
+  // Step 5 back-compat: a pre-Step-5 (Step-4) envelope can hold a top-level name/budget that differs from
+  // a STALE `name`/`award` in its LOG (Step 4 didn't event-source live name/budget edits). applyBuild has
+  // already written the correct top-level values into #cname/#budget, so re-sync the singleton events to
+  // match. Suspended → records no undo frame; a no-op for Step-5 files (their LOG is already consistent).
+  {const _p=_histSuspended;_histSuspended=true;try{_cgSyncName();_cgSyncAward();}finally{_histSuspended=_p;}}
+  render();
   return b;
 }
 function _cgRestoreAutosave(){try{

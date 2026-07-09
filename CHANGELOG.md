@@ -59,6 +59,20 @@
   dropped (compared on the folded build, not raw LOG bytes). Verified in a real browser 16/16: V1 snapshot
   immutability, V2 undo round-trip (checkbox + patch field + add-row), V3 all four coalescing cases, V7 redo
   symmetry. applyBuild/boot suspension + button UI are Chunks B/D.
+- **2026-07-09 · feat(chargen) — Phase 2 Step 5, Chunk B: frame simplification + Step-4 back-compat reconcile (Step 5 COMPLETE)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` 20/0). Now that
+  name/budget live in the LOG, the Step-4 undo frames no longer special-case them: `_snapshotFrame` drops
+  the `name`/`budget` fields and `restoreFrame` no longer re-writes `#cname`/`#budget` (applyBuild paints
+  them from `foldBuild(f.log)`) — which also removes the Step-4 wrinkle where undoing a buy could revert a
+  later name edit (name/budget are now independently undoable). Adds a `_cgApplyEnvelope` reconcile: a
+  pre-Step-5 (Step-4) saved file can hold a top-level name/budget that differs from a now-stale `name`/`award`
+  in its LOG, so after reinstating the authoritative LOG we re-sync the singleton events to the top-level
+  values (suspended → no undo frame; a no-op for already-consistent Step-5 files). Verified in a real browser
+  10/10 (V4–V5): mixed-edit undo/redo round-trips build **and** name/budget, randomize→undo restores them,
+  Step-5 save round-trips name/budget purely via the LOG, a simulated stale Step-4 file heals to its
+  top-level values, and legacy flat builds still carry name/budget. **Step 5 complete** — CharGen is now
+  fully event-sourced with no DOM-backed build fields.
+
 - **2026-07-09 · feat(chargen) — Phase 2 Step 5, Chunk A: name + budget are first-class LOG events (shims retired)**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` 20/0). Wires live
   `#cname`/`#budget` edits to the engine's native `name`/`award` event types via a coalescing singleton-event
