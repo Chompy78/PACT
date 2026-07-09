@@ -27,7 +27,7 @@ is staging and promotes into `main`).
   `/pick-task` → `/run-task`; for big/risky work draft a plan for cold review first (see Agent guidance below).
 - **Avoid:** re-implementing rules logic anywhere but `engine.js`; patching `undo()` with tool-local state
   instead of LOG replay; bumping `DATA.version` for display-only changes; reading large files wholesale.
-- **Verification expectations:** `testing/tests/engine-parity.html` → **5/0**; if `compute()` output changed,
+- **Verification expectations:** `testing/tests/engine-parity.html` → **9/0**; if `compute()` output changed,
   update `testing/expected/` in the same PR and bump `DATA.version`; mirror build/version numbers per
   `docs/VERSION-SYNC.md`.
 
@@ -95,7 +95,7 @@ If none of these apply, state that and proceed.
   `service_role`/secret key** or any private credential.
 - **Target:** modern evergreen browsers on phones and desktops (current Chrome/Edge/Firefox/Safari, incl.
   iOS Safari). Prefer widely-supported JS/CSS; no legacy/IE shims.
-- After any change, `testing/tests/engine-parity.html` must report **5 passed / 0 failed** (how to run it —
+- After any change, `testing/tests/engine-parity.html` must report **9 passed / 0 failed** (how to run it —
   browser or headless — is in `docs/HOW-TO-WORK.md`). Keep `engine.js`'s public API stable if you touch it.
 
 ## Don't read large files wholesale (token budget)
@@ -133,6 +133,14 @@ Before finishing a task / opening a PR, update what applies (newest on top):
 More than one agent may be active. **`docs/PACT_ROADMAP.md` has a single writer** — don't append to it.
 If you have new roadmap items, output them in **this exact format** for the human to fold in, then carry on:
 
+**`D-GH<N>` numbering (see D-GH30).** Three collisions have already happened (D-GH19/20, D-GH25/27,
+D-GH26/28) from computing "next = highest + 1" off a stale local read. Before claiming a new number, check
+the **live** remote, not an earlier read this session:
+`git fetch origin preview && git show origin/preview:DECISIONS.md | grep -oE 'D-GH[0-9]+' | sort -t H -k2 -n -u | tail -1`.
+If a collision still slips through post-merge, the accepted fix is: keep the earlier-merged entry's number,
+renumber the later one to the next free number, and add an addendum note under it — no scramble needed,
+this is expected, documented behavior.
+
 ````
 ## <short title> — TODO
 ```
@@ -159,7 +167,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task`
   `docs/PACT-Players-Guide.html`.
 - **Engine support:** `js/` — `supabase-client.js`, `auth.js`, `sync.js`, `campaign.js`, `dm.js`;
   root — `manifest.json`, `service-worker.js`, `404.html`; `sql/` — `schema.sql`, `rls-policies.sql`, `migrations/`.
-- **Testing:** run `testing/tests/engine-parity.html` (expect **5/0**); fixtures in `testing/fixtures/`,
+- **Testing:** run `testing/tests/engine-parity.html` (expect **9/0**); fixtures in `testing/fixtures/`,
   expected output in `testing/expected/` (see `testing/README.md`).
 - **Docs:** `docs/PACT_ROADMAP.md` (open work) · `docs/HOW-TO-WORK.md` (app/test mechanics) ·
   `docs/SKILLS.md` (skills + workflow, human-readable) · `docs/sessions/` ·
@@ -171,14 +179,17 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task`
 ## Per-change checklist
 1. One task, one branch — name it `type/short-slug` (e.g. `feat/…`, `fix/…`, `docs/…`).
 2. Touch `js/engine.js` only if the task targets the engine; else treat its API as fixed.
-3. `testing/tests/engine-parity.html` → **5/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
+3. `testing/tests/engine-parity.html` → **9/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
    `compute()` output, update `testing/expected/` in the same change and say so.
-4. Update `CHANGELOG.md` (always) · `DECISIONS.md` (if the change involves a non-obvious *why*:
+4. After any migration/RLS/schema change, run the Supabase advisor (`get_advisors`) and skim recent logs
+   (`get_logs`) before opening the PR. This project has already been bitten twice by grant/RLS drift that
+   internal guards masked (D-GH15, D-GH12) — the advisor catches that class of issue for free.
+5. Update `CHANGELOG.md` (always) · `DECISIONS.md` (if the change involves a non-obvious *why*:
    security model, trust boundary, caching strategy, data-model trade-off — ask "would a future agent
    wonder why this was done this way?") · `docs/sessions/` (if the session covered discussion or
    spanned multiple areas worth preserving). Graduate the task out of the roadmap if done.
-5. Commit as `type(scope): summary` (Conventional Commits); open a PR and draft its body from the
+6. Commit as `type(scope): summary` (Conventional Commits); open a PR and draft its body from the
    changelog entry.
-6. **After a successful PR merge:** re-check step 4's three docs. If any are missing, add them in a
+7. **After a successful PR merge:** re-check step 5's three docs. If any are missing, add them in a
    follow-up commit on a `docs/` branch before the session closes. A merged PR with missing docs is
    treated as incomplete.

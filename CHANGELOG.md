@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · chore(merge) — merge `preview` into `feat/chargen-emit-migration` (parity 16/0 → 20/0)**
+  (`testing/`; no rules/tool-logic change). Brought the emit-migration branch up to date with `preview`,
+  which had advanced with PR #131 (Live Sheet cloud-status label — auto-merged clean) and PR #136 (four
+  new engine-parity fixtures). PR #136 introduced its own CG-004/005/006 + EV-002, colliding with the IDs
+  this branch already used for the D-GH34 lock-fallback fixtures; resolved by renumbering PR #136's builds
+  to **CG-007/008/009** and its drawback-buyoff event to **EV-010** (files `git mv`d, `test_id`s and CSV
+  rows updated with "renumbered from PR #136" notes). The parity harness's one hardcoded prereq-gate
+  assertion was repointed from `CG-004` to `CG-007` so it stays on PR #136's fixture (the real browser
+  gate caught this — the node mirror did not). Harness now **20/0** (browser + node). No `DATA.version`
+  change; both fixture sets coexist.
+
 - **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 6: THE FLIP — CharGen is now event-sourced (emit-migration COMPLETE)**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Final
   chunk of the CharGen emit()-migration. `readBuild()` now returns `foldBuild(LOG)` — the event LOG is the
@@ -262,6 +273,48 @@
   line, mobile sticky bar, floating badge) to read `eco.available`. See D-GH30 in `DECISIONS.md` for the
   full write-up and the deferred long-term reconciliation, now tracked as a new NEXT roadmap item
   (`feat/ap-model-reconcile`).
+- **2026-07-09 · docs(agents) — add Supabase advisor/log check to the per-change checklist** (`AGENTS.md`;
+  no code/rules change). Step 4 of the per-change checklist now requires running the Supabase advisor
+  (`get_advisors`) and skimming recent logs (`get_logs`) after any migration/RLS/schema change, before
+  opening the PR — this project has already been bitten twice by grant/RLS drift that internal guards
+  masked (D-GH15, D-GH12). Closes roadmap item "Add Supabase advisor/log check to the per-change
+  checklist".
+- **2026-07-09 · docs(github) — add PR template with per-change checklist + review-cadence line**
+  (`.github/pull_request_template.md`, new file; `docs/PACT_ROADMAP.md`). Every new PR against this repo
+  now auto-populates with AGENTS.md's per-change checklist (parity gate, CHANGELOG/DECISIONS/sessions
+  updates, roadmap graduation, version-sync check) plus a review-cadence reminder: run `/code-review`
+  (low/medium) before merge, `/code-review ultra` specifically for PRs touching `js/engine.js` or `sql/`.
+  Closes roadmap item "A2 — PR template with review-cadence checklist".
+- **2026-07-09 · test — expand engine-parity coverage past the 5 budget/empty/over-budget fixtures** (`testing/tests/engine-parity.html`, `testing/fixtures/builds/CG-004..006-*.json`, `testing/fixtures/events/EV-002-drawback-buyoff.json`, `testing/expected/expected-results.csv`; test-coverage only — `js/engine.js`/`DATA` untouched, `DATA.version` unchanged). Audited `compute()`'s branches against the 5 existing fixtures and found no coverage of prereq-gate rejection, drawback buy-off, racial/mastery discount stacking, or multi-tradition spellcasting. Added 4 new fixtures, each captured via Node import of `js/engine.js` (the documented CLI-agent method in `docs/HOW-TO-WORK.md`) and hand-verified against the Player's Guide before pinning into the CSV: **CG-004** (expertise-without-skill + mastery-without-weapon-prof + duplicate-feature + medium-armour-without-STR-10 — all warn but stay valid, confirming gates inform rather than block), **CG-005** (a Halfling's non-pack racial trait re-priced from its 4 AP creation cost to 13 AP when bought in-play at Tier 4, plus 2-mastery ladder stacking), **CG-006** (two separate Arcane/Divine traditions each paying their own Foundation+Rank, vs. one tradition with 2 disciplines), and **EV-002** (a drawback bought then bought off at 3× cost — ends up fully absent from the folded build and its AP line, regardless of buy/buyoff event order, since `activeEvents()` pre-scans the whole log for `buyoff` entries before replay starts). Engine-parity now reports **9 passed / 0 failed**. See `docs/sessions/2026-07-09-expand-engine-parity-coverage.md` for the gap audit and the CG-003-style bespoke assertion added for CG-004.
+- **2026-07-08 · chore(skills) — `/pick-task` and `/run-task` now suggest a Haiku/Sonnet/Opus engine tier per task**
+  (`.claude/commands/pick-task.md`, `.claude/commands/run-task.md`; skill-only, no rules/code change).
+  `pick-task`'s Step 3 "Check 2" was a binary Sonnet-floor/Opus-escalation check; it's now a three-tier
+  recommendation — Haiku for tasks that came through Step 2's quick/difficulty filter (docs-only,
+  config/manifest, single-file CSS/copy, isolated obvious-cause fixes), Sonnet as the floor for a normal
+  full roadmap task, Opus only for real rework risk (engine rules logic, data-model/migration decisions,
+  cross-tool contracts, genuine architectural trade-offs). Effort stays a separate axis (default High,
+  escalate to `xhigh`/`max` only for genuinely ambiguous judgment calls). Step 4's hand-off now reports
+  the suggested engine per task and tells the user to run `/model <engine>` first if the session isn't
+  already on it, since neither skill can switch the running model itself; `run-task` restates the
+  inherited suggestion before Step 4 (enter worktree) for the same reason.
+- **2026-07-08 · fix — surface cloud/campaign status in CharGen + Live Sheet** (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; display-only, no engine/`DATA.version` change; `js/engine.js` diff is empty — parity 5/0). CharGen now shows a persistent "🔒 Local only — not connected to any cloud campaign" badge in its header, and its local, text-code house-rules feature (previously labeled "🛡 Campaign" — a naming collision with the real cloud campaign system) is relabeled "🛡 House rules code" with a clarified tooltip and modal copy. Live Sheet gains a persistent status badge next to the ☁ Cloud button, outside its dropdown, showing sign-in state and — when the loaded character has a `campaign_id` — the campaign name plus whether the DM's rules were actually fetched: "☁ Campaign: <name> — DM rules active" vs a warning "⚠ Campaign: <name> — rules unavailable" if the fetch failed or returned nothing. No enforcement/validation behavior changed (`validate()`, `cloudRuleBarred()`, the live-filter pickers are untouched); the badge only reads state `refreshCloudCampaignRules()` and the cloud-character-load handler already compute. See DECISIONS.md D-GH30. Closes the "Cloud/campaign state is invisible to players" roadmap item.
+- **2026-07-08 · docs(skills) — fold three proven worktree gotchas into `/run-task`** (`.claude/commands/run-task.md`;
+  no code/rules change). PACT sessions have independently hit and fixed three `EnterWorktree`/`preview_start`/
+  `ExitWorktree` gotchas over the past week (now indexed as H-018/H-027/H-028 in the cross-project
+  `ai-lessons-learned` repo, all three sourced from this repo's own past sessions): `EnterWorktree` can
+  silently base a new worktree on a stale branch snapshot, `preview_start` resolves `launch.json` against
+  the main repo root rather than the worktree's, and `ExitWorktree`'s "N commits will be discarded" refusal
+  can count already-pushed upstream commits pulled in by a rebase. Adds a verify-the-base check to Step 4, a
+  `preview_start`/`launch.json` caveat to Step 5, and an `ExitWorktree` refusal caveat to Step 8, so future
+  `/run-task` runs don't rediscover the same three issues from scratch. `docs/sessions/2026-07-08-worktree-gotcha-docs.md`
+  has the full context.
+- **2026-07-08 · docs — fix the recurring D-GH decision-number collision (D-GH30)** (`DECISIONS.md`,
+  `AGENTS.md`; no code/rules change). Three prior collisions (D-GH19/20, D-GH25/27, D-GH26/28) all traced to
+  computing "next number = highest + 1" from a stale local read instead of the live remote. Adds a documented
+  rule — check `origin/preview`'s live `DECISIONS.md` before claiming a new number — plus formalizes
+  renumber-on-merge as the accepted fallback if a collision still happens (the same pattern already used to
+  resolve all three prior incidents, now made explicit policy instead of an ad hoc scramble). Sourced from
+  the cross-project `ai-lessons-learned` repo's H-022 lesson (chompy78/ai-lessons-learned).
 - **2026-07-05 · docs(sessions) — record the engine module-bridge safe-subset session** (`docs/sessions/2026-07-05-engine-bridge-safe-subset.md`; no code/rules change). Covers PR #121 / D-GH26: the roadmap task's premise being wrong (three of the seven "hand-copied" symbols are signature-incompatible `LOG`-closures, DM's `MUT` diverges), the owner's choice of the safe subset (`DATA`/`compute`/`baseBuild` + Live Sheet `MUT`) over the full migration, the ES-module-deferral `engine-ready` gating gotcha, in-browser verification, and the two rebases (PR #108/#109 bootstrap conflicts + D-GH24→26 number churn, with D-GH26 turning out to be the number preview reserved for this task).
 - **2026-07-05 · docs(sessions) — record the BUILD-export/leaked-password/theme-artwork session**
   (`docs/sessions/2026-07-05-theme-artwork-and-worktree-base.md`; no code/rules change). Covers PRs

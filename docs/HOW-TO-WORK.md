@@ -66,7 +66,7 @@ behaviour won't match production.
 
 ## Verifying the engine without a browser (the gate)
 The regression gate is **`testing/tests/engine-parity.html`** — a browser page that must report
-**5 passed / 0 failed**. A CLI agent has no browser, and **there is no headless runner yet** (building one
+**9 passed / 0 failed**. A CLI agent has no browser, and **there is no headless runner yet** (building one
 is tracked as **REV-11** in the roadmap). Until then, verify the engine by importing it in **Node** (the
 engine is a clean ES module and runs under Node unchanged):
 
@@ -81,17 +81,16 @@ node -e "import('./js/engine.js').then(async m => {
   }
 });"
 ```
-Compare the numbers to the baseline in `testing/expected/expected-results.csv`. **Note:** that baseline is
-currently empty — making it real (and making the gate actually *assert*, not just "doesn't throw") is
-**REV-01**, and it should land before you trust any "5/0" elsewhere.
+Compare the numbers to the baseline in `testing/expected/expected-results.csv`.
 
 ---
 
 ## Test fixtures & expected results (how to add or update one)
 - **Fixtures** live in `testing/fixtures/`:
-  - `builds/` — CharGen flat-build JSON (`CG-001` empty, `CG-002` valid-50ap, `CG-003` over-budget)
+  - `builds/` — CharGen flat-build JSON (`CG-001` empty, `CG-002` valid-50ap, `CG-003` over-budget,
+    `CG-004` prereq-gate rejection, `CG-005` racial/mastery discount, `CG-006` multi-tradition spellcasting)
   - `live-sheets/` — Live Sheet event logs (`LS-001` clean export)
-  - `events/` — event-sourcing cases (`EV-001` award-and-purchase)
+  - `events/` — event-sourcing cases (`EV-001` award-and-purchase, `EV-002` drawback buy-off)
 - **Expected output** is `testing/expected/expected-results.csv`, one row per fixture. Columns:
   `test_id, test_group, fixture, legacy_ap_total, new_engine_ap_total, legacy_warnings,
   new_engine_warnings, legacy_valid, new_engine_valid, pass, notes`.
@@ -111,7 +110,7 @@ ever do it by hand:
 1. **Branch:** `git checkout -b feat/<short-slug>` (one task per branch; use `type/slug` — `feat/`, `fix/`, `docs/`).
 2. **Paste one task** from `docs/PACT_ROADMAP.md`. No need to re-describe the architecture — `AGENTS.md` is the standing context.
 3. **Review the diff** the agent proposes; accept or push back (`/code-review` for an adversarial pass).
-4. **Verify:** run the gate (browser page, or the headless Node check above) → expect **5 passed / 0 failed**.
+4. **Verify:** run the gate (browser page, or the headless Node check above) → expect **9 passed / 0 failed**.
 5. **Log it:** confirm `CHANGELOG.md` is updated (+ `DECISIONS.md` / a `docs/sessions/` note if it applies);
    graduate the task out of the roadmap into the changelog if it's done.
 6. **Commit** as `type(scope): summary`, open a PR, merge → GitHub Pages redeploys.

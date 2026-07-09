@@ -234,6 +234,63 @@
   design) is intentionally deferred — see the new NEXT roadmap item.
 - **Status:** DONE for the display fix. The long-term engine-vs-ledger reconciliation is open — tracked in
   `docs/PACT_ROADMAP.md` NEXT.
+## D-GH30 · Cloud/campaign status badge reads existing sync-ready state — no new cloud/auth plumbing
+- **Context:** the "Cloud/campaign state is invisible to players" roadmap task needed Live Sheet to show a
+  persistent sign-in + campaign-rules-fetch-status badge outside the ☁ Cloud dropdown. This was picked and
+  built while another session was concurrently on `feat/engine-bridge-all-tools`, actively migrating
+  `activeEvents`/`economy`/`foldBuild` (and touching the tools' bootstrap/module-bridge code) across all
+  three tools — the same files this task needed to touch.
+- **Options considered:** (A) add a dedicated status-tracking module/service with its own auth/campaign
+  polling; (B) derive the badge purely from state the existing `sync-ready` closure already computes
+  (`_session` from `A.onAuthChange`/`A.currentSession()`, campaign name + fetch outcome from the existing
+  `refreshCloudCampaignRules()` and the cloud-load-btn handler), adding only two new local variables
+  (`_campaignName`, `_rulesStatus`) and a `renderCloudStatusBadge()` call at their existing update sites.
+- **Decision:** (B). No new fetches, no new globals beyond the two closure-local display variables, and
+  zero edits to `js/engine.js`/`js/auth.js`/`js/sync.js`/`js/campaign.js` or the module-bridge bootstrap
+  block itself — only the pre-existing `sync-ready` listener body and static header/toolbar markup in
+  `tools/PACT-CharGen-Webtool.html`/`tools/PACT-Live-Char-Sheet.html` changed.
+- **Why:** keeps this a strictly additive, display-only diff with minimal surface overlap against the
+  concurrently in-flight engine-bridge migration, so both branches rebase cleanly against `preview`
+  regardless of merge order. (A) was rejected as unnecessary duplication of state `refreshCloudCampaignRules()`
+  already tracks, and as a larger, riskier diff for a display-only task.
+- **Status:** DONE. If a future bridge migration changes how `_cloudCampaignRules`/campaign data is
+  fetched, `renderCloudStatusBadge()`'s two call sites (`refreshCloudCampaignRules()` and the cloud-load
+  button handler in `tools/PACT-Live-Char-Sheet.html`) are the only places that need updating.
+## D-GH30 · D-GH numbering: verify against the live remote before claiming, and treat renumber-on-merge as the accepted collision fallback
+- **Context:** three separate D-GH decision-number collisions have already happened — D-GH19/D-GH20,
+  D-GH25/D-GH27, D-GH26/D-GH28 — each because a session computed "next number = highest + 1" from a local
+  snapshot read earlier in the session, then a concurrent session independently claimed the same number
+  before either landed. Squash-merges hide the collision (git auto-merges the duplicate header cleanly, no
+  conflict), so it's only ever caught by a human/agent noticing after the fact. This matches a general
+  lesson now indexed in the cross-project `ai-lessons-learned` repo (H-022): "highest + 1" IDs computed from
+  a local snapshot collide under concurrency — check against live remote state, or accept
+  renumber-on-merge as policy.
+- **Options considered:** (A) leave the convention as-is and keep fixing collisions ad hoc after they're
+  noticed; (B) switch to a non-colliding ID scheme (date-suffixed or UUID) for all future entries; (C) keep
+  the sequential `D-GH<N>` format — it's cross-referenced across `AGENTS.md`, the roadmap, and ~30 existing
+  entries, so renumbering the scheme would be disruptive for no real gain — but (i) require checking the
+  **live** remote `DECISIONS.md` immediately before claiming the next number, not a stale local read from
+  earlier in the session, and (ii) explicitly document renumber-on-merge-collision as the accepted fallback
+  rather than an ad hoc scramble each time it happens.
+- **Decision:** (C). Before claiming a new `D-GH<N>` number, fetch the live default branch and re-derive the
+  highest in-use number directly from it, e.g.:
+  `git fetch origin preview && git show origin/preview:DECISIONS.md | grep -oE 'D-GH[0-9]+' | sort -t H -k2 -n -u | tail -1`
+  — not from an earlier read in the session. If a collision still happens after merge (two sessions claimed
+  the same number before either pushed — the live check narrows this window but can't fully close it), the
+  fix is: keep the earlier-merged entry's number, renumber the later one to the next free number, and add an
+  addendum note under the renumbered entry (the exact pattern already used for all three prior collisions) —
+  no debate needed, this is now expected, documented behavior. Recorded in `AGENTS.md`'s "Multiple sessions"
+  section.
+- **Why:** (A) keeps paying the same recurring cost with no fix. (B) was rejected — the sequential format is
+  cross-referenced by dozens of existing entries, the roadmap, and `AGENTS.md`; swapping formats doesn't
+  eliminate the underlying race (a fresh scheme still needs a live check to avoid *other* kinds of drift) and
+  adds churn for no proportionate benefit given collisions are rare (3 in 29 entries) and cheap to resolve
+  post-hoc once the fallback is a known, documented step rather than a fire drill. (C) fixes the actual root
+  cause named in every prior collision's addendum — a stale, non-live number check — while keeping the
+  fallback that's already been proven to work three times.
+- **Status:** DONE.
+
+---
 
 ## D-GH29 · M365 Copilot is used only as a cold reviewer of self-contained plans — never as a repo-aware assistant
 - **Context:** the project owner wanted to cut Claude Code token usage by routing project/doc review
