@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk D: Undo/Redo UI + keyboard shortcuts (Step 4 COMPLETE)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` **20/0**). Final
+  chunk: `↶ Undo` / `↷ Redo` buttons in the desktop header cluster and the mobile nav, enabled/disabled from
+  live `HIST`/`REDO` depth (refreshed every `render()`, with step-count tooltips). Keyboard: Ctrl/Cmd-Z undo,
+  Ctrl/Cmd-Shift-Z or Ctrl-Y redo — while actively typing in a text field (an open coalescing group) Ctrl-Z
+  is left to the browser's native text undo; once the field seals it drives the app history. Verified in a
+  real browser 13/13 (V6): boot-disabled state, enable/disable transitions across edit→undo→redo, all three
+  shortcuts, mid-edit native-undo preservation, typing undisrupted; engine-parity harness re-run **20/0**.
+  With this, **CharGen Step 4 is complete** — CharGen has trustworthy snapshot-based undo/redo and persists
+  as an event log, matching the Live Sheet.
+
 - **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk C: event-log persistence `{schema,rules,name,budget,LOG,SEQ,id}`**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` stays 20/0). CharGen
   now saves and autosaves in the Live-Sheet-style event-log shape (schema tag `pact-chargen/1`) — a character

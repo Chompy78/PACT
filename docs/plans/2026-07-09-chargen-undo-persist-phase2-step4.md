@@ -1,6 +1,14 @@
 # Phase 2 Step 4 — CharGen undo/redo + event-log persistence (plan)
 
-> **Status:** REVIEWED — two cold reviews folded in (see *Review reconciliation* below); ready to implement.
+> **Status:** DONE — all four chunks (A–D) implemented, browser-verified, and merged to the branch.
+> **Implementation outcome:** Chunks A/B/C/D verified in Chromium at 16/16, 13/13, 15/15, 13/13 (V1–V8);
+> engine-parity 20/0. Two bugs surfaced and fixed during implementation: (1) a latent randomize-aliasing
+> defect — `readBuild()` returns nested arrays aliasing the LOG payloads, so `randomizeRoll` mutated the
+> live LOG (fixed by deep-cloning the working build); (2) the `size` field does not round-trip through
+> `applyBuild`'s DOM (it's compute-managed and parked in a hidden control), so a native CharGen file load now
+> reinstates the **authoritative saved LOG** verbatim (`_cgApplyEnvelope`) instead of trusting the DOM
+> re-derivation — undo keeps the DOM-rebuild default per D5. The D5 `LOG=f.log`-for-undo fallback was **not**
+> needed (V2/V7 passed with the DOM-rebuild default).
 > **Branch:** `feat/chargen-undo-persist` (from `preview`, post-emit-migration merge / PR #137).
 > **Scope:** `tools/PACT-CharGen-Webtool.html` only. No `js/engine.js` change, no `DATA.version` bump.
 > **Prereq (DONE):** Step 3 — CharGen is event-sourced; `readBuild() = foldBuild(LOG)` with `name`/`budget`

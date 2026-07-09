@@ -390,6 +390,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .gridck label.ck:has(> input:disabled) { opacity: 0.5; cursor: default; }
 </style></head><body>
 <div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.107</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" title="CharGen only saves to this browser's local storage — no sign-in, no cloud sync, no cloud campaign. Use the Live Sheet to join a DM's cloud campaign.">🔒 Local only — not connected to any cloud campaign</span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
+<button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
+<button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
 <button class="btn ghost" onclick="loadViaPicker()">📂 Load</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -400,7 +402,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
 <button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){resetBuild();}">↺ Reset</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
-<div class="hd-mobnav"><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){resetBuild();}">↺ Reset</button><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
+<div class="hd-mobnav"><button class="btn ghost" id="undoBtnM" onclick="undo()" title="Undo" disabled>↶</button><button class="btn ghost" id="redoBtnM" onclick="redo()" title="Redo" disabled>↷</button><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){resetBuild();}">↺ Reset</button><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
 <div class="secnav" id="secnav"></div>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
 <div class="mobile-action-bar">
@@ -1317,6 +1319,33 @@ function _commitWholeBuildFrame(){
 function _clearHistory(){HIST.length=0;REDO.length=0;_openKey=null;_coalesceKey=null;_turnLatched=false;}
 // Reset = one undoable whole-build replace to a blank build (the confirm() stays in the button onclick).
 function resetBuild(){_fileHandle=null;_commitWholeBuildFrame();applyBuild({});}
+
+// ---- Phase 2 Step 4 (Chunk D): Undo/Redo button state + keyboard shortcuts ----
+// Refresh the four buttons (desktop + mobile) from HIST/REDO depth. Called from render() (which runs after
+// every mutation and every restore), so the buttons always reflect the live stacks.
+function _cgUpdateUndoButtons(){
+  const u=HIST.length,r=REDO.length;
+  [['undoBtn',u,'Undo','Ctrl/Cmd-Z'],['undoBtnM',u,'Undo','Ctrl/Cmd-Z'],
+   ['redoBtn',r,'Redo','Ctrl/Cmd-Shift-Z'],['redoBtnM',r,'Redo','Ctrl/Cmd-Shift-Z']].forEach(function(x){
+    const el=$(x[0]);if(!el)return;const n=x[1];el.disabled=!n;
+    el.title=n?(x[2]+' — '+n+' step'+(n>1?'s':'')+' ('+x[3]+')'):('Nothing to '+x[2].toLowerCase()+' ('+x[3]+')');
+  });
+}
+// Keyboard: Ctrl/Cmd-Z undo, Ctrl/Cmd-Shift-Z or Ctrl-Y redo. While actively typing in a text field (an
+// open coalescing group) Ctrl-Z is left to the browser's native text undo; once the field is sealed
+// (blur/idle) it drives the app history. (Any undo/redo call seals the open group first anyway.)
+function _cgWireUndoKeys(){
+  document.addEventListener('keydown',function(e){
+    if(!(e.ctrlKey||e.metaKey))return;
+    const k=(e.key||'').toLowerCase();
+    if(k==='z'&&!e.shiftKey){
+      if(_isTextish(e.target)&&_openKey!==null)return;   // still mid-edit → native text undo
+      e.preventDefault();undo();
+    }else if((k==='z'&&e.shiftKey)||k==='y'){
+      e.preventDefault();redo();
+    }
+  });
+}
 
 // ---- LOG mutation API — the ONLY functions permitted to change LOG (no handler pushes/splices/reassigns it directly) ----
 function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);render();}
@@ -2816,6 +2845,7 @@ function _cgRenderInner(){
   const mn=$('mtop-name');if(mn)mn.textContent=val('cname')||'Unnamed hero';
   const mtt=$('mtop-tot');if(mtt){mtt.textContent=r.total+' / '+r.budget+' AP';var _mb=r.remaining<0;mtt.style.background=_mb?'#f7c5c5':'#CDEAD3';mtt.style.color=_mb?'#7a0000':'#14501f';}
   const mw=$('mtop-warn');if(mw){var _hi=r.warnings.filter(w=>!isAdvisory(w)).length;mw.style.display=_hi?'inline':'none';}
+  _cgUpdateUndoButtons();
   _cgAutosave();
 }
 
@@ -3029,6 +3059,7 @@ _cgWirePatchDelegation();   // Phase 2 Step 3 (Chunk 2): Category B scalar/objec
 _cgWireRowReconcileDelegation();   // Phase 2 Step 3 (Chunk 3): Category C add-row lists -> LOG mutation API
 _cgWirePatchClassDelegation();   // Phase 2 Step 3 (Chunk 4A): customProfs/freeSub (class-keyed) -> replacePatchSlot()
 _cgWireTraditionDelegation();   // Phase 2 Step 3 (Chunk 4B): traditions/disciplines -> one TRADITIONS patch
+_cgWireUndoKeys();   // Phase 2 Step 4 (Chunk D): Ctrl/Cmd-Z undo, Ctrl/Cmd-Shift-Z / Ctrl-Y redo
 let _cgHadShared=false;
 try{_cgHadShared=!!loadFromHash();}catch(e){}
 if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}
