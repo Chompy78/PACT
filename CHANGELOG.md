@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk C: event-log persistence `{schema,rules,name,budget,LOG,SEQ,id}`**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` stays 20/0). CharGen
+  now saves and autosaves in the Live-Sheet-style event-log shape (schema tag `pact-chargen/1`) — a character
+  is stored as *what the player did*. `name`/`budget` ride along top-level (Step-5 DOM shims `foldBuild`
+  doesn't carry; omitting `budget` would reset it on reload — the F1 finding). `loadFile` now has three
+  branches checked in order: (1) schema-tagged CharGen file — keyed **solely** on the schema tag, validates
+  `LOG` is an array (errors without touching the build if not), and reinstates the **authoritative saved
+  LOG** verbatim rather than trusting applyBuild's DOM re-derivation (which diverges on compute-managed
+  fields parked in hidden controls, e.g. `size`) so save↔load is exact; (2) Live-Sheet export (untagged
+  `LOG`) — unchanged, with class/species defaults; (3) legacy flat build — unchanged, so every pre-Step-4
+  file still opens. Autosave moved to a versioned key with a one-time migration of the old flat-build key
+  (applied, rewritten in the new shape, old key deleted). Share links stay flat (URL length). Verified in a
+  real browser 15/15 (V5 + V8): envelope shape, save→reset→reload round-trip (canonical-equal, name+budget
+  preserved), legacy-flat + Live-Sheet + missing-LOG-error paths, autosave migration+delete, and
+  save→load→undo persisted stability.
+
 - **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk B: applyBuild/boot history integration (+ latent randomize-aliasing fix)**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` stays 20/0). Wires
   the Chunk-A history core into every whole-build-replacement flow so each is exactly ONE undoable step:
