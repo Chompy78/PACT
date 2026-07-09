@@ -16,6 +16,23 @@
   already on it, since neither skill can switch the running model itself; `run-task` restates the
   inherited suggestion before Step 4 (enter worktree) for the same reason.
 - **2026-07-08 · fix — surface cloud/campaign status in CharGen + Live Sheet** (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; display-only, no engine/`DATA.version` change; `js/engine.js` diff is empty — parity 5/0). CharGen now shows a persistent "🔒 Local only — not connected to any cloud campaign" badge in its header, and its local, text-code house-rules feature (previously labeled "🛡 Campaign" — a naming collision with the real cloud campaign system) is relabeled "🛡 House rules code" with a clarified tooltip and modal copy. Live Sheet gains a persistent status badge next to the ☁ Cloud button, outside its dropdown, showing sign-in state and — when the loaded character has a `campaign_id` — the campaign name plus whether the DM's rules were actually fetched: "☁ Campaign: <name> — DM rules active" vs a warning "⚠ Campaign: <name> — rules unavailable" if the fetch failed or returned nothing. No enforcement/validation behavior changed (`validate()`, `cloudRuleBarred()`, the live-filter pickers are untouched); the badge only reads state `refreshCloudCampaignRules()` and the cloud-character-load handler already compute. See DECISIONS.md D-GH30. Closes the "Cloud/campaign state is invisible to players" roadmap item.
+- **2026-07-08 · docs(skills) — fold three proven worktree gotchas into `/run-task`** (`.claude/commands/run-task.md`;
+  no code/rules change). PACT sessions have independently hit and fixed three `EnterWorktree`/`preview_start`/
+  `ExitWorktree` gotchas over the past week (now indexed as H-018/H-027/H-028 in the cross-project
+  `ai-lessons-learned` repo, all three sourced from this repo's own past sessions): `EnterWorktree` can
+  silently base a new worktree on a stale branch snapshot, `preview_start` resolves `launch.json` against
+  the main repo root rather than the worktree's, and `ExitWorktree`'s "N commits will be discarded" refusal
+  can count already-pushed upstream commits pulled in by a rebase. Adds a verify-the-base check to Step 4, a
+  `preview_start`/`launch.json` caveat to Step 5, and an `ExitWorktree` refusal caveat to Step 8, so future
+  `/run-task` runs don't rediscover the same three issues from scratch. `docs/sessions/2026-07-08-worktree-gotcha-docs.md`
+  has the full context.
+- **2026-07-08 · docs — fix the recurring D-GH decision-number collision (D-GH30)** (`DECISIONS.md`,
+  `AGENTS.md`; no code/rules change). Three prior collisions (D-GH19/20, D-GH25/27, D-GH26/28) all traced to
+  computing "next number = highest + 1" from a stale local read instead of the live remote. Adds a documented
+  rule — check `origin/preview`'s live `DECISIONS.md` before claiming a new number — plus formalizes
+  renumber-on-merge as the accepted fallback if a collision still happens (the same pattern already used to
+  resolve all three prior incidents, now made explicit policy instead of an ad hoc scramble). Sourced from
+  the cross-project `ai-lessons-learned` repo's H-022 lesson (chompy78/ai-lessons-learned).
 - **2026-07-05 · docs(sessions) — record the engine module-bridge safe-subset session** (`docs/sessions/2026-07-05-engine-bridge-safe-subset.md`; no code/rules change). Covers PR #121 / D-GH26: the roadmap task's premise being wrong (three of the seven "hand-copied" symbols are signature-incompatible `LOG`-closures, DM's `MUT` diverges), the owner's choice of the safe subset (`DATA`/`compute`/`baseBuild` + Live Sheet `MUT`) over the full migration, the ES-module-deferral `engine-ready` gating gotcha, in-browser verification, and the two rebases (PR #108/#109 bootstrap conflicts + D-GH24→26 number churn, with D-GH26 turning out to be the number preview reserved for this task).
 - **2026-07-05 · docs(sessions) — record the BUILD-export/leaked-password/theme-artwork session**
   (`docs/sessions/2026-07-05-theme-artwork-and-worktree-base.md`; no code/rules change). Covers PRs
