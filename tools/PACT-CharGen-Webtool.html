@@ -1130,7 +1130,7 @@ function addTrad(){
     '<select class="trad-name">'+selOpts(DATA.traditions.filter(t=>t!=='(none)'),'Arcane')+'</select>'+
     '&nbsp;Rank <select class="trad-rank">'+numOpts(0,9,0)+'</select>'+
     '<button class="btn ghost" type="button" onclick="addDisc(this)">+ discipline</button>'+
-    '<button class="btn x" type="button" onclick="this.closest(\'.tcard\').remove();render()">✕ tradition</button>'+
+    '<button class="btn x" type="button" onclick="_cgRemoveTradCard(this)">✕ tradition</button>'+
     '<span class="price trad-cost" style="margin-left:auto"></span></div>'+
     '<div class="trad-breakdown" style="font-size:11px;color:var(--grey);margin:2px 0 4px"></div>'+
     '<div class="disc-box"></div>';
@@ -1154,7 +1154,7 @@ function addDisc(btn){
   d.innerHTML='<div class="row">Discipline <select class="disc-name"><option>(none)</option>'+selOpts(opts,opts[0])+'</select>'+
     '&nbsp;<label class="ck"><input type="checkbox" class="disc-bound"> Magically Bound (+2 AP gain · −1 AP on this discipline’s spells)</label>'+
     '&nbsp;cantrips <select class="disc-cant">'+sopt(12)+'</select>'+
-    '<button class="btn x" type="button" onclick="this.closest(\'.dcard\').remove();render()">✕</button>'+
+    '<button class="btn x" type="button" onclick="_cgRemoveDiscCard(this)">✕</button>'+
     '<span class="price disc-cost" style="margin-left:auto"></span></div>'+
     '<div class="hint disc-cast" style="margin:-2px 0 4px"></div>'+
     '<div class="warlockonly" style="display:none">'+
@@ -1167,7 +1167,13 @@ function addDisc(btn){
     grid+
     '<div class="disc-breakdown" style="font-size:11px;color:var(--grey);margin-top:3px"></div>';
   d.addEventListener('input',render);d.addEventListener('change',render);
-  card.querySelector('.disc-box').appendChild(d);render();
+  card.querySelector('.disc-box').appendChild(d);
+  // Phase 2 Step 3 (Chunk 4B): a new discipline card fires no input/change, so the tradition delegation
+  // never sees it — nudge the TRADITIONS slot. addTrad() ends by calling addDisc(), so this single nudge
+  // covers both "+ tradition" and "+ discipline". (typeof guard: addDisc runs during applyBuild's
+  // tradition rebuild, which under Option A is harmless — boot re-seeds LOG afterward.)
+  if(typeof _cgSyncPatchSlot==='function')_cgSyncPatchSlot(PATCH_SLOTS.TRADITIONS);
+  render();
 }
 
 // ---- Phase 2 Step 3 (Chunk 0): CharGen-local event-sourcing scaffolding ----
@@ -1517,6 +1523,12 @@ function _cgSlotPatch(slot,dom){
     case PATCH_SLOTS.INNATE: return {innate:dom.innate};
     case PATCH_SLOTS.CUSTOM_PROFS: return {customProfs:dom.customProfs};   // Chunk 4A
     case PATCH_SLOTS.FREE_SUB: return {freeSub:dom.freeSub};               // Chunk 4A
+    // Chunk 4B: the WHOLE traditions array as one coalescing patch (never granular found/rank/cantrip/
+    // slot/known/dbound events — the plan's hard LOG-invariant #7). Deliberately carries `traditions`
+    // ONLY, NOT `dabblerCantrips`: even though _buildEventBurst's boot 'Spellcasting' patch bundles both,
+    // dabblerCantrips is already exclusively owned by the MISC slot (Chunk 2). Each field must live in
+    // exactly one slot or fold order would decide its value — so TRADITIONS never writes dabblerCantrips.
+    case PATCH_SLOTS.TRADITIONS: return {traditions:dom.traditions};
     default: return null;
   }
 }
@@ -1531,6 +1543,7 @@ const _CG_SLOT_LABEL=(function(){const m={};
   m[PATCH_SLOTS.HOUSE_RULES]='DM customisations';m[PATCH_SLOTS.APPEARANCE]='Appearance & description';
   m[PATCH_SLOTS.INNATE]='Innate spells';
   m[PATCH_SLOTS.CUSTOM_PROFS]='Tools & instruments';m[PATCH_SLOTS.FREE_SUB]='Subclasses';   // Chunk 4A
+  m[PATCH_SLOTS.TRADITIONS]='Spellcasting';   // Chunk 4B
   return m;})();
 
 // ---- Phase 2 Step 3 (Chunk 4A): shared patch-slot sync primitive (hardening) ----
@@ -1610,6 +1623,38 @@ function _cgWirePatchClassDelegation(){
     _cgSyncPatchSlot(PATCH_CLASS_SLOT[cls]);
   };
   form.addEventListener('input',watch);form.addEventListener('change',watch);
+}
+
+// ---- Phase 2 Step 3 (Chunk 4B): traditions/disciplines editor → one coalescing TRADITIONS patch ----
+// The riskiest chunk (its own rollback boundary). Every tradition/discipline control lives inside a
+// `.tcard` and carries no id, so no earlier delegation (id-keyed patch, checklist, reconcile, class-keyed
+// patch) touches it — this closest('.tcard') delegation is the sole handler. On ANY edit inside a card it
+// re-serialises the whole traditions array into a single PATCH_SLOTS.TRADITIONS patch via the hardened
+// no-op-skip _cgSyncPatchSlot. It NEVER emits a granular found/rank/cantrip/slot/known/dbound event
+// (LOG-invariant #7, actively checked by assertNoLiveIndexedTraditionEvents in render()'s shadow block).
+function _cgWireTraditionDelegation(){
+  const form=$('form');if(!form)return;
+  const watch=function(e){
+    const el=e.target;if(!el||!el.closest)return;
+    if(!el.closest('.tcard'))return;
+    _cgSyncPatchSlot(PATCH_SLOTS.TRADITIONS);
+  };
+  form.addEventListener('input',watch);form.addEventListener('change',watch);
+}
+// Tradition / discipline card removal (previously inline onclick="…remove();render()"): the remove
+// fires no input/change event, so the delegation above never sees it — nudge the TRADITIONS slot
+// explicitly, then render(). render() is kept unconditional (matching the original) so the visible list
+// updates even if _cgSyncPatchSlot's no-op-skip returns without rendering (it won't here — removing a
+// card always changes dom.traditions — but keep it defensive and behaviour-identical to the old inline).
+function _cgRemoveTradCard(btn){
+  const c=btn&&btn.closest&&btn.closest('.tcard');if(c)c.remove();
+  if(typeof _cgSyncPatchSlot==='function')_cgSyncPatchSlot(PATCH_SLOTS.TRADITIONS);
+  render();
+}
+function _cgRemoveDiscCard(btn){
+  const d=btn&&btn.closest&&btn.closest('.dcard');if(d)d.remove();
+  if(typeof _cgSyncPatchSlot==='function')_cgSyncPatchSlot(PATCH_SLOTS.TRADITIONS);
+  render();
 }
 
 // ---- readBuild(): Option A — stays a passthrough to the original DOM-reader until the Chunk 6 flip ----
@@ -2804,6 +2849,7 @@ _cgWireChecklistDelegation();   // Phase 2 Step 3 (Chunk 1): Category A checkbox
 _cgWirePatchDelegation();   // Phase 2 Step 3 (Chunk 2): Category B scalar/object fields -> replacePatchSlot()
 _cgWireRowReconcileDelegation();   // Phase 2 Step 3 (Chunk 3): Category C add-row lists -> LOG mutation API
 _cgWirePatchClassDelegation();   // Phase 2 Step 3 (Chunk 4A): customProfs/freeSub (class-keyed) -> replacePatchSlot()
+_cgWireTraditionDelegation();   // Phase 2 Step 3 (Chunk 4B): traditions/disciplines -> one TRADITIONS patch
 let _cgHadShared=false;
 try{_cgHadShared=!!loadFromHash();}catch(e){}
 if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}

@@ -3,7 +3,7 @@
 ## Status
 **Cold-reviewed and amended.** Reviewer approved the core design (`user action → CharGen-local LOG
 mutation helper → LOG changes → foldBuild(LOG) → render from folded build`) and requested 18 amendments,
-all folded in below. **Chunks 0, 1, 2, 3, and 4A are DONE** (see "Chunk log" at the bottom); Chunks 4B–6 remain.
+all folded in below. **Chunks 0, 1, 2, 3, 4A, and 4B are DONE** (see "Chunk log" at the bottom); Chunks 5–6 remain.
 
 ## Chunk log
 
@@ -151,7 +151,28 @@ all folded in below. **Chunks 0, 1, 2, 3, and 4A are DONE** (see "Chunk log" at 
   Independently reviewed (8/8 checks passed, no fixes needed). A comprehensive mixed-editing test (fields
   across Categories A/B/C/4A + unlockclass) confirmed DOM and `foldBuild(LOG)` fully agree on all fields
   and total AP afterward. Full regression suite green throughout; `engine-parity.html` 16/0.
-- Chunks 4B–6: not started.
+- **Chunk 4B — DONE (2026-07-09).** The riskiest chunk (its own rollback boundary), converting the
+  traditions/disciplines editor to a single coalescing `PATCH_SLOTS.TRADITIONS` patch. Never emits a
+  granular indexed event (`found`/`rank`/`cantrip`/`slot`/`known`/`dbound`) — the hard LOG-invariant #7,
+  actively confirmed by `assertNoLiveIndexedTraditionEvents` in `render()`'s shadow block and by a direct
+  "zero indexed events in LOG" assertion in the test. `_cgSlotPatch`'s TRADITIONS case returns
+  `{traditions: dom.traditions}` **only** — deliberately NOT `dabblerCantrips`: even though the boot-burst
+  `_buildEventBurst` bundles both in its 'Spellcasting' patch, `dabblerCantrips` is already exclusively
+  owned by the MISC slot (Chunk 2), and a field in two slots would be fold-order-dependent. Verified
+  directly (interleaved dabbler/tradition edits stay deterministic; the TRADITIONS slot never contains
+  `dabblerCantrips`). A `#form` `closest('.tcard')` delegation (`_cgWireTraditionDelegation`) is the sole
+  handler for every tradition control (all class-only, no `id`, none in any earlier delegation's map —
+  no double-handling). The two inline removal onclicks (`✕ tradition` / `✕` discipline) — the ONE
+  user-visible change in this chunk — were converted to `_cgRemoveTradCard`/`_cgRemoveDiscCard` helpers
+  (remove + sync + unconditional render); verified behavior-preserving and strictly more null-safe than
+  the inline code. An `addDisc` nudge (which `addTrad` always calls) covers card additions.
+  Verified: a caster-heavy golden build (2 traditions, Wizard+Warlock disciplines, pact slots, arcanum)
+  deep-matched DOM↔`foldBuild(LOG)` on the full traditions structure and total AP (242==242), with
+  exactly ONE coalesced TRADITIONS slot event despite all edits; both ✕ removal buttons verified working;
+  full regression suite green; `engine-parity.html` 16/0. Independently reviewed (9/9 checks passed,
+  including the three highest-risk — no indexed events, ✕ behavior-preservation, no double-handling — no
+  fixes needed). Also resolves the `unlockclass`-staleness note carried from Chunk 3 (fixed in 4A).
+- Chunks 5–6: not started.
 
 Builds directly on Phase 2 Steps 1–2, both DONE (see D-GH33 and the "Implementation notes" section at the
 bottom of `docs/plans/2026-07-08-chargen-livesheet-unification-phase2.md`). `js/engine.js` already exports

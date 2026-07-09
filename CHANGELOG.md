@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 4B: traditions/disciplines → one coalescing TRADITIONS patch**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Sixth
+  and riskiest chunk of the CharGen emit()-migration plan (its own rollback boundary). The whole
+  `traditions` array is serialized into a single `replacePatchSlot(PATCH_SLOTS.TRADITIONS, ...)` on every
+  edit — NEVER a granular indexed `found`/`rank`/`cantrip`/`slot`/`known`/`dbound` event (the plan's hard
+  LOG-invariant #7, actively asserted). A `closest('.tcard')` `#form` delegation handles all tradition
+  controls (all class-only, no double-handling); the two inline ✕-removal onclicks were converted to
+  helpers (the only user-visible change — verified behavior-preserving and more null-safe). The TRADITIONS
+  patch carries `traditions` only, not `dabblerCantrips` (owned by the MISC slot since Chunk 2) — verified
+  deterministic across interleaved edits. Verified with a caster-heavy golden build (Wizard+Warlock, pact
+  slots, arcanum: DOM↔`foldBuild(LOG)` deep-match, total 242==242, one coalesced slot event) and both ✕
+  buttons. Independently reviewed (9/9 checks passed, no fixes needed). No user-facing behavior change
+  (Option A) beyond the internally-equivalent removal-button refactor.
+
 - **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 4A: customProfs/freeSub wiring + patch-slot hardening + unlockclass fix**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Fifth
   chunk of the CharGen emit()-migration plan. Wires `customProfs` and `freeSub` (coalescing-patch fields
