@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · fix(chargen) — export burst dropped `size` and `wornArmour` (CharGen → Live Sheet)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` 20/0). Two gaps in
+  `_buildEventBurst`: (1) the `'Character size'` patch was **unconditionally** skipped by
+  `skipZeroCostPatch`, so a Gnome's chosen size never reached the Live Sheet (removed the size clause — it
+  now emits a 0-AP size event like the other free patches); (2) the Armour patch emitted only `armour` (the
+  proficiency object), never `wornArmour` (the equipped-armour name), even though the ARMOUR slot is
+  `{armour, wornArmour}` together — added `wornArmour` to the patch. Verified in a real browser: a
+  Gnome-Small + Leather-Armour build round-trips both fields through export→fold; a default Medium / no-worn-
+  armour build round-trips cleanly with no false data.
+
 - **2026-07-09 · chore(merge) — merge `preview` into `feat/chargen-emit-migration` (parity 16/0 → 20/0)**
   (`testing/`; no rules/tool-logic change). Brought the emit-migration branch up to date with `preview`,
   which had advanced with PR #131 (Live Sheet cloud-status label — auto-merged clean) and PR #136 (four
