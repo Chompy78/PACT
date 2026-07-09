@@ -3,7 +3,7 @@
 ## Status
 **Cold-reviewed and amended.** Reviewer approved the core design (`user action → CharGen-local LOG
 mutation helper → LOG changes → foldBuild(LOG) → render from folded build`) and requested 18 amendments,
-all folded in below. **Chunk 0 is DONE** (see "Chunk log" at the bottom); Chunks 1–6 remain.
+all folded in below. **Chunks 0 and 1 are DONE** (see "Chunk log" at the bottom); Chunks 2–6 remain.
 
 ## Chunk log
 
@@ -20,7 +20,31 @@ all folded in below. **Chunk 0 is DONE** (see "Chunk log" at the bottom); Chunks
   default value for it is empty on both sides; it's the same class of gap and is tracked with `size`.
   Neither was fixed in this chunk (would change `buildToLiveLog`'s live export behavior — out of scope
   for a "no behavior change" scaffolding chunk).
-- Chunks 1–6: not started.
+- **Chunk 1 — DONE (2026-07-09).** Category A (12 flat checkbox categories — saves/skills/expertise/
+  toolExpertise/tools/instruments/masteries/racialTraits/racialSpells/boons/drawbacks/arts) wired to
+  `emit()`/`retractFlatEvent()` via one delegated `#form` listener (`onChecklistToggle`/
+  `_cgWireChecklistDelegation`) rather than touching each of the ~12 checkbox-generation call sites
+  individually — lower "missed site" risk. Pricing is computed against `_domReadBuild()` (the current
+  full build), not `foldBuild(LOG)` — LOG is still stale for every not-yet-converted category through
+  Chunk 5, so pricing off it would use wrong context for anything context-dependent (e.g. racial-trait
+  own/cross-race pricing); confirmed by direct test that this exactly reproduces the existing hardcoded
+  drawback-cost formula. A `raceTraitLegal()` pre-emit guard (Category F) lands with this chunk; the OLD
+  DOM-side auto-correction in `annotate()` deliberately stays active in parallel until Chunk 6 (Option A —
+  DOM remains authoritative until then). Category D (`buildArtGrid`/`buildBoonGrid`/`buildDrawGrid`) also
+  converted to read membership from `foldBuild(LOG)` instead of `ckVals()`, after tracing every call site:
+  safe because `applyBuild()` always follows its own call to these three grid builders with a direct
+  `ck('artck',...)`-style DOM write that overwrites whatever the grid computed, and the AP-total displays
+  are recomputed from `compute()`'s ledger by `annotate()` afterward, not from the grid builder's own
+  calculation — verified with a real restore-flow test (`applyBuild()` with arts/boons/drawbacks preset).
+  Verified: `engine-parity.html` 16/0 unaffected; all 12 checkbox categories independently confirmed
+  matching between DOM and `foldBuild(LOG)` after interaction (via direct API + real click tests); the
+  transient shadow-diff divergence during a single click's event cascade (multiple `render()` calls firing
+  before `LOG` catches up) was traced via a `console.warn` stack-trace to confirm it fully resolves by the
+  final `emit()`-triggered render — not a bug, an artifact of the pre-existing dual `input`+`change`
+  generic listeners. Two pre-existing, unrelated bugs surfaced and NOT fixed here (output as roadmap items
+  for a human to fold in): `dmAdd()`/`dmDisableBuiltin()`/`dmRemove()`/`dmToggleDisable()` throw
+  `ReferenceError: ck is not defined` (confirmed pre-existing, not introduced by this chunk).
+- Chunks 2–6: not started.
 
 Builds directly on Phase 2 Steps 1–2, both DONE (see D-GH33 and the "Implementation notes" section at the
 bottom of `docs/plans/2026-07-08-chargen-livesheet-unification-phase2.md`). `js/engine.js` already exports

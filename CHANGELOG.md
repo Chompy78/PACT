@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 1: Category A checkboxes + Category D grids wired to LOG**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change, `DATA.version` untouched; `testing/tests/engine-parity.html`
+  → 16/0). Second chunk of the CharGen emit()-migration plan. All 12 flat checkbox categories (saves,
+  skills, expertise, tool expertise, tools, instruments, masteries, racial traits, racial spells, boons,
+  drawbacks, arts) now dual-write into `LOG` via one delegated listener (`onChecklistToggle`), in addition
+  to the existing DOM-driven display — DOM stays authoritative (Option A) so this is not a user-visible
+  change. Pricing is computed against the current full DOM-derived build, not `foldBuild(LOG)` (which is
+  still stale for every category not yet converted) — confirmed to exactly reproduce the existing
+  hardcoded drawback-cost formula via direct test. `buildArtGrid`/`buildBoonGrid`/`buildDrawGrid` (Category
+  D) converted to read checked-state from `foldBuild(LOG)` instead of `ckVals()`, after tracing every call
+  site (boot, `applyBuild`, `applyCampaignCode`, filter re-renders) to confirm the change is safe. Verified
+  with real click/restore-flow browser tests plus the parity suite; independently reviewed. Surfaced (not
+  fixed — tracked separately) a pre-existing bug: `dmAdd()`/`dmDisableBuiltin()`/`dmRemove()`/
+  `dmToggleDisable()` throw `ReferenceError: ck is not defined` when called, unrelated to this chunk.
 - **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 0: LOG mutation API + shadow-diff scaffolding (no behavior change)**
   (`tools/PACT-CharGen-Webtool.html`; no rules change, `DATA.version` untouched; `testing/tests/engine-parity.html`
   → 16/0). First chunk of the CharGen emit()-migration plan (cold-reviewed:

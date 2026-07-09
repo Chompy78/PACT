@@ -737,7 +737,12 @@ const DRAW_ORDER=['Body','Mind','Social','Magic','Wild & Story','DM custom','Oth
 function _reqSpan(txt,unmet){return txt?'<span class="req" style="font-size:9.5px;font-weight:700;white-space:nowrap;margin-left:6px;color:'+(unmet?'#C00000':'#8a8a8a')+'">'+(unmet?'⚠ ':'')+txt+'</span>':'';}
 function buildArtGrid(){
   const g=$('artgrid'); if(!g) return;
-  const chk=ckVals('artck');
+  // Phase 2 Step 3 (Chunk 1, Category D): reads current membership from LOG instead of the DOM. Safe at
+  // every call site verified (boot, applyBuild, applyCampaignCode): applyBuild() always follows this with
+  // its own direct ck('artck',...) DOM write that doesn't depend on this grid's "owned" calculation, and
+  // annotate() recomputes the AP-total display from compute()'s ledger afterward — so this function's own
+  // chk-derived AP total (below) is a throwaway initial value in those flows either way.
+  const chk=foldBuild(LOG).arts||[];
   const b=readBuild(); const hd=b.hd||1; const st=b.stats||{};
   const q=_bdFilter('artfilter');
   const BAND={0:'Sit',1:'Per-Rest',2:'At-Will',3:'Passive',4:'Premium'};
@@ -786,7 +791,7 @@ function buildArtGrid(){
 }
 
 
-function buildBoonGrid(){const g=$('boongrid');if(!g)return;const _bb=readBuild();const st=_bb.stats||{};const B=effBoons();const chk=ckVals('boonck');const q=_bdFilter('boonfilter');
+function buildBoonGrid(){const g=$('boongrid');if(!g)return;const _bb=readBuild();const st=_bb.stats||{};const B=effBoons();const chk=foldBuild(LOG).boons||[];const q=_bdFilter('boonfilter');
   const byCat={};Object.keys(B).forEach(k=>{var _bar=campBarred('boons',k);if(!_bar&&isDisabled('boons',k)&&!chk.includes(k))return;const bo=B[k];
     if(q && (k+' '+(bo.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
     (byCat[bo.cat]=byCat[bo.cat]||[]).push(k);});
@@ -798,7 +803,7 @@ function buildBoonGrid(){const g=$('boongrid');if(!g)return;const _bb=readBuild(
       return '<label class="ck'+(bo.custom?' hr':'')+(_bar?' barred':'')+'" title="'+(_bar?'Barred by the DM for this campaign':'')+'"><input type="checkbox" class="boonck" value="'+k.replace(/"/g,'&quot;')+'"'+((!_bar&&chk.includes(k))?' checked':'')+(_bar?' disabled':'')+'> '+k+'<span class="c">'+bo.ap+' AP</span>'+(bo.hd>1?'<span class="req" style="font-size:10px;color:var(--grey)"> · HD '+bo.hd+'+</span>':'')+_reqSpan(_rp.join(', '),_ru)+(bo.custom?'<span class="dmtag">DM</span>':'')+(_bar?'<span class="barredtag">barred</span>':'')+
         '<span class="dsc">'+(bo.fx||'')+'</span></label>';}).join('')+'</div>';});
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
-function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=ckVals('drawck');const q=_bdFilter('drawfilter');
+function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=foldBuild(LOG).drawbacks||[];const q=_bdFilter('drawfilter');
   const byCat={};Object.keys(D).forEach(k=>{var _bar=campBarred('draws',k);if(!_bar&&isDisabled('draws',k)&&!chk.includes(k))return;const dr=D[k];
     if(q && (k+' '+(dr.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
     (byCat[dr.cat]=byCat[dr.cat]||[]).push(k);});
@@ -1279,6 +1284,60 @@ function assertPatchSlotsKnown(log){
   const bad=(log||[]).filter(function(e){return e&&e.type==='buy'&&e.cat==='patch'&&e._slot!=null&&!known.has(e._slot);});
   if(bad.length){console.warn('[CG_SHADOW] unknown patch slot(s) found in LOG',bad);return false;}
   return true;
+}
+
+// ---- Phase 2 Step 3 (Chunk 1): Category A (flat checkbox lists) wired to the LOG mutation API ----
+// Dual-write, per the plan's Option A: the checkbox's native checked state (and therefore the visible
+// DOM, still readBuild()'s source) is untouched here — this only mirrors the same change into LOG in
+// parallel, via a single delegated listener rather than touching each checkbox's own generation site
+// (lower "missed site" risk than editing ~12 separate HTML-template call sites individually).
+// cat is priced against _domReadBuild() (the CURRENT full build), not foldBuild(LOG) — LOG is still
+// stale for every not-yet-converted category (species, stats, etc. stay frozen at their Chunk-0 boot
+// snapshot until their own chunks land), so pricing off foldBuild(LOG) here would use the wrong context
+// for anything context-dependent (e.g. racial-trait own-race/cross-race pricing). Confirmed by direct
+// test that this delta-pricing exactly reproduces the existing hardcoded drawback-cost formula.
+const CHECKLIST_CAT={racck:'racial',saveck:'save',skillck:'skill',expck:'expertise',toolexpck:'toolexpertise',
+  mastck:'mastery',toolck:'tool',instck:'instrument',boonck:'boon',drawck:'drawback',artck:'art',linspellck:'racialspell'};
+const _CG_CHECKLIST_LABEL={racial:'Species trait',save:'Saving throw',skill:'Skill',expertise:'Expertise',
+  toolexpertise:'Tool expertise',mastery:'Weapon mastery',tool:'Tool',instrument:'Instrument',boon:'Boon',
+  drawback:'Drawback',art:'Art / Technique',racialspell:'Racial spell'};
+
+// Same illegality condition annotate() already auto-corrects (line ~1851: an origin-only trait picked
+// cross-race) — added HERE as a pre-emit guard so LOG never records an illegal pick even for the brief
+// window before annotate()'s own DOM-side correction runs on the next render. The OLD annotate()
+// correction stays active (not removed) until Chunk 6 — Option A keeps DOM authoritative until then, so
+// both guards run in parallel through the transition, not a replacement of one by the other yet.
+function raceTraitLegal(v,domBuild){
+  const rr=DATA.racial[v];if(!rr)return true;
+  const own=(rr.race===domBuild.species||rr.race===domBuild.species2);
+  return !(!own&&rr.cross==null);
+}
+
+function onChecklistToggle(el){
+  const cls=[...el.classList].find(function(c){return c in CHECKLIST_CAT;});if(!cls)return;
+  const cat=CHECKLIST_CAT[cls],v=el.value;
+  const dom=_domReadBuild();
+  if(el.checked){
+    if(cat==='racial'&&!raceTraitLegal(v,dom)){el.checked=false;return;}
+    const before=compute(dom).total;
+    const cand=JSON.parse(JSON.stringify(dom));(MUT[cat]||function(){})(cand,{v:v});
+    const cost=compute(cand).total-before;
+    emit({type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v});
+  }else{
+    retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;});
+  }
+}
+
+// Delegated over #form (matches the existing generic input/change→render() listener's own delegation
+// pattern) rather than wired at each of the ~12 checkbox-generation call sites individually.
+function _cgWireChecklistDelegation(){
+  const form=$('form');if(!form)return;
+  form.addEventListener('change',function(e){
+    const el=e.target;
+    if(!el||el.type!=='checkbox')return;
+    if(![...el.classList].some(function(c){return c in CHECKLIST_CAT;}))return;
+    onChecklistToggle(el);
+  });
 }
 
 // ---- readBuild(): Option A — stays a passthrough to the original DOM-reader until the Chunk 6 flip ----
@@ -2469,6 +2528,7 @@ buildDrawGrid();
 buildDmList();
 $('form').addEventListener('input',render);$('form').addEventListener('change',render);
 _cgWireStateEventAudit();   // Phase 2 Step 3 (Chunk 0): dev-only, see LOG mutation API above
+_cgWireChecklistDelegation();   // Phase 2 Step 3 (Chunk 1): Category A checkbox lists -> LOG mutation API
 let _cgHadShared=false;
 try{_cgHadShared=!!loadFromHash();}catch(e){}
 if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}
