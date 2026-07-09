@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 4A: customProfs/freeSub wiring + patch-slot hardening + unlockclass fix**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Fifth
+  chunk of the CharGen emit()-migration plan. Wires `customProfs` and `freeSub` (coalescing-patch fields
+  whose controls carry no `id`, so Chunk 2's id-keyed delegation missed them) via a new class-keyed patch
+  delegation plus add/remove nudges. Extracts a shared `_cgSyncPatchSlot()` no-op-skip primitive (Chunk
+  2's cascade had it inlined) and refactors the Category B handlers to use it. Fixes the real
+  origin-class ↔ unlockedClasses divergence flagged by Chunk 3's review, via `_cgReconcileUnlockClass()`
+  on IDENTITY-slot changes. Independently reviewed (8/8 checks passed, no fixes needed); a comprehensive
+  mixed-editing test confirmed DOM and `foldBuild(LOG)` fully agree across all converted fields and total
+  AP. No user-facing behavior change (Option A).
+
 - **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 3: Category C add-row lists + unlockedClasses wired to LOG**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Fourth
   chunk of the CharGen emit()-migration plan. `unlockedClasses` reused Chunk 1's checkbox-per-value

@@ -3,7 +3,7 @@
 ## Status
 **Cold-reviewed and amended.** Reviewer approved the core design (`user action → CharGen-local LOG
 mutation helper → LOG changes → foldBuild(LOG) → render from folded build`) and requested 18 amendments,
-all folded in below. **Chunks 0, 1, 2, and 3 are DONE** (see "Chunk log" at the bottom); Chunks 4A–6 remain.
+all folded in below. **Chunks 0, 1, 2, 3, and 4A are DONE** (see "Chunk log" at the bottom); Chunks 4B–6 remain.
 
 ## Chunk log
 
@@ -131,7 +131,27 @@ all folded in below. **Chunks 0, 1, 2, and 3 are DONE** (see "Chunk log" at the 
   `unlockclass` LOG entry — invisible under Option A (DOM stays authoritative through Chunk 5) and
   self-heals via the existing idempotency guard on the next real toggle, but flagged here for Chunk 4A/6
   to explicitly check via the shadow-diff before the `readBuild()` flip.
-- Chunks 4A–6: not started.
+- **Chunk 4A — DONE (2026-07-09).** Coalescing-patch infrastructure hardening, three parts.
+  (1) Wired `customProfs` (`.cprofrow` text inputs, a dynamic add-row list) and `freeSub` (`.freesub`
+  `<select>`s) into `replacePatchSlot()`. Both are coalescing-patch fields but their controls carry no
+  `id`, so Chunk 2's id-keyed `_cgWirePatchDelegation` never reached them — added a class-keyed
+  delegation (`_cgWirePatchClassDelegation` + `PATCH_CLASS_SLOT`), plus explicit sync nudges in `addRow()`
+  and the `✕` removal handler for the cprof add/remove-fires-no-event gaps (same pattern Chunk 3 used).
+  Verified add/type/remove coalesces to a single `customProfs` slot event; `freeSub` tracks correctly.
+  (2) Extracted `_cgSyncPatchSlot(slot, dom)` — the "replace this slot's patch from DOM, skip if
+  byte-identical to what LOG holds" primitive that Chunk 2's STATS→ARMOUR cascade had inlined — and
+  refactored both that cascade and `onPatchFieldChange`'s main path to use it (fewer redundant LOG events;
+  behavior-equivalent under Option A, confirmed no Chunk 2 regression).
+  (3) Fixed the real `unlockclass` divergence flagged by Chunk 3's review: `unlockedClasses` depends on the
+  origin class, but changing the origin toggles no checkbox, so a class unlocked before it became the
+  origin left a stale LOG entry. Added `_cgReconcileUnlockClass()` (a full set-reconcile — retract LOG
+  entries not in DOM, emit DOM entries not in LOG), called on IDENTITY-slot changes. Verified both
+  branches directly (retract: origin→unlocked-class drops the stale entry; emit: a forced-stale LOG
+  re-syncs), no double-emit with `onChecklistToggle` (both sides guarded), no duplicates.
+  Independently reviewed (8/8 checks passed, no fixes needed). A comprehensive mixed-editing test (fields
+  across Categories A/B/C/4A + unlockclass) confirmed DOM and `foldBuild(LOG)` fully agree on all fields
+  and total AP afterward. Full regression suite green throughout; `engine-parity.html` 16/0.
+- Chunks 4B–6: not started.
 
 Builds directly on Phase 2 Steps 1–2, both DONE (see D-GH33 and the "Implementation notes" section at the
 bottom of `docs/plans/2026-07-08-chargen-livesheet-unification-phase2.md`). `js/engine.js` already exports

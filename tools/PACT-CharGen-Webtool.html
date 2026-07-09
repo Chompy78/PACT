@@ -1066,6 +1066,8 @@ function addRow(kind,preset){
     // Phase 2 Step 3 (Chunk 3): removal doesn't fire input/change, so the LOG reconciliation (which only
     // runs from those events, see _cgWireRowReconcileDelegation) needs an explicit nudge here.
     if(typeof RECONCILE_CAT!=='undefined'&&kind+'row' in RECONCILE_CAT)_cgSyncFlatCategory(RECONCILE_CAT[kind+'row']);
+    // Chunk 4A: cprof rows are a coalescing patch, not a flat category — nudge their patch slot instead.
+    if(typeof PATCH_CLASS_SLOT!=='undefined'&&kind+'row' in PATCH_CLASS_SLOT)_cgSyncPatchSlot(PATCH_CLASS_SLOT[kind+'row']);
     render();};
   line.addEventListener('input',render);line.addEventListener('change',render);
   box.appendChild(line);
@@ -1076,6 +1078,8 @@ function addRow(kind,preset){
   // input/change event, so _cgWireRowReconcileDelegation's event listener never sees a row addition.
   // Explicit nudge here, same reasoning as the '✕' removal handler above.
   if(typeof RECONCILE_CAT!=='undefined'&&kind+'row' in RECONCILE_CAT)_cgSyncFlatCategory(RECONCILE_CAT[kind+'row']);
+  // Chunk 4A: same for cprof rows (a coalescing patch slot, not a flat reconcile category).
+  if(typeof PATCH_CLASS_SLOT!=='undefined'&&kind+'row' in PATCH_CLASS_SLOT)_cgSyncPatchSlot(PATCH_CLASS_SLOT[kind+'row']);
   render();
 }
 // Remove any orphaned feature-search menus whose input has left the DOM (rebuilds, reset, import).
@@ -1511,6 +1515,8 @@ function _cgSlotPatch(slot,dom){
     case PATCH_SLOTS.HOUSE_RULES: return {houseRules:dom.houseRules};
     case PATCH_SLOTS.APPEARANCE: return {appearance:dom.appearance};
     case PATCH_SLOTS.INNATE: return {innate:dom.innate};
+    case PATCH_SLOTS.CUSTOM_PROFS: return {customProfs:dom.customProfs};   // Chunk 4A
+    case PATCH_SLOTS.FREE_SUB: return {freeSub:dom.freeSub};               // Chunk 4A
     default: return null;
   }
 }
@@ -1524,32 +1530,86 @@ const _CG_SLOT_LABEL=(function(){const m={};
   m[PATCH_SLOTS.MISC]='Martial binding & dabbler cantrips';m[PATCH_SLOTS.IDENTITY]='Identity';
   m[PATCH_SLOTS.HOUSE_RULES]='DM customisations';m[PATCH_SLOTS.APPEARANCE]='Appearance & description';
   m[PATCH_SLOTS.INNATE]='Innate spells';
+  m[PATCH_SLOTS.CUSTOM_PROFS]='Tools & instruments';m[PATCH_SLOTS.FREE_SUB]='Subclasses';   // Chunk 4A
   return m;})();
+
+// ---- Phase 2 Step 3 (Chunk 4A): shared patch-slot sync primitive (hardening) ----
+// "Replace this slot's LOG patch from the current DOM, but skip when the recomputed patch is
+// byte-identical to what LOG already holds." Chunk 2's STATS→ARMOUR cascade carried this no-op-skip
+// guard inline; extracted here so every patch-slot writer (Category B's field handler + its cascade,
+// and Chunk 4A's customProfs/freeSub wiring) shares one implementation and none of them creates a fresh
+// LOG event when nothing actually changed. Purely an efficiency/consistency guard — under Option A
+// (DOM authoritative until Chunk 6) it changes no user-visible behavior.
+function _cgSyncPatchSlot(slot,dom){
+  dom=dom||_domReadBuild();
+  const patch=_cgSlotPatch(slot,dom);if(!patch)return;
+  const current=LOG.find(function(e){return e.type==='buy'&&e.cat==='patch'&&e._slot===slot;});
+  if(current&&JSON.stringify(current.payload.patch)===JSON.stringify(patch))return;
+  replacePatchSlot(slot,patch,_CG_SLOT_LABEL[slot]||slot);
+}
+
+// ---- Phase 2 Step 3 (Chunk 4A): unlockedClasses ↔ origin-class reconciliation ----
+// unlockedClasses (a flat category, wired via onChecklistToggle in Chunk 3) depends on the origin
+// class(es): _domReadBuild() excludes any unlocked class that IS an origin class (it's free/included).
+// onChecklistToggle applies that exclusion at check-time, but a class unlocked BEFORE it became the
+// origin — or one whose origin-ness is later removed — leaves LOG out of sync, since changing the origin
+// class toggles no checkbox and so fires no retract/emit for the unlock entry. This was a real,
+// verified divergence flagged by Chunk 3's review. Reconcile the unlockclass entries against the
+// current DOM (a set diff — a class unlocks at most once) whenever the IDENTITY slot changes (it carries
+// oclass/oclass2). No overlap with onChecklistToggle: its _hasEntry guard and this function's logSet
+// guard each skip a value the other already handled.
+function _cgReconcileUnlockClass(){
+  const domVals=_domReadBuild().unlockedClasses||[];
+  const domSet=new Set(domVals);
+  const logVals=LOG.filter(function(e){return e.type==='buy'&&e.cat==='unlockclass';}).map(function(e){return e.payload.v;});
+  const logSet=new Set(logVals);
+  logVals.forEach(function(v){if(!domSet.has(v))retractFlatEvent('unlockclass',function(e){return e.payload&&e.payload.v===v;});});
+  domVals.forEach(function(v){
+    if(logSet.has(v))return;
+    const cur=_domReadBuild();const before=compute(cur).total;
+    const cand=JSON.parse(JSON.stringify(cur));(MUT.unlockclass||function(){})(cand,{v:v});
+    const cost=compute(cand).total-before;
+    emit({type:'buy',cat:'unlockclass',payload:{v:v},cost:cost,level:cur.hd,label:'Class unlocked — '+v});
+  });
+}
 
 function onPatchFieldChange(el){
   const id=el.id;if(!id)return;
   const slot=_cgPatchSlotForId(id);if(!slot)return;
-  const dom=_domReadBuild();
-  const patch=_cgSlotPatch(slot,dom);if(!patch)return;
-  replacePatchSlot(slot,patch,_CG_SLOT_LABEL[slot]||slot);
+  _cgSyncPatchSlot(slot);
   // The ARMOUR slot's STR<10 guard depends on STATS — without this cascade, dropping STR below 10 via a
   // stat field leaves LOG's ARMOUR patch stale (still showing medium/heavy=true) until the next unrelated
-  // armour edit, even though DOM's own render()-based correction already unchecked the boxes. Skipped
-  // when the recomputed patch is unchanged (e.g. editing an ability score that isn't STR, or STR staying
-  // ≥10) so this doesn't create needless no-op LOG churn on every stat edit (found by independent review).
-  if(slot===PATCH_SLOTS.STATS){
-    const dom2=_domReadBuild();
-    const armourPatch=_cgSlotPatch(PATCH_SLOTS.ARMOUR,dom2);
-    const currentArmourEvent=LOG.find(function(e){return e.type==='buy'&&e.cat==='patch'&&e._slot===PATCH_SLOTS.ARMOUR;});
-    const unchanged=currentArmourEvent&&JSON.stringify(currentArmourEvent.payload.patch)===JSON.stringify(armourPatch);
-    if(armourPatch&&!unchanged)replacePatchSlot(PATCH_SLOTS.ARMOUR,armourPatch,_CG_SLOT_LABEL[PATCH_SLOTS.ARMOUR]);
-  }
+  // armour edit, even though DOM's own render()-based correction already unchecked the boxes.
+  // _cgSyncPatchSlot's own no-op-skip means this is a no-op when the recomputed armour patch is unchanged
+  // (e.g. editing a stat that isn't STR, or STR staying ≥10) — no needless LOG churn.
+  if(slot===PATCH_SLOTS.STATS)_cgSyncPatchSlot(PATCH_SLOTS.ARMOUR);
+  // Chunk 4A: origin class lives in the IDENTITY slot and gates unlockedClasses — reconcile after it changes.
+  if(slot===PATCH_SLOTS.IDENTITY)_cgReconcileUnlockClass();
 }
 
 function _cgWirePatchDelegation(){
   const form=$('form');if(!form)return;
   const watch=function(e){if(e.target&&e.target.id)onPatchFieldChange(e.target);};
   form.addEventListener('change',watch);form.addEventListener('input',watch);
+}
+
+// ---- Phase 2 Step 3 (Chunk 4A): Category B coalescing patches reached by CLASS, not id ----
+// customProfs (`.cprofrow` text inputs, dynamic add-row) and freeSub (`.freesub` <select>s, one per
+// class) are coalescing-patch fields (single bulk patch each, per _buildEventBurst) but their controls
+// carry no `id`, so Chunk 2's id-keyed _cgWirePatchDelegation never sees them. This class-keyed
+// delegation covers genuine user edits (typing in a cprof row, choosing a free subclass); the
+// add/remove-with-no-event gaps for cprof rows are handled by explicit _cgSyncPatchSlot nudges in
+// addRow() and the '✕' handler (same pattern Chunk 3 used for the feat2/subabil/subbundle reconciler).
+const PATCH_CLASS_SLOT={cprofrow:PATCH_SLOTS.CUSTOM_PROFS,freesub:PATCH_SLOTS.FREE_SUB};
+function _cgWirePatchClassDelegation(){
+  const form=$('form');if(!form)return;
+  const watch=function(e){
+    const el=e.target;if(!el||!el.classList)return;
+    const cls=[...el.classList].find(function(c){return c in PATCH_CLASS_SLOT;});
+    if(!cls)return;
+    _cgSyncPatchSlot(PATCH_CLASS_SLOT[cls]);
+  };
+  form.addEventListener('input',watch);form.addEventListener('change',watch);
 }
 
 // ---- readBuild(): Option A — stays a passthrough to the original DOM-reader until the Chunk 6 flip ----
@@ -2743,6 +2803,7 @@ _cgWireStateEventAudit();   // Phase 2 Step 3 (Chunk 0): dev-only, see LOG mutat
 _cgWireChecklistDelegation();   // Phase 2 Step 3 (Chunk 1): Category A checkbox lists -> LOG mutation API
 _cgWirePatchDelegation();   // Phase 2 Step 3 (Chunk 2): Category B scalar/object fields -> replacePatchSlot()
 _cgWireRowReconcileDelegation();   // Phase 2 Step 3 (Chunk 3): Category C add-row lists -> LOG mutation API
+_cgWirePatchClassDelegation();   // Phase 2 Step 3 (Chunk 4A): customProfs/freeSub (class-keyed) -> replacePatchSlot()
 let _cgHadShared=false;
 try{_cgHadShared=!!loadFromHash();}catch(e){}
 if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}
