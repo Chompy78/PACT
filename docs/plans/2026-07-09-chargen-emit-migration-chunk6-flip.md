@@ -202,3 +202,20 @@ yourself unless asked. **If a section is genuinely solid, say so briefly rather 
   refactor or a false "violation"), and the verification would have been weaker — no `LEFTOVER_STATE = 0`
   audit gate, no build-projection invariant, and no positive proof that the LOG is actually authoritative
   post-flip. The review turned a plausible flip into a checkable one.
+
+## Implementation outcome (2026-07-09) — DONE
+- Implemented as the minimal flip exactly as planned. **The strengthened Category-G audit paid off
+  immediately:** it caught a real post-flip bug — `annotate()`'s dependency auto-unchecks (expertise
+  without its skill, tool-expertise without its tool, cross-race trait after a species change,
+  wrong-lineage racial spell, DM-toggle-disabled boons/drawbacks) unchecked the DOM control but never
+  retracted the LOG event, so `foldBuild(LOG)` kept counting a purchase the UI showed as unchecked.
+  Without the audit gate this would have shipped as a silent mispricing. Fixed with
+  `_cgReconcileChecklistDependents()` (retract-only, run after annotate corrects the DOM).
+- **A second independent review of the diff** (8 checks) passed all 8; verdict "correct and safe to
+  commit." Its one low-severity concern (a LOG value with no rendered checkbox could be retracted on an
+  unrelated toggle — not a regression vs. pre-flip) was closed with a precision guard: retract only when a
+  checkbox exists but is unchecked.
+- All four verification invariants confirmed in-browser: Build Projection, DOM Writer Audit
+  (`LEFTOVER_STATE = 0`), Budget Validation, and the one-time authoritative-LOG check (suppressing `emit`
+  makes a control change stop sticking — the definitive proof the flip is real). Typing undisrupted;
+  parity 16/0; full Chunk 0–5 regression green.

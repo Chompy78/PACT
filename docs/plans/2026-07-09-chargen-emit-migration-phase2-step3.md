@@ -3,7 +3,8 @@
 ## Status
 **Cold-reviewed and amended.** Reviewer approved the core design (`user action → CharGen-local LOG
 mutation helper → LOG changes → foldBuild(LOG) → render from folded build`) and requested 18 amendments,
-all folded in below. **Chunks 0, 1, 2, 3, 4A, 4B, and 5 are DONE** (see "Chunk log" at the bottom); Chunk 6 remains.
+all folded in below. **ALL chunks (0, 1, 2, 3, 4A, 4B, 5, 6) are DONE — the emit-migration is complete**
+(see "Chunk log" at the bottom).
 
 ## Chunk log
 
@@ -197,12 +198,40 @@ all folded in below. **Chunks 0, 1, 2, 3, 4A, 4B, and 5 are DONE** (see "Chunk l
   `annotate()`-purity gap on malformed input (`species2===species` / `originClass2===originClass`), where
   `annotate` resets the duplicate to `(none)` and LOG can briefly hold the stale duplicate — the general
   "annotate still corrects state" Option-A gap that Chunk 6 retires; affects invalid input only, self-heals.
-- Chunk 6: not started. **Pre-flip checklist (carried in):** (1) wire incremental `name`/`budget` editing;
-  (2) decide how the flipped `readBuild()` reattaches `budget` (award events feed `economy()`, not
-  `b.budget` — likely `{...foldBuild(LOG), budget: <sum of award amounts>}`); (3) retire `annotate()`'s
-  state-correction (the `.checked`/`.value` writes) so LOG can't hold a stale duplicate on malformed input;
-  (4) the Chunk-3-noted `unlockclass`-staleness class was already fixed in 4A; (5) run the Category G
-  programmatic-writer audit and the shadow-diff clean-sweep before flipping.
+- **Chunk 6 — DONE (2026-07-09). THE FLIP — Phase 2 Step 3 emit-migration COMPLETE.** Planned and
+  cold-reviewed separately (`docs/plans/2026-07-09-chargen-emit-migration-chunk6-flip.md` — minimal flip
+  approved, 10 findings folded in). `readBuild()` now returns `foldBuild(LOG)` with `name`/`budget` read
+  from the DOM as documented Step-3 shims (both were verified stale/absent in LOG on live edits — reading
+  the DOM is strictly more correct, and full event-sourcing of budget/awards is Step 5). The DOM stays the
+  input layer; NO full repaint was added (the rejected alternative — verified typing is undisrupted, no
+  cursor jump). The three grids route membership through `readBuild()` (finding #4). All shadow-diff/audit
+  scaffolding removed (`CG_SHADOW`, `shadowCompare`, the four `assert*`, the state-event audit, the
+  `render()` shadow block); `canonicalBuild()` retained per review. `_domReadBuild()` retained — still the
+  emit-time pricing-context reader and the load-flow resync source.
+  **The Category-G audit did its job:** it caught a real post-flip bug — `annotate()` auto-unchecks a
+  control whose prerequisite is gone (expertise without its skill, tool-expertise without its tool,
+  cross-race trait after a species change, wrong-lineage racial spell, DM-toggle-disabled boons/drawbacks)
+  via a direct `.checked=false` with no change event, so `retractFlatEvent` never fired and LOG kept the
+  now-invalid purchase — invisible under Option A, but post-flip `foldBuild(LOG)` would keep counting it
+  while the box shows unchecked. Fixed with `_cgReconcileChecklistDependents()` (retract-only, called from
+  the two dependency-invalidating handlers after their render, so annotate has already corrected the DOM;
+  independent review confirmed retract-only is sufficient, one pass suffices — the auto-unchecked
+  categories are all terminal — and it's correctly excluded from `applyBuild`/`classunlock`). A precision
+  guard (retract only when a checkbox EXISTS but is unchecked, never when no box is rendered) closes the
+  review's one low-severity concern (an imported custom item with missing houseRules is left untouched).
+  Verified: parity 16/0; both `LOG_SYNC_GUARD`s (STR<10 armour, cross-race) consistent; all four plan
+  invariants pass — **Build Projection** (`canonical(readBuild())==canonical(foldBuild(LOG)+shim)` after
+  every load), **DOM Writer Audit** (`LEFTOVER_STATE=0`), **Budget Validation**, and the one-time
+  **authoritative-LOG** check (with `emit` suppressed, a control change no longer sticks — the definitive
+  proof the LOG, not the DOM, is now the source of truth); typing undisrupted; full Chunk 0–5 regression
+  green. Independently reviewed (8/8 checks passed; verdict "correct and safe to commit").
+
+**Phase 2 Step 3 (the CharGen emit()-migration) is complete.** CharGen is now a true event-sourced view —
+a character is its `LOG`, and both CharGen and the Live Sheet are windows onto that same log. Remaining
+Phase-2 work (separate steps, not this migration): Step 4 (undo/redo, pill UI, `{LOG,SEQ,rules,id,schema}`
+persistence — note: whole-LOG replacement ops there may need targeted form-control sync, since Chunk 6
+deliberately keeps the DOM as the input layer for *ordinary* edits), Step 5 (budget-as-award + AP-award
+lock semantics — retires the two name/budget DOM shims), and the file renames.
 
 Builds directly on Phase 2 Steps 1–2, both DONE (see D-GH33 and the "Implementation notes" section at the
 bottom of `docs/plans/2026-07-08-chargen-livesheet-unification-phase2.md`). `js/engine.js` already exports

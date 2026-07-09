@@ -742,8 +742,10 @@ function buildArtGrid(){
   // its own direct ck('artck',...) DOM write that doesn't depend on this grid's "owned" calculation, and
   // annotate() recomputes the AP-total display from compute()'s ledger afterward — so this function's own
   // chk-derived AP total (below) is a throwaway initial value in those flows either way.
-  const chk=foldBuild(LOG).arts||[];
+  // Chunk 6: read membership through readBuild() (VIEW_RENDER path), not foldBuild(LOG) directly — the
+  // post-flip rule is that display paths go through readBuild() (only readBuild reattaches name/budget).
   const b=readBuild(); const hd=b.hd||1; const st=b.stats||{};
+  const chk=b.arts||[];
   const q=_bdFilter('artfilter');
   const BAND={0:'Sit',1:'Per-Rest',2:'At-Will',3:'Passive',4:'Premium'};
   const byCat={};
@@ -791,7 +793,7 @@ function buildArtGrid(){
 }
 
 
-function buildBoonGrid(){const g=$('boongrid');if(!g)return;const _bb=readBuild();const st=_bb.stats||{};const B=effBoons();const chk=foldBuild(LOG).boons||[];const q=_bdFilter('boonfilter');
+function buildBoonGrid(){const g=$('boongrid');if(!g)return;const _bb=readBuild();const st=_bb.stats||{};const B=effBoons();const chk=_bb.boons||[];const q=_bdFilter('boonfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
   const byCat={};Object.keys(B).forEach(k=>{var _bar=campBarred('boons',k);if(!_bar&&isDisabled('boons',k)&&!chk.includes(k))return;const bo=B[k];
     if(q && (k+' '+(bo.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
     (byCat[bo.cat]=byCat[bo.cat]||[]).push(k);});
@@ -803,7 +805,7 @@ function buildBoonGrid(){const g=$('boongrid');if(!g)return;const _bb=readBuild(
       return '<label class="ck'+(bo.custom?' hr':'')+(_bar?' barred':'')+'" title="'+(_bar?'Barred by the DM for this campaign':'')+'"><input type="checkbox" class="boonck" value="'+k.replace(/"/g,'&quot;')+'"'+((!_bar&&chk.includes(k))?' checked':'')+(_bar?' disabled':'')+'> '+k+'<span class="c">'+bo.ap+' AP</span>'+(bo.hd>1?'<span class="req" style="font-size:10px;color:var(--grey)"> · HD '+bo.hd+'+</span>':'')+_reqSpan(_rp.join(', '),_ru)+(bo.custom?'<span class="dmtag">DM</span>':'')+(_bar?'<span class="barredtag">barred</span>':'')+
         '<span class="dsc">'+(bo.fx||'')+'</span></label>';}).join('')+'</div>';});
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
-function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=foldBuild(LOG).drawbacks||[];const q=_bdFilter('drawfilter');
+function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=_db.drawbacks||[];const q=_bdFilter('drawfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
   const byCat={};Object.keys(D).forEach(k=>{var _bar=campBarred('draws',k);if(!_bar&&isDisabled('draws',k)&&!chk.includes(k))return;const dr=D[k];
     if(q && (k+' '+(dr.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
     (byCat[dr.cat]=byCat[dr.cat]||[]).push(k);});
@@ -1176,13 +1178,12 @@ function addDisc(btn){
   render();
 }
 
-// ---- Phase 2 Step 3 (Chunk 0): CharGen-local event-sourcing scaffolding ----
-// See docs/plans/2026-07-09-chargen-emit-migration-phase2-step3.md. This chunk adds the LOG mutation
-// API and dev-only verification scaffolding; it changes NO user-facing behavior — readBuild() still
-// returns _domReadBuild() (Option A: the flip to foldBuild(LOG) is deferred to the final cleanup
-// chunk). LOG is bootstrapped once at boot (see _cgBoot) and, until later chunks convert handlers,
-// stays a frozen snapshot of the build as it stood at load time — CG_SHADOW mode is expected to warn
-// on nearly every subsequent interaction until Chunk 1+ lands; that is expected, not a bug.
+// ---- Phase 2 Step 3: CharGen-local event-sourcing (LOG mutation API) ----
+// See docs/plans/2026-07-09-chargen-emit-migration-phase2-step3.md (and -chunk6-flip.md). As of Chunk 6
+// readBuild()=foldBuild(LOG) — LOG is the source of truth (name/budget are DOM-backed shims, see
+// readBuild). Every user action produces a LOG event through the mutation API below; the display derives
+// from foldBuild(LOG). LOG is bootstrapped at boot (see _cgBoot) and rebuilt wholesale on any whole-build
+// load via replaceWholeLogFromBuild.
 let LOG=[],SEQ=1;
 
 // Categories whose MUT mutator is a flat array push with no positional/index dependents — the only
@@ -1209,19 +1210,16 @@ const PATCH_SLOTS=Object.freeze({IDENTITY:'identity',STATS:'stats',HD_PROF:'hdPr
   FREE_SUB:'freeSub',TRADITIONS:'traditions',NAMES:'names',CAMPAIGN:'campaign',
   VIGOR:'vigor',INNATE:'innate',MISC:'misc'});
 
-// Dev-only diagnostic mode: ?cgShadow=1. Never affects normal users; only console.warns.
-const CG_SHADOW=(function(){try{return new URLSearchParams(location.search).get('cgShadow')==='1';}catch(e){return false;}})();
-
 function nextSeq(log){let max=0;(log||[]).forEach(function(e){if(e&&typeof e.seq==='number'&&e.seq>max)max=e.seq;});return max+1;}
 
 // ---- LOG mutation API — the ONLY functions permitted to change LOG (no handler pushes/splices/reassigns it directly) ----
-function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;LOG.push(ev);markStateHandled('emit');render();}
+function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;LOG.push(ev);render();}
 
 function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
   const i=LOG.findIndex(function(e){return e.type==='buy'&&e.cat===cat&&predicate(e);});
   if(i===-1)return;
-  LOG.splice(i,1);markStateHandled('retractFlatEvent');render();
+  LOG.splice(i,1);render();
 }
 
 function replacePatchSlot(slot,patch,label){
@@ -1234,29 +1232,18 @@ function replacePatchSlot(slot,patch,label){
   const after=compute(foldBuild(candidate)).total;
   const newEvent={type:'buy',cat:'patch',payload:{patch:patch},cost:after-before,label:label,_slot:slot,
     seq:SEQ++,ts:Date.now(),rules:DATA.version};
-  LOG=withoutSlot.concat([newEvent]);markStateHandled('replacePatchSlot');render();
+  LOG=withoutSlot.concat([newEvent]);render();
 }
 
 function replaceWholeLogFromBuild(b,opts){
-  LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);markStateHandled('replaceWholeLogFromBuild');render();
+  LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);render();
 }
 
-// ---- temporary state-event audit (Chunks 0-5 only; removed in Chunk 6) ----
-// Flags whether the LOG-mutation API was invoked in response to the most recent user-facing input/change
-// event. Until later chunks convert handlers, this is expected to warn on nearly everything.
-let CG_STATE_EVENT_HANDLED=false;
-function markStateHandled(reason){CG_STATE_EVENT_HANDLED=reason||true;}
-function _cgWireStateEventAudit(){
-  const form=$('form');if(!form)return;
-  const watch=function(e){CG_STATE_EVENT_HANDLED=false;setTimeout(function(){
-    if(CG_SHADOW&&!CG_STATE_EVENT_HANDLED)console.warn('[CG_SHADOW] input/change on',e.target,'was not accounted for by emit()/retractFlatEvent()/replacePatchSlot()/replaceWholeLogFromBuild()');
-  },0);};
-  form.addEventListener('input',watch,true);form.addEventListener('change',watch,true);
-}
-
-// ---- shadow-diff (dev-only): compares the DOM-derived build against foldBuild(LOG), before AND after
-// each render — a post-render-only check can miss "control changes, no event emitted, DOM snaps back on
-// repaint" since both sides would agree again once the repaint completes.
+// ---- canonicalBuild(): retained past the Chunk-6 flip (the shadow-diff scaffolding around it is gone).
+// Normalises a build for equality comparison — sorts logically-unordered arrays, strips engine-only
+// bookkeeping fields, and treats missing/null/''/[]/all-zero as equivalent. Kept because it's small,
+// generic, and reused by save/load + migration regression checks (see the Chunk 6 plan's verification
+// invariants); it has no runtime cost unless called.
 const _CG_UNORDERED_FIELDS=['saves','skills','expertise','toolExpertise','tools','instruments','masteries',
   'racialTraits','racialSpells','boons','drawbacks','arts','features','subAbilities','subSpellBundles','unlockedClasses'];
 // Fields _domReadBuild() never produces (engine-only replay bookkeeping) or that legitimately take an
@@ -1276,44 +1263,6 @@ function canonicalBuild(b){
   _CG_IGNORE_FIELDS.forEach(function(k){delete c[k];});
   Object.keys(c).forEach(function(k){if(_cgIsEmptyish(c[k]))delete c[k];});   // normalise missing/null/''/[]/all-zero as equivalent
   return c;
-}
-function shadowCompare(phase,fromDom,fromLog){
-  if(!CG_SHADOW)return;
-  if(JSON.stringify(fromDom)===JSON.stringify(fromLog))return;
-  const keys=new Set(Object.keys(fromDom||{}).concat(Object.keys(fromLog||{})));
-  const diffs=[];keys.forEach(function(k){if(JSON.stringify(fromDom&&fromDom[k])!==JSON.stringify(fromLog&&fromLog[k]))diffs.push(k);});
-  console.warn('[CG_SHADOW] '+phase+' divergence in fields:',diffs,{fromDom:fromDom,fromLog:fromLog});
-  try{const ta=compute(fromDom).total,tb=compute(fromLog).total;if(ta!==tb)console.warn('[CG_SHADOW] '+phase+' computed total mismatch: DOM='+ta+' LOG='+tb);}catch(e){}
-}
-
-// ---- dev assertions (guardrails only) — must not break legacy import/export paths that legitimately
-// use the older found/rank/cantrip/slot/known/dbound vocabulary; these target CharGen's own live-edit
-// handlers, not the mere presence of such events in an imported LOG.
-function assertFoldDoesNotMutateLog(log){
-  if(!CG_SHADOW)return true;
-  try{const before=JSON.stringify(log);foldBuild(log);
-    if(JSON.stringify(log)!==before){console.warn('[CG_SHADOW] LOG invariant #2 violated: foldBuild(LOG) mutated LOG.');return false;}
-  }catch(e){console.warn('[CG_SHADOW] assertFoldDoesNotMutateLog: foldBuild threw',e);return false;}
-  return true;
-}
-function assertNoUnsafeRetracts(log){
-  // Best-effort secondary sweep confirming LOG still replays cleanly (LOG invariant #3). The real
-  // enforcement point is retractFlatEvent()'s RETRACTABLE_FLAT_CATS throw at the API entry point.
-  if(!CG_SHADOW)return true;
-  try{foldBuild(log);return true;}catch(e){console.warn('[CG_SHADOW] assertNoUnsafeRetracts: LOG failed to replay — possible indexed-event corruption',e);return false;}
-}
-function assertNoLiveIndexedTraditionEvents(log){
-  if(!CG_SHADOW)return true;
-  const bad=(log||[]).filter(function(e){return e&&e.type==='buy'&&INDEXED_TRADITION_CATS.has(e.cat);});
-  if(bad.length){console.warn('[CG_SHADOW] LOG invariant #7 violated: live indexed tradition/discipline events found in CharGen LOG',bad);return false;}
-  return true;
-}
-function assertPatchSlotsKnown(log){
-  if(!CG_SHADOW)return true;
-  const known=new Set(Object.values(PATCH_SLOTS));
-  const bad=(log||[]).filter(function(e){return e&&e.type==='buy'&&e.cat==='patch'&&e._slot!=null&&!known.has(e._slot);});
-  if(bad.length){console.warn('[CG_SHADOW] unknown patch slot(s) found in LOG',bad);return false;}
-  return true;
 }
 
 // ---- Phase 2 Step 3 (Chunk 1): Category A (flat checkbox lists) wired to the LOG mutation API ----
@@ -1375,6 +1324,36 @@ function onChecklistToggle(el){
   }else{
     retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;});
   }
+  _cgReconcileChecklistDependents();
+}
+
+// Phase 2 Step 3 (Chunk 6): retract-only reconcile of every flat checklist category against its DOM
+// checkboxes. annotate() auto-unchecks controls whose prerequisite is gone — a cross-race racial trait
+// (species changed), a wrong-lineage racial spell (lineage changed), an expertise without its skill, a
+// tool-expertise without its tool, a boon/drawback disabled by a DM toggle — via a direct .checked=false
+// with NO change event, so retractFlatEvent never fired and LOG kept the now-invalid purchase. Under
+// Option A that was invisible (the DOM was authoritative); post-flip readBuild()=foldBuild(LOG) would keep
+// COUNTING it while the UI shows it unchecked. This runs from the two handlers that can invalidate a
+// dependency (onChecklistToggle, onPatchFieldChange) AFTER their own render — so annotate has already
+// corrected the DOM — and syncs LOG down to that corrected checked-state. Retract-only: annotate never
+// auto-CHECKS a gameplay control (the armour heavy→medium→light chain is captured by the ARMOUR delegation
+// instead, verified consistent). Not called during applyBuild (which sets .checked directly, fires neither
+// handler, and rebuilds LOG wholesale at its end), so it can't prematurely retract mid-load.
+function _cgReconcileChecklistDependents(){
+  Object.keys(CHECKLIST_CAT).forEach(function(cls){
+    if(cls==='classunlock')return;   // origin-gated, handled by _cgReconcileUnlockClass (value is dataset.cls, not el.value)
+    const cat=CHECKLIST_CAT[cls];
+    const nodes=[...document.querySelectorAll('.'+cls)];
+    // Retract ONLY a value whose checkbox EXISTS but is now unchecked (annotate's dependency auto-uncheck).
+    // A LOG value with NO rendered checkbox — e.g. an imported custom boon whose houseRules weren't carried
+    // into this session, so buildBoonGrid renders no box for it — is left untouched, so an unrelated toggle
+    // can't silently drop it (a precision guard beyond the divergence fix; flagged by independent review).
+    const rendered=new Set(nodes.map(function(e){return e.value;}));
+    const checked=new Set(nodes.filter(function(e){return e.checked;}).map(function(e){return e.value;}));
+    LOG.filter(function(e){return e.type==='buy'&&e.cat===cat;}).map(function(e){return e.payload.v;}).forEach(function(v){
+      if(rendered.has(v)&&!checked.has(v))retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;});
+    });
+  });
 }
 
 // Delegated over #form (matches the existing generic input/change→render() listener's own delegation
@@ -1598,6 +1577,9 @@ function onPatchFieldChange(el){
   if(slot===PATCH_SLOTS.STATS)_cgSyncPatchSlot(PATCH_SLOTS.ARMOUR);
   // Chunk 4A: origin class lives in the IDENTITY slot and gates unlockedClasses — reconcile after it changes.
   if(slot===PATCH_SLOTS.IDENTITY)_cgReconcileUnlockClass();
+  // Chunk 6: IDENTITY (species/lineage) gates cross-race traits + racial spells; HOUSE_RULES (DM toggles)
+  // can disable+clear boons/drawbacks — annotate unchecks the invalidated controls, so sync LOG down to it.
+  if(slot===PATCH_SLOTS.IDENTITY||slot===PATCH_SLOTS.HOUSE_RULES)_cgReconcileChecklistDependents();
 }
 
 function _cgWirePatchDelegation(){
@@ -1631,7 +1613,7 @@ function _cgWirePatchClassDelegation(){
 // patch) touches it — this closest('.tcard') delegation is the sole handler. On ANY edit inside a card it
 // re-serialises the whole traditions array into a single PATCH_SLOTS.TRADITIONS patch via the hardened
 // no-op-skip _cgSyncPatchSlot. It NEVER emits a granular found/rank/cantrip/slot/known/dbound event
-// (LOG-invariant #7, actively checked by assertNoLiveIndexedTraditionEvents in render()'s shadow block).
+// (LOG-invariant #7; enforced by construction — only cat:'patch' events are produced here).
 function _cgWireTraditionDelegation(){
   const form=$('form');if(!form)return;
   const watch=function(e){
@@ -1657,8 +1639,23 @@ function _cgRemoveDiscCard(btn){
   render();
 }
 
-// ---- readBuild(): Option A — stays a passthrough to the original DOM-reader until the Chunk 6 flip ----
-function readBuild(){return _domReadBuild();}
+// ---- readBuild(): Phase 2 Step 3 Chunk 6 — THE FLIP. LOG is now the source of truth. ----
+function readBuild(){
+  // Step-3 compatibility shim.
+  // Character state now comes from foldBuild(LOG).
+  //
+  // Name and budget remain DOM-backed until later migration steps:
+  // - live name edits are not yet event-sourced
+  // - budget/award-history event sourcing belongs to Step 5
+  //   (verified: foldBuild(LOG).budget is stale on live edits, and the award event is stale too — so
+  //    reading the DOM value here is strictly MORE correct than replaying the LOG for these two)
+  //
+  // Do not add additional DOM-backed build fields here.
+  const b=foldBuild(LOG);
+  b.name=val('cname');
+  b.budget=+val('budget')||DATA.level1AP;
+  return b;
+}
 
 function _domReadBuild(){
   const stats={};for(const a of ABILS)stats[a]=+val('st_'+a);
@@ -2609,18 +2606,13 @@ function buildGuide(b,r){const tips=[];
   if(r.remaining>0 && tips.length<2)tips.push('<b>'+r.remaining+' AP</b> still unspent.');
   $('guide').innerHTML=tips.length?('<ul>'+tips.map(t=>'<li>'+t+'</li>').join('')+'</ul>'):'<span class="hint">Looking solid — no suggestions right now.</span>';
 }
-// Phase 2 Step 3 (Chunk 0): render() is wrapped, not restructured — the paintFormControls/
-// paintDerivedOutputs/annotate split described in the plan's Target architecture happens naturally as
-// later chunks convert handlers; Chunk 0 only adds dev-only shadow-diff/assertion checks around the
-// existing, unmodified render body (renamed _cgRenderInner). No user-facing behavior changes here.
-function render(){
-  if(CG_SHADOW){try{shadowCompare('pre-render',canonicalBuild(_domReadBuild()),canonicalBuild(foldBuild(LOG)));}catch(e){console.warn('[CG_SHADOW] pre-render compare failed',e);}}
-  _cgRenderInner();
-  if(CG_SHADOW){
-    try{shadowCompare('post-render',canonicalBuild(_domReadBuild()),canonicalBuild(foldBuild(LOG)));}catch(e){console.warn('[CG_SHADOW] post-render compare failed',e);}
-    assertFoldDoesNotMutateLog(LOG);assertNoUnsafeRetracts(LOG);assertNoLiveIndexedTraditionEvents(LOG);assertPatchSlotsKnown(LOG);
-  }
-}
+// Phase 2 Step 3 (Chunk 6): the shadow-diff/assertion scaffolding that wrapped render() through Chunks
+// 0-5 is gone now that readBuild()=foldBuild(LOG) is the source of truth. render() is a thin pass-through
+// to _cgRenderInner (the wrapper is left in place to avoid re-touching the recursive STR<10 self-call
+// inside _cgRenderInner). _cgRenderInner's armour/cross-race DOM corrections are LOG_SYNC_GUARD writers:
+// they only make the controls reflect already-determined LOG legality; they emit no events and mutate no
+// LOG. b here is readBuild()=foldBuild(LOG)+name/budget shim.
+function render(){ _cgRenderInner(); }
 function _cgRenderInner(){
   const b=readBuild();
   {var _ci=document.getElementById('campind');if(_ci)_ci.innerHTML=(b.campaign&&b.campaign.n)?('🛡 '+String(b.campaign.n).replace(/</g,'&lt;')+' ('+((b.campaign.boons||[]).length+(b.campaign.draws||[]).length+(b.campaign.arts||[]).length)+' barred)'):'';}
@@ -2854,7 +2846,6 @@ buildArtGrid(); buildBoonGrid();
 buildDrawGrid();
 buildDmList();
 $('form').addEventListener('input',render);$('form').addEventListener('change',render);
-_cgWireStateEventAudit();   // Phase 2 Step 3 (Chunk 0): dev-only, see LOG mutation API above
 _cgWireChecklistDelegation();   // Phase 2 Step 3 (Chunk 1): Category A checkbox lists -> LOG mutation API
 _cgWirePatchDelegation();   // Phase 2 Step 3 (Chunk 2): Category B scalar/object fields -> replacePatchSlot()
 _cgWireRowReconcileDelegation();   // Phase 2 Step 3 (Chunk 3): Category C add-row lists -> LOG mutation API

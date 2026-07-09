@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 6: THE FLIP — CharGen is now event-sourced (emit-migration COMPLETE)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Final
+  chunk of the CharGen emit()-migration. `readBuild()` now returns `foldBuild(LOG)` — the event LOG is the
+  source of truth; a character *is* its LOG, and CharGen + the Live Sheet are interchangeable views over
+  it. `name`/`budget` are read from the DOM as documented Step-3 shims (full event-sourcing of
+  budget/awards is Step 5). The DOM stays the input layer (no full repaint — verified typing is
+  undisrupted). All shadow-diff/audit scaffolding removed (`canonicalBuild()` retained). The strengthened
+  Category-G audit caught a real post-flip bug — `annotate()` auto-unchecked prerequisite-invalid controls
+  (expertise without its skill, cross-race trait after a species change, etc.) without retracting the LOG
+  event, so `foldBuild(LOG)` kept counting them — fixed with `_cgReconcileChecklistDependents()`
+  (retract-only, precision-guarded). Cold-reviewed plan
+  (`docs/plans/2026-07-09-chargen-emit-migration-chunk6-flip.md`); the implementation diff independently
+  reviewed (8/8 checks passed). Verified: parity 16/0, both LOG_SYNC_GUARDs consistent, all four plan
+  invariants pass (Build Projection, LEFTOVER_STATE=0, Budget Validation, and the authoritative-LOG
+  proof — suppressing an emit makes a control change stop sticking), full Chunk 0–5 regression green.
+
 - **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 5: whole-build-replacement convergence (LOG synced after every load flow)**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Seventh
   chunk of the CharGen emit()-migration plan. Every whole-build-replacement flow (loadFile — both the
