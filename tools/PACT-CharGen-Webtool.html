@@ -1317,7 +1317,14 @@ function onChecklistToggle(el){
   const cls=[...el.classList].find(function(c){return c in CHECKLIST_CAT;});if(!cls)return;
   const cat=CHECKLIST_CAT[cls],v=el.value;
   const dom=_domReadBuild();
+  const _hasEntry=LOG.some(function(e){return e.type==='buy'&&e.cat===cat&&e.payload&&e.payload.v===v;});
   if(el.checked){
+    // idempotency guard: several pre-existing DOM-side auto-corrections (annotate()'s racial/linspell/
+    // expertise/toolexpertise/boon/drawback/art force-unchecks) set .checked=false directly without
+    // dispatching a change event, so retractFlatEvent() never runs for them — LOG can be left with a
+    // stale entry the DOM no longer reflects. Without this guard, re-checking the same box later would
+    // emit a genuine duplicate LOG entry (MUT's flat-push mutators have no dedup) instead of a no-op.
+    if(_hasEntry)return;
     if(cat==='racial'&&!raceTraitLegal(v,dom)){el.checked=false;return;}
     const before=compute(dom).total;
     const cand=JSON.parse(JSON.stringify(dom));(MUT[cat]||function(){})(cand,{v:v});

@@ -41,9 +41,25 @@ all folded in below. **Chunks 0 and 1 are DONE** (see "Chunk log" at the bottom)
   transient shadow-diff divergence during a single click's event cascade (multiple `render()` calls firing
   before `LOG` catches up) was traced via a `console.warn` stack-trace to confirm it fully resolves by the
   final `emit()`-triggered render — not a bug, an artifact of the pre-existing dual `input`+`change`
-  generic listeners. Two pre-existing, unrelated bugs surfaced and NOT fixed here (output as roadmap items
+  generic listeners. One pre-existing, unrelated bug surfaced and NOT fixed here (output as a roadmap item
   for a human to fold in): `dmAdd()`/`dmDisableBuiltin()`/`dmRemove()`/`dmToggleDisable()` throw
   `ReferenceError: ck is not defined` (confirmed pre-existing, not introduced by this chunk).
+
+  **Post-commit fix (independent review):** a second independent review of this chunk's diff (after it
+  landed) found a real, non-hypothetical bug in `onChecklistToggle`'s CHECK path: several pre-existing
+  `annotate()` DOM-side auto-corrections (racial/linspell/expertise/toolexpertise/boon/drawback/art) set
+  `.checked=false` directly without dispatching a `change` event, so `retractFlatEvent()` never runs for
+  them and `LOG` is left with a stale entry the DOM no longer reflects; re-checking the same box later
+  would then emit a genuine duplicate `LOG` entry (`MUT`'s flat-push mutators have no dedup). Fixed with an
+  idempotency guard — `onChecklistToggle` now no-ops on CHECK if `LOG` already has a matching entry for
+  that `(cat, value)` pair. Verified directly: simulated the exact bypass scenario (force-uncheck without
+  a `change` event, then a normal re-check) — before the fix this produced 2 entries, after the fix it
+  stays at 1; a normal check→uncheck→recheck cycle (all via real `change` events) still correctly cycles
+  1→0→1. Full regression suite (parity, boot, round-trip, 12-category sweep) reconfirmed green. The same
+  review flagged a minor, lower-severity ordering note in `applyCampaignCode()` (calls `render()` before
+  the three Category-D grid rebuilds, not after) — shares the same root cause but doesn't itself create
+  `LOG` duplicates (campaign-code application never emits/retracts events), so it's left as a one-frame
+  possible display staleness, not fixed.
 - Chunks 2–6: not started.
 
 Builds directly on Phase 2 Steps 1–2, both DONE (see D-GH33 and the "Implementation notes" section at the

@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · fix(chargen) — Phase 2 Step 3, Chunk 1 follow-up: prevent duplicate LOG entries from DOM-side bypass unchecks**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). A second
+  independent review of Chunk 1's diff (below) found a real bug after it had already landed:
+  `onChecklistToggle`'s CHECK path had no duplicate guard, and several pre-existing `annotate()` DOM-side
+  auto-corrections set `.checked=false` directly without dispatching a `change` event — meaning
+  `retractFlatEvent()` never ran for them, leaving `LOG` with a stale entry the DOM no longer reflected. A
+  later re-check of the same box would then emit a genuine duplicate `LOG` entry. Fixed with an idempotency
+  guard: `onChecklistToggle` now no-ops on CHECK if `LOG` already has a matching `(cat, value)` entry.
+  Verified by directly simulating the bypass scenario (before: 2 entries after re-check; after: stays at
+  1) and confirming a normal check→uncheck→recheck cycle still correctly cycles 1→0→1. Full regression
+  suite reconfirmed green.
 - **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 1: Category A checkboxes + Category D grids wired to LOG**
   (`tools/PACT-CharGen-Webtool.html`; no rules change, `DATA.version` untouched; `testing/tests/engine-parity.html`
   → 16/0). Second chunk of the CharGen emit()-migration plan. All 12 flat checkbox categories (saves,
