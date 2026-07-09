@@ -23,65 +23,42 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## Live Sheet: undo doesn't work properly — TODO
-Branch `fix/livesheet-undo-bug`. Reported by the user: in `tools/PACT-Live-Char-Sheet.html`, undoing an action produces incorrect state. Root cause not yet confirmed — needs investigation before a fix.
-
-```text
-1. Reproduce: exercise undo() (tools/PACT-Live-Char-Sheet.html:797) across a range of action types
-   (normal buys, drawback buy-off, level/HD swaps, and specifically the Martially Bound / Magically
-   Bound toggles) and compare pre- and post-undo compute() output for correctness.
-2. Known lead to check first: Martially Bound (~line 1099) and Magically Bound (~line 1142-1143) apply
-   a permanent "−1 AP, floor 1" discount that their own tooltips say is "reverse only by undo" — verify
-   whether undo() actually restores this discount/flag correctly, since undo() (line 797) only pops the
-   last LOG entry and re-renders; it does not appear to special-case floored/permanent discounts.
-3. Also check the AP-award lock path in undo() ("AP awards lock your history — buys made before an
-   award can't be undone") for edge cases (e.g. undoing right up to a lock boundary).
-4. Once the actual defect is identified, fix it in the event-log replay / compute() path — do not
-   patch around it with tool-local state; undo must stay correct via LOG replay (rebuildStateFromEvents).
-5. If the bug turns out to affect compute() output/pricing, bump DATA.version and update the REV-01
-   baseline in the same PR. If it's purely a Live Sheet display/state-sync issue, it's display-only —
-   do NOT bump DATA.version; just log in CHANGELOG.
-```
-**Done when:** undo() produces state identical to what compute()/rebuildStateFromEvents() would derive from the LOG with the last entry removed, across normal buys, drawback buy-off, and the Martially/Magically Bound floor-1 discount case; parity still 5/0.
-
 ## Full engine module-bridge migration — CharGen, Live Sheet, DM Console — TODO
-Branch feat/engine-bridge-all-tools. All three tools hand-copy DATA/compute()/MUT/baseBuild/
-activeEvents/economy/foldBuild from js/engine.js instead of importing them — a direct violation of
-AGENTS.md's "js/engine.js is the single source of truth... never re-implement rules logic anywhere
-else." This supersedes Task 6 (CharGen-only) by extending the same migration to Live Sheet and DM
-Console.
+Branch `feat/engine-bridge-all-tools`. **Revised scope** — a first pass already shipped as a
+deliberately-reduced "safe subset" (D-GH26, PR #121, see `docs/sessions/2026-07-05-engine-bridge-safe-subset.md`):
+`DATA`/`compute`/`baseBuild` are now imported live from `js/engine.js` in **all three** tools, and Live
+Sheet also imports `MUT` (it was byte-identical to the engine's). CharGen got its first module bridge in
+that pass, closing the old separate "Task 6" item (now graduated — see `CHANGELOG.md`). A compat check
+found the remaining pieces are **not** drop-in bridgeable, so don't re-attempt the literal
+"import-and-delete all seven symbols" version of this task — that premise is already disproven:
 
 ```text
-1. CharGen (tools/PACT-CharGen-Webtool.html) — this is Task 6's scope, folded in here: add a
-   <script type="module"> importing { DATA, compute, baseBuild, MUT, activeEvents, economy,
-   foldBuild } from '../js/engine.js', copy each onto window, dispatch new Event('engine-ready');
-   gate the existing UI <script> on that event; delete the inline DATA/compute() entirely.
-2. Live Sheet (tools/PACT-Live-Char-Sheet.html) — its module script today only imports validate()
-   plus sync/auth/campaign helpers (see D-GH9). Extend it to also import DATA, compute, baseBuild,
-   MUT, activeEvents, economy, foldBuild from js/engine.js and copy them onto window alongside the
-   existing bridge; delete its embedded DATA/compute/MUT/etc. copies.
-3. DM Console (tools/DM-Console.html) — its module script today imports nothing from js/engine.js
-   (only auth/campaign/dm helpers). Add a new import of DATA, compute, baseBuild, MUT, activeEvents,
-   economy, foldBuild, validate from js/engine.js, copy onto window, wire into the existing
-   campaign-ready gating; delete its embedded copies.
-4. Compat check: CharGen's compute() differs from the canonical one only in the budget line
-   (compute(b, opts={}) defaults spendable === b.budget). Before deleting Live Sheet's and DM
-   Console's embedded copies, diff them the same way and log any real behavioral differences found.
-5. Update AGENTS.md's "Architecture — read before editing" section to remove the "none of the three
-   tools import these from js/engine.js today" language and describe the new bridged state.
-6. Shrink/remove AUD-1's DATA/compute/MUT drift check (docs/PACT_ROADMAP.md) once all three tools
-   are bridged — that audit step becomes unnecessary.
-7. Log under a NEW decision code — next free is D-GH26, reserved for this task specifically (D-GH24:
-   theme-selector restore-script-position decision; D-GH25: leaked-password-protection retirement;
-   D-GH27: `/pick-task` batching decision, renumbered off a D-GH25 collision with the leaked-password
-   entry — don't reuse D-GH26 for anything else in the meantime) — documenting why all three tools were
-   migrated together rather than one at a time.
+1. `activeEvents`/`economy`/`foldBuild` are still hand-copied, index-based closures over a script-level
+   `LOG` in all three tools (`foldBuild(uptoIdx)`), NOT the engine's array-parameter API
+   (`foldBuild(events)`) — they drive Live Sheet/DM Console's event-sourcing + time-travel and CharGen's
+   import-fold. Reconciling them means rewriting every call site to pass LOG slices instead of an index —
+   a real change to the event-replay core, not a mechanical import swap. Verify a Live Sheet buy still
+   emits exactly one event and undo/redo/time-travel still work after any change here.
+2. CharGen's `MUT` is still local — specialized closures inside `_lsImportFold`/`buildToLiveLog` (the
+   D-GH3 export bridge), not signature-compatible with the engine's `MUT`.
+3. DM Console's `MUT` still diverges from the engine's (stale `found` handling, missing `dbound`).
+   Bridging it is a **deliberate behavioral change**, not a no-op — confirm with the owner before
+   changing DM Console's actual mutation behavior, and log it as its own decision if so.
+4. Shrink AUD-1's DATA/compute/MUT drift check (this roadmap file, AUD-1 item below) once this lands —
+   DATA/compute/baseBuild can no longer drift (they're live imports now, not copies); only the
+   still-hand-copied MUT/activeEvents/economy/foldBuild pieces are a real drift risk going forward.
+5. Log under the next free D-GH number — check `DECISIONS.md` live, don't assume a fixed number
+   (D-GH26 is already used for the safe-subset pass this supersedes).
+6. Update AGENTS.md's Architecture section once this lands — it currently documents the *safe-subset*
+   state accurately (see "Still hand-copied / local in the tools"); update it to reflect whatever new
+   state results.
 ```
 
-**Done when:** no tool has an embedded copy of DATA/compute/MUT/baseBuild/activeEvents/economy/
-foldBuild; CharGen, Live Sheet, and DM Console all import them from js/engine.js via their module
-bridges; testing/tests/engine-parity.html still reports 5/0; AGENTS.md's architecture section
-reflects the bridged state; Task 6 is closed/graduated by this task landing.
+**Done when:** `activeEvents`/`economy`/`foldBuild` share one signature-compatible implementation across
+all three tools (or a decision is logged for why not); CharGen's and DM Console's `MUT` copies are
+resolved (bridged, or a decision is logged for why DM Console's divergence is intentional);
+`testing/tests/engine-parity.html` still reports N/0; AGENTS.md's architecture section reflects the new
+state.
 
 ---
 
@@ -125,31 +102,15 @@ in-depth task, not an urgent one:
 **Done when:** all ~13 functions show `anon_can_execute = false` / `authenticated_can_execute = true` live,
 migration file committed, `sql/rls-policies.sql` matches.
 
-## Task 6 — CharGen module bridge migration — TODO
-```
-Migrate tools/PACT-CharGen-Webtool.html from its embedded DATA + compute() copy to the shared
-module bridge, matching Live Sheet and DM Console.
-1. Add a <script type="module"> importing { DATA, compute, baseBuild, MUT, activeEvents, economy,
-   foldBuild } from '../js/engine.js', copy each onto window, then dispatch new Event('engine-ready').
-2. Gate the existing UI <script> on document.addEventListener('engine-ready', ...).
-3. Delete the inline const DATA = {...} (line ~428) and function compute(b){...} entirely.
-Compat note: CharGen's compute() differs only in the budget line; canonical compute(b,opts) defaults
-opts={} → spendable === b.budget, identical behaviour. Extra return fields (playerAp/dmAp/spendable)
-are ignored. No UI change.
-```
-**Done when:** CharGen loads + prices correctly, no embedded DATA/compute remains, parity still 5/0.
-*(Then all three tools are on the bridge — architecture uniform. Best done AFTER REV-01 makes the gate real.)*
-⚠️ **Interim risk:** the parity gate guards only `js/engine.js`, **not** CharGen's embedded copy — a future
-engine change can silently diverge CharGen (they're identical today except the budget line; DATA synced at
-v0.332). CharGen's header warns "mirror engine/DATA changes into BOTH files"; until this task lands,
-**AUD-1** should assert the two stay in sync.
-
 ## Feature: CharGen campaign-rules awareness (sign-in + live enforcement) — TODO
-Branch feat/chargen-campaign-rules. **Do AFTER Task 6** — CharGen has zero cloud/auth integration today
-(no sign-in, no campaign selection, only a one-way local "Export to Live Sheet" handoff) and still embeds
-its own hand-copied rules engine, so wiring campaign rules in now would mean duplicating `validate()`
-logic outside `js/engine.js` — exactly what AGENTS.md's hard rule forbids. Task 6 must land first so
-CharGen shares the real engine, including its `validate()` export.
+Branch feat/chargen-campaign-rules. **Blocked on one specific import, not the old "Task 6" gate** — CharGen's
+DATA/compute() module bridge landed in D-GH26, so that part of the old blocker is cleared. But CharGen's
+bridge is "DATA+compute only" (see AGENTS.md Architecture section) — it does **not** yet import `validate()`
+from `js/engine.js`, and CharGen has zero cloud/auth integration today (no sign-in, no campaign selection,
+only a one-way local "Export to Live Sheet" handoff). Wiring campaign rules in now would still mean
+duplicating `validate()` logic outside `js/engine.js` — exactly what AGENTS.md's hard rule forbids — until
+CharGen's existing module bridge is extended to also import `validate()` (a small, standalone addition;
+does not require the full `feat/engine-bridge-all-tools` NOW item to land first).
 
 ```text
 Context: DM campaign rules (banned species/masteries/boons/origin classes, multi-discipline toggle) are
@@ -161,8 +122,9 @@ history) closed most of that gap for Live Sheet itself — banned masteries/boon
 selectable there — but CharGen, where a character's species/origin class are actually chosen, still has
 no visibility into any campaign's rules at all.
 
-1. After Task 6, add sign-in (js/auth.js) and campaign selection (js/campaign.js listMyCampaigns/getCampaign)
-   to CharGen, matching the bridge pattern already used in Live Sheet.
+1. Extend CharGen's existing module bridge to also import `validate` from `js/engine.js`, then add
+   sign-in (js/auth.js) and campaign selection (js/campaign.js listMyCampaigns/getCampaign) to CharGen,
+   matching the bridge pattern already used in Live Sheet.
 2. Fetch the selected campaign's rules and call js/engine.js's validate(build, rules) live as the player
    builds — filter banned species/origin classes/masteries/boons out of their respective pickers (mirror
    the Live Sheet live-filter pattern) rather than only warning after the fact.
@@ -178,11 +140,12 @@ are filtered out of CharGen's pickers during creation (not just rejected later i
 logic is duplicated outside `js/engine.js`; parity still 5/0.
 
 ## Externalize CharGen default AP + AP-by-level table — TODO
-Branch feat/ap-by-level. BEST DONE AFTER Task 6 — CharGen (the main consumer) still embeds its own
-engine copy, so until it's on the shared bridge it won't see js/ap-by-level.js (you'd edit two places).
+Branch feat/ap-by-level. Previously gated on "Task 6" (CharGen's DATA/compute bridge) — that landed in
+D-GH26, so CharGen now imports `DATA` live from `js/engine.js` and this task is unblocked and can proceed
+independently of the remaining `feat/engine-bridge-all-tools` work.
 - Add js/ap-by-level.js exporting AP_BY_LEVEL = {1:50, 2:70, ...} and DEFAULT_LEVEL.
-- js/engine.js imports it and surfaces it on DATA (DATA.apByLevel, DATA.defaultAp). Live Sheet + DM
-  Console then get it automatically via the bridge; CharGen gets it once Task 6 lands.
+- js/engine.js imports it and surfaces it on DATA (DATA.apByLevel, DATA.defaultAp). All three tools get
+  it automatically via their existing DATA bridge.
 - CharGen reads the default budget + level→AP lookup THROUGH the engine bridge — never the file directly.
 - AP-per-level is mechanics: bump DATA.version and update the REV-01 baseline in the same PR.
 **Done when:** editing a value in js/ap-by-level.js changes the default budget / level options in every tool
@@ -198,8 +161,7 @@ badge, CharGen sign. Full spec: IMPLEMENT-save-integrity.md (+ ENGINE-INTEGRITY-
 ```
 **Done when:** a signed save verifies clean; a hand-edited save is flagged on load (without blocking) and
 badged in DM Console; CharGen exports are signed; parity stays 5/0.
-⚠️ Log under a **NEW** decision code (**D-GH10** — the draft's "D-GH4" is taken). Touches CharGen —
-coordinate with **Task 6** so the two CharGen edits don't collide.
+⚠️ Log under a **NEW** decision code (**D-GH10** — the draft's "D-GH4" is taken).
 
 ## AUD-1 — Automated health check (static audit + RLS proof) (HIGH — scope widened) — TODO
 The repeatable "is the system still healthy?" check you asked for — a stdlib Python script, no installs,
@@ -210,12 +172,13 @@ testing/scripts/audit.py (Python stdlib only) — file-based checks, run before 
 - manifest has required fields, scope + start_url = /PACT/, and a maskable icon
 - SW registration present in every HTML page; no unconditional skipWaiting() in the install handler
 - flag any asset > 100 KB
-- DATA/compute/MUT drift check, ALL THREE tools (widened while implementing Feature A / PR #85 — see
-  DECISIONS.md D-GH9): CharGen, Live Sheet, and DM Console each hand-copy their own DATA/compute/MUT
-  from js/engine.js (none of the three are actually bridged for these — see the "Fix AGENTS.md's stale
-  module bridge claim" NOW item above). Extend the original CharGen-only check to diff all three tools'
-  embedded copies against js/engine.js's exports and fail loudly on any mismatch, not just CharGen's.
-  This becomes unnecessary for whichever tool(s) eventually get migrated onto a real bridge.
+- MUT drift check, CharGen + DM Console only (narrowed after D-GH26's safe-subset bridge, see the "Full
+  engine module-bridge migration" NOW item above): `DATA`/`compute`/`baseBuild` are now live imports in
+  all three tools and can no longer drift by definition — only CharGen's and DM Console's still-hand-copied
+  `MUT` (and, if this audit is extended later, the index-based `activeEvents`/`economy`/`foldBuild`
+  closures) remain a real risk. Check those two tools' embedded `MUT` against js/engine.js's export and
+  fail loudly on any mismatch. This becomes unnecessary for whichever tool(s) eventually get their `MUT`
+  bridged too.
 Optional RLS proof (Python + requests, credentials entered at runtime — never commit them): as a non-DM
 player, confirm BOTH writes are REJECTED via the Supabase REST API — (a) writing characters.ap (the DM-only
 column lock) and (b) setting campaign_id to a campaign never joined (proves REV-04 is closed).
@@ -307,34 +270,6 @@ Note: this overlaps with the existing "Externalize CharGen default AP + AP-by-le
 
 ---
 
-## Expand engine-parity test coverage — TODO
-Branch test/expand-engine-parity-coverage. `testing/tests/engine-parity.html` currently runs only 5 fixtures (CG-001/002/003, EV-001, LS-001) — budget/empty/over-budget cases only. No coverage of prereq gates, drawback buy-off, racial/mastery pricing, multi-tradition spellcasting paths, or Live Sheet event-log folding beyond the one clean-export case. Before REV-11 (CI) and REV-14 (engine refactor) can trust this gate, it needs to actually prove `compute()` correctness broadly, not just that it doesn't throw.
-
-```text
-1. Audit current fixture coverage against js/engine.js's compute() branches — grep for gates/prereqs/discounts
-   the 5 existing fixtures never exercise (e.g. drawback buy-off, racial discount stacking, invalid
-   prereq purchase, duplicate/cap rejection, HD/AP-by-level edges).
-2. Add new fixtures under testing/fixtures/builds/ and testing/fixtures/live-sheets/ (and events/ if needed)
-   for the highest-value gaps found in step 1 — prioritize cases most likely to silently break during
-   future engine edits (REV-14 split, Task 6 CharGen migration, Feature A multi-tradition work).
-3. Add each new fixture's expected values to testing/expected/expected-results.csv via the existing
-   "Capture baseline" mode in engine-parity.html, then have a human confirm the captured values against
-   the PHB/DATA before committing (same human-review discipline as D-GH13).
-4. Wire the new fixtures into testing/tests/engine-parity.html's FIXTURES list.
-5. Do NOT change compute() or DATA — this task is test-coverage only. If gaps reveal an actual engine bug,
-   file it as a separate roadmap item rather than fixing inline here.
-6. If, after auditing, the gate genuinely is legacy/low-value (e.g. duplicated by something else), stop and
-   write up that finding instead of padding fixtures for their own sake — note it in DECISIONS.md as a
-   NEW decision (next free code: D-GH18 — D-GH14 is taken by the campaign-rules decision; verify
-   against DECISIONS.md's current highest number when this task is actually picked up) rather than
-   silently doing nothing.
-```
-**Done when:** engine-parity.html reports more than 5 fixtures covering at least prereq-gate rejection,
-drawback buy-off, and one racial/mastery discount case, each with a human-reviewed CSV baseline; parity
-still reports all green (N passed / 0 failed).
-
----
-
 ## Add Supabase advisor/log check to the per-change checklist — TODO
 Branch docs/audit-checklist-supabase. Add a step to AGENTS.md's per-change checklist.
 
@@ -391,9 +326,9 @@ Branch chore/aud1-version-sync-check. Do AFTER AUD-1 (Automated health check) la
 
 ```text
 Extend testing/scripts/audit.py (from AUD-1) with a check that BUILD (js/engine.js) and its mirrors
-(CharGen title/header, Live Sheet line-1 comment, DM Console TOOL_VERSION) all match, and that
-DATA.version is mirrored between CharGen's embedded copy and js/engine.js (until Task 6 removes the
-copy).
+(CharGen title/header, Live Sheet line-1 comment, DM Console TOOL_VERSION) all match. DATA.version no
+longer needs a separate CharGen-mirror check — CharGen imports DATA live from js/engine.js as of D-GH26,
+so there's no embedded copy left to drift.
 ```
 **Done when:** audit.py fails loudly if any version string diverges from js/engine.js; passes clean on
 the current tree.
@@ -412,23 +347,6 @@ caught if a human remembers to open engine-parity.html.
 ```
 **Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 5/0
 when run locally too.
-
-## A2 — PR template with review-cadence checklist — TODO
-Branch docs/pr-template-review-cadence. Promoted from LATER — makes the review habit sticky instead of
-relying on memory (ties into this session's audit push).
-
-```text
-1. Add .github/pull_request_template.md containing the per-change checklist from AGENTS.md (parity gate,
-   CHANGELOG/DECISIONS/sessions updates, version-sync check) so every PR auto-includes it.
-2. Add a review-cadence line to the template: run /code-review (low/medium effort) on every PR before
-   merge; run /code-review ultra specifically for PRs touching js/engine.js or sql/ (RLS/migrations)
-   before merge, given the engine is the single source of truth and RLS is the only security boundary.
-3. Optional follow-up (not required for this task): a fuller CONTRIBUTING.md if more people start
-   contributing — caveat: a template isn't force-read the way a CI check is, so treat this as a nudge,
-   not an enforcement mechanism.
-```
-**Done when:** .github/pull_request_template.md exists, includes the per-change checklist and the
-review-cadence line, and appears automatically when opening a new PR against this repo.
 
 ---
 

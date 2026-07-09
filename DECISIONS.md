@@ -6,6 +6,234 @@
 
 ---
 
+## D-GH34 · compute() supports two racial-trait pricing formats: replay-derived (presence-based) and legacy (inPlay fallback)
+- **Context:** an 8-angle code review of the D-GH31/32/33 work (run before any further Phase 2
+  implementation) found that D-GH31 introduced a live, shipping regression: `compute()`'s racial-trait
+  pricing switched from reading a whole-build `b.inPlay` flag (unconditionally `true` via `baseBuild()`,
+  so every tool always got correct, expensive current-tier pricing) to reading a per-trait
+  `b._raceTraitLocked[label]` map populated **only** inside the engine's own internal `_replay()`. Two of
+  the three UI tools (the ongoing event-sourced character-sheet tool and the DM-facing roster tool) each
+  have their own separate, hand-copied, index-based `foldBuild` — a known, pre-existing, documented
+  architecture fact, not something D-GH31 touched — that never calls `_replay()` and so never populates
+  `_raceTraitLocked`. Result: racial-trait pricing in those two tools silently and permanently dropped to
+  the cheap creation rate for every character, forever — not a narrow migration edge case, a total loss
+  of the tier upcharge the rules intend ("always hard to grow into your heritage late"). A related display
+  feature (a "paying a premium vs. creation-basis pricing" comparison banner, driven by forcing
+  `inPlay:false` on a comparison copy) went silently inert for the same root-cause reason. Separately, the
+  `noLock:true` mechanism (built in D-GH31 specifically anticipating "a future CharGen-style export") was
+  never actually wired into the one function that produces such an export (`buildToLiveLog()`) — currently
+  dormant since nothing yet emits `campaignBound`, but would have mispriced racial traits in
+  higher-budget imported characters as soon as that landed. Both were confirmed via independent code
+  review (4 of 8 finder angles independently converged on the pricing regression) and formal verification
+  before this fix; a cold-reviewed plan (`docs/plans/2026-07-08-racial-trait-pricing-regression-fix.md`)
+  was written and revised before implementation.
+- **Options considered:** (A) a presence-based per-trait fallback inside `compute()` itself — if a trait
+  has a real `_raceTraitLocked` entry, use it (whichever value); if the entry is absent entirely, fall
+  back to `b.inPlay`. (B) actually bridge the two affected tools onto the engine's real, array-parameter
+  `foldBuild`/`activeEvents`/`economy` (replacing their local index-based copies) — the already-separately-
+  tracked `feat/engine-bridge-all-tools` migration, previously found to have real signature-incompatibility
+  problems needing its own design work. (C) have each affected tool's local fold logic manually compute
+  and set its own `_raceTraitLocked` map — a third, tool-local copy of the same bookkeeping `_replay()`
+  already does.
+- **Decision:** (A). `compute()`'s racial-trait pricing now checks **key presence, not truthiness** —
+  `Object.prototype.hasOwnProperty.call(b._raceTraitLocked, label)` — because the engine's real replay can
+  legitimately set an entry to `false` (a trait bought before any lock trigger fired, a genuine "not
+  locked" answer), and that must not be conflated with "no entry at all, unknown, fall back." Present
+  (either value) → use it directly. Absent → fall back to `b.inPlay`, which `baseBuild()` still sets `true`
+  unconditionally, exactly restoring the two affected tools' pre-D-GH31 behavior. This is a **permanent,
+  intentional dual-format contract**, not a temporary shim: `compute()` now knowingly supports
+  replay-derived builds and independently-constructed ("legacy") builds side by side. Separately,
+  `buildToLiveLog()`'s single `ev()` emission funnel now tags every event `noLock:true` unconditionally
+  (not per-call-site), so no future addition to that function can accidentally skip the tag.
+- **Why:** (A) over (B) because bridging the two tools' fold logic is a large, already-separately-tracked
+  migration with known unresolved design problems — pulling it into a bug-fix-scoped task would both blow
+  the scope and preempt that work. (A) over (C) because manually re-deriving the lock state in tool-local
+  code is exactly the "reimplement rules logic outside the shared engine" the project's own rule forbids,
+  and would create a third copy to keep in sync — the opposite direction of D-GH33's cleanup in the same
+  area. The general lesson for future engine changes, worth restating: **an engine change that introduces
+  state derived only from replaying a LOG (rather than a value every build starts with) must either
+  remain compatible with callers that construct build objects independently of that replay path, or
+  explicitly define and document the compatibility boundary where it doesn't** — D-GH31 did neither for a
+  caller (the two hand-copied local folds) that already existed and was already known to bypass the
+  engine's real replay function.
+- **Status:** DONE. `DATA.version` v0.334→v0.335. Presence-based fallback verified directly: a
+  Live-Sheet/DM-Console-shaped build (racial traits, `inPlay:true`, no `_raceTraitLocked` at all) now
+  prices at 11 AP (locked/expensive), matching pre-regression behavior exactly, vs. 6 AP (cheap) before
+  this fix; the "creation-basis reprice" banner now produces a genuinely different number again
+  (32 vs. 29 for a test build) instead of always matching the headline total. `buildToLiveLog()` verified
+  in a real browser: all emitted events carry `noLock:true`; a high-budget (150 AP) build with racial
+  traits, exported and later bound to a campaign, stays correctly creation-priced (6 AP) instead of
+  mispricing to the locked rate. Three new fixtures (`CG-004`–`CG-006`) cover the no-map fallback, mixed
+  per-trait state, and a specific presence-vs-truthiness regression guard (a value chosen so a future
+  regression to `!!map[label]` truthiness-only checking would produce a different, wrong total — 10
+  instead of the correct 12 — making that exact mistake fail a test instead of shipping silently).
+  `testing/tests/engine-parity.html` → 16/0.
+
+## D-GH33 · CharGen imports the real js/engine.js MUT/foldBuild/activeEvents/economy/baseBuild (Phase 2 step 2)
+- **Context:** Phase 2's plan (step 2) called for replacing CharGen's two local, throwaway copies of
+  `MUT`/`foldBuild`/`activeEvents`/`economy`/`baseBuild` with the real, already-exported `js/engine.js`
+  versions, and explicitly flagged as a risk to check first: "behaviour parity between engine's
+  `MUT`/`foldBuild`/`activeEvents`/`economy` and CharGen's local throwaway copies... if they've drifted,
+  swapping them introduces regressions that look like save-format bugs."
+- **The parity check found real drift** in CharGen's local copy (nested inside `_lsImportFold(LOG)`, used
+  only when importing a Live-Sheet-shaped file into CharGen) — matching, byte-for-byte, a divergence this
+  project had already documented for DM Console's separate local `MUT` copy: `MUT.found` had no
+  else-branch for "this tradition already exists — add a second discipline to it," so a second `found`
+  event for an already-founded tradition slot was silently dropped instead of appending a discipline
+  (multi-discipline spellcasters lost their second discipline on import); and `MUT.dbound` (the
+  discipline-bound flag) didn't exist in the local copy at all, so `dbound` events silently no-opped.
+  `baseBuild()` was verified byte-identical; the local `activeEvents`/`economy`/`foldBuild` were
+  behaviorally equivalent to the engine's (just index- vs array-parameterized, and only ever called with
+  the full log in this specific usage, so the signature difference didn't block a direct swap here).
+  A second, smaller local `MUT` subset inside `buildToLiveLog()` (export path, used only to compute
+  before/after price deltas) had no drift — every category it used matched the engine's mutator exactly —
+  but was still replaced with the real import as unnecessary duplication.
+- **Decision:** CharGen's module bridge now imports `MUT`, `foldBuild`, `activeEvents`, `economy`,
+  `baseBuild` from `js/engine.js` alongside its existing `DATA`/`compute` (D-GH26). `_lsImportFold(LOG)`
+  collapses to a direct call to the real `foldBuild(LOG)` (the array-parameter engine version) — the
+  bug fixes above are an automatic side effect, not separately implemented. `buildToLiveLog()`'s smaller
+  local `MUT` subset is deleted in favor of the same import. CharGen's live editing state (DOM/
+  `readBuild()`/`render()`/the ~75 UI handler sites) is untouched — this step only changes what backs
+  the import and export paths, not how a character is built interactively.
+- **Why:** this is exactly the parity check the Phase 2 plan called for before the swap, done in the
+  order the plan specified (verify parity, then swap) rather than swapping first and discovering drift as
+  a live regression. The bugs found were real and shipping — any multi-discipline character (or one with
+  a bound discipline) exported from Live Sheet and re-imported into CharGen for further editing would have
+  silently lost data. Fixing them as a byproduct of the planned engine-bridge work, rather than as a
+  separate targeted patch, means there's now exactly one `MUT`/`foldBuild` implementation for this codebase
+  to keep correct, not three (engine.js, CharGen's import copy, CharGen's export copy).
+- **Status:** DONE. Verified in a real browser: CharGen boots clean with the expanded bridge
+  (`DATA.version` v0.334 confirmed live); a synthetic two-discipline-plus-`dbound` LOG round-trips through
+  `_lsImportFold` correctly (previously would have dropped the second discipline and the bound flag); a
+  representative build (species, skills, racial traits) round-trips through `buildToLiveLog` →
+  `foldBuild` → `compute()` at an identical price before and after. `testing/tests/engine-parity.html`
+  unaffected (13/0 — this step touched no `js/engine.js` code). CharGen's `js/engine-v0-snapshot.js`
+  frozen comparison copy is deliberately **not** updated to include this fix — it's meant to stay pinned
+  to its original 2026-07-08 snapshot for Phase 2 before/after comparison, so this bug fix is intentionally
+  only visible in the live tool, not the v0 comparison baseline.
+
+## D-GH32 · Automatic `creationLocked` requires a `campaignBound` event; the explicit trigger doesn't
+- **Context:** Phase 2 of the CharGen/Live-Sheet unification effort (`docs/plans/2026-07-08-chargen-
+  livesheet-unification-phase2.md`) settled a fuller design for `creationLocked` than D-GH31 shipped:
+  four trigger paths (explicit "Finalise character" button, automatic threshold, retroactive-on-binding,
+  and first locking DM AP award), and specifically that the *automatic* threshold trigger should only
+  ever fire for a character that has joined a real cloud campaign — a purely local, never-bound character
+  should stay creation-priced indefinitely regardless of how much it spends; only an explicit action can
+  lock it. D-GH31 shipped the automatic trigger unconditionally (any character crossing `DATA.level1AP`
+  auto-locked, local or not) — correct for that phase's narrower scope, but not the final intended rule.
+- **A naming risk surfaced during implementation and is recorded here to prevent future confusion:**
+  `js/engine.js` already has an unrelated `MUT.campaign` mutator (`cat:'campaign'`), set by Live Sheet's
+  `applyCampaignCode()` — this is a **local, offline, code-paste house-rules feature** (a DM types up
+  banned boons/drawbacks/arts and shares a text code), already flagged elsewhere in this project's roadmap
+  as a confusing naming collision with the *real* cloud campaign system. The new `campaignBound` event
+  introduced here is unrelated to `b.campaign`/`cat:'campaign'` — it represents real cloud-campaign
+  membership. Verified directly: today, real campaign membership lives only as a `campaign_id` column on
+  a character's row in Supabase (`js/campaign.js`'s `listMyCampaigns`/`getCampaign`), invisible to pure
+  LOG replay — which is exactly why a LOG-level `campaignBound` event is necessary at all: `_replay()` has
+  no database access and needs some in-LOG signal to know whether a character has ever been bound.
+- **Decision:** in `_replay()` (`js/engine.js`), the automatic (threshold-based) `creationLocked` inference
+  now requires a `campaignBound` event to have occurred earlier in the LOG; the explicit `creationLocked`
+  event remains unconditional (fires regardless of campaign binding — it's the primary intended trigger).
+  If `campaignBound` arrives *after* spend has already crossed the threshold, the automatic lock fires
+  retroactively at the exact point of binding (not applied to purchases before it). `campaignBound`
+  carries a campaign ID payload but `_replay()` doesn't otherwise interpret it — it's purely a boolean
+  gate for this mechanism today. `DATA.version` v0.333→v0.334 (a real behavior change, not display-only).
+- **Why:** without this gate, a player who never joins a campaign — building and playing a character
+  entirely locally, exactly like CharGen's existing standalone use case — would have their racial-trait
+  pricing silently jump to the expensive tier-based rate the moment cumulative spend crossed the anchor,
+  with no DM, no campaign, and no explicit action from the player. That's surprising and punitive for the
+  offline/local use case this project explicitly supports (`AGENTS.md`: "Local-only still works"). Gating
+  on campaign membership means the automatic trigger only ever applies where a DM is actually present to
+  set expectations; a solo/local player can only lock in via their own explicit action.
+- **Status:** DONE. Engine-only (`_replay()` in `js/engine.js`); no tool emits `campaignBound` yet — that
+  wiring is Phase 2 step 6. Existing D-GH31 fixtures `EV-003`/`EV-007` updated to include a `campaignBound`
+  event (preserving their original per-purchase-tagging/`noLock` test intent under the new gate); two new
+  fixtures added: `EV-008` (a local character's spend crossing the anchor does NOT auto-lock) and `EV-009`
+  (a late `campaignBound` event retroactively locks going forward, not retroactively repricing purchases
+  before it). `testing/tests/engine-parity.html` → 13/0.
+
+## D-GH31 · A LOG-driven `creationLocked` event/threshold replaces the dead `b.inPlay` flag (engine Phase 1)
+- **Context:** the owner proposed unifying CharGen and Live Sheet onto one event-sourced character model,
+  with an explicit trigger marking when "character generation" ends and creation pricing stops applying —
+  a more fundamental alternative to reconciling `compute()`/`economy()` (D-GH30's deferred
+  `feat/ap-model-reconcile`). Investigation found `js/engine.js`'s `compute()` already had a `b.inPlay`
+  flag doing exactly this, narrowly (racial/species trait pricing only) and inertly: `baseBuild()` sets
+  `inPlay:true` unconditionally, and a repo-wide search found `inPlay:false` set in exactly one place — a
+  display-only comparison, never real build state. A self-contained plan (`docs/plans/2026-07-08-creation-
+  pricing-trigger-phase1.md`) was written, cold-reviewed (15 findings, all accepted), and revised before
+  implementation.
+- **Options considered (racial-trait repricing scope, Option A/B/C from the plan):** (A) generalize
+  post-lock repricing to all purchase categories; (B) keep it racial-traits-only, just make the existing
+  mechanic real; (C) make category scope data-driven via `DATA`. Also considered, and rejected during the
+  plan's cold review: a single whole-build `inPlay` boolean set once triggered — rejected because it has
+  no memory of purchase order, reproducing D-GH30's exact bug shape (a later state retroactively repricing
+  earlier purchases).
+- **Decision:** shipped **Option B** (racial-traits-only, matching today's scope) via **per-purchase
+  tagging, not a whole-build flag**. `_replay()` walks the LOG once, tracking a one-way-ratchet `locked`
+  state (an explicit `creationLocked` event, or cumulative AP spend exceeding `DATA.level1AP`, whichever
+  comes first) and tags each racial-trait purchase with the lock state as of *just before* that specific
+  purchase — so purchase order within one build is respected. `compute()`'s racial-trait pricing branch
+  reads this per-trait tag (`b._raceTraitLocked[label]`) instead of `b.inPlay`; a build with no tag for a
+  given trait (e.g. a flat one-shot creation build with no LOG at all) always prices at the creation rate,
+  by design. A build-time correction: the plan assumed `DATA.level1AP` didn't exist (a regex miss during
+  planning — the real text is `"level1AP":50` inside `js/engine.js`'s single-line `DATA` object literal,
+  not matched by a `level1AP\s*:` search); it already existed as `50`. The plan's "Step 0" precursor was
+  therefore unnecessary and skipped; the real value was used directly. A second gap, found only by
+  actually building and testing the mechanism (not caught by cold review): a one-shot import/creation
+  burst whose total legitimately exceeds the anchor (e.g. a higher-level starting character) would
+  self-trigger the automatic lock partway through the burst, mispricing racial traits bought later in that
+  *same* burst — before any real in-play spending occurred. Fixed with an event-level `noLock: true` flag:
+  a `buy`/`buyoff`/`names` event so tagged is excluded from the automatic-threshold accumulation (real AP
+  accounting via `economy()` is unaffected); a future CharGen-style export can tag its whole synthetic
+  burst this way, while genuine post-import spending (untagged) still triggers the lock normally. Verified
+  by fixture (`EV-006`/`EV-007`).
+- **Why:** per-purchase tagging over a whole-build flag because the alternative provably reproduces
+  D-GH30's bug class — this was the cold review's single most consequential finding. Option B over A/C
+  because it's the smallest change that proves the event model, tagging design, and migration strategy,
+  with the narrowest surface to verify; A/C are deferred to a future phase once B is proven in real use.
+  Migration: `inPlay` is verified `true` for every existing character today, so the new logic can only
+  ever make an existing low-AP character's racial-trait pricing *cheaper*, never more expensive — no
+  separate migration mechanism needed, the same replay-time inference just runs uniformly on old and new
+  LOGs alike.
+- **Status:** DONE for the engine mechanism (`js/engine.js` `DATA.version` v0.332→v0.333; 6 new fixtures,
+  `EV-002`–`EV-007`; `testing/tests/engine-parity.html` → 11/0). **Not done:** no tool emits a
+  `creationLocked` event yet — CharGen, Live Sheet, and DM Console are all untouched in this phase, so
+  nothing about either tool's real behavior changes until a Phase 2 (CharGen rewired onto this model) or
+  Phase 3 (per-campaign/DM threshold configuration) lands. `feat/ap-model-reconcile` (D-GH30's deferred
+  item) is superseded by this decision and closed in `docs/PACT_ROADMAP.md`/`CHANGELOG.md`.
+
+## D-GH30 · Live Sheet's "AP left" reads the frozen ledger (`economy()`), not `compute()`'s retroactive recompute
+- **Context:** the roadmap task `fix/livesheet-undo-bug` was filed as "undo() produces incorrect state,"
+  suspecting the permanent "−1 AP, floor 1" discount from Martially/Magically Bound toggles wasn't being
+  restored on undo. Investigation (replaying `undo()` across every event type and diffing against a full
+  LOG re-fold) disproved that: `undo()` is a pure pop-and-refold and already matches
+  `rebuildStateFromEvents()` byte-for-byte in every case tested. The real defect was a display bug: buying
+  a cross-class feature *then* binding that class makes the headline "AP left" (`compute().remaining`,
+  which retroactively discounts every feature of that class, including ones bought before the bind) drift
+  one AP above the frozen-ledger `economy().available` that actually gates purchases (`buy()`,
+  tools/PACT-Live-Char-Sheet.html:445) — a "phantom AP" the sheet advertises but won't let you spend.
+  `priceOf()` already hard-codes a `-2` delta for `mbound`/`dbound` specifically to dodge this same
+  "refund bug" in the frozen ledger (tools/PACT-Live-Char-Sheet.html:421) — the headline display just
+  hadn't been given the same treatment.
+- **Options considered:** (A) point the Live Sheet's three "AP left" displays (desktop econ line, mobile
+  sticky bar, floating badge) at `economy().available` instead of `compute().remaining` — display-only,
+  no engine change; (B) change `compute()`/`rebuildStateFromEvents()` in `js/engine.js` to stop
+  retroactively discounting — but that logic is *correct* for CharGen's one-shot, order-free recompute,
+  so this would need to be event-order-aware and risks CharGen regressions, a `DATA.version` bump, and
+  `testing/expected` updates.
+- **Decision:** (A). Live Sheet now displays `eco.available` in all three "AP left" locations
+  (tools/PACT-Live-Char-Sheet.html:593-594). No `js/engine.js` change, no `DATA.version` bump,
+  `engine-parity.html` stays 5/0 unaffected. Normal characters (who never bind a class after buying that
+  class's other features) see no change in the displayed number.
+- **Why:** smallest change that makes the sheet self-consistent with its own buy-gate and matches the
+  app's existing "prices freeze at purchase / no retroactive refund" tooltips; avoids touching shared
+  rules logic that CharGen depends on behaving the current way. The underlying model conflict — `compute()`
+  is stateless/order-free by design, but event-sourced tools want frozen-at-purchase pricing — is **not**
+  resolved by this fix, only the one user-visible symptom. That reconciliation (whether `js/engine.js`
+  should grow a frozen-ledger-aware remaining-AP export, or the current per-tool split is the permanent
+  design) is intentionally deferred — see the new NEXT roadmap item.
+- **Status:** DONE for the display fix. The long-term engine-vs-ledger reconciliation is open — tracked in
+  `docs/PACT_ROADMAP.md` NEXT.
 ## D-GH30 · Cloud/campaign status badge reads existing sync-ready state — no new cloud/auth plumbing
 - **Context:** the "Cloud/campaign state is invisible to players" roadmap task needed Live Sheet to show a
   persistent sign-in + campaign-rules-fetch-status badge outside the ☁ Cloud dropdown. This was picked and

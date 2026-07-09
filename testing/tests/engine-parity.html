@@ -35,13 +35,28 @@
       builds: [
         { id: "CG-001", path: "../fixtures/builds/CG-001-default-empty-build.json" },
         { id: "CG-002", path: "../fixtures/builds/CG-002-valid-50ap-build.json" },
-        { id: "CG-003", path: "../fixtures/builds/CG-003-over-budget-build.json" }
+        { id: "CG-003", path: "../fixtures/builds/CG-003-over-budget-build.json" },
+        { id: "CG-004", path: "../fixtures/builds/CG-004-legacy-build-no-lock-map-falls-back.json" },
+        { id: "CG-005", path: "../fixtures/builds/CG-005-mixed-lock-state-per-trait-fallback.json" },
+        { id: "CG-006", path: "../fixtures/builds/CG-006-presence-vs-truthiness-regression-guard.json" },
+        { id: "CG-007", path: "../fixtures/builds/CG-007-prereq-gate-rejection.json" },
+        { id: "CG-008", path: "../fixtures/builds/CG-008-racial-mastery-discount.json" },
+        { id: "CG-009", path: "../fixtures/builds/CG-009-multi-tradition-spellcasting.json" }
       ],
       liveSheets: [
         { id: "LS-001", path: "../fixtures/live-sheets/LS-001-clean-generator-export.json" }
       ],
       eventSets: [
-        { id: "EV-001", path: "../fixtures/events/EV-001-award-and-purchase.json" }
+        { id: "EV-001", path: "../fixtures/events/EV-001-award-and-purchase.json" },
+        { id: "EV-002", path: "../fixtures/events/EV-002-creation-pricing-below-threshold.json" },
+        { id: "EV-003", path: "../fixtures/events/EV-003-creation-pricing-crosses-mid-log.json" },
+        { id: "EV-004", path: "../fixtures/events/EV-004-creation-lock-manual-trigger.json" },
+        { id: "EV-005", path: "../fixtures/events/EV-005-creation-lock-duplicate-event.json" },
+        { id: "EV-006", path: "../fixtures/events/EV-006-noLock-import-burst-stays-unlocked.json" },
+        { id: "EV-007", path: "../fixtures/events/EV-007-noLock-burst-then-genuine-spend-locks.json" },
+        { id: "EV-008", path: "../fixtures/events/EV-008-local-character-never-auto-locks.json" },
+        { id: "EV-009", path: "../fixtures/events/EV-009-campaignBound-retroactive-lock.json" },
+        { id: "EV-010", path: "../fixtures/events/EV-010-drawback-buyoff.json" }
       ]
     };
 
@@ -49,6 +64,15 @@
       const r = await fetch(url, { cache: "no-store" });
       if (!r.ok) throw new Error(`Could not load ${url}: ${r.status}`);
       return r.json();
+    }
+
+    // Several event-set fixtures share one baseSnapshot; rather than duplicate it in every
+    // file, a fixture may carry baseSnapshotRef (a path relative to the fixture's own file)
+    // instead of an inline baseSnapshot.
+    async function resolveBaseSnapshot(fixture, path) {
+      if (fixture.baseSnapshot) return fixture.baseSnapshot;
+      if (fixture.baseSnapshotRef) return loadJson(new URL(fixture.baseSnapshotRef, new URL(path, location.href)));
+      throw new Error(`Fixture ${path} has neither baseSnapshot nor baseSnapshotRef`);
     }
 
     // ── run all fixtures; return raw actuals ──────────────────────────────────
@@ -96,7 +120,8 @@
       for (const { id, path } of FIXTURES.eventSets) {
         try {
           const fixture = await loadJson(path);
-          const r = rebuildStateFromEvents(fixture.baseSnapshot, fixture.events);
+          const baseSnapshot = await resolveBaseSnapshot(fixture, path);
+          const r = rebuildStateFromEvents(baseSnapshot, fixture.events);
           rows.push({
             id, group: "event-sourcing", path,
             total: r.total,
@@ -192,6 +217,18 @@
               failures.push(`remaining should be < 0, got ${row.remaining}`);
             if (!row.firstWarning.startsWith("OVER BUDGET"))
               failures.push(`first warning should start with "OVER BUDGET", got: "${row.firstWarning}"`);
+          }
+
+          // CG-007: prereq-gate rejection — must stay valid (gates only warn, they
+          // don't block the purchase) and lead with the expertise-without-skill gate.
+          // (This fixture arrived via PR #136 as CG-004; renumbered to CG-007 in the emit-migration
+          //  merge to avoid an ID collision with the emit-migration's own CG-004 — so this hardcoded
+          //  assertion was repointed from CG-004 to CG-007 to stay on the same fixture.)
+          if (row.id === "CG-007") {
+            if (row.remaining < 0)
+              failures.push(`remaining should be >= 0, got ${row.remaining}`);
+            if (row.firstWarning !== "Expertise in Athletics needs the skill bought first")
+              failures.push(`first warning mismatch, got: "${row.firstWarning}"`);
           }
 
           // LS-001 / EV-001: assert ok + eventsApplied

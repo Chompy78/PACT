@@ -1,0 +1,47 @@
+{
+  "description": "Creation-pricing-lock (D-GH31/D-GH32) fixture: a campaignBound event (required under D-GH32 for the automatic threshold to ever fire) is followed by cumulative spend crossing DATA.level1AP mid-LOG, between two different non-pack own-race Halfling trait purchases. Asserts PER-PURCHASE tagging, not a whole-build flag: 'Halfling: Brave' (bought before the crossing) prices at the flat creation rate (origin=2); 'Halfling: Naturally Stealthy' (bought after) prices at the tier-2 locked rate (MASTER[2][band2]=7), in the SAME build.",
+  "baseSnapshotRef": "_shared/base-halfling.json",
+  "events": [
+    {
+      "type": "campaignBound",
+      "campaignId": "camp-test-001",
+      "label": "Campaign — Test Campaign"
+    },
+    {
+      "type": "award",
+      "amount": 60,
+      "note": "Big quest reward",
+      "label": "Award — Big quest reward (60 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "racial",
+      "payload": {
+        "v": "Halfling: Brave"
+      },
+      "cost": 2,
+      "level": 2,
+      "label": "Species trait — Halfling: Brave"
+    },
+    {
+      "type": "buy",
+      "cat": "patch",
+      "payload": {
+        "patch": {}
+      },
+      "cost": 55,
+      "level": 2,
+      "label": "Spend filler crossing the creation-pricing threshold"
+    },
+    {
+      "type": "buy",
+      "cat": "racial",
+      "payload": {
+        "v": "Halfling: Naturally Stealthy"
+      },
+      "cost": 7,
+      "level": 2,
+      "label": "Species trait — Halfling: Naturally Stealthy"
+    }
+  ]
+}

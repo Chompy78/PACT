@@ -1,0 +1,127 @@
+{
+ "campaign": null,
+ "name": "Garrick Ironhand",
+ "budget": 50,
+ "originClass": "Fighter",
+ "originClass2": "(none)",
+ "species": "Human",
+ "species2": "(none)",
+ "racialTraits": [],
+ "lineage": "",
+ "racialSpells": [],
+ "stats": {
+  "STR": 8,
+  "DEX": 10,
+  "CON": 10,
+  "INT": 10,
+  "WIS": 10,
+  "CHA": 10
+ },
+ "hd": 1,
+ "profBonus": 2,
+ "hardy": 0,
+ "tough": 0,
+ "saves": [],
+ "skills": [],
+ "expertise": [
+  "Athletics"
+ ],
+ "languages": 1,
+ "tools": [],
+ "instruments": [],
+ "customProfs": [],
+ "toolExpertise": [],
+ "arts": [],
+ "weaponProf": {
+  "simple": false,
+  "martial": 0,
+  "allMartial": false,
+  "improvised": false
+ },
+ "masteries": [
+  "Cleave"
+ ],
+ "armour": {
+  "light": false,
+  "medium": true,
+  "heavy": false,
+  "shield": false
+ },
+ "extraClasses": 0,
+ "unlockedClasses": [],
+ "features": [
+  "Fighter: Second Wind",
+  "Fighter: Second Wind"
+ ],
+ "traditions": [],
+ "subAbilities": [],
+ "subSpellBundles": [],
+ "freeSub": {},
+ "drawbacks": [],
+ "gold": 0,
+ "dabblerCantrips": 0,
+ "attune": 0,
+ "ki": 0,
+ "sorcery": 0,
+ "wornArmour": "",
+ "martiallyBound": "(none)",
+ "boons": [],
+ "innate": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ],
+ "appearance": {
+  "gender": "",
+  "age": "",
+  "height": "",
+  "build": "",
+  "hair": "",
+  "eyes": "",
+  "nose": "",
+  "skin": "",
+  "marks": "",
+  "voice": "",
+  "demeanour": "",
+  "quirk": "",
+  "likes": "",
+  "dislikes": "",
+  "father": "",
+  "mother": "",
+  "hometown": "",
+  "profession": "",
+  "familyfor": "",
+  "famevent": "",
+  "secret": "",
+  "drink": "",
+  "ambition": "",
+  "fear": "",
+  "prized": "",
+  "faith": "",
+  "companion": "",
+  "overall": ""
+ },
+ "size": "Medium",
+ "houseRules": {
+  "boons": {},
+  "draws": {},
+  "disabled": {
+   "boons": [],
+   "draws": []
+  },
+  "dmAllows": {
+   "bound": true,
+   "boons": true,
+   "drawbacks": true,
+   "tasha": true
+  }
+ },
+ "version": "v0.322",
+ "id": "test-cg004-prereq-gate-rejection"
+}

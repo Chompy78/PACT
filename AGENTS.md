@@ -12,17 +12,22 @@ is staging and promotes into `main`).
      turn one. Keep it short, refresh when focus shifts, prune when stale (stale is worse than empty). The
      roadmap stays the single writer of the full task list — this is a pointer to it, not a second copy. -->
 
-- **Current focus:** the two 🔴 NOW roadmap items — Live Sheet `undo()` correctness bug
-  (`fix/livesheet-undo-bug`) and the full engine module-bridge migration across all three tools
-  (`feat/engine-bridge-all-tools`). See `docs/PACT_ROADMAP.md` NOW section for the authoritative task text.
+- **Current focus:** the 🔴 NOW roadmap item — the full engine module-bridge migration across all three
+  tools (`feat/engine-bridge-all-tools`). See `docs/PACT_ROADMAP.md` NOW section for the authoritative
+  task text. (The Live Sheet `undo()` correctness bug closed as D-GH30: `undo()` itself was already
+  correct; the real defect was a display divergence, fixed display-only. The deferred long-term question —
+  whether `js/engine.js` should grow a frozen-ledger-aware remaining-AP export — is now a NEXT item,
+  `feat/ap-model-reconcile`, in `docs/PACT_ROADMAP.md`.)
 - **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); the three tools'
-  hand-copied `DATA`/`compute()`/`MUT`/etc. (parity risk until the bridge lands); Live Sheet `undo()` /
-  event-log replay path.
+  hand-copied `DATA`/`compute()`/`MUT`/etc. (parity risk until the bridge lands); Live Sheet's
+  `compute()`-vs-frozen-`economy()` divergence (see D-GH30 and `feat/ap-model-reconcile`) — any UI that
+  displays "AP left" for an event-sourced character must use the frozen ledger, not a retroactive
+  recompute.
 - **Preferred task shape:** one task per branch (`type/short-slug`), small focused PRs into `preview`; use
   `/pick-task` → `/run-task`; for big/risky work draft a plan for cold review first (see Agent guidance below).
 - **Avoid:** re-implementing rules logic anywhere but `engine.js`; patching `undo()` with tool-local state
   instead of LOG replay; bumping `DATA.version` for display-only changes; reading large files wholesale.
-- **Verification expectations:** `testing/tests/engine-parity.html` → **5/0**; if `compute()` output changed,
+- **Verification expectations:** `testing/tests/engine-parity.html` → **9/0**; if `compute()` output changed,
   update `testing/expected/` in the same PR and bump `DATA.version`; mirror build/version numbers per
   `docs/VERSION-SYNC.md`.
 
@@ -90,7 +95,7 @@ If none of these apply, state that and proceed.
   `service_role`/secret key** or any private credential.
 - **Target:** modern evergreen browsers on phones and desktops (current Chrome/Edge/Firefox/Safari, incl.
   iOS Safari). Prefer widely-supported JS/CSS; no legacy/IE shims.
-- After any change, `testing/tests/engine-parity.html` must report **5 passed / 0 failed** (how to run it —
+- After any change, `testing/tests/engine-parity.html` must report **9 passed / 0 failed** (how to run it —
   browser or headless — is in `docs/HOW-TO-WORK.md`). Keep `engine.js`'s public API stable if you touch it.
 
 ## Don't read large files wholesale (token budget)
@@ -162,7 +167,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task`
   `docs/PACT-Players-Guide.html`.
 - **Engine support:** `js/` — `supabase-client.js`, `auth.js`, `sync.js`, `campaign.js`, `dm.js`;
   root — `manifest.json`, `service-worker.js`, `404.html`; `sql/` — `schema.sql`, `rls-policies.sql`, `migrations/`.
-- **Testing:** run `testing/tests/engine-parity.html` (expect **5/0**); fixtures in `testing/fixtures/`,
+- **Testing:** run `testing/tests/engine-parity.html` (expect **9/0**); fixtures in `testing/fixtures/`,
   expected output in `testing/expected/` (see `testing/README.md`).
 - **Docs:** `docs/PACT_ROADMAP.md` (open work) · `docs/HOW-TO-WORK.md` (app/test mechanics) ·
   `docs/SKILLS.md` (skills + workflow, human-readable) · `docs/sessions/` ·
@@ -174,14 +179,17 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task`
 ## Per-change checklist
 1. One task, one branch — name it `type/short-slug` (e.g. `feat/…`, `fix/…`, `docs/…`).
 2. Touch `js/engine.js` only if the task targets the engine; else treat its API as fixed.
-3. `testing/tests/engine-parity.html` → **5/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
+3. `testing/tests/engine-parity.html` → **9/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
    `compute()` output, update `testing/expected/` in the same change and say so.
-4. Update `CHANGELOG.md` (always) · `DECISIONS.md` (if the change involves a non-obvious *why*:
+4. After any migration/RLS/schema change, run the Supabase advisor (`get_advisors`) and skim recent logs
+   (`get_logs`) before opening the PR. This project has already been bitten twice by grant/RLS drift that
+   internal guards masked (D-GH15, D-GH12) — the advisor catches that class of issue for free.
+5. Update `CHANGELOG.md` (always) · `DECISIONS.md` (if the change involves a non-obvious *why*:
    security model, trust boundary, caching strategy, data-model trade-off — ask "would a future agent
    wonder why this was done this way?") · `docs/sessions/` (if the session covered discussion or
    spanned multiple areas worth preserving). Graduate the task out of the roadmap if done.
-5. Commit as `type(scope): summary` (Conventional Commits); open a PR and draft its body from the
+6. Commit as `type(scope): summary` (Conventional Commits); open a PR and draft its body from the
    changelog entry.
-6. **After a successful PR merge:** re-check step 4's three docs. If any are missing, add them in a
+7. **After a successful PR merge:** re-check step 5's three docs. If any are missing, add them in a
    follow-up commit on a `docs/` branch before the session closes. A merged PR with missing docs is
    treated as incomplete.

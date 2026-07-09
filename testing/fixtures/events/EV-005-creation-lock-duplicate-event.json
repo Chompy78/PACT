@@ -1,0 +1,28 @@
+{
+  "description": "Creation-pricing-lock (D-GH31) fixture: two creationLocked events appear in the same LOG. Asserts idempotence — a duplicate manual trigger event does not error and produces the SAME result as a single trigger (EV-004): 'Halfling: Brave' prices at the tier-2 locked rate (4), not double-applied or reverted.",
+  "baseSnapshotRef": "_shared/base-halfling.json",
+  "events": [
+    {
+      "type": "award",
+      "amount": 60,
+      "note": "Quest reward",
+      "label": "Award — Quest reward (60 AP)"
+    },
+    {
+      "type": "creationLocked"
+    },
+    {
+      "type": "creationLocked"
+    },
+    {
+      "type": "buy",
+      "cat": "racial",
+      "payload": {
+        "v": "Halfling: Brave"
+      },
+      "cost": 4,
+      "level": 2,
+      "label": "Species trait — Halfling: Brave"
+    }
+  ]
+}

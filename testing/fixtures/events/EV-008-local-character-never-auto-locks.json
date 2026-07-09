@@ -1,0 +1,42 @@
+{
+  "description": "creationLocked gate fixture (D-GH32): a LOCALLY-ONLY character (no campaignBound event anywhere in the LOG) whose spend crosses DATA.level1AP mid-LOG. Asserts the automatic threshold trigger does NOT fire for a character never bound to a campaign — both racial traits price at the flat creation rate (2+4=6) despite total spend (57) exceeding the anchor, because only an explicit creationLocked event (not present here) can lock a purely local character.",
+  "baseSnapshotRef": "_shared/base-halfling.json",
+  "events": [
+    {
+      "type": "award",
+      "amount": 60,
+      "note": "Big quest reward",
+      "label": "Award — Big quest reward (60 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "racial",
+      "payload": {
+        "v": "Halfling: Brave"
+      },
+      "cost": 2,
+      "level": 2,
+      "label": "Species trait — Halfling: Brave"
+    },
+    {
+      "type": "buy",
+      "cat": "patch",
+      "payload": {
+        "patch": {}
+      },
+      "cost": 55,
+      "level": 2,
+      "label": "Spend filler crossing the creation-pricing threshold"
+    },
+    {
+      "type": "buy",
+      "cat": "racial",
+      "payload": {
+        "v": "Halfling: Naturally Stealthy"
+      },
+      "cost": 4,
+      "level": 2,
+      "label": "Species trait — Halfling: Naturally Stealthy"
+    }
+  ]
+}
