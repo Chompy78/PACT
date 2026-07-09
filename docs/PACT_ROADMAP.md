@@ -335,16 +335,6 @@ still reports all green (N passed / 0 failed).
 
 ---
 
-## Add Supabase advisor/log check to the per-change checklist — TODO
-Branch docs/audit-checklist-supabase. Add a step to AGENTS.md's per-change checklist.
-
-```text
-After any migration/RLS/schema change, run the Supabase advisor (get_advisors) and skim recent logs
-(get_logs) before opening the PR. This project has already been bitten twice by grant/RLS drift that
-internal guards masked (D-GH15, D-GH12) — the advisor catches that class of issue for free.
-```
-**Done when:** AGENTS.md's per-change checklist includes this step; no code change.
-
 ## Docs-consistency audit: DECISIONS.md / CHANGELOG.md / roadmap cross-check — TODO
 Branch docs/consistency-audit. One-time pass checking the three logging docs agree with each other and
 with the code.
@@ -412,23 +402,6 @@ caught if a human remembers to open engine-parity.html.
 ```
 **Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 5/0
 when run locally too.
-
-## A2 — PR template with review-cadence checklist — TODO
-Branch docs/pr-template-review-cadence. Promoted from LATER — makes the review habit sticky instead of
-relying on memory (ties into this session's audit push).
-
-```text
-1. Add .github/pull_request_template.md containing the per-change checklist from AGENTS.md (parity gate,
-   CHANGELOG/DECISIONS/sessions updates, version-sync check) so every PR auto-includes it.
-2. Add a review-cadence line to the template: run /code-review (low/medium effort) on every PR before
-   merge; run /code-review ultra specifically for PRs touching js/engine.js or sql/ (RLS/migrations)
-   before merge, given the engine is the single source of truth and RLS is the only security boundary.
-3. Optional follow-up (not required for this task): a fuller CONTRIBUTING.md if more people start
-   contributing — caveat: a template isn't force-read the way a CI check is, so treat this as a nudge,
-   not an enforcement mechanism.
-```
-**Done when:** .github/pull_request_template.md exists, includes the per-change checklist and the
-review-cadence line, and appears automatically when opening a new PR against this repo.
 
 ---
 

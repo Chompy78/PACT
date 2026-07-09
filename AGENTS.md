@@ -176,12 +176,15 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task`
 2. Touch `js/engine.js` only if the task targets the engine; else treat its API as fixed.
 3. `testing/tests/engine-parity.html` → **5/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
    `compute()` output, update `testing/expected/` in the same change and say so.
-4. Update `CHANGELOG.md` (always) · `DECISIONS.md` (if the change involves a non-obvious *why*:
+4. After any migration/RLS/schema change, run the Supabase advisor (`get_advisors`) and skim recent logs
+   (`get_logs`) before opening the PR. This project has already been bitten twice by grant/RLS drift that
+   internal guards masked (D-GH15, D-GH12) — the advisor catches that class of issue for free.
+5. Update `CHANGELOG.md` (always) · `DECISIONS.md` (if the change involves a non-obvious *why*:
    security model, trust boundary, caching strategy, data-model trade-off — ask "would a future agent
    wonder why this was done this way?") · `docs/sessions/` (if the session covered discussion or
    spanned multiple areas worth preserving). Graduate the task out of the roadmap if done.
-5. Commit as `type(scope): summary` (Conventional Commits); open a PR and draft its body from the
+6. Commit as `type(scope): summary` (Conventional Commits); open a PR and draft its body from the
    changelog entry.
-6. **After a successful PR merge:** re-check step 4's three docs. If any are missing, add them in a
+7. **After a successful PR merge:** re-check step 5's three docs. If any are missing, add them in a
    follow-up commit on a `docs/` branch before the session closes. A merged PR with missing docs is
    treated as incomplete.
