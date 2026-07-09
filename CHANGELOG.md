@@ -13,6 +13,14 @@
   `{armour, wornArmour}` together — added `wornArmour` to the patch. Verified in a real browser: a
   Gnome-Small + Leather-Armour build round-trips both fields through export→fold; a default Medium / no-worn-
   armour build round-trips cleanly with no false data.
+- **2026-07-09 · fix(chargen) — DM house-rules bar handlers threw `ReferenceError: ck is not defined`**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched). `dmAdd`, `dmDisableBuiltin`,
+  `dmRemove`, and `dmToggleDisable` each ended with a stray `ck('artck',b.arts||[])` — a copy of
+  `applyBuild`'s art re-tick, but `ck` (a local const inside `applyBuild`) and `b` aren't in scope in these
+  handlers, so the call threw and the `render()` right after it never ran (grids rebuilt, arts unticked,
+  totals stale). Removed the line: `buildArtGrid()` already re-ticks arts from `readBuild().arts` (the LOG)
+  post-Step-3-flip, so the call was redundant as well as broken. Verified in a real browser (add / disable /
+  toggle / remove custom boons+drawbacks all run without throwing).
 
 - **2026-07-09 · chore(merge) — merge `preview` into `feat/chargen-emit-migration` (parity 16/0 → 20/0)**
   (`testing/`; no rules/tool-logic change). Brought the emit-migration branch up to date with `preview`,

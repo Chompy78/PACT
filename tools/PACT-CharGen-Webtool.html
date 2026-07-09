@@ -825,7 +825,7 @@ function dmAdd(){const kind=val('dmkind');const name=(val('dmname')||'').trim();
   else{HOUSE.draws[name]={ap,fx:desc};}
   $('dmname').value='';$('dmdesc').value='';
   buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  ck('artck',b.arts||[]);render();}
+  render();}
 // repricing an existing boon/drawback: when the typed name exactly matches a built-in or custom item,
 // pre-fill HD / AP / description from its current values so leaving a field untouched keeps that value
 // (fixes a silent reset of the HD requirement to 1 when only the AP was being changed).
@@ -839,16 +839,16 @@ function dmDisableBuiltin(){const kind=val('dmkind');const name=(val('dmname')||
   const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=HOUSE.disabled[dk]||[];
   if(!HOUSE.disabled[dk].includes(name))HOUSE.disabled[dk].push(name);
   $('dmname').value='';buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  ck('artck',b.arts||[]);render();}
+  render();}
 function dmRemove(kind,name){const map=kind==='boon'?HOUSE.boons:HOUSE.draws;delete map[name];
   // also clear from disabled list if present
   const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=(HOUSE.disabled[dk]||[]).filter(x=>x!==name);
   buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  ck('artck',b.arts||[]);render();}
+  render();}
 function dmToggleDisable(kind,name){const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=HOUSE.disabled[dk]||[];
   const i=HOUSE.disabled[dk].indexOf(name);if(i>=0)HOUSE.disabled[dk].splice(i,1);else HOUSE.disabled[dk].push(name);
   buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  ck('artck',b.arts||[]);render();}
+  render();}
 function buildDmList(){const el=$('dmlist');if(!el)return;const rows=[];
   const add=(kind,name,meta)=>{const off=isDisabled(kind==='boon'?'boons':'draws',name);
     rows.push('<div class="dmrow'+(off?' off':'')+'"><span class="nm">'+name+'</span><span class="meta">'+meta+'</span>'+
