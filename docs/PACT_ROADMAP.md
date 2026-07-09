@@ -333,6 +333,7 @@ Branch test/expand-engine-parity-coverage. `testing/tests/engine-parity.html` cu
 drawback buy-off, and one racial/mastery discount case, each with a human-reviewed CSV baseline; parity
 still reports all green (N passed / 0 failed).
 
+---
 
 ## Docs-consistency audit: DECISIONS.md / CHANGELOG.md / roadmap cross-check — TODO
 Branch docs/consistency-audit. One-time pass checking the three logging docs agree with each other and
