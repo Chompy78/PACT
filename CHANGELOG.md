@@ -4,6 +4,12 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · docs(github) — add PR template with per-change checklist + review-cadence line**
+  (`.github/pull_request_template.md`, new file; `docs/PACT_ROADMAP.md`). Every new PR against this repo
+  now auto-populates with AGENTS.md's per-change checklist (parity gate, CHANGELOG/DECISIONS/sessions
+  updates, roadmap graduation, version-sync check) plus a review-cadence reminder: run `/code-review`
+  (low/medium) before merge, `/code-review ultra` specifically for PRs touching `js/engine.js` or `sql/`.
+  Closes roadmap item "A2 — PR template with review-cadence checklist".
 - **2026-07-08 · chore(skills) — `/pick-task` and `/run-task` now suggest a Haiku/Sonnet/Opus engine tier per task**
   (`.claude/commands/pick-task.md`, `.claude/commands/run-task.md`; skill-only, no rules/code change).
   `pick-task`'s Step 3 "Check 2" was a binary Sonnet-floor/Opus-escalation check; it's now a three-tier

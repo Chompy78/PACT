@@ -413,23 +413,6 @@ caught if a human remembers to open engine-parity.html.
 **Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 5/0
 when run locally too.
 
-## A2 — PR template with review-cadence checklist — TODO
-Branch docs/pr-template-review-cadence. Promoted from LATER — makes the review habit sticky instead of
-relying on memory (ties into this session's audit push).
-
-```text
-1. Add .github/pull_request_template.md containing the per-change checklist from AGENTS.md (parity gate,
-   CHANGELOG/DECISIONS/sessions updates, version-sync check) so every PR auto-includes it.
-2. Add a review-cadence line to the template: run /code-review (low/medium effort) on every PR before
-   merge; run /code-review ultra specifically for PRs touching js/engine.js or sql/ (RLS/migrations)
-   before merge, given the engine is the single source of truth and RLS is the only security boundary.
-3. Optional follow-up (not required for this task): a fuller CONTRIBUTING.md if more people start
-   contributing — caveat: a template isn't force-read the way a CI check is, so treat this as a nudge,
-   not an enforcement mechanism.
-```
-**Done when:** .github/pull_request_template.md exists, includes the per-change checklist and the
-review-cadence line, and appears automatically when opening a new PR against this repo.
-
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
