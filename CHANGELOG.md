@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · refactor(tools) — bridge foldBuild/activeEvents/economy to js/engine.js in Live Sheet +
+  DM Console (D-GH37)** (`tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`; no `compute()`/`DATA`
+  table change; `engine-parity` 20/0). Both tools' local, hand-copied `foldBuild`/`activeEvents`/`economy`
+  are now thin adapters over the imported `js/engine.js` versions — `activeEvents`/`economy`/`foldBuild`
+  no longer have separate implementations anywhere in the codebase. Lifts D-GH36's pause: with this app
+  still pre-launch (no real characters to protect), the racial-trait-pricing risk that paused this doesn't
+  apply, and bridging actually fixes an existing inconsistency where CharGen and Live Sheet/DM Console
+  disagreed on racial-trait pricing for identical characters (see D-GH37 for the full reasoning).
+
 - **2026-07-09 · fix(dm-console) — bridge `MUT` to js/engine.js (D-GH36)** (`tools/DM-Console.html`; no rules
   change; engine untouched → `engine-parity` 20/0). DM Console now imports `MUT` from `js/engine.js` instead
   of a local copy, fixing two confirmed bugs: `found` previously had no else-branch for a second/later
