@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk B: applyBuild/boot history integration (+ latent randomize-aliasing fix)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` stays 20/0). Wires
+  the Chunk-A history core into every whole-build-replacement flow so each is exactly ONE undoable step:
+  `applyBuild` now suspends history across its whole DOM-write + LOG-rebuild body (via try/finally), and
+  callers own the undo semantics — user file-load and Reset (new `resetBuild()`) push a single pre-action
+  frame; randomize pushes one frame and suspends across `applyBuild` + the appearance/name resync; boot,
+  autosave-restore, and shared-link load pass `{clearHistory:true}` (you can't undo to "before the character
+  existed"), and the initial LOG seed is suspended + cleared. **Latent bug fixed along the way:**
+  `randomizeRoll` mutated `readBuild()`'s result in place, but `foldBuild(LOG)` returns nested arrays that
+  ALIAS the LOG event payloads — so randomize was silently corrupting the live LOG (harmless pre-Step-4
+  because applyBuild rebuilt LOG from the DOM afterward, but the new undo frame snapshotted the corruption);
+  fixed by deep-cloning the working build. Verified in a real browser 13/13 (V4): boot leaves history empty;
+  load/reset/randomize each push exactly one frame; undo after each restores the pre-action build; randomize
+  → undo → redo → undo stays canonical-identical with no history accumulation. Persistence shape + button UI
+  are Chunks C/D.
+
 - **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk A: snapshot-based undo/redo history core (no UI yet)**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` stays 20/0). First
   chunk of the CharGen undo/redo + persistence work (see

@@ -398,9 +398,9 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="openCampaign()" title="Local house rules (not the cloud campaign system) — DM: bar boons/drawbacks/arts and share a text code; barred items are blocked here too">🛡 House rules code</button><span id="campind" style="font-size:11px;color:var(--good);font-weight:700"></span><button class="btn ghost" onclick="exportToLiveSheet()" title="Export this build as a Live Sheet file, then Import it in the Live Sheet to lock it in and progress">⇆ Live Sheet</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
-<button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button>
+<button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){resetBuild();}">↺ Reset</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
-<div class="hd-mobnav"><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
+<div class="hd-mobnav"><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){resetBuild();}">↺ Reset</button><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
 <div class="secnav" id="secnav"></div>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
 <div class="mobile-action-bar">
@@ -1301,6 +1301,23 @@ function redo(){
   restoreFrame(REDO.pop());
 }
 
+// ---- Phase 2 Step 4 (Chunk B): whole-build-replacement history integration ----
+// applyBuild writes the whole DOM then rebuilds LOG, firing many internal mutations; those must NOT each
+// record. A whole-build replace (file load, Reset, randomize) is ONE undoable step: the caller pushes a
+// single pre-action frame via _commitWholeBuildFrame, and applyBuild suspends history across its body so
+// the internal churn is invisible. Boot / autosave-restore / shared-link instead CLEAR history (you can't
+// undo to "before the character existed").
+function _commitWholeBuildFrame(){
+  if(_histSuspended)return;
+  _sealOpenGroup();
+  HIST.push(_snapshotFrame());
+  if(HIST.length>HIST_MAX)HIST.shift();
+  REDO.length=0;_openKey=null;
+}
+function _clearHistory(){HIST.length=0;REDO.length=0;_openKey=null;_coalesceKey=null;_turnLatched=false;}
+// Reset = one undoable whole-build replace to a blank build (the confirm() stays in the button onclick).
+function resetBuild(){_fileHandle=null;_commitWholeBuildFrame();applyBuild({});}
+
 // ---- LOG mutation API — the ONLY functions permitted to change LOG (no handler pushes/splices/reassigns it directly) ----
 function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);render();}
 
@@ -1891,6 +1908,7 @@ async function loadViaPicker(){
 }
 function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
     const d=JSON.parse(e.target.result);
+    _commitWholeBuildFrame();   // Chunk B: a user file-load is one undoable step
     // Detect Live Sheet format (has LOG array) vs CharGen save (flat build object)
     if(d.LOG&&Array.isArray(d.LOG)){
       // Reconstruct CharGen build from Live Sheet LOG by replaying all patch events
@@ -1931,7 +1949,7 @@ function shareLink(){try{const enc=_encB(readBuild());const base=location.href.s
   flash(copied?('Shareable link copied to clipboard ('+url.length+' chars).'):'Link shown — copy it from the popup or the address bar.');
   }catch(err){flash('Could not build a share link.');}}
 function loadFromHash(){try{if(typeof location==='undefined'||!location.hash)return false;
-  if(location.hash.indexOf('#b=')!==0)return false;_fileHandle=null;applyBuild(_decB(location.hash.slice(3)));flash('Shared build loaded ✓');return true;}catch(e){return false;}}
+  if(location.hash.indexOf('#b=')!==0)return false;_fileHandle=null;applyBuild(_decB(location.hash.slice(3)),{clearHistory:true});flash('Shared build loaded ✓');return true;}catch(e){return false;}}
 /* ── Campaign Rules (DM bar tool) — mirrored into CharGen ── */
 var CG_CAMPAIGN=null;
 var _AK='DragonReachForgePACT';
@@ -2114,7 +2132,13 @@ async function exportToLiveSheet(){
 // stable per-character id so hand-typed sheet fields survive renames (and are tagged per tool)
 let __charId=null;
 function currentCharId(){if(!__charId)__charId=genCharId();return __charId;}
-function applyBuild(b){
+function applyBuild(b,opts){
+  opts=opts||{};
+  // Chunk B: suspend history across the whole DOM-write + LOG-rebuild so the internal churn records no
+  // frames. Callers own the undo semantics: a user-initiated load/reset/randomize pushes ONE frame first
+  // (_commitWholeBuildFrame); boot/autosave/shared-link pass {clearHistory:true} to wipe history instead.
+  const _prevSusp=_histSuspended;_histSuspended=true;
+  try{
   if(b&&b.campaign)CG_CAMPAIGN=b.campaign;
   __charId=(b&&b.id)||genCharId();   // loading a build adopts its id; a fresh/blank build gets a new one
   const set=(id,v)=>{const e=$(id);if(e)e.value=v;};
@@ -2167,6 +2191,8 @@ function applyBuild(b){
   // own post-restore resync does). render() happens inside replaceWholeLogFromBuild.
   if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
   else render();
+  }finally{_histSuspended=_prevSusp;}
+  if(opts.clearHistory)_clearHistory();
 }
 
 // ---- lightweight autosave of the in-progress build (safety net independent of Export) ----
@@ -2175,7 +2201,7 @@ function applyBuild(b){
 // moment the tab closes. Mirrors Live Sheet's own localStorage save()/load(): raw build JSON only.
 var CG_AUTOSAVE_KEY='pactCharGenAutosave';
 function _cgAutosave(b){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(b));}catch(e){}}
-function _cgRestoreAutosave(){try{const raw=localStorage.getItem(CG_AUTOSAVE_KEY);if(!raw)return false;const b=JSON.parse(raw);if(!b||typeof b!=='object')return false;applyBuild(b);return true;}catch(e){return false;}}
+function _cgRestoreAutosave(){try{const raw=localStorage.getItem(CG_AUTOSAVE_KEY);if(!raw)return false;const b=JSON.parse(raw);if(!b||typeof b!=='object')return false;applyBuild(b,{clearHistory:true});return true;}catch(e){return false;}}
 
 // ── 🎲 Random character generator ──────────────────────────────────────────
 // Keeps whatever is already selected (species, class(es), name, budget, unlocks)
@@ -2187,7 +2213,11 @@ function randomizeBuild(){
   setTimeout(randomizeRoll,0);
 }
 function randomizeRoll(){
-  let b=readBuild();
+  // Deep-clone the working build: readBuild()=foldBuild(LOG) returns nested arrays/objects that ALIAS the
+  // LOG event payloads, so randomize's in-place mutations below (b.traditions.push, b.stats[a]=…) would
+  // otherwise corrupt the live LOG. Harmless pre-Step-4 (applyBuild rebuilt LOG from the DOM afterward),
+  // but the undo frame captured just before applyBuild would otherwise snapshot the corrupted LOG.
+  let b=JSON.parse(JSON.stringify(readBuild()));
   ['saves','skills','expertise','feats','tools','instruments','masteries','racialTraits','features','traditions','unlockedClasses','toolExpertise','customProfs','subAbilities','boons','drawbacks','arts'].forEach(k=>{if(!Array.isArray(b[k]))b[k]=[];});
   b.stats=b.stats||{}; ABILS.forEach(a=>{b.stats[a]=(+b.stats[a])||10;});
   b.hd=(+b.hd)||1; b.profBonus=(+b.profBonus)||2; b.languages=b.languages!=null?(+b.languages):1;
@@ -2275,11 +2305,17 @@ function randomizeRoll(){
   let stuck=0, iters=0;
   while(stuck<50 && iters<3000 && (budget - C(b).total) > 0){ iters++; if(tryAct(pick(A))) stuck=0; else stuck++; }
   for(let q=0;q<8;q++){tryAct(actBoon);tryAct(actArt);tryAct(actRacial);tryAct(actRacial);}
-  applyBuild(b);
-  try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}
-  // Phase 2 Step 3 (Chunk 5): randomiseAppearance()/genName() write appearance + name straight to the DOM
-  // (direct .value, no events) AFTER applyBuild's own resync — so re-sync LOG once more to capture them.
-  if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
+  // Chunk B: randomize is ONE undoable step — push a single pre-roll frame, then suspend across applyBuild
+  // AND the appearance/name resync so the tail's second LOG rebuild records no extra frame.
+  _commitWholeBuildFrame();
+  const _prevSusp=_histSuspended;_histSuspended=true;
+  try{
+    applyBuild(b);
+    try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}
+    // Phase 2 Step 3 (Chunk 5): randomiseAppearance()/genName() write appearance + name straight to the DOM
+    // (direct .value, no events) AFTER applyBuild's own resync — so re-sync LOG once more to capture them.
+    if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
+  }finally{_histSuspended=_prevSusp;}
   const spent=C(b).total;
   const _changed=JSON.stringify(b)!==_snap0;
   if(typeof flash==='function') flash(_changed?('🎲 Rolled a random character — '+spent+' / '+budget+' AP spent'+(trad?' (incl. a starter spell kit)':'')+'.'):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');
@@ -2953,7 +2989,11 @@ collapseForMobile();
 // autosave restore above has already written the DOM the old way). LOG is NOT kept in sync with further
 // DOM edits until later chunks convert their handlers to the LOG mutation API — see the scaffolding
 // comment above readBuild().
-try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}
+// Chunk B: the initial seed must not create an undo step, and boot must leave a clean history (you can't
+// undo to "before the character existed"). Suspend the seed, then clear — this also drops any frame a
+// shared-link/autosave restore above may have pushed before it cleared.
+{const _p=_histSuspended;_histSuspended=true;try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}finally{_histSuspended=_p;}}
+_clearHistory();
 render();
 // capability-detect (not UA-sniff) whether Save/Export will use the Share sheet or go straight to
 // Downloads, and say so up front — a button that behaves invisibly differently per platform is worse
