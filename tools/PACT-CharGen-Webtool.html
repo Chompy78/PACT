@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v0.107.html**-->
+<!--**PACT-CharGen-Webtool v0.200.html**-->
 
 <!doctype html>
 <!--
@@ -35,7 +35,7 @@
  VERSIONING
    DATA.version (currently "v0.332") is CANONICAL: stamped onto saved/exported JSON
    and compared on import to drive the "frozen prices / reprice drift" logic.
-   The <title> and header "Web Tool" label show the cosmetic web-tool build (v0.107);
+   The <title> and header "Web Tool" label show the cosmetic web-tool build (v0.200);
    the "PACT rules" label tracks DATA.version.
 
  HARD CONSTRAINTS (do not break)
@@ -53,7 +53,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v0.107 · Rules v0.332</title><style>
+<title>PACT Character Generator — Web Tool v0.200 · Rules v0.332</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -389,7 +389,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .gridck label.ck > input[type=checkbox]:disabled + * { opacity: 0.5; }
 .gridck label.ck:has(> input:disabled) { opacity: 0.5; cursor: default; }
 </style></head><body>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.107</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" title="CharGen only saves to this browser's local storage — no sign-in, no cloud sync, no cloud campaign. Use the Live Sheet to join a DM's cloud campaign.">🔒 Local only — not connected to any cloud campaign</span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.200</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" title="CharGen only saves to this browser's local storage — no sign-in, no cloud sync, no cloud campaign. Use the Live Sheet to join a DM's cloud campaign.">🔒 Local only — not connected to any cloud campaign</span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>

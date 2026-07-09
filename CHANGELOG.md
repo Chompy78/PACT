@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · chore(release) — bump build v0.107 → v0.200; remove the v0 comparison snapshot**
+  (`js/engine.js`, `tools/*.html`, `index.html`, `docs/VERSION-SYNC.md`; no rules change; `DATA.version`
+  unchanged at v0.332; engine-parity 20/0). Release-prep for the Phase-2 CharGen rewrite (Steps 3–5 + the
+  two fixes). Bumped `BUILD` and mirrored it across CharGen (line-1 comment, `<title>`, header `.sub`), the
+  Live Sheet (line-1 comment) and DM Console (`TOOL_VERSION`) per `docs/VERSION-SYNC.md`; `index.html` reads
+  `BUILD` live. Removed the frozen pre-Phase-2 comparison artifact — the "Character Generator — v0 snapshot"
+  menu card in `index.html`, plus `tools/PACT-CharGen-Webtool-v0.html` and its pinned
+  `js/engine-v0-snapshot.js` (nothing else referenced them). Smoke-tested: menu shows one CharGen card and
+  "Build v0.200"; CharGen boots clean showing v0.200.
+
 - **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk D: Undo/Redo UI + keyboard shortcuts (Step 4 COMPLETE)**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` **20/0**). Final
   chunk: `↶ Undo` / `↷ Redo` buttons in the desktop header cluster and the mobile nav, enabled/disabled from
