@@ -4,3 +4,7 @@ CG-002,chargen,fixtures/builds/CG-002-valid-50ap-build.json,,50,,0,,true,,true,
 CG-003,chargen,fixtures/builds/CG-003-over-budget-build.json,,67,,1,,false,,true,over budget by 17 AP; first warning starts with OVER BUDGET
 LS-001,live-sheet,fixtures/live-sheets/LS-001-clean-generator-export.json,,78,,1,,true,28,true,budget 80 (50+30 award); Ki-without-feature warning
 EV-001,event-sourcing,fixtures/events/EV-001-award-and-purchase.json,,68,,0,,true,7,true,budget 70 (50+20 award)
+CG-004,chargen,fixtures/builds/CG-004-prereq-gate-rejection.json,,12,,4,,true,,true,expertise w/o skill + mastery w/o weapon prof + duplicate feature + medium armour w/o STR 10 - still valid; gates warn only
+CG-005,chargen,fixtures/builds/CG-005-racial-mastery-discount.json,,42,,0,,true,,true,Halfling Naturally Stealthy bought in-play at Tier 4 (13 AP vs 4 AP creation price) + 2 weapon masteries (5 AP)
+CG-006,chargen,fixtures/builds/CG-006-multi-tradition-spellcasting.json,,79,,0,,true,,true,Wizard (Arcane) + Cleric (Divine) as dual origin classes; each tradition pays its own Foundation + Rank
+EV-002,event-sourcing,fixtures/events/EV-002-drawback-buyoff.json,,36,,0,,true,4,true,Superstitious drawback bought then bought off (3x cost); ends up fully absent from folded build and AP total

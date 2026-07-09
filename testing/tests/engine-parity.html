@@ -35,13 +35,17 @@
       builds: [
         { id: "CG-001", path: "../fixtures/builds/CG-001-default-empty-build.json" },
         { id: "CG-002", path: "../fixtures/builds/CG-002-valid-50ap-build.json" },
-        { id: "CG-003", path: "../fixtures/builds/CG-003-over-budget-build.json" }
+        { id: "CG-003", path: "../fixtures/builds/CG-003-over-budget-build.json" },
+        { id: "CG-004", path: "../fixtures/builds/CG-004-prereq-gate-rejection.json" },
+        { id: "CG-005", path: "../fixtures/builds/CG-005-racial-mastery-discount.json" },
+        { id: "CG-006", path: "../fixtures/builds/CG-006-multi-tradition-spellcasting.json" }
       ],
       liveSheets: [
         { id: "LS-001", path: "../fixtures/live-sheets/LS-001-clean-generator-export.json" }
       ],
       eventSets: [
-        { id: "EV-001", path: "../fixtures/events/EV-001-award-and-purchase.json" }
+        { id: "EV-001", path: "../fixtures/events/EV-001-award-and-purchase.json" },
+        { id: "EV-002", path: "../fixtures/events/EV-002-drawback-buyoff.json" }
       ]
     };
 
@@ -192,6 +196,15 @@
               failures.push(`remaining should be < 0, got ${row.remaining}`);
             if (!row.firstWarning.startsWith("OVER BUDGET"))
               failures.push(`first warning should start with "OVER BUDGET", got: "${row.firstWarning}"`);
+          }
+
+          // CG-004: prereq-gate rejection — must stay valid (gates only warn, they
+          // don't block the purchase) and lead with the expertise-without-skill gate
+          if (row.id === "CG-004") {
+            if (row.remaining < 0)
+              failures.push(`remaining should be >= 0, got ${row.remaining}`);
+            if (row.firstWarning !== "Expertise in Athletics needs the skill bought first")
+              failures.push(`first warning mismatch, got: "${row.firstWarning}"`);
           }
 
           // LS-001 / EV-001: assert ok + eventsApplied

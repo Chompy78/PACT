@@ -1,0 +1,58 @@
+{
+ "description": "Event-sourcing fixture: a level-1 Rogue takes the Superstitious drawback for +2 AP, then buys it off later (3x cost = 6 AP) after an award. Exercises rebuildStateFromEvents' activeEvents()/boughtOff handling — the drawback must be fully absent from the folded build and its AP refund line gone from compute(), regardless of event order.",
+ "baseSnapshot": {
+  "name": "Doran Quickstep",
+  "budget": 30,
+  "originClass": "Rogue",
+  "species": "Human",
+  "stats": {
+   "STR": 10,
+   "DEX": 16,
+   "CON": 12,
+   "INT": 10,
+   "WIS": 12,
+   "CHA": 14
+  },
+  "hd": 1,
+  "profBonus": 2,
+  "saves": [],
+  "skills": [],
+  "tools": [],
+  "weaponProf": {
+   "simple": true
+  },
+  "armour": {
+   "light": true
+  },
+  "inPlay": true
+ },
+ "events": [
+  {
+   "type": "award",
+   "amount": 20,
+   "note": "Cleared the goblin camp",
+   "label": "Award — Cleared the goblin camp (20 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "drawback",
+   "payload": {
+    "v": "Superstitious"
+   },
+   "cost": -2,
+   "level": 1,
+   "label": "Drawback — Superstitious (+2 AP)"
+  },
+  {
+   "type": "buyoff",
+   "refVal": "Superstitious",
+   "cost": 6,
+   "label": "Bought off — Superstitious"
+  },
+  {
+   "type": "name",
+   "name": "Doran Quickstep",
+   "label": "Name — Doran Quickstep"
+  }
+ ]
+}
