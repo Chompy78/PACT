@@ -4,6 +4,23 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · refactor(tools) — bridge foldBuild/activeEvents/economy to js/engine.js in Live Sheet +
+  DM Console (D-GH37)** (`tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`; no `compute()`/`DATA`
+  table change; `engine-parity` 20/0). Both tools' local, hand-copied `foldBuild`/`activeEvents`/`economy`
+  are now thin adapters over the imported `js/engine.js` versions — `activeEvents`/`economy`/`foldBuild`
+  no longer have separate implementations anywhere in the codebase. Lifts D-GH36's pause: with this app
+  still pre-launch (no real characters to protect), the racial-trait-pricing risk that paused this doesn't
+  apply, and bridging actually fixes an existing inconsistency where CharGen and Live Sheet/DM Console
+  disagreed on racial-trait pricing for identical characters (see D-GH37 for the full reasoning).
+
+- **2026-07-09 · fix(dm-console) — bridge `MUT` to js/engine.js (D-GH36)** (`tools/DM-Console.html`; no rules
+  change; engine untouched → `engine-parity` 20/0). DM Console now imports `MUT` from `js/engine.js` instead
+  of a local copy, fixing two confirmed bugs: `found` previously had no else-branch for a second/later
+  founded tradition (silently dropped it) and `dbound` wasn't handled at all (DM Console couldn't process
+  that event type). The matching `foldBuild`/`activeEvents`/`economy` bridge (the other half of the same
+  cold-reviewed plan) is **paused** — it conflicts with D-GH34's already-shipped racial-trait-pricing fix;
+  see `docs/plans/2026-07-09-engine-bridge-live-dm-console.md` and D-GH36.
+
 - **2026-07-09 · chore(release) — bump build v0.107 → v0.200; remove the v0 comparison snapshot**
   (`js/engine.js`, `tools/*.html`, `index.html`, `docs/VERSION-SYNC.md`; no rules change; `DATA.version`
   unchanged at v0.332; engine-parity 20/0). Release-prep for the Phase-2 CharGen rewrite (Steps 3–5 + the

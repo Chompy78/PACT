@@ -384,39 +384,14 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 
 // mutators: apply a buy's effect to a build (immutably)
 // MUT is bridged from js/engine.js (engine-ready module, D-GH26).
-
-function activeEvents(uptoIdx){
-  const evs = (uptoIdx==null?LOG:LOG.slice(0,uptoIdx));
-  const boughtOff={};
-  evs.forEach(e=>{ if(e.type==='buyoff')boughtOff[e.refVal]=1; });
-  return {evs, boughtOff};
-}
-function foldBuild(uptoIdx){
-  const {evs,boughtOff}=activeEvents(uptoIdx); const b=baseBuild();
-  for(const e of evs){
-    if(e.type==='name'){b.name=e.name;continue;}
-    if(e.type==='names'){MUT.names(b,e);continue;}   // spell/feat names → fold into build (else they never reach the sheet)
-    if(e.type!=='buy')continue;
-    if(e.cat==='drawback'&&boughtOff[e.payload.v])continue; // bought off: removed
-    (MUT[e.cat]||(()=>{}))(b,e.payload);
-  }
-  b.budget=economy(uptoIdx).earned;   // budget = AP earned so over-budget reflects reality
-  ["saves","skills","expertise","toolExpertise","tools","instruments","masteries","racialTraits","racialSpells"].forEach(function(k){if(Array.isArray(b[k]))b[k]=b[k].filter(function(v,i){return b[k].indexOf(v)===i;});});  // single-instance proficiency lists never hold duplicates (guards flooded patch-imports)
-  (b.traditions||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(d&&(DATA.noCantrip||[]).indexOf(d.name)>=0){d.cantrips=0;d.cantripNames=[];}});});
-  return b;
-}
-function economy(uptoIdx){
-  const {evs,boughtOff}=activeEvents(uptoIdx); let earned=0,spent=0,drawbackEarned=0;
-  for(const e of evs){
-    if(e.type==='award')earned+=e.amount;
-    else if(e.type==='buy'){
-      if(e.cat==='drawback'){ if(!boughtOff[e.payload.v]) drawbackEarned+=(-e.cost); }  // drawback grants AP (capped below)
-      else spent+=e.cost; }
-    else if(e.type==='buyoff')spent+=e.cost;else if(e.type==='names')spent+=(e.cost||0);        // pay 3x to remove a drawback
-  }
-  earned+=drawbackEarned;  // drawbacks grant their full AP (no hard cap; compute() warns if >12)
-  return {earned,spent,available:earned-spent};
-}
+// foldBuild/activeEvents/economy are thin adapters over js/engine.js's real (array-based)
+// versions (D-GH37) — uptoIdx-based time travel stays local (slice LOG, hand the slice to the
+// engine); window._engineFold is set by the module bridge, present by the time these are called
+// (UI boot is gated on engine-ready).
+function eventsUpTo(uptoIdx){ return uptoIdx==null ? LOG : LOG.slice(0,uptoIdx); }
+function activeEvents(uptoIdx){ return window._engineFold.activeEvents(eventsUpTo(uptoIdx)); }
+function foldBuild(uptoIdx){ return window._engineFold.foldBuild(eventsUpTo(uptoIdx)); }
+function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)); }
 // price a prospective change: frozen delta against the CURRENT committed build
 function priceOf(cat,payload){
   const cur=foldBuild(null);
@@ -1369,13 +1344,15 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   import { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
   import { listMyCampaigns, getCampaign } from '../js/campaign.js';
-  import { validate, DATA, compute, baseBuild, MUT } from '../js/engine.js';
+  import { validate, DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   window._syncBridge = { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync };
   window._authBridge = { currentSession, onAuthChange };
   window._campaignBridge = { listMyCampaigns, getCampaign };
   window._engineBridge = { validate };
-  // Engine module bridge (D-GH26): DATA/compute/baseBuild/MUT come from js/engine.js — the
-  // single source of truth — instead of hand-copied inline duplicates. UI boot waits on engine-ready.
+  window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy };
+  // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
+  // activeEvents/economy come from js/engine.js — the single source of truth — instead of
+  // hand-copied inline duplicates. UI boot waits on engine-ready.
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (Live Sheet); never read by compute()
   window.DATA = DATA; window.compute = compute; window.baseBuild = baseBuild; window.MUT = MUT;
   document.dispatchEvent(new Event('engine-ready'));

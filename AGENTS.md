@@ -67,15 +67,24 @@ If none of these apply, state that and proceed.
   had **no** module bridge before — gained its first one here (still no cloud/auth wiring; `DATA`+`compute`
   only). The per-tool display-only `DATA.racialFx` map is set inside each module bridge (it mutates the
   imported `DATA`; never read by `compute()`).
-- **Still hand-copied / local in the tools** (NOT yet bridged — a follow-up migration; see D-GH26):
-  `activeEvents`/`economy`/`foldBuild` in **all three** tools are **index-based closures over a
-  script-level `LOG`** (`foldBuild(uptoIdx)`), *not* the engine's array-parameter API
-  (`foldBuild(events)`) — they drive the Live Sheet/DM event-sourcing + time-travel and the CharGen
-  import-fold, and are **not** signature-compatible with the engine exports. `MUT` is also still local in
-  **CharGen** (specialized closures inside `_lsImportFold`/`buildToLiveLog`, the D-GH3 export bridge) and
-  **DM Console** (its `MUT` *diverges* from the engine's — stale `found`, missing `dbound`; bridging it is
-  a deliberate behavioral change, not done yet). Never re-implement rules logic anywhere else; `tools/`
-  and `js/` must stay siblings.
+- **`activeEvents`/`economy`/`foldBuild` are now bridged in all three tools** (D-GH37, following D-GH33 for
+  CharGen): Live Sheet and DM Console call these with an **index** (`foldBuild(uptoIdx)`, for their
+  time-travel/scrub UI), so each keeps a small local `eventsUpTo(uptoIdx)` helper that slices the tool's own
+  `LOG` and hands the array to the imported engine functions — the call signature at every existing call
+  site is unchanged, only the function *bodies* now delegate instead of duplicating the fold/economy logic.
+  CharGen calls the engine's array-parameter API directly (`foldBuild(LOG)`) since its undo/redo snapshots
+  whole logs rather than scrubbing by index. **This was paused once already** (D-GH36) over a real risk —
+  the engine's real replay populates a per-trait `b._raceTraitLocked` map that these tools' old local folds
+  never produced, and `compute()`'s racial-trait pricing depends on that map's presence; bridging without a
+  historical-data migration would have silently re-priced existing characters. The pause was lifted (D-GH37)
+  once confirmed this app is still pre-launch (no real characters to protect) — see D-GH37 for the full
+  reasoning, including a related finding: no tool's UI actually triggers the `creationLocked`/`campaignBound`
+  events this pricing mechanism depends on yet, so it doesn't functionally do anything in any tool today
+  regardless of the bridge. `MUT` is bridged in **Live Sheet** (byte-identical to the engine's before the
+  bridge) and **DM Console** (D-GH36 — fixed the `found`/`dbound` drift on the way). `MUT` is still local
+  in **CharGen**'s import-fold path only — specialized closures inside `_lsImportFold`/`buildToLiveLog` (the
+  D-GH3 export bridge), separate from CharGen's main event-sourced build, which already uses the bridged
+  `MUT`/`foldBuild`. Never re-implement rules logic anywhere else; `tools/` and `js/` must stay siblings.
 - **Persistence:** the app is an installable, offline-capable PWA with **optional sign-in**. Local-only
   still works (localStorage + JSON import/export); when signed in, characters also save to the **cloud
   (Supabase)** and DMs run **campaigns**. CharGen = a flat build JSON; Live Sheet = an event log
