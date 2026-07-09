@@ -333,17 +333,6 @@ Branch test/expand-engine-parity-coverage. `testing/tests/engine-parity.html` cu
 drawback buy-off, and one racial/mastery discount case, each with a human-reviewed CSV baseline; parity
 still reports all green (N passed / 0 failed).
 
----
-
-## Add Supabase advisor/log check to the per-change checklist — TODO
-Branch docs/audit-checklist-supabase. Add a step to AGENTS.md's per-change checklist.
-
-```text
-After any migration/RLS/schema change, run the Supabase advisor (get_advisors) and skim recent logs
-(get_logs) before opening the PR. This project has already been bitten twice by grant/RLS drift that
-internal guards masked (D-GH15, D-GH12) — the advisor catches that class of issue for free.
-```
-**Done when:** AGENTS.md's per-change checklist includes this step; no code change.
 
 ## Docs-consistency audit: DECISIONS.md / CHANGELOG.md / roadmap cross-check — TODO
 Branch docs/consistency-audit. One-time pass checking the three logging docs agree with each other and
