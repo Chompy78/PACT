@@ -1,0 +1,47 @@
+{
+  "description": "creationLocked gate fixture (D-GH32): spend crosses DATA.level1AP BEFORE any campaignBound event; a campaignBound event then arrives late (spend already over the anchor). Asserts the automatic lock fires RETROACTIVELY at the moment of binding, not applied to purchases before it, but locking any racial-trait purchase that happens after: 'Halfling: Brave' (bought while still local/unbound, spend already over threshold) prices at creation rate (2, since nothing had locked it yet); 'Halfling: Naturally Stealthy' (bought after the campaignBound event) prices at the locked tier-2 rate (7).",
+  "baseSnapshotRef": "_shared/base-halfling.json",
+  "events": [
+    {
+      "type": "award",
+      "amount": 60,
+      "note": "Big quest reward",
+      "label": "Award — Big quest reward (60 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "patch",
+      "payload": {
+        "patch": {}
+      },
+      "cost": 55,
+      "level": 2,
+      "label": "Spend filler crossing the creation-pricing threshold (still local)"
+    },
+    {
+      "type": "buy",
+      "cat": "racial",
+      "payload": {
+        "v": "Halfling: Brave"
+      },
+      "cost": 2,
+      "level": 2,
+      "label": "Species trait — Halfling: Brave (still local, unlocked)"
+    },
+    {
+      "type": "campaignBound",
+      "campaignId": "camp-test-002",
+      "label": "Campaign — Test Campaign (late binding)"
+    },
+    {
+      "type": "buy",
+      "cat": "racial",
+      "payload": {
+        "v": "Halfling: Naturally Stealthy"
+      },
+      "cost": 7,
+      "level": 2,
+      "label": "Species trait — Halfling: Naturally Stealthy (after binding, retroactively locked)"
+    }
+  ]
+}

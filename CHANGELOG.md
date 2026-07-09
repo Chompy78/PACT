@@ -4,6 +4,275 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · chore(merge) — merge `preview` into `feat/chargen-emit-migration` (parity 16/0 → 20/0)**
+  (`testing/`; no rules/tool-logic change). Brought the emit-migration branch up to date with `preview`,
+  which had advanced with PR #131 (Live Sheet cloud-status label — auto-merged clean) and PR #136 (four
+  new engine-parity fixtures). PR #136 introduced its own CG-004/005/006 + EV-002, colliding with the IDs
+  this branch already used for the D-GH34 lock-fallback fixtures; resolved by renumbering PR #136's builds
+  to **CG-007/008/009** and its drawback-buyoff event to **EV-010** (files `git mv`d, `test_id`s and CSV
+  rows updated with "renumbered from PR #136" notes). The parity harness's one hardcoded prereq-gate
+  assertion was repointed from `CG-004` to `CG-007` so it stays on PR #136's fixture (the real browser
+  gate caught this — the node mirror did not). Harness now **20/0** (browser + node). No `DATA.version`
+  change; both fixture sets coexist.
+
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 6: THE FLIP — CharGen is now event-sourced (emit-migration COMPLETE)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Final
+  chunk of the CharGen emit()-migration. `readBuild()` now returns `foldBuild(LOG)` — the event LOG is the
+  source of truth; a character *is* its LOG, and CharGen + the Live Sheet are interchangeable views over
+  it. `name`/`budget` are read from the DOM as documented Step-3 shims (full event-sourcing of
+  budget/awards is Step 5). The DOM stays the input layer (no full repaint — verified typing is
+  undisrupted). All shadow-diff/audit scaffolding removed (`canonicalBuild()` retained). The strengthened
+  Category-G audit caught a real post-flip bug — `annotate()` auto-unchecked prerequisite-invalid controls
+  (expertise without its skill, cross-race trait after a species change, etc.) without retracting the LOG
+  event, so `foldBuild(LOG)` kept counting them — fixed with `_cgReconcileChecklistDependents()`
+  (retract-only, precision-guarded). Cold-reviewed plan
+  (`docs/plans/2026-07-09-chargen-emit-migration-chunk6-flip.md`); the implementation diff independently
+  reviewed (8/8 checks passed). Verified: parity 16/0, both LOG_SYNC_GUARDs consistent, all four plan
+  invariants pass (Build Projection, LEFTOVER_STATE=0, Budget Validation, and the authoritative-LOG
+  proof — suppressing an emit makes a control change stop sticking), full Chunk 0–5 regression green.
+
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 5: whole-build-replacement convergence (LOG synced after every load flow)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Seventh
+  chunk of the CharGen emit()-migration plan. Every whole-build-replacement flow (loadFile — both the
+  CharGen-flat and Live-Sheet-LOG branches — loadFromHash, autosave-restore, Reset, randomize) now rebuilds
+  LOG from the freshly-written DOM via `replaceWholeLogFromBuild(_domReadBuild())`, so a mid-session load
+  leaves LOG in sync with the loaded build (not just at boot). Reading `_domReadBuild()` rather than the
+  passed build is load-bearing — randomize's scratch build never holds appearance/name, which go to the DOM
+  only. Verified all five plan scenarios (flat load, Live-Sheet-LOG load, shared-link round-trip,
+  pre-migration autosave restore, randomize) leave `foldBuild(LOG)` reproducing the DOM's structure and
+  compute total; independently reviewed (8/8 passed). Incremental live typing of `name`/`budget` (which
+  tie into the Chunk 6 `readBuild()` flip's reconstruction) is deferred to Chunk 6. No user-facing behavior
+  change (Option A).
+
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 4B: traditions/disciplines → one coalescing TRADITIONS patch**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Sixth
+  and riskiest chunk of the CharGen emit()-migration plan (its own rollback boundary). The whole
+  `traditions` array is serialized into a single `replacePatchSlot(PATCH_SLOTS.TRADITIONS, ...)` on every
+  edit — NEVER a granular indexed `found`/`rank`/`cantrip`/`slot`/`known`/`dbound` event (the plan's hard
+  LOG-invariant #7, actively asserted). A `closest('.tcard')` `#form` delegation handles all tradition
+  controls (all class-only, no double-handling); the two inline ✕-removal onclicks were converted to
+  helpers (the only user-visible change — verified behavior-preserving and more null-safe). The TRADITIONS
+  patch carries `traditions` only, not `dabblerCantrips` (owned by the MISC slot since Chunk 2) — verified
+  deterministic across interleaved edits. Verified with a caster-heavy golden build (Wizard+Warlock, pact
+  slots, arcanum: DOM↔`foldBuild(LOG)` deep-match, total 242==242, one coalesced slot event) and both ✕
+  buttons. Independently reviewed (9/9 checks passed, no fixes needed). No user-facing behavior change
+  (Option A) beyond the internally-equivalent removal-button refactor.
+
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 4A: customProfs/freeSub wiring + patch-slot hardening + unlockclass fix**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Fifth
+  chunk of the CharGen emit()-migration plan. Wires `customProfs` and `freeSub` (coalescing-patch fields
+  whose controls carry no `id`, so Chunk 2's id-keyed delegation missed them) via a new class-keyed patch
+  delegation plus add/remove nudges. Extracts a shared `_cgSyncPatchSlot()` no-op-skip primitive (Chunk
+  2's cascade had it inlined) and refactors the Category B handlers to use it. Fixes the real
+  origin-class ↔ unlockedClasses divergence flagged by Chunk 3's review, via `_cgReconcileUnlockClass()`
+  on IDENTITY-slot changes. Independently reviewed (8/8 checks passed, no fixes needed); a comprehensive
+  mixed-editing test confirmed DOM and `foldBuild(LOG)` fully agree across all converted fields and total
+  AP. No user-facing behavior change (Option A).
+
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 3: Category C add-row lists + unlockedClasses wired to LOG**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Fourth
+  chunk of the CharGen emit()-migration plan. `unlockedClasses` reused Chunk 1's checkbox-per-value
+  mechanism (with a branch for `classunlock`'s `dataset.cls`-not-`value` quirk). `features`/
+  `subAbilities`/`subSpellBundles` needed a new multiset-reconciliation function (`_cgSyncFlatCategory`)
+  instead, since their add-row UI is dynamic and features can legitimately repeat — a plain set-diff
+  would collapse two identical repeatable-feature picks into one LOG event. Found and closed three
+  "direct assignment, no event fires" gaps (`addRow()`'s preset path, the row-removal button, and the
+  autocomplete's `pick()`), the same class of bug Chunk 1's post-commit fix found for `annotate()`'s
+  auto-corrections. Independently reviewed (8/8 checks passed); verified the repeatable-feature case
+  directly (2 picks → 2 LOG entries; removing one row → exactly 1 remaining). One latent, pre-existing-
+  class gap noted but not fixed (self-heals, invisible under Option A): flagged for Chunk 4A/6.
+
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 2: Category B scalar/object fields wired to replacePatchSlot()**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). Third
+  chunk of the CharGen emit()-migration plan. All Category B scalar/object fields (stats, hd, profBonus,
+  hardy/tough, weaponProf, armour, wornArmour, languages, attune, ki, sorcery, gold, martiallyBound,
+  dabblerCantrips, houseRules/DM toggles, appearance, innate spells) now dual-write into `LOG` via
+  `replacePatchSlot()`, id-keyed through one delegated `#form` listener. Found and closed a real taxonomy
+  gap: `originClass`/`originClass2`/`species`/`species2`/`lineage` were genuine Category B fields missing
+  from the cold-reviewed plan's entire field enumeration — grouped under the already-declared-but-unused
+  `PATCH_SLOTS.IDENTITY`. Added three new canonical slots (`VIGOR`, `INNATE`, `MISC`) for other orphaned
+  fields rather than overloading an unrelated existing slot. The STR<10 armour guard (Category F) is
+  enforced both directly and via a STATS→ARMOUR re-patch cascade. An independent review before this
+  landed found and fixed: a still-missing `lineage` field, needless LOG churn from an unconditional
+  cascade and from `ap_*_lock` UI-only checkboxes false-matching the appearance-field prefix, and an
+  undocumented `budget` exclusion. Verified: 21 fields directly confirmed matching between DOM and
+  `foldBuild(LOG)`; the repeated-edit cost-delta invariant holds through the full UI path; full regression
+  suite green.
+- **2026-07-09 · fix(chargen) — Phase 2 Step 3, Chunk 1 follow-up: prevent duplicate LOG entries from DOM-side bypass unchecks**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; `testing/tests/engine-parity.html` → 16/0). A second
+  independent review of Chunk 1's diff (below) found a real bug after it had already landed:
+  `onChecklistToggle`'s CHECK path had no duplicate guard, and several pre-existing `annotate()` DOM-side
+  auto-corrections set `.checked=false` directly without dispatching a `change` event — meaning
+  `retractFlatEvent()` never ran for them, leaving `LOG` with a stale entry the DOM no longer reflected. A
+  later re-check of the same box would then emit a genuine duplicate `LOG` entry. Fixed with an idempotency
+  guard: `onChecklistToggle` now no-ops on CHECK if `LOG` already has a matching `(cat, value)` entry.
+  Verified by directly simulating the bypass scenario (before: 2 entries after re-check; after: stays at
+  1) and confirming a normal check→uncheck→recheck cycle still correctly cycles 1→0→1. Full regression
+  suite reconfirmed green.
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 1: Category A checkboxes + Category D grids wired to LOG**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change, `DATA.version` untouched; `testing/tests/engine-parity.html`
+  → 16/0). Second chunk of the CharGen emit()-migration plan. All 12 flat checkbox categories (saves,
+  skills, expertise, tool expertise, tools, instruments, masteries, racial traits, racial spells, boons,
+  drawbacks, arts) now dual-write into `LOG` via one delegated listener (`onChecklistToggle`), in addition
+  to the existing DOM-driven display — DOM stays authoritative (Option A) so this is not a user-visible
+  change. Pricing is computed against the current full DOM-derived build, not `foldBuild(LOG)` (which is
+  still stale for every category not yet converted) — confirmed to exactly reproduce the existing
+  hardcoded drawback-cost formula via direct test. `buildArtGrid`/`buildBoonGrid`/`buildDrawGrid` (Category
+  D) converted to read checked-state from `foldBuild(LOG)` instead of `ckVals()`, after tracing every call
+  site (boot, `applyBuild`, `applyCampaignCode`, filter re-renders) to confirm the change is safe. Verified
+  with real click/restore-flow browser tests plus the parity suite; independently reviewed. Surfaced (not
+  fixed — tracked separately) a pre-existing bug: `dmAdd()`/`dmDisableBuiltin()`/`dmRemove()`/
+  `dmToggleDisable()` throw `ReferenceError: ck is not defined` when called, unrelated to this chunk.
+- **2026-07-09 · feat(chargen) — Phase 2 Step 3, Chunk 0: LOG mutation API + shadow-diff scaffolding (no behavior change)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change, `DATA.version` untouched; `testing/tests/engine-parity.html`
+  → 16/0). First chunk of the CharGen emit()-migration plan (cold-reviewed:
+  `docs/plans/2026-07-09-chargen-emit-migration-phase2-step3.md`). Adds CharGen-local `LOG`/`SEQ` and the
+  sole LOG-mutation surface (`emit`, `retractFlatEvent`, `replacePatchSlot`, `replaceWholeLogFromBuild`),
+  a runtime-enforced `RETRACTABLE_FLAT_CATS` allowlist and `PATCH_SLOTS` registry, and a dev-only
+  (`?cgShadow=1`) pre/post-render shadow-diff comparing the DOM-derived build against `foldBuild(LOG)`,
+  backed by four LOG-invariant assertions. `readBuild()` (renamed original kept as `_domReadBuild()`) still
+  returns the DOM-derived build — Option A, the flip to `foldBuild(LOG)` is deferred to the plan's final
+  cleanup chunk — so this chunk changes no visible behavior; verified via a live DOM interaction (racial
+  trait checkbox still re-prices correctly, `LOG` stays frozen at its boot snapshot since no handler is
+  converted yet) and a full parity run. `buildToLiveLog()`'s event-burst logic is factored out into a
+  shared `_buildEventBurst()`/`buildToEventLog()` (used to seed `LOG` once at boot) with no behavior change
+  to `buildToLiveLog()` itself — confirmed via the same before/after round-trip check used for the D-GH34
+  fix. Building the shadow-diff surfaced two pre-existing, unrelated gaps in the CharGen→Live-Sheet export
+  burst (present before this chunk, not introduced by it): `size` is never exported (an unconditional
+  `||` in `emitPatch`'s `skipZeroCostPatch` check always skips the "Character size" patch), and
+  `wornArmour` has a real `MUT` mutator but was never wired into the burst at all. Deliberately not fixed
+  here — output as a roadmap item for a human to fold in (see chat) rather than slipped into a
+  "no behavior change" scaffolding chunk.
+- **2026-07-09 · refactor(engine,chargen,testing) — post-D-GH34 code review cleanup pass**
+  (`js/engine.js`; `tools/PACT-CharGen-Webtool.html`; `testing/tests/engine-parity.html`;
+  `testing/fixtures/events/*`; `DATA.version` unchanged — no `compute()` behavior change;
+  `testing/tests/engine-parity.html` → 16/0). Follow-up cleanup for six lower-priority findings
+  from the D-GH34 code review, all verified to change no engine output: (1) `_replay()`'s two
+  passes merged into one loop, with spend-classification logic factored into a shared
+  `_spendCost()` helper used by both `_replay()` and `economy()`; (2) dead `SOFT_WARN`/`isAdvisory`
+  regex clauses referencing the removed "priced at character-creation" warning text removed from
+  both `tools/PACT-Live-Char-Sheet.html` and `tools/PACT-CharGen-Webtool.html`; (3) the v0 snapshot's
+  pre-existing rule exception left as-is (already disclosed and intentional, no code change needed);
+  (4) CharGen's `liveBase()` — a standalone scratch-object constructor that had drifted out of sync
+  with the engine's `baseBuild()` — now derives from the imported `baseBuild()` with an explicit
+  `inPlay=false` override; a naive delete-and-reuse of `baseBuild()` was checked first and found to
+  silently regress `buildToLiveLog()`'s racial-trait export pricing (`baseBuild()`'s `inPlay:true`
+  default now has real pricing meaning under D-GH34's fallback), so the override is kept and
+  commented as load-bearing, not a leftover; (5) `_lsImportFold()`, a one-line pass-through wrapper
+  left over from the D-GH33 swap to the real `foldBuild()`, deleted and inlined at its single call
+  site; (6) the 8 near-identical `baseSnapshot` objects duplicated across `EV-002`–`EV-009` collapsed
+  into one shared fixture (`testing/fixtures/events/_shared/base-halfling.json`), referenced via a new
+  `baseSnapshotRef` field the harness's loader resolves relative to each fixture's own path. Verified
+  via the full parity suite (still 16/0), a browser round-trip re-check of `buildToLiveLog()`'s racial-
+  trait pricing (unchanged), and a live run of the browser test harness confirming every
+  `baseSnapshotRef` resolves correctly.
+- **2026-07-08 · fix(engine) — restore racial-trait pricing in Live Sheet & DM Console; wire noLock into CharGen's export (D-GH34)**
+  (`js/engine.js`; `tools/PACT-CharGen-Webtool.html`; `DATA.version` v0.334→v0.335; 3 new fixtures
+  `CG-004`–`CG-006`; `testing/tests/engine-parity.html` → 16/0). An 8-angle code review of D-GH31/32/33
+  found a live, shipping regression: `compute()`'s racial-trait pricing had switched from an
+  always-`true` whole-build flag to a per-trait map only the engine's own internal replay populates —
+  and Live Sheet and DM Console each have their own separate, hand-copied local fold logic that never
+  calls that replay, so racial-trait pricing in both tools silently and permanently dropped to the cheap
+  creation rate for every character. A related display feature (the "paying a premium vs. creation-basis
+  pricing" banner) went inert for the same reason. Separately, `buildToLiveLog()` never tagged its
+  emitted events `noLock:true`, leaving the mechanism built specifically for that scenario (D-GH31)
+  unused in the one function that needed it. Fixed via a cold-reviewed plan
+  (`docs/plans/2026-07-08-racial-trait-pricing-regression-fix.md`): `compute()` now checks
+  `_raceTraitLocked` by key **presence**, not truthiness, falling back to the old `inPlay`-based
+  behavior when a trait has no entry at all — restoring the two affected tools' exact pre-regression
+  pricing with no changes to either tool's own files. `buildToLiveLog()`'s single event-emission funnel
+  now tags every event `noLock:true` unconditionally. Verified directly (both the pricing restoration and
+  the noLock fix) and via three new fixtures, one specifically constructed so a future regression back to
+  truthiness-only checking would fail a test instead of shipping silently. See D-GH34 for the full record
+  and the general lesson about replay-derived engine state and independently-constructed callers.
+- **2026-07-08 · fix(chargen) — import real js/engine.js MUT/foldBuild/activeEvents/economy/baseBuild; fixes a real multi-discipline import bug (D-GH33, Phase 2 step 2)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change, `DATA.version` untouched by this step). CharGen's
+  module bridge now imports `MUT`/`foldBuild`/`activeEvents`/`economy`/`baseBuild` from `js/engine.js`
+  alongside its existing `DATA`/`compute`, replacing two local throwaway copies. A parity check (required
+  by the Phase 2 plan before this swap) found real drift matching a divergence already documented for DM
+  Console's separate local `MUT`: the local `found` mutator silently dropped a second discipline added to
+  an already-founded tradition, and `dbound` (discipline-bound flag) didn't exist locally at all — so a
+  multi-discipline or bound-discipline character exported from Live Sheet and re-imported into CharGen
+  silently lost that data. Fixed automatically by the swap, verified in a real browser (a synthetic
+  two-discipline-plus-`dbound` LOG now round-trips correctly; a representative build round-trips through
+  export→import at an identical price). CharGen's live editing UI (~75 handler sites, `readBuild()`,
+  `render()`) is untouched — only the import/export paths changed. See D-GH33.
+- **2026-07-08 · feat(engine) — automatic `creationLocked` now requires campaign binding (D-GH32, Phase 2 step 1)**
+  (`js/engine.js`; `DATA.version` v0.333→v0.334; 2 new fixtures `EV-008`/`EV-009`; `EV-003`/`EV-007`
+  updated to include a `campaignBound` event; `testing/tests/engine-parity.html` → 13/0). First engine
+  increment of Phase 2 (see `docs/plans/2026-07-08-chargen-livesheet-unification-phase2.md`): the
+  automatic (threshold-crossing) `creationLocked` trigger now only fires for a character that has a
+  `campaignBound` event somewhere in its LOG — a purely local, never-campaign-bound character (CharGen's
+  standalone use case) never auto-locks via spend alone, only via an explicit action. The explicit
+  `creationLocked` event stays unconditional. A late `campaignBound` event fires the automatic lock
+  retroactively at the point of binding, not applied to purchases before it. `campaignBound` is unrelated
+  to the existing `cat:'campaign'`/`b.campaign` mutator, which is Live Sheet's local offline house-rules
+  code-paste feature (`applyCampaignCode()`) — flagged clearly in code comments and D-GH32 to prevent
+  future confusion between the two. See D-GH32 for the full rationale.
+- **2026-07-08 · chore — freeze a CharGen v0 snapshot for Phase 2 side-by-side comparison**
+  (new `tools/PACT-CharGen-Webtool-v0.html`, new `js/engine-v0-snapshot.js`; `index.html` gets a new
+  linked card; no rules change, `DATA.version` untouched). Ahead of the Phase 2 CharGen rewrite (the
+  D-GH31 unification effort), snapshot the pre-Phase-2 tool + its exact engine dependency as of commit
+  `eb113be` so the owner can compare old-vs-new behavior side by side once Phase 2 lands on the real
+  `tools/PACT-CharGen-Webtool.html`. `PACT-CharGen-Webtool-v0.html` pins its module-bridge import to
+  `js/engine-v0-snapshot.js` (a frozen copy of `js/engine.js`, `DATA.version` v0.333) instead of the live
+  engine, so its behavior can't drift as Phase 2 work continues — deliberately breaks the "one engine"
+  rule for this one throwaway comparison artifact only, flagged in both files' headers. Not added to
+  `service-worker.js`'s `PRE_CACHE` list (a temporary comparison tool doesn't need offline pre-caching).
+  Delete both files (and the `index.html` card) once the comparison is no longer needed.
+- **2026-07-08 · feat(engine) — `creationLocked` event/threshold replaces the dead `b.inPlay` flag (D-GH31, Phase 1 of 3)**
+  (`js/engine.js`; `DATA.version` v0.332→v0.333; 6 new fixtures `EV-002`–`EV-007`;
+  `testing/tests/engine-parity.html` → 11/0). Engine-only phase of a larger CharGen/Live-Sheet
+  unification: a new `creationLocked` LOG event, plus automatic inference once cumulative AP spend
+  crosses `DATA.level1AP`, now drives racial/species-trait pricing — replacing a flag that was
+  unconditionally `true` for every character and therefore inert. Tagging is **per-purchase** (via
+  `_replay`), not a whole-build flag, specifically because a whole-build flag would reproduce D-GH30's
+  exact bug shape (a later state retroactively repricing earlier purchases) — caught by a cold review of
+  the implementation plan before any code was written. A second gap, found only by actually building and
+  testing the mechanism: a one-shot import/creation burst above the anchor would self-trigger the
+  automatic lock partway through, mispricing traits bought later in that same burst. Fixed with an
+  event-level `noLock: true` flag that exempts specific events from the automatic-threshold accumulation
+  (real AP accounting is unaffected) — verified by `EV-006`/`EV-007`. See D-GH31 for the full design
+  record, the cold-review outcome, and a build-time correction (the implementation plan wrongly assumed
+  `DATA.level1AP` didn't exist; it already did, as `50`). No tool UI changes in this phase — CharGen,
+  Live Sheet, and DM Console are all untouched, so nothing about either tool's real behavior changes yet.
+  Supersedes and closes the `feat/ap-model-reconcile` NEXT item (D-GH30's deferred follow-up).
+- **2026-07-08 · docs — correct stale roadmap text around the engine module-bridge migration; graduate "Task 6"**
+  (`docs/PACT_ROADMAP.md`; no code/rules change). `/pick-task` surfaced that the NOW item "Full engine
+  module-bridge migration" still described the original all-seven-symbols scope even though a first pass
+  already shipped a reduced "safe subset" (D-GH26, PR #121) — rewrote it to describe only the actually
+  remaining work (`activeEvents`/`economy`/`foldBuild` reconciliation, CharGen's and DM Console's
+  divergent `MUT`). Also found the separate NEXT item "Task 6 — CharGen module bridge migration" was
+  already fully done by that same D-GH26 pass (CharGen's `DATA`/`compute()` bridge) but never graduated —
+  removed it and updated the four other roadmap items that still gated on "Task 6" as if it were open
+  (`feat/chargen-campaign-rules` now correctly blocked on CharGen not yet importing `validate()`, not the
+  old gate; `feat/ap-by-level` and AUD-1's version-sync follow-up are now unblocked; `feat/save-integrity`'s
+  stale coordination note dropped; AUD-1's main drift check narrowed to just `MUT`, since `DATA`/`compute`/
+  `baseBuild` can no longer drift now that they're live imports).
+- **2026-07-08 · docs — fold the `feat/ap-model-reconcile` item into the roadmap**
+  (`docs/PACT_ROADMAP.md`, `AGENTS.md`; no code/rules change). The owner reviewed the output block from
+  the prior commit and asked for it to be added directly — folds in the NEXT item deferred from D-GH30
+  (whether `js/engine.js` should grow a frozen-ledger-aware remaining-AP export, or the current per-tool
+  compute()/economy() split is the permanent design).
+- **2026-07-08 · docs — session note for the AP-display fix; revert a roadmap single-writer slip**
+  (`docs/sessions/2026-07-08-livesheet-ap-display-fix.md`; `docs/PACT_ROADMAP.md`, `AGENTS.md`; no
+  code/rules change). `docs/PACT_ROADMAP.md` is single-writer — agents must output new items for the
+  human to fold in, never append directly. The prior commit did that correctly when it *removed* the
+  resolved `fix/livesheet-undo-bug` item, but then directly appended the new `feat/ap-model-reconcile`
+  NEXT item instead of outputting it. This commit reverts that append (the item is re-posted as a plain
+  output block below, for the owner to fold in by hand) and adds the session note documenting the wrong
+  root-cause premise and the Option A/B decision behind D-GH30.
+- **2026-07-08 · fix(live-sheet) — "AP left" now reads the frozen ledger instead of a retroactive recompute**
+  (`tools/PACT-Live-Char-Sheet.html`; display-only, no `js/engine.js` change, no `DATA.version` bump).
+  Investigating the reported `fix/livesheet-undo-bug` roadmap task disproved its premise — `undo()` was
+  already correct (verified against a full LOG re-fold across every event type). The actual bug: buying a
+  cross-class feature then binding that class (Martially/Magically Bound) made the headline "AP left"
+  drift 1 AP above what the buy-gate would actually let you spend, because it read `compute().remaining`
+  (which retroactively discounts earlier purchases of the bound class) instead of the frozen-ledger
+  `economy().available` already used to gate purchases. Fixed all three "AP left" displays (desktop econ
+  line, mobile sticky bar, floating badge) to read `eco.available`. See D-GH30 in `DECISIONS.md` for the
+  full write-up and the deferred long-term reconciliation, now tracked as a new NEXT roadmap item
+  (`feat/ap-model-reconcile`).
 - **2026-07-09 · docs(agents) — add Supabase advisor/log check to the per-change checklist** (`AGENTS.md`;
   no code/rules change). Step 4 of the per-change checklist now requires running the Supabase advisor
   (`get_advisors`) and skimming recent logs (`get_logs`) after any migration/RLS/schema change, before

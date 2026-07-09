@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v0.107.html**-->
+<!--**PACT-CharGen-Webtool-v0.html — FROZEN v0 SNAPSHOT, 2026-07-08, commit eb113be. Pinned to js/engine-v0-snapshot.js. For side-by-side comparison against the Phase 2 CharGen rewrite only — not the live tool.**-->
 
 <!doctype html>
 <!--
@@ -53,7 +53,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v0.107 · Rules v0.332</title><style>
+<title>PACT Character Generator — v0 SNAPSHOT (frozen 2026-07-08) · Rules v0.332</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -295,7 +295,6 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .hd-title{font-size:15px;margin:0;font-weight:700}
 .hd-row2 .sub,.hd-pactver{font-size:11px;opacity:.85}
 .hd-row2 .lastedited{font-size:11px;opacity:.75;white-space:nowrap}
-.hd-row2 .hd-localonly{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.13);border-radius:12px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap}
 .hd-row3{background:var(--navy);color:#fff;padding:5px 14px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,0.15)}
 .hd-mobnav{display:none}
 .mobile-action-bar{display:none}
@@ -389,14 +388,14 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .gridck label.ck > input[type=checkbox]:disabled + * { opacity: 0.5; }
 .gridck label.ck:has(> input:disabled) { opacity: 0.5; cursor: default; }
 </style></head><body>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.107</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" title="CharGen only saves to this browser's local storage — no sign-in, no cloud sync, no cloud campaign. Use the Live Sheet to join a DM's cloud campaign.">🔒 Local only — not connected to any cloud campaign</span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">v0 SNAPSHOT (frozen 2026-07-08) — comparison only</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
 <button class="btn ghost" onclick="loadViaPicker()">📂 Load</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
 <button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
-<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="openCampaign()" title="Local house rules (not the cloud campaign system) — DM: bar boons/drawbacks/arts and share a text code; barred items are blocked here too">🛡 House rules code</button><span id="campind" style="font-size:11px;color:var(--good);font-weight:700"></span><button class="btn ghost" onclick="exportToLiveSheet()" title="Export this build as a Live Sheet file, then Import it in the Live Sheet to lock it in and progress">⇆ Live Sheet</button>
+<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="openCampaign()" title="DM: bar boons/drawbacks/arts and share a code; barred items are blocked here too">🛡 Campaign</button><span id="campind" style="font-size:11px;color:var(--good);font-weight:700"></span><button class="btn ghost" onclick="exportToLiveSheet()" title="Export this build as a Live Sheet file, then Import it in the Live Sheet to lock it in and progress">⇆ Live Sheet</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
 <button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
@@ -411,7 +410,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button>
-<button class="btn ghost" onclick="openCampaign()" title="Local house rules (not the cloud campaign system) — DM: bar boons/drawbacks/arts and share a text code; barred items are blocked here too">🛡 House rules code</button>
+<button class="btn ghost" onclick="openCampaign()" title="DM: bar boons/drawbacks/arts and share a code; barred items are blocked here too">🛡 Campaign</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button>
 </div>
 <div id="sheetview"><div class="shtop"><b>📋 Character Sheet</b><button class="btn" onclick="window.print()">🖨 Print</button><button class="btn ghost" onclick="toggleSheet()">✕ Close — back to builder</button></div><div id="sheetbody"></div></div>
@@ -442,14 +441,13 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
   </aside>
 </div>
 <script type="module">
-  // Engine module bridge (D-GH26, extended Phase 2 step 2): DATA + compute + MUT + foldBuild +
-  // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
-  // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
-  // on engine-ready.
-  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild } from '../js/engine.js';
+  // FROZEN v0 SNAPSHOT (2026-07-08, commit eb113be, D-GH31 Phase 1) — imports the pinned
+  // ../js/engine-v0-snapshot.js, NOT the live ../js/engine.js, so this tool's behavior stays
+  // locked for side-by-side comparison against the Phase 2 rewrite. Do not "fix" this import
+  // back to the live engine — that defeats the whole point of this file. See its header comment.
+  import { DATA, compute } from '../js/engine-v0-snapshot.js';
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (CharGen); never read by compute()
-  window.DATA = DATA; window.compute = compute; window.MUT = MUT; window.foldBuild = foldBuild;
-  window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild;
+  window.DATA = DATA; window.compute = compute;
   document.dispatchEvent(new Event('engine-ready'));
 </script>
 <script>
@@ -738,15 +736,8 @@ const DRAW_ORDER=['Body','Mind','Social','Magic','Wild & Story','DM custom','Oth
 function _reqSpan(txt,unmet){return txt?'<span class="req" style="font-size:9.5px;font-weight:700;white-space:nowrap;margin-left:6px;color:'+(unmet?'#C00000':'#8a8a8a')+'">'+(unmet?'⚠ ':'')+txt+'</span>':'';}
 function buildArtGrid(){
   const g=$('artgrid'); if(!g) return;
-  // Phase 2 Step 3 (Chunk 1, Category D): reads current membership from LOG instead of the DOM. Safe at
-  // every call site verified (boot, applyBuild, applyCampaignCode): applyBuild() always follows this with
-  // its own direct ck('artck',...) DOM write that doesn't depend on this grid's "owned" calculation, and
-  // annotate() recomputes the AP-total display from compute()'s ledger afterward — so this function's own
-  // chk-derived AP total (below) is a throwaway initial value in those flows either way.
-  // Chunk 6: read membership through readBuild() (VIEW_RENDER path), not foldBuild(LOG) directly — the
-  // post-flip rule is that display paths go through readBuild() (only readBuild reattaches name/budget).
+  const chk=ckVals('artck');
   const b=readBuild(); const hd=b.hd||1; const st=b.stats||{};
-  const chk=b.arts||[];
   const q=_bdFilter('artfilter');
   const BAND={0:'Sit',1:'Per-Rest',2:'At-Will',3:'Passive',4:'Premium'};
   const byCat={};
@@ -794,7 +785,7 @@ function buildArtGrid(){
 }
 
 
-function buildBoonGrid(){const g=$('boongrid');if(!g)return;const _bb=readBuild();const st=_bb.stats||{};const B=effBoons();const chk=_bb.boons||[];const q=_bdFilter('boonfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
+function buildBoonGrid(){const g=$('boongrid');if(!g)return;const _bb=readBuild();const st=_bb.stats||{};const B=effBoons();const chk=ckVals('boonck');const q=_bdFilter('boonfilter');
   const byCat={};Object.keys(B).forEach(k=>{var _bar=campBarred('boons',k);if(!_bar&&isDisabled('boons',k)&&!chk.includes(k))return;const bo=B[k];
     if(q && (k+' '+(bo.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
     (byCat[bo.cat]=byCat[bo.cat]||[]).push(k);});
@@ -806,7 +797,7 @@ function buildBoonGrid(){const g=$('boongrid');if(!g)return;const _bb=readBuild(
       return '<label class="ck'+(bo.custom?' hr':'')+(_bar?' barred':'')+'" title="'+(_bar?'Barred by the DM for this campaign':'')+'"><input type="checkbox" class="boonck" value="'+k.replace(/"/g,'&quot;')+'"'+((!_bar&&chk.includes(k))?' checked':'')+(_bar?' disabled':'')+'> '+k+'<span class="c">'+bo.ap+' AP</span>'+(bo.hd>1?'<span class="req" style="font-size:10px;color:var(--grey)"> · HD '+bo.hd+'+</span>':'')+_reqSpan(_rp.join(', '),_ru)+(bo.custom?'<span class="dmtag">DM</span>':'')+(_bar?'<span class="barredtag">barred</span>':'')+
         '<span class="dsc">'+(bo.fx||'')+'</span></label>';}).join('')+'</div>';});
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
-function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=_db.drawbacks||[];const q=_bdFilter('drawfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
+function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=ckVals('drawck');const q=_bdFilter('drawfilter');
   const byCat={};Object.keys(D).forEach(k=>{var _bar=campBarred('draws',k);if(!_bar&&isDisabled('draws',k)&&!chk.includes(k))return;const dr=D[k];
     if(q && (k+' '+(dr.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
     (byCat[dr.cat]=byCat[dr.cat]||[]).push(k);});
@@ -1065,24 +1056,11 @@ function addRow(kind,preset){
   else{const arr=kind==='rac'?DATA.racialList:DATA.drawbackList;
     const labelize=v=>kind==='rac'?(v+' ('+DATA.racial[v].origin+'/'+DATA.racial[v].cross+' AP)'):(v+' (+'+DATA.drawbacks[v]+' AP)');
     line.innerHTML='<select class="'+kind+'row"><option value="(none)">(none)</option>'+arr.map(v=>'<option value="'+v+'">'+labelize(v)+'</option>').join('')+'</select><span class="price"></span><button class="btn x" type="button">✕</button>';}
-  line.querySelector('.btn.x').onclick=()=>{const _f2=line.querySelector('.feat2row');if(_f2&&_f2._acMenu)_f2._acMenu.remove();line.remove();
-    // Phase 2 Step 3 (Chunk 3): removal doesn't fire input/change, so the LOG reconciliation (which only
-    // runs from those events, see _cgWireRowReconcileDelegation) needs an explicit nudge here.
-    if(typeof RECONCILE_CAT!=='undefined'&&kind+'row' in RECONCILE_CAT)_cgSyncFlatCategory(RECONCILE_CAT[kind+'row']);
-    // Chunk 4A: cprof rows are a coalescing patch, not a flat category — nudge their patch slot instead.
-    if(typeof PATCH_CLASS_SLOT!=='undefined'&&kind+'row' in PATCH_CLASS_SLOT)_cgSyncPatchSlot(PATCH_CLASS_SLOT[kind+'row']);
-    render();};
+  line.querySelector('.btn.x').onclick=()=>{const _f2=line.querySelector('.feat2row');if(_f2&&_f2._acMenu)_f2._acMenu.remove();line.remove();render();};
   line.addEventListener('input',render);line.addEventListener('change',render);
   box.appendChild(line);
   if(kind==='feat2'){_pruneAC();_featAC(line.querySelector('.feat2row'));}
   if(preset!==undefined){const inp=line.querySelector('.'+kind+'row');if(inp)inp.value=preset;}
-  // Phase 2 Step 3 (Chunk 3): preset values above are set via direct .value assignment (feat2) or were
-  // already baked into the innerHTML at row creation (subabil/subbundle) — neither dispatches an
-  // input/change event, so _cgWireRowReconcileDelegation's event listener never sees a row addition.
-  // Explicit nudge here, same reasoning as the '✕' removal handler above.
-  if(typeof RECONCILE_CAT!=='undefined'&&kind+'row' in RECONCILE_CAT)_cgSyncFlatCategory(RECONCILE_CAT[kind+'row']);
-  // Chunk 4A: same for cprof rows (a coalescing patch slot, not a flat reconcile category).
-  if(typeof PATCH_CLASS_SLOT!=='undefined'&&kind+'row' in PATCH_CLASS_SLOT)_cgSyncPatchSlot(PATCH_CLASS_SLOT[kind+'row']);
   render();
 }
 // Remove any orphaned feature-search menus whose input has left the DOM (rebuilds, reset, import).
@@ -1101,9 +1079,7 @@ function _featAC(inp){
   const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
   // Set the value and recompute directly — do NOT re-dispatch 'input' (that re-ran the filter and
   // re-opened this menu, leaving a fixed overlay over the form that swallowed clicks). v0.314 fix.
-  // Phase 2 Step 3 (Chunk 3): direct .value assignment, no input/change event — same reconciliation
-  // nudge as addRow()'s preset path and the '✕' removal handler (see there for the full rationale).
-  const pick=v=>{inp.value=v;close();if(typeof _cgSyncFlatCategory==='function')_cgSyncFlatCategory('feature');if(typeof render==='function')render();};
+  const pick=v=>{inp.value=v;close();if(typeof render==='function')render();};
   const draw=()=>{menu.innerHTML=items.length?items.map((f,i)=>{const nm=(f.split(': ')[1]||f),cl=f.split(': ')[0];
       return '<div class="featac-i" data-i="'+i+'" style="padding:6px 10px;cursor:pointer;white-space:nowrap;'+(i===active?'background:var(--line,#e3ebf7)':'')+'"><b>'+esc(nm)+'</b> <span style="color:var(--grey,#888);font-size:10px">'+esc(cl)+'</span></div>';}).join('')
     :'<div style="padding:6px 10px;color:var(--grey,#888)">no matching feature</div>';};
@@ -1133,7 +1109,7 @@ function addTrad(){
     '<select class="trad-name">'+selOpts(DATA.traditions.filter(t=>t!=='(none)'),'Arcane')+'</select>'+
     '&nbsp;Rank <select class="trad-rank">'+numOpts(0,9,0)+'</select>'+
     '<button class="btn ghost" type="button" onclick="addDisc(this)">+ discipline</button>'+
-    '<button class="btn x" type="button" onclick="_cgRemoveTradCard(this)">✕ tradition</button>'+
+    '<button class="btn x" type="button" onclick="this.closest(\'.tcard\').remove();render()">✕ tradition</button>'+
     '<span class="price trad-cost" style="margin-left:auto"></span></div>'+
     '<div class="trad-breakdown" style="font-size:11px;color:var(--grey);margin:2px 0 4px"></div>'+
     '<div class="disc-box"></div>';
@@ -1157,7 +1133,7 @@ function addDisc(btn){
   d.innerHTML='<div class="row">Discipline <select class="disc-name"><option>(none)</option>'+selOpts(opts,opts[0])+'</select>'+
     '&nbsp;<label class="ck"><input type="checkbox" class="disc-bound"> Magically Bound (+2 AP gain · −1 AP on this discipline’s spells)</label>'+
     '&nbsp;cantrips <select class="disc-cant">'+sopt(12)+'</select>'+
-    '<button class="btn x" type="button" onclick="_cgRemoveDiscCard(this)">✕</button>'+
+    '<button class="btn x" type="button" onclick="this.closest(\'.dcard\').remove();render()">✕</button>'+
     '<span class="price disc-cost" style="margin-left:auto"></span></div>'+
     '<div class="hint disc-cast" style="margin:-2px 0 4px"></div>'+
     '<div class="warlockonly" style="display:none">'+
@@ -1170,495 +1146,10 @@ function addDisc(btn){
     grid+
     '<div class="disc-breakdown" style="font-size:11px;color:var(--grey);margin-top:3px"></div>';
   d.addEventListener('input',render);d.addEventListener('change',render);
-  card.querySelector('.disc-box').appendChild(d);
-  // Phase 2 Step 3 (Chunk 4B): a new discipline card fires no input/change, so the tradition delegation
-  // never sees it — nudge the TRADITIONS slot. addTrad() ends by calling addDisc(), so this single nudge
-  // covers both "+ tradition" and "+ discipline". (typeof guard: addDisc runs during applyBuild's
-  // tradition rebuild, which under Option A is harmless — boot re-seeds LOG afterward.)
-  if(typeof _cgSyncPatchSlot==='function')_cgSyncPatchSlot(PATCH_SLOTS.TRADITIONS);
-  render();
+  card.querySelector('.disc-box').appendChild(d);render();
 }
 
-// ---- Phase 2 Step 3: CharGen-local event-sourcing (LOG mutation API) ----
-// See docs/plans/2026-07-09-chargen-emit-migration-phase2-step3.md (and -chunk6-flip.md). As of Chunk 6
-// readBuild()=foldBuild(LOG) — LOG is the source of truth (name/budget are DOM-backed shims, see
-// readBuild). Every user action produces a LOG event through the mutation API below; the display derives
-// from foldBuild(LOG). LOG is bootstrapped at boot (see _cgBoot) and rebuilt wholesale on any whole-build
-// load via replaceWholeLogFromBuild.
-let LOG=[],SEQ=1;
-
-// Categories whose MUT mutator is a flat array push with no positional/index dependents — the only
-// categories retractFlatEvent() may remove from LOG, and only from wherever they sit (LOG invariant #6).
-const RETRACTABLE_FLAT_CATS=new Set(['save','skill','expertise','toolexpertise','tool','instrument','mastery',
-  'racial','racialspell','boon','drawback','art','feature','subabil','subbundle','unlockclass']);
-// The indexed tradition/discipline mutators — must NEVER be emitted or retracted by a CharGen live-edit
-// handler in Step 3 (LOG invariant #7). Traditions/disciplines stay one coalescing patch (PATCH_SLOTS.TRADITIONS).
-const INDEXED_TRADITION_CATS=new Set(['found','rank','cantrip','slot','known','dbound']);
-
-// Canonical coalescing-patch slot ids — replacePatchSlot() only accepts these; handlers must not invent
-// inline _slot strings (a typo would silently produce a duplicate patch event instead of replacing the old one).
-// Chunk 2 (Phase 2 Step 3) extended this with VIGOR/INNATE/MISC: hardy/tough ("Vigor & Grit") and innate
-// spell counts are real Category B coalescing-patch fields (confirmed via _buildEventBurst's emitPatch
-// calls) with no fitting existing slot; MISC is a narrow, deliberate catch-all for the two remaining
-// odds-and-ends fields (martiallyBound, dabblerCantrips) that don't share a concept with anything else.
-// Adding named slots for these — rather than cramming them into an unrelated existing slot — matters
-// because replacePatchSlot() replaces a slot's whole patch on every write: two unrelated fields sharing
-// one slot is only safe if every write always includes the FULL field set for that slot (see the Chunk 2
-// scaffolding comment below), and giving each concept its own slot avoids relying on that discipline.
-const PATCH_SLOTS=Object.freeze({IDENTITY:'identity',STATS:'stats',HD_PROF:'hdProf',ECONOMY:'economy',
-  LANGUAGES:'languages',ATTUNEMENT:'attunement',KI:'ki',SORCERY:'sorcery',ARMOUR:'armour',
-  WEAPON_PROF:'weaponProf',APPEARANCE:'appearance',HOUSE_RULES:'houseRules',CUSTOM_PROFS:'customProfs',
-  FREE_SUB:'freeSub',TRADITIONS:'traditions',NAMES:'names',CAMPAIGN:'campaign',
-  VIGOR:'vigor',INNATE:'innate',MISC:'misc'});
-
-function nextSeq(log){let max=0;(log||[]).forEach(function(e){if(e&&typeof e.seq==='number'&&e.seq>max)max=e.seq;});return max+1;}
-
-// ---- LOG mutation API — the ONLY functions permitted to change LOG (no handler pushes/splices/reassigns it directly) ----
-function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;LOG.push(ev);render();}
-
-function retractFlatEvent(cat,predicate){
-  if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
-  const i=LOG.findIndex(function(e){return e.type==='buy'&&e.cat===cat&&predicate(e);});
-  if(i===-1)return;
-  LOG.splice(i,1);render();
-}
-
-function replacePatchSlot(slot,patch,label){
-  if(!Object.values(PATCH_SLOTS).includes(slot))throw new Error("replacePatchSlot: '"+slot+"' is not a canonical PATCH_SLOTS value");
-  // price against the build with this slot's OWN PRIOR event removed, not the current full LOG (which
-  // still holds the old contribution and would double-count it) — see the plan's "Coalescing patch cost delta"
-  const withoutSlot=LOG.filter(function(e){return !(e.type==='buy'&&e.cat==='patch'&&e._slot===slot);});
-  const before=compute(foldBuild(withoutSlot)).total;
-  const candidate=withoutSlot.concat([{type:'buy',cat:'patch',payload:{patch:patch},_slot:slot}]);
-  const after=compute(foldBuild(candidate)).total;
-  const newEvent={type:'buy',cat:'patch',payload:{patch:patch},cost:after-before,label:label,_slot:slot,
-    seq:SEQ++,ts:Date.now(),rules:DATA.version};
-  LOG=withoutSlot.concat([newEvent]);render();
-}
-
-function replaceWholeLogFromBuild(b,opts){
-  LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);render();
-}
-
-// ---- canonicalBuild(): retained past the Chunk-6 flip (the shadow-diff scaffolding around it is gone).
-// Normalises a build for equality comparison — sorts logically-unordered arrays, strips engine-only
-// bookkeeping fields, and treats missing/null/''/[]/all-zero as equivalent. Kept because it's small,
-// generic, and reused by save/load + migration regression checks (see the Chunk 6 plan's verification
-// invariants); it has no runtime cost unless called.
-const _CG_UNORDERED_FIELDS=['saves','skills','expertise','toolExpertise','tools','instruments','masteries',
-  'racialTraits','racialSpells','boons','drawbacks','arts','features','subAbilities','subSpellBundles','unlockedClasses'];
-// Fields _domReadBuild() never produces (engine-only replay bookkeeping) or that legitimately take an
-// "empty" shape from either side (missing key vs null vs '' vs [] vs an all-zero array — all mean the
-// same thing here) — stripped so a real divergence isn't buried under this noise.
-const _CG_IGNORE_FIELDS=['id','version','inPlay','_raceTraitLocked'];
-function _cgIsEmptyish(v){
-  if(v==null||v==='')return true;
-  if(Array.isArray(v))return v.length===0||v.every(function(x){return x===0||_cgIsEmptyish(x);});
-  if(typeof v==='object')return Object.keys(v).every(function(k){return _cgIsEmptyish(v[k]);});
-  return false;
-}
-function canonicalBuild(b){
-  if(!b)return b;
-  const c=JSON.parse(JSON.stringify(b));
-  _CG_UNORDERED_FIELDS.forEach(function(k){if(Array.isArray(c[k]))c[k]=c[k].slice().sort();});
-  _CG_IGNORE_FIELDS.forEach(function(k){delete c[k];});
-  Object.keys(c).forEach(function(k){if(_cgIsEmptyish(c[k]))delete c[k];});   // normalise missing/null/''/[]/all-zero as equivalent
-  return c;
-}
-
-// ---- Phase 2 Step 3 (Chunk 1): Category A (flat checkbox lists) wired to the LOG mutation API ----
-// Dual-write, per the plan's Option A: the checkbox's native checked state (and therefore the visible
-// DOM, still readBuild()'s source) is untouched here — this only mirrors the same change into LOG in
-// parallel, via a single delegated listener rather than touching each checkbox's own generation site
-// (lower "missed site" risk than editing ~12 separate HTML-template call sites individually).
-// cat is priced against _domReadBuild() (the CURRENT full build), not foldBuild(LOG) — LOG is still
-// stale for every not-yet-converted category (species, stats, etc. stay frozen at their Chunk-0 boot
-// snapshot until their own chunks land), so pricing off foldBuild(LOG) here would use the wrong context
-// for anything context-dependent (e.g. racial-trait own-race/cross-race pricing). Confirmed by direct
-// test that this delta-pricing exactly reproduces the existing hardcoded drawback-cost formula.
-// classunlock:'unlockclass' added in Chunk 3 (Phase 2 Step 3) — a stable checkbox-per-value control,
-// same shape as the other 12 categories, so it reuses this exact mechanism rather than Chunk 3's new
-// reconciliation-based approach (which exists specifically for the dynamic add/remove feat2/subabil/
-// subbundle rows, not needed here).
-const CHECKLIST_CAT={racck:'racial',saveck:'save',skillck:'skill',expck:'expertise',toolexpck:'toolexpertise',
-  mastck:'mastery',toolck:'tool',instck:'instrument',boonck:'boon',drawck:'drawback',artck:'art',linspellck:'racialspell',
-  classunlock:'unlockclass'};
-const _CG_CHECKLIST_LABEL={racial:'Species trait',save:'Saving throw',skill:'Skill',expertise:'Expertise',
-  toolexpertise:'Tool expertise',mastery:'Weapon mastery',tool:'Tool',instrument:'Instrument',boon:'Boon',
-  drawback:'Drawback',art:'Art / Technique',racialspell:'Racial spell',unlockclass:'Class unlocked'};
-
-// Same illegality condition annotate() already auto-corrects (line ~1851: an origin-only trait picked
-// cross-race) — added HERE as a pre-emit guard so LOG never records an illegal pick even for the brief
-// window before annotate()'s own DOM-side correction runs on the next render. The OLD annotate()
-// correction stays active (not removed) until Chunk 6 — Option A keeps DOM authoritative until then, so
-// both guards run in parallel through the transition, not a replacement of one by the other yet.
-function raceTraitLegal(v,domBuild){
-  const rr=DATA.racial[v];if(!rr)return true;
-  const own=(rr.race===domBuild.species||rr.race===domBuild.species2);
-  return !(!own&&rr.cross==null);
-}
-
-function onChecklistToggle(el){
-  const cls=[...el.classList].find(function(c){return c in CHECKLIST_CAT;});if(!cls)return;
-  const cat=CHECKLIST_CAT[cls];
-  // classunlock checkboxes (Chunk 3) carry no `value` attribute (defaults to the string "on") — the
-  // real value lives in data-cls, matching how _domReadBuild() reads them (e.dataset.cls, not e.value).
-  const v=(cls==='classunlock')?el.dataset.cls:el.value;
-  const dom=_domReadBuild();
-  const _hasEntry=LOG.some(function(e){return e.type==='buy'&&e.cat===cat&&e.payload&&e.payload.v===v;});
-  if(el.checked){
-    // idempotency guard: several pre-existing DOM-side auto-corrections (annotate()'s racial/linspell/
-    // expertise/toolexpertise/boon/drawback/art force-unchecks) set .checked=false directly without
-    // dispatching a change event, so retractFlatEvent() never runs for them — LOG can be left with a
-    // stale entry the DOM no longer reflects. Without this guard, re-checking the same box later would
-    // emit a genuine duplicate LOG entry (MUT's flat-push mutators have no dedup) instead of a no-op.
-    if(_hasEntry)return;
-    if(cat==='racial'&&!raceTraitLegal(v,dom)){el.checked=false;return;}
-    // _domReadBuild() excludes a checked classunlock box from unlockedClasses when it matches the
-    // character's own origin class(es) (already free/included) — mirrored here so LOG never records an
-    // entry _domReadBuild() would filter out anyway.
-    if(cat==='unlockclass'&&(v===dom.originClass||v===dom.originClass2))return;
-    const before=compute(dom).total;
-    const cand=JSON.parse(JSON.stringify(dom));(MUT[cat]||function(){})(cand,{v:v});
-    const cost=compute(cand).total-before;
-    emit({type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v});
-  }else{
-    retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;});
-  }
-  _cgReconcileChecklistDependents();
-}
-
-// Phase 2 Step 3 (Chunk 6): retract-only reconcile of every flat checklist category against its DOM
-// checkboxes. annotate() auto-unchecks controls whose prerequisite is gone — a cross-race racial trait
-// (species changed), a wrong-lineage racial spell (lineage changed), an expertise without its skill, a
-// tool-expertise without its tool, a boon/drawback disabled by a DM toggle — via a direct .checked=false
-// with NO change event, so retractFlatEvent never fired and LOG kept the now-invalid purchase. Under
-// Option A that was invisible (the DOM was authoritative); post-flip readBuild()=foldBuild(LOG) would keep
-// COUNTING it while the UI shows it unchecked. This runs from the two handlers that can invalidate a
-// dependency (onChecklistToggle, onPatchFieldChange) AFTER their own render — so annotate has already
-// corrected the DOM — and syncs LOG down to that corrected checked-state. Retract-only: annotate never
-// auto-CHECKS a gameplay control (the armour heavy→medium→light chain is captured by the ARMOUR delegation
-// instead, verified consistent). Not called during applyBuild (which sets .checked directly, fires neither
-// handler, and rebuilds LOG wholesale at its end), so it can't prematurely retract mid-load.
-function _cgReconcileChecklistDependents(){
-  Object.keys(CHECKLIST_CAT).forEach(function(cls){
-    if(cls==='classunlock')return;   // origin-gated, handled by _cgReconcileUnlockClass (value is dataset.cls, not el.value)
-    const cat=CHECKLIST_CAT[cls];
-    const nodes=[...document.querySelectorAll('.'+cls)];
-    // Retract ONLY a value whose checkbox EXISTS but is now unchecked (annotate's dependency auto-uncheck).
-    // A LOG value with NO rendered checkbox — e.g. an imported custom boon whose houseRules weren't carried
-    // into this session, so buildBoonGrid renders no box for it — is left untouched, so an unrelated toggle
-    // can't silently drop it (a precision guard beyond the divergence fix; flagged by independent review).
-    const rendered=new Set(nodes.map(function(e){return e.value;}));
-    const checked=new Set(nodes.filter(function(e){return e.checked;}).map(function(e){return e.value;}));
-    LOG.filter(function(e){return e.type==='buy'&&e.cat===cat;}).map(function(e){return e.payload.v;}).forEach(function(v){
-      if(rendered.has(v)&&!checked.has(v))retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;});
-    });
-  });
-}
-
-// Delegated over #form (matches the existing generic input/change→render() listener's own delegation
-// pattern) rather than wired at each of the ~12 checkbox-generation call sites individually.
-function _cgWireChecklistDelegation(){
-  const form=$('form');if(!form)return;
-  form.addEventListener('change',function(e){
-    const el=e.target;
-    if(!el||el.type!=='checkbox')return;
-    if(![...el.classList].some(function(c){return c in CHECKLIST_CAT;}))return;
-    onChecklistToggle(el);
-  });
-}
-
-// ---- Phase 2 Step 3 (Chunk 3): Category C (add-row lists) reconciled into the LOG mutation API ----
-// Unlike Category A's stable one-checkbox-per-value model, feat2/subabil/subbundle rows are dynamic:
-// added via addRow(), free-typed (feat2, via the search/autocomplete box) or fixed-at-creation
-// (subabil/subbundle, <input type="hidden"> set only from a controlled <select>), and removed via a '✕'
-// button that does not dispatch any input/change event. Rather than mapping individual DOM elements to
-// individual LOG events (fragile once a row's own value can change post-creation, and feat2 rows can),
-// this reconciles the WHOLE category's current value MULTISET against LOG on every relevant DOM event:
-// retract whatever LOG has more of than the DOM currently shows, emit whatever the DOM shows more of
-// than LOG currently tracks. Multiset (count-based), not set-based, because features may legitimately
-// repeat (DATA.features[x].rep — e.g. "Fighter: Extra Attack" taken more than once; buildClassPickers()'s
-// own duplicate-block only fires for non-repeatable features) — a plain set-diff would silently collapse
-// two identical rows into one LOG event. Still uses only the existing emit()/retractFlatEvent()
-// primitives — 'feature'/'subabil'/'subbundle' are already in RETRACTABLE_FLAT_CATS (flat pushes, no
-// positional dependents, from Chunk 0).
-//
-// Gating (Warlock discipline / Tasha / needsKi / needsSorc / prerequisite / duplicate-block) is NOT
-// re-implemented here — buildClassPickers()'s '.classpick' and buildSubPickers()'s '.subpick' change
-// handlers already gate BEFORE calling addRow(), so by the time a row exists in the DOM the pick has
-// already passed those checks (Category F's guards, already correctly positioned relative to this
-// reconciliation layer — nothing to move). The one guard this layer DOES add: a feat2 row's free-typed
-// value must be a real DATA.features key before being emitted — an incomplete/invalid mid-typing string
-// is skipped (not tracked in LOG) rather than corrupting it with garbage, since rowsVals() itself
-// performs no such validation. subabil/subbundle get the same defensive check even though their values
-// are only ever set programmatically (never free-typed), for the same discipline at negligible cost.
-const RECONCILE_CAT={feat2row:'feature',subabilrow:'subabil',subbundlerow:'subbundle'};
-const _CG_RECONCILE_FIELD={feature:'features',subabil:'subAbilities',subbundle:'subSpellBundles'};
-const _CG_RECONCILE_VALID={
-  feature:function(v){return !!DATA.features[v];},
-  subabil:function(v){return !!DATA.subAbilMap[v];},
-  subbundle:function(v){const p=String(v).split('|');return !!((DATA.subclasses[p[0]]||{})[p[1]]);}
-};
-const _CG_RECONCILE_LABEL={feature:'Class feature',subabil:'Subclass ability',subbundle:'Subclass spell bundle'};
-
-function _cgSyncFlatCategory(cat){
-  const domField=_CG_RECONCILE_FIELD[cat];if(!domField)return;
-  const isValid=_CG_RECONCILE_VALID[cat]||function(){return true;};
-  const currentValues=(_domReadBuild()[domField]||[]).filter(isValid);
-  const currentCounts={};currentValues.forEach(function(v){currentCounts[v]=(currentCounts[v]||0)+1;});
-  const logCounts={};LOG.forEach(function(e){if(e.type==='buy'&&e.cat===cat){const v=e.payload.v;logCounts[v]=(logCounts[v]||0)+1;}});
-  Object.keys(logCounts).forEach(function(v){
-    let excess=logCounts[v]-(currentCounts[v]||0);
-    while(excess-->0)retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;});
-  });
-  Object.keys(currentCounts).forEach(function(v){
-    let missing=currentCounts[v]-(logCounts[v]||0);
-    while(missing-->0){
-      const cur=_domReadBuild();const before=compute(cur).total;
-      const cand=JSON.parse(JSON.stringify(cur));(MUT[cat]||function(){})(cand,{v:v});
-      const cost=compute(cand).total-before;
-      emit({type:'buy',cat:cat,payload:{v:v},cost:cost,level:cur.hd,label:(_CG_RECONCILE_LABEL[cat]||cat)+' — '+v});
-    }
-  });
-}
-
-function _cgWireRowReconcileDelegation(){
-  const form=$('form');if(!form)return;
-  const watch=function(e){
-    const el=e.target;if(!el||!el.classList)return;
-    const cls=[...el.classList].find(function(c){return c in RECONCILE_CAT;});
-    if(!cls)return;
-    _cgSyncFlatCategory(RECONCILE_CAT[cls]);
-  };
-  form.addEventListener('input',watch);form.addEventListener('change',watch);
-}
-
-// ---- Phase 2 Step 3 (Chunk 2): Category B (scalar/object coalescing patches) wired to replacePatchSlot() ----
-// Same Option A dual-write approach as Chunk 1: DOM stays authoritative, LOG tracks in parallel. Every
-// slot's patch is always constructed as the FULL set of fields belonging to that slot, read fresh from
-// _domReadBuild() on every call — required because replacePatchSlot() replaces a slot's LOG event
-// wholesale; if two unrelated fields shared a slot and a handler passed only the ONE field that changed,
-// the other field's prior contribution would be silently dropped from LOG on the next fold.
-//
-// Field-taxonomy gap found during implementation: originClass/originClass2/species/species2 are real
-// Category B coalescing-patch fields (confirmed via _buildEventBurst's emitPatch calls) but are absent
-// from every category (A-G) in the cold-reviewed plan's field enumeration. PATCH_SLOTS.IDENTITY exists
-// and is otherwise unused — treated as its intended purpose, grouped here with `size` (another orphaned
-// field, also missing from the plan's taxonomy). `name` is deliberately NOT included here — it uses a
-// different event mechanism entirely (`type:'name'`, handled directly by foldBuild()'s core replay loop,
-// not `cat:'patch'`/`_slot`), so wiring it through replacePatchSlot() would be a mismatch; deferred to
-// Chunk 5 (Category E), which already needs new event-vocabulary decisions for whole-build replacement.
-const PATCH_FIELD_SLOT={
-  st_STR:PATCH_SLOTS.STATS,st_DEX:PATCH_SLOTS.STATS,st_CON:PATCH_SLOTS.STATS,st_INT:PATCH_SLOTS.STATS,st_WIS:PATCH_SLOTS.STATS,st_CHA:PATCH_SLOTS.STATS,
-  hd:PATCH_SLOTS.HD_PROF,profBonus:PATCH_SLOTS.HD_PROF,
-  hardy:PATCH_SLOTS.VIGOR,tough:PATCH_SLOTS.VIGOR,
-  wp_simple:PATCH_SLOTS.WEAPON_PROF,wp_martial:PATCH_SLOTS.WEAPON_PROF,wp_all:PATCH_SLOTS.WEAPON_PROF,wp_improv:PATCH_SLOTS.WEAPON_PROF,
-  a_light:PATCH_SLOTS.ARMOUR,a_med:PATCH_SLOTS.ARMOUR,a_heavy:PATCH_SLOTS.ARMOUR,a_shield:PATCH_SLOTS.ARMOUR,wornArmour:PATCH_SLOTS.ARMOUR,
-  languages:PATCH_SLOTS.LANGUAGES,attune:PATCH_SLOTS.ATTUNEMENT,ki:PATCH_SLOTS.KI,sorcery:PATCH_SLOTS.SORCERY,
-  gold:PATCH_SLOTS.ECONOMY,
-  martiallyBound:PATCH_SLOTS.MISC,dabblerCantrips:PATCH_SLOTS.MISC,
-  oclass:PATCH_SLOTS.IDENTITY,oclass2:PATCH_SLOTS.IDENTITY,spec:PATCH_SLOTS.IDENTITY,spec2:PATCH_SLOTS.IDENTITY,charsize:PATCH_SLOTS.IDENTITY,
-  lineage:PATCH_SLOTS.IDENTITY,
-  dm_bound:PATCH_SLOTS.HOUSE_RULES,dm_boons:PATCH_SLOTS.HOUSE_RULES,dm_tasha:PATCH_SLOTS.HOUSE_RULES,dm_draws:PATCH_SLOTS.HOUSE_RULES
-  // `budget` (id="budget") is deliberately excluded: it's a type:'award' event (see _buildEventBurst),
-  // not a cat:'patch', same reason `name` is excluded — both are Category E (Chunk 5) territory.
-};
-// appearance (28 ap_* ids) and innate spells (9 innate_N ids) use prefix matching instead of per-id entries.
-// Excludes the *_lock ids (ap_gender_lock, ap_overall_lock, etc. — see apField()) that also start with
-// "ap_": those are UI-only "don't randomize this field" checkboxes never read by _domReadBuild(), so
-// matching them would create needless no-op LOG churn (found by independent review).
-function _cgPatchSlotForId(id){
-  if(PATCH_FIELD_SLOT[id])return PATCH_FIELD_SLOT[id];
-  if(id.indexOf('ap_')===0&&!/_lock$/.test(id))return PATCH_SLOTS.APPEARANCE;
-  if(id.indexOf('innate_')===0)return PATCH_SLOTS.INNATE;
-  return null;
-}
-
-// Builds the FULL patch object for a slot from the current DOM state (never just the one field that
-// changed — see the safety note above). The ARMOUR case also re-applies the STR<10 medium/heavy-armour
-// guard (Category F) directly in the constructed patch: the OLD DOM-side auto-correction in
-// _cgRenderInner() bypasses change events (same class of gap Chunk 1 hit with annotate()'s force-unchecks),
-// so without this, a stale illegal armour patch could sit in LOG until the next unrelated armour edit.
-function _cgSlotPatch(slot,dom){
-  switch(slot){
-    case PATCH_SLOTS.STATS: return {stats:dom.stats};
-    case PATCH_SLOTS.HD_PROF: return {hd:dom.hd,profBonus:dom.profBonus};
-    case PATCH_SLOTS.VIGOR: return {hardy:dom.hardy,tough:dom.tough};
-    case PATCH_SLOTS.WEAPON_PROF: return {weaponProf:dom.weaponProf};
-    case PATCH_SLOTS.ARMOUR:{
-      const armour=Object.assign({},dom.armour);
-      if(((dom.stats&&dom.stats.STR)||10)<10){armour.medium=false;armour.heavy=false;}
-      return {armour:armour,wornArmour:dom.wornArmour};
-    }
-    case PATCH_SLOTS.LANGUAGES: return {languages:dom.languages};
-    case PATCH_SLOTS.ATTUNEMENT: return {attune:dom.attune};
-    case PATCH_SLOTS.KI: return {ki:dom.ki};
-    case PATCH_SLOTS.SORCERY: return {sorcery:dom.sorcery};
-    case PATCH_SLOTS.ECONOMY: return {gold:dom.gold};
-    case PATCH_SLOTS.MISC: return {martiallyBound:dom.martiallyBound,dabblerCantrips:dom.dabblerCantrips};
-    case PATCH_SLOTS.IDENTITY: return {originClass:dom.originClass,originClass2:dom.originClass2,species:dom.species,species2:dom.species2,size:dom.size,lineage:dom.lineage};
-    case PATCH_SLOTS.HOUSE_RULES: return {houseRules:dom.houseRules};
-    case PATCH_SLOTS.APPEARANCE: return {appearance:dom.appearance};
-    case PATCH_SLOTS.INNATE: return {innate:dom.innate};
-    case PATCH_SLOTS.CUSTOM_PROFS: return {customProfs:dom.customProfs};   // Chunk 4A
-    case PATCH_SLOTS.FREE_SUB: return {freeSub:dom.freeSub};               // Chunk 4A
-    // Chunk 4B: the WHOLE traditions array as one coalescing patch (never granular found/rank/cantrip/
-    // slot/known/dbound events — the plan's hard LOG-invariant #7). Deliberately carries `traditions`
-    // ONLY, NOT `dabblerCantrips`: even though _buildEventBurst's boot 'Spellcasting' patch bundles both,
-    // dabblerCantrips is already exclusively owned by the MISC slot (Chunk 2). Each field must live in
-    // exactly one slot or fold order would decide its value — so TRADITIONS never writes dabblerCantrips.
-    case PATCH_SLOTS.TRADITIONS: return {traditions:dom.traditions};
-    default: return null;
-  }
-}
-
-const _CG_SLOT_LABEL=(function(){const m={};
-  m[PATCH_SLOTS.STATS]='Ability scores';m[PATCH_SLOTS.HD_PROF]='Hit Dice & Proficiency';
-  m[PATCH_SLOTS.VIGOR]='Vigor & Grit';m[PATCH_SLOTS.WEAPON_PROF]='Weapon proficiency';
-  m[PATCH_SLOTS.ARMOUR]='Armour';m[PATCH_SLOTS.LANGUAGES]='Languages';
-  m[PATCH_SLOTS.ATTUNEMENT]='Attunement';m[PATCH_SLOTS.KI]='Ki points';
-  m[PATCH_SLOTS.SORCERY]='Sorcery points';m[PATCH_SLOTS.ECONOMY]='Starting gold';
-  m[PATCH_SLOTS.MISC]='Martial binding & dabbler cantrips';m[PATCH_SLOTS.IDENTITY]='Identity';
-  m[PATCH_SLOTS.HOUSE_RULES]='DM customisations';m[PATCH_SLOTS.APPEARANCE]='Appearance & description';
-  m[PATCH_SLOTS.INNATE]='Innate spells';
-  m[PATCH_SLOTS.CUSTOM_PROFS]='Tools & instruments';m[PATCH_SLOTS.FREE_SUB]='Subclasses';   // Chunk 4A
-  m[PATCH_SLOTS.TRADITIONS]='Spellcasting';   // Chunk 4B
-  return m;})();
-
-// ---- Phase 2 Step 3 (Chunk 4A): shared patch-slot sync primitive (hardening) ----
-// "Replace this slot's LOG patch from the current DOM, but skip when the recomputed patch is
-// byte-identical to what LOG already holds." Chunk 2's STATS→ARMOUR cascade carried this no-op-skip
-// guard inline; extracted here so every patch-slot writer (Category B's field handler + its cascade,
-// and Chunk 4A's customProfs/freeSub wiring) shares one implementation and none of them creates a fresh
-// LOG event when nothing actually changed. Purely an efficiency/consistency guard — under Option A
-// (DOM authoritative until Chunk 6) it changes no user-visible behavior.
-function _cgSyncPatchSlot(slot,dom){
-  dom=dom||_domReadBuild();
-  const patch=_cgSlotPatch(slot,dom);if(!patch)return;
-  const current=LOG.find(function(e){return e.type==='buy'&&e.cat==='patch'&&e._slot===slot;});
-  if(current&&JSON.stringify(current.payload.patch)===JSON.stringify(patch))return;
-  replacePatchSlot(slot,patch,_CG_SLOT_LABEL[slot]||slot);
-}
-
-// ---- Phase 2 Step 3 (Chunk 4A): unlockedClasses ↔ origin-class reconciliation ----
-// unlockedClasses (a flat category, wired via onChecklistToggle in Chunk 3) depends on the origin
-// class(es): _domReadBuild() excludes any unlocked class that IS an origin class (it's free/included).
-// onChecklistToggle applies that exclusion at check-time, but a class unlocked BEFORE it became the
-// origin — or one whose origin-ness is later removed — leaves LOG out of sync, since changing the origin
-// class toggles no checkbox and so fires no retract/emit for the unlock entry. This was a real,
-// verified divergence flagged by Chunk 3's review. Reconcile the unlockclass entries against the
-// current DOM (a set diff — a class unlocks at most once) whenever the IDENTITY slot changes (it carries
-// oclass/oclass2). No overlap with onChecklistToggle: its _hasEntry guard and this function's logSet
-// guard each skip a value the other already handled.
-function _cgReconcileUnlockClass(){
-  const domVals=_domReadBuild().unlockedClasses||[];
-  const domSet=new Set(domVals);
-  const logVals=LOG.filter(function(e){return e.type==='buy'&&e.cat==='unlockclass';}).map(function(e){return e.payload.v;});
-  const logSet=new Set(logVals);
-  logVals.forEach(function(v){if(!domSet.has(v))retractFlatEvent('unlockclass',function(e){return e.payload&&e.payload.v===v;});});
-  domVals.forEach(function(v){
-    if(logSet.has(v))return;
-    const cur=_domReadBuild();const before=compute(cur).total;
-    const cand=JSON.parse(JSON.stringify(cur));(MUT.unlockclass||function(){})(cand,{v:v});
-    const cost=compute(cand).total-before;
-    emit({type:'buy',cat:'unlockclass',payload:{v:v},cost:cost,level:cur.hd,label:'Class unlocked — '+v});
-  });
-}
-
-function onPatchFieldChange(el){
-  const id=el.id;if(!id)return;
-  const slot=_cgPatchSlotForId(id);if(!slot)return;
-  _cgSyncPatchSlot(slot);
-  // The ARMOUR slot's STR<10 guard depends on STATS — without this cascade, dropping STR below 10 via a
-  // stat field leaves LOG's ARMOUR patch stale (still showing medium/heavy=true) until the next unrelated
-  // armour edit, even though DOM's own render()-based correction already unchecked the boxes.
-  // _cgSyncPatchSlot's own no-op-skip means this is a no-op when the recomputed armour patch is unchanged
-  // (e.g. editing a stat that isn't STR, or STR staying ≥10) — no needless LOG churn.
-  if(slot===PATCH_SLOTS.STATS)_cgSyncPatchSlot(PATCH_SLOTS.ARMOUR);
-  // Chunk 4A: origin class lives in the IDENTITY slot and gates unlockedClasses — reconcile after it changes.
-  if(slot===PATCH_SLOTS.IDENTITY)_cgReconcileUnlockClass();
-  // Chunk 6: IDENTITY (species/lineage) gates cross-race traits + racial spells; HOUSE_RULES (DM toggles)
-  // can disable+clear boons/drawbacks — annotate unchecks the invalidated controls, so sync LOG down to it.
-  if(slot===PATCH_SLOTS.IDENTITY||slot===PATCH_SLOTS.HOUSE_RULES)_cgReconcileChecklistDependents();
-}
-
-function _cgWirePatchDelegation(){
-  const form=$('form');if(!form)return;
-  const watch=function(e){if(e.target&&e.target.id)onPatchFieldChange(e.target);};
-  form.addEventListener('change',watch);form.addEventListener('input',watch);
-}
-
-// ---- Phase 2 Step 3 (Chunk 4A): Category B coalescing patches reached by CLASS, not id ----
-// customProfs (`.cprofrow` text inputs, dynamic add-row) and freeSub (`.freesub` <select>s, one per
-// class) are coalescing-patch fields (single bulk patch each, per _buildEventBurst) but their controls
-// carry no `id`, so Chunk 2's id-keyed _cgWirePatchDelegation never sees them. This class-keyed
-// delegation covers genuine user edits (typing in a cprof row, choosing a free subclass); the
-// add/remove-with-no-event gaps for cprof rows are handled by explicit _cgSyncPatchSlot nudges in
-// addRow() and the '✕' handler (same pattern Chunk 3 used for the feat2/subabil/subbundle reconciler).
-const PATCH_CLASS_SLOT={cprofrow:PATCH_SLOTS.CUSTOM_PROFS,freesub:PATCH_SLOTS.FREE_SUB};
-function _cgWirePatchClassDelegation(){
-  const form=$('form');if(!form)return;
-  const watch=function(e){
-    const el=e.target;if(!el||!el.classList)return;
-    const cls=[...el.classList].find(function(c){return c in PATCH_CLASS_SLOT;});
-    if(!cls)return;
-    _cgSyncPatchSlot(PATCH_CLASS_SLOT[cls]);
-  };
-  form.addEventListener('input',watch);form.addEventListener('change',watch);
-}
-
-// ---- Phase 2 Step 3 (Chunk 4B): traditions/disciplines editor → one coalescing TRADITIONS patch ----
-// The riskiest chunk (its own rollback boundary). Every tradition/discipline control lives inside a
-// `.tcard` and carries no id, so no earlier delegation (id-keyed patch, checklist, reconcile, class-keyed
-// patch) touches it — this closest('.tcard') delegation is the sole handler. On ANY edit inside a card it
-// re-serialises the whole traditions array into a single PATCH_SLOTS.TRADITIONS patch via the hardened
-// no-op-skip _cgSyncPatchSlot. It NEVER emits a granular found/rank/cantrip/slot/known/dbound event
-// (LOG-invariant #7; enforced by construction — only cat:'patch' events are produced here).
-function _cgWireTraditionDelegation(){
-  const form=$('form');if(!form)return;
-  const watch=function(e){
-    const el=e.target;if(!el||!el.closest)return;
-    if(!el.closest('.tcard'))return;
-    _cgSyncPatchSlot(PATCH_SLOTS.TRADITIONS);
-  };
-  form.addEventListener('input',watch);form.addEventListener('change',watch);
-}
-// Tradition / discipline card removal (previously inline onclick="…remove();render()"): the remove
-// fires no input/change event, so the delegation above never sees it — nudge the TRADITIONS slot
-// explicitly, then render(). render() is kept unconditional (matching the original) so the visible list
-// updates even if _cgSyncPatchSlot's no-op-skip returns without rendering (it won't here — removing a
-// card always changes dom.traditions — but keep it defensive and behaviour-identical to the old inline).
-function _cgRemoveTradCard(btn){
-  const c=btn&&btn.closest&&btn.closest('.tcard');if(c)c.remove();
-  if(typeof _cgSyncPatchSlot==='function')_cgSyncPatchSlot(PATCH_SLOTS.TRADITIONS);
-  render();
-}
-function _cgRemoveDiscCard(btn){
-  const d=btn&&btn.closest&&btn.closest('.dcard');if(d)d.remove();
-  if(typeof _cgSyncPatchSlot==='function')_cgSyncPatchSlot(PATCH_SLOTS.TRADITIONS);
-  render();
-}
-
-// ---- readBuild(): Phase 2 Step 3 Chunk 6 — THE FLIP. LOG is now the source of truth. ----
 function readBuild(){
-  // Step-3 compatibility shim.
-  // Character state now comes from foldBuild(LOG).
-  //
-  // Name and budget remain DOM-backed until later migration steps:
-  // - live name edits are not yet event-sourced
-  // - budget/award-history event sourcing belongs to Step 5
-  //   (verified: foldBuild(LOG).budget is stale on live edits, and the award event is stale too — so
-  //    reading the DOM value here is strictly MORE correct than replaying the LOG for these two)
-  //
-  // Do not add additional DOM-backed build fields here.
-  const b=foldBuild(LOG);
-  b.name=val('cname');
-  b.budget=+val('budget')||DATA.level1AP;
-  return b;
-}
-
-function _domReadBuild(){
   const stats={};for(const a of ABILS)stats[a]=+val('st_'+a);
   const wp={simple:chk('wp_simple'),martial:+val('wp_martial'),allMartial:chk('wp_all'),improvised:chk('wp_improv')};
   const trads=[...document.querySelectorAll('.tcard')].map(card=>{
@@ -1802,7 +1293,7 @@ function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
     // Detect Live Sheet format (has LOG array) vs CharGen save (flat build object)
     if(d.LOG&&Array.isArray(d.LOG)){
       // Reconstruct CharGen build from Live Sheet LOG by replaying all patch events
-      const b=foldBuild(d.LOG);
+      const b=_lsImportFold(d.LOG);
       if(d.name&&!b.name)b.name=d.name;
       // Fill in defaults for any missing CharGen fields
       if(!b.originClass)b.originClass='Fighter';
@@ -1840,6 +1331,80 @@ function shareLink(){try{const enc=_encB(readBuild());const base=location.href.s
   }catch(err){flash('Could not build a share link.');}}
 function loadFromHash(){try{if(typeof location==='undefined'||!location.hash)return false;
   if(location.hash.indexOf('#b=')!==0)return false;_fileHandle=null;applyBuild(_decB(location.hash.slice(3)));flash('Shared build loaded ✓');return true;}catch(e){return false;}}
+// ---- bridge: convert the current build into a Live-Sheet event log (frozen per-step prices) ----
+
+function _lsImportFold(LOG){
+function baseBuild(){return {name:'',budget:0,originClass:'Fighter',originClass2:'(none)',species:'Human',species2:'(none)',
+ stats:{STR:10,DEX:10,CON:10,INT:10,WIS:10,CHA:10},hd:1,profBonus:2,hardy:0,tough:0,saves:[],skills:[],expertise:[],toolExpertise:[],
+ languages:1,languageNames:[],grantNames:{},tools:[],instruments:[],customProfs:[],weaponProf:{},masteries:[],armour:{},
+ arts:[],lineage:'',racialSpells:[],
+ racialTraits:[],extraClasses:0,unlockedClasses:[],dabblerCantripNames:[],innateNames:[],featNames:{},features:[],traditions:[],subAbilities:[],freeSub:{},subSpellBundles:[],boons:[],innate:[],drawbacks:[],gold:0,
+ attune:0,ki:0,sorcery:0,martiallyBound:'(none)',appearance:{},size:'Medium',
+ lineage:'',racialSpells:[],
+ inPlay:true};}
+function activeEvents(uptoIdx){
+  const evs = (uptoIdx==null?LOG:LOG.slice(0,uptoIdx));
+  const boughtOff={};
+  evs.forEach(e=>{ if(e.type==='buyoff')boughtOff[e.refVal]=1; });
+  return {evs, boughtOff};
+}
+function economy(uptoIdx){
+  const {evs,boughtOff}=activeEvents(uptoIdx); let earned=0,spent=0,drawbackEarned=0;
+  for(const e of evs){
+    if(e.type==='award')earned+=e.amount;
+    else if(e.type==='buy'){
+      if(e.cat==='drawback'){ if(!boughtOff[e.payload.v]) drawbackEarned+=(-e.cost); }  // drawback grants AP (capped below)
+      else spent+=e.cost; }
+    else if(e.type==='buyoff')spent+=e.cost;else if(e.type==='names')spent+=(e.cost||0);        // pay 3x to remove a drawback
+  }
+  earned+=drawbackEarned;  // drawbacks grant their full AP (no hard cap; compute() warns if >12)
+  return {earned,spent,available:earned-spent};
+}
+const MUT={campaign:(b,p)=>{b.campaign=p.v;},
+ create:(b,p)=>{},   // level-1 baseline (Hit Die + starting state); effect already in baseBuild
+ patch:(b,p)=>{Object.assign(b,p.patch);},   // imported-from-generator bundle (a whole field set)
+ names:(b,p)=>{if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
+ hd:(b,p)=>b.hd=p.to, prof:(b,p)=>b.profBonus=p.to, abil:(b,p)=>b.stats[p.ab]=p.to,
+ skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
+ lineage:(b,p)=>b.lineage=p.v,wornArmour:(b,p)=>b.wornArmour=p.v, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
+ feat:()=>0, feature:(b,p)=>b.features.push(p.v), art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v), mvbuy:(b,p)=>{b.maneuverBuys=(b.maneuverBuys||0)+1;},
+ tool:(b,p)=>b.tools.push(p.v), instrument:(b,p)=>b.instruments.push(p.v), mastery:(b,p)=>b.masteries.push(p.v),
+ language:(b,p)=>b.languages=p.to, vigor:(b,p)=>b.hardy=p.to, grit:(b,p)=>b.tough=p.to,
+ armour:(b,p)=>b.armour[p.v]=true, wprof:(b,p)=>b.weaponProf=clone(p.wp),
+ species:(b,p)=>b.species=p.v, oclass:(b,p)=>b.originClass=p.v,
+ racial:(b,p)=>b.racialTraits.push(p.v),   // own-species traits only (cross-race is creation-only, guide §10)
+ drawback:(b,p)=>b.drawbacks.push(p.v),
+ attune:(b,p)=>b.attune=p.to, ki:(b,p)=>b.ki=p.to, sorcery:(b,p)=>b.sorcery=p.to,
+ mbound:(b,p)=>b.martiallyBound=p.v,
+ subbundle:(b,p)=>{(b.subSpellBundles=b.subSpellBundles||[]).push(p.v);},
+ unlockclass:(b,p)=>{(b.unlockedClasses=b.unlockedClasses||[]).push(p.v);},
+ freesub:(b,p)=>{(b.freeSub=b.freeSub||{})[p.cls]=p.sub;},
+ subabil:(b,p)=>{(b.subAbilities=b.subAbilities||[]).push(p.v);},
+ tasharule:(b,p)=>{(b.houseRules=b.houseRules||{}).dmAllows=Object.assign({},(b.houseRules||{}).dmAllows||{},{tasha:p.v});},
+ found:(b,p)=>{const ti=p.ti??0;const newTrad={name:p.trad,rank:0,disciplines:[{name:p.disc,bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]}]};if(ti===0&&!b.traditions.length){b.traditions=[newTrad];}else if(!b.traditions[ti]){b.traditions[ti]=newTrad;}},
+ rank:(b,p)=>{const ti=p.ti??0;if(b.traditions[ti])b.traditions[ti].rank=p.to;},
+ cantrip:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.cantrips=p.to;},
+ slot:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.slots[p.L-1]=p.to;},
+ known:(b,p)=>{const ti=p.ti??0,di=p.di??0;const d=b.traditions[ti]&&b.traditions[ti].disciplines[di];if(d)d.known[p.L-1]=p.to;},
+};
+function foldBuild(uptoIdx){
+  const {evs,boughtOff}=activeEvents(uptoIdx); const b=baseBuild();
+  for(const e of evs){
+    if(e.type==='name'){b.name=e.name;continue;}
+    if(e.type==='names'){MUT.names(b,e);continue;}   // spell/feat names → fold into build (else they never reach the sheet)
+    if(e.type!=='buy')continue;
+    if(e.cat==='drawback'&&boughtOff[e.payload.v])continue; // bought off: removed
+    (MUT[e.cat]||(()=>{}))(b,e.payload);
+  }
+  b.budget=economy(uptoIdx).earned;   // budget = AP earned so over-budget reflects reality
+  ["saves","skills","expertise","toolExpertise","tools","instruments","masteries","racialTraits","racialSpells"].forEach(function(k){if(Array.isArray(b[k]))b[k]=b[k].filter(function(v,i){return b[k].indexOf(v)===i;});});  // single-instance proficiency lists never hold duplicates (guards flooded patch-imports)
+  (b.traditions||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(d&&(DATA.noCantrip||[]).indexOf(d.name)>=0){d.cantrips=0;d.cantripNames=[];}});});
+  return b;
+}
+  return foldBuild(null);
+}
+
+
 /* ── Campaign Rules (DM bar tool) — mirrored into CharGen ── */
 var CG_CAMPAIGN=null;
 var _AK='DragonReachForgePACT';
@@ -1856,8 +1421,8 @@ function openCampaign(){
   var boons=(DATA.boonList||[]).slice().sort(),draws=(DATA.drawbackList||[]).slice().sort(),arts=(DATA.artList||[]).slice().sort();
   var nbar=(cur.boons||[]).length+(cur.draws||[]).length+(cur.arts||[]).length;
   ov.innerHTML='<div style="background:var(--card);color:var(--ink);border-radius:12px;padding:16px 20px;max-width:680px;width:94%;max-height:92vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.35)">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;color:var(--blue);font-size:16px">&#x1F6E1; House Rules Code</h2><button onclick="closeCampaign()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--grey)">&#x2715;</button></div>'+
-    '<p style="font-size:11.5px;color:var(--grey);margin:4px 0 8px">A local, text-code house-rules list &mdash; <b>not</b> the cloud campaign system (that lives in the Live Sheet/DM Console). <b>DM:</b> name it, tick anything to bar, then <b>Generate code</b> and share it. <b>Players:</b> paste a code below and <b>Load</b> &mdash; it is saved with your character so anyone can see it.</p>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;color:var(--blue);font-size:16px">&#x1F6E1; Campaign Rules</h2><button onclick="closeCampaign()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--grey)">&#x2715;</button></div>'+
+    '<p style="font-size:11.5px;color:var(--grey);margin:4px 0 8px"><b>DM:</b> name the campaign, tick anything to bar, then <b>Generate code</b> and share it. <b>Players:</b> paste a code below and <b>Load</b> &mdash; it is saved with your character so anyone can see it.</p>'+
     '<input id="campName" placeholder="Campaign name &mdash; e.g. DragonLance: John&#39;s campaign" value="'+String(cur.n||'').replace(/"/g,'&quot;')+'" style="width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink);margin-bottom:8px">'+
     '<details open><summary style="cursor:pointer;font-weight:700;font-size:12px;color:var(--teal)">Boons to bar ('+boons.length+')</summary><div style="display:flex;flex-wrap:wrap;gap:1px 4px;margin:4px 0">'+_campRows('boons',boons,cur.boons||[])+'</div></details>'+
     '<details><summary style="cursor:pointer;font-weight:700;font-size:12px;color:var(--teal)">Drawbacks to bar ('+draws.length+')</summary><div style="display:flex;flex-wrap:wrap;gap:1px 4px;margin:4px 0">'+_campRows('draws',draws,cur.draws||[])+'</div></details>'+
@@ -1873,16 +1438,13 @@ function _campCollect(){var camp={n:(document.getElementById('campName').value||
 function genCampaignCode(){var camp=_campCollect();if(!camp.n){flash('Give the campaign a name first.');return;}document.getElementById('campCode').value=_campEnc(camp);flash('Code generated — copy it and share it with your players.');}
 function applyCampaignCode(){var raw=(document.getElementById('campCode').value||'').trim();var camp=raw?_campDec(raw):_campCollect();if(raw&&!camp){flash('That is not a valid PACTRULES code.');return;}if(!camp.n){flash('Name the campaign (or paste a valid code) first.');return;}CG_CAMPAIGN=camp;closeCampaign();if(typeof render==='function')render();buildArtGrid();buildBoonGrid();buildDrawGrid();flash('Campaign “'+camp.n+'” loaded — '+((camp.boons||[]).length+(camp.draws||[]).length+(camp.arts||[]).length)+' items barred. Saved with this character.');}
 
-function liveBase(){
-  // Scratch base for buildToLiveLog()'s synthetic import burst — derives from the engine's
-  // baseBuild() but forces inPlay=false. That's load-bearing, not a leftover: compute()'s
-  // D-GH34 fallback prices a racial trait at the locked/expensive rate when inPlay is true,
-  // so this override keeps the import burst priced at the creation rate (matching what the
-  // player actually paid), not the post-lock rate baseBuild() defaults to.
-  var b=baseBuild();
-  b.inPlay=false;
-  return b;
-}
+function liveBase(){return {name:'',budget:0,originClass:'Fighter',originClass2:'(none)',species:'Human',species2:'(none)',
+ stats:{STR:10,DEX:10,CON:10,INT:10,WIS:10,CHA:10},hd:1,profBonus:2,hardy:0,tough:0,saves:[],skills:[],expertise:[],toolExpertise:[],
+ languages:1,tools:[],instruments:[],customProfs:[],weaponProf:{},masteries:[],armour:{},
+ arts:[],lineage:'',racialSpells:[],
+ racialTraits:[],extraClasses:0,unlockedClasses:[],features:[],traditions:[],subAbilities:[],freeSub:{},subSpellBundles:[],boons:[],innate:[],drawbacks:[],gold:0,
+ attune:0,ki:0,sorcery:0,martiallyBound:'(none)',appearance:{},
+ houseRules:{boons:{},draws:{},disabled:{boons:[],draws:[]}}};}
 
 /* ── Spell/Language name picker (ported from Live Sheet, v0.099) — CharGen-side; names export via buildToLiveLog ── */
 var CG_NAMES=null;
@@ -1945,28 +1507,18 @@ function saveNames(){var _dup=_cgNameDupes();if(_dup.length){flash('⛔ “'+_du
     else if(p[0]==='lang')lang[+p[1]]=v;else if(p[0]==='feat')feat[p[1]]=v;else if(p[0]==='dab')dab[+p[1]]=v;else if(p[0]==='inn')inn[+p[1]-1][+p[2]]=v;
     else if(p[0]==='tr'){var ti=+p[1],di=+p[2],kk=ti+'_'+di;trMap[kk]=trMap[kk]||{ti:ti,di:di,cn:[],kn:[[],[],[],[],[],[],[],[],[]]};if(p[3]==='c')trMap[kk].cn[+p[4]]=v;else trMap[kk].kn[+p[4]-1][+p[5]]=v;}});
   CG_NAMES={dab:dab,inn:inn,feat:feat,lang:lang,grants:grants,tr:Object.keys(trMap).map(function(k){return trMap[k];})};closeNames();flash('Spell & language names saved — they will export with your Live Sheet file.');}
-// ---- bridge: convert the current build into a Live-Sheet event log (frozen per-step prices) ----
-function _buildEventBurst(b){
-  // Shared "flat build -> canonically-serialized noLock:true event burst" builder (Phase 2 Step 3,
-  // Chunk 0). Originally lived only inside buildToLiveLog() (the CharGen->Live-Sheet export path);
-  // factored out here so buildToEventLog() (used by replaceWholeLogFromBuild() for all whole-build-
-  // replacement flows: initial LOG bootstrap, load, shared link, autosave restore, randomize) reuses
-  // this exact, already-D-GH34-fixed logic instead of maintaining a second, independently-drifting copy.
+function buildToLiveLog(b){
   // de-dup single-instance proficiency lists so the exported Live-Sheet log never carries duplicates (matches the fold-side guard)
   ["saves","skills","expertise","toolExpertise","tools","instruments","masteries","racialTraits","racialSpells"].forEach(function(k){if(Array.isArray(b[k]))b[k]=b[k].filter(function(v,i){return b[k].indexOf(v)===i;});});
-  const C=o=>JSON.parse(JSON.stringify(o));let LOG=[],SEQ=1;
-  // D-GH34: this function emits a synthetic creation/import event burst (a whole finished character's
-  // worth of purchases, fabricated in one pass from a flat build) — NOT a live-authored editing history.
-  // Every event is intentionally tagged noLock:true so the burst can never self-trigger the engine's
-  // automatic creation-pricing-lock threshold (DATA.level1AP) on its own total, regardless of how large
-  // that total is (a higher-level starting character can legitimately exceed the anchor). Do not remove
-  // this blanket tagging thinking it's an oversight — it's the fix for a real bug (D-GH34) where imported
-  // higher-budget characters with racial traits were mispriced on later re-fold. noLock is harmless on
-  // event types that don't check it (name, creationLocked, etc.) so tagging every event uniformly here,
-  // rather than per-call-site, is deliberate — it can't be missed for a future addition to this function.
-  const ev=o=>{o.seq=SEQ++;o.ts=Date.now();o.noLock=true;LOG.push(o);};
-  // Phase 2 step 2 (D-GH33): was a second local throwaway MUT subset — the imported js/engine.js MUT
-  // is a superset (same mutators for every category used below, plus more), so it's used directly now.
+  const C=o=>JSON.parse(JSON.stringify(o));let LOG=[],SEQ=1;const ev=o=>{o.seq=SEQ++;o.ts=Date.now();LOG.push(o);};
+  const MUT={
+    skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
+    racial:(b,p)=>b.racialTraits.push(p.v), feature:(b,p)=>b.features.push(p.v), art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v),
+    tool:(b,p)=>b.tools.push(p.v), instrument:(b,p)=>b.instruments.push(p.v), mastery:(b,p)=>b.masteries.push(p.v),
+    subbundle:(b,p)=>{(b.subSpellBundles=b.subSpellBundles||[]).push(p.v);}, unlockclass:(b,p)=>{(b.unlockedClasses=b.unlockedClasses||[]).push(p.v);},
+    subabil:(b,p)=>{(b.subAbilities=b.subAbilities||[]).push(p.v);}, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
+    drawback:(b,p)=>b.drawbacks.push(p.v)
+  };
   const run=liveBase(), base0=liveBase();
   ev({type:'award',amount:b.budget||0,note:'Imported budget',label:'Award — budget ('+(b.budget||0)+' AP)'});
   if(b.name) ev({type:'name',name:b.name,label:'Name — '+b.name});
@@ -2001,13 +1553,7 @@ function _buildEventBurst(b){
   emitPatch('Character size',{size:b.size});emitPatch('Starting gold',{gold:b.gold});
   if(CG_NAMES&&((CG_NAMES.lang&&CG_NAMES.lang.length)||(CG_NAMES.dab&&CG_NAMES.dab.length)||(CG_NAMES.inn&&CG_NAMES.inn.some(function(a){return a&&a.length;}))||(CG_NAMES.tr&&CG_NAMES.tr.length)||(CG_NAMES.grants&&Object.keys(CG_NAMES.grants).length)||(CG_NAMES.feat&&Object.keys(CG_NAMES.feat).length)))ev({type:'names',dab:CG_NAMES.dab||[],inn:CG_NAMES.inn||[[],[],[],[],[],[],[],[],[]],feat:CG_NAMES.feat||{},lang:CG_NAMES.lang||[],grants:CG_NAMES.grants||{},tr:CG_NAMES.tr||[],label:'Named spells & languages'});
   if(b.campaign&&b.campaign.n)ev({type:'buy',cat:'campaign',payload:{v:b.campaign},cost:0,level:1,label:'Campaign rules — '+b.campaign.n});
-  return LOG;
-}
-function buildToLiveLog(b){const LOG=_buildEventBurst(b);return {rules:DATA.version,name:b.name,LOG,SEQ:nextSeq(LOG)};}
-// Phase 2 Step 3 (Chunk 0): the LOG-mutation-API's whole-build-replacement helper. opts is currently
-// unused but kept in the signature — Chunk 5 (full convergence of loadFile/loadFromHash/autosave-restore/
-// randomize) is expected to need it (e.g. to distinguish "fresh boot" from "user-initiated replace").
-function buildToEventLog(b,opts){return _buildEventBurst(b);}
+  return {rules:DATA.version,name:b.name,LOG,SEQ};}
 async function exportToLiveSheet(){
  try{
   const b=readBuild();
@@ -2067,14 +1613,7 @@ function applyBuild(b){
   set('oclass',b.originClass||'(none)');set('oclass2',b.originClass2||'(none)');
   set('spec',b.species||'(none)');set('spec2',b.species2||'(none)');
   set('hd',b.hd||1);set('profBonus',b.profBonus||2);set('budget',b.budget||DATA.level1AP);
-  // Phase 2 Step 3 (Chunk 5, Category E): rebuild LOG from the freshly-written DOM so every whole-build-
-  // replacement flow that funnels through applyBuild (loadFile — both the CharGen-flat and Live-Sheet-LOG
-  // branches — loadFromHash, _cgRestoreAutosave, and Reset) leaves LOG in sync with the loaded build, not
-  // just at boot. This supersedes the partial LOG mutations the add-row/add-disc nudges made while this
-  // function was writing the DOM (they fired mid-write; this wipes and rebuilds cleanly, exactly as boot's
-  // own post-restore resync does). render() happens inside replaceWholeLogFromBuild.
-  if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
-  else render();
+  render();
 }
 
 // ---- lightweight autosave of the in-progress build (safety net independent of Export) ----
@@ -2185,9 +1724,6 @@ function randomizeRoll(){
   for(let q=0;q<8;q++){tryAct(actBoon);tryAct(actArt);tryAct(actRacial);tryAct(actRacial);}
   applyBuild(b);
   try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}
-  // Phase 2 Step 3 (Chunk 5): randomiseAppearance()/genName() write appearance + name straight to the DOM
-  // (direct .value, no events) AFTER applyBuild's own resync — so re-sync LOG once more to capture them.
-  if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
   const spent=C(b).total;
   const _changed=JSON.stringify(b)!==_snap0;
   if(typeof flash==='function') flash(_changed?('🎲 Rolled a random character — '+spent+' / '+budget+' AP spent'+(trad?' (incl. a starter spell kit)':'')+'.'):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');
@@ -2503,7 +2039,7 @@ function warnTarget(w){var m;
   return null;}
 function sectionIdForWarning(w){for(var i=0;i<SECTIONS.length;i++){if(SECTIONS[i].warns.some(function(k){return w.indexOf(k)>=0;}))return 'sec'+(i+1);}return null;}
 // informational notes (not hard rule violations) — never counted as "issues" in the banner or section badges
-function isAdvisory(w){return /no Ki-using ability/.test(w);}
+function isAdvisory(w){return /priced at character-creation|no Ki-using ability/.test(w);}
 function jumpToControl(id){const el=$(id);if(!el)return false;
   const fs=el.closest?el.closest('fieldset'):null;if(fs)fs.classList.remove('collapsed');var _h1=document.querySelector('.stickyhead');if(_h1&&getComputedStyle(_h1).position==='static'){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('flashhl');setTimeout(function(){el.classList.remove('flashhl');},1700);return true;}
   let off=0;const head=document.querySelector('.stickyhead');
@@ -2607,18 +2143,11 @@ function buildGuide(b,r){const tips=[];
   if(r.remaining>0 && tips.length<2)tips.push('<b>'+r.remaining+' AP</b> still unspent.');
   $('guide').innerHTML=tips.length?('<ul>'+tips.map(t=>'<li>'+t+'</li>').join('')+'</ul>'):'<span class="hint">Looking solid — no suggestions right now.</span>';
 }
-// Phase 2 Step 3 (Chunk 6): the shadow-diff/assertion scaffolding that wrapped render() through Chunks
-// 0-5 is gone now that readBuild()=foldBuild(LOG) is the source of truth. render() is a thin pass-through
-// to _cgRenderInner (the wrapper is left in place to avoid re-touching the recursive STR<10 self-call
-// inside _cgRenderInner). _cgRenderInner's armour/cross-race DOM corrections are LOG_SYNC_GUARD writers:
-// they only make the controls reflect already-determined LOG legality; they emit no events and mutate no
-// LOG. b here is readBuild()=foldBuild(LOG)+name/budget shim.
-function render(){ _cgRenderInner(); }
-function _cgRenderInner(){
+function render(){
   const b=readBuild();
   {var _ci=document.getElementById('campind');if(_ci)_ci.innerHTML=(b.campaign&&b.campaign.n)?('🛡 '+String(b.campaign.n).replace(/</g,'&lt;')+' ('+((b.campaign.boons||[]).length+(b.campaign.draws||[]).length+(b.campaign.arts||[]).length)+' barred)'):'';}
   // Medium/Heavy armour require STR 10 — auto-deselect if Strength drops below 10
-  if((((b.stats&&b.stats.STR)||10)<10)){var _am=$('a_med'),_ah=$('a_heavy'),_ch=false;if(_am&&_am.checked){_am.checked=false;b.armour.medium=false;_ch=true;}if(_ah&&_ah.checked){_ah.checked=false;b.armour.heavy=false;_ch=true;}if(_ch){if(typeof flash==='function')flash('Medium/Heavy armour deselected — requires STR 10.');return _cgRenderInner();}}
+  if((((b.stats&&b.stats.STR)||10)<10)){var _am=$('a_med'),_ah=$('a_heavy'),_ch=false;if(_am&&_am.checked){_am.checked=false;b.armour.medium=false;_ch=true;}if(_ah&&_ah.checked){_ah.checked=false;b.armour.heavy=false;_ch=true;}if(_ch){if(typeof flash==='function')flash('Medium/Heavy armour deselected — requires STR 10.');return render();}}
   const r=compute(b);annotate(b,r);
   const ov=$('sheetview');if(ov&&ov.style.display==='block'){$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());}
   $('total').innerHTML=r.total+' <span style="font-size:13px;color:var(--grey)">/ '+r.budget+' AP</span>';
@@ -2847,21 +2376,11 @@ buildArtGrid(); buildBoonGrid();
 buildDrawGrid();
 buildDmList();
 $('form').addEventListener('input',render);$('form').addEventListener('change',render);
-_cgWireChecklistDelegation();   // Phase 2 Step 3 (Chunk 1): Category A checkbox lists -> LOG mutation API
-_cgWirePatchDelegation();   // Phase 2 Step 3 (Chunk 2): Category B scalar/object fields -> replacePatchSlot()
-_cgWireRowReconcileDelegation();   // Phase 2 Step 3 (Chunk 3): Category C add-row lists -> LOG mutation API
-_cgWirePatchClassDelegation();   // Phase 2 Step 3 (Chunk 4A): customProfs/freeSub (class-keyed) -> replacePatchSlot()
-_cgWireTraditionDelegation();   // Phase 2 Step 3 (Chunk 4B): traditions/disciplines -> one TRADITIONS patch
 let _cgHadShared=false;
 try{_cgHadShared=!!loadFromHash();}catch(e){}
 if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}
 window.addEventListener('hashchange',function(){try{if(loadFromHash())render();}catch(e){}});
 collapseForMobile();
-// Phase 2 Step 3 (Chunk 0): seed LOG once from the build as it stands at boot (after any shared-link/
-// autosave restore above has already written the DOM the old way). LOG is NOT kept in sync with further
-// DOM edits until later chunks convert their handlers to the LOG mutation API — see the scaffolding
-// comment above readBuild().
-try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}
 render();
 // capability-detect (not UA-sniff) whether Save/Export will use the Share sheet or go straight to
 // Downloads, and say so up front — a button that behaves invisibly differently per platform is worse

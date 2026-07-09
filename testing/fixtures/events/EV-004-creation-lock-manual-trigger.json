@@ -1,0 +1,25 @@
+{
+  "description": "Creation-pricing-lock (D-GH31) fixture: an explicit creationLocked event fires immediately, well before cumulative spend would ever cross DATA.level1AP. Asserts the manual trigger locks creation pricing independent of the automatic threshold — 'Halfling: Brave' prices at the tier-2 locked rate (MASTER[2][band0]=4), not the creation rate (origin=2), despite total spend being nowhere near the threshold.",
+  "baseSnapshotRef": "_shared/base-halfling.json",
+  "events": [
+    {
+      "type": "award",
+      "amount": 60,
+      "note": "Quest reward",
+      "label": "Award — Quest reward (60 AP)"
+    },
+    {
+      "type": "creationLocked"
+    },
+    {
+      "type": "buy",
+      "cat": "racial",
+      "payload": {
+        "v": "Halfling: Brave"
+      },
+      "cost": 4,
+      "level": 2,
+      "label": "Species trait — Halfling: Brave"
+    }
+  ]
+}

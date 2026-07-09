@@ -12,12 +12,17 @@ is staging and promotes into `main`).
      turn one. Keep it short, refresh when focus shifts, prune when stale (stale is worse than empty). The
      roadmap stays the single writer of the full task list — this is a pointer to it, not a second copy. -->
 
-- **Current focus:** the two 🔴 NOW roadmap items — Live Sheet `undo()` correctness bug
-  (`fix/livesheet-undo-bug`) and the full engine module-bridge migration across all three tools
-  (`feat/engine-bridge-all-tools`). See `docs/PACT_ROADMAP.md` NOW section for the authoritative task text.
+- **Current focus:** the 🔴 NOW roadmap item — the full engine module-bridge migration across all three
+  tools (`feat/engine-bridge-all-tools`). See `docs/PACT_ROADMAP.md` NOW section for the authoritative
+  task text. (The Live Sheet `undo()` correctness bug closed as D-GH30: `undo()` itself was already
+  correct; the real defect was a display divergence, fixed display-only. The deferred long-term question —
+  whether `js/engine.js` should grow a frozen-ledger-aware remaining-AP export — is now a NEXT item,
+  `feat/ap-model-reconcile`, in `docs/PACT_ROADMAP.md`.)
 - **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); the three tools'
-  hand-copied `DATA`/`compute()`/`MUT`/etc. (parity risk until the bridge lands); Live Sheet `undo()` /
-  event-log replay path.
+  hand-copied `DATA`/`compute()`/`MUT`/etc. (parity risk until the bridge lands); Live Sheet's
+  `compute()`-vs-frozen-`economy()` divergence (see D-GH30 and `feat/ap-model-reconcile`) — any UI that
+  displays "AP left" for an event-sourced character must use the frozen ledger, not a retroactive
+  recompute.
 - **Preferred task shape:** one task per branch (`type/short-slug`), small focused PRs into `preview`; use
   `/pick-task` → `/run-task`; for big/risky work draft a plan for cold review first (see Agent guidance below).
 - **Avoid:** re-implementing rules logic anywhere but `engine.js`; patching `undo()` with tool-local state

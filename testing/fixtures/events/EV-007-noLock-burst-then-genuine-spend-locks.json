@@ -1,0 +1,55 @@
+{
+  "description": "Creation-pricing-lock (D-GH31/D-GH32) fixture: a campaignBound event (required under D-GH32) plus a small noLock-tagged import burst (well under the anchor on its own) is followed by genuine, non-noLock post-import spending that crosses DATA.level1AP, then a racial-trait purchase. Asserts noLock only exempts the tagged events themselves — real spending after the burst still triggers the automatic lock normally (now that campaignBound has occurred): 'Halfling: Brave' (in the noLock burst) prices at creation rate (2); 'Halfling: Naturally Stealthy' (bought after genuine spend crosses the threshold) prices at the locked tier-2 rate (7).",
+  "baseSnapshotRef": "_shared/base-halfling.json",
+  "events": [
+    {
+      "type": "campaignBound",
+      "campaignId": "camp-test-001",
+      "label": "Campaign — Test Campaign"
+    },
+    {
+      "type": "award",
+      "amount": 150,
+      "note": "Imported budget",
+      "label": "Award — budget (150 AP)",
+      "noLock": true
+    },
+    {
+      "type": "buy",
+      "cat": "racial",
+      "payload": {
+        "v": "Halfling: Brave"
+      },
+      "cost": 2,
+      "level": 2,
+      "label": "Species trait — Halfling: Brave (import)",
+      "noLock": true
+    },
+    {
+      "type": "award",
+      "amount": 0,
+      "note": "Import complete — real play begins",
+      "label": "Import complete"
+    },
+    {
+      "type": "buy",
+      "cat": "patch",
+      "payload": {
+        "patch": {}
+      },
+      "cost": 60,
+      "level": 2,
+      "label": "Genuine post-import spending (not noLock)"
+    },
+    {
+      "type": "buy",
+      "cat": "racial",
+      "payload": {
+        "v": "Halfling: Naturally Stealthy"
+      },
+      "cost": 7,
+      "level": 2,
+      "label": "Species trait — Halfling: Naturally Stealthy (bought in play)"
+    }
+  ]
+}
