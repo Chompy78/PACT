@@ -4,6 +4,61 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk D: Undo/Redo UI + keyboard shortcuts (Step 4 COMPLETE)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` **20/0**). Final
+  chunk: `↶ Undo` / `↷ Redo` buttons in the desktop header cluster and the mobile nav, enabled/disabled from
+  live `HIST`/`REDO` depth (refreshed every `render()`, with step-count tooltips). Keyboard: Ctrl/Cmd-Z undo,
+  Ctrl/Cmd-Shift-Z or Ctrl-Y redo — while actively typing in a text field (an open coalescing group) Ctrl-Z
+  is left to the browser's native text undo; once the field seals it drives the app history. Verified in a
+  real browser 13/13 (V6): boot-disabled state, enable/disable transitions across edit→undo→redo, all three
+  shortcuts, mid-edit native-undo preservation, typing undisrupted; engine-parity harness re-run **20/0**.
+  With this, **CharGen Step 4 is complete** — CharGen has trustworthy snapshot-based undo/redo and persists
+  as an event log, matching the Live Sheet.
+
+- **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk C: event-log persistence `{schema,rules,name,budget,LOG,SEQ,id}`**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` stays 20/0). CharGen
+  now saves and autosaves in the Live-Sheet-style event-log shape (schema tag `pact-chargen/1`) — a character
+  is stored as *what the player did*. `name`/`budget` ride along top-level (Step-5 DOM shims `foldBuild`
+  doesn't carry; omitting `budget` would reset it on reload — the F1 finding). `loadFile` now has three
+  branches checked in order: (1) schema-tagged CharGen file — keyed **solely** on the schema tag, validates
+  `LOG` is an array (errors without touching the build if not), and reinstates the **authoritative saved
+  LOG** verbatim rather than trusting applyBuild's DOM re-derivation (which diverges on compute-managed
+  fields parked in hidden controls, e.g. `size`) so save↔load is exact; (2) Live-Sheet export (untagged
+  `LOG`) — unchanged, with class/species defaults; (3) legacy flat build — unchanged, so every pre-Step-4
+  file still opens. Autosave moved to a versioned key with a one-time migration of the old flat-build key
+  (applied, rewritten in the new shape, old key deleted). Share links stay flat (URL length). Verified in a
+  real browser 15/15 (V5 + V8): envelope shape, save→reset→reload round-trip (canonical-equal, name+budget
+  preserved), legacy-flat + Live-Sheet + missing-LOG-error paths, autosave migration+delete, and
+  save→load→undo persisted stability.
+
+- **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk B: applyBuild/boot history integration (+ latent randomize-aliasing fix)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` stays 20/0). Wires
+  the Chunk-A history core into every whole-build-replacement flow so each is exactly ONE undoable step:
+  `applyBuild` now suspends history across its whole DOM-write + LOG-rebuild body (via try/finally), and
+  callers own the undo semantics — user file-load and Reset (new `resetBuild()`) push a single pre-action
+  frame; randomize pushes one frame and suspends across `applyBuild` + the appearance/name resync; boot,
+  autosave-restore, and shared-link load pass `{clearHistory:true}` (you can't undo to "before the character
+  existed"), and the initial LOG seed is suspended + cleared. **Latent bug fixed along the way:**
+  `randomizeRoll` mutated `readBuild()`'s result in place, but `foldBuild(LOG)` returns nested arrays that
+  ALIAS the LOG event payloads — so randomize was silently corrupting the live LOG (harmless pre-Step-4
+  because applyBuild rebuilt LOG from the DOM afterward, but the new undo frame snapshotted the corruption);
+  fixed by deep-cloning the working build. Verified in a real browser 13/13 (V4): boot leaves history empty;
+  load/reset/randomize each push exactly one frame; undo after each restores the pre-action build; randomize
+  → undo → redo → undo stays canonical-identical with no history accumulation. Persistence shape + button UI
+  are Chunks C/D.
+
+- **2026-07-09 · feat(chargen) — Phase 2 Step 4, Chunk A: snapshot-based undo/redo history core (no UI yet)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` stays 20/0). First
+  chunk of the CharGen undo/redo + persistence work (see
+  `docs/plans/2026-07-09-chargen-undo-persist-phase2-step4.md`). Adds a `HIST`/`REDO` snapshot stack (frames
+  carry a deep-cloned LOG + the name/budget/id shims), a `commitHistory()` choke point wrapped into the four
+  LOG-API functions, `restoreFrame()` (build-equality restore via `applyBuild`, per D5), and `undo()`/`redo()`
+  — exercised from the console, not yet wired to buttons (Chunk D). Edit coalescing (D3): only user text
+  keystrokes carry a coalesce key; consecutive same-field keystrokes within a 600 ms idle window collapse to
+  one undo step, sealed permanently by blur / cross-field / discrete action / undo; net-zero groups are
+  dropped (compared on the folded build, not raw LOG bytes). Verified in a real browser 16/16: V1 snapshot
+  immutability, V2 undo round-trip (checkbox + patch field + add-row), V3 all four coalescing cases, V7 redo
+  symmetry. applyBuild/boot suspension + button UI are Chunks B/D.
 - **2026-07-09 · fix(chargen) — export burst dropped `size` and `wornArmour` (CharGen → Live Sheet)**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` 20/0). Two gaps in
   `_buildEventBurst`: (1) the `'Character size'` patch was **unconditionally** skipped by

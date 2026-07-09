@@ -390,6 +390,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .gridck label.ck:has(> input:disabled) { opacity: 0.5; cursor: default; }
 </style></head><body>
 <div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.107</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" title="CharGen only saves to this browser's local storage — no sign-in, no cloud sync, no cloud campaign. Use the Live Sheet to join a DM's cloud campaign.">🔒 Local only — not connected to any cloud campaign</span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
+<button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
+<button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
 <button class="btn ghost" onclick="loadViaPicker()">📂 Load</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -398,9 +400,9 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="openCampaign()" title="Local house rules (not the cloud campaign system) — DM: bar boons/drawbacks/arts and share a text code; barred items are blocked here too">🛡 House rules code</button><span id="campind" style="font-size:11px;color:var(--good);font-weight:700"></span><button class="btn ghost" onclick="exportToLiveSheet()" title="Export this build as a Live Sheet file, then Import it in the Live Sheet to lock it in and progress">⇆ Live Sheet</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
-<button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button>
+<button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){resetBuild();}">↺ Reset</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
-<div class="hd-mobnav"><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){_fileHandle=null;applyBuild({});}">↺ Reset</button><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
+<div class="hd-mobnav"><button class="btn ghost" id="undoBtnM" onclick="undo()" title="Undo" disabled>↶</button><button class="btn ghost" id="redoBtnM" onclick="redo()" title="Redo" disabled>↷</button><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){resetBuild();}">↺ Reset</button><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
 <div class="secnav" id="secnav"></div>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
 <div class="mobile-action-bar">
@@ -1213,14 +1215,146 @@ const PATCH_SLOTS=Object.freeze({IDENTITY:'identity',STATS:'stats',HD_PROF:'hdPr
 
 function nextSeq(log){let max=0;(log||[]).forEach(function(e){if(e&&typeof e.seq==='number'&&e.seq>max)max=e.seq;});return max+1;}
 
+// ---- Phase 2 Step 4 (Chunk A): snapshot-based undo/redo history core ----
+// See docs/plans/2026-07-09-chargen-undo-persist-phase2-step4.md. CharGen's LOG is NOT append-only
+// (replacePatchSlot filters+appends, retractFlatEvent splices, reconcile removes several in one action),
+// so "the last event" is not a poppable unit — undo restores a whole-LOG SNAPSHOT. A frame also carries
+// the name/budget DOM shims and the character id, which foldBuild(LOG) does not reproduce. The undo
+// contract is BUILD equality, not event equality: restoreFrame repaints via applyBuild (the single
+// canonical LOG builder, which rebuilds LOG from the DOM it writes). See D1/D3/D5 in the plan.
+let HIST=[],REDO=[];
+let _histSuspended=false;      // set by whole-build flows (Chunk B) so their internal mutations don't record
+const HIST_MAX=100;            // cap: each frame is a full LOG clone — bound a long session's memory
+const COALESCE_MS=600;         // consecutive same-field keystrokes within this idle window = one undo step
+let _coalesceKey=null;         // non-null ONLY during a user text-edit turn (set by the input delegations)
+let _turnLatched=false;        // at most one frame per synchronous event turn (coalesces intra-handler cascades)
+let _openKey=null,_openTs=0;   // the still-coalescing group (top of HIST) — its key + last-activity time
+let _hkSeq=0;                  // lazy stable keys for id-less text inputs (e.g. cprof rows)
+
+function _histClone(x){return JSON.parse(JSON.stringify(x));}
+function _snapshotFrame(){return {log:_histClone(LOG),seq:SEQ,name:val('cname'),budget:val('budget'),id:__charId};}
+function _fieldKey(el){if(!el)return null;if(el.id)return el.id;if(!el._hk)el._hk='hk'+(++_hkSeq);return el._hk;}
+function _isTextish(el){return !!el&&(el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&/^(text|number|search|tel|url|email|)$/i.test(el.type)));}
+// Only a user text keystroke supplies a coalesce key; select/checkbox `change` and everything else stays
+// null → its own discrete undo step. Called at the top of the text-field delegations (D3).
+function _setCoalesceForEvent(e){_coalesceKey=(e&&e.type==='input'&&_isTextish(e.target))?_fieldKey(e.target):null;}
+function _scheduleTurnReset(){Promise.resolve().then(function(){_turnLatched=false;_coalesceKey=null;});}
+
+// Seal the open coalescing group. Drops its frame if the group ended up changing nothing (e.g. type a
+// char then delete it inside the window) so a no-op edit never leaves a dead undo step. The comparison is
+// on the FOLDED BUILD, not raw LOG bytes: a net-zero patch edit rewrites its slot event with a fresh
+// seq/ts, so the LOG bytes differ even when the build is identical — and build equality is the undo
+// contract (D5). Sealing is permanent — a later edit to the same field starts a fresh group.
+function _sealOpenGroup(){
+  if(_openKey!==null&&HIST.length){
+    const f=HIST[HIST.length-1];
+    if(JSON.stringify(canonicalBuild(foldBuild(f.log)))===JSON.stringify(canonicalBuild(foldBuild(LOG))))HIST.pop();
+  }
+  _openKey=null;
+}
+
+// Record the PRE-mutation state. The four LOG-API functions call this immediately before they change LOG.
+function commitHistory(){
+  if(_histSuspended)return;
+  if(_turnLatched)return;                 // intra-turn: only the first mutation of a handler records
+  _turnLatched=true;_scheduleTurnReset();
+  const key=_coalesceKey,now=Date.now();
+  if(key!==null&&key===_openKey&&(now-_openTs)<=COALESCE_MS){_openTs=now;return;}  // continue the open group
+  _sealOpenGroup();                        // close the previous group (drops it if it was a no-op)
+  HIST.push(_snapshotFrame());
+  if(HIST.length>HIST_MAX)HIST.shift();
+  REDO.length=0;                           // a fresh user action invalidates redo
+  _openKey=key;_openTs=now;                // key===null never coalesces onto (the guard requires key!==null)
+}
+
+// Repaint the whole UI from a frame. Build-equality contract (D5): applyBuild rebuilds LOG from the DOM it
+// writes; we then restore the name/budget/id shims foldBuild can't reproduce.
+// Known Step-5 limitation: name/budget are captured into every frame (not tracked as their own LOG
+// events), so undo restores them to the frame's values. This is REQUIRED for whole-build-load undo
+// (Chunk B — a load changes name/budget and undo must revert them), but it means undoing a buy made
+// *before* a later name edit also reverts that name. Step 5 (budget-as-award, name events) removes the
+// shim and makes name/budget independently undoable.
+function restoreFrame(f){
+  _histSuspended=true;
+  try{
+    LOG=_histClone(f.log);SEQ=f.seq;
+    applyBuild(foldBuild(LOG));            // paints every control; rebuilds LOG from DOM (single canonical builder)
+    __charId=f.id||__charId;
+    const cn=$('cname');if(cn)cn.value=f.name;
+    const bg=$('budget');if(bg)bg.value=f.budget;
+    render();
+  }finally{_histSuspended=false;}
+  _openKey=null;_turnLatched=false;_coalesceKey=null;
+  try{_cgAutosave();}catch(e){}
+}
+
+function undo(){
+  if(_histSuspended)return;
+  _sealOpenGroup();                        // seal-before-undo: never land mid-word
+  if(!HIST.length)return;
+  REDO.push(_snapshotFrame());
+  restoreFrame(HIST.pop());
+}
+function redo(){
+  if(_histSuspended)return;
+  _sealOpenGroup();
+  if(!REDO.length)return;
+  HIST.push(_snapshotFrame());
+  restoreFrame(REDO.pop());
+}
+
+// ---- Phase 2 Step 4 (Chunk B): whole-build-replacement history integration ----
+// applyBuild writes the whole DOM then rebuilds LOG, firing many internal mutations; those must NOT each
+// record. A whole-build replace (file load, Reset, randomize) is ONE undoable step: the caller pushes a
+// single pre-action frame via _commitWholeBuildFrame, and applyBuild suspends history across its body so
+// the internal churn is invisible. Boot / autosave-restore / shared-link instead CLEAR history (you can't
+// undo to "before the character existed").
+function _commitWholeBuildFrame(){
+  if(_histSuspended)return;
+  _sealOpenGroup();
+  HIST.push(_snapshotFrame());
+  if(HIST.length>HIST_MAX)HIST.shift();
+  REDO.length=0;_openKey=null;
+}
+function _clearHistory(){HIST.length=0;REDO.length=0;_openKey=null;_coalesceKey=null;_turnLatched=false;}
+// Reset = one undoable whole-build replace to a blank build (the confirm() stays in the button onclick).
+function resetBuild(){_fileHandle=null;_commitWholeBuildFrame();applyBuild({});}
+
+// ---- Phase 2 Step 4 (Chunk D): Undo/Redo button state + keyboard shortcuts ----
+// Refresh the four buttons (desktop + mobile) from HIST/REDO depth. Called from render() (which runs after
+// every mutation and every restore), so the buttons always reflect the live stacks.
+function _cgUpdateUndoButtons(){
+  const u=HIST.length,r=REDO.length;
+  [['undoBtn',u,'Undo','Ctrl/Cmd-Z'],['undoBtnM',u,'Undo','Ctrl/Cmd-Z'],
+   ['redoBtn',r,'Redo','Ctrl/Cmd-Shift-Z'],['redoBtnM',r,'Redo','Ctrl/Cmd-Shift-Z']].forEach(function(x){
+    const el=$(x[0]);if(!el)return;const n=x[1];el.disabled=!n;
+    el.title=n?(x[2]+' — '+n+' step'+(n>1?'s':'')+' ('+x[3]+')'):('Nothing to '+x[2].toLowerCase()+' ('+x[3]+')');
+  });
+}
+// Keyboard: Ctrl/Cmd-Z undo, Ctrl/Cmd-Shift-Z or Ctrl-Y redo. While actively typing in a text field (an
+// open coalescing group) Ctrl-Z is left to the browser's native text undo; once the field is sealed
+// (blur/idle) it drives the app history. (Any undo/redo call seals the open group first anyway.)
+function _cgWireUndoKeys(){
+  document.addEventListener('keydown',function(e){
+    if(!(e.ctrlKey||e.metaKey))return;
+    const k=(e.key||'').toLowerCase();
+    if(k==='z'&&!e.shiftKey){
+      if(_isTextish(e.target)&&_openKey!==null)return;   // still mid-edit → native text undo
+      e.preventDefault();undo();
+    }else if((k==='z'&&e.shiftKey)||k==='y'){
+      e.preventDefault();redo();
+    }
+  });
+}
+
 // ---- LOG mutation API — the ONLY functions permitted to change LOG (no handler pushes/splices/reassigns it directly) ----
-function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;LOG.push(ev);render();}
+function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);render();}
 
 function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
   const i=LOG.findIndex(function(e){return e.type==='buy'&&e.cat===cat&&predicate(e);});
   if(i===-1)return;
-  LOG.splice(i,1);render();
+  commitHistory();LOG.splice(i,1);render();
 }
 
 function replacePatchSlot(slot,patch,label){
@@ -1233,11 +1367,11 @@ function replacePatchSlot(slot,patch,label){
   const after=compute(foldBuild(candidate)).total;
   const newEvent={type:'buy',cat:'patch',payload:{patch:patch},cost:after-before,label:label,_slot:slot,
     seq:SEQ++,ts:Date.now(),rules:DATA.version};
-  LOG=withoutSlot.concat([newEvent]);render();
+  commitHistory();LOG=withoutSlot.concat([newEvent]);render();
 }
 
 function replaceWholeLogFromBuild(b,opts){
-  LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);render();
+  commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);render();
 }
 
 // ---- canonicalBuild(): retained past the Chunk-6 flip (the shadow-diff scaffolding around it is gone).
@@ -1585,8 +1719,11 @@ function onPatchFieldChange(el){
 
 function _cgWirePatchDelegation(){
   const form=$('form');if(!form)return;
-  const watch=function(e){if(e.target&&e.target.id)onPatchFieldChange(e.target);};
+  const watch=function(e){_setCoalesceForEvent(e);if(e.target&&e.target.id)onPatchFieldChange(e.target);};
   form.addEventListener('change',watch);form.addEventListener('input',watch);
+  // blur/focus-change permanently seals the open coalescing group (D3): a later edit to the same field
+  // starts a fresh undo step, and a group that changed nothing is dropped.
+  form.addEventListener('focusout',function(){_sealOpenGroup();});
 }
 
 // ---- Phase 2 Step 3 (Chunk 4A): Category B coalescing patches reached by CLASS, not id ----
@@ -1603,6 +1740,7 @@ function _cgWirePatchClassDelegation(){
     const el=e.target;if(!el||!el.classList)return;
     const cls=[...el.classList].find(function(c){return c in PATCH_CLASS_SLOT;});
     if(!cls)return;
+    _setCoalesceForEvent(e);   // cprof rows are id-less text inputs — key them so typing coalesces (D3)
     _cgSyncPatchSlot(PATCH_CLASS_SLOT[cls]);
   };
   form.addEventListener('input',watch);form.addEventListener('change',watch);
@@ -1783,8 +1921,10 @@ async function _pactShareOrSave(blob,filename,sharedMsg,savedMsg){
   }
 }
 async function saveBuild(){
-  const b=readBuild();const data=JSON.stringify(b,null,1);
-  const nm=(b.name||'pact-character').replace(/[^a-z0-9_-]+/gi,'_')+'-'+(b.version||DATA.version)+'.json';
+  // Chunk C: save the event-log envelope, not a flat build (a character IS its LOG). name+budget ride
+  // along as top-level shims (Step 5 folds them in). Legacy flat files still open (loadFile branch 3).
+  const b=readBuild();const data=JSON.stringify(_cgEnvelope(),null,1);
+  const nm=(b.name||'pact-character').replace(/[^a-z0-9_-]+/gi,'_')+'-'+DATA.version+'.json';
   // if a file is already open (loaded or saved this session) write straight back to it — no prompt
   if(_fileHandle){try{await _fsWrite(_fileHandle,data);flash('Saved to '+(_fileHandle.name||nm));return;}catch(e){_fileHandle=null;}}
   // native Save dialog (Chromium desktop + Android Chrome) — user chooses the location
@@ -1799,7 +1939,20 @@ async function loadViaPicker(){
 }
 function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
     const d=JSON.parse(e.target.result);
-    // Detect Live Sheet format (has LOG array) vs CharGen save (flat build object)
+    // Chunk C: three load branches, checked in order. A user file-load is ONE undoable step, so
+    // _commitWholeBuildFrame() is pushed just before applyBuild in each branch (after validation) — an
+    // invalid file returns without leaving a stray frame.
+    // Branch 1: native CharGen event-log file. Keyed SOLELY on the schema tag — pre-Step-4 CharGen never
+    // wrote LOG files, so every untagged d.LOG is a Live Sheet export (branch 2).
+    if(d.schema===CG_SCHEMA){
+      if(!Array.isArray(d.LOG)){alert('Could not load: this PACT CharGen file is missing its event log (LOG).');return;}
+      _commitWholeBuildFrame();
+      _cgApplyEnvelope(d);
+      const fv=d.rules||'(unstamped)';
+      if(typeof flash==='function')flash(fv===DATA.version?('Loaded a '+DATA.version+' character.'):('Loaded a '+fv+' character — repriced live under current '+DATA.version+' rules.'));
+      return;
+    }
+    // Branch 2: Live Sheet export (LOG array, no CharGen schema)
     if(d.LOG&&Array.isArray(d.LOG)){
       // Reconstruct CharGen build from Live Sheet LOG by replaying all patch events
       const b=foldBuild(d.LOG);
@@ -1809,11 +1962,13 @@ function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
       if(!b.species)b.species='Human';
       if(!b.hd)b.hd=1;
       b.version=d.rules||DATA.version;
+      _commitWholeBuildFrame();
       applyBuild(b);
       flash('Loaded Live Sheet export (rules '+d.rules+') into CharGen. Some fields may use defaults — check Species and Origin Class.');
       return;
     }
-    // Normal CharGen flat build format
+    // Branch 3: legacy CharGen flat build format (every file saved before Step 4 still opens)
+    _commitWholeBuildFrame();
     applyBuild(d);
     const fv=d.version||'(unstamped)';
     if(typeof flash==='function')flash(fv===DATA.version?('Loaded a '+DATA.version+' build.'):('Loaded a '+fv+' build — repriced live under current '+DATA.version+' rules.'));
@@ -1839,7 +1994,7 @@ function shareLink(){try{const enc=_encB(readBuild());const base=location.href.s
   flash(copied?('Shareable link copied to clipboard ('+url.length+' chars).'):'Link shown — copy it from the popup or the address bar.');
   }catch(err){flash('Could not build a share link.');}}
 function loadFromHash(){try{if(typeof location==='undefined'||!location.hash)return false;
-  if(location.hash.indexOf('#b=')!==0)return false;_fileHandle=null;applyBuild(_decB(location.hash.slice(3)));flash('Shared build loaded ✓');return true;}catch(e){return false;}}
+  if(location.hash.indexOf('#b=')!==0)return false;_fileHandle=null;applyBuild(_decB(location.hash.slice(3)),{clearHistory:true});flash('Shared build loaded ✓');return true;}catch(e){return false;}}
 /* ── Campaign Rules (DM bar tool) — mirrored into CharGen ── */
 var CG_CAMPAIGN=null;
 var _AK='DragonReachForgePACT';
@@ -2022,7 +2177,13 @@ async function exportToLiveSheet(){
 // stable per-character id so hand-typed sheet fields survive renames (and are tagged per tool)
 let __charId=null;
 function currentCharId(){if(!__charId)__charId=genCharId();return __charId;}
-function applyBuild(b){
+function applyBuild(b,opts){
+  opts=opts||{};
+  // Chunk B: suspend history across the whole DOM-write + LOG-rebuild so the internal churn records no
+  // frames. Callers own the undo semantics: a user-initiated load/reset/randomize pushes ONE frame first
+  // (_commitWholeBuildFrame); boot/autosave/shared-link pass {clearHistory:true} to wipe history instead.
+  const _prevSusp=_histSuspended;_histSuspended=true;
+  try{
   if(b&&b.campaign)CG_CAMPAIGN=b.campaign;
   __charId=(b&&b.id)||genCharId();   // loading a build adopts its id; a fresh/blank build gets a new one
   const set=(id,v)=>{const e=$(id);if(e)e.value=v;};
@@ -2075,15 +2236,50 @@ function applyBuild(b){
   // own post-restore resync does). render() happens inside replaceWholeLogFromBuild.
   if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
   else render();
+  }finally{_histSuspended=_prevSusp;}
+  if(opts.clearHistory)_clearHistory();
 }
 
 // ---- lightweight autosave of the in-progress build (safety net independent of Export) ----
 // CharGen has no other persistence — Export is the only save today, and if it silently fails
 // (the iOS issue the Share-based fix above addresses) the whole build is otherwise lost the
 // moment the tab closes. Mirrors Live Sheet's own localStorage save()/load(): raw build JSON only.
-var CG_AUTOSAVE_KEY='pactCharGenAutosave';
-function _cgAutosave(b){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(b));}catch(e){}}
-function _cgRestoreAutosave(){try{const raw=localStorage.getItem(CG_AUTOSAVE_KEY);if(!raw)return false;const b=JSON.parse(raw);if(!b||typeof b!=='object')return false;applyBuild(b);return true;}catch(e){return false;}}
+// Phase 2 Step 4 (Chunk C): persist in the event-log shape {schema,rules,name,budget,LOG,SEQ,id} — a
+// CharGen character is stored as WHAT THE PLAYER DID, matching the Live Sheet. `name` and `budget` are
+// top-level because they are Step-5 DOM shims that foldBuild(LOG) does not carry (omitting budget would
+// reset it on reload). The autosave key is versioned so the old flat-build autosave migrates once.
+const CG_SCHEMA='pact-chargen/1';
+var CG_AUTOSAVE_KEY='pactCharGenAutosaveV2';
+var CG_AUTOSAVE_KEY_LEGACY='pactCharGenAutosave';   // pre-Step-4 flat-build autosave — migrated then deleted
+function _cgEnvelope(){return {schema:CG_SCHEMA,rules:DATA.version,name:val('cname')||'',budget:(+val('budget'))||DATA.level1AP,LOG:LOG,SEQ:SEQ,id:currentCharId()};}
+function _cgAutosave(){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(_cgEnvelope()));}catch(e){}}
+// Apply a schema-tagged CharGen envelope's LOG + name/budget/id shims (shared by load + autosave-restore).
+function _cgApplyEnvelope(d,opts){
+  const b=foldBuild(d.LOG);
+  b.name=(d.name!=null?d.name:(b.name||''));
+  if(d.budget!=null)b.budget=d.budget;
+  if(d.id)b.id=d.id;
+  b.version=d.rules||DATA.version;
+  applyBuild(b,opts);           // repaint every control from the folded build
+  // The saved LOG is AUTHORITATIVE for a native CharGen file — reinstate it verbatim rather than trusting
+  // applyBuild's DOM re-derivation, which can diverge on compute-managed fields parked in hidden controls
+  // (e.g. `size`: stored raw as Small but re-read as Medium for a species without a size choice). This
+  // makes save↔load exact ("what you saved is what you load"); direct assignment bypasses the mutation API
+  // so it records no history frame. (Undo keeps the DOM-rebuild default per D5; a file load is different —
+  // it must reproduce the persisted event log exactly.)
+  LOG=JSON.parse(JSON.stringify(d.LOG));SEQ=d.SEQ||nextSeq(LOG);render();
+  return b;
+}
+function _cgRestoreAutosave(){try{
+  const raw=localStorage.getItem(CG_AUTOSAVE_KEY);
+  if(raw){const d=JSON.parse(raw);
+    if(d&&d.schema===CG_SCHEMA&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});return true;}}
+  // one-time migration of the pre-Step-4 flat-build autosave, then remove the old key
+  const legacy=localStorage.getItem(CG_AUTOSAVE_KEY_LEGACY);
+  if(legacy){const b=JSON.parse(legacy);
+    if(b&&typeof b==='object'){applyBuild(b,{clearHistory:true});try{_cgAutosave();}catch(e){}try{localStorage.removeItem(CG_AUTOSAVE_KEY_LEGACY);}catch(e){}return true;}}
+  return false;
+}catch(e){return false;}}
 
 // ── 🎲 Random character generator ──────────────────────────────────────────
 // Keeps whatever is already selected (species, class(es), name, budget, unlocks)
@@ -2095,7 +2291,11 @@ function randomizeBuild(){
   setTimeout(randomizeRoll,0);
 }
 function randomizeRoll(){
-  let b=readBuild();
+  // Deep-clone the working build: readBuild()=foldBuild(LOG) returns nested arrays/objects that ALIAS the
+  // LOG event payloads, so randomize's in-place mutations below (b.traditions.push, b.stats[a]=…) would
+  // otherwise corrupt the live LOG. Harmless pre-Step-4 (applyBuild rebuilt LOG from the DOM afterward),
+  // but the undo frame captured just before applyBuild would otherwise snapshot the corrupted LOG.
+  let b=JSON.parse(JSON.stringify(readBuild()));
   ['saves','skills','expertise','feats','tools','instruments','masteries','racialTraits','features','traditions','unlockedClasses','toolExpertise','customProfs','subAbilities','boons','drawbacks','arts'].forEach(k=>{if(!Array.isArray(b[k]))b[k]=[];});
   b.stats=b.stats||{}; ABILS.forEach(a=>{b.stats[a]=(+b.stats[a])||10;});
   b.hd=(+b.hd)||1; b.profBonus=(+b.profBonus)||2; b.languages=b.languages!=null?(+b.languages):1;
@@ -2183,11 +2383,17 @@ function randomizeRoll(){
   let stuck=0, iters=0;
   while(stuck<50 && iters<3000 && (budget - C(b).total) > 0){ iters++; if(tryAct(pick(A))) stuck=0; else stuck++; }
   for(let q=0;q<8;q++){tryAct(actBoon);tryAct(actArt);tryAct(actRacial);tryAct(actRacial);}
-  applyBuild(b);
-  try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}
-  // Phase 2 Step 3 (Chunk 5): randomiseAppearance()/genName() write appearance + name straight to the DOM
-  // (direct .value, no events) AFTER applyBuild's own resync — so re-sync LOG once more to capture them.
-  if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
+  // Chunk B: randomize is ONE undoable step — push a single pre-roll frame, then suspend across applyBuild
+  // AND the appearance/name resync so the tail's second LOG rebuild records no extra frame.
+  _commitWholeBuildFrame();
+  const _prevSusp=_histSuspended;_histSuspended=true;
+  try{
+    applyBuild(b);
+    try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}
+    // Phase 2 Step 3 (Chunk 5): randomiseAppearance()/genName() write appearance + name straight to the DOM
+    // (direct .value, no events) AFTER applyBuild's own resync — so re-sync LOG once more to capture them.
+    if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
+  }finally{_histSuspended=_prevSusp;}
   const spent=C(b).total;
   const _changed=JSON.stringify(b)!==_snap0;
   if(typeof flash==='function') flash(_changed?('🎲 Rolled a random character — '+spent+' / '+budget+' AP spent'+(trad?' (incl. a starter spell kit)':'')+'.'):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');
@@ -2639,7 +2845,8 @@ function _cgRenderInner(){
   const mn=$('mtop-name');if(mn)mn.textContent=val('cname')||'Unnamed hero';
   const mtt=$('mtop-tot');if(mtt){mtt.textContent=r.total+' / '+r.budget+' AP';var _mb=r.remaining<0;mtt.style.background=_mb?'#f7c5c5':'#CDEAD3';mtt.style.color=_mb?'#7a0000':'#14501f';}
   const mw=$('mtop-warn');if(mw){var _hi=r.warnings.filter(w=>!isAdvisory(w)).length;mw.style.display=_hi?'inline':'none';}
-  _cgAutosave(b);
+  _cgUpdateUndoButtons();
+  _cgAutosave();
 }
 
 
@@ -2852,6 +3059,7 @@ _cgWirePatchDelegation();   // Phase 2 Step 3 (Chunk 2): Category B scalar/objec
 _cgWireRowReconcileDelegation();   // Phase 2 Step 3 (Chunk 3): Category C add-row lists -> LOG mutation API
 _cgWirePatchClassDelegation();   // Phase 2 Step 3 (Chunk 4A): customProfs/freeSub (class-keyed) -> replacePatchSlot()
 _cgWireTraditionDelegation();   // Phase 2 Step 3 (Chunk 4B): traditions/disciplines -> one TRADITIONS patch
+_cgWireUndoKeys();   // Phase 2 Step 4 (Chunk D): Ctrl/Cmd-Z undo, Ctrl/Cmd-Shift-Z / Ctrl-Y redo
 let _cgHadShared=false;
 try{_cgHadShared=!!loadFromHash();}catch(e){}
 if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}
@@ -2861,7 +3069,11 @@ collapseForMobile();
 // autosave restore above has already written the DOM the old way). LOG is NOT kept in sync with further
 // DOM edits until later chunks convert their handlers to the LOG mutation API — see the scaffolding
 // comment above readBuild().
-try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}
+// Chunk B: the initial seed must not create an undo step, and boot must leave a clean history (you can't
+// undo to "before the character existed"). Suspend the seed, then clear — this also drops any frame a
+// shared-link/autosave restore above may have pushed before it cleared.
+{const _p=_histSuspended;_histSuspended=true;try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}finally{_histSuspended=_p;}}
+_clearHistory();
 render();
 // capability-detect (not UA-sniff) whether Save/Export will use the Share sheet or go straight to
 // Downloads, and say so up front — a button that behaves invisibly differently per platform is worse
