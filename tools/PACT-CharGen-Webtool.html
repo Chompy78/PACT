@@ -827,7 +827,7 @@ function dmAdd(){const kind=val('dmkind');const name=(val('dmname')||'').trim();
   else{HOUSE.draws[name]={ap,fx:desc};}
   $('dmname').value='';$('dmdesc').value='';
   buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  ck('artck',b.arts||[]);render();}
+  render();}
 // repricing an existing boon/drawback: when the typed name exactly matches a built-in or custom item,
 // pre-fill HD / AP / description from its current values so leaving a field untouched keeps that value
 // (fixes a silent reset of the HD requirement to 1 when only the AP was being changed).
@@ -841,16 +841,16 @@ function dmDisableBuiltin(){const kind=val('dmkind');const name=(val('dmname')||
   const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=HOUSE.disabled[dk]||[];
   if(!HOUSE.disabled[dk].includes(name))HOUSE.disabled[dk].push(name);
   $('dmname').value='';buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  ck('artck',b.arts||[]);render();}
+  render();}
 function dmRemove(kind,name){const map=kind==='boon'?HOUSE.boons:HOUSE.draws;delete map[name];
   // also clear from disabled list if present
   const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=(HOUSE.disabled[dk]||[]).filter(x=>x!==name);
   buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  ck('artck',b.arts||[]);render();}
+  render();}
 function dmToggleDisable(kind,name){const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=HOUSE.disabled[dk]||[];
   const i=HOUSE.disabled[dk].indexOf(name);if(i>=0)HOUSE.disabled[dk].splice(i,1);else HOUSE.disabled[dk].push(name);
   buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  ck('artck',b.arts||[]);render();}
+  render();}
 function buildDmList(){const el=$('dmlist');if(!el)return;const rows=[];
   const add=(kind,name,meta)=>{const off=isDisabled(kind==='boon'?'boons':'draws',name);
     rows.push('<div class="dmrow'+(off?' off':'')+'"><span class="nm">'+name+'</span><span class="meta">'+meta+'</span>'+
@@ -2127,7 +2127,7 @@ function _buildEventBurst(b){
   if(b.name) ev({type:'name',name:b.name,label:'Name — '+b.name});
   if(b.appearance && Object.keys(b.appearance).some(k=>b.appearance[k])) ev({type:'buy',cat:'patch',payload:{patch:{appearance:C(b.appearance)}},cost:0,level:1,label:'Appearance & description (0 AP)'});
   ev({type:'buy',cat:'create',payload:{},cost:compute(liveBase()).total,level:1,label:'Level 1 character (Hit Die + base)'});
-  const emitPatch=(label,patch)=>{const skipZeroCostPatch=label==='Character size' || (label==='Innate spells' && patch && patch.innate && Array.isArray(patch.innate) && patch.innate.every(v=>v===0));
+  const emitPatch=(label,patch)=>{const skipZeroCostPatch=(label==='Innate spells' && patch && patch.innate && Array.isArray(patch.innate) && patch.innate.every(v=>v===0));
     if(skipZeroCostPatch)return;
     const before=compute(run).total;Object.assign(run,C(patch));const cost=compute(run).total-before;
     const meaningful=Object.keys(patch).some(k=>{const v=patch[k];return Array.isArray(v)?v.length:(v&&typeof v==='object'?Object.keys(v).length:(v!==base0[k]));});
@@ -2146,7 +2146,7 @@ function _buildEventBurst(b){
   if(customProfs.length)emitPatch('Tools & instruments',{customProfs:C(customProfs)});
   tools.forEach(v=>evItem('Tool — '+v,'tool',v));instruments.forEach(v=>evItem('Instrument — '+v,'instrument',v));
   emitPatch('Weapon proficiency',{weaponProf:b.weaponProf});(b.masteries||[]).forEach(v=>evItem('Weapon mastery — '+v,'mastery',v));
-  emitPatch('Armour',{armour:b.armour});(b.features||[]).forEach(v=>evItem('Class feature — '+v,'feature',v));
+  emitPatch('Armour',{armour:b.armour,wornArmour:b.wornArmour});(b.features||[]).forEach(v=>evItem('Class feature — '+v,'feature',v));
   emitPatch('Subclasses',{freeSub:C(b.freeSub||{})});(b.subAbilities||[]).forEach(v=>evItem('Subclass ability — '+v,'subabil',v));(b.subSpellBundles||[]).forEach(v=>evItem('Subclass spell bundle — '+v,'subbundle',v));
   emitPatch('Spellcasting',{traditions:b.traditions,dabblerCantrips:b.dabblerCantrips});(b.arts||[]).forEach(v=>evItem('Art / Technique — '+v,'art',v));
   emitPatch('Lineage & racial spells',{lineage:b.lineage||''});(b.racialSpells||[]).forEach(v=>evItem('Racial spell — '+v,'racialspell',v));
