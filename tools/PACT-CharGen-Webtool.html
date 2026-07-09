@@ -542,7 +542,7 @@ function genName(){
   pools.forEach(k=>{const d=NAMEDATA[k];if(d){firsts=firsts.concat(d.first.map(s=>s.trim()).filter(Boolean));lasts=lasts.concat(d.last);}});
   if(!firsts.length){firsts=NAMEDATA.heroic.first.map(s=>s.trim());lasts=NAMEDATA.heroic.last;}
   const nm=_pick(firsts)+' '+_pick(lasts);
-  const e=$('cname');if(e){e.value=nm;render();}
+  const e=$('cname');if(e){e.value=nm;_cgSyncName();}   // Step 5: keep the LOG `name` event in sync (render() happens inside)
 }
 
 // ===== Appearance + AI portrait prompt =====
@@ -1374,6 +1374,31 @@ function replaceWholeLogFromBuild(b,opts){
   commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);render();
 }
 
+// ---- Phase 2 Step 5: name + budget as first-class LOG events (retire the readBuild DOM shims) ----
+// A LOG carries at MOST ONE `name` event and one `award` (budget) event; editing the field replaces that
+// singleton (filter-out-and-append), the same coalescing shape as replacePatchSlot but for the engine's
+// native event types (foldBuild applies `name` → b.name and derives b.budget from `award` amounts).
+// Ordering is irrelevant — economy sums awards, fold takes the last name, and the ledger renders from
+// compute().lines, not raw events. Routes through commitHistory() so it participates in Step-4 undo.
+// NOTE (roadmap "AP-award lock semantics"): unlike the Live Sheet, a CharGen budget award must NOT lock
+// undo history — budget is a freely-editable creation parameter. CharGen's snapshot undo has no award-lock
+// guard, so this is automatically correct; noLock:true additionally keeps the award out of the engine's
+// creation-pricing lock (a no-op for awards, but matches the export burst's convention).
+function _cgSyncSingletonEvent(type,makeEvent){
+  const without=LOG.filter(function(e){return e.type!==type;});
+  const cur=LOG.find(function(e){return e.type===type;});
+  const next=makeEvent();
+  const norm=function(e){return JSON.stringify(Object.assign({},e,{seq:0,ts:0,rules:0}));};
+  if(cur&&norm(cur)===norm(next))return;   // no-op: same value → no event churn, no undo step
+  commitHistory();
+  LOG=without.concat([Object.assign({},next,{seq:SEQ++,ts:Date.now(),rules:DATA.version})]);
+  render();
+}
+function _cgSyncName(){const nm=val('cname')||'';
+  _cgSyncSingletonEvent('name',function(){return {type:'name',name:nm,label:'Name — '+(nm||'(unnamed)')};});}
+function _cgSyncAward(){const amt=+val('budget')||DATA.level1AP;
+  _cgSyncSingletonEvent('award',function(){return {type:'award',amount:amt,note:'Budget',noLock:true,label:'Award — budget ('+amt+' AP)'};});}
+
 // ---- canonicalBuild(): retained past the Chunk-6 flip (the shadow-diff scaffolding around it is gone).
 // Normalises a build for equality comparison — sorts logically-unordered arrays, strips engine-only
 // bookkeeping fields, and treats missing/null/''/[]/all-zero as equivalent. Kept because it's small,
@@ -1702,6 +1727,11 @@ function _cgReconcileUnlockClass(){
 
 function onPatchFieldChange(el){
   const id=el.id;if(!id)return;
+  // Step 5: name/budget are event-sourced (singleton name/award events), not DOM shims. They're excluded
+  // from PATCH_FIELD_SLOT, so route them here before the slot lookup. The Step-4 coalesce key is already
+  // set for these textish fields, so keystrokes collapse into one undo step.
+  if(id==='cname'){_cgSyncName();return;}
+  if(id==='budget'){_cgSyncAward();return;}
   const slot=_cgPatchSlotForId(id);if(!slot)return;
   _cgSyncPatchSlot(slot);
   // The ARMOUR slot's STR<10 guard depends on STATS — without this cascade, dropping STR below 10 via a
@@ -1779,21 +1809,11 @@ function _cgRemoveDiscCard(btn){
 }
 
 // ---- readBuild(): Phase 2 Step 3 Chunk 6 — THE FLIP. LOG is now the source of truth. ----
+// Phase 2 Step 5: the last two shims (name/budget) are gone — they're now first-class LOG events
+// (singleton `name` + `award`, kept fresh by _cgSyncName/_cgSyncAward on every #cname/#budget edit). The
+// build is now FULLY event-sourced: no DOM-backed fields here. Do not reintroduce any.
 function readBuild(){
-  // Step-3 compatibility shim.
-  // Character state now comes from foldBuild(LOG).
-  //
-  // Name and budget remain DOM-backed until later migration steps:
-  // - live name edits are not yet event-sourced
-  // - budget/award-history event sourcing belongs to Step 5
-  //   (verified: foldBuild(LOG).budget is stale on live edits, and the award event is stale too — so
-  //    reading the DOM value here is strictly MORE correct than replaying the LOG for these two)
-  //
-  // Do not add additional DOM-backed build fields here.
-  const b=foldBuild(LOG);
-  b.name=val('cname');
-  b.budget=+val('budget')||DATA.level1AP;
-  return b;
+  return foldBuild(LOG);
 }
 
 function _domReadBuild(){

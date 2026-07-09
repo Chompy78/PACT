@@ -59,6 +59,19 @@
   dropped (compared on the folded build, not raw LOG bytes). Verified in a real browser 16/16: V1 snapshot
   immutability, V2 undo round-trip (checkbox + patch field + add-row), V3 all four coalescing cases, V7 redo
   symmetry. applyBuild/boot suspension + button UI are Chunks B/D.
+- **2026-07-09 · feat(chargen) — Phase 2 Step 5, Chunk A: name + budget are first-class LOG events (shims retired)**
+  (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` 20/0). Wires live
+  `#cname`/`#budget` edits to the engine's native `name`/`award` event types via a coalescing singleton-event
+  helper (`_cgSyncSingletonEvent` → `_cgSyncName`/`_cgSyncAward`), routed through `onPatchFieldChange` so
+  keystrokes collapse into one undo step. `readBuild()` is now simply `foldBuild(LOG)` — the last two DOM
+  shims are gone and the build is FULLY event-sourced. `genName()` (🎲 Generate) now syncs the LOG name
+  event too. The budget award is tagged `noLock` and, unlike the Live Sheet, does NOT lock undo history —
+  budget stays a freely-editable creation parameter (CharGen's snapshot undo has no award-lock guard).
+  Verified in a real browser 15/15 (V1–V3): live edits event-sourced with no DOM override, exactly one
+  `name`+one `award` event, name/budget now first-class undo steps, singleton invariant + no-op skip,
+  genName sync. Full Step-4 regression (66 checks) + parity stay green. restoreFrame/persistence
+  simplification is Chunk B.
+
 - **2026-07-09 · fix(chargen) — export burst dropped `size` and `wornArmour` (CharGen → Live Sheet)**
   (`tools/PACT-CharGen-Webtool.html`; no rules change; engine untouched → `engine-parity` 20/0). Two gaps in
   `_buildEventBurst`: (1) the `'Character size'` patch was **unconditionally** skipped by
