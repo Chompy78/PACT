@@ -37,6 +37,15 @@ For a batch of multiple slugs, there is no single natural branch name — derive
 `-`, e.g. `docs/qa-checklist` + `docs/rules-review-note` → `docs/qa-checklist-rules-review-note`. If that
 would run long (more than ~50 chars), shorten to `<type>/batch-<first-short-slug>-plus<N-1>`.
 
+**Verify the worktree actually based off `preview` before touching anything.** `EnterWorktree` can
+silently base a new worktree on a stale branch snapshot even when it looks fine — this has recurred more
+than once in this repo. Right after the call, confirm:
+```
+git merge-base --is-ancestor origin/preview HEAD && echo "based on preview — OK"
+```
+If that fails, don't start editing: `git stash -u` (only if something's already there) → `git reset --hard
+origin/preview` → `git stash pop`, then re-verify before proceeding.
+
 **This does not produce the branch name you'd expect — verify before moving on.** `EnterWorktree`
 sanitizes `/` out of `name`: passing `feat/short-slug` creates the worktree at
 `.claude/worktrees/feat+short-slug` on a branch called `worktree-feat+short-slug`, not `feat/short-slug`.
@@ -81,6 +90,12 @@ Once every surviving task's commit is made, run the test suite (`testing/tests/e
 against the combined diff and check it matches the pass count `/pick-task` reported — not a hardcoded
 number.
 
+**If you need `preview_start` to browser-verify a UI change from inside this worktree:** it resolves
+`.claude/launch.json` against the *main* repo root, not this worktree's path, even though the shell's cwd
+is genuinely inside the worktree. Temporarily write `launch.json` in the main repo's `.claude/` folder with
+the server args pointed at this worktree's absolute path, and remove it again once done — it's local
+scratch config, not something to commit or leave behind.
+
 ## Step 6 — catch up before opening the PR
 
 Other work may have landed on `preview` while you were busy. Bring your branch up to date (once, for the
@@ -110,6 +125,11 @@ a separate task, see `/cleanup-branches`):
 ```
 ExitWorktree(action: "remove")
 ```
+
+**If this refuses, citing a commit count that looks way too high for this session's work:** that count
+includes already-pushed upstream commits pulled in by Step 6's rebase, not just unpushed local work. Before
+passing `discard_changes: true`, confirm the branch's tip is already pushed to `origin/<branch>` and
+reflected in the open PR — if so, the discard is safe even though the number looks alarming.
 
 ---
 
