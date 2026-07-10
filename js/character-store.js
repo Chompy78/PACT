@@ -21,6 +21,34 @@ export function genCharId() {
   return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+// ---- unified save/export file format (D-GH40) ----
+// Before this, CharGen's native save, CharGen's "export to Live Sheet", and the Live Sheet's native
+// save/export were three different shapes (one of them re-synthesizing a fake LOG instead of the real
+// one, one of them dropping `id` entirely) — exactly the kind of divergence that made a file saved from
+// one tool fail to load correctly in the other. Both tools now fold the identical LOG through the
+// identical engine, so there is no reason left for more than one shape. Both tools' native Save/Export
+// write CHAR_SCHEMA; both tools' native Load/Import accept it (plus their own legacy shapes, so no
+// previously-saved file is stranded).
+
+export const CHAR_SCHEMA = 'pact-character/1';
+
+// Build the canonical envelope. `budget` is deliberately NOT included — Phase 2 Step 5 already made it
+// fully derivable from the LOG's own `award` event (`economy(LOG).earned`), so it's redundant state that
+// can drift; the Live Sheet's native save already omits it today with no ill effect.
+export function buildCharacterEnvelope({ name, rules, LOG, SEQ, id }) {
+  return { schema: CHAR_SCHEMA, rules, name: name || '', LOG, SEQ, id };
+}
+
+// Parse + validate a would-be character file/envelope. Returns the parsed object on success (schema
+// matches, LOG is an array) or null otherwise. Tool-agnostic recognition only — applying it to a tool's
+// runtime stays tool-local, same ownership split as the handoff functions above.
+export function readCharacterEnvelope(json) {
+  let d;
+  try { d = typeof json === 'string' ? JSON.parse(json) : json; } catch (e) { return null; }
+  if (!d || d.schema !== CHAR_SCHEMA || !Array.isArray(d.LOG)) return null;
+  return d;
+}
+
 // ---- tool-to-tool handoff (the "Open in the other tool" switch) ----
 // A handoff is a one-shot, same-origin baton: the source tool writes a character payload
 // under a unique key and navigates to the other tool with ?handoff=<id>; the destination

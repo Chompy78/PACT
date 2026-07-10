@@ -14,6 +14,25 @@
   `js/character-store.js`. Stubs the CDN-hosted Supabase client (`js/supabase-client.js`'s `esm.sh`
   import) so engine boot works offline/in restricted network environments — Supabase is optional, the app
   already runs fully offline against `localStorage`.
+- **2026-07-10 · refactor(save-format) — one unified save/export file for both tools (D-GH40)**
+  (`js/character-store.js`, `tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; no rules
+  change; `DATA.version` unchanged). Replaces three divergent save/export shapes — one of which
+  re-synthesized a fake LOG instead of the real one, two of which silently dropped `id` on a round trip —
+  with a single canonical `{schema:'pact-character/1', rules, name, LOG, SEQ, id}` envelope both tools now
+  write and both read (old shapes still load — nothing already saved is stranded). CharGen's separate
+  "Export to Live Sheet" button/converter is removed as redundant. Found while manually testing the
+  switch-tool feature ("this file won't load right"). Verified: the new module functions directly in plain
+  Node, plus a full round trip in a real browser driving CharGen's actual UI (real button clicks) —
+  including an old-format file still loading correctly.
+
+- **2026-07-10 · fix(chargen) — ability-score +/- steppers never reached the LOG (D-GH39, live-production
+  bug)** (`tools/PACT-CharGen-Webtool.html`; no rules change; `DATA.version` unchanged). `stepAbil()` set
+  the field's value directly and re-rendered, but never dispatched an `input` event — since `st_STR`/etc
+  are `readonly`, the stepper was the *only* way to change an ability score, so this silently broke AP
+  costing and persistence for every ability-score edit in production. Found via manual testing of D-GH38's
+  switch button on Android Chrome. Fixed by dispatching a real `input` event so the stepper goes through
+  the same path as a typed value. Confirmed with a real button `.click()` in a headless browser: AP total
+  now moves and the change reaches `LOG`.
 
 - **2026-07-09 · feat(tools) — one-click switch between CharGen and Live Sheet on a shared
   `js/character-store.js` (D-GH38)** (new `js/character-store.js`; `tools/PACT-CharGen-Webtool.html`,

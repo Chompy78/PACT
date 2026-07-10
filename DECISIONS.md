@@ -6,6 +6,69 @@
 
 ---
 
+## D-GH40 · One unified save/export file format for both tools (was three divergent shapes)
+- **Context:** manually testing D-GH38's switch button, the task owner found a CharGen-saved file couldn't
+  be loaded and asked, correctly, "I think we only need one save format." Auditing every save/export path
+  confirmed it: CharGen's native Save wrote `{schema:'pact-chargen/1', rules, name, budget, LOG, SEQ, id}`;
+  CharGen's separate "Export to Live Sheet" wrote `{rules, name, LOG, SEQ}` — untagged, **no `id`**, and
+  built via `_buildEventBurst()`, re-synthesizing a fake LOG from the current build snapshot rather than
+  passing the real, verbatim one; the Live Sheet's native Save/Export wrote `{LOG, SEQ, rules, id}`
+  untagged, and its file Export additionally **dropped `id`** (only its local-storage save kept it) and its
+  Import never restored `id` even when a file happened to have one. Three shapes, two of which silently lost
+  identity on a round trip — exactly the class of bug that produces "this file won't load right."
+- **Decision:** one canonical envelope, `{schema:'pact-character/1', rules, name, LOG, SEQ, id}`
+  (`CHAR_SCHEMA`/`buildCharacterEnvelope`/`readCharacterEnvelope` in `js/character-store.js`, the natural
+  home given its established transport/storage ownership boundary — see D-GH38). Both tools' native
+  Save/Export now write it; both tools' native Load/Import accept it **in addition to** every previous
+  shape (old CharGen tag, old untagged Live Sheet shape, legacy flat build) — so no file anyone already
+  saved is stranded. `budget` is deliberately dropped from the new shape: Phase 2 Step 5 already made it
+  fully derivable from the LOG's own `award` event, and the Live Sheet's native save never had it either.
+  CharGen's dedicated "Export to Live Sheet" button and its `buildToLiveLog()` converter are **removed** —
+  redundant once a normal Save + the other tool's normal Load produce the identical result, and worse than
+  redundant given the bugs above (fake LOG, no id). The one-click switch button (D-GH38) is unaffected —
+  it already used a separate, purpose-built handoff channel, not this file format.
+- **Why:** the divergence was never intentional — it was three independent implementations of "serialize a
+  character" that drifted, and it directly caused the confusion the task owner hit. Now that both tools
+  fold the identical LOG through the identical engine, there is no reason for more than one file shape.
+- **Status:** DONE. Verified two ways: (1) `js/character-store.js`'s new functions tested directly in
+  plain Node (no browser needed — pure data logic): correct schema tag, no `budget` field, round-trips
+  through `readCharacterEnvelope`, and correctly rejects wrong-schema/non-array-LOG/malformed/null input.
+  (2) Full round trip in a real headless browser, driving CharGen's actual UI (a real button `.click()` on
+  the STR stepper, not a scripted bypass): the saved envelope has the new schema and a real `id`; feeding it
+  back through the actual `loadFile` branch-1 condition and `_cgApplyEnvelope` restores the exact `id` and
+  the correct build (species, STR, AP total); a constructed **old**-format file (`pact-chargen/1` tag, a
+  top-level `budget`) still loads correctly through the same path, confirming back-compat. CharGen's and
+  Live Sheet's classic scripts syntax-check clean. No engine change; `DATA.version` unchanged. Live Sheet's
+  own native Save/Export/Import were updated identically but the full Live Sheet UI itself could not be
+  exercised in this sandbox (its Supabase-CDN dependency, the known D-GH37 limitation) — worth a manual
+  double-check on the live site.
+
+## D-GH39 · CharGen's ability-score steppers never reached the LOG (found via switch-tool manual testing)
+- **Context:** the task owner manually tested D-GH38's switch button on Android Chrome, using CharGen's +/-
+  ability-score steppers, and found the AP total never moved and the scores didn't survive a save or the
+  switch. `st_STR`/`DEX`/etc inputs are `readonly` — the stepper buttons are the *only* way to change an
+  ability score in the UI; there is no typing path to fall back on. Root cause: `stepAbil(a,d)` set
+  `e.value` directly and called `render()`, but never dispatched an `input`/`change` event — so
+  `_cgWirePatchDelegation`'s delegated listener (which calls `onPatchFieldChange` → the LOG mutation
+  pipeline) never fired. The DOM number changed; nothing else did. **Confirmed live** (headless browser,
+  a real `.click()` on the actual "+" button, not a scripted bypass): before the fix, clicking the STR
+  stepper never moved `compute().total` or touched `LOG`; after, it did both correctly.
+- **Decision:** `stepAbil` now dispatches a real bubbling `input` event on the field after setting its
+  value, so it goes through the *exact same path* a typed value would — including
+  `_setCoalesceForEvent(e)`, so repeated clicks group into sane undo steps, not one step per click.
+- **Why:** this is the minimal, most consistent fix — it makes the stepper behave exactly like every other
+  wired input instead of adding a second, parallel code path (e.g. calling `onPatchFieldChange` directly)
+  that would skip the coalescing step and diverge from the existing architecture.
+- **Severity note for future readers:** this was **live in production** and affected every player who ever
+  used the ability-score steppers (the only way to set them) — a foundational character-creation step
+  silently not costing AP or persisting, undetected until it was exercised carefully while testing an
+  unrelated feature (D-GH38). Worth remembering as a reminder that a green `engine-parity` suite and a
+  working save/load round-trip do not, by themselves, prove a UI control is wired to the model it appears
+  to control.
+- **Status:** DONE. Verified via a real Playwright `.click()` on the actual stepper button (not a scripted
+  value/event bypass) in a headless browser: AP total moved 0→9 and `LOG` recorded the new stat after two
+  clicks. CharGen's classic scripts syntax-check clean. No engine change; `DATA.version` unchanged.
+
 ## D-GH38 · One-click tool switch on a shared js/character-store.js module (not a file merge)
 - **Context:** moving an in-progress character CharGen→Live Sheet was a manual export-file/import-file
   dance, with no reverse direction at all. The user first asked to *merge* the two tools into one HTML file
