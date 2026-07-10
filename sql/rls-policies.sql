@@ -220,3 +220,53 @@ grant execute on function public.award_ap(uuid, integer, text)      to authentic
 -- so award_ap is authenticated-only rather than relying solely on its internal
 -- is_campaign_dm() guard. See sql/migrations/2026-07-02-drop-legacy-award-xp-lock-award-ap.sql.
 revoke execute on function public.award_ap(uuid, integer, text) from public;
+
+-- ---------------------------------------------------------------------------
+-- Remaining function EXECUTE lockdown (anon). Same default-EXECUTE-to-PUBLIC
+-- issue as award_ap above, for every other function in this file. See
+-- sql/migrations/2026-07-10-lock-down-remaining-function-grants.sql and D-GH15
+-- for the full safety analysis (none of these are actually exploitable today —
+-- each gates on auth.uid(), which is NULL for anon — this is hygiene, not a fix
+-- for a live hole).
+--
+-- Invariant this lockdown now depends on: is_campaign_dm/owner/member and
+-- shares_campaign are called from inside RLS policy USING clauses below, and a
+-- policy's internal function call still needs the *invoking role* to hold
+-- EXECUTE (SECURITY DEFINER only elevates row access inside the function body,
+-- not the caller's EXECUTE requirement). This is safe only because anon has no
+-- table-level grant anywhere in this file (line 78: schema USAGE only) — if a
+-- future change ever grants anon SELECT on a table whose policy calls one of
+-- these helpers, that query would fail with "permission denied for function",
+-- not an empty result, until anon is added back to that helper's grant too.
+-- ---------------------------------------------------------------------------
+-- Internal-only helpers (is_campaign_dm/owner/member, shares_campaign,
+-- gen_invite_code): grant to authenticated first so behaviour is unchanged,
+-- then revoke the PUBLIC default.
+grant execute on function public.is_campaign_dm(uuid)     to authenticated;
+grant execute on function public.is_campaign_owner(uuid)  to authenticated;
+grant execute on function public.is_campaign_member(uuid) to authenticated;
+grant execute on function public.shares_campaign(uuid)    to authenticated;
+grant execute on function public.gen_invite_code()        to authenticated;
+
+revoke execute on function public.is_campaign_dm(uuid)     from public;
+revoke execute on function public.is_campaign_owner(uuid)  from public;
+revoke execute on function public.is_campaign_member(uuid) from public;
+revoke execute on function public.shares_campaign(uuid)    from public;
+revoke execute on function public.gen_invite_code()        from public;
+
+-- Client-facing RPCs already granted to authenticated above: just strip the
+-- redundant PUBLIC grant.
+revoke execute on function public.join_campaign(text)             from public;
+revoke execute on function public.join_as_dm(text)                from public;
+revoke execute on function public.promote_to_dm(uuid, uuid)       from public;
+revoke execute on function public.remove_dm(uuid, uuid)           from public;
+revoke execute on function public.regenerate_invite_code(uuid)    from public;
+revoke execute on function public.regenerate_dm_invite_code(uuid) from public;
+
+-- Trigger-only functions (handle_new_user, add_owner_as_dm, set_updated_at,
+-- defined in schema.sql): revoke execute from public, no replacement grant —
+-- Postgres rejects any direct call to a `returns trigger` function regardless
+-- of grant, so authenticated loses EXECUTE here too and that's fine.
+revoke execute on function public.handle_new_user() from public;
+revoke execute on function public.add_owner_as_dm() from public;
+revoke execute on function public.set_updated_at()  from public;

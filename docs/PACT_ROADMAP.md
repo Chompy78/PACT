@@ -30,44 +30,6 @@ _(none currently — the last NOW item, the full engine module-bridge migration,
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## Lock down remaining Supabase function EXECUTE grants (anon) — TODO
-Branch fix/lock-down-remaining-function-grants. Revoke the default Postgres EXECUTE-to-PUBLIC grant on the
-~13 remaining flagged functions, matching the award_ap/award_xp fix already applied.
-
-```text
-Apply as a new migration (sql/migrations/<date>-lock-down-remaining-function-grants.sql) and mirror the
-grants into sql/rls-policies.sql. Full plan and safety verification already done in DECISIONS.md D-GH15:
-- Trigger-only functions (handle_new_user, add_owner_as_dm, set_updated_at): revoke execute from public,
-  no replacement grant needed (Postgres blocks direct calls to `returns trigger` functions anyway).
-- Client-facing RPCs already granted to authenticated (join_campaign, join_as_dm, promote_to_dm,
-  remove_dm, regenerate_invite_code, regenerate_dm_invite_code): revoke execute from public.
-- Internal-only helpers with no explicit grant today (gen_invite_code, is_campaign_dm,
-  is_campaign_member, is_campaign_owner, shares_campaign): grant execute to authenticated FIRST, then
-  revoke from public, so authenticated behaviour doesn't change.
-Apply live via the Supabase MCP (apply_migration), verify has_function_privilege('anon', ..., 'EXECUTE')
-= false for all of them, then commit the migration file + rls-policies.sql update.
-
-Re-verified live 2026-07-02 (post-hoc audit of that day's merged work), independent of the plan above —
-confirms the analysis still holds and nothing is currently exploitable, so this stays a hygiene/defense-
-in-depth task, not an urgent one:
-- Queried `pg_proc.prorettype` directly for handle_new_user/add_owner_as_dm/set_updated_at: all three
-  genuinely `returns trigger`. Postgres rejects any direct RPC/SELECT call to a trigger-returning
-  function ("trigger functions can only be called as triggers") regardless of its EXECUTE grant, so
-  these three are safe today even though the Supabase advisor still flags them.
-- Queried the source of every remaining function: the internal-only helpers
-  (is_campaign_owner/is_campaign_dm/is_campaign_member/shares_campaign), and the higher-stakes RPCs
-  (join_campaign, join_as_dm, promote_to_dm, remove_dm, regenerate_invite_code,
-  regenerate_dm_invite_code) all gate on `auth.uid()` equality checks or an explicit
-  `if auth.uid() is null then raise exception` — since anon's `auth.uid()` is NULL, `dm_id = NULL` /
-  `owner_id = NULL` correctly evaluates to false in Postgres, so every one of these safely rejects an
-  anonymous caller today. Full live query results (via Supabase MCP `execute_sql`) available in this
-  session's transcript if a future agent wants to re-derive rather than re-run them.
-- Only `award_ap` is currently actually locked down (`anon_can_execute=false`); all ~13 others still show
-  `anon_can_execute=true` live — confirming this task is still fully open, not partially done.
-```
-**Done when:** all ~13 functions show `anon_can_execute = false` / `authenticated_can_execute = true` live,
-migration file committed, `sql/rls-policies.sql` matches.
-
 ## Feature: CharGen campaign-rules awareness (sign-in + live enforcement) — TODO
 Branch feat/chargen-campaign-rules. **Blocked on one specific import, not the old "Task 6" gate** — CharGen's
 DATA/compute() module bridge landed in D-GH26, so that part of the old blocker is cleared. But CharGen's
@@ -313,6 +275,56 @@ caught if a human remembers to open engine-parity.html.
 ```
 **Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 5/0
 when run locally too.
+
+## Fix: feature-search autocomplete renders off-screen once the page is scrolled — TODO
+Branch fix/chargen-feature-autocomplete-scroll-position. Found while building the character-gen e2e
+harness (testing/scripts/random-manual-e2e.mjs, PR #146 and follow-up). Display-only — do NOT bump
+DATA.version; just log in CHANGELOG.
+
+```text
+In tools/PACT-CharGen-Webtool.html, the "Chosen features" search autocomplete menu (`.featac`, built by
+the `_featAC` input handler) is `position: fixed`, but its `top` is computed by adding the input's
+viewport-relative getBoundingClientRect() position PLUS window.scrollY. Since `position: fixed` is
+already viewport-relative, this double-counts the scroll offset — the menu's computed `top` ends up
+scrollY pixels too far down. Confirmed live via getBoundingClientRect(): with scrollY=347 on a page
+~10500px tall, the menu rendered at top=4005px inside a 4000px-tall viewport — genuinely off-screen.
+
+Repro: open CharGen, scroll down at all (the form is long), type into "+ search all" under Chosen
+features. The suggestion dropdown appears but renders below the visible viewport — unclickable until you
+scroll back to the very top.
+
+Fix is one of:
+1. Don't add window.scrollY when positioning a position:fixed element (likely the simplest, correct fix).
+2. Or switch the menu to position:absolute if scroll-following was actually wanted.
+```
+**Done when:** opening the feature-search autocomplete at any scroll position renders the suggestion
+list fully within the viewport, verified manually at a few scroll depths and by the e2e harness (which
+currently works around this with a forced scroll-to-0 + oversized viewport — that workaround can be
+removed once this lands). Parity still 5/0 (unaffected — no engine.js change).
+
+## Fix: "Level up" buy-tile stays free and clickable past Hit Die 20 — TODO
+Branch fix/live-sheet-level-cap-tile-disable. Found via the e2e harness's `hd-cap` scenario, which
+initially ran a character away to HD 44 before a client-side guard was added to the test script.
+Mechanics-adjacent but restores intended behavior rather than changing a rule — flag during implementation
+whether DATA.version needs a bump; my read is no, since DATA.levelAP already stops at 20 today.
+
+```text
+In tools/PACT-Live-Char-Sheet.html, the "Level up → Hit Die N" buy-panel tile's AP cost is derived from
+DATA.levelAP, which only defines entries through level 20 (js/engine.js). Past HD 20, the cost
+calculation falls through to 0 AP instead of the tile being disabled/hidden — it stays clickable
+indefinitely, letting a character level up for free with no bound. levelDelta() correctly returns 0 past
+20 (used elsewhere to detect "at cap"), but the buy-panel tile itself isn't gated the same way.
+
+Repro: get a character to Hit Die 20 in the Live Sheet, keep clicking "Level up → Hit Die 21/22/23…" —
+each succeeds at 0 AP cost with no limit.
+
+Fix: gate the "Level up" tile the same way other at-cap states are handled — disable/hide it (or price it
+as unaffordable/blocked) once hd >= 20, consistent with levelDelta(20) <= 0 already meaning "at cap"
+elsewhere in the codebase.
+```
+**Done when:** clicking "Level up" at Hit Die 20 is blocked/disabled rather than free; the e2e harness's
+`--scenario hd-cap` can drop its explicit "exclude Level-up tiles once hd>=20" workaround once this
+lands. Parity still 5/0.
 
 ---
 

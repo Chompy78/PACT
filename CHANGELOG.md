@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-10 · fix(sql) — lock down remaining Supabase function EXECUTE grants (anon)** (D-GH15
+  addendum; `sql/migrations/2026-07-10-lock-down-remaining-function-grants.sql`, `sql/rls-policies.sql`;
+  no app code touched, `DATA.version` unchanged). Revoked the default Postgres EXECUTE-to-`PUBLIC` grant
+  on the ~13 functions the security advisor still flagged, matching the earlier `award_ap` fix: the 3
+  trigger-only functions lose EXECUTE entirely (fine — Postgres blocks direct calls to `returns trigger`
+  functions regardless of grant); the 6 client-facing RPCs and 5 internal RLS-helper functions keep
+  `authenticated` access, just lose the redundant `PUBLIC` grant. Verified live via
+  `has_function_privilege`: all ~13 now show `anon_can_execute=false`; `get_advisors` shows no new
+  findings post-migration. Pure hygiene/defense-in-depth — none of these were actually exploitable
+  (every one gates on `auth.uid()`, which is `NULL` for `anon`).
+
 - **2026-07-10 · test(e2e) — extend the character-gen e2e harness to cover DM Console's roster import**
   (`testing/scripts/random-manual-e2e.mjs`, `.github/workflows/character-gen-e2e.yml`,
   `testing/README.md`; no app code touched, `DATA.version` unchanged). DM Console's roster view needs no
