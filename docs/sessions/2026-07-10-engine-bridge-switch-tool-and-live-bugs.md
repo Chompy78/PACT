@@ -75,3 +75,43 @@ time per `AGENTS.md`'s D-GH numbering convention — no collisions this round.
   cosmetically redundant. Not fixed this session.
 - "Follow-on B" — wiring the engine's `creationLocked`/`campaignBound` triggers into the switch button
   so the D-GH36/37 pricing risk becomes load-bearing (it currently isn't, in any tool).
+
+## Addendum — DM Console e2e coverage + an unconfirmed bug report
+
+After the above landed and a first `/close-session` pass wrapped it up (roadmap graduation for
+`feat/engine-bridge-all-tools`, branch/lessons cleanup — see CHANGELOG for the graduation entry), the
+session continued with two more threads:
+
+1. **Extended `testing/scripts/random-manual-e2e.mjs` (PR #146's harness) to cover DM Console.**
+   DM Console's roster view turned out to need no cloud/auth at all — character files land via a plain
+   `<input type=file>` read by `handleFiles()`/`dmAnalyze()`, entirely separate from the sign-in/campaign
+   features. The harness now exports the finished, leveled-up character via the same envelope the app's
+   own Save button builds, drops it onto DM Console's real file input, switches into table view (the only
+   view with an AP-available column), and cross-checks the rendered row against the source tool's own
+   species/class/HP/AC/AP-available. Verified locally at 5/5 iterations across varied species/classes/
+   levels before committing. DM Console's cloud-gated features (sign-in, award AP, campaign rules) are
+   intentionally still not covered — flagged inline in the harness and `testing/README.md`, not a silent
+   gap.
+
+2. **A bug report that didn't hold up under live reproduction.** The user reported — secondhand, from
+   "another session" that had apparently built a similar harness — that a `position:fixed` feature-search
+   autocomplete menu double-counts scroll offset and renders off-screen after scrolling, worked around
+   there with a forced `scrollTo(0)` plus an oversized (8000px) viewport rather than fixing the app. Asked
+   to "just fix it," this session instead reproduced live with Playwright first (per this session's own
+   established verification method above) rather than patching blind:
+   - Static read of all three known `position:fixed` autocomplete menus (CharGen's "Chosen features"
+     search-all box `_featAC()`, CharGen's other spell/feature autocomplete, Live Sheet's) found all three
+     position via plain `getBoundingClientRect()` with no scroll offset added anywhere — already the
+     *correct* approach for `position:fixed`.
+   - Two live repros — scrolling before opening the menu, and scrolling (via mouse wheel) while it was
+     already open — both showed the menu recalculating correctly on every scroll event (a capture-phase
+     `window` scroll listener), landing within 0px of the expected position both times.
+   - Could not reproduce the reported symptom against current `preview`/`main` code. No fix was applied —
+     applying one against code that already measures correctly risks a regression for a bug that isn't
+     there. Reported back to the user asking for more specific repro details (exact tool/input, desktop vs.
+     mobile) rather than guessing further; mobile's `position:fixed`-vs-visual-viewport behaviour under an
+     on-screen keyboard is the most likely real cause if the original report came from a real device, since
+     that wouldn't show up in either desktop-Playwright repro tried here.
+   - No roadmap item or DECISIONS entry was added for this — there's nothing confirmed yet to schedule or
+     decide. If a future session gets a live-reproducible case, start there rather than re-deriving this
+     investigation.
