@@ -398,7 +398,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
-<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="openCampaign()" title="Local house rules (not the cloud campaign system) — DM: bar boons/drawbacks/arts and share a text code; barred items are blocked here too">🛡 House rules code</button><span id="campind" style="font-size:11px;color:var(--good);font-weight:700"></span><button class="btn ghost" onclick="exportToLiveSheet()" title="Export this build as a Live Sheet file, then Import it in the Live Sheet to lock it in and progress">⇆ Live Sheet</button>
+<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="openCampaign()" title="Local house rules (not the cloud campaign system) — DM: bar boons/drawbacks/arts and share a text code; barred items are blocked here too">🛡 House rules code</button><span id="campind" style="font-size:11px;color:var(--good);font-weight:700"></span><button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button><button class="btn ghost" onclick="exportToLiveSheet()" title="Save this build as a Live Sheet file instead (for backups or sharing), then Import it in the Live Sheet">⬇ LS file</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
 <button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){resetBuild();}">↺ Reset</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
@@ -409,7 +409,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
 <button class="btn ghost" onclick="loadViaPicker()">📂 Load</button>
 <button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
-<button class="btn ghost" onclick="exportToLiveSheet()" title="Export this build as a Live Sheet file, then Import it in the Live Sheet to lock it in and progress">⇆ Live Sheet</button>
+<button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button><button class="btn ghost" onclick="exportToLiveSheet()" title="Save this build as a Live Sheet file instead (for backups or sharing), then Import it in the Live Sheet">⬇ LS file</button>
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button>
@@ -449,9 +449,11 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
   import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild } from '../js/engine.js';
+  import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs } from '../js/character-store.js';   // shared transport/storage glue (D-GH38)
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (CharGen); never read by compute()
   window.DATA = DATA; window.compute = compute; window.MUT = MUT; window.foldBuild = foldBuild;
   window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild;
+  window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs;
   document.dispatchEvent(new Event('engine-ready'));
 </script>
 <script>
@@ -2190,6 +2192,18 @@ async function exportToLiveSheet(){
   await _pactShareOrSave(blob,nm,'“'+nm+'” sent to the share sheet — choose Save to Files, then ⬆ Import it in the Live Sheet.','Live-Sheet file saved to your Downloads as “'+nm+'”. Open the Live Sheet and use ⬆ Import to load it.');
  }catch(e){console.error('PACT CharGen: export to Live Sheet failed',e);flash('⚠ Export to Live Sheet failed — '+(e&&e.message?e.message:'see console for details')+'. Nothing was saved.');}
 }
+// One-click switch to the Live Sheet (D-GH38): persist locally, stage a same-origin handoff baton, and
+// navigate. The Live Sheet consumes ?handoff=<id> on boot. No file to save/import. writeHandoff/currentCharId
+// are bridged from js/character-store.js (window). Online-only (the SW serves .html network-first; a unique
+// handoff URL is never cached, so offline it falls back to the menu — the character stays safe in autosave).
+function switchToLiveSheet(){
+ try{
+  _cgAutosave();   // persist current state locally first; the handoff and the autosave both reflect it
+  const uid=writeHandoff({source:'chargen',LOG:LOG,SEQ:SEQ,rules:DATA.version,id:currentCharId()});
+  if(!uid){flash('⚠ Could not open the Live Sheet — local storage is unavailable (private mode or full). Your build is unchanged.');return;}
+  location.href='PACT-Live-Char-Sheet.html?handoff='+encodeURIComponent(uid);
+ }catch(e){console.error('PACT CharGen: switch to Live Sheet failed',e);flash('⚠ Could not open the Live Sheet — '+(e&&e.message?e.message:'see console for details')+'.');}
+}
 // stable per-character id so hand-typed sheet fields survive renames (and are tagged per tool)
 let __charId=null;
 function currentCharId(){if(!__charId)__charId=genCharId();return __charId;}
@@ -2293,6 +2307,23 @@ function _cgApplyEnvelope(d,opts){
   {const _p=_histSuspended;_histSuspended=true;try{_cgSyncName();_cgSyncAward();}finally{_histSuspended=_p;}}
   render();
   return b;
+}
+// D-GH38: consume a character handed over from the Live Sheet via ?handoff=<id>. Runs at the very top of
+// boot, ahead of loadFromHash()/autosave, and suppresses them (returns true) so exactly one load path fires.
+// Applies via _cgApplyEnvelope — the same verbatim path native file loads use: preserves id, reinstates
+// LOG/SEQ, autosaves through its internal render(). rules carried so the stale-version reprice note fires.
+function _cgConsumeHandoff(){
+  try{
+    const u=new URLSearchParams(location.search).get('handoff');
+    if(!u)return false;
+    const p=takeHandoff(u);
+    try{history.replaceState(null,'',location.pathname+location.hash);}catch(e){}   // strip ?handoff: a reload must not re-trigger
+    if(!p)return false;
+    _cgApplyEnvelope({LOG:p.LOG,SEQ:p.SEQ,id:p.id,rules:p.rules},{clearHistory:true});
+    const fv=p.rules||'(unstamped)';
+    if(typeof flash==='function')flash(fv===DATA.version?'Opened your character from the Live Sheet.':('Opened your Live Sheet character — repriced live under current '+DATA.version+' rules.'));
+    return true;
+  }catch(e){console.error('PACT CharGen: handoff consume failed',e);return false;}
 }
 function _cgRestoreAutosave(){try{
   const raw=localStorage.getItem(CG_AUTOSAVE_KEY);
@@ -2880,7 +2911,7 @@ function _cgRenderInner(){
 var PACT_SHEET_KEY='pactCharSheetManual';
 var SHEET_TOOL='generic';                 // each tool sets this: 'chargen' or 'livesheet'
 function _sheetStoreKey(){return PACT_SHEET_KEY+':'+SHEET_TOOL;}
-function genCharId(){return 'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}  // stable per-character id
+// genCharId() is bridged from js/character-store.js (engine-ready module, D-GH38) — see window.genCharId.
 function _dstamp(){var d=new Date();var p=function(n){return String(n).padStart(2,'0');};
   return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes());}  // YYYYMMDD-HHMM for save filenames
 function _csStore(){try{return JSON.parse(localStorage.getItem(_sheetStoreKey())||'{}');}catch(e){return {};}}
@@ -3084,9 +3115,11 @@ _cgWireRowReconcileDelegation();   // Phase 2 Step 3 (Chunk 3): Category C add-r
 _cgWirePatchClassDelegation();   // Phase 2 Step 3 (Chunk 4A): customProfs/freeSub (class-keyed) -> replacePatchSlot()
 _cgWireTraditionDelegation();   // Phase 2 Step 3 (Chunk 4B): traditions/disciplines -> one TRADITIONS patch
 _cgWireUndoKeys();   // Phase 2 Step 4 (Chunk D): Ctrl/Cmd-Z undo, Ctrl/Cmd-Shift-Z / Ctrl-Y redo
+try{sweepExpiredHandoffs();}catch(e){}   // D-GH38: clear orphaned handoff keys from interrupted switches
 let _cgHadShared=false;
-try{_cgHadShared=!!loadFromHash();}catch(e){}
-if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}
+try{_cgHadShared=_cgConsumeHandoff();}catch(e){}                 // 1) incoming character from the Live Sheet
+if(!_cgHadShared){try{_cgHadShared=!!loadFromHash();}catch(e){}} // 2) existing #b= share-link
+if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}  // 3) autosave; else 4) blank
 window.addEventListener('hashchange',function(){try{if(loadFromHash())render();}catch(e){}});
 collapseForMobile();
 // Phase 2 Step 3 (Chunk 0): seed LOG once from the build as it stands at boot (after any shared-link/
