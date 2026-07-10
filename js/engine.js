@@ -460,7 +460,10 @@ export function economy(events) {
     else spent += _spendCost(e);
   }
   earned += drawbackEarned;
-  return { earned, spent, available: earned - spent };
+  // drawbackEarned exposed (D-GH41) so a caller can isolate "raw award total" from "total earned" without
+  // re-deriving drawback-bought-off filtering itself — purely additive, existing {earned,spent,available}
+  // destructuring is unaffected.
+  return { earned, spent, available: earned - spent, drawbackEarned };
 }
 
 // Replay an append-only event log onto build `b` in place (shared by foldBuild

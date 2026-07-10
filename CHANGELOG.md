@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-10 · fix(chargen) — unbounded AP inflation for any character with an active drawback, on every
+  save/load/switch cycle (D-GH41, live-production bug)** (`js/engine.js`, `tools/PACT-CharGen-Webtool.html`;
+  `DATA.version` unchanged, no pricing/table change — an internal-value exposure plus two bug fixes to
+  code miscomputing an already-correct engine value). CharGen's `#budget` field shows the *combined*
+  raw-award-plus-drawback-AP total, but two places (`_cgSyncAward()`'s Step-5 reconcile and
+  `_buildEventBurst()`'s whole-LOG regeneration) wrote that combined number back in as if it were the raw
+  award — while the drawback's own event kept separately contributing its AP on every future fold,
+  compounding without bound on every autosave-restore, file load, and switch-tool handoff. `economy()` now
+  exposes the `drawbackEarned` split it already computed internally; both call sites subtract it back out.
+  Found and reproduced with the task owner's real uploaded character (one drawback, AP climbing +2 every
+  cycle); verified fixed the same way — stable at the mathematically correct total across 4 repeated round
+  trips. `engine-parity` 20/0.
+
 - **2026-07-10 · refactor(save-format) — one unified save/export file for both tools (D-GH40)**
   (`js/character-store.js`, `tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; no rules
   change; `DATA.version` unchanged). Replaces three divergent save/export shapes — one of which

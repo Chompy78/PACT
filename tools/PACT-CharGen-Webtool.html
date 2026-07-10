@@ -1395,7 +1395,15 @@ function _cgSyncSingletonEvent(type,makeEvent){
 }
 function _cgSyncName(){const nm=val('cname')||'';
   _cgSyncSingletonEvent('name',function(){return {type:'name',name:nm,label:'Name — '+(nm||'(unnamed)')};});}
-function _cgSyncAward(){const amt=+val('budget')||DATA.level1AP;
+// D-GH41 bug fix: val('budget') is the FULL computed total (foldBuild's economy().earned = raw award +
+// drawback earnings combined) — it is NOT the raw award. Baking that combined total into a new `award`
+// event, while the drawback buy event(s) already in the LOG separately keep contributing their own AP on
+// every future fold, double-counted a character's active drawback AP every single time this reconcile
+// ran (every autosave-restore, file load, and switch-tool handoff — compounding by the drawback's AP
+// value on every cycle, unbounded). Subtract economy(LOG).drawbackEarned (the engine's own already-computed
+// split, D-GH41) back out so this only ever writes the true raw award — a no-op when nothing actually
+// changed, per _cgSyncSingletonEvent's equality guard.
+function _cgSyncAward(){const amt=(+val('budget')||DATA.level1AP)-economy(LOG).drawbackEarned;
   _cgSyncSingletonEvent('award',function(){return {type:'award',amount:amt,note:'Budget',noLock:true,label:'Award — budget ('+amt+' AP)'};});}
 
 // ---- canonicalBuild(): retained past the Chunk-6 flip (the shadow-diff scaffolding around it is gone).
@@ -2143,7 +2151,13 @@ function _buildEventBurst(b){
   // Phase 2 step 2 (D-GH33): was a second local throwaway MUT subset — the imported js/engine.js MUT
   // is a superset (same mutators for every category used below, plus more), so it's used directly now.
   const run=liveBase(), base0=liveBase();
-  ev({type:'award',amount:b.budget||0,note:'Imported budget',label:'Award — budget ('+(b.budget||0)+' AP)'});
+  // D-GH41 bug fix: b.budget (foldBuild's economy().earned) already includes drawback-earned AP, but the
+  // drawback buy events emitted below (same DATA.drawbacks table) separately re-contribute their own AP on
+  // every future fold — emitting the combined total as the raw award double-counted every active drawback's
+  // AP each time this whole-build regeneration ran (unconditionally, on EVERY CharGen boot). Back it out.
+  const _drawbackAP=(b.drawbacks||[]).reduce((s,v)=>s+(DATA.drawbacks[v]||0),0);
+  const _rawAward=(b.budget||0)-_drawbackAP;
+  ev({type:'award',amount:_rawAward,note:'Imported budget',label:'Award — budget ('+_rawAward+' AP)'});
   if(b.name) ev({type:'name',name:b.name,label:'Name — '+b.name});
   if(b.appearance && Object.keys(b.appearance).some(k=>b.appearance[k])) ev({type:'buy',cat:'patch',payload:{patch:{appearance:C(b.appearance)}},cost:0,level:1,label:'Appearance & description (0 AP)'});
   ev({type:'buy',cat:'create',payload:{},cost:compute(liveBase()).total,level:1,label:'Level 1 character (Hit Die + base)'});
