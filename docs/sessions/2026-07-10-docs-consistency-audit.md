@@ -59,6 +59,15 @@ places (Verification expectations, Testing table, per-change checklist step 3), 
 still said **5/0** in eight separate "Done when" clauses across open tasks. **Fixed**: both files updated
 to `20/0` (`testing/README.md` needed no change — already correct per an earlier fix logged 2026-07-10).
 
+### 4b. Same stale count also in `docs/HOW-TO-WORK.md` (found during this task's own parity verification, outside the audit's declared 3-doc scope)
+`docs/HOW-TO-WORK.md` had the same stale **"9 passed / 0 failed"** wording in two spots (the "Verifying
+the engine without a browser" intro and "The loop per task" step 4). **Fixed** — both now say 20. Left
+un-fixed, as a deeper and out-of-scope-for-this-pass gap: the same section's fixture list (only enumerates
+CG-001–CG-006/LS-001/EV-001–EV-002 — 9 fixtures) and `expected-results.csv` column list (missing
+`new_engine_events_applied`) are also stale against the current 20-fixture/12-column reality, but fixing
+those properly needs enumerating all 20 fixtures correctly, not a mechanical count swap — worth a small
+follow-up if someone's already in that file.
+
 ### 5. Possibly-overstated CI coverage claim — not fixed, flagged for a human call
 `CHANGELOG.md`'s 2026-07-10 entry "headless Playwright e2e for character gen + advancement (**REV-11**)"
 tags itself as REV-11, but the roadmap's still-open REV-11 task (`chore/rev11-ci-engine-parity`) asks

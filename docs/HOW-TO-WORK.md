@@ -66,7 +66,7 @@ behaviour won't match production.
 
 ## Verifying the engine without a browser (the gate)
 The regression gate is **`testing/tests/engine-parity.html`** — a browser page that must report
-**9 passed / 0 failed**. A CLI agent has no browser, and **there is no headless runner yet** (building one
+**20 passed / 0 failed**. A CLI agent has no browser, and **there is no headless runner yet** (building one
 is tracked as **REV-11** in the roadmap). Until then, verify the engine by importing it in **Node** (the
 engine is a clean ES module and runs under Node unchanged):
 
@@ -110,7 +110,7 @@ ever do it by hand:
 1. **Branch:** `git checkout -b feat/<short-slug>` (one task per branch; use `type/slug` — `feat/`, `fix/`, `docs/`).
 2. **Paste one task** from `docs/PACT_ROADMAP.md`. No need to re-describe the architecture — `AGENTS.md` is the standing context.
 3. **Review the diff** the agent proposes; accept or push back (`/code-review` for an adversarial pass).
-4. **Verify:** run the gate (browser page, or the headless Node check above) → expect **9 passed / 0 failed**.
+4. **Verify:** run the gate (browser page, or the headless Node check above) → expect **20 passed / 0 failed**.
 5. **Log it:** confirm `CHANGELOG.md` is updated (+ `DECISIONS.md` / a `docs/sessions/` note if it applies);
    graduate the task out of the roadmap into the changelog if it's done.
 6. **Commit** as `type(scope): summary`, open a PR, merge → GitHub Pages redeploys.
