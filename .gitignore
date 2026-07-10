@@ -1,4 +1,7 @@
 
+# Dev/CI-only test tooling deps (testing/package.json) — the app itself needs no npm install.
+testing/node_modules/
+
 # Local Claude Code config (machine-specific — launch.json, settings*.json not shared)
 # Agents and commands subdirs ARE tracked as shared project context.
 .claude/*.json
