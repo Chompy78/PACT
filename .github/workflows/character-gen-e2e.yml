@@ -3,14 +3,16 @@ name: Character gen + advancement e2e
 # Headless Playwright regression test (REV-11): randomly drives the real CharGen and
 # Live Sheet UI — species/class selects, ability steppers, skill checkboxes, the
 # "Open in Live Sheet" / "Open in CharGen" switch buttons, "+ Award AP", "Level up",
-# and buy-panel tiles — and checks the results stay legal. See
-# testing/scripts/random-manual-e2e.mjs for what it does and why.
+# and buy-panel tiles — then drops the finished character onto DM Console's real
+# file-drop roster import and cross-checks the rendered row against the source
+# tool's own numbers. See testing/scripts/random-manual-e2e.mjs for what it does and why.
 
 on:
   pull_request:
     paths:
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
+      - "tools/DM-Console.html"
       - "js/engine.js"
       - "js/character-store.js"
       - "testing/scripts/random-manual-e2e.mjs"

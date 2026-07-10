@@ -11,6 +11,16 @@
   select, or checkbox toggle that a human could make, and results are read back out of
   the same DOM/engine state the UI shows the player.
 
+  Also drives DM Console's real, cloud-independent roster flow: the finished character is
+  exported via the same envelope the app's own Save button builds (`_cgEnvelope()`), dropped
+  onto DM Console's real `<input type=file>` (drag/drop's underlying control), and the
+  rendered roster row is read back and cross-checked against the source tool's own
+  species/class/HP/AC/AP-available — this is the one place DM Console's `dmAnalyze()` could
+  drift from `js/engine.js` even though both now go through the same bridge (D-GH36/D-GH37),
+  because the drift risk here is envelope-shape, not computation. DM Console's cloud/campaign
+  features (sign-in, award AP, campaign rules) are NOT exercised — they need a live Supabase
+  session/roster, not just the CDN stub — see docs/PACT_ROADMAP.md for that as future work.
+
   Requires the `playwright` package to be resolvable (either `npm i -D playwright`
   in a scratch dir on NODE_PATH, or a global install — this sandbox has one at
   `npm root -g`). Chromium must be installed for Playwright.
@@ -392,6 +402,104 @@ async function advanceCharacter(page, rng, state, levels) {
   return report;
 }
 
+// ---------- DM Console: real drag-and-drop import + roster verification ----------
+// DM Console's roster view needs no cloud/auth at all — files land in localStorage via a
+// plain <input type=file> (#fileInput), read by `handleFiles()` -> `dmAnalyze()`. That's the
+// only DM Console surface this harness drives; award-AP/campaign-rules are cloud-gated and
+// out of scope here (see file header).
+async function exportCurrentCharGenCharacter(page) {
+  return page.evaluate(() => {
+    const envelope = window._cgEnvelope();
+    const b = window.readBuild();
+    const r = window.compute(b);
+    const eco = window.economy(LOG);
+    return {
+      envelope,
+      expected: { species: b.species, originClass: b.originClass, hd: b.hd, hp: r.hp, ac: r.ac, available: eco.available },
+    };
+  });
+}
+
+async function readDmRosterRow(page) {
+  return page.evaluate(() => {
+    const headerCells = Array.from(document.querySelectorAll('#thead th[data-key]'));
+    const keys = headerCells.map((th) => th.getAttribute('data-key'));
+    const tr = document.querySelector('#tbody tr.data');
+    if (!tr) return null;
+    const cells = Array.from(tr.querySelectorAll('td')).slice(1); // skip the expand-chevron <td>
+    const row = {};
+    keys.forEach((k, i) => { row[k] = cells[i] ? cells[i].textContent.trim() : undefined; });
+    return row;
+  });
+}
+
+async function testDmConsole(context, baseUrl, exported) {
+  const report = { ok: true, notes: [] };
+  const page = await context.newPage();
+  try {
+    // DM Console's module bridge also imports auth.js/campaign.js/dm.js, which pull in the
+    // same esm.sh Supabase import as the other two tools — needs its own stub, since
+    // page.route() is per-page, not per-context.
+    await stubSupabaseCdn(page);
+    await page.goto(`${baseUrl}/PACT/tools/DM-Console.html`);
+    await page.waitForFunction(() => typeof window.compute === 'function');
+
+    // Real drag-drop's underlying control — same file input a human's file picker uses.
+    await page.setInputFiles('#fileInput', {
+      name: 'e2e-character.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(exported.envelope)),
+    });
+    await page.waitForSelector('.card[data-id]', { timeout: 5000 });
+
+    // Card view (the default) — smoke-check it rendered species/class without throwing.
+    const cardText = await page.locator('.card[data-id]').first().innerText().catch(() => '');
+    if (!cardText.includes(exported.expected.species || '')) {
+      report.notes.push(`card view missing species "${exported.expected.species}": "${cardText.slice(0, 120)}"`);
+    }
+
+    // Table view has the "AP Avail" column the card strip doesn't show — switch via the
+    // real "▦ Table view" toggle button, then read the row back keyed by column, not
+    // position, so it stays correct regardless of which columns are hidden.
+    await page.getByRole('button', { name: /Table view/ }).click();
+    await page.waitForSelector('#tbody tr.data', { timeout: 5000 });
+    const row = await readDmRosterRow(page);
+    if (!row) {
+      report.notes.push('no roster row rendered in table view after import');
+    } else {
+      const exp = exported.expected;
+      if (row.species && !row.species.includes(exp.species)) report.notes.push(`species mismatch: roster "${row.species}" vs source "${exp.species}"`);
+      if (row.class && !row.class.includes(exp.originClass)) report.notes.push(`class mismatch: roster "${row.class}" vs source "${exp.originClass}"`);
+      if (row.hp !== undefined && Number(row.hp) !== exp.hp) report.notes.push(`HP mismatch: roster ${row.hp} vs source ${exp.hp}`);
+      const acShown = Number((row.ac || '').split('/')[0].trim());
+      if (!Number.isNaN(acShown) && acShown !== exp.ac) report.notes.push(`AC mismatch: roster ${acShown} vs source ${exp.ac}`);
+      const availShown = Number((row.available || '').replace('+', '').trim());
+      if (!Number.isNaN(availShown) && availShown !== exp.available) report.notes.push(`AP-available mismatch: roster ${availShown} vs source ${exp.available} (dmAnalyze()/engine bridge drift)`);
+    }
+
+    // Smoke-test the two overlay buttons and the column-visibility toggle — real clicks,
+    // just confirming they open/close and don't throw against this imported character.
+    for (const btnName of [/Skill Matrix/, /AP Ledger/]) {
+      await page.getByRole('button', { name: btnName }).click();
+      const opened = await page.waitForSelector('#ov.on', { timeout: 2000 }).then(() => true).catch(() => false);
+      if (!opened) report.notes.push(`overlay "${btnName}" did not open`);
+      await page.locator('#ovX').click().catch(() => {});
+    }
+    await page.locator('#colBtn').click();
+    await page.locator('#colPanel input[data-k="earned"]').check().catch(() => {});
+    const earnedShown = await page.waitForSelector('#thead th[data-key="earned"]', { timeout: 2000 }).then(() => true).catch(() => false);
+    if (!earnedShown) report.notes.push('"AP Earned" column did not appear after enabling it via the column toggle');
+
+    report.ok = report.notes.length === 0;
+  } catch (e) {
+    report.ok = false;
+    report.notes.push(`exception: ${e.message}`);
+  } finally {
+    await page.close();
+  }
+  return report;
+}
+
 // ---------- main ----------
 async function main() {
   await ensurePactSymlink();
@@ -434,6 +542,13 @@ async function main() {
         // now carrying the leveled-up character (HD > 1) instead of a fresh one.
         const toCharGen = await switchToCharGenViaButton(page);
         if (!toCharGen.ok) iterResult.notes.push(`switch back to CharGen lost data: ${JSON.stringify(toCharGen.mismatches)} (before=${JSON.stringify(toCharGen.before)} after=${JSON.stringify(toCharGen.after)})`);
+
+        // DM Console: real file-drop import of the same finished character, cross-checked
+        // against the source tool's own numbers (see testDmConsole's comment for why).
+        const exported = await exportCurrentCharGenCharacter(page);
+        const dmReport = await testDmConsole(context, baseUrl, exported);
+        log(`DM Console import: ${dmReport.ok ? 'PASS' : 'FAIL'}${dmReport.notes.length ? ' — ' + dmReport.notes.join(' ; ') : ''}`);
+        if (dmReport.notes.length) iterResult.notes.push(...dmReport.notes.map((n) => `[dm-console] ${n}`));
 
         iterResult.ok = iterResult.notes.length === 0;
       } catch (e) {
