@@ -1020,7 +1020,9 @@
   mistake it for a regression. All 11 non-trigger functions show `anon=false` / `authenticated=true` as
   planned; `get_advisors` post-migration shows no new findings (remaining WARNs are pre-existing and
   out of scope: `authenticated`-callable `SECURITY DEFINER` functions, which is intentional for RPCs meant
-  to be called by signed-in users, and unrelated leaked-password-protection).
+  to be called by signed-in users, and unrelated leaked-password-protection). Also skimmed `get_logs`
+  (postgres service) post-migration per the AGENTS.md per-change checklist — only the expected
+  `apply_migration` statement and routine connection/checkpoint lines, no errors.
 
 ---
 ## D-GH16 · Campaign rules follow-up: live-filter pickers where a pick surface exists, not everywhere

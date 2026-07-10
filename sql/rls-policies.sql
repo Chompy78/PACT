@@ -228,6 +228,16 @@ revoke execute on function public.award_ap(uuid, integer, text) from public;
 -- for the full safety analysis (none of these are actually exploitable today —
 -- each gates on auth.uid(), which is NULL for anon — this is hygiene, not a fix
 -- for a live hole).
+--
+-- Invariant this lockdown now depends on: is_campaign_dm/owner/member and
+-- shares_campaign are called from inside RLS policy USING clauses below, and a
+-- policy's internal function call still needs the *invoking role* to hold
+-- EXECUTE (SECURITY DEFINER only elevates row access inside the function body,
+-- not the caller's EXECUTE requirement). This is safe only because anon has no
+-- table-level grant anywhere in this file (line 78: schema USAGE only) — if a
+-- future change ever grants anon SELECT on a table whose policy calls one of
+-- these helpers, that query would fail with "permission denied for function",
+-- not an empty result, until anon is added back to that helper's grant too.
 -- ---------------------------------------------------------------------------
 -- Internal-only helpers (is_campaign_dm/owner/member, shares_campaign,
 -- gen_invite_code): grant to authenticated first so behaviour is unchanged,
