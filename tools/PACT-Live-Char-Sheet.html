@@ -309,6 +309,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 <button class="btn g" id="exportBtn" onclick="exportJSON()" title="Export character to a file">⬇ <span class="bl">Export</span></button>
 <button class="btn g" onclick="document.getElementById('imp').click()" title="Import a character file">⬆ <span class="bl">Import</span></button>
 <input type="file" id="imp" style="display:none" accept=".json" onchange="if(this.files[0])importJSON(this.files[0]);this.value=''">
+<button class="btn g" onclick="switchToCharGen()" title="Open this character back in the Character Generator — no file to export or import">⇆ <span class="bl">Open in CharGen</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" id="cloudBtn" title="Cloud save / load">☁ <span class="bl">Cloud</span></button><div id="cloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span>
 <span id="cloudStatusBadge" class="cloudstatus">🔒 Not signed in</span>
 <button class="btn g" onclick="toggleSheet()" title="Toggle the printable sheet">📋 <span class="bl">Sheet</span></button>
@@ -491,6 +492,35 @@ function _apNudgeBanner(spent){
 }
 function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=JSON.parse(e.target.result); if(d.LOG){LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;REDO=[];viewAt=null;save();render();
   if(loadedRules&&loadedRules!==RULES){flash('Loaded a '+loadedRules+' character into '+RULES+' rules — old prices are frozen.');_showVersionBanner();}  else flash('Loaded character.');try{if(!LOG.some(function(e){return e.type==='names';}))openNames();}catch(e){}}}catch(err){alert('Bad file: '+err.message);}}; fr.readAsText(file); }
+// One-click switch to the Character Generator (D-GH38): save locally, stage a same-origin handoff baton,
+// navigate. CharGen consumes ?handoff=<id> on boot. No file to export/import. writeHandoff/currentCharId are
+// bridged from js/character-store.js. Online-only (the SW serves .html network-first; a unique handoff URL is
+// never cached, so offline it falls back to the menu — the character stays safe in this tool's local save).
+function switchToCharGen(){
+ try{
+  save();   // persist current state locally first; the handoff and the local save both reflect it
+  const uid=writeHandoff({source:'livesheet',LOG:LOG,SEQ:SEQ,rules:RULES,id:currentCharId()});
+  if(!uid){flash('⚠ Could not open the Character Generator — local storage is unavailable (private mode or full). Your character is unchanged.');return;}
+  location.href='PACT-CharGen-Webtool.html?handoff='+encodeURIComponent(uid);
+ }catch(e){console.error('PACT Live Sheet: switch to CharGen failed',e);flash('⚠ Could not open the Character Generator — '+(e&&e.message?e.message:'see console for details')+'.');}
+}
+// D-GH38: consume a character handed over from CharGen via ?handoff=<id>. Called at the top of _lsBoot(),
+// ahead of load(), and suppresses it (returns true) so a handoff wins over the last locally-saved character.
+// Mirrors importJSON's direct assignment; save() (only after a valid parse) overwrites the local slot.
+function _lsConsumeHandoff(){
+  try{
+    const u=new URLSearchParams(location.search).get('handoff');
+    if(!u)return false;
+    const p=takeHandoff(u);
+    try{history.replaceState(null,'',location.pathname+location.hash);}catch(e){}   // strip ?handoff: a reload must not re-trigger
+    if(!p)return false;
+    LOG=p.LOG;SEQ=p.SEQ||(LOG.length+1);loadedRules=p.rules||null;if(p.id)__charId=p.id;REDO=[];viewAt=null;
+    save();
+    if(loadedRules&&loadedRules!==RULES){flash('Opened your '+loadedRules+' character from CharGen — old prices frozen under '+RULES+' rules.');_showVersionBanner();}
+    else flash('Opened your character from CharGen.');
+    return true;
+  }catch(e){console.error('PACT Live Sheet: handoff consume failed',e);return false;}
+}
 function resetAll(){ if(confirm('Wipe this character and its whole history? This starts a clean '+RULES+' character.')){
   LOG=[];REDO=[];SEQ=1;viewAt=null;loadedRules=null;   // a reset character is born under the current rules
   const _vb=$('versionBanner');if(_vb)_vb.remove();   // clear any stale version-mismatch banner
@@ -925,7 +955,10 @@ function seedNew(){ const c=compute(baseBuild()).total;
 // init
 function _lsBoot(){
 RULES=(window.DATA&&window.DATA.version)||RULES;
-load(); if(!LOG.length) seedNew(); else _showVersionBanner();  // show banner if reopened with stale-version save
+try{sweepExpiredHandoffs();}catch(e){}   // D-GH38: clear orphaned handoff keys from interrupted switches
+let _lsFromHandoff=false;
+try{_lsFromHandoff=_lsConsumeHandoff();}catch(e){}   // D-GH38: a character arriving from CharGen wins over the local save
+if(!_lsFromHandoff){ load(); if(!LOG.length) seedNew(); else _showVersionBanner(); }  // else normal last-saved load / fresh seed
 $('tt').addEventListener('input',function(){const v=+this.value;viewAt=(v>=LOG.length?null:v);render();});
 render();
 _lsSpellTogLabel();  // B1: sync the More-menu toggle label with the persisted no-Spellcasting state
