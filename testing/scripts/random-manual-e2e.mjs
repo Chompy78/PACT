@@ -121,22 +121,26 @@ async function startServer(port) {
   const child = spawn('python3', ['-m', 'http.server', String(port), '--directory', PARENT_DIR], {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  const ready = new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error('server did not start in time')), 8000);
-    const onData = (d) => {
-      if (String(d).includes('Serving HTTP')) { clearTimeout(t); resolve(); }
-    };
-    child.stdout.on('data', onData);
-    child.stderr.on('data', onData);
-    child.on('error', (e) => { clearTimeout(t); reject(e); });
-  });
-  try {
-    await ready;
-  } catch (e) {
-    child.kill(); // don't leak a bound port on startup failure
-    throw e;
+  let spawnError = null;
+  child.on('error', (e) => { spawnError = e; });
+
+  // Poll the port with a real request instead of scanning stdout for "Serving HTTP" —
+  // Python block-buffers stdout when it's piped (as it always is here), so on some
+  // hosts that line never arrives within a useful window even though the server is
+  // already accepting connections (bit us in CI, not locally, where buffering
+  // happened to flush promptly).
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    if (spawnError) { child.kill(); throw spawnError; }
+    try {
+      const res = await fetch(`http://localhost:${port}/`, { signal: AbortSignal.timeout(500) });
+      await res.body?.cancel();
+      return child;
+    } catch { /* not up yet */ }
+    await new Promise((r) => setTimeout(r, 100));
   }
-  return child;
+  child.kill(); // don't leak a bound port on startup failure
+  throw new Error('server did not start in time');
 }
 
 // ---------- dialog policy ----------
