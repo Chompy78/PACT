@@ -189,6 +189,21 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 #sheetview{display:none;position:fixed;inset:0;background:var(--bg);z-index:60;overflow:auto;padding:14px}
 .shtop{position:sticky;top:0;background:var(--navy);color:#fff;padding:8px 14px;display:flex;align-items:center;gap:12px;border-radius:8px;margin-bottom:12px}
 .shtop b{font-size:15px}
+/* D-GH5: mobile Chrome fails to repaint a position:fixed/sticky header while the window scrolls a
+   heavy page (real-hardware compositor limitation, GPU hints didn't help) — so on mobile the header
+   stops being part of the scrolling region at all instead of trying to stay pinned via CSS position.
+   body becomes a non-scrolling flex column; .layout is the only region that scrolls. Declared after
+   every base rule it overrides (.top/.eco/.bar/.layout/.shtop) so equal-specificity cascade order
+   doesn't silently un-do it. */
+@media(max-width:768px){
+ body{height:100dvh;overflow:hidden;display:flex;flex-direction:column}
+ .top,.eco,.bar{flex:0 0 auto}
+ .top{position:static}
+ .layout{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
+ /* AI Portrait/Print/Close: not part of D-GH5's header, just an overlay — simpler fix, let it scroll
+    away with the rest of the sheet-view overlay's own content instead of staying pinned. */
+ .shtop{position:static}
+}
 .shhead{margin-bottom:10px}.shname{font-size:22px;font-weight:800;color:var(--navytx)}.shsub{color:var(--grey);font-size:12.5px}
 .shcols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.shcols2{display:grid;grid-template-columns:1fr 2fr;gap:12px;align-items:start}@media(max-width:800px){.shcols{grid-template-columns:1fr}}
 .shcol{display:flex;flex-direction:column;gap:10px}
