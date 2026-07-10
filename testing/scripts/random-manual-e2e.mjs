@@ -4,7 +4,8 @@
   Headless UI regression harness for character generation + advancement (REV-11).
 
   Drives the REAL tool UI in a browser — species/class selects, ability +/- steppers,
-  skill/tool checkboxes, the Live Sheet's "+ Award AP" / "Level up" / buy-panel tiles —
+  skill/tool checkboxes, the "⇆ Open in Live Sheet" / "⇆ Open in CharGen" one-click
+  switch buttons (D-GH38), the Live Sheet's "+ Award AP" / "Level up" / buy-panel tiles —
   using this script's OWN random choices. It never calls the app's built-in
   `randomizeBuild()` roll-a-random-character function; every purchase is a real click,
   select, or checkbox toggle that a human could make, and results are read back out of
@@ -23,7 +24,6 @@ import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -272,23 +272,44 @@ async function randomCheckSubset(page, selector, rng, n) {
   }
 }
 
-// ---------- export CharGen build -> Live Sheet import file ----------
-async function exportForLiveSheet(page) {
-  return page.evaluate(() => window.buildToLiveLog(window.readBuild()));
+// ---------- CharGen <-> Live Sheet: the real one-click "switch tool" button (D-GH38) ----------
+// Replaces the old download-a-file/import flow as the primary way a player moves a
+// character between the two tools, so this is what the harness drives too: a real
+// click, a real navigation, and a same-origin localStorage handoff — the app's own code,
+// not a script-side shortcut.
+async function switchToLiveSheetViaButton(page) {
+  const before = await page.evaluate(() => {
+    const b = window.readBuild();
+    return { species: b.species, originClass: b.originClass, hd: b.hd, total: window.compute(b).total };
+  });
+  await page.getByRole('button', { name: /Open in Live Sheet/ }).first().click();
+  await page.waitForURL(/PACT-Live-Char-Sheet\.html/);
+  await page.waitForFunction(() => typeof window.compute === 'function');
+  await page.waitForFunction(() => typeof window.foldBuild === 'function' && window.foldBuild(null).hd >= 1);
+  await dismissNamesModalIfOpen(page);
+  const after = await page.evaluate(() => {
+    const b = window.foldBuild(null);
+    return { species: b.species, originClass: b.originClass, hd: b.hd };
+  });
+  const mismatches = ['species', 'originClass', 'hd'].filter((k) => before[k] !== after[k]);
+  return { ok: mismatches.length === 0, before, after, mismatches };
 }
 
-async function importIntoLiveSheet(page, baseUrl, liveLog) {
-  await page.goto(`${baseUrl}/PACT/tools/PACT-Live-Char-Sheet.html`);
+async function switchToCharGenViaButton(page) {
+  const before = await page.evaluate(() => {
+    const b = window.foldBuild(null);
+    return { species: b.species, originClass: b.originClass, hd: b.hd };
+  });
+  await page.getByRole('button', { name: /Open in CharGen/ }).first().click();
+  await page.waitForURL(/PACT-CharGen-Webtool\.html/);
   await page.waitForFunction(() => typeof window.compute === 'function');
-  const tmpFile = path.join(os.tmpdir(), `pact-e2e-${process.pid}-${Date.now()}.json`);
-  await fs.writeFile(tmpFile, JSON.stringify(liveLog));
-  await page.locator('#imp').setInputFiles(tmpFile);
-  await fs.unlink(tmpFile).catch(() => {});
-  await page.waitForFunction(() => typeof window.foldBuild === 'function' && window.foldBuild(null).hd >= 1);
-  // Import auto-opens the "name your spells & languages" modal (real UI behavior on a
-  // fresh character with no `names` event yet) — a human would dismiss it before
-  // continuing, so we do the same via its real "Skip for now" button.
-  await dismissNamesModalIfOpen(page);
+  await page.waitForFunction(() => (window.readBuild() || {}).hd >= 1);
+  const after = await page.evaluate(() => {
+    const b = window.readBuild();
+    return { species: b.species, originClass: b.originClass, hd: b.hd };
+  });
+  const mismatches = ['species', 'originClass', 'hd'].filter((k) => before[k] !== after[k]);
+  return { ok: mismatches.length === 0, before, after, mismatches };
 }
 
 // Several actions (import, leveling into new spell slots, some feature buys) can
@@ -398,12 +419,17 @@ async function main() {
         if (genReport.remaining < 0) iterResult.notes.push(`char-gen over budget by ${-genReport.remaining} AP`);
         if (genReport.hardWarnings.length) iterResult.notes.push(`char-gen has ${genReport.hardWarnings.length} unresolved warning(s): ${genReport.hardWarnings.slice(0, 3).join(' | ')}`);
 
-        const liveLog = await exportForLiveSheet(page);
-        await importIntoLiveSheet(page, baseUrl, liveLog);
+        const toLiveSheet = await switchToLiveSheetViaButton(page);
+        if (!toLiveSheet.ok) iterResult.notes.push(`switch to Live Sheet lost data: ${JSON.stringify(toLiveSheet.mismatches)} (before=${JSON.stringify(toLiveSheet.before)} after=${JSON.stringify(toLiveSheet.after)})`);
 
         const advReport = await advanceCharacter(page, rng, state, LEVELS_PER_CHAR);
         log(`advancement: levelsGranted=${advReport.levelsGranted} purchases=${advReport.purchasesApplied}/${advReport.purchasesAttempted} softWarnAccepted=${state.softWarnAccepted} softWarnDeclined=${state.softWarnDeclined} hardBlocked=${state.hardBlocked}`);
         if (advReport.invariantFailures.length) iterResult.notes.push(...advReport.invariantFailures);
+
+        // Round-trip back to CharGen — the reverse direction of the same handoff feature,
+        // now carrying the leveled-up character (HD > 1) instead of a fresh one.
+        const toCharGen = await switchToCharGenViaButton(page);
+        if (!toCharGen.ok) iterResult.notes.push(`switch back to CharGen lost data: ${JSON.stringify(toCharGen.mismatches)} (before=${JSON.stringify(toCharGen.before)} after=${JSON.stringify(toCharGen.after)})`);
 
         iterResult.ok = iterResult.notes.length === 0;
       } catch (e) {
