@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-10 · refactor(save-format) — one unified save/export file for both tools (D-GH40)**
+  (`js/character-store.js`, `tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; no rules
+  change; `DATA.version` unchanged). Replaces three divergent save/export shapes — one of which
+  re-synthesized a fake LOG instead of the real one, two of which silently dropped `id` on a round trip —
+  with a single canonical `{schema:'pact-character/1', rules, name, LOG, SEQ, id}` envelope both tools now
+  write and both read (old shapes still load — nothing already saved is stranded). CharGen's separate
+  "Export to Live Sheet" button/converter is removed as redundant. Found while manually testing the
+  switch-tool feature ("this file won't load right"). Verified: the new module functions directly in plain
+  Node, plus a full round trip in a real browser driving CharGen's actual UI (real button clicks) —
+  including an old-format file still loading correctly.
+
 - **2026-07-10 · fix(chargen) — ability-score +/- steppers never reached the LOG (D-GH39, live-production
   bug)** (`tools/PACT-CharGen-Webtool.html`; no rules change; `DATA.version` unchanged). `stepAbil()` set
   the field's value directly and re-rendered, but never dispatched an `input` event — since `st_STR`/etc
