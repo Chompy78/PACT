@@ -15,6 +15,10 @@
   findings post-migration. Pure hygiene/defense-in-depth — none of these were actually exploitable
   (every one gates on `auth.uid()`, which is `NULL` for `anon`).
 
+- **2026-07-10 · docs(roadmap) — remove stale duplicate "Add Supabase advisor/log check" entry**
+  (`docs/PACT_ROADMAP.md`; no code change). The step it asked for was already added to `AGENTS.md`'s
+  per-change checklist and graduated to `CHANGELOG.md` on 2026-07-09 (commit `e770e26`) — this was a
+  leftover duplicate that never got pruned from the roadmap. No further action needed.
 - **2026-07-10 · fix(live-sheet) — reintroduce D-GH5's mobile app-shell so header/overlay buttons stop
   sticking on scroll** (`tools/PACT-Live-Char-Sheet.html`; display-only, `DATA.version` unchanged). D-GH5's
   static-header app-shell (body → non-scrolling flex column, `.layout` as the only scroll region) had never
