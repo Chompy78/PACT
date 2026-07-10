@@ -12,14 +12,17 @@ is staging and promotes into `main`).
      turn one. Keep it short, refresh when focus shifts, prune when stale (stale is worse than empty). The
      roadmap stays the single writer of the full task list — this is a pointer to it, not a second copy. -->
 
-- **Current focus:** the 🔴 NOW roadmap item — the full engine module-bridge migration across all three
-  tools (`feat/engine-bridge-all-tools`). See `docs/PACT_ROADMAP.md` NOW section for the authoritative
-  task text. (The Live Sheet `undo()` correctness bug closed as D-GH30: `undo()` itself was already
-  correct; the real defect was a display divergence, fixed display-only. The deferred long-term question —
-  whether `js/engine.js` should grow a frozen-ledger-aware remaining-AP export — is now a NEXT item,
-  `feat/ap-model-reconcile`, in `docs/PACT_ROADMAP.md`.)
-- **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); the three tools'
-  hand-copied `DATA`/`compute()`/`MUT`/etc. (parity risk until the bridge lands); Live Sheet's
+- **Current focus:** the 🔴 NOW section is currently empty — the last NOW item, the full engine
+  module-bridge migration across all three tools, graduated to `CHANGELOG.md` on 2026-07-10. See
+  `docs/PACT_ROADMAP.md` 🟡 NEXT for open work. (The Live Sheet `undo()` correctness bug closed as
+  D-GH30: `undo()` itself was already correct; the real defect was a display divergence, fixed
+  display-only. The deferred long-term question — whether `js/engine.js` should grow a
+  frozen-ledger-aware remaining-AP export — is now a NEXT item, `feat/ap-model-reconcile`, in
+  `docs/PACT_ROADMAP.md`.)
+- **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); CharGen's still-local
+  `MUT` inside its import-fold path (`_lsImportFold`/`buildToLiveLog` — see Architecture below; the rest of
+  `DATA`/`compute`/`baseBuild`/`MUT`/`activeEvents`/`economy`/`foldBuild` are live imports in all three
+  tools as of D-GH26/D-GH36/D-GH37, so they can no longer drift by definition); Live Sheet's
   `compute()`-vs-frozen-`economy()` divergence (see D-GH30 and `feat/ap-model-reconcile`) — any UI that
   displays "AP left" for an event-sourced character must use the frozen ledger, not a retroactive
   recompute.
@@ -27,7 +30,7 @@ is staging and promotes into `main`).
   `/pick-task` → `/run-task`; for big/risky work draft a plan for cold review first (see Agent guidance below).
 - **Avoid:** re-implementing rules logic anywhere but `engine.js`; patching `undo()` with tool-local state
   instead of LOG replay; bumping `DATA.version` for display-only changes; reading large files wholesale.
-- **Verification expectations:** `testing/tests/engine-parity.html` → **9/0**; if `compute()` output changed,
+- **Verification expectations:** `testing/tests/engine-parity.html` → **20/0**; if `compute()` output changed,
   update `testing/expected/` in the same PR and bump `DATA.version`; mirror build/version numbers per
   `docs/VERSION-SYNC.md`.
 
@@ -142,8 +145,9 @@ Before finishing a task / opening a PR, update what applies (newest on top):
 More than one agent may be active. **`docs/PACT_ROADMAP.md` has a single writer** — don't append to it.
 If you have new roadmap items, output them in **this exact format** for the human to fold in, then carry on:
 
-**`D-GH<N>` numbering (see D-GH30).** Three collisions have already happened (D-GH19/20, D-GH25/27,
-D-GH26/28) from computing "next = highest + 1" off a stale local read. Before claiming a new number, check
+**`D-GH<N>` numbering (see D-GH43).** Four collisions have already happened (D-GH19/20, D-GH25/27,
+D-GH26/28, D-GH30/42/43 — the last a *triple* collision, caught by the 2026-07-10 docs-consistency audit)
+from computing "next = highest + 1" off a stale local read. Before claiming a new number, check
 the **live** remote, not an earlier read this session:
 `git fetch origin preview && git show origin/preview:DECISIONS.md | grep -oE 'D-GH[0-9]+' | sort -t H -k2 -n -u | tail -1`.
 If a collision still slips through post-merge, the accepted fix is: keep the earlier-merged entry's number,
@@ -176,7 +180,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task`
   `docs/PACT-Players-Guide.html`.
 - **Engine support:** `js/` — `supabase-client.js`, `auth.js`, `sync.js`, `campaign.js`, `dm.js`;
   root — `manifest.json`, `service-worker.js`, `404.html`; `sql/` — `schema.sql`, `rls-policies.sql`, `migrations/`.
-- **Testing:** run `testing/tests/engine-parity.html` (expect **9/0**); fixtures in `testing/fixtures/`,
+- **Testing:** run `testing/tests/engine-parity.html` (expect **20/0**); fixtures in `testing/fixtures/`,
   expected output in `testing/expected/` (see `testing/README.md`).
 - **Docs:** `docs/PACT_ROADMAP.md` (open work) · `docs/HOW-TO-WORK.md` (app/test mechanics) ·
   `docs/SKILLS.md` (skills + workflow, human-readable) · `docs/sessions/` ·
@@ -188,7 +192,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task`
 ## Per-change checklist
 1. One task, one branch — name it `type/short-slug` (e.g. `feat/…`, `fix/…`, `docs/…`).
 2. Touch `js/engine.js` only if the task targets the engine; else treat its API as fixed.
-3. `testing/tests/engine-parity.html` → **9/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
+3. `testing/tests/engine-parity.html` → **20/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
    `compute()` output, update `testing/expected/` in the same change and say so.
 4. After any migration/RLS/schema change, run the Supabase advisor (`get_advisors`) and skim recent logs
    (`get_logs`) before opening the PR. This project has already been bitten twice by grant/RLS drift that

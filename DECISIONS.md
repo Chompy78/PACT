@@ -503,7 +503,7 @@
   design) is intentionally deferred — see the new NEXT roadmap item.
 - **Status:** DONE for the display fix. The long-term engine-vs-ledger reconciliation is open — tracked in
   `docs/PACT_ROADMAP.md` NEXT.
-## D-GH30 · Cloud/campaign status badge reads existing sync-ready state — no new cloud/auth plumbing
+## D-GH42 · Cloud/campaign status badge reads existing sync-ready state — no new cloud/auth plumbing
 - **Context:** the "Cloud/campaign state is invisible to players" roadmap task needed Live Sheet to show a
   persistent sign-in + campaign-rules-fetch-status badge outside the ☁ Cloud dropdown. This was picked and
   built while another session was concurrently on `feat/engine-bridge-all-tools`, actively migrating
@@ -525,7 +525,15 @@
 - **Status:** DONE. If a future bridge migration changes how `_cloudCampaignRules`/campaign data is
   fetched, `renderCloudStatusBadge()`'s two call sites (`refreshCloudCampaignRules()` and the cloud-load
   button handler in `tools/PACT-Live-Char-Sheet.html`) are the only places that need updating.
-## D-GH30 · D-GH numbering: verify against the live remote before claiming, and treat renumber-on-merge as the accepted collision fallback
+- **Addendum (2026-07-10, docs-consistency audit):** originally logged as `D-GH30`, colliding with two
+  other same-day entries also claimed as `D-GH30` (this one and "D-GH numbering: verify against the live
+  remote…", both merged within ~8 minutes of each other on 2026-07-08 — the live-remote-check policy that
+  same pair of collisions prompted "narrows the window but can't fully close it," per its own Why). Kept
+  the earlier-merged "Live Sheet's 'AP left' reads the frozen ledger" entry at `D-GH30`; renumbered this
+  one to `D-GH42` (next free at time of fix). `CHANGELOG.md`'s "surface cloud/campaign status" entry
+  updated to match.
+
+## D-GH43 · D-GH numbering: verify against the live remote before claiming, and treat renumber-on-merge as the accepted collision fallback
 - **Context:** three separate D-GH decision-number collisions have already happened — D-GH19/D-GH20,
   D-GH25/D-GH27, D-GH26/D-GH28 — each because a session computed "next number = highest + 1" from a local
   snapshot read earlier in the session, then a concurrent session independently claimed the same number
@@ -558,6 +566,15 @@
   cause named in every prior collision's addendum — a stale, non-live number check — while keeping the
   fallback that's already been proven to work three times.
 - **Status:** DONE.
+- **Addendum (2026-07-10, docs-consistency audit):** originally logged as `D-GH30`, colliding with two
+  other same-day entries also claimed as `D-GH30` — including, ironically, this decision's own live-check
+  policy: the collision happened anyway because the other `D-GH30` (the "Cloud/campaign status badge"
+  entry) merged only ~8 minutes earlier, inside the window this decision's own Why already acknowledged
+  the live check "narrows... but can't fully close." Kept the earlier-merged "Live Sheet's 'AP left' reads
+  the frozen ledger" entry at `D-GH30`; renumbered this one to `D-GH43` (next free at time of fix, after
+  `D-GH42` above). `AGENTS.md`'s numbering note and `CHANGELOG.md`'s "fix the recurring D-GH
+  decision-number collision" entry updated to match; the four-collision count now reads D-GH19/20,
+  D-GH25/27, D-GH26/28, D-GH30/42/43.
 
 ---
 

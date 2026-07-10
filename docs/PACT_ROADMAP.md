@@ -65,7 +65,7 @@ no visibility into any campaign's rules at all.
 
 **Done when:** a DM's campaign rules are visible to CharGen once a campaign is selected; banned choices
 are filtered out of CharGen's pickers during creation (not just rejected later in Live Sheet); no rules
-logic is duplicated outside `js/engine.js`; parity still 5/0.
+logic is duplicated outside `js/engine.js`; parity still 20/0.
 
 ## Externalize CharGen default AP + AP-by-level table — TODO
 Branch feat/ap-by-level. Previously gated on "Task 6" (CharGen's DATA/compute bridge) — that landed in
@@ -88,7 +88,7 @@ the Supabase enforcement phase. Engine: sign/verify helpers. Tools: Live Sheet s
 badge, CharGen sign. Full spec: IMPLEMENT-save-integrity.md (+ ENGINE-INTEGRITY-prompt.md).
 ```
 **Done when:** a signed save verifies clean; a hand-edited save is flagged on load (without blocking) and
-badged in DM Console; CharGen exports are signed; parity stays 5/0.
+badged in DM Console; CharGen exports are signed; parity stays 20/0.
 ⚠️ Log under a **NEW** decision code (**D-GH10** — the draft's "D-GH4" is taken).
 
 ## AUD-1 — Automated health check (static audit + RLS proof) (HIGH — scope widened) — TODO
@@ -130,7 +130,7 @@ Store only raw character data; derive everything else via compute() / rebuildSta
 Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 ```
 
-**Done when:** a player can clone a campaign character to a standalone record; the clone appears in their character list with ap = 0; the original is unchanged; parity still 5/0.
+**Done when:** a player can clone a campaign character to a standalone record; the clone appears in their character list with ap = 0; the original is unchanged; parity still 20/0.
 
 ---
 
@@ -145,7 +145,7 @@ Write the copied rules to Supabase only on explicit save (DM-only, protected by 
 Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 ```
 
-**Done when:** a DM can copy rules from one of their campaigns into another and save them; the source campaign is unchanged; parity still 5/0.
+**Done when:** a DM can copy rules from one of their campaigns into another and save them; the source campaign is unchanged; parity still 20/0.
 
 ---
 
@@ -164,28 +164,9 @@ Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 Note: this overlaps with the existing "Externalize CharGen default AP + AP-by-level table" task. Best done after that task lands, or coordinate changes to avoid duplicating the AP table.
 ```
 
-**Done when:** advancement tracks are stored in engine data; a DM can select or customise a track per campaign; the Live Sheet shows the D&D 2024 equivalent level label; parity still 5/0.
+**Done when:** advancement tracks are stored in engine data; a DM can select or customise a track per campaign; the Live Sheet shows the D&D 2024 equivalent level label; parity still 20/0.
 
 ---
-
-## Docs-consistency audit: DECISIONS.md / CHANGELOG.md / roadmap cross-check — TODO
-Branch docs/consistency-audit. One-time pass checking the three logging docs agree with each other and
-with the code.
-
-```text
-1. Read DECISIONS.md, CHANGELOG.md, and docs/PACT_ROADMAP.md together.
-2. Flag contradictions: a decision marked IN FORCE that no longer matches the code, a roadmap item
-   that's actually already done, or a stale D-GH# reservation (already found one live: the "Expand
-   engine-parity test coverage" task reserves "D-GH14" but that code is now taken by the campaign-rules
-   decision — correct it to the next free code at time of fix).
-3. Write findings to docs/sessions/<date>-docs-consistency-audit.md. Do not silently fix code — apply
-   only doc corrections (roadmap-graduation moves, D-GH# corrections) directly; anything code-shaped
-   becomes its own follow-up roadmap item.
-4. Re-running this pass periodically (e.g. after a batch of merges) is a good habit but is a process
-   note, not part of this task's completion condition.
-```
-**Done when:** docs/sessions/<date>-docs-consistency-audit.md exists with the findings; the known D-GH14
-reservation collision is corrected in the same pass.
 
 ## Add a pre-release manual QA checklist to docs/HOW-TO-WORK.md — TODO
 Branch docs/pre-release-qa-checklist. Document the click-through the parity gate can't cover.
@@ -233,7 +214,7 @@ caught if a human remembers to open engine-parity.html.
 3. No npm runtime deps for the app itself — this tooling lives entirely in the CI job/devDependencies,
    consistent with the "vanilla JS, no build step" rule for the shipped app.
 ```
-**Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 5/0
+**Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 20/0
 when run locally too.
 
 ## Fix: feature-search autocomplete renders off-screen once the page is scrolled — TODO
@@ -260,7 +241,7 @@ Fix is one of:
 **Done when:** opening the feature-search autocomplete at any scroll position renders the suggestion
 list fully within the viewport, verified manually at a few scroll depths and by the e2e harness (which
 currently works around this with a forced scroll-to-0 + oversized viewport — that workaround can be
-removed once this lands). Parity still 5/0 (unaffected — no engine.js change).
+removed once this lands). Parity still 20/0 (unaffected — no engine.js change).
 
 ## Fix: "Level up" buy-tile stays free and clickable past Hit Die 20 — TODO
 Branch fix/live-sheet-level-cap-tile-disable. Found via the e2e harness's `hd-cap` scenario, which
@@ -284,7 +265,7 @@ elsewhere in the codebase.
 ```
 **Done when:** clicking "Level up" at Hit Die 20 is blocked/disabled rather than free; the e2e harness's
 `--scenario hd-cap` can drop its explicit "exclude Level-up tiles once hd>=20" workaround once this
-lands. Parity still 5/0.
+lands. Parity still 20/0.
 
 ---
 
