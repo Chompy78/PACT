@@ -23,42 +23,8 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## Full engine module-bridge migration — CharGen, Live Sheet, DM Console — TODO
-Branch `feat/engine-bridge-all-tools`. **Revised scope** — a first pass already shipped as a
-deliberately-reduced "safe subset" (D-GH26, PR #121, see `docs/sessions/2026-07-05-engine-bridge-safe-subset.md`):
-`DATA`/`compute`/`baseBuild` are now imported live from `js/engine.js` in **all three** tools, and Live
-Sheet also imports `MUT` (it was byte-identical to the engine's). CharGen got its first module bridge in
-that pass, closing the old separate "Task 6" item (now graduated — see `CHANGELOG.md`). A compat check
-found the remaining pieces are **not** drop-in bridgeable, so don't re-attempt the literal
-"import-and-delete all seven symbols" version of this task — that premise is already disproven:
-
-```text
-1. `activeEvents`/`economy`/`foldBuild` are still hand-copied, index-based closures over a script-level
-   `LOG` in all three tools (`foldBuild(uptoIdx)`), NOT the engine's array-parameter API
-   (`foldBuild(events)`) — they drive Live Sheet/DM Console's event-sourcing + time-travel and CharGen's
-   import-fold. Reconciling them means rewriting every call site to pass LOG slices instead of an index —
-   a real change to the event-replay core, not a mechanical import swap. Verify a Live Sheet buy still
-   emits exactly one event and undo/redo/time-travel still work after any change here.
-2. CharGen's `MUT` is still local — specialized closures inside `_lsImportFold`/`buildToLiveLog` (the
-   D-GH3 export bridge), not signature-compatible with the engine's `MUT`.
-3. DM Console's `MUT` still diverges from the engine's (stale `found` handling, missing `dbound`).
-   Bridging it is a **deliberate behavioral change**, not a no-op — confirm with the owner before
-   changing DM Console's actual mutation behavior, and log it as its own decision if so.
-4. Shrink AUD-1's DATA/compute/MUT drift check (this roadmap file, AUD-1 item below) once this lands —
-   DATA/compute/baseBuild can no longer drift (they're live imports now, not copies); only the
-   still-hand-copied MUT/activeEvents/economy/foldBuild pieces are a real drift risk going forward.
-5. Log under the next free D-GH number — check `DECISIONS.md` live, don't assume a fixed number
-   (D-GH26 is already used for the safe-subset pass this supersedes).
-6. Update AGENTS.md's Architecture section once this lands — it currently documents the *safe-subset*
-   state accurately (see "Still hand-copied / local in the tools"); update it to reflect whatever new
-   state results.
-```
-
-**Done when:** `activeEvents`/`economy`/`foldBuild` share one signature-compatible implementation across
-all three tools (or a decision is logged for why not); CharGen's and DM Console's `MUT` copies are
-resolved (bridged, or a decision is logged for why DM Console's divergence is intentional);
-`testing/tests/engine-parity.html` still reports N/0; AGENTS.md's architecture section reflects the new
-state.
+_(none currently — the last NOW item, the full engine module-bridge migration, graduated to
+`CHANGELOG.md` on 2026-07-10.)_
 
 ---
 

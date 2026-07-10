@@ -4,6 +4,21 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-10 · feat — engine module-bridge migration complete across all three tools** (`js/engine.js`,
+  `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`; parity 20/0, `DATA.version` unchanged).
+  Bridged `activeEvents`/`economy`/`foldBuild` (and DM Console's `MUT`) from `js/engine.js` into Live
+  Sheet and DM Console — the piece the D-GH26 "safe subset" pass (`DATA`/`compute`/`baseBuild`) left
+  hand-copied. Live Sheet and DM Console call these with an index (`foldBuild(uptoIdx)`, for their
+  time-travel/scrub UI) via a small local `eventsUpTo(uptoIdx)` helper that slices the tool's own `LOG`
+  before handing it to the engine's array-parameter API — every existing call site's signature is
+  unchanged, only the bodies now delegate instead of duplicating the fold/economy logic. This was paused
+  once (D-GH36) over a real risk — the engine's real replay populates a per-trait `_raceTraitLocked` map
+  the tools' old local folds never produced, and `compute()`'s racial-trait pricing depends on it — and
+  resumed (D-GH37) once confirmed the app is pre-launch (no real characters to protect) and that no
+  tool's UI actually triggers the `creationLocked`/`campaignBound` events this pricing mechanism depends
+  on yet, so the risk doesn't functionally bite in production today regardless. Closes the
+  `feat/engine-bridge-all-tools` roadmap item — see `DECISIONS.md` D-GH36/D-GH37 and
+  `docs/sessions/2026-07-10-engine-bridge-switch-tool-and-live-bugs.md`.
 - **2026-07-10 · fix(chargen) — unbounded AP inflation for any character with an active drawback, on every
   save/load/switch cycle (D-GH41, live-production bug)** (`js/engine.js`, `tools/PACT-CharGen-Webtool.html`;
   `DATA.version` unchanged, no pricing/table change — an internal-value exposure plus two bug fixes to
