@@ -2739,7 +2739,14 @@ const LGROUPS=[
  {t:'Magic',lines:['Trad ','Cantrips (','Innate spells']},
  {t:'Boons & Gold',lines:['Boons','Drawbacks','Martially Bound','Starting gold']},
 ];
-function stepAbil(a,d){const e=$('st_'+a);if(!e)return;e.value=Math.max(2,Math.min(20,(+e.value||10)+d*2));render();}
+// Bug fix (this session, found via the switch-tool feature's manual testing): st_STR/DEX/etc are
+// readonly — the +/- stepper is the ONLY way a player can change an ability score. Setting .value
+// directly and calling render() (the old body) never reaches _cgWirePatchDelegation's 'input'/'change'
+// listener, so the change never became a LOG patch event: no AP cost, nothing in the ledger, nothing in
+// exports/saves/the switch-tool handoff. Every ability-score change via the UI was silently lost. Dispatch
+// a real 'input' event so it goes through the exact same path a typed value would (including
+// _setCoalesceForEvent, so rapid clicks group into sane undo steps).
+function stepAbil(a,d){const e=$('st_'+a);if(!e)return;e.value=Math.max(2,Math.min(20,(+e.value||10)+d*2));e.dispatchEvent(new Event('input',{bubbles:true}));render();}
 function toggleSec(id){const f=$(id);if(f)f.classList.toggle('collapsed');}
 // M2: on phones, start with every section collapsed (tap to open) and the summary details folded
 function collapseForMobile(){try{if(typeof window==='undefined'||!window.innerWidth||window.innerWidth>600)return;

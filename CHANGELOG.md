@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-10 · fix(chargen) — ability-score +/- steppers never reached the LOG (D-GH39, live-production
+  bug)** (`tools/PACT-CharGen-Webtool.html`; no rules change; `DATA.version` unchanged). `stepAbil()` set
+  the field's value directly and re-rendered, but never dispatched an `input` event — since `st_STR`/etc
+  are `readonly`, the stepper was the *only* way to change an ability score, so this silently broke AP
+  costing and persistence for every ability-score edit in production. Found via manual testing of D-GH38's
+  switch button on Android Chrome. Fixed by dispatching a real `input` event so the stepper goes through
+  the same path as a typed value. Confirmed with a real button `.click()` in a headless browser: AP total
+  now moves and the change reaches `LOG`.
+
 - **2026-07-09 · feat(tools) — one-click switch between CharGen and Live Sheet on a shared
   `js/character-store.js` (D-GH38)** (new `js/character-store.js`; `tools/PACT-CharGen-Webtool.html`,
   `tools/PACT-Live-Char-Sheet.html`; `service-worker.js` precache + `CACHE_NAME` v2→v3; no rules change,
