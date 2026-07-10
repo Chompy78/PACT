@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-10 · test(ci) — headless Playwright e2e for character gen + advancement (REV-11)**
+  (new `testing/scripts/random-manual-e2e.mjs`, `testing/package.json`; new
+  `.github/workflows/character-gen-e2e.yml`; `testing/README.md`; no app code touched). Randomly drives
+  the real CharGen and Live Sheet UI — species/class selects, ability steppers, skill checkboxes, the
+  "Open in Live Sheet"/"Open in CharGen" switch buttons, "+ Award AP", "Level up", buy-panel tiles — with
+  its own randomization (never the app's `randomizeBuild()`), and checks the result stays within budget
+  and free of unresolved rule warnings. Runs in CI on PRs touching the two tools or `js/engine.js`/
+  `js/character-store.js`. Stubs the CDN-hosted Supabase client (`js/supabase-client.js`'s `esm.sh`
+  import) so engine boot works offline/in restricted network environments — Supabase is optional, the app
+  already runs fully offline against `localStorage`.
+
 - **2026-07-09 · feat(tools) — one-click switch between CharGen and Live Sheet on a shared
   `js/character-store.js` (D-GH38)** (new `js/character-store.js`; `tools/PACT-CharGen-Webtool.html`,
   `tools/PACT-Live-Char-Sheet.html`; `service-worker.js` precache + `CACHE_NAME` v2→v3; no rules change,

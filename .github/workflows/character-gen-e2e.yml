@@ -1,0 +1,60 @@
+name: Character gen + advancement e2e
+
+# Headless Playwright regression test (REV-11): randomly drives the real CharGen and
+# Live Sheet UI — species/class selects, ability steppers, skill checkboxes, the
+# "Open in Live Sheet" / "Open in CharGen" switch buttons, "+ Award AP", "Level up",
+# and buy-panel tiles — and checks the results stay legal. See
+# testing/scripts/random-manual-e2e.mjs for what it does and why.
+
+on:
+  pull_request:
+    paths:
+      - "tools/PACT-CharGen-Webtool.html"
+      - "tools/PACT-Live-Char-Sheet.html"
+      - "js/engine.js"
+      - "js/character-store.js"
+      - "testing/scripts/random-manual-e2e.mjs"
+      - "testing/package.json"
+      - "testing/package-lock.json"
+      - ".github/workflows/character-gen-e2e.yml"
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: "Random characters to generate"
+        default: "5"
+      levels:
+        description: "Levels to advance each character"
+        default: "3"
+
+concurrency:
+  group: character-gen-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+
+      - name: Install test tooling (dev/CI only — the app itself needs no npm install)
+        working-directory: testing
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: testing
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the harness
+        working-directory: testing
+        run: >
+          node scripts/random-manual-e2e.mjs
+          --iterations ${{ github.event.inputs.iterations || '5' }}
+          --levels ${{ github.event.inputs.levels || '3' }}
+          --seed ${{ github.run_id }}

@@ -396,10 +396,10 @@ async function main() {
   const baseUrl = `http://localhost:${port}`;
   log(`serving ${PARENT_DIR} on ${baseUrl} (seed=${SEED}, iterations=${ITERATIONS}, levels=${LEVELS_PER_CHAR})`);
 
-  const browser = await chromium.launch({ headless: !HEADED });
   const results = [];
-
+  let browser;
   try {
+    browser = await chromium.launch({ headless: !HEADED });
     for (let i = 0; i < ITERATIONS; i++) {
       const iterSeed = SEED + i * 7919;
       const rng = mulberry32(iterSeed);
@@ -441,7 +441,7 @@ async function main() {
       results.push(iterResult);
     }
   } finally {
-    if (!KEEP_OPEN) await browser.close();
+    if (browser && !KEEP_OPEN) await browser.close();
     server.kill();
     await once(server, 'exit').catch(() => {});
   }
