@@ -1009,6 +1009,18 @@
   actually enforcing the boundary.
 - **Status:** IN FORCE as of 2026-07-02 for `award_ap`/`award_xp`. The broader ~12-function grant cleanup
   is scoped and safe but NOT yet applied — pending a separate explicit go-ahead.
+- **Addendum (2026-07-10):** the broader cleanup landed — `sql/migrations/2026-07-10-lock-down-remaining-
+  function-grants.sql`, mirrored into `sql/rls-policies.sql`. One nuance the original plan's "Done when"
+  wording glossed over: for the three trigger-only functions (`handle_new_user`, `add_owner_as_dm`,
+  `set_updated_at`), revoking the `PUBLIC` grant with no replacement leaves `authenticated_can_execute`
+  `false` too, not just `anon`'s — verified live post-migration. That's correct and intended (Postgres
+  rejects any direct `/rest/v1/rpc/*` call to a `returns trigger` function regardless of grant, so no role
+  ever needed explicit EXECUTE on these), it just doesn't match a literal "authenticated_can_execute=true
+  for all ~13" reading of the done-when criteria — noting it here so a future agent checking grants doesn't
+  mistake it for a regression. All 11 non-trigger functions show `anon=false` / `authenticated=true` as
+  planned; `get_advisors` post-migration shows no new findings (remaining WARNs are pre-existing and
+  out of scope: `authenticated`-callable `SECURITY DEFINER` functions, which is intentional for RPCs meant
+  to be called by signed-in users, and unrelated leaked-password-protection).
 
 ---
 ## D-GH16 · Campaign rules follow-up: live-filter pickers where a pick surface exists, not everywhere
