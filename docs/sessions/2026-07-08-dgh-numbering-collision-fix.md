@@ -47,3 +47,13 @@ live check to avoid its own drift, so it doesn't actually remove the root cause 
 Docs-only change; no `compute()`/`DATA` touched, so no engine-parity run needed. Confirmed no live
 collision exists today: `git fetch origin preview` + grepped `origin/preview`'s `DECISIONS.md` for the
 highest `D-GH<N>` before picking `D-GH30` (highest in use was D-GH29, matching the local copy).
+
+## Addendum (2026-07-10, docs-consistency audit)
+The live-remote check above still collided — a second same-day entry ("Cloud/campaign status badge")
+had independently claimed `D-GH30` and merged just ~8 minutes before this one, inside the window this
+very decision's own Why already flagged as unclosable ("the live check narrows this window but can't
+fully close it"). A 2026-07-10 docs-consistency pass found the resulting triple-`D-GH30` collision and
+renumbered per the policy this session established: `D-GH30` stayed with the earliest-merged entry
+("AP left" frozen ledger, 2026-07-08 11:25 UTC); the cloud/campaign badge became `D-GH42`; this
+numbering-policy decision itself became `D-GH43`. See its addendum in `DECISIONS.md` for the full
+account.

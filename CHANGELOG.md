@@ -15,6 +15,51 @@
   findings post-migration. Pure hygiene/defense-in-depth — none of these were actually exploitable
   (every one gates on `auth.uid()`, which is `NULL` for `anon`).
 
+- **2026-07-10 · docs — cross-check DECISIONS.md/CHANGELOG.md/roadmap and fix what they disagreed on**
+  (`AGENTS.md`, `DECISIONS.md`, `CHANGELOG.md`, `docs/PACT_ROADMAP.md`,
+  `docs/sessions/2026-07-08-dgh-numbering-collision-fix.md`,
+  `docs/sessions/2026-07-10-docs-consistency-audit.md`; no code/rules change). One-time consistency pass.
+  Found and fixed a previously-undetected **triple** `D-GH30` collision (three separate 2026-07-08
+  decisions all claimed the same number, one of them within ~8 minutes of another) — renumbered the two
+  later ones to `D-GH42`/`D-GH43` per the project's own documented renumber-on-merge fallback, with
+  addendum notes and every cross-reference updated. Also fixed `AGENTS.md`'s "Active Priorities" section
+  (still named the already-graduated engine-bridge migration as current focus, and still described
+  `DATA`/`compute`/`MUT` as unbridged) and a stale `9/0`/`5/0` engine-parity pass count in `AGENTS.md`/the
+  roadmap (11 places) that should have read the live `20/0` (`testing/expected/expected-results.csv`'s
+  current row count; `testing/README.md` already had it right). Full findings — including one
+  possibly-overstated CI-coverage CHANGELOG tag flagged but deliberately left for a human call, and a
+  spot-check confirming no other roadmap items are secretly already-done — in
+  `docs/sessions/2026-07-10-docs-consistency-audit.md`.
+- **2026-07-10 · docs — fix the same stale `9 passed / 0 failed` parity count in `docs/HOW-TO-WORK.md`**
+  (`docs/HOW-TO-WORK.md`; no code/rules change). Found during this branch's own parity verification, just
+  outside the docs-consistency audit's declared `DECISIONS.md`/`CHANGELOG.md`/roadmap scope, but the same
+  class of staleness already fixed there — both spots now correctly say **20**. The same section's
+  fixture list (only enumerates 9 of the current 20 fixtures) and `expected-results.csv` column list
+  (missing `new_engine_events_applied`) are also stale but left as a noted follow-up rather than fixed
+  here — see `docs/sessions/2026-07-10-docs-consistency-audit.md` finding 4b.
+- **2026-07-10 · docs(roadmap) — remove stale duplicate "Add Supabase advisor/log check" entry**
+  (`docs/PACT_ROADMAP.md`; no code change). The step it asked for was already added to `AGENTS.md`'s
+  per-change checklist and graduated to `CHANGELOG.md` on 2026-07-09 (commit `e770e26`) — this was a
+  leftover duplicate that never got pruned from the roadmap. No further action needed.
+- **2026-07-10 · fix(live-sheet) — reintroduce D-GH5's mobile app-shell so header/overlay buttons stop
+  sticking on scroll** (`tools/PACT-Live-Char-Sheet.html`; display-only, `DATA.version` unchanged). D-GH5's
+  static-header app-shell (body → non-scrolling flex column, `.layout` as the only scroll region) had never
+  actually landed in this file — `.top` was unconditionally `position:sticky` at all viewport widths, so
+  Export/Import/Cloud/Sheet-toggle/Campaign kept fighting the same mobile-Chrome repaint bug D-GH5 already
+  diagnosed. Added a `@media(max-width:768px)` block (placed after every base rule it overrides, so cascade
+  order doesn't silently re-enable `position:sticky`) implementing the app-shell for `.top`/`.eco`/`.bar`/
+  `.layout`, plus a simpler fix for the printable-sheet overlay's `.shtop` (AI Portrait/Print/Close) —
+  `position:static` there, so it scrolls away with the overlay's own content instead of staying pinned
+  (`#sheetview` is its own scroll container, not the window, so it doesn't need the full app-shell
+  treatment). Verified headless at 390×700 (mobile) and 1280×800 (desktop, unaffected) via Playwright:
+  header now stays put through a 400px `.layout` scroll and `.shtop` correctly scrolls off after a 300px
+  overlay scroll. Left `#lmobar` (bottom AP/Undo/Redo bar), `#buysearch` (pinned buy-list search), and
+  `#apFloat` (floating AP badge) as intentionally fixed/sticky — none are in scope per the task's own
+  "Save/Load/Share/Sheet/AI Portrait/Campaign" list. DM Console's `header.topbar` has the same unconditional
+  `position:sticky` but no existing app-shell scaffold to extend into — left out of scope as a possible
+  follow-up; CharGen already implements this exact pattern (`.stickyhead` + `.mobile-action-bar`, comment
+  "M8"), so no change needed there; index.html has no equivalent header, just transient status
+  banners (offline badge, SW-update bar), also left alone.
 - **2026-07-10 · test(e2e) — extend the character-gen e2e harness to cover DM Console's roster import**
   (`testing/scripts/random-manual-e2e.mjs`, `.github/workflows/character-gen-e2e.yml`,
   `testing/README.md`; no app code touched, `DATA.version` unchanged). DM Console's roster view needs no
@@ -523,7 +568,8 @@
   the suggested engine per task and tells the user to run `/model <engine>` first if the session isn't
   already on it, since neither skill can switch the running model itself; `run-task` restates the
   inherited suggestion before Step 4 (enter worktree) for the same reason.
-- **2026-07-08 · fix — surface cloud/campaign status in CharGen + Live Sheet** (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; display-only, no engine/`DATA.version` change; `js/engine.js` diff is empty — parity 5/0). CharGen now shows a persistent "🔒 Local only — not connected to any cloud campaign" badge in its header, and its local, text-code house-rules feature (previously labeled "🛡 Campaign" — a naming collision with the real cloud campaign system) is relabeled "🛡 House rules code" with a clarified tooltip and modal copy. Live Sheet gains a persistent status badge next to the ☁ Cloud button, outside its dropdown, showing sign-in state and — when the loaded character has a `campaign_id` — the campaign name plus whether the DM's rules were actually fetched: "☁ Campaign: <name> — DM rules active" vs a warning "⚠ Campaign: <name> — rules unavailable" if the fetch failed or returned nothing. No enforcement/validation behavior changed (`validate()`, `cloudRuleBarred()`, the live-filter pickers are untouched); the badge only reads state `refreshCloudCampaignRules()` and the cloud-character-load handler already compute. See DECISIONS.md D-GH30. Closes the "Cloud/campaign state is invisible to players" roadmap item.
+- **2026-07-08 · fix — surface cloud/campaign status in CharGen + Live Sheet** (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; display-only, no engine/`DATA.version` change; `js/engine.js` diff is empty — parity 5/0). CharGen now shows a persistent "🔒 Local only — not connected to any cloud campaign" badge in its header, and its local, text-code house-rules feature (previously labeled "🛡 Campaign" — a naming collision with the real cloud campaign system) is relabeled "🛡 House rules code" with a clarified tooltip and modal copy. Live Sheet gains a persistent status badge next to the ☁ Cloud button, outside its dropdown, showing sign-in state and — when the loaded character has a `campaign_id` — the campaign name plus whether the DM's rules were actually fetched: "☁ Campaign: <name> — DM rules active" vs a warning "⚠ Campaign: <name> — rules unavailable" if the fetch failed or returned nothing. No enforcement/validation behavior changed (`validate()`, `cloudRuleBarred()`, the live-filter pickers are untouched); the badge only reads state `refreshCloudCampaignRules()` and the cloud-character-load handler already compute. See DECISIONS.md D-GH42 (originally logged as D-GH30, renumbered — see its addendum).
+  Closes the "Cloud/campaign state is invisible to players" roadmap item.
 - **2026-07-08 · docs(skills) — fold three proven worktree gotchas into `/run-task`** (`.claude/commands/run-task.md`;
   no code/rules change). PACT sessions have independently hit and fixed three `EnterWorktree`/`preview_start`/
   `ExitWorktree` gotchas over the past week (now indexed as H-018/H-027/H-028 in the cross-project
@@ -534,7 +580,8 @@
   `preview_start`/`launch.json` caveat to Step 5, and an `ExitWorktree` refusal caveat to Step 8, so future
   `/run-task` runs don't rediscover the same three issues from scratch. `docs/sessions/2026-07-08-worktree-gotcha-docs.md`
   has the full context.
-- **2026-07-08 · docs — fix the recurring D-GH decision-number collision (D-GH30)** (`DECISIONS.md`,
+- **2026-07-08 · docs — fix the recurring D-GH decision-number collision (D-GH43, originally logged as
+  D-GH30 — itself collided and was renumbered; see its addendum)** (`DECISIONS.md`,
   `AGENTS.md`; no code/rules change). Three prior collisions (D-GH19/20, D-GH25/27, D-GH26/28) all traced to
   computing "next number = highest + 1" from a stale local read instead of the live remote. Adds a documented
   rule — check `origin/preview`'s live `DECISIONS.md` before claiming a new number — plus formalizes
