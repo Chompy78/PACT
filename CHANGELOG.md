@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-10 · test(e2e) — extend the character-gen e2e harness to cover DM Console's roster import**
+  (`testing/scripts/random-manual-e2e.mjs`, `.github/workflows/character-gen-e2e.yml`,
+  `testing/README.md`; no app code touched, `DATA.version` unchanged). DM Console's roster view needs no
+  cloud/auth — files land via a plain `<input type=file>`. The harness now exports its finished, leveled-
+  up character via the same envelope the app's own Save button builds (`_cgEnvelope()`), drops it onto
+  DM Console's real file input, switches into table view, and cross-checks the rendered roster row's
+  species/class/HP/AC/AP-available against the source tool's own numbers — the one place `dmAnalyze()`
+  could still drift from `js/engine.js` despite both going through the same bridge (D-GH36/D-GH37), since
+  the risk here is envelope-shape, not computation. Also smoke-tests the Skill Matrix/AP Ledger overlays
+  and the column-visibility toggle. DM Console's cloud/campaign features (sign-in, award AP, campaign
+  rules) are intentionally not exercised — they need a live Supabase session, not just the CDN stub.
+  Verified locally: 5/5 iterations passed across varied species/classes/levels. Also added
+  `tools/DM-Console.html` to the CI workflow's trigger paths and corrected `testing/README.md`'s stale
+  "9 passed / 0 failed" parity count to the current 20/0 baseline.
 - **2026-07-10 · feat — engine module-bridge migration complete across all three tools** (`js/engine.js`,
   `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`; parity 20/0, `DATA.version` unchanged).
   Bridged `activeEvents`/`economy`/`foldBuild` (and DM Console's `MUT`) from `js/engine.js` into Live
