@@ -15,6 +15,25 @@
   findings post-migration. Pure hygiene/defense-in-depth — none of these were actually exploitable
   (every one gates on `auth.uid()`, which is `NULL` for `anon`).
 
+- **2026-07-10 · fix(live-sheet) — reintroduce D-GH5's mobile app-shell so header/overlay buttons stop
+  sticking on scroll** (`tools/PACT-Live-Char-Sheet.html`; display-only, `DATA.version` unchanged). D-GH5's
+  static-header app-shell (body → non-scrolling flex column, `.layout` as the only scroll region) had never
+  actually landed in this file — `.top` was unconditionally `position:sticky` at all viewport widths, so
+  Export/Import/Cloud/Sheet-toggle/Campaign kept fighting the same mobile-Chrome repaint bug D-GH5 already
+  diagnosed. Added a `@media(max-width:768px)` block (placed after every base rule it overrides, so cascade
+  order doesn't silently re-enable `position:sticky`) implementing the app-shell for `.top`/`.eco`/`.bar`/
+  `.layout`, plus a simpler fix for the printable-sheet overlay's `.shtop` (AI Portrait/Print/Close) —
+  `position:static` there, so it scrolls away with the overlay's own content instead of staying pinned
+  (`#sheetview` is its own scroll container, not the window, so it doesn't need the full app-shell
+  treatment). Verified headless at 390×700 (mobile) and 1280×800 (desktop, unaffected) via Playwright:
+  header now stays put through a 400px `.layout` scroll and `.shtop` correctly scrolls off after a 300px
+  overlay scroll. Left `#lmobar` (bottom AP/Undo/Redo bar), `#buysearch` (pinned buy-list search), and
+  `#apFloat` (floating AP badge) as intentionally fixed/sticky — none are in scope per the task's own
+  "Save/Load/Share/Sheet/AI Portrait/Campaign" list. DM Console's `header.topbar` has the same unconditional
+  `position:sticky` but no existing app-shell scaffold to extend into — left out of scope as a possible
+  follow-up; CharGen already implements this exact pattern (`.stickyhead` + `.mobile-action-bar`, comment
+  "M8"), so no change needed there; index.html has no equivalent header, just transient status
+  banners (offline badge, SW-update bar), also left alone.
 - **2026-07-10 · test(e2e) — extend the character-gen e2e harness to cover DM Console's roster import**
   (`testing/scripts/random-manual-e2e.mjs`, `.github/workflows/character-gen-e2e.yml`,
   `testing/README.md`; no app code touched, `DATA.version` unchanged). DM Console's roster view needs no

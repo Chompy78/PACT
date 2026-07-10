@@ -117,36 +117,6 @@ js/engine.js). Pairs with REV-01/REV-11 — engine-parity joins CI once REV-01 m
 
 ---
 
-## Mobile sticky buttons regression (Save/Load/Share/Live Sheet/AI Portrait/Campaign) — TODO
-Branch fix/mobile-sticky-buttons. On mobile, several action buttons (Export/"Save", Import/"Load", Cloud/"Share", Sheet/"Live Sheet" toggle, AI Portrait, Campaign) stay pinned to the viewport while scrolling when they should scroll normally with the page.
-
-```text
-Context: D-GH5 (DECISIONS.md) already decided mobile (≤768px) headers use a static "app-shell" layout
-(body becomes a flex column with height:100dvh/overflow:hidden; header is a static flex:0 0 auto bar;
-.layout is the scrolling region) specifically BECAUSE position:fixed/sticky was unreliable on real mobile
-hardware. That app-shell CSS does not appear to currently exist in tools/PACT-Live-Char-Sheet.html — the
-header bar `.top` is `position:sticky;top:0` (~line 58) and `#lmobar` (bottom AP/Undo/Redo bar) is
-`position:fixed` (~line 97), both unconditional, not scoped out on mobile.
-
-1. Audit tools/PACT-Live-Char-Sheet.html for sticky/fixed rules affecting the button bar(s): `.top`
-   (line ~58, contains Undo/Redo/Export/Import/Cloud/Sheet/More→Campaign), `#lmobar` (line ~97),
-   `#buysearch` (line ~85), `#apFloat` (line ~278), `.shtop` (line ~164, AI Portrait/Print/Close inside
-   the printable sheet overlay).
-2. Determine whether D-GH5's app-shell layout was reverted, never fully implemented, or superseded by a
-   later change (check CHANGELOG.md / git history for `.top`/`position:sticky` edits after D-GH5 landed).
-3. Fix so these buttons are NOT sticky/fixed on mobile — reintroduce D-GH5's static-header app-shell
-   pattern (or equivalent) at the ≤768px breakpoint, matching the already-decided approach rather than
-   inventing a new one.
-4. Also check index.html and tools/DM-Console.html / tools/PACT-CharGen-Webtool.html for the same
-   unconditional sticky/fixed buttons on their action bars — fix any found with the same pattern for
-   consistency, or note in the PR if they're intentionally sticky and out of scope.
-5. Do not change desktop behaviour (D-GH5 keeps position:sticky + window scroll on desktop) or engine/rules
-   logic. Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-**Done when:** on a real mobile viewport (≤768px), Save/Export, Load/Import, Share/Cloud, Live Sheet/Sheet toggle, AI Portrait, and Campaign buttons scroll out of view with the page instead of staying pinned; desktop layout unchanged; parity still 5/0.
-
----
-
 ## Feature: Clone campaign character to standalone — TODO
 Branch feat/clone-char-standalone. Let a player copy their campaign-linked character into a new standalone (non-campaign) character they own outright.
 
