@@ -17,6 +17,16 @@
   cycle); verified fixed the same way — stable at the mathematically correct total across 4 repeated round
   trips. `engine-parity` 20/0.
 
+- **2026-07-10 · test(ci) — headless Playwright e2e for character gen + advancement (REV-11)**
+  (new `testing/scripts/random-manual-e2e.mjs`, `testing/package.json`; new
+  `.github/workflows/character-gen-e2e.yml`; `testing/README.md`; no app code touched). Randomly drives
+  the real CharGen and Live Sheet UI — species/class selects, ability steppers, skill checkboxes, the
+  "Open in Live Sheet"/"Open in CharGen" switch buttons, "+ Award AP", "Level up", buy-panel tiles — with
+  its own randomization (never the app's `randomizeBuild()`), and checks the result stays within budget
+  and free of unresolved rule warnings. Runs in CI on PRs touching the two tools or `js/engine.js`/
+  `js/character-store.js`. Stubs the CDN-hosted Supabase client (`js/supabase-client.js`'s `esm.sh`
+  import) so engine boot works offline/in restricted network environments — Supabase is optional, the app
+  already runs fully offline against `localStorage`.
 - **2026-07-10 · refactor(save-format) — one unified save/export file for both tools (D-GH40)**
   (`js/character-store.js`, `tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; no rules
   change; `DATA.version` unchanged). Replaces three divergent save/export shapes — one of which
