@@ -1,10 +1,11 @@
-const CACHE_NAME = 'pact-v2';
+const CACHE_NAME = 'pact-v3';
 
 const PRE_CACHE = [
   '/PACT/',
   '/PACT/index.html',
   '/PACT/login.html',
   '/PACT/js/engine.js',
+  '/PACT/js/character-store.js',
   '/PACT/js/supabase-client.js',
   '/PACT/js/auth.js',
   '/PACT/js/sync.js',
