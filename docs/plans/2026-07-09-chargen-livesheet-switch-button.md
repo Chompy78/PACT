@@ -231,10 +231,20 @@ say so briefly rather than inventing concerns — false findings cost an impleme
 
 ---
 
-## Review outcome (fill in after review + implementation)
-- Reviewer findings: <N> → accept <A> / reject <R> / defer+convert <C>
-- Materially changed the plan? <yes/no — one line>
-- Without the review, what would have happened: <one line>
+## Review outcome (filled in after implementation — Slices 0–1)
+- Reviewer findings: 2 cold reviews (~25 combined) + 1 code-verified Opus pass. Accept ~all; 1 disagreement
+  (query-param) resolved to per-transfer UUID key by the task owner; 0 rejected; cloud/campaign split out as
+  Slice 2 (deferred).
+- Materially changed the plan? Yes — untagged single-key unexpiring payload with implicit boot order →
+  schema'd per-transfer keys, explicit expiry + orphan sweep, explicit boot precedence, defined failure
+  handling; plus shared-module-first sequencing so the switch is built on `js/character-store.js` rather
+  than hand-copied into two files.
+- Without the review: would have shipped a race-prone single key, an id-loss bug (branch-2 reuse), no
+  corrupt/stale handling, and cloud risk bundled into the local feature's release gate.
+- Implemented: Slice 0 (shared module — verified in a real browser: exports present, payload round-trips,
+  consume-once deletes the key) + Slice 1 (buttons + boot-consume, both tools — constituent pieces
+  browser-verified, classic scripts syntax-clean). Logged as D-GH38. Slice 2 and the two ride-along
+  cleanups remain open (see D-GH38 Status).
 
 ### Prior-review record (already completed, pre-restructure)
 - **Two independent cold reviews** on the earlier (non-sliced, single-key) draft, heavy agreement: added

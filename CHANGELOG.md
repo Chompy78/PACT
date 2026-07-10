@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-09 · feat(tools) — one-click switch between CharGen and Live Sheet on a shared
+  `js/character-store.js` (D-GH38)** (new `js/character-store.js`; `tools/PACT-CharGen-Webtool.html`,
+  `tools/PACT-Live-Char-Sheet.html`; `service-worker.js` precache + `CACHE_NAME` v2→v3; no rules change,
+  `DATA.version` unchanged). Each tool gains an "Open in Live Sheet" / "Open in CharGen" button that carries
+  the current character straight to the other tool — no file export/import. **Slice 0:** a shared module
+  owns the tool-agnostic handoff transport (`writeHandoff`/`takeHandoff`/`sweepExpiredHandoffs`) plus the
+  now-deduplicated `genCharId`; both tools import it (starts correcting the `js/`-shared / `tools/`-UI-only
+  rule for persistence). **Slice 1:** the buttons + boot-consume — a same-origin `localStorage`
+  per-transfer-key baton (`pact:handoff:<uuid>`, `?handoff=<uuid>` flag only), consume-once, 2-min expiry,
+  orphan-key sweep on boot, `?handoff` stripped via `replaceState`. CharGen consumes via the existing
+  verbatim `_cgApplyEnvelope` (preserves id); file export/import kept alongside (relabeled "LS file").
+  Slice 2 (cloud/campaign round-trip) deferred, isolated so it never blocks the local feature. Two
+  ride-along cleanups named but scoped out (dead `_cgBoot` LOG-regeneration scaffolding; wiring
+  `creationLocked` into the switch). Plan + two cold reviews + Opus verification pass:
+  `docs/plans/2026-07-09-chargen-livesheet-switch-button.md`.
+
 - **2026-07-09 · refactor(tools) — bridge foldBuild/activeEvents/economy to js/engine.js in Live Sheet +
   DM Console (D-GH37)** (`tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`; no `compute()`/`DATA`
   table change; `engine-parity` 20/0). Both tools' local, hand-copied `foldBuild`/`activeEvents`/`economy`
