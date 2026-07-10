@@ -30,6 +30,13 @@
   possibly-overstated CI-coverage CHANGELOG tag flagged but deliberately left for a human call, and a
   spot-check confirming no other roadmap items are secretly already-done — in
   `docs/sessions/2026-07-10-docs-consistency-audit.md`.
+- **2026-07-10 · docs — fix the same stale `9 passed / 0 failed` parity count in `docs/HOW-TO-WORK.md`**
+  (`docs/HOW-TO-WORK.md`; no code/rules change). Found during this branch's own parity verification, just
+  outside the docs-consistency audit's declared `DECISIONS.md`/`CHANGELOG.md`/roadmap scope, but the same
+  class of staleness already fixed there — both spots now correctly say **20**. The same section's
+  fixture list (only enumerates 9 of the current 20 fixtures) and `expected-results.csv` column list
+  (missing `new_engine_events_applied`) are also stale but left as a noted follow-up rather than fixed
+  here — see `docs/sessions/2026-07-10-docs-consistency-audit.md` finding 4b.
 - **2026-07-10 · docs(roadmap) — remove stale duplicate "Add Supabase advisor/log check" entry**
   (`docs/PACT_ROADMAP.md`; no code change). The step it asked for was already added to `AGENTS.md`'s
   per-change checklist and graduated to `CHANGELOG.md` on 2026-07-09 (commit `e770e26`) — this was a
