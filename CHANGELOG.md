@@ -36,7 +36,11 @@
   clone list's row markup is now a shared `buildCharRow()` helper (computes each character's escaped name
   once instead of twice), a successful clone updates the local character list in place instead of
   re-fetching the whole list from the server, and the clone no longer JSON-round-trips `stats` purely for
-  a defensive copy it didn't need (the source read is already a fresh, unaliased object).
+  a defensive copy it didn't need (the source read is already a fresh, unaliased object). A retry after a
+  failed clone now reuses the same pending clone id instead of minting a fresh one each click — the first
+  failed attempt already wrote a dirty local record before the network push failed, so retrying with a new
+  id would have left that one behind as an invisible orphan that later syncs up as a duplicate character;
+  the id is cleared once a clone actually succeeds.
 - **2026-07-11 · docs(chargen) — fix stale/misleading comment on `PATCH_SLOTS.IDENTITY`**
   (`tools/PACT-CharGen-Webtool.html`; comment-only, no logic touched, `DATA.version` unchanged). A
   dead-code audit flagged the field as a removal candidate because its own comment said "otherwise

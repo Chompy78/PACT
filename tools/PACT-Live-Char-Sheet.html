@@ -1444,6 +1444,10 @@ document.addEventListener('sync-ready', function () {
   var _cloningIds   = new Set(); // character ids with a clone-to-standalone in flight — persists
                                   // across renderCloudMenu() rebuilds so reopening the ☁ menu mid-clone
                                   // can't start a second concurrent clone of the same character
+  var _pendingCloneIds = {};     // sourceCid -> the new clone's id, kept ONLY across a failed attempt
+                                  // so a retry re-targets the same (already-locally-saved) clone instead
+                                  // of minting a second one and leaving the first as an orphan; cleared
+                                  // on success (same memoized-id pattern as currentCharId()/__charId)
 
   function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -1642,8 +1646,14 @@ document.addEventListener('sync-ready', function () {
             } catch(histErr) { /* non-fatal — clone still proceeds without the itemized migration */ }
 
             var cloneName = (rec.name||srcName||'Character')+' (standalone copy)';
+            // Reuse the same new-character id across a retry instead of minting a fresh one
+            // every click: saveCharacter() writes to localStorage before it even attempts the
+            // network push, so a failed attempt already left a dirty local record behind under
+            // its id — retrying with a NEW id would leave that first one as an orphan that
+            // later syncs up as an invisible duplicate. Cleared on success, below.
+            var newId = _pendingCloneIds[cid] || (_pendingCloneIds[cid] = S.newCharacterId());
             var res = await S.saveCharacter({
-              id: S.newCharacterId(),
+              id: newId,
               name: cloneName,
               kind: 'livesheet',
               stats: clonedStats
@@ -1652,6 +1662,7 @@ document.addEventListener('sync-ready', function () {
               // it's migrated above as ordinary itemized log entries instead.
             });
             if(res.error) throw res.error;
+            delete _pendingCloneIds[cid];
             if(typeof window.flash === 'function') window.flash(res.synced
               ? '⧉ Cloned to a standalone character'
               : '⧉ Cloned locally (offline — will sync to the cloud when online)');
