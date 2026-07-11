@@ -5,17 +5,22 @@
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
 - **2026-07-11 · feat(livesheet) — clone a campaign character to a standalone character**
-  (`tools/PACT-Live-Char-Sheet.html`; Cloud menu's character list). Campaign-linked characters get a
-  "⧉ Clone to standalone" action that copies the raw build data (stats/event log) into a brand-new
-  character record owned by the player, not tied to any campaign. `ap` and `campaign_id` are omitted
-  from the insert so the server applies its defaults (`0` / `NULL`) — `ap` is DM-authoritative and never
-  carries over outside a campaign. The original campaign character is left untouched: the source read
-  uses a new pure-read `peekCharacter()` (`js/sync.js`) instead of `loadCharacter()`, since the latter's
-  `reconcile()` can silently push this device's pending local edits to the server as a side effect —
-  which would have contradicted the "original untouched" guarantee. Also guards against duplicate
-  clones (an in-flight lock survives the Cloud menu being closed/reopened mid-clone) and shows an
-  accurate "saved locally, will sync when online" flash instead of a false success message when
-  offline. Display-only; `DATA.version` unchanged.
+  (`tools/PACT-Live-Char-Sheet.html`, `js/sync.js`, `js/dm.js` import; D-GH-2026-07-11-clone-campaign-
+  character-standalone). Campaign-linked characters get a "⧉ Clone to standalone" action that copies the
+  raw build data (stats/event log) into a brand-new character record owned by the player, not tied to any
+  campaign. `campaign_id` is omitted from the insert so the server defaults it to `NULL`; the verified,
+  DM-Console-only `characters.ap` running total also resets to `0` on the new row (no DM is left to vouch
+  for it), but any AP that DM actually awarded isn't lost — the clone fetches the source character's full
+  `ap_awards` history and appends one itemized log entry per award (real date, amount, DM, note),
+  oldest-first, after the existing history. The original campaign character is left untouched: the
+  source read uses a new pure-read `peekCharacter()` (`js/sync.js`) instead of `loadCharacter()`, since
+  the latter's `reconcile()` can silently push this device's pending local edits to the server as a side
+  effect — which would have contradicted the "original untouched" guarantee. Also guards against
+  duplicate clones (an in-flight lock survives the Cloud menu being closed/reopened mid-clone) and shows
+  an accurate "saved locally, will sync when online" flash instead of a false success message when
+  offline. Display-only; `DATA.version` unchanged. See `DECISIONS.md` for the append-vs-splice reasoning
+  (the migrated awards are never inserted into the log's historical positions, to avoid retroactively
+  repricing an already-frozen purchase — the same class of risk documented in D-GH34/36/37).
 - **2026-07-11 · docs(chargen) — fix stale/misleading comment on `PATCH_SLOTS.IDENTITY`**
   (`tools/PACT-CharGen-Webtool.html`; comment-only, no logic touched, `DATA.version` unchanged). A
   dead-code audit flagged the field as a removal candidate because its own comment said "otherwise
