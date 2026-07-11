@@ -15,6 +15,8 @@
 // so the classic scripts can call these; UI boot is already gated on engine-ready, so the
 // functions are guaranteed present before boot runs.
 
+import { signPayload, verifyPayload } from './engine.js';   // tamper-evident save signing (D-GH48, Feature B)
+
 // Stable per-character id. Migrated verbatim from the byte-identical copies previously
 // duplicated in both tools — the first shared primitive, establishing the pattern.
 export function genCharId() {
@@ -35,8 +37,18 @@ export const CHAR_SCHEMA = 'pact-character/1';
 // Build the canonical envelope. `budget` is deliberately NOT included — Phase 2 Step 5 already made it
 // fully derivable from the LOG's own `award` event (`economy(LOG).earned`), so it's redundant state that
 // can drift; the Live Sheet's native save already omits it today with no ill effect.
-export function buildCharacterEnvelope({ name, rules, LOG, SEQ, id }) {
-  return { schema: CHAR_SCHEMA, rules, name: name || '', LOG, SEQ, id };
+//
+// The envelope is SIGNED BY DEFAULT (D-GH48): signPayload() stamps a `sig` field so a hand-edited or
+// corrupted save/export is detectable on load (tamper-evident, not tamper-proof — see engine.js). Signing
+// is the default because a file that *leaves* the tool must be signed, and defaulting-on means a future
+// export path is covered without anyone remembering to opt in. Pass `{ sign: false }` for the throwaway
+// localStorage copies (CharGen autosave, Live Sheet local save) — those are never signature-checked on the
+// way back in (the local load reads LOG directly), so signing them on every keystroke/buy is wasted work.
+// `sig` is metadata the engine never reads, so a signed envelope prices and rebuilds identically to an
+// unsigned one; older/unsigned files still load (verify → 'unsigned').
+export function buildCharacterEnvelope({ name, rules, LOG, SEQ, id }, { sign = true } = {}) {
+  const envelope = { schema: CHAR_SCHEMA, rules, name: name || '', LOG, SEQ, id };
+  return sign ? signPayload(envelope) : envelope;
 }
 
 // Parse + validate a would-be character file/envelope. Returns the parsed object on success (schema
@@ -47,6 +59,24 @@ export function readCharacterEnvelope(json) {
   try { d = typeof json === 'string' ? JSON.parse(json) : json; } catch (e) { return null; }
   if (!d || d.schema !== CHAR_SCHEMA || !Array.isArray(d.LOG)) return null;
   return d;
+}
+
+// Tamper-evidence verdict for a would-be character file (D-GH48) — the read-side mirror of
+// buildCharacterEnvelope's signing. Every tool's file-read path routes through this ONE function instead
+// of poking at verifyPayload().status itself, so the "is this file tampered?" predicate is defined once
+// and a new reader is covered by calling it. Never throws. Returns:
+//   { status, tampered, envelope }
+// where status is verifyPayload()'s ('unsigned'|'ok'|'tampered'|'unknown-alg', or 'unparseable' for bad
+// JSON), `tampered` is the single boolean tools branch on, and `envelope` is the parsed object (or null).
+// Deliberately NON-blocking and schema-agnostic: it reports, it does not reject — an unsigned or
+// legacy-shaped file still returns its verdict and is loaded by the caller. (The cloud/sync load path is
+// out of scope: those rows are server-authoritative under Supabase RLS, a different trust boundary.)
+export function verifyCharacterEnvelope(json) {
+  let d;
+  try { d = typeof json === 'string' ? JSON.parse(json) : json; }
+  catch (e) { return { status: 'unparseable', tampered: false, envelope: null }; }
+  const v = verifyPayload(d);
+  return { status: v.status, tampered: v.status === 'tampered', envelope: d };
 }
 
 // ---- tool-to-tool handoff (the "Open in the other tool" switch) ----

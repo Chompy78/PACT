@@ -42,17 +42,7 @@ independently of the remaining `feat/engine-bridge-all-tools` work.
 **Done when:** editing a value in js/ap-by-level.js changes the default budget / level options in every tool
 that's on the shared engine, with no other code change; engine API stable; parity passes.
 
-## Feature B — Save-file integrity (tamper-evidence) — TODO
-Branch `feat/save-integrity`. **Do AFTER Feature A.** Engine first (sign/verify helpers), then the tools.
-```
-Sign each save; Live Sheet flags edited/corrupted files on load (non-blocking); DM Console badges them;
-CharGen exports signed too. Tamper-EVIDENT, not tamper-proof (client-side) — the offline stopgap before
-the Supabase enforcement phase. Engine: sign/verify helpers. Tools: Live Sheet save/load flag, DM Console
-badge, CharGen sign. Full spec: IMPLEMENT-save-integrity.md (+ ENGINE-INTEGRITY-prompt.md).
-```
-**Done when:** a signed save verifies clean; a hand-edited save is flagged on load (without blocking) and
-badged in DM Console; CharGen exports are signed; parity stays 20/0.
-⚠️ Log under a **NEW** decision code (**D-GH10** — the draft's "D-GH4" is taken).
+---
 
 ## Feature: Clone campaign character to standalone — TODO
 Branch feat/clone-char-standalone. Let a player copy their campaign-linked character into a new standalone (non-campaign) character they own outright.
