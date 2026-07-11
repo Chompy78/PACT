@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · docs(sessions) — add session note for the communication-conventions fix (D-GH46)**
+  (`docs/sessions/2026-07-11-communication-conventions.md`; no app code touched, `DATA.version`
+  unchanged). Records the diagnosis (a live `AskUserQuestion` failure, `close-session.md`'s flat list
+  working exactly as written, and no durable home for a stated preference) and the judgment calls made
+  along the way (where the preference persists, the retry-must-be-genuine correction, the
+  recommend-by-default bar) — the plan changing mid-session to fix the tooling itself, plus several
+  reasonably-second-guessable decisions, both trigger a session note per this repo's own convention.
+
 - **2026-07-11 · docs(process) — communication conventions: recommend-with-reasoning + `AskUserQuestion`
   reliability** (D-GH46; `AGENTS.md`, `.claude/commands/pick-task.md`, `.claude/commands/close-session.md`;
   no app code touched, `DATA.version` unchanged). Three related conventions, all motivated by real
