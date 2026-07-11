@@ -1702,10 +1702,12 @@ function _cgWireRowReconcileDelegation(){
 // the other field's prior contribution would be silently dropped from LOG on the next fold.
 //
 // Field-taxonomy gap found during implementation: originClass/originClass2/species/species2 are real
-// Category B coalescing-patch fields (confirmed via _buildEventBurst's emitPatch calls) but are absent
-// from every category (A-G) in the cold-reviewed plan's field enumeration. PATCH_SLOTS.IDENTITY exists
-// and is otherwise unused — treated as its intended purpose, grouped here with `size` (another orphaned
-// field, also missing from the plan's taxonomy). `name` is deliberately NOT included here — it uses a
+// Category B coalescing-patch fields (confirmed via _buildEventBurst's emitPatch calls) but were absent
+// from every category (A-G) in the cold-reviewed plan's original field enumeration. PATCH_SLOTS.IDENTITY
+// was defined for exactly this case but the plan never assigned fields to it — this is where it's put to
+// its intended use, grouped here with `size` (another field the plan's taxonomy missed). Both are live,
+// actively-wired fields (see PATCH_FIELD_SLOT below and the IDENTITY case in _cgSlotPatch), not dead code.
+// `name` is deliberately NOT included here — it uses a
 // different event mechanism entirely (`type:'name'`, handled directly by foldBuild()'s core replay loop,
 // not `cat:'patch'`/`_slot`), so wiring it through replacePatchSlot() would be a mismatch; deferred to
 // Chunk 5 (Category E), which already needs new event-vocabulary decisions for whole-build replacement.
