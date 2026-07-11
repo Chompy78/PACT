@@ -125,6 +125,27 @@ export async function loadCharacter(id) {
   return lsGet(id);
 }
 
+/** Read-only fetch: returns the freshest known copy of a character without ever
+ *  writing back to the server or localStorage — unlike loadCharacter(), this never
+ *  calls reconcile()/pushCharacter(), so it's safe to use when the caller must not
+ *  risk mutating the record as a side effect (e.g. reading a character purely to
+ *  clone its data elsewhere). Prefers the local copy (it reflects this device's
+ *  latest edits, synced or not); falls back to a direct server read only when
+ *  nothing is cached locally yet. */
+export async function peekCharacter(id) {
+  const local = lsGet(id);
+  if (local) return local;
+  if (navigator.onLine && await currentUser()) {
+    const { data, error } = await supabase
+      .from('characters')
+      .select('id, name, kind, stats, ap, campaign_id, updated_at')
+      .eq('id', id)
+      .maybeSingle();
+    if (!error) return data;
+  }
+  return null;
+}
+
 /** Reconcile a single id between local and server (last-write-wins; ap = server). */
 async function reconcile(id) {
   if (lsDeletes().includes(id)) { await replayDelete(id); return; }
