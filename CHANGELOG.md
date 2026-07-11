@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · docs(sessions) — add session note for the AUD-1 health-check task (D-GH47)**
+  (`docs/sessions/2026-07-11-aud1-health-check.md`; no app code touched, `DATA.version` unchanged).
+  Records three roadmap-spec reinterpretations, a `/code-review high` pass that found and fixed six real
+  bugs in the new `testing/scripts/audit.py`, a same-day D-GH46 numbering collision with a concurrent
+  session's PR #160 (renumbered to D-GH47), and a rebase that reported "no conflicts" while silently
+  leaving a duplicate/orphaned `DECISIONS.md` title line — caught only by reading the merged content
+  directly rather than trusting the rebase's own success message.
+
 - **2026-07-11 · docs(sessions) — add session note for the communication-conventions fix (D-GH46)**
   (`docs/sessions/2026-07-11-communication-conventions.md`; no app code touched, `DATA.version`
   unchanged). Records the diagnosis (a live `AskUserQuestion` failure, `close-session.md`'s flat list
