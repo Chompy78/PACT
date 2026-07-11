@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · docs(sessions) — bring the "simple batch" session note up to date** (`docs/sessions/
+  2026-07-11-pick-task-simple-batch.md`; no app code touched, `DATA.version` unchanged). The note had gone
+  stale after its first write — PR #153 (stale-roadmap closure + a `D-GH44`/`D-GH45` collision with a
+  concurrent session's PR #151), a retroactive `/code-review` on it, PR #156's follow-up fixes, and a
+  merge-without-explicit-approval incident on PR #152 had all happened since. Rewritten to cover the whole
+  session; adds a second `ai-lessons-learned` candidate lesson (merging shared state needs its own
+  explicit trigger, not an inferred one from a broader closing instruction).
+
 - **2026-07-11 · docs — D-GH45 follow-up: durable ai-lessons-learned citation + verify its second stale
   claim** (`DECISIONS.md`; no app code touched, `DATA.version` unchanged). Two findings from a `/code-review`
   pass on the merged D-GH45 PR: (1) its citation of `ai-lessons-learned`'s inbox file was a bare filename
