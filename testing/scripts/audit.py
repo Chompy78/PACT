@@ -61,9 +61,14 @@ TOOLS = ["tools/PACT-CharGen-Webtool.html",
          "tools/PACT-Live-Char-Sheet.html",
          "tools/DM-Console.html"]
 
-# Engine symbols the tools must IMPORT (never re-define locally, or they can drift).
-ENGINE_SYMBOLS = ["DATA", "compute", "baseBuild", "MUT",
-                  "foldBuild", "activeEvents", "economy"]
+# Engine symbols every tool must IMPORT from js/engine.js.
+REQUIRED_IMPORTS = ("DATA", "compute", "MUT")
+
+# Engine symbols that must never be locally re-defined (the drift-prone rules/data
+# symbols). foldBuild/activeEvents/economy are deliberately excluded — see
+# check_engine_bridge()'s block comment for why (D-GH37 index-adapter wrappers
+# delegate to the engine and are not drift).
+GUARDED_SYMBOLS = ("DATA", "MUT", "compute", "baseBuild")
 
 ASSET_SIZE_LIMIT = 100 * 1024  # 100 KB — media assets above this are warned about
 IMAGE_EXTS = {".webp", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico"}
@@ -204,17 +209,22 @@ def check_manifest(rep):
     except (OSError, ValueError) as exc:
         rep.fail("could not read/parse manifest.json: %s" % exc)
         return
-    for field in ("name", "short_name", "start_url", "scope", "display", "icons"):
-        if field not in man:
+    required = ("name", "short_name", "start_url", "scope", "display", "icons")
+    missing_fields = {f for f in required if f not in man}
+    for field in required:
+        if field in missing_fields:
             rep.fail("manifest missing required field: %s" % field)
-    if man.get("start_url") == URL_PREFIX:
-        rep.ok("start_url = %s" % URL_PREFIX)
-    else:
-        rep.fail("start_url is %r, expected %r" % (man.get("start_url"), URL_PREFIX))
-    if man.get("scope") == URL_PREFIX:
-        rep.ok("scope = %s" % URL_PREFIX)
-    else:
-        rep.fail("scope is %r, expected %r" % (man.get("scope"), URL_PREFIX))
+    # A field already reported missing above gets no second, redundant value-mismatch FAIL.
+    if "start_url" not in missing_fields:
+        if man.get("start_url") == URL_PREFIX:
+            rep.ok("start_url = %s" % URL_PREFIX)
+        else:
+            rep.fail("start_url is %r, expected %r" % (man.get("start_url"), URL_PREFIX))
+    if "scope" not in missing_fields:
+        if man.get("scope") == URL_PREFIX:
+            rep.ok("scope = %s" % URL_PREFIX)
+        else:
+            rep.fail("scope is %r, expected %r" % (man.get("scope"), URL_PREFIX))
     icons = man.get("icons", [])
     if any("maskable" in (ic.get("purpose") or "") for ic in icons):
         rep.ok("a maskable icon is declared")
@@ -234,9 +244,31 @@ def check_sw_registration(rep):
             rep.fail("%s does not register the service worker" % page)
 
 
+def _has_top_level_skipwaiting(text):
+    """True if 'skipWaiting(' appears at script-global scope (curly-brace depth 0).
+
+    A call there runs unconditionally on load, outside any event handler at all —
+    not even reachable-gated by an event firing, which is worse than an unconditional
+    call merely inside the install handler.
+    """
+    depth = 0
+    for i, ch in enumerate(text):
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+        elif depth == 0 and text.startswith('skipWaiting(', i):
+            return True
+    return False
+
+
 def check_sw_install_no_skipwaiting(rep):
     rep.group("service-worker install handler")
     sw = read("service-worker.js")
+    if _has_top_level_skipwaiting(sw):
+        rep.fail("top-level self.skipWaiting() call outside any event handler "
+                 "(runs unconditionally, no gating at all)")
+        return
     install = re.search(r"addEventListener\(\s*['\"]install['\"]", sw)
     if not install:
         rep.fail("no install handler found in service-worker.js")
@@ -275,24 +307,34 @@ def check_engine_bridge(rep):
     # delegate to the engine — no rules logic, no drift). See D-GH37.
     # -------------------------------------------------------------------
     rep.group("engine-symbol drift guard")
+    # Any const/let/var declaration or named `function` sharing a guarded symbol's
+    # name is suspect regardless of the RHS shape — an object literal, an arrow
+    # function, or a `function` expression are all real drift risks (a re-pasted
+    # `const compute = (b) => {...}` is exactly what this guard exists to catch).
+    guarded_alt = "|".join(re.escape(s) for s in GUARDED_SYMBOLS)
     local_def = re.compile(
-        r"\b(?:const|let|var)\s+(DATA|MUT|compute|baseBuild)\s*=\s*\{"
-        r"|\bfunction\s+(compute|baseBuild)\s*\(")
+        r"\b(?:const|let|var)\s+(%s)\b|\bfunction\s+(%s)\s*\("
+        % (guarded_alt, guarded_alt))
+    # findall (not search): a tool may split its engine import across more than
+    # one `import { ... } from '../js/engine.js'` statement, and every statement's
+    # symbols must be unioned before checking for a missing one.
     import_re = re.compile(r"import\s*\{([^}]*)\}\s*from\s*['\"]\.\./js/engine\.js['\"]")
     for tool in TOOLS:
         src = read(tool)
         name = Path(tool).name
-        m = import_re.search(src)
-        if not m:
+        groups = import_re.findall(src)
+        if not groups:
             rep.fail("%s does not import from ../js/engine.js" % name)
         else:
-            imported = {s.split(" as ")[0].strip() for s in m.group(1).split(",")}
-            missing = [s for s in ("DATA", "compute", "MUT") if s not in imported]
+            imported = set()
+            for group in groups:
+                imported |= {s.split(" as ")[0].strip() for s in group.split(",") if s.strip()}
+            missing = [s for s in REQUIRED_IMPORTS if s not in imported]
             if missing:
                 rep.fail("%s import is missing engine symbol(s): %s"
                          % (name, ", ".join(missing)))
             else:
-                rep.ok("%s imports DATA/compute/MUT from the engine" % name)
+                rep.ok("%s imports %s from the engine" % (name, "/".join(REQUIRED_IMPORTS)))
         hits = {a or b for a, b in local_def.findall(src)}
         if hits:
             rep.fail("%s locally re-defines engine symbol(s): %s (drift risk)"
@@ -339,16 +381,24 @@ def _rls_patch(url, key, jwt, payload):
         return exc.code, exc.read().decode("utf-8", "replace")
 
 
-def _rls_rejected(status, body):
-    """A write is 'rejected' when the server errors (>=400) or returns zero rows.
+def _write_took_effect(status, body, field, forbidden_value):
+    """True only if the PATCH actually applied `field = forbidden_value` to a row.
 
-    With Prefer: return=representation, a successful write echoes the row; an
-    RLS/column-grant block returns HTTP 4xx or a 200 with an empty array.
+    With Prefer: return=representation, a write that went through echoes the updated
+    row(s), so we check the echoed value directly rather than inferring success from
+    "the body is non-empty" — a non-empty 200 that echoes the row UNCHANGED (e.g. a
+    trigger/rule silently no-ops the forbidden column while the rest of the same
+    PATCH still applies) must not be reported as the write having succeeded.
     """
     if status >= 400:
-        return True
-    body = (body or "").strip()
-    return body in ("", "[]")
+        return False
+    try:
+        rows = json.loads(body) if (body or "").strip() else []
+    except ValueError:
+        return False
+    if isinstance(rows, dict):
+        rows = [rows]
+    return any(isinstance(r, dict) and r.get(field) == forbidden_value for r in rows)
 
 
 def check_rls(rep):
@@ -366,19 +416,19 @@ def check_rls(rep):
 
     # (a) player writing the DM-only characters.ap column must be rejected
     status, body = _rls_patch(endpoint, key, jwt, {"ap": 999999})
-    if _rls_rejected(status, body):
-        rep.ok("write to characters.ap rejected (status %s)" % status)
-    else:
+    if _write_took_effect(status, body, "ap", 999999):
         rep.fail("SECURITY: player write to characters.ap SUCCEEDED (status %s): %s"
                  % (status, body[:200]))
+    else:
+        rep.ok("write to characters.ap rejected (status %s)" % status)
 
     # (b) player attaching a character to a campaign they never joined must be rejected
     status, body = _rls_patch(endpoint, key, jwt, {"campaign_id": foreign_campaign})
-    if _rls_rejected(status, body):
-        rep.ok("setting campaign_id to an unjoined campaign rejected (status %s)" % status)
-    else:
+    if _write_took_effect(status, body, "campaign_id", foreign_campaign):
         rep.fail("SECURITY: player set campaign_id to an unjoined campaign (status %s): %s"
                  % (status, body[:200]))
+    else:
+        rep.ok("setting campaign_id to an unjoined campaign rejected (status %s)" % status)
 
 
 # ---------------------------------------------------------------------------

@@ -30,7 +30,10 @@
   a formatting one.
 - **Status:** DONE. Docs-only; no `js/engine.js` or `DATA.version` change; `testing/tests/engine-parity.html`
   unaffected.
-## D-GH46 · AUD-1 health-check: MUT-drift check reshaped into an engine-symbol drift guard; asset-size is a warning; RLS proof uses stdlib urllib
+
+---
+
+## D-GH47 · AUD-1 health-check: MUT-drift check reshaped into an engine-symbol drift guard; asset-size is a warning; RLS proof uses stdlib urllib
 - **Context:** AUD-1 (`testing/scripts/audit.py`) was specced before the engine module-bridge migration
   finished. Three of its bullets no longer match the code as written, so implementing them literally would
   be wrong or misleading.
@@ -61,6 +64,22 @@
 - **Status:** In force. Verified: clean tree → 20 passed / 0 failed, exit 0; planted breaks (missing
   PRE_CACHE file; reintroduced local `MUT`) → exit 1; RLS rejection logic unit-tested. `js/engine.js` and
   `DATA.version` untouched; engine-parity unaffected.
+- **Addendum (same day, `/code-review high` before merge):** the drift-guard regex above required an
+  object-literal RHS (`= {`), which missed a re-pasted `const compute = (b) => {...}` — the exact drift
+  the guard exists to catch. Fixed by matching the declaration alone regardless of RHS shape, driven off a
+  new `GUARDED_SYMBOLS` tuple (which also gave the previously-unused `ENGINE_SYMBOLS` constant a real
+  purpose). Separately, the RLS proof's rejection test inferred "blocked" from "response body is non-empty"
+  — a trigger that echoed the row back with the forbidden column UNCHANGED would have been misreported as
+  a successful security bypass. Fixed by parsing the echoed row and checking the actual forbidden value,
+  not just body emptiness. See `CHANGELOG.md`'s same-day fix-up entry for the full list of six fixes
+  (these two plus a top-level-`skipWaiting` gap, a split-import-statement miss, and a manifest
+  double-report). No change to this entry's other reasoning.
+- **Numbering note:** this entry was originally drafted as D-GH46, on a live-highest check that correctly
+  read D-GH45 as the top at the time. Before this branch merged, PR #160 ("Communication conventions")
+  independently claimed D-GH46 and merged into `preview` first. Per this file's documented collision
+  policy (see `AGENTS.md`'s "Multiple sessions" section): the earlier-merged entry keeps its number, so
+  D-GH46 stays with PR #160's entry, and this entry is renumbered to the next free number, D-GH47, with
+  this note as the addendum. No other content changed.
 
 ---
 
