@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · docs(process) — communication conventions: recommend-with-reasoning + `AskUserQuestion`
+  reliability** (D-GH46; `AGENTS.md`, `.claude/commands/pick-task.md`, `.claude/commands/close-session.md`;
+  no app code touched, `DATA.version` unchanged). Three related conventions, all motivated by real
+  incidents from this same session: (1) a tiered `A`/`A1`/`A2` format for presenting options, with every
+  option — not just the recommended one — carrying a one-line reason; (2) a rule that a failed
+  `AskUserQuestion` tool call is not an answer and must never be silently treated as one (retry once, wait
+  for a genuine reply, only surface failure on a second miss); (3) `/close-session`'s action list now tags
+  every item Recommended/Not-recommended with a reason, defaulting to Recommended for anything that's
+  already cleared its own gate (tests passed, review done) rather than deferring routine cleanup "to be
+  safe."
+
 - **2026-07-11 · docs(sessions) — bring the "simple batch" session note up to date** (`docs/sessions/
   2026-07-11-pick-task-simple-batch.md`; no app code touched, `DATA.version` unchanged). The note had gone
   stale after its first write — PR #153 (stale-roadmap closure + a `D-GH44`/`D-GH45` collision with a

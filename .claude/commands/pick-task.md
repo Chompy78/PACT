@@ -119,28 +119,40 @@ Then, instead of ending with plain text to copy-paste, ask with **`AskUserQuesti
 so if a batch survived, the two "run" options below replace each other's slot rather than both appearing
 alongside a 5th:
 
+Every option — not only the recommended one — gets a one-line reason in its `description` field (see
+`AGENTS.md`'s Communication conventions): a bare label isn't enough, say *why* someone would pick it.
+
 - **Question:** "Start work now?"
 - **Options (no surviving batch):**
-  1. **"Run `/run-task <type/short-slug>` now"** (Recommended) — invoke the `run-task` skill
-     immediately, in this same turn, passing `<type/short-slug>` as its sole argument.
-  2. **"Not yet"** — stop here. Don't touch anything else; tell me I can run
-     `/run-task <type/short-slug>` myself whenever I'm ready.
-  3. **"Choose a different task"** — go back to the roadmap items already gathered in Step 1 (NOW, then
-     NEXT, then LATER) and list the remaining TODO candidates as plain text (skip the one just
-     pre-flighted). Ask which one to try instead — another `AskUserQuestion` if 4 or fewer reasonable
-     candidates remain, otherwise plain text. Once I name one, go back to **Step 3** for it (re-run both
-     pre-flight checks — don't assume they still hold), then repeat this Step 4 hand-off for the new pick.
+  1. **"Run `/run-task <type/short-slug>` now"** (Recommended — pre-flight already passed, this is the
+     natural next step) — invoke the `run-task` skill immediately, in this same turn, passing
+     `<type/short-slug>` as its sole argument.
+  2. **"Not yet"** (if you want to review the pre-flight results first, or aren't ready to start) — stop
+     here. Don't touch anything else; tell me I can run `/run-task <type/short-slug>` myself whenever I'm
+     ready.
+  3. **"Choose a different task"** (if this pick isn't actually the one you wanted) — go back to the
+     roadmap items already gathered in Step 1 (NOW, then NEXT, then LATER) and list the remaining TODO
+     candidates as plain text (skip the one just pre-flighted). Ask which one to try instead — another
+     `AskUserQuestion` if 4 or fewer reasonable candidates remain, otherwise plain text. Once I name one,
+     go back to **Step 3** for it (re-run both pre-flight checks — don't assume they still hold), then
+     repeat this Step 4 hand-off for the new pick.
 - **Options (batch survived — replace option 1 above with two run variants, keep 2 and 3 as-is):**
-  1. **"Run just `<primary slug>`"** — invoke `run-task` with only the primary pick's slug, ignoring the
-     batch.
-  2. **"Batch `<primary slug>` + N more"** (Recommended) — invoke `run-task` in this same turn, passing
-     *all* surviving slugs (primary first, then each batch member) as separate space-separated arguments
-     in one call, e.g. `docs/qa-checklist docs/rules-review-note`.
-  3. **"Not yet"** — same as above.
-  4. **"Choose a different task"** — same as above; dropping into this discards the current batch too.
+  1. **"Run just `<primary slug>`"** (if you'd rather skip the batch candidates and keep this to one task)
+     — invoke `run-task` with only the primary pick's slug, ignoring the batch.
+  2. **"Batch `<primary slug>` + N more"** (Recommended — every member independently passed the same
+     quick/low-risk check, so bundling saves a rebase/test/PR cycle per task) — invoke `run-task` in this
+     same turn, passing *all* surviving slugs (primary first, then each batch member) as separate
+     space-separated arguments in one call, e.g. `docs/qa-checklist docs/rules-review-note`.
+  3. **"Not yet"** — same reasoning as above.
+  4. **"Choose a different task"** — same reasoning as above; dropping into this discards the current
+     batch too.
 
-The click itself is the confirmation — whichever "run" option comes back, invoke `run-task` right away
-without asking again.
+**If the `AskUserQuestion` call itself errors** (a permission/stream failure, not me declining an
+option), that is not an answer — retry the exact same question once and wait for a genuine reply. Never
+substitute the Recommended option (or any other guess) as if it were my answer; only tell me it failed if
+the retry also fails. Once a real answer comes back, restate it in one line ("You picked: X — doing that
+now") before invoking anything — that's the confirmation, and whichever "run" option comes back, invoke
+`run-task` right away without asking again.
 
 ---
 
