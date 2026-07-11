@@ -4,6 +4,91 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · fix(chargen) — stop the cloud-campaign UI refetching/re-rendering on every hourly token
+  refresh** (D-GH44 follow-up; `tools/PACT-CharGen-Webtool.html`; no `js/engine.js`/rules change,
+  `DATA.version` unchanged). Found by a focused post-merge `/code-review` pass on PR #151's fix/cleanup
+  commits: `updateAuth(session)` ran unconditionally on every Supabase auth event — including the
+  `autoRefreshToken`-driven `TOKEN_REFRESHED` event that fires roughly hourly for any signed-in session —
+  so once an hour the campaign `<select>` and every species/origin-class/mastery/boon picker got wiped and
+  rebuilt via `innerHTML`, a disruptive unprompted re-render that could hit a player mid-interaction. Pre-
+  existing since the original feature landed (the earlier `onAuthChange(event,session)` param-order fix
+  didn't change how often the callback fired, only what value it received). Fixed by gating the
+  refetch/rebuild on the signed-in boolean actually transitioning (`wasSignedIn` vs `nowSignedIn`) instead
+  of firing on every event — this also collapses a pre-existing redundant double-fetch on page load
+  (`onAuthChange`'s initial event and the separate `currentSession()` call both used to trigger a fetch).
+  Verified via headless Chromium: 1 `listMyCampaigns()` call on boot (was 2), 0 extra calls or picker
+  rebuilds on a simulated `TOKEN_REFRESHED`, a real sign-out/sign-in still correctly refetches and resets.
+  `testing/tests/engine-parity.html` — 20/0.
+
+- **2026-07-11 · docs(roadmap) — close the CharGen feature-autocomplete scroll-position task as stale, no
+  code change** (D-GH45; `docs/PACT_ROADMAP.md`, `DECISIONS.md`; no app code touched, `DATA.version`
+  unchanged). The `fix/chargen-feature-autocomplete-scroll-position` TODO described `_featAC`'s `place()`
+  double-counting `window.scrollY` on a `position:fixed` menu — that pattern doesn't exist in
+  `tools/PACT-CharGen-Webtool.html`'s current code (`top` is computed purely from
+  `getBoundingClientRect()`) and, per `git log -S"scrollY"`, never has. Two independent sessions
+  (2026-07-10's `ai-lessons-learned` inbox note, and this session picking the same roadmap item up fresh
+  on 2026-07-11) reached the same "doesn't reproduce" conclusion without either one removing the stale
+  entry, so it kept resurfacing for a third investigation. Removed with no code fix, since there's nothing
+  to fix.
+
+- **2026-07-11 · fix(live-sheet) — "Level up" buy-tile stays free and clickable past Hit Die 20**
+  (`tools/PACT-Live-Char-Sheet.html`; UI-only, `DATA.version` unchanged — `DATA.levelAP` already stops at
+  20). The buy-panel's "Level up → Hit Die N" tile priced past HD 20 via a generic `compute()` diff that
+  silently fell through to 0 AP once `DATA.levelAP` ran out of entries, letting a character level up for
+  free with no bound — `levelDelta()` already returned 0 at the cap (used elsewhere to detect "at cap"),
+  but the tile itself wasn't gated on it, even though the buy-panel builder already computed that same
+  `levelDelta()` value (`nd`) and just never applied it. Fix: pass `nd<=0` as the tile's block reason, the
+  same `reasonExtra` mechanism every other at-cap tile already uses — no new gating primitive needed.
+
+- **2026-07-11 · docs — add a pre-release manual QA checklist** (`docs/HOW-TO-WORK.md`, `AGENTS.md`; no
+  app code touched, `DATA.version` unchanged). Documents the cross-tool click-through the automated
+  `engine-parity` gate can't cover: CharGen → export to Live Sheet → buy-off/ledger check → push to cloud
+  → DM Console award-AP → console-error check at each step. `AGENTS.md`'s per-change checklist now points
+  to it, scoped to release-shaped PRs.
+- **2026-07-11 · feat(chargen) — CharGen campaign-rules awareness (sign-in + live filter)** (D-GH44;
+  `tools/PACT-CharGen-Webtool.html`; `DATA.version` unchanged — no rules/`compute()` logic touched).
+  CharGen's module bridge now also imports `validate()` from `js/engine.js`, plus `currentSession`/
+  `onAuthChange` (`js/auth.js`) and `listMyCampaigns`/`getCampaign` (`js/campaign.js`) in a **separate**
+  `<script type="module">` from the engine bridge — auth/campaign transitively load `@supabase/supabase-js`
+  from a CDN, and keeping that import graph independent means a dead network only drops the new cloud UI,
+  never the offline character builder (verified: a network-import failure no longer blocks `engine-ready`).
+  A new header widget lets a signed-in player pick from their cloud campaigns; its DM-set rules then filter
+  banned species/origin species/origin classes/masteries/boons out of CharGen's pickers live (mirrors Live
+  Sheet's D-GH16 live-filter: remove unowned-and-banned choices, never hide something already picked), and
+  any remaining violation (incl. multi-discipline count, which the picker filters don't attempt — that
+  logic lives only in `validate()`) surfaces as a `☁` warning via the existing warnings list. Local
+  `PACTRULES:` house rules (`CG_CAMPAIGN`/`campBarred`) are untouched — separate, offline mechanism.
+  `testing/tests/engine-parity.html` — 20/0 (engine untouched; also spot-checked via headless Chromium
+  that a network-blocked CDN still boots CharGen fully offline, and that a mocked signed-in campaign with
+  banned items correctly filters the species/origin-class/mastery pickers).
+  **Pre-merge `/code-review` pass (same PR) found and fixed 3 real bugs:** (1) the `onAuthChange`
+  callback destructured a single `session` param, but `js/auth.js` calls `cb(event, session)` — every
+  auth event (including sign-out) is a truthy string, so `_cloudSignedIn` got stuck `true` after the
+  first event ever fired; (2) `applyBuild()` rebuilt the species/origin-class/mastery/boon pickers
+  *before* `LOG` reflected the character being loaded (that rebuild happens later, via
+  `replaceWholeLogFromBuild(_domReadBuild())`), so loading a character that owned a now-campaign-banned
+  choice silently stripped it from the loaded build with no warning — fixed by threading the build
+  actually being loaded into `buildSpeciesSelects`/`buildOriginClassSelects`/`buildMasteryGrid`/
+  `buildBoonGrid` as an optional override instead of relying on stale `readBuild()`; (3) the
+  second-origin-species picker only checked `bannedOriginSpecies`, missing the generic `bannedSpecies`
+  ban `validate()` also applies to `species2`. Also fixed in the same pass: the cloud campaign `<option>`
+  id/name are now escaped via the file's existing `_csEsc()` helper (a locally-duplicated, weaker `esc()`
+  is gone), and a stale in-flight `listMyCampaigns()` fetch from a prior sign-in can no longer resolve
+  after a subsequent sign-out and repopulate campaign state. Re-verified: 20/0 parity, offline boot intact,
+  and headless-browser checks that a banned-but-owned species/origin-class/mastery now survives a character
+  load unmodified while still being correctly filtered out of pickers for builds that don't already own it.
+  **Follow-up cleanup pass (same PR, remaining review findings):** `js/engine.js` gains a new
+  `RULE_BAN_FIELDS` export (display-only, next to `validate()` — never bumps `DATA.version`) so the
+  kind→rules-field mapping lives in one place instead of being hardcoded separately per tool; CharGen's
+  `cloudRuleBarred()` now sources it from there (Live Sheet's own copy is untouched — out of scope for
+  this PR). `buildSpeciesSelects`/`buildOriginClassSelects`/`buildMasteryGrid` now share a
+  `cloudAllowedList()` filter helper instead of repeating the same filter-unless-already-selected shape
+  three times. `window._cloudCampaignRules` (redundant, fully derivable from `window._cloudCampaign.rules`)
+  is gone, replaced by a `cloudRules()` accessor. `refreshCloudFilters()` and the boot-time picker
+  population now compute `readBuild()` once and share it instead of each of the 4-5 picker-rebuild
+  functions independently re-folding the event log. Re-verified: 20/0 parity, offline boot intact, and the
+  same filter/load/sign-out behavioral checks as above all still pass unchanged.
+
 - **2026-07-10 · fix(sql) — lock down remaining Supabase function EXECUTE grants (anon)** (D-GH15
   addendum; `sql/migrations/2026-07-10-lock-down-remaining-function-grants.sql`, `sql/rls-policies.sql`;
   no app code touched, `DATA.version` unchanged). Revoked the default Postgres EXECUTE-to-`PUBLIC` grant
