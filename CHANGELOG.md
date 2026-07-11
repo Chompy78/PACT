@@ -4,6 +4,13 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · chore(testing) — add `playwright` + `supabase` CLI as devDependencies**
+  (`testing/package.json`, `testing/package-lock.json`; dev-tooling only, no app code touched,
+  `DATA.version` unchanged). Both were installed and verified working during the save-integrity session
+  (Playwright launches Chromium; `npx supabase --version` resolves) but never landed in the repo, so a
+  fresh checkout/CI would have had to rediscover and reinstall them. `npm run e2e:character` and local
+  Supabase CLI usage (`npx supabase ...`) now resolve immediately after `cd testing && npm install`.
+
 - **2026-07-11 · fix(sql) — database-level backstop: `characters.ap` can no longer be set on insert**
   (`sql/rls-policies.sql`, `sql/migrations/2026-07-11-lock-down-character-insert-ap.sql`; applied to the
   live project). Closes the "NOT YET DONE" follow-up from
