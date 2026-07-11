@@ -74,7 +74,7 @@ In Live Sheet (and optionally DM Console), display the character's current D&D 2
 
 Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 
-Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH48, exposed as `DATA.apByLevel`). Build advancement tracks on top of that single source — reuse `AP_BY_LEVEL` as the "average" baseline rather than duplicating the AP ladder here.
+Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, exposed as `DATA.apByLevel`). Build advancement tracks on top of that single source — reuse `AP_BY_LEVEL` as the "average" baseline rather than duplicating the AP ladder here.
 ```
 
 **Done when:** advancement tracks are stored in engine data; a DM can select or customise a track per campaign; the Live Sheet shows the D&D 2024 equivalent level label; parity still 20/0.

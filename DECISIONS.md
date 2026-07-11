@@ -110,7 +110,7 @@
   `AGENTS.md`'s documented renumber-on-collision fallback (keep the earlier-merged number, bump the later
   one). The code comments and `CHANGELOG.md` were updated to match; caught on rebase before merge, so no
   cross-file `D-GH47` reference to this work survives.
-## D-GH48 · Externalize the AP-by-level ladder: file source + back-compat DATA aliases, no version bump
+## D-GH49 · Externalize the AP-by-level ladder: file source + back-compat DATA aliases, no version bump
 - **Context:** the roadmap's `feat/ap-by-level` asked to lift CharGen's default AP and the level→AP table
   out of `js/engine.js` into an editable `js/ap-by-level.js`, surfaced as `DATA.apByLevel`/`DATA.defaultAp`.
   On opening the code the table was already in `DATA` — but inlined in the ~200 KB single-line JSON literal

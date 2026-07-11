@@ -17,6 +17,7 @@
   `D-GH1`–`D-GH49` entries are untouched. Updated `AGENTS.md` and the `/add-roadmap-task`/`/pick-task`
   skills to match. Docs-only; `DATA.version` unchanged.
 - **2026-07-11 · feat(engine) — externalize the AP-by-level ladder to `js/ap-by-level.js` (D-GH48)**
+- **2026-07-11 · feat(engine) — externalize the AP-by-level ladder to `js/ap-by-level.js` (D-GH49)**
   New editable module exports `AP_BY_LEVEL` (the level→AP budget table) and `DEFAULT_LEVEL`; `js/engine.js`
   imports them and surfaces `DATA.apByLevel`/`DATA.defaultAp`, keeping `DATA.levelAP`/`DATA.level1AP` as
   back-compat aliases (`compute()`'s racial-trait lock reads `DATA.level1AP`). All three tools pick it up
