@@ -20,7 +20,11 @@
   an accurate "saved locally, will sync when online" flash instead of a false success message when
   offline. Display-only; `DATA.version` unchanged. See `DECISIONS.md` for the append-vs-splice reasoning
   (the migrated awards are never inserted into the log's historical positions, to avoid retroactively
-  repricing an already-frozen purchase — the same class of risk documented in D-GH34/36/37).
+  repricing an already-frozen purchase — the same class of risk documented in D-GH34/36/37). Also: the
+  clone list's row markup is now a shared `buildCharRow()` helper (computes each character's escaped name
+  once instead of twice), a successful clone updates the local character list in place instead of
+  re-fetching the whole list from the server, and the clone no longer JSON-round-trips `stats` purely for
+  a defensive copy it didn't need (the source read is already a fresh, unaliased object).
 - **2026-07-11 · docs(chargen) — fix stale/misleading comment on `PATCH_SLOTS.IDENTITY`**
   (`tools/PACT-CharGen-Webtool.html`; comment-only, no logic touched, `DATA.version` unchanged). A
   dead-code audit flagged the field as a removal candidate because its own comment said "otherwise
