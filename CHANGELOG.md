@@ -10,6 +10,12 @@
   unused" — it's actually live and fully wired (`PATCH_FIELD_SLOT` → `_cgSlotPatch`'s IDENTITY case);
   the comment used "unused" to mean "unused **by the cold-reviewed plan's taxonomy**," which read as
   dead-code language out of context. Reworded to state plainly that both `IDENTITY` and `size` are live.
+- **2026-07-11 · docs(process) — retire sequential D-GH numbers for D-GH-\<date\>-\<slug\>**
+  (D-GH-2026-07-11-dgh-numbering-scheme). The old scheme collided at least eight times across this
+  project's history; the new form is collision-proof by construction (piggybacks on the already-enforced
+  one-task-per-branch rule), so no live-remote check or renumbering is needed going forward. Existing
+  `D-GH1`–`D-GH49` entries are untouched. Updated `AGENTS.md` and the `/add-roadmap-task`/`/pick-task`
+  skills to match. Docs-only; `DATA.version` unchanged.
 
 - **2026-07-11 · docs(sessions) — add session note for the AUD-1 health-check task (D-GH47)**
   (`docs/sessions/2026-07-11-aud1-health-check.md`; no app code touched, `DATA.version` unchanged).

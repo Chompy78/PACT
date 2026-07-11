@@ -27,10 +27,9 @@ Use them as the source of truth for:
 - roadmap bucket names (NOW / NEXT / LATER) and their existing tasks
 - branch naming conventions
 - Task 6 status
-- highest D-GH# decision number
 
-If `DECISIONS.md` cannot be found, do not invent a D-GH# number. If a decision may be required, write:
-"Decision required — assign the next free D-GH# when updating DECISIONS.md."
+`D-GH` decision codes use the collision-proof `D-GH-<YYYY-MM-DD>-<branch-slug>` format (see AGENTS.md's
+"Multiple sessions" section) — no lookup of an existing/highest number is needed.
 
 ## Step 2 — clarify if needed
 
@@ -70,8 +69,9 @@ Branch <type/short-slug>. <one-line of what + where>.
 - **Parity gate.** End most `Done when` lines with *"parity still 5/0."*
 - **Store raw, derive the rest.** Never store derived stats; `ap` is server-authoritative / DM-only.
 - **Branch naming.** One task per branch, named `type/short-slug` (`feat/`, `fix/`, `docs/`).
-- **New decision code.** If the task warrants a `DECISIONS.md` entry, note to use the next free D-GH#
-  (highest existing + 1) — never reuse a number.
+- **New decision code.** If the task warrants a `DECISIONS.md` entry, note to log it as
+  `D-GH-<YYYY-MM-DD>-<branch-slug>` (the decision's date + the task's own branch slug) — collision-proof
+  by construction, no lookup needed.
 - **Bucket = priority.** 🔴 NOW = urgent/high · 🟡 NEXT = build work / medium · ⚪ LATER = idea / low.
   Default a new feature to **NEXT** unless stated otherwise; say which bucket you chose in one line.
 
