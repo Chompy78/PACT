@@ -22,6 +22,20 @@
   every item Recommended/Not-recommended with a reason, defaulting to Recommended for anything that's
   already cleared its own gate (tests passed, review done) rather than deferring routine cleanup "to be
   safe."
+- **2026-07-11 · feat(testing) — AUD-1: static health-check script `testing/scripts/audit.py`** (new file;
+  Python **stdlib only**, no installs; no app code or `DATA.version` touched; parity unaffected at 20/0).
+  Runs in seconds and exits non-zero on any hard failure, so it drops into a pre-commit hook or CI. Checks:
+  every service-worker `PRE_CACHE` URL resolves to a file on disk; PWA icons 192/512/180 exist *and* are
+  the right pixel dimensions (PNG IHDR parsed via `struct`); `404.html` present; `manifest.json` has the
+  required fields with `scope`/`start_url` = `/PACT/` and a maskable icon; every app HTML page registers the
+  SW (404 + Players-Guide exempt); the SW install handler has no unconditional `skipWaiting()`; and an
+  **engine-symbol drift guard** — each tool imports `DATA`/`compute`/`MUT` from `js/engine.js` and locally
+  re-defines none of `DATA`/`compute`/`baseBuild`/`MUT`. Media assets >100 KB are reported as warnings
+  (non-fatal). Optional `--rls` mode (stdlib `urllib`, credentials from env, never committed) proves the
+  Supabase REST API rejects a player writing `characters.ap` and setting `campaign_id` to an unjoined
+  campaign. Two roadmap-spec items were reinterpreted against the current architecture — see D-GH46.
+  Verified: clean tree 20/0 exit 0; planted breaks (missing `PRE_CACHE` file, reintroduced local `MUT`)
+  fail loudly exit 1; RLS decision logic unit-tested.
 
 - **2026-07-11 · docs(sessions) — bring the "simple batch" session note up to date** (`docs/sessions/
   2026-07-11-pick-task-simple-batch.md`; no app code touched, `DATA.version` unchanged). The note had gone
