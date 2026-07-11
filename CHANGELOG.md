@@ -4,6 +4,13 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · chore(testing) — add `playwright` + `supabase` CLI as devDependencies**
+  (`testing/package.json`, `testing/package-lock.json`; dev-tooling only, no app code touched,
+  `DATA.version` unchanged). Both were installed and verified working during the save-integrity session
+  (Playwright launches Chromium; `npx supabase --version` resolves) but never landed in the repo, so a
+  fresh checkout/CI would have had to rediscover and reinstall them. `npm run e2e:character` and local
+  Supabase CLI usage (`npx supabase ...`) now resolve immediately after `cd testing && npm install`.
+
 - **2026-07-11 · docs(chargen) — fix stale/misleading comment on `PATCH_SLOTS.IDENTITY`**
   (`tools/PACT-CharGen-Webtool.html`; comment-only, no logic touched, `DATA.version` unchanged). A
   dead-code audit flagged the field as a removal candidate because its own comment said "otherwise
