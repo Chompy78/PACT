@@ -9,3 +9,7 @@ testing/node_modules/
 
 # Native Claude Code worktrees (created by /run-task via EnterWorktree) — local scratch, not shared.
 .claude/worktrees/
+
+# Python bytecode (testing/scripts/audit.py — stdlib health check, AUD-1)
+__pycache__/
+*.pyc

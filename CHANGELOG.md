@@ -22,6 +22,41 @@
   every item Recommended/Not-recommended with a reason, defaulting to Recommended for anything that's
   already cleared its own gate (tests passed, review done) rather than deferring routine cleanup "to be
   safe."
+- **2026-07-11 · fix(testing) — AUD-1 audit.py: `/code-review high` fix-up, still on the same PR** (`testing/
+  scripts/audit.py`; no app code or `DATA.version` touched; parity unaffected at 20/0). Six findings from a
+  post-hoc `/code-review high` on the AUD-1 PR, all fixed before merge: (1) the engine-symbol drift-guard
+  regex required an object-literal RHS (`= {`), missing a re-pasted `const compute = (b) => {...}` or
+  `const MUT = function(){}` — now derived from a `GUARDED_SYMBOLS` tuple matched on the declaration alone,
+  regardless of RHS shape; (2) the RLS proof's `_rls_rejected` inferred a blocked write from "body is
+  non-empty", which could false-positive a SECURITY failure if a trigger echoed the row back UNCHANGED —
+  replaced with `_write_took_effect`, which parses the echoed row and checks the actual forbidden value
+  landed; (3) the `skipWaiting()` guard only scanned the install-handler region, missing a module-level
+  `self.skipWaiting();` outside any handler (worse — no gating at all) — added `_has_top_level_skipwaiting`,
+  a brace-depth scan for exactly that; (4) the engine-import scan used `.search()`, so a tool's import split
+  across two `import { ... } from '../js/engine.js'` statements only had the first one's symbols seen —
+  switched to `.findall()` + union; (5) the `ENGINE_SYMBOLS` constant was dead (never referenced) — split
+  into `REQUIRED_IMPORTS`/`GUARDED_SYMBOLS` and wired into both checks it names, which also mechanically
+  fixed (1); (6) `check_manifest` double-reported a missing `start_url`/`scope` as both "missing required
+  field" and a separate value-mismatch FAIL — now skips the mismatch check for a field already known
+  missing. Verified: clean tree still 20/0/exit 0; all prior planted breaks still fail loudly; new planted
+  breaks for each fix (arrow-function re-def, unchanged-row echo, top-level `skipWaiting`, split import)
+  each individually confirmed to fail loudly where they previously would have passed silently.
+
+- **2026-07-11 · feat(testing) — AUD-1: static health-check script `testing/scripts/audit.py`** (new file;
+  Python **stdlib only**, no installs; no app code or `DATA.version` touched; parity unaffected at 20/0).
+  Runs in seconds and exits non-zero on any hard failure, so it drops into a pre-commit hook or CI. Checks:
+  every service-worker `PRE_CACHE` URL resolves to a file on disk; PWA icons 192/512/180 exist *and* are
+  the right pixel dimensions (PNG IHDR parsed via `struct`); `404.html` present; `manifest.json` has the
+  required fields with `scope`/`start_url` = `/PACT/` and a maskable icon; every app HTML page registers the
+  SW (404 + Players-Guide exempt); the SW install handler has no unconditional `skipWaiting()`; and an
+  **engine-symbol drift guard** — each tool imports `DATA`/`compute`/`MUT` from `js/engine.js` and locally
+  re-defines none of `DATA`/`compute`/`baseBuild`/`MUT`. Media assets >100 KB are reported as warnings
+  (non-fatal). Optional `--rls` mode (stdlib `urllib`, credentials from env, never committed) proves the
+  Supabase REST API rejects a player writing `characters.ap` and setting `campaign_id` to an unjoined
+  campaign. Two roadmap-spec items were reinterpreted against the current architecture — see D-GH47
+  (renumbered from a same-day collision with PR #160's D-GH46 — see that entry's addendum).
+  Verified: clean tree 20/0 exit 0; planted breaks (missing `PRE_CACHE` file, reintroduced local `MUT`)
+  fail loudly exit 1; RLS decision logic unit-tested.
 
 - **2026-07-11 · docs(sessions) — bring the "simple batch" session note up to date** (`docs/sessions/
   2026-07-11-pick-task-simple-batch.md`; no app code touched, `DATA.version` unchanged). The note had gone

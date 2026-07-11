@@ -54,32 +54,6 @@ badge, CharGen sign. Full spec: IMPLEMENT-save-integrity.md (+ ENGINE-INTEGRITY-
 badged in DM Console; CharGen exports are signed; parity stays 20/0.
 ⚠️ Log under a **NEW** decision code (**D-GH10** — the draft's "D-GH4" is taken).
 
-## AUD-1 — Automated health check (static audit + RLS proof) (HIGH — scope widened) — TODO
-The repeatable "is the system still healthy?" check you asked for — a stdlib Python script, no installs,
-runs in seconds.
-```
-testing/scripts/audit.py (Python stdlib only) — file-based checks, run before every commit:
-- every service-worker PRE_CACHE URL exists on disk; icons 192/512/180 present; 404.html exists
-- manifest has required fields, scope + start_url = /PACT/, and a maskable icon
-- SW registration present in every HTML page; no unconditional skipWaiting() in the install handler
-- flag any asset > 100 KB
-- MUT drift check, CharGen + DM Console only (narrowed after D-GH26's safe-subset bridge, see the "Full
-  engine module-bridge migration" NOW item above): `DATA`/`compute`/`baseBuild` are now live imports in
-  all three tools and can no longer drift by definition — only CharGen's and DM Console's still-hand-copied
-  `MUT` (and, if this audit is extended later, the index-based `activeEvents`/`economy`/`foldBuild`
-  closures) remain a real risk. Check those two tools' embedded `MUT` against js/engine.js's export and
-  fail loudly on any mismatch. This becomes unnecessary for whichever tool(s) eventually get their `MUT`
-  bridged too.
-Optional RLS proof (Python + requests, credentials entered at runtime — never commit them): as a non-DM
-player, confirm BOTH writes are REJECTED via the Supabase REST API — (a) writing characters.ap (the DM-only
-column lock) and (b) setting campaign_id to a campaign never joined (proves REV-04 is closed).
-```
-**Done when:** runs clean on a healthy tree and fails loudly on a planted break (a missing PRE_CACHE file,
-a player REST write to `ap` that succeeds, or a hand-edited mismatch between any tool's embedded copy and
-js/engine.js). Pairs with REV-01/REV-11 — engine-parity joins CI once REV-01 makes the gate assert.
-
----
-
 ## Feature: Clone campaign character to standalone — TODO
 Branch feat/clone-char-standalone. Let a player copy their campaign-linked character into a new standalone (non-campaign) character they own outright.
 
