@@ -23,6 +23,11 @@
   through the existing DATA bridge — no tool change. Values are byte-identical to the old inline literal,
   so `compute()` output is unchanged; `DATA.version` NOT bumped and `testing/expected/` unchanged; parity
   stays **20/0**.
+- **2026-07-11 · chore(engine) — remove unused `DATA.benchLevels` and `DATA.armourStandalone`**
+  Both were provably dead (a repo-wide dead-code audit found zero reads outside their own definitions):
+  `benchLevels` was a redundant inverse copy of `DATA.levelAP`, `armourStandalone` an orphaned twin of
+  the live `DATA.armourClimb`. Deleted from the `js/engine.js` DATA literal; display-agnostic values
+  never read by `compute()`, so `DATA.version` unchanged. Parity stays **20/0**.
 
 - **2026-07-11 · docs(sessions) — add session note for the AUD-1 health-check task (D-GH47)**
   (`docs/sessions/2026-07-11-aud1-health-check.md`; no app code touched, `DATA.version` unchanged).
