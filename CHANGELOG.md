@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · docs — D-GH45 follow-up: durable ai-lessons-learned citation + verify its second stale
+  claim** (`DECISIONS.md`; no app code touched, `DATA.version` unchanged). Two findings from a `/code-review`
+  pass on the merged D-GH45 PR: (1) its citation of `ai-lessons-learned`'s inbox file was a bare filename
+  with no path/commit pin, and that repo's curation workflow deletes inbox files once folded into
+  `topics/` — now cited with a repo path and commit SHA. (2) the removed roadmap entry's second "Done
+  when" clause (an e2e-harness workaround) was never actually checked, only the JS-bug clause was —
+  checked now: no such workaround exists on `preview`, matching the same "references an unrelated unmerged
+  branch" pattern already seen on the Level-up cap fix's own stale clause (PR #152).
+
 - **2026-07-11 · fix(chargen) — stop the cloud-campaign UI refetching/re-rendering on every hourly token
   refresh** (D-GH44 follow-up; `tools/PACT-CharGen-Webtool.html`; no `js/engine.js`/rules change,
   `DATA.version` unchanged). Found by a focused post-merge `/code-review` pass on PR #151's fix/cleanup
