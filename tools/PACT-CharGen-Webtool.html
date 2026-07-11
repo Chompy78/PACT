@@ -389,7 +389,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .gridck label.ck > input[type=checkbox]:disabled + * { opacity: 0.5; }
 .gridck label.ck:has(> input:disabled) { opacity: 0.5; cursor: default; }
 </style></head><body>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.200</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" title="CharGen only saves to this browser's local storage — no sign-in, no cloud sync, no cloud campaign. Use the Live Sheet to join a DM's cloud campaign.">🔒 Local only — not connected to any cloud campaign</span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.200</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
@@ -448,14 +448,98 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild } from '../js/engine.js';
+  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild, validate, RULE_BAN_FIELDS } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40)
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (CharGen); never read by compute()
   window.DATA = DATA; window.compute = compute; window.MUT = MUT; window.foldBuild = foldBuild;
   window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild;
   window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs;
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
+  window._engineBridge = { validate };
+  window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   document.dispatchEvent(new Event('engine-ready'));
+</script>
+<script type="module">
+  // Campaign-rules awareness (feat/chargen-campaign-rules, see DECISIONS.md D-GH44): sign-in +
+  // campaign selection, matching the bridge pattern already used in Live Sheet/DM Console. A
+  // DELIBERATELY SEPARATE module script from the engine bridge above: js/auth.js and js/campaign.js
+  // both transitively import js/supabase-client.js, which loads @supabase/supabase-js from a CDN
+  // (esm.sh) — a failed/offline network fetch throws and aborts this whole script's module graph.
+  // CharGen must stay fully usable with no network at all (see the local-only badge in the header),
+  // so this failure must never take engine-ready down with it; keeping it a separate <script
+  // type="module"> means a dead CDN only loses the cloud-campaign UI, not the character builder.
+  import { currentSession, onAuthChange } from '../js/auth.js';
+  import { listMyCampaigns, getCampaign } from '../js/campaign.js';
+  window._authBridge = { currentSession, onAuthChange };
+  window._campaignBridge = { listMyCampaigns, getCampaign };
+  document.dispatchEvent(new Event('campaign-ready'));
+</script>
+<script>
+document.addEventListener('campaign-ready', function () {
+  'use strict';
+  var A = window._authBridge, C = window._campaignBridge;
+  var statusEl = document.getElementById('cgCloudStatus');
+  var signInEl = document.getElementById('cgCloudSignIn');
+  var selEl = document.getElementById('cgCloudCampSel');
+  var myCampaigns = [];
+  var authGen = 0;   // bumped on every auth-state change; a stale in-flight loadCampaigns() checks this before applying its result
+  window._cloudSignedIn = false;
+  window._cloudCampaign = null;   // rules are read via cloudRules()/window._cloudCampaign.rules — no separate cached copy
+
+  function renderStatus(){
+    if (!statusEl) return;
+    if (!window._cloudSignedIn) {
+      statusEl.textContent = '🔒 Local only — not connected to any cloud campaign';
+      statusEl.title = "Sign in to select a DM's cloud campaign — its rules filter your pickers live.";
+    } else if (window._cloudCampaign) {
+      statusEl.textContent = '☁ Campaign: ' + window._cloudCampaign.name;
+      statusEl.title = 'Banned species/origin classes/masteries/boons for this campaign are filtered out of your pickers.';
+    } else {
+      statusEl.textContent = '☁ Signed in — no campaign selected';
+      statusEl.title = 'Pick a campaign above to filter your pickers by its DM-set rules.';
+    }
+  }
+
+  async function loadCampaigns(){
+    var gen = authGen;
+    var fetched;
+    try { fetched = await C.listMyCampaigns(); } catch (err) { console.error('listMyCampaigns:', err); fetched = []; }
+    if (gen !== authGen) return;   // a newer sign-in/sign-out superseded this fetch — discard it
+    myCampaigns = fetched;
+    var prev = selEl.value;
+    selEl.innerHTML = '<option value="">— no campaign —</option>' +
+      myCampaigns.map(function (c) { return '<option value="' + _csEsc(c.id) + '">' + _csEsc(c.name) + '</option>'; }).join('');
+    if (prev && myCampaigns.some(function (c) { return c.id === prev; })) selEl.value = prev;
+    applySelection(selEl.value);
+  }
+
+  function applySelection(id){
+    var camp = myCampaigns.find(function (c) { return c.id === id; }) || null;
+    window._cloudCampaign = camp;
+    renderStatus();
+    if (typeof refreshCloudFilters === 'function') refreshCloudFilters();
+  }
+
+  function updateAuth(session){
+    authGen++;
+    window._cloudSignedIn = !!session;
+    if (session) {
+      signInEl.style.display = 'none';
+      selEl.style.display = '';
+      loadCampaigns();
+    } else {
+      signInEl.style.display = '';
+      selEl.style.display = 'none';
+      myCampaigns = [];
+      applySelection('');
+    }
+    renderStatus();
+  }
+
+  selEl.addEventListener('change', function () { applySelection(selEl.value); });
+  A.onAuthChange(function (event, session) { updateAuth(session); });   // auth.js's onAuthChange calls cb(event, session) — session is the 2nd arg, not the 1st
+  A.currentSession().then(function (session) { updateAuth(session); });
+});
 </script>
 <script>
 
@@ -799,8 +883,10 @@ function buildArtGrid(){
 }
 
 
-function buildBoonGrid(){const g=$('boongrid');if(!g)return;const _bb=readBuild();const st=_bb.stats||{};const B=effBoons();const chk=_bb.boons||[];const q=_bdFilter('boonfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
-  const byCat={};Object.keys(B).forEach(k=>{var _bar=campBarred('boons',k);if(!_bar&&isDisabled('boons',k)&&!chk.includes(k))return;const bo=B[k];
+function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=bOverride||readBuild();const st=_bb.stats||{};const B=effBoons();const chk=_bb.boons||[];const q=_bdFilter('boonfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly. bOverride: applyBuild() passes the build being loaded (D-GH44 fix) so this doesn't filter against the stale pre-load LOG. */
+  const byCat={};Object.keys(B).forEach(k=>{var _bar=campBarred('boons',k);if(!_bar&&isDisabled('boons',k)&&!chk.includes(k))return;
+    if(!chk.includes(k)&&cloudRuleBarred('boons',k))return;   // cloud campaign rules (D-GH44) — mirror Live Sheet's live-filter: remove, don't disable
+    const bo=B[k];
     if(q && (k+' '+(bo.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
     (byCat[bo.cat]=byCat[bo.cat]||[]).push(k);});
   const cats=BOON_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>BOON_ORDER.indexOf(c)<0));
@@ -873,9 +959,8 @@ function buildForm(F){
     F.insertAdjacentHTML('beforeend','<fieldset id="'+id+'"><legend><span class="secname" onclick="toggleSec(\''+id+'\')">'+t+'</span><span class="secsub" id="sub'+id+'"></span><span class="secbadge" id="bdg'+id+'"></span></legend><div class="secbody">'+h+'</div></fieldset>');}
   function rSel(id,l,a,sel,hint,cost){return '<div class="row"><label class="l">'+l+'</label><select id="'+id+'">'+selOpts(a,sel)+'</select>'+(cost?'<span class="c">'+cost+'</span>':'')+(hint?'<span class="hint">'+hint+'</span>':'')+'</div>';}
   function rNum(id,l,sel,mn,mx,hint){return '<div class="row"><label class="l">'+l+'</label><select id="'+id+'">'+numOpts(mn,mx,sel)+'</select><span class="warn" id="'+id+'_w"></span>'+(hint?'<span class="hint">'+hint+'</span>':'')+'</div>';}
-  // species options with cost
-  const specOpt=DATA.species.map(s=>{var pc=DATA.pack[s]||0;var lbl=pc<0?('grants +'+(-pc)+' AP'):(pc+' AP');return '<option value="'+s+'">'+s+' ('+lbl+')</option>';}).join('');
-  const spec2Opt='<option>(none)</option>'+DATA.species.filter(s=>s!=='Human').map(s=>'<option value="'+s+'">'+s+' ('+(2*(DATA.pack[s]||0))+' AP)</option>').join('');
+  // species <select>s are populated by buildSpeciesSelects() (feat/chargen-campaign-rules, D-GH44) —
+  // empty placeholders here so a cloud campaign's banned species/origin-species can filter them live.
   // racial-trait checkbox grid, grouped by species (like boons)
   const byRace={};DATA.racialList.forEach(lab=>{const rr=DATA.racial[lab];(byRace[rr.race]=byRace[rr.race]||[]).push(lab);});
   let racGrid='';DATA.species.forEach(sp=>{if(!byRace[sp])return;
@@ -937,9 +1022,9 @@ function buildForm(F){
   grp('2 · Abilities', ab);
 
   grp('3 · Species, Heritage & Traits',
-    '<div class="row"><label class="l">Origin species <b style="color:var(--good)">★</b></label><select id="spec">'+'<option value="(none)" selected>(none)</option>'+specOpt+'</select><span class="price" id="specp"></span></div>'+
+    '<div class="row"><label class="l">Origin species <b style="color:var(--good)">★</b></label><select id="spec"></select><span class="price" id="specp"></span></div>'+
     '<div class="basics" id="packb"></div>'+
-    '<div class="row"><label class="l">Second origin species</label><select id="spec2">'+spec2Opt+'</select><span class="price" id="spec2p"></span><span class="hint">char-gen only · costs 2× the pack price</span></div>'+
+    '<div class="row"><label class="l">Second origin species</label><select id="spec2"></select><span class="price" id="spec2p"></span><span class="hint">char-gen only · costs 2× the pack price</span></div>'+
     '<div class="basics" id="packb2"></div>'+
     '<div class="row"><label class="l">Character size</label><select id="charsize"><option>Small</option><option>Medium</option></select> <span class="hint">free (0 AP)</span><b id="sizefixed" style="color:var(--good)"></b><span class="hint" id="sizenote"></span></div>'+
     '<div class="hint" style="margin-left:218px">Halfling: <b>Small or Medium</b> when paired with a Medium second origin species; otherwise locked <b>Small</b>. Gnome: <b>Small or Medium</b> when paired with a Medium second origin; otherwise locked <b>Small</b>. Size never costs AP.</div>'+
@@ -974,7 +1059,8 @@ function buildForm(F){
     '<div class="row"><span class="price" id="toolsp"></span></div>'+
     '<div class="row" style="border-top:1px dashed var(--line);padding-top:6px"><label class="l">Languages known</label><select id="languages">'+numOpts(1,10,1)+'</select><span class="price" id="langp"></span><span class="hint">escalating ladder — 1st free, then +1, +2, +3… (4 languages = 6 AP)</span></div>');
 
-  let mk='<div class="gridck">'+DATA.masteries.map(m=>'<label class="ck"><input type="checkbox" class="mastck" value="'+m+'"> '+m+'</label>').join('')+'</div>';
+  // masteries grid populated by buildMasteryGrid() (feat/chargen-campaign-rules, D-GH44) — placeholder
+  // here so a cloud campaign's banned masteries can filter it live.
   grp('6 · Armour, Weapons, Attunement &amp; Gold',
     '<div class="sublab">Armour  (Light→Medium→Heavy climb; heavier auto-buys lighter)</div>'+
     '<div class="row">'+
@@ -990,12 +1076,14 @@ function buildForm(F){
     '<label class="ck">&nbsp;single martial <select id="wp_martial">'+numOpts(0,4,0)+'</select> (2 AP ea)</label>'+
     '<label class="ck">&nbsp;<input type="checkbox" id="wp_all"> All martial (8 AP)</label>'+
     '<label class="ck">&nbsp;<input type="checkbox" id="wp_improv"> Improvised (3 AP)</label><span class="price" id="wprofp"></span></div>'+
-    '<div class="row"><label class="l">Masteries (1st 2 / 2nd 3 / 3rd 4…)</label><span class="hint">need any weapon proficiency first — Simple is enough</span></div>'+mk+'<div class="row"><span class="price" id="mastp"></span></div>'+'<div class="sublab" style="margin-top:8px">Attunement &amp; starting gold</div>'+'<div class="row"><label class="l">Attunement slots</label><select id="attune">'+numOpts(0,8,0)+'</select><span class="price" id="attunep"></span><span class="hint">Steep ladder 4/6/8/10 · no cap, no gate</span></div>'+rNum('gold','Starting gold (AP → 50gp each)',0,0,8,'')+'<div class="row"><label class="l">Total starting gold</label><b id="goldcell">—</b><span class="hint">25 gp purse + AP×50</span></div>');
+    '<div class="row"><label class="l">Masteries (1st 2 / 2nd 3 / 3rd 4…)</label><span class="hint">need any weapon proficiency first — Simple is enough</span></div>'+'<div class="gridck" id="mastgrid"></div>'+'<div class="row"><span class="price" id="mastp"></span></div>'+'<div class="sublab" style="margin-top:8px">Attunement &amp; starting gold</div>'+'<div class="row"><label class="l">Attunement slots</label><select id="attune">'+numOpts(0,8,0)+'</select><span class="price" id="attunep"></span><span class="hint">Steep ladder 4/6/8/10 · no cap, no gate</span></div>'+rNum('gold','Starting gold (AP → 50gp each)',0,0,8,'')+'<div class="row"><label class="l">Total starting gold</label><b id="goldcell">—</b><span class="hint">25 gp purse + AP×50</span></div>');
 
 
   grp('7 · Class Access & Features',
-    rSel('oclass','Origin class <b style="color:var(--good)">★</b>',['(none)'].concat(DATA.classes),'(none)')+
-    rSel('oclass2','Second origin class',['(none)'].concat(DATA.classes),'(none)','char-gen only · counts as an unlocked menu, unlock already paid','+14 AP')+
+    // oclass/oclass2 <select>s populated by buildOriginClassSelects() (feat/chargen-campaign-rules,
+    // D-GH44) so a cloud campaign's banned origin classes can filter them live.
+    rSel('oclass','Origin class <b style="color:var(--good)">★</b>',[],'(none)')+
+    rSel('oclass2','Second origin class',[],'(none)','char-gen only · counts as an unlocked menu, unlock already paid','+14 AP')+
     '<div class="hint" style="margin:3px 0 6px">Unlock classes by ticking them in the grid below — features of an unlocked class drop to sticker price (no cross-class surcharge). Cost 7/14/21/28 AP cumulative.</div>'+
     '<div class="row"><label class="l">Total class menus</label><b id="menucell">—</b><span class="hint" id="menuhint"></span></div>'+
     '<div class="row" style="border-top:1px dashed var(--line);padding-top:6px"><label class="l">Ki / Focus points</label><select id="ki">'+numOpts(0,20,0)+'</select><span class="price" id="kip"></span><span class="hint">gentle ladder · no HD gate (Monk)</span></div>'+
@@ -2030,6 +2118,59 @@ function _apHash(str){var h=5381>>>0;for(var i=0;i<str.length;i++){h=(((h*33)>>>
 function _campEnc(o){var pl=JSON.stringify(o);var c=pl+'|'+_apHash(pl);var u=encodeURIComponent(c);var x='';for(var i=0;i<u.length;i++)x+=String.fromCharCode(u.charCodeAt(i)^_AK.charCodeAt(i%_AK.length));return 'PACTRULES:'+btoa(x);}
 function _campDec(code){if(!code||code.indexOf('PACTRULES:')!==0)return null;try{var x=atob(code.slice(10));var u='';for(var i=0;i<x.length;i++)u+=String.fromCharCode(x.charCodeAt(i)^_AK.charCodeAt(i%_AK.length));var c=decodeURIComponent(u);var p=c.lastIndexOf('|');if(p<0)return null;var pl=c.slice(0,p),hh=c.slice(p+1);if(_apHash(pl)!==hh)return null;var o=JSON.parse(pl);return (o&&typeof o==='object')?{n:String(o.n||''),boons:o.boons||[],draws:o.draws||[],arts:o.arts||[]}:null;}catch(e){return null;}}
 function campBarred(kind,name){var c=CG_CAMPAIGN;return !!(c&&c[kind]&&c[kind].indexOf(name)>=0);}
+// ── Cloud campaign rules (feat/chargen-campaign-rules, D-GH44) — separate from the local PACTRULES
+// mechanism above: DM-set rules on a signed-in cloud campaign (js/campaign.js), read-only here.
+// Mirrors Live Sheet's live-filter (D-GH16): banned-but-unowned choices are filtered OUT of pickers
+// entirely, not shown disabled. window._cloudCampaign is set by the campaign-ready listener; the
+// rules object itself is derived here rather than cached in a second global that could drift from it.
+function cloudRules(){ return window._cloudCampaign ? (window._cloudCampaign.rules || {}) : null; }
+function cloudRuleBarred(kind,name){
+  var rules=cloudRules(); if(!rules) return false;
+  var field=(window.RULE_BAN_FIELDS||{})[kind];   // shared with js/engine.js's validate() schema — see RULE_BAN_FIELDS
+  return !!(field&&rules[field]&&rules[field].indexOf(name)>=0);
+}
+// Filters `items` down to what's pickable: anything kept() (already selected/owned) stays regardless
+// of a ban; everything else is dropped if ANY of `kinds` bans it. `kinds` may be a single kind string
+// or an array (species2 is subject to both 'species' and 'originSpecies' — see js/engine.js validate()).
+function cloudAllowedList(items,kinds,kept){
+  var ks=Array.isArray(kinds)?kinds:[kinds];
+  return items.filter(function(x){return kept(x)||!ks.some(function(k){return cloudRuleBarred(k,x);});});
+}
+// Each of the next three takes an optional bOverride — applyBuild() passes the build actually being
+// loaded so the "keep already-owned items visible even if now-banned" exemption checks the NEW build,
+// not the stale readBuild()/LOG left over from before the load (LOG itself isn't rebuilt from the
+// loaded build until replaceWholeLogFromBuild(_domReadBuild()) at the end of applyBuild()).
+function buildSpeciesSelects(bOverride){
+  var specEl=$('spec'),spec2El=$('spec2'); if(!specEl||!spec2El)return;
+  var b=bOverride||readBuild(); var cur=b.species||'(none)', cur2=b.species2||'(none)';
+  var specOpt=cloudAllowedList(DATA.species,'species',function(s){return s===cur;}).map(function(s){
+    var pc=DATA.pack[s]||0,lbl=pc<0?('grants +'+(-pc)+' AP'):(pc+' AP');
+    return '<option value="'+s+'"'+(s===cur?' selected':'')+'>'+s+' ('+lbl+')</option>';}).join('');
+  specEl.innerHTML='<option value="(none)"'+(cur==='(none)'?' selected':'')+'>(none)</option>'+specOpt;
+  var spec2Species=DATA.species.filter(function(s){return s!=='Human';});
+  var spec2Opt=cloudAllowedList(spec2Species,['species','originSpecies'],function(s){return s===cur2;}).map(function(s){
+    return '<option value="'+s+'"'+(s===cur2?' selected':'')+'>'+s+' ('+(2*(DATA.pack[s]||0))+' AP)</option>';}).join('');
+  spec2El.innerHTML='<option value="(none)"'+(cur2==='(none)'?' selected':'')+'>(none)</option>'+spec2Opt;
+}
+function buildOriginClassSelects(bOverride){
+  var elA=$('oclass'),elB=$('oclass2'); if(!elA||!elB)return;
+  var b=bOverride||readBuild(); var cur=b.originClass||'(none)', cur2=b.originClass2||'(none)';
+  function opts(sel){return cloudAllowedList(DATA.classes,'originClasses',function(c){return c===sel;}).map(function(c){
+    return '<option value="'+c+'"'+(c===sel?' selected':'')+'>'+c+'</option>';}).join('');}
+  elA.innerHTML='<option value="(none)"'+(cur==='(none)'?' selected':'')+'>(none)</option>'+opts(cur);
+  elB.innerHTML='<option value="(none)"'+(cur2==='(none)'?' selected':'')+'>(none)</option>'+opts(cur2);
+}
+function buildMasteryGrid(bOverride){
+  var g=$('mastgrid'); if(!g)return;
+  var b=bOverride||readBuild(); var chk=b.masteries||[];
+  g.innerHTML=cloudAllowedList(DATA.masteries,'masteries',function(m){return chk.includes(m);}).map(function(m){
+    return '<label class="ck"><input type="checkbox" class="mastck" value="'+m+'"'+(chk.includes(m)?' checked':'')+'> '+m+'</label>';}).join('');
+}
+function refreshCloudFilters(){
+  var b=readBuild();   // computed once and shared — was 5 independent foldBuild(LOG) replays per campaign switch
+  buildSpeciesSelects(b); buildOriginClassSelects(b); buildMasteryGrid(b); buildBoonGrid(b);
+  if(typeof render==='function')render();
+}
 function _campRows(kind,items,barred){return items.map(function(n){var ck=(barred.indexOf(n)>=0)?' checked':'';return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;width:49%;margin:1px 0;box-sizing:border-box"><input type="checkbox" class="campck" data-kind="'+kind+'" data-name="'+String(n).replace(/"/g,'&quot;')+'"'+ck+'> '+String(n).replace(/</g,'&lt;')+'</label>';}).join('');}
 function closeCampaign(){var ov=document.getElementById('campOv');if(ov)ov.style.display='none';}
 function openCampaign(){
@@ -2239,7 +2380,8 @@ function applyBuild(b,opts){
    if($('dm_boons'))$('dm_boons').checked=da.boons!==false;
    if($('dm_tasha'))$('dm_tasha').checked=da.tasha!==false;
    if($('dm_draws'))$('dm_draws').checked=da.drawbacks!==false;}
-  buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
+  buildArtGrid(); buildBoonGrid(b);buildDrawGrid();buildDmList();
+  buildSpeciesSelects(b); buildOriginClassSelects(b); buildMasteryGrid(b);   // D-GH44 fix: pass the build being loaded, NOT readBuild()'s stale pre-load LOG — the "keep already-owned banned items visible" exemption must check the build actually being loaded, since LOG itself isn't rebuilt from it until replaceWholeLogFromBuild(_domReadBuild()) at the end of this function
   {const ap=b.appearance||{};['gender','age','height','build','hair','eyes','nose','skin','marks','voice','demeanour','quirk','likes','dislikes','father','mother','hometown','profession','familyfor','famevent','secret','drink','ambition','fear','prized','faith','companion','overall'].forEach(k=>set('ap_'+k,ap[k]||''));}
   const ck=(cls,arr)=>document.querySelectorAll('.'+cls).forEach(e=>e.checked=(arr||[]).includes(e.value));
   ck('saveck',b.saves);ck('skillck',b.skills);ck('expck',b.expertise);ck('mastck',b.masteries);ck('boonck',b.boons);ck('racck',b.racialTraits);ck('drawck',b.drawbacks);ck('toolck',b.tools);ck('instck',b.instruments);ck('toolexpck',b.toolExpertise);ck('linspellck',b.racialSpells);
@@ -2900,6 +3042,15 @@ function _cgRenderInner(){
   // Medium/Heavy armour require STR 10 — auto-deselect if Strength drops below 10
   if((((b.stats&&b.stats.STR)||10)<10)){var _am=$('a_med'),_ah=$('a_heavy'),_ch=false;if(_am&&_am.checked){_am.checked=false;b.armour.medium=false;_ch=true;}if(_ah&&_ah.checked){_ah.checked=false;b.armour.heavy=false;_ch=true;}if(_ch){if(typeof flash==='function')flash('Medium/Heavy armour deselected — requires STR 10.');return _cgRenderInner();}}
   const r=compute(b);annotate(b,r);
+  // Cloud campaign rules (D-GH44): validate() is the shared engine export (js/engine.js) — never
+  // reimplemented here. Picker filtering above handles simple banned-name membership; this catches
+  // everything else (incl. multi-discipline count) as a warning, e.g. if a stricter campaign is
+  // selected after a now-violating choice was already made.
+  {const _cr=(typeof cloudRules==='function')&&cloudRules();
+  if(_cr && window._engineBridge && typeof window._engineBridge.validate==='function'){
+    const _cv=window._engineBridge.validate(b,_cr);
+    if(!_cv.ok) r.warnings=r.warnings.concat(_cv.violations.map(v=>'☁ Campaign rule: '+v.message));
+  }}
   const ov=$('sheetview');if(ov&&ov.style.display==='block'){$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());}
   $('total').innerHTML=r.total+' <span style="font-size:13px;color:var(--grey)">/ '+r.budget+' AP</span>';
   {const eq=$('eqlvl');if(eq){const L=apLevel(r.budget);eq.textContent='≈ Level '+(L||'<1')+' (by AP budget)';}}
@@ -3127,6 +3278,7 @@ buildSubPickers();
 buildArtGrid(); buildBoonGrid();
 buildDrawGrid();
 buildDmList();
+{const _bootB=readBuild();buildSpeciesSelects(_bootB); buildOriginClassSelects(_bootB); buildMasteryGrid(_bootB);}   // D-GH44: initial pickers (unfiltered until a cloud campaign is selected)
 $('form').addEventListener('input',render);$('form').addEventListener('change',render);
 _cgWireChecklistDelegation();   // Phase 2 Step 3 (Chunk 1): Category A checkbox lists -> LOG mutation API
 _cgWirePatchDelegation();   // Phase 2 Step 3 (Chunk 2): Category B scalar/object fields -> replacePatchSlot()

@@ -656,3 +656,17 @@ export function validate(b, rules) {
 
   return { ok: violations.length === 0, violations };
 }
+
+/**
+ * Maps a live-filter "kind" (species / originSpecies / originClasses / masteries / boons — the
+ * categories a tool UI can filter a picker by) to the matching field name on a campaign's `rules`
+ * object, i.e. validate()'s own schema above. Exported so tool UIs derive this mapping from one
+ * source instead of each hardcoding its own copy (display-only; never read by compute()).
+ */
+export const RULE_BAN_FIELDS = {
+  species: 'bannedSpecies',
+  originSpecies: 'bannedOriginSpecies',
+  originClasses: 'bannedOriginClasses',
+  masteries: 'bannedMasteries',
+  boons: 'bannedBoons',
+};

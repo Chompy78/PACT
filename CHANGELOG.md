@@ -18,6 +18,49 @@
   `engine-parity` gate can't cover: CharGen → export to Live Sheet → buy-off/ledger check → push to cloud
   → DM Console award-AP → console-error check at each step. `AGENTS.md`'s per-change checklist now points
   to it, scoped to release-shaped PRs.
+- **2026-07-11 · feat(chargen) — CharGen campaign-rules awareness (sign-in + live filter)** (D-GH44;
+  `tools/PACT-CharGen-Webtool.html`; `DATA.version` unchanged — no rules/`compute()` logic touched).
+  CharGen's module bridge now also imports `validate()` from `js/engine.js`, plus `currentSession`/
+  `onAuthChange` (`js/auth.js`) and `listMyCampaigns`/`getCampaign` (`js/campaign.js`) in a **separate**
+  `<script type="module">` from the engine bridge — auth/campaign transitively load `@supabase/supabase-js`
+  from a CDN, and keeping that import graph independent means a dead network only drops the new cloud UI,
+  never the offline character builder (verified: a network-import failure no longer blocks `engine-ready`).
+  A new header widget lets a signed-in player pick from their cloud campaigns; its DM-set rules then filter
+  banned species/origin species/origin classes/masteries/boons out of CharGen's pickers live (mirrors Live
+  Sheet's D-GH16 live-filter: remove unowned-and-banned choices, never hide something already picked), and
+  any remaining violation (incl. multi-discipline count, which the picker filters don't attempt — that
+  logic lives only in `validate()`) surfaces as a `☁` warning via the existing warnings list. Local
+  `PACTRULES:` house rules (`CG_CAMPAIGN`/`campBarred`) are untouched — separate, offline mechanism.
+  `testing/tests/engine-parity.html` — 20/0 (engine untouched; also spot-checked via headless Chromium
+  that a network-blocked CDN still boots CharGen fully offline, and that a mocked signed-in campaign with
+  banned items correctly filters the species/origin-class/mastery pickers).
+  **Pre-merge `/code-review` pass (same PR) found and fixed 3 real bugs:** (1) the `onAuthChange`
+  callback destructured a single `session` param, but `js/auth.js` calls `cb(event, session)` — every
+  auth event (including sign-out) is a truthy string, so `_cloudSignedIn` got stuck `true` after the
+  first event ever fired; (2) `applyBuild()` rebuilt the species/origin-class/mastery/boon pickers
+  *before* `LOG` reflected the character being loaded (that rebuild happens later, via
+  `replaceWholeLogFromBuild(_domReadBuild())`), so loading a character that owned a now-campaign-banned
+  choice silently stripped it from the loaded build with no warning — fixed by threading the build
+  actually being loaded into `buildSpeciesSelects`/`buildOriginClassSelects`/`buildMasteryGrid`/
+  `buildBoonGrid` as an optional override instead of relying on stale `readBuild()`; (3) the
+  second-origin-species picker only checked `bannedOriginSpecies`, missing the generic `bannedSpecies`
+  ban `validate()` also applies to `species2`. Also fixed in the same pass: the cloud campaign `<option>`
+  id/name are now escaped via the file's existing `_csEsc()` helper (a locally-duplicated, weaker `esc()`
+  is gone), and a stale in-flight `listMyCampaigns()` fetch from a prior sign-in can no longer resolve
+  after a subsequent sign-out and repopulate campaign state. Re-verified: 20/0 parity, offline boot intact,
+  and headless-browser checks that a banned-but-owned species/origin-class/mastery now survives a character
+  load unmodified while still being correctly filtered out of pickers for builds that don't already own it.
+  **Follow-up cleanup pass (same PR, remaining review findings):** `js/engine.js` gains a new
+  `RULE_BAN_FIELDS` export (display-only, next to `validate()` — never bumps `DATA.version`) so the
+  kind→rules-field mapping lives in one place instead of being hardcoded separately per tool; CharGen's
+  `cloudRuleBarred()` now sources it from there (Live Sheet's own copy is untouched — out of scope for
+  this PR). `buildSpeciesSelects`/`buildOriginClassSelects`/`buildMasteryGrid` now share a
+  `cloudAllowedList()` filter helper instead of repeating the same filter-unless-already-selected shape
+  three times. `window._cloudCampaignRules` (redundant, fully derivable from `window._cloudCampaign.rules`)
+  is gone, replaced by a `cloudRules()` accessor. `refreshCloudFilters()` and the boot-time picker
+  population now compute `readBuild()` once and share it instead of each of the 4-5 picker-rebuild
+  functions independently re-folding the event log. Re-verified: 20/0 parity, offline boot intact, and the
+  same filter/load/sign-out behavioral checks as above all still pass unchanged.
 
 - **2026-07-10 · fix(sql) — lock down remaining Supabase function EXECUTE grants (anon)** (D-GH15
   addendum; `sql/migrations/2026-07-10-lock-down-remaining-function-grants.sql`, `sql/rls-policies.sql`;
