@@ -168,18 +168,6 @@ Note: this overlaps with the existing "Externalize CharGen default AP + AP-by-le
 
 ---
 
-## Add a pre-release manual QA checklist to docs/HOW-TO-WORK.md — TODO
-Branch docs/pre-release-qa-checklist. Document the click-through the parity gate can't cover.
-
-```text
-1. Add a checklist to docs/HOW-TO-WORK.md: build a character in CharGen → export to Live Sheet → verify
-   buy-off works and ledger entries are per-item → push to cloud in a test campaign → confirm DM Console
-   sees it and can award AP → check the browser console for errors at each step.
-2. Add a one-line pointer to this checklist in AGENTS.md's per-change checklist (alongside the parity
-   gate step), scoped to release-shaped PRs (not every doc/small fix).
-```
-**Done when:** docs/HOW-TO-WORK.md has the checklist and AGENTS.md's per-change checklist links to it.
-
 ## Document a rules-correctness review pass in docs/HOW-TO-WORK.md — TODO
 Branch docs/rules-review-note. `/code-review`'s default lens is bugs/reuse, not domain (PHB) correctness.
 

@@ -4,6 +4,12 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · docs — add a pre-release manual QA checklist** (`docs/HOW-TO-WORK.md`, `AGENTS.md`; no
+  app code touched, `DATA.version` unchanged). Documents the cross-tool click-through the automated
+  `engine-parity` gate can't cover: CharGen → export to Live Sheet → buy-off/ledger check → push to cloud
+  → DM Console award-AP → console-error check at each step. `AGENTS.md`'s per-change checklist now points
+  to it, scoped to release-shaped PRs.
+
 - **2026-07-10 · fix(sql) — lock down remaining Supabase function EXECUTE grants (anon)** (D-GH15
   addendum; `sql/migrations/2026-07-10-lock-down-remaining-function-grants.sql`, `sql/rls-policies.sql`;
   no app code touched, `DATA.version` unchanged). Revoked the default Postgres EXECUTE-to-`PUBLIC` grant

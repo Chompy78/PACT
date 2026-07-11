@@ -115,6 +115,16 @@ ever do it by hand:
    graduate the task out of the roadmap into the changelog if it's done.
 6. **Commit** as `type(scope): summary`, open a PR, merge → GitHub Pages redeploys.
 
+## Pre-release manual QA checklist
+For release-shaped PRs (not every doc/small fix) — a manual pass through the full cross-tool flow, since
+the automated gate (`engine-parity.html`) only covers `compute()`, not the UI wiring between tools:
+1. Build a character in CharGen.
+2. Export it to Live Sheet.
+3. Verify buy-off works and ledger entries are per-item (one LOG entry per purchase, not batched).
+4. Push the character to the cloud in a test campaign.
+5. Confirm DM Console sees the character and can award AP.
+6. Check the browser console for errors at each step above.
+
 ## Start of each session
 Claude Code reads `AGENTS.md` (via `CLAUDE.md`'s `@AGENTS.md` import) automatically, so you don't re-explain
 the project. A good opener: `Run /pick-task` — or paste **one** task from `docs/PACT_ROADMAP.md` directly.
