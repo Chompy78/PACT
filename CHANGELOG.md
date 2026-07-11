@@ -4,6 +4,31 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · docs(chargen) — fix stale/misleading comment on `PATCH_SLOTS.IDENTITY`**
+  (`tools/PACT-CharGen-Webtool.html`; comment-only, no logic touched, `DATA.version` unchanged). A
+  dead-code audit flagged the field as a removal candidate because its own comment said "otherwise
+  unused" — it's actually live and fully wired (`PATCH_FIELD_SLOT` → `_cgSlotPatch`'s IDENTITY case);
+  the comment used "unused" to mean "unused **by the cold-reviewed plan's taxonomy**," which read as
+  dead-code language out of context. Reworded to state plainly that both `IDENTITY` and `size` are live.
+- **2026-07-11 · docs(process) — retire sequential D-GH numbers for D-GH-\<date\>-\<slug\>**
+  (D-GH-2026-07-11-dgh-numbering-scheme). The old scheme collided at least eight times across this
+  project's history; the new form is collision-proof by construction (piggybacks on the already-enforced
+  one-task-per-branch rule), so no live-remote check or renumbering is needed going forward. Existing
+  `D-GH1`–`D-GH49` entries are untouched. Updated `AGENTS.md` and the `/add-roadmap-task`/`/pick-task`
+  skills to match. Docs-only; `DATA.version` unchanged.
+- **2026-07-11 · feat(engine) — externalize the AP-by-level ladder to `js/ap-by-level.js` (D-GH49)**
+  New editable module exports `AP_BY_LEVEL` (the level→AP budget table) and `DEFAULT_LEVEL`; `js/engine.js`
+  imports them and surfaces `DATA.apByLevel`/`DATA.defaultAp`, keeping `DATA.levelAP`/`DATA.level1AP` as
+  back-compat aliases (`compute()`'s racial-trait lock reads `DATA.level1AP`). All three tools pick it up
+  through the existing DATA bridge — no tool change. Values are byte-identical to the old inline literal,
+  so `compute()` output is unchanged; `DATA.version` NOT bumped and `testing/expected/` unchanged; parity
+  stays **20/0**.
+- **2026-07-11 · chore(engine) — remove unused `DATA.benchLevels` and `DATA.armourStandalone`**
+  Both were provably dead (a repo-wide dead-code audit found zero reads outside their own definitions):
+  `benchLevels` was a redundant inverse copy of `DATA.levelAP`, `armourStandalone` an orphaned twin of
+  the live `DATA.armourClimb`. Deleted from the `js/engine.js` DATA literal; display-agnostic values
+  never read by `compute()`, so `DATA.version` unchanged. Parity stays **20/0**.
+
 - **2026-07-11 · docs(sessions) — add session note for the AUD-1 health-check task (D-GH47)**
   (`docs/sessions/2026-07-11-aud1-health-check.md`; no app code touched, `DATA.version` unchanged).
   Records three roadmap-spec reinterpretations, a `/code-review high` pass that found and fixed six real
@@ -11,6 +36,20 @@
   session's PR #160 (renumbered to D-GH47), and a rebase that reported "no conflicts" while silently
   leaving a duplicate/orphaned `DECISIONS.md` title line — caught only by reading the merged content
   directly rather than trusting the rebase's own success message.
+- **2026-07-11 · feat — Feature B: save-file integrity (tamper-evidence)** (D-GH48; `js/engine.js`,
+  `js/character-store.js`, all three `tools/*.html`; `DATA.version` unchanged — additive, no `compute()`
+  change; parity **20/0**). Engine gains synchronous `signPayload`/`verifyPayload` + a self-contained
+  SHA-256 (validated against the NIST vectors) and an order-independent canonical serializer.
+  `js/character-store.js` owns the file-format policy: `buildCharacterEnvelope()` signs **by default**
+  (`sig:{alg,hash}`) so any exported file is signed by construction, while the localStorage autosave/local
+  save opt out with `{sign:false}` (that copy is never signature-checked on the way back in). The read side
+  is a single shared `verifyCharacterEnvelope()` returning `{status, tampered, envelope}`, called by every
+  file-load path — Live Sheet import and CharGen load flash a **non-blocking** warning; DM Console badges the
+  roster card ("⚠ edited") and adds a Flags-&-notes line (a file that is both tampered *and* a different
+  rules version now shows both notices). `sig` is metadata the engine never reads, so signed files
+  price/rebuild identically and older/unsigned files still load. Tamper-EVIDENT, not tamper-proof — the
+  offline stopgap before the Supabase server-side enforcement phase; the cloud load path is intentionally
+  out of scope (server-authoritative under RLS). Graduated from `docs/PACT_ROADMAP.md`.
 
 - **2026-07-11 · docs(sessions) — add session note for the communication-conventions fix (D-GH46)**
   (`docs/sessions/2026-07-11-communication-conventions.md`; no app code touched, `DATA.version`
