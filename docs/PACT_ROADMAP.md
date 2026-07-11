@@ -30,20 +30,51 @@ _(none currently — the last NOW item, the full engine module-bridge migration,
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## Feature: Clone campaign character to standalone — TODO
-Branch feat/clone-char-standalone. Let a player copy their campaign-linked character into a new standalone (non-campaign) character they own outright.
+## Feature: Campaign join/invite UI (two onboarding paths) — TODO
+Branch feat/campaign-join-flow. Wire up the missing player-facing UI for actually joining a campaign — `join_campaign()` exists as a tested SQL RPC but has zero production UI anywhere in the app today (confirmed 2026-07-11), and it only ever creates a blank character, with no path for an existing character to join.
 
 ```text
-In Live Sheet, add a "Clone to standalone" action for characters that belong to a campaign.
-The clone copies the raw character build data (stats, event log) into a new character record not tied to any campaign.
-ap on the clone is reset to 0 — ap is DM-authoritative and cannot carry over outside the campaign context.
-The original campaign character is untouched.
-The clone appears in the player's own character list and can be edited freely.
-Store only raw character data; derive everything else via compute() / rebuildStateFromEvents() at runtime — do not store derived values.
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+Two distinct onboarding paths, both needed:
+
+PATH A — DM invites a brand-new player (no character yet):
+- DM Console gets an "Invite new player" action that generates a single-use invite token, distinct from
+  the existing shared campaign invite_code — this one is per-player and consumed on redemption (a second
+  login can't reuse it).
+- The invite carries two DM-set values at creation time: the initial AP award, and the origin AP
+  cutover/budget the character must be built against (e.g. "Level 1, 50 AP") — this becomes the
+  character's legitimate starting budget, so the fresh build the player creates against it can't be
+  "illegal" (over-budget); there's no build to retroactively validate, only a budget to build within.
+- Redeeming the invite (needs its own UI — likely in Live Sheet or a dedicated join screen) creates a
+  brand-new character bound to the campaign, pre-loaded with that starting AP as a real award (reuse the
+  existing award_ap()/ap_awards path, not a new AP mechanism).
+- This likely needs a new SQL migration: a per-player invite token table (code, campaign_id, ap amount,
+  origin budget, redeemed_by/redeemed_at, single-use enforcement) plus a SECURITY DEFINER RPC to redeem it
+  — do not bolt this onto the existing shared `invite_code` column, which is intentionally a different,
+  reusable mechanism.
+
+PATH B — an existing player (with an already-built character) joins a campaign:
+- A "Join campaign with existing character" action: the player picks one of their own already-built
+  characters (full creation/purchase log) plus a campaign invite code.
+- Validate the existing LOG against the target campaign's rules using the engine's existing `validate()`
+  (js/engine.js) — do not reimplement rule-checking. Non-blocking: surface violations as warnings/flags
+  for the player and DM to see, rather than refusing the join outright (matches how campaign-rule
+  violations are already surfaced elsewhere in the app, e.g. CharGen/Live Sheet's live-filter warnings).
+- This binds `campaign_id` on the EXISTING character record rather than creating a new blank one — the
+  current `characters_insert` RLS policy forces `campaign_id is null` on direct insert and the UPDATE
+  grant doesn't include `campaign_id` either, so this needs a new SECURITY DEFINER RPC (parallel to
+  `join_campaign()`, but taking an existing character id instead of creating a blank row).
+- Any AP already present on that existing character (i.e. anything in its own event log — the
+  honor-system tier, see D-GH-2026-07-11-clone-campaign-character-standalone) stays exactly as-is and is
+  NEVER reclassified as DM-Console-verified `ap`. The DM-Console `ap` running total (characters.ap) starts
+  at 0 for the now-bound character, same as any other campaign character — only award_ap() ever sets it,
+  never this import.
+
+Given the data-model/RLS surface (new invite-token table, two new SECURITY DEFINER RPCs, campaign_id
+binding on an existing row) and two new UI flows across two tools, this is a strong candidate for
+/plan-for-review before implementation — a wrong approach here would be expensive to unwind.
 ```
 
-**Done when:** a player can clone a campaign character to a standalone record; the clone appears in their character list with ap = 0; the original is unchanged; parity still 20/0.
+**Done when:** a DM can invite a brand-new player and that player can build a character against the DM-set starting budget entirely through the UI; a player with an existing character can join a campaign through the UI, sees any rule violations flagged rather than being silently blocked, and keeps their existing AP as player-made; parity still 20/0.
 
 ---
 
