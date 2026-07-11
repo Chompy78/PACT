@@ -1405,12 +1405,12 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
 </div></div>
 
 <script type="module">
-  import { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
   import { listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { validate, DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48)
-  window._syncBridge = { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync };
   window._authBridge = { currentSession, onAuthChange };
   window._campaignBridge = { listMyCampaigns, getCampaign };
   window._engineBridge = { validate };
@@ -1438,6 +1438,9 @@ document.addEventListener('sync-ready', function () {
   var _session  = null;
   var _campaignName = null;   // name of the campaign_id on the currently loaded character, if any
   var _rulesStatus  = 'none'; // 'none' | 'active' | 'unavailable' — see renderCloudStatusBadge()
+  var _cloningIds   = new Set(); // character ids with a clone-to-standalone in flight — persists
+                                  // across renderCloudMenu() rebuilds so reopening the ☁ menu mid-clone
+                                  // can't start a second concurrent clone of the same character
 
   function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -1585,17 +1588,18 @@ document.addEventListener('sync-ready', function () {
       listEl.querySelectorAll('.cloud-clone-btn').forEach(function(btn){
         btn.addEventListener('click', async function(e){
           e.stopPropagation();
+          var cid = btn.dataset.cid;
+          if(_cloningIds.has(cid)) return;   // already cloning this character — ignore the extra click
           var srcName = btn.dataset.name;
           if(!confirm('Clone "'+srcName+'" into a new standalone character? '+
             'The clone is not tied to any campaign, starts at 0 AP, and the original is left untouched.')) return;
+          _cloningIds.add(cid);
           btn.disabled = true; var origText = btn.textContent; btn.textContent = 'Cloning…';
           try {
-            var rec = await S.loadCharacter(btn.dataset.cid);
-            if(!rec||!rec.stats||!rec.stats.LOG){
-              alert('No character data found.');
-              btn.disabled = false; btn.textContent = origText;
-              return;
-            }
+            // peekCharacter (not loadCharacter) — a pure read that never pushes this device's
+            // pending local edits back to the server, so cloning truly cannot touch the original.
+            var rec = await S.peekCharacter(cid);
+            if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return; }
             // Deep-copy: stats becomes a fresh record's payload, never shared with the source's.
             var clonedStats = JSON.parse(JSON.stringify(rec.stats));
             var res = await S.saveCharacter({
@@ -1607,9 +1611,12 @@ document.addEventListener('sync-ready', function () {
               // 0 / NULL on insert, which is exactly "standalone, ap reset" (see sql/schema.sql).
             });
             if(res.error) throw res.error;
-            if(typeof window.flash === 'function') window.flash('⧉ Cloned to a standalone character');
+            if(typeof window.flash === 'function') window.flash(res.synced
+              ? '⧉ Cloned to a standalone character'
+              : '⧉ Cloned locally (offline — will sync to the cloud when online)');
             renderCloudMenu();
-          } catch(err){ alert('Clone failed: '+err.message); btn.disabled = false; btn.textContent = origText; }
+          } catch(err){ alert('Clone failed: '+err.message); }
+          finally { _cloningIds.delete(cid); btn.disabled = false; btn.textContent = origText; }
         });
       });
     } catch(err){

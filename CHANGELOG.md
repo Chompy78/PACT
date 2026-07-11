@@ -9,8 +9,13 @@
   "⧉ Clone to standalone" action that copies the raw build data (stats/event log) into a brand-new
   character record owned by the player, not tied to any campaign. `ap` and `campaign_id` are omitted
   from the insert so the server applies its defaults (`0` / `NULL`) — `ap` is DM-authoritative and never
-  carries over outside a campaign. The original campaign character is left untouched. Display-only;
-  `DATA.version` unchanged.
+  carries over outside a campaign. The original campaign character is left untouched: the source read
+  uses a new pure-read `peekCharacter()` (`js/sync.js`) instead of `loadCharacter()`, since the latter's
+  `reconcile()` can silently push this device's pending local edits to the server as a side effect —
+  which would have contradicted the "original untouched" guarantee. Also guards against duplicate
+  clones (an in-flight lock survives the Cloud menu being closed/reopened mid-clone) and shows an
+  accurate "saved locally, will sync when online" flash instead of a false success message when
+  offline. Display-only; `DATA.version` unchanged.
 - **2026-07-11 · docs(chargen) — fix stale/misleading comment on `PATCH_SLOTS.IDENTITY`**
   (`tools/PACT-CharGen-Webtool.html`; comment-only, no logic touched, `DATA.version` unchanged). A
   dead-code audit flagged the field as a removal candidate because its own comment said "otherwise
