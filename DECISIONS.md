@@ -6,6 +6,83 @@
 
 ---
 
+## D-GH46 · Communication conventions: recommend-with-reasoning, and a tool error is not an answer
+- **Context:** two real failures this session prompted this. (1) `/pick-task`'s `AskUserQuestion` call
+  errored once (a permission/stream failure); the retry was manual and undocumented, so nothing prevented
+  a future session from silently treating that kind of error as if the Recommended option had been chosen.
+  (2) `/close-session`'s own Output format instructed a flat action list with no recommend/don't-recommend
+  distinction, so whether an item got called out as safe-to-run-now depended on the responding session's
+  improvisation, not a written rule — inconsistent turn to turn. Separately, the user asked for a specific
+  tiered `A`/`A1`/`A2` option-presentation format to be followed reliably, which had been getting lost
+  because it was never written down anywhere durable.
+- **Decision:** add a "Communication conventions" section to `AGENTS.md` covering all three, so every
+  current and future skill inherits them rather than re-solving each per file: the tiered format (with
+  every option requiring a stated reason, not just the recommended one); `AskUserQuestion` error handling
+  (retry once for a genuine answer, never substitute a default, restate the answer before acting on it);
+  and a recommend-by-default bar for follow-up-action lists (withhold only for destructive/irreversible
+  actions, judgment calls only the user can make, or missing information). Updated `pick-task.md` and
+  `close-session.md` to point at and apply these directly at their own decision points.
+- **Why:** centralizing in `AGENTS.md` means a future skill that presents options or asks a question
+  inherits the same reliability/format rules automatically, instead of each skill file re-deriving its own
+  (and drifting, the way `close-session.md`'s flat list already had). The recommend-by-default bar
+  specifically matches the user's stated preference ("get things done now rather than save them for
+  later") — over-cautious deferral of already-verified, low-risk work was an explicit complaint, not just
+  a formatting one.
+- **Status:** DONE. Docs-only; no `js/engine.js` or `DATA.version` change; `testing/tests/engine-parity.html`
+  unaffected.
+
+---
+
+## D-GH47 · AUD-1 health-check: MUT-drift check reshaped into an engine-symbol drift guard; asset-size is a warning; RLS proof uses stdlib urllib
+- **Context:** AUD-1 (`testing/scripts/audit.py`) was specced before the engine module-bridge migration
+  finished. Three of its bullets no longer match the code as written, so implementing them literally would
+  be wrong or misleading.
+- **Reinterpretation 1 — "MUT drift check" → engine-symbol drift guard.** The roadmap said "check CharGen's
+  and DM Console's still-hand-copied `MUT` against `js/engine.js`'s export and fail on any mismatch." But as
+  of D-GH26/D-GH33/D-GH36/D-GH37 all three tools import `MUT` (and `DATA`/`compute`/`baseBuild`) live from
+  the engine, and CharGen's last local `MUT` subset (inside the removed `buildToLiveLog`) went away in
+  D-GH40. There is **no hand-copied `MUT` left in any tool** to byte-compare — the literal check has zero
+  targets and would be a green no-op. Implemented the spec's *intent* (guard against a tool's rules copy
+  drifting from the engine) as a **regression guard**: assert each tool imports `DATA`/`compute`/`MUT` from
+  `../js/engine.js` and locally re-defines **none** of `DATA`/`compute`/`baseBuild`/`MUT`. This fails loudly
+  the moment anyone pastes a local `const MUT = {…}` back into a tool. `foldBuild`/`activeEvents`/`economy`
+  are deliberately **excluded** from the "no local def" rule: Live Sheet and DM Console import them under
+  `_engine*` aliases and wrap them in thin per-tool index adapters that slice `eventsUpTo()` and delegate to
+  the engine (D-GH37) — legitimate adapters, not drift.
+- **Reinterpretation 2 — ">100 KB asset" is a warning, not a failure.** The current tree legitimately ships
+  many 100–186 KB theme `.webp` backgrounds and the ~180 KB cover; the "Done when" requires a clean run on a
+  healthy tree, and its hard-fail list is explicitly (missing PRE_CACHE file / player `ap` write succeeds /
+  drift mismatch) — asset size is not on it. So the size check WARNs (non-fatal, exit stays 0), scoped to
+  media files under `assets/`+`icons/` (source code and `source-assets/` originals excluded).
+- **Reinterpretation 3 — RLS proof uses stdlib `urllib`, not `requests`.** The task header mandates "Python
+  **stdlib only**, no installs, runs in seconds"; one bullet said "Python + requests." Stdlib wins — the RLS
+  PATCHes go through `urllib.request`, so there is nothing to `pip install`. It stays opt-in (`--rls`) with
+  all credentials read from env vars at runtime and never committed.
+- **Why:** each change keeps the audit honest against the *current* architecture instead of a stale spec —
+  a check with no targets, a size gate that fails a healthy tree, or a dependency that breaks "no installs"
+  would each undermine the "is the system still healthy?" purpose.
+- **Status:** In force. Verified: clean tree → 20 passed / 0 failed, exit 0; planted breaks (missing
+  PRE_CACHE file; reintroduced local `MUT`) → exit 1; RLS rejection logic unit-tested. `js/engine.js` and
+  `DATA.version` untouched; engine-parity unaffected.
+- **Addendum (same day, `/code-review high` before merge):** the drift-guard regex above required an
+  object-literal RHS (`= {`), which missed a re-pasted `const compute = (b) => {...}` — the exact drift
+  the guard exists to catch. Fixed by matching the declaration alone regardless of RHS shape, driven off a
+  new `GUARDED_SYMBOLS` tuple (which also gave the previously-unused `ENGINE_SYMBOLS` constant a real
+  purpose). Separately, the RLS proof's rejection test inferred "blocked" from "response body is non-empty"
+  — a trigger that echoed the row back with the forbidden column UNCHANGED would have been misreported as
+  a successful security bypass. Fixed by parsing the echoed row and checking the actual forbidden value,
+  not just body emptiness. See `CHANGELOG.md`'s same-day fix-up entry for the full list of six fixes
+  (these two plus a top-level-`skipWaiting` gap, a split-import-statement miss, and a manifest
+  double-report). No change to this entry's other reasoning.
+- **Numbering note:** this entry was originally drafted as D-GH46, on a live-highest check that correctly
+  read D-GH45 as the top at the time. Before this branch merged, PR #160 ("Communication conventions")
+  independently claimed D-GH46 and merged into `preview` first. Per this file's documented collision
+  policy (see `AGENTS.md`'s "Multiple sessions" section): the earlier-merged entry keeps its number, so
+  D-GH46 stays with PR #160's entry, and this entry is renumbered to the next free number, D-GH47, with
+  this note as the addendum. No other content changed.
+
+---
+
 ## D-GH44 · CharGen campaign-rules awareness: separate module script for the cloud bridge; no campaign_id carry-forward yet
 - **Context:** the roadmap task (`feat/chargen-campaign-rules`) asked CharGen to import `validate()` from
   `js/engine.js`, add sign-in + campaign selection matching Live Sheet's bridge pattern, live-filter banned
@@ -74,8 +151,10 @@
   `_featAC`'s `place()` function (`tools/PACT-CharGen-Webtool.html`) double-counting `window.scrollY` on a
   `position:fixed` autocomplete menu. On 2026-07-10, a session investigating a secondhand report of this
   same bug live-reproduced it and could not confirm the symptom — the code already computed position
-  correctly on every scroll event — and logged that finding to `ai-lessons-learned`'s inbox
-  (`2026-07-10-verify-secondhand-bug-reports.md`), but didn't touch PACT's own roadmap entry. On
+  correctly on every scroll event — and logged that finding to `chompy78/ai-lessons-learned`'s inbox
+  (`inbox/2026-07-10-verify-secondhand-bug-reports.md`, as of that repo's commit `4f5cf7b` — cited with a
+  commit pin since that repo's curation workflow deletes inbox files once folded into `topics/`), but
+  didn't touch PACT's own roadmap entry. On
   2026-07-11, a separate `/pick-task` session picked the same roadmap item up fresh (unaware of the prior
   investigation), read the actual code, and independently reached the identical conclusion: `place()`
   computes `top` purely from `getBoundingClientRect()`, and `git log -S"scrollY"` shows this pattern has
@@ -91,7 +170,12 @@
   2026-07-10 lived only in `ai-lessons-learned` (a separate repo, not consulted by `/pick-task` when
   scanning `docs/PACT_ROADMAP.md`), so it never had a path back into this file.
 - **Status:** DONE. Entry removed from `docs/PACT_ROADMAP.md`; no `tools/PACT-CharGen-Webtool.html` change,
-  no `DATA.version` bump, `testing/tests/engine-parity.html` unaffected (docs-only).
+  no `DATA.version` bump, `testing/tests/engine-parity.html` unaffected (docs-only). The removed entry's
+  second "Done when" clause (an e2e-harness scroll-to-0/oversized-viewport workaround, "removable once
+  this landed") was also checked retroactively, during a `/code-review` pass on this change: no such
+  workaround exists in `testing/scripts/random-manual-e2e.mjs` on `preview` — its only occurrence in git
+  history is on an unrelated, unmerged branch (`origin/claude/character-gen-testing-improvements`, commit
+  `81d3f2b`), so that second claim was equally stale and needed no action either.
 - **Addendum (2026-07-11):** originally logged as `D-GH44`, colliding with the "CharGen campaign-rules
   awareness" entry above (PR #151), which merged into `preview` first. Kept that earlier-merged entry at
   `D-GH44`; renumbered this one to `D-GH45` (next free at time of fix) per `AGENTS.md`'s documented

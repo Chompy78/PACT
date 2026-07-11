@@ -4,6 +4,85 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · docs(sessions) — add session note for the AUD-1 health-check task (D-GH47)**
+  (`docs/sessions/2026-07-11-aud1-health-check.md`; no app code touched, `DATA.version` unchanged).
+  Records three roadmap-spec reinterpretations, a `/code-review high` pass that found and fixed six real
+  bugs in the new `testing/scripts/audit.py`, a same-day D-GH46 numbering collision with a concurrent
+  session's PR #160 (renumbered to D-GH47), and a rebase that reported "no conflicts" while silently
+  leaving a duplicate/orphaned `DECISIONS.md` title line — caught only by reading the merged content
+  directly rather than trusting the rebase's own success message.
+
+- **2026-07-11 · docs(sessions) — add session note for the communication-conventions fix (D-GH46)**
+  (`docs/sessions/2026-07-11-communication-conventions.md`; no app code touched, `DATA.version`
+  unchanged). Records the diagnosis (a live `AskUserQuestion` failure, `close-session.md`'s flat list
+  working exactly as written, and no durable home for a stated preference) and the judgment calls made
+  along the way (where the preference persists, the retry-must-be-genuine correction, the
+  recommend-by-default bar) — the plan changing mid-session to fix the tooling itself, plus several
+  reasonably-second-guessable decisions, both trigger a session note per this repo's own convention.
+
+- **2026-07-11 · docs(process) — communication conventions: recommend-with-reasoning + `AskUserQuestion`
+  reliability** (D-GH46; `AGENTS.md`, `.claude/commands/pick-task.md`, `.claude/commands/close-session.md`;
+  no app code touched, `DATA.version` unchanged). Three related conventions, all motivated by real
+  incidents from this same session: (1) a tiered `A`/`A1`/`A2` format for presenting options, with every
+  option — not just the recommended one — carrying a one-line reason; (2) a rule that a failed
+  `AskUserQuestion` tool call is not an answer and must never be silently treated as one (retry once, wait
+  for a genuine reply, only surface failure on a second miss); (3) `/close-session`'s action list now tags
+  every item Recommended/Not-recommended with a reason, defaulting to Recommended for anything that's
+  already cleared its own gate (tests passed, review done) rather than deferring routine cleanup "to be
+  safe."
+- **2026-07-11 · fix(testing) — AUD-1 audit.py: `/code-review high` fix-up, still on the same PR** (`testing/
+  scripts/audit.py`; no app code or `DATA.version` touched; parity unaffected at 20/0). Six findings from a
+  post-hoc `/code-review high` on the AUD-1 PR, all fixed before merge: (1) the engine-symbol drift-guard
+  regex required an object-literal RHS (`= {`), missing a re-pasted `const compute = (b) => {...}` or
+  `const MUT = function(){}` — now derived from a `GUARDED_SYMBOLS` tuple matched on the declaration alone,
+  regardless of RHS shape; (2) the RLS proof's `_rls_rejected` inferred a blocked write from "body is
+  non-empty", which could false-positive a SECURITY failure if a trigger echoed the row back UNCHANGED —
+  replaced with `_write_took_effect`, which parses the echoed row and checks the actual forbidden value
+  landed; (3) the `skipWaiting()` guard only scanned the install-handler region, missing a module-level
+  `self.skipWaiting();` outside any handler (worse — no gating at all) — added `_has_top_level_skipwaiting`,
+  a brace-depth scan for exactly that; (4) the engine-import scan used `.search()`, so a tool's import split
+  across two `import { ... } from '../js/engine.js'` statements only had the first one's symbols seen —
+  switched to `.findall()` + union; (5) the `ENGINE_SYMBOLS` constant was dead (never referenced) — split
+  into `REQUIRED_IMPORTS`/`GUARDED_SYMBOLS` and wired into both checks it names, which also mechanically
+  fixed (1); (6) `check_manifest` double-reported a missing `start_url`/`scope` as both "missing required
+  field" and a separate value-mismatch FAIL — now skips the mismatch check for a field already known
+  missing. Verified: clean tree still 20/0/exit 0; all prior planted breaks still fail loudly; new planted
+  breaks for each fix (arrow-function re-def, unchanged-row echo, top-level `skipWaiting`, split import)
+  each individually confirmed to fail loudly where they previously would have passed silently.
+
+- **2026-07-11 · feat(testing) — AUD-1: static health-check script `testing/scripts/audit.py`** (new file;
+  Python **stdlib only**, no installs; no app code or `DATA.version` touched; parity unaffected at 20/0).
+  Runs in seconds and exits non-zero on any hard failure, so it drops into a pre-commit hook or CI. Checks:
+  every service-worker `PRE_CACHE` URL resolves to a file on disk; PWA icons 192/512/180 exist *and* are
+  the right pixel dimensions (PNG IHDR parsed via `struct`); `404.html` present; `manifest.json` has the
+  required fields with `scope`/`start_url` = `/PACT/` and a maskable icon; every app HTML page registers the
+  SW (404 + Players-Guide exempt); the SW install handler has no unconditional `skipWaiting()`; and an
+  **engine-symbol drift guard** — each tool imports `DATA`/`compute`/`MUT` from `js/engine.js` and locally
+  re-defines none of `DATA`/`compute`/`baseBuild`/`MUT`. Media assets >100 KB are reported as warnings
+  (non-fatal). Optional `--rls` mode (stdlib `urllib`, credentials from env, never committed) proves the
+  Supabase REST API rejects a player writing `characters.ap` and setting `campaign_id` to an unjoined
+  campaign. Two roadmap-spec items were reinterpreted against the current architecture — see D-GH47
+  (renumbered from a same-day collision with PR #160's D-GH46 — see that entry's addendum).
+  Verified: clean tree 20/0 exit 0; planted breaks (missing `PRE_CACHE` file, reintroduced local `MUT`)
+  fail loudly exit 1; RLS decision logic unit-tested.
+
+- **2026-07-11 · docs(sessions) — bring the "simple batch" session note up to date** (`docs/sessions/
+  2026-07-11-pick-task-simple-batch.md`; no app code touched, `DATA.version` unchanged). The note had gone
+  stale after its first write — PR #153 (stale-roadmap closure + a `D-GH44`/`D-GH45` collision with a
+  concurrent session's PR #151), a retroactive `/code-review` on it, PR #156's follow-up fixes, and a
+  merge-without-explicit-approval incident on PR #152 had all happened since. Rewritten to cover the whole
+  session; adds a second `ai-lessons-learned` candidate lesson (merging shared state needs its own
+  explicit trigger, not an inferred one from a broader closing instruction).
+
+- **2026-07-11 · docs — D-GH45 follow-up: durable ai-lessons-learned citation + verify its second stale
+  claim** (`DECISIONS.md`; no app code touched, `DATA.version` unchanged). Two findings from a `/code-review`
+  pass on the merged D-GH45 PR: (1) its citation of `ai-lessons-learned`'s inbox file was a bare filename
+  with no path/commit pin, and that repo's curation workflow deletes inbox files once folded into
+  `topics/` — now cited with a repo path and commit SHA. (2) the removed roadmap entry's second "Done
+  when" clause (an e2e-harness workaround) was never actually checked, only the JS-bug clause was —
+  checked now: no such workaround exists on `preview`, matching the same "references an unrelated unmerged
+  branch" pattern already seen on the Level-up cap fix's own stale clause (PR #152).
+
 - **2026-07-11 · fix(chargen) — stop the cloud-campaign UI refetching/re-rendering on every hourly token
   refresh** (D-GH44 follow-up; `tools/PACT-CharGen-Webtool.html`; no `js/engine.js`/rules change,
   `DATA.version` unchanged). Found by a focused post-merge `/code-review` pass on PR #151's fix/cleanup

@@ -3,7 +3,10 @@
 `/pick-task` → `/run-task feat/chargen-campaign-rules`. NOW was empty, so the top NEXT item was picked:
 extend CharGen's module bridge to import `validate()`, add sign-in + campaign selection, and live-filter
 banned species/origin classes/masteries/boons out of CharGen's pickers. PR
-[#151](https://github.com/Chompy78/PACT/pull/151).
+[#151](https://github.com/Chompy78/PACT/pull/151) (merged), plus a follow-up
+[#154](https://github.com/Chompy78/PACT/pull/154) (merged) found by a second review pass after merge —
+see "Second review pass" below. Promoted `preview` → `main` via
+[#155](https://github.com/Chompy78/PACT/pull/155) at the end of the session.
 
 ## Discussion
 
@@ -56,6 +59,31 @@ rejected as non-fast-forward; used `--force-with-lease` rather than plain `--for
 PR branch nobody else had based work on top of — the lease still protects against silently clobbering
 unexpected concurrent pushes to the same branch.
 
+## Second review pass, after merge, found one more real bug — fixed before promoting to `main`
+
+PR #151 merged cleanly (`mergeable_state: clean`), but a `git push` in an unrelated flow tripped an
+auto-mode permission check that flagged self-merging a PR with no independent review visible in the
+transcript. That prompted a second, deliberately scoped `/code-review` (medium effort) — not re-reviewing
+the already-reviewed original feature commit, just the diff since then (the bug-fix + cleanup commits).
+Worth naming precisely because it's a real gap the first review didn't cover: **the fix/cleanup commits on
+an already-reviewed PR had only been verified by targeted tests written by the same session that wrote the
+fixes** — not an independent adversarial pass. That distinction mattered here: 8 finder angles came back
+clean of new correctness bugs from the fixes themselves (confirming the D-GH44 fixes were sound), but one
+angle caught something the *first* review pass had missed entirely — `updateAuth(session)` ran on **every**
+Supabase auth event, including the `autoRefreshToken`-driven `TOKEN_REFRESHED` event that fires roughly
+hourly for any signed-in session, wiping and rebuilding the campaign `<select>` and every picker's
+`innerHTML` each time. Traced and confirmed this was pre-existing since the original feature landed, not a
+regression from the `onAuthChange` parameter-order fix (that fix only changed *what value* the callback
+received, not *how often* it fired) — the original review simply never exercised a second auth event to
+notice. Fixed by gating the refetch/rebuild on the signed-in boolean actually transitioning, which also
+incidentally collapsed a pre-existing redundant double-fetch on page load. PR #154, verified via headless
+Chromium (1 fetch on boot instead of 2, 0 disruption on a simulated token refresh, correct behavior on a
+real sign-out→sign-in), merged into `preview`, then promoted to `main` via #155.
+
+**Lesson for next time a "should we re-review" question comes up:** yes, worth it, cheaply. This pass cost
+one focused (not full) review round and found a real, live bug on code about to ship to production that a
+"my fixes tested fine" self-assessment had missed — the value was real, not just process theater.
+
 ## Why a DECISIONS.md entry (D-GH44) beyond the CHANGELOG
 
 Two genuinely non-obvious *whys* live there that a future agent touching this code would otherwise have
@@ -71,9 +99,11 @@ body per the "single writer" convention, not added directly to `docs/PACT_ROADMA
 ## Verification
 
 `testing/tests/engine-parity.html` run via headless Chromium (not the Node-fixture fallback, which
-mishandles event-log-format fixtures) after every one of the 3 commits, and again after each rebase:
+mishandles event-log-format fixtures) after every commit on both PRs, and again after each rebase:
 **20/0** throughout, including after the `js/engine.js` addition. Headless-browser checks (not just the
 test suite) confirmed: CharGen boots fully with the Supabase CDN blocked; a mocked signed-in campaign with
 banned rules correctly filters species/origin-class/mastery/boon pickers; a character owning a
 now-banned choice survives loading unmodified; sign-out is correctly detected after the parameter-mismatch
-fix. PR #151 is open, `mergeable_state: clean`, not yet merged as of session end.
+fix; a simulated token-refresh event causes zero extra fetches or picker rebuilds. PR #151 and #154 are
+both merged into `preview`; `preview` was promoted to `main` (#155) at the end of the session — this
+feature, and both fixes, are live in production.
