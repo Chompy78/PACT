@@ -5,7 +5,7 @@
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
 - **2026-07-11 · docs(roadmap) — close the CharGen feature-autocomplete scroll-position task as stale, no
-  code change** (D-GH44; `docs/PACT_ROADMAP.md`, `DECISIONS.md`; no app code touched, `DATA.version`
+  code change** (D-GH45; `docs/PACT_ROADMAP.md`, `DECISIONS.md`; no app code touched, `DATA.version`
   unchanged). The `fix/chargen-feature-autocomplete-scroll-position` TODO described `_featAC`'s `place()`
   double-counting `window.scrollY` on a `position:fixed` menu — that pattern doesn't exist in
   `tools/PACT-CharGen-Webtool.html`'s current code (`top` is computed purely from

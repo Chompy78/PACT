@@ -69,7 +69,7 @@
   addendum above); `validate()` itself predates this, D-GH14. Tool: `tools/PACT-CharGen-Webtool.html` —
   two-script module bridge, header campaign widget, `buildSpeciesSelects()`/`buildOriginClassSelects()`/
   `buildMasteryGrid()`/`cloudRuleBarred()`/`cloudAllowedList()`/`cloudRules()`.
-## D-GH44 · A stale roadmap bug-fix entry survived two independent "doesn't reproduce" findings before being removed
+## D-GH45 · A stale roadmap bug-fix entry survived two independent "doesn't reproduce" findings before being removed
 - **Context:** `docs/PACT_ROADMAP.md` carried `fix/chargen-feature-autocomplete-scroll-position`, describing
   `_featAC`'s `place()` function (`tools/PACT-CharGen-Webtool.html`) double-counting `window.scrollY` on a
   `position:fixed` autocomplete menu. On 2026-07-10, a session investigating a secondhand report of this
@@ -92,6 +92,11 @@
   scanning `docs/PACT_ROADMAP.md`), so it never had a path back into this file.
 - **Status:** DONE. Entry removed from `docs/PACT_ROADMAP.md`; no `tools/PACT-CharGen-Webtool.html` change,
   no `DATA.version` bump, `testing/tests/engine-parity.html` unaffected (docs-only).
+- **Addendum (2026-07-11):** originally logged as `D-GH44`, colliding with the "CharGen campaign-rules
+  awareness" entry above (PR #151), which merged into `preview` first. Kept that earlier-merged entry at
+  `D-GH44`; renumbered this one to `D-GH45` (next free at time of fix) per `AGENTS.md`'s documented
+  renumber-on-merge fallback (D-GH43) — caught before merge this time, so no cross-file references needed
+  updating beyond this file and `CHANGELOG.md`.
 
 ## D-GH41 · CharGen's budget/drawback conflation caused unbounded AP inflation on every save/load/switch cycle
 - **Context:** the task owner reported that saving and reloading a character in CharGen added AP, and each
