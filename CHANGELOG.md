@@ -4,6 +4,21 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · fix(live-sheet) — "Level up" buy-tile stays free and clickable past Hit Die 20**
+  (`tools/PACT-Live-Char-Sheet.html`; UI-only, `DATA.version` unchanged — `DATA.levelAP` already stops at
+  20). The buy-panel's "Level up → Hit Die N" tile priced past HD 20 via a generic `compute()` diff that
+  silently fell through to 0 AP once `DATA.levelAP` ran out of entries, letting a character level up for
+  free with no bound — `levelDelta()` already returned 0 at the cap (used elsewhere to detect "at cap"),
+  but the tile itself wasn't gated on it, even though the buy-panel builder already computed that same
+  `levelDelta()` value (`nd`) and just never applied it. Fix: pass `nd<=0` as the tile's block reason, the
+  same `reasonExtra` mechanism every other at-cap tile already uses — no new gating primitive needed.
+
+- **2026-07-11 · docs — add a pre-release manual QA checklist** (`docs/HOW-TO-WORK.md`, `AGENTS.md`; no
+  app code touched, `DATA.version` unchanged). Documents the cross-tool click-through the automated
+  `engine-parity` gate can't cover: CharGen → export to Live Sheet → buy-off/ledger check → push to cloud
+  → DM Console award-AP → console-error check at each step. `AGENTS.md`'s per-change checklist now points
+  to it, scoped to release-shaped PRs.
+
 - **2026-07-10 · fix(sql) — lock down remaining Supabase function EXECUTE grants (anon)** (D-GH15
   addendum; `sql/migrations/2026-07-10-lock-down-remaining-function-grants.sql`, `sql/rls-policies.sql`;
   no app code touched, `DATA.version` unchanged). Revoked the default Postgres EXECUTE-to-`PUBLIC` grant
