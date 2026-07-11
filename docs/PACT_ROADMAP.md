@@ -142,6 +142,25 @@ caught if a human remembers to open engine-parity.html.
 **Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 20/0
 when run locally too.
 
+## Remove dead DATA keys (benchLevels, armourStandalone) — TODO
+Branch chore/remove-dead-data-keys. Delete two provably-unused keys from the `js/engine.js` DATA literal — surfaced by the D-GH48 dead-code audit; both are read nowhere in `js/`, `tools/`, or `index.html`.
+
+```text
+- Remove "benchLevels":{...} from the inline DATA literal (~line 22): it's the exact inverse
+  ({50:1,...,491:20}) of DATA.levelAP, made fully redundant once the AP ladder was externalized (D-GH48).
+- Remove "armourStandalone":{"light":2,"medium":6,"heavy":10,"shield":2} from the same literal: an
+  orphaned twin of the live DATA.armourClimb (same shape, never read).
+- Confirm zero readers first for each: grep -rnoE 'benchLevels|armourStandalone' js/ tools/ index.html
+  → only the definitions themselves. Do NOT remove DATA.levelAP/level1AP (intentional D-GH48 aliases) or
+  DATA.armourClimb (has real reads).
+- Do NOT re-inline benchLevels; if an AP→level inverse is ever needed, derive it from AP_BY_LEVEL in
+  js/ap-by-level.js.
+- Display-agnostic values, never read by compute() — do NOT bump DATA.version; log in CHANGELOG only.
+```
+
+**Done when:** both keys are gone from `js/engine.js`, the engine imports/parses cleanly, and
+`testing/tests/engine-parity.html` is still **20/0**.
+
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
