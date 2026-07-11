@@ -481,11 +481,10 @@ document.addEventListener('campaign-ready', function () {
   var signInEl = document.getElementById('cgCloudSignIn');
   var selEl = document.getElementById('cgCloudCampSel');
   var myCampaigns = [];
+  var authGen = 0;   // bumped on every auth-state change; a stale in-flight loadCampaigns() checks this before applying its result
   window._cloudSignedIn = false;
   window._cloudCampaign = null;
   window._cloudCampaignRules = null;
-
-  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   function renderStatus(){
     if (!statusEl) return;
@@ -502,10 +501,14 @@ document.addEventListener('campaign-ready', function () {
   }
 
   async function loadCampaigns(){
-    try { myCampaigns = await C.listMyCampaigns(); } catch (err) { console.error('listMyCampaigns:', err); myCampaigns = []; }
+    var gen = authGen;
+    var fetched;
+    try { fetched = await C.listMyCampaigns(); } catch (err) { console.error('listMyCampaigns:', err); fetched = []; }
+    if (gen !== authGen) return;   // a newer sign-in/sign-out superseded this fetch — discard it
+    myCampaigns = fetched;
     var prev = selEl.value;
     selEl.innerHTML = '<option value="">— no campaign —</option>' +
-      myCampaigns.map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + '</option>'; }).join('');
+      myCampaigns.map(function (c) { return '<option value="' + _csEsc(c.id) + '">' + _csEsc(c.name) + '</option>'; }).join('');
     if (prev && myCampaigns.some(function (c) { return c.id === prev; })) selEl.value = prev;
     applySelection(selEl.value);
   }
@@ -519,6 +522,7 @@ document.addEventListener('campaign-ready', function () {
   }
 
   function updateAuth(session){
+    authGen++;
     window._cloudSignedIn = !!session;
     if (session) {
       signInEl.style.display = 'none';
@@ -534,7 +538,7 @@ document.addEventListener('campaign-ready', function () {
   }
 
   selEl.addEventListener('change', function () { applySelection(selEl.value); });
-  A.onAuthChange(function (session) { updateAuth(session); });
+  A.onAuthChange(function (event, session) { updateAuth(session); });   // auth.js's onAuthChange calls cb(event, session) — session is the 2nd arg, not the 1st
   A.currentSession().then(function (session) { updateAuth(session); });
 });
 </script>
@@ -880,7 +884,7 @@ function buildArtGrid(){
 }
 
 
-function buildBoonGrid(){const g=$('boongrid');if(!g)return;const _bb=readBuild();const st=_bb.stats||{};const B=effBoons();const chk=_bb.boons||[];const q=_bdFilter('boonfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
+function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=bOverride||readBuild();const st=_bb.stats||{};const B=effBoons();const chk=_bb.boons||[];const q=_bdFilter('boonfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly. bOverride: applyBuild() passes the build being loaded (D-GH44 fix) so this doesn't filter against the stale pre-load LOG. */
   const byCat={};Object.keys(B).forEach(k=>{var _bar=campBarred('boons',k);if(!_bar&&isDisabled('boons',k)&&!chk.includes(k))return;
     if(!chk.includes(k)&&cloudRuleBarred('boons',k))return;   // cloud campaign rules (D-GH44) — mirror Live Sheet's live-filter: remove, don't disable
     const bo=B[k];
@@ -2124,28 +2128,33 @@ function cloudRuleBarred(kind,name){
   var field={species:'bannedSpecies',originSpecies:'bannedOriginSpecies',originClasses:'bannedOriginClasses',masteries:'bannedMasteries',boons:'bannedBoons'}[kind];
   return !!(field&&rules[field]&&rules[field].indexOf(name)>=0);
 }
-function buildSpeciesSelects(){
+// Each takes an optional bOverride — applyBuild() passes the build actually being loaded so the
+// "keep already-owned items visible even if now-banned" exemption checks the NEW build, not the
+// stale readBuild()/LOG left over from before the load (LOG itself isn't rebuilt from the loaded
+// build until replaceWholeLogFromBuild(_domReadBuild()) at the end of applyBuild()).
+function buildSpeciesSelects(bOverride){
   var specEl=$('spec'),spec2El=$('spec2'); if(!specEl||!spec2El)return;
-  var b=readBuild(); var cur=b.species||'(none)', cur2=b.species2||'(none)';
+  var b=bOverride||readBuild(); var cur=b.species||'(none)', cur2=b.species2||'(none)';
   var specOpt=DATA.species.filter(function(s){return s===cur||!cloudRuleBarred('species',s);}).map(function(s){
     var pc=DATA.pack[s]||0,lbl=pc<0?('grants +'+(-pc)+' AP'):(pc+' AP');
     return '<option value="'+s+'"'+(s===cur?' selected':'')+'>'+s+' ('+lbl+')</option>';}).join('');
   specEl.innerHTML='<option value="(none)"'+(cur==='(none)'?' selected':'')+'>(none)</option>'+specOpt;
-  var spec2Opt=DATA.species.filter(function(s){return s!=='Human'&&(s===cur2||!cloudRuleBarred('originSpecies',s));}).map(function(s){
+  // species2 is subject to BOTH bannedSpecies (generic) and bannedOriginSpecies (validate(), js/engine.js)
+  var spec2Opt=DATA.species.filter(function(s){return s!=='Human'&&(s===cur2||(!cloudRuleBarred('species',s)&&!cloudRuleBarred('originSpecies',s)));}).map(function(s){
     return '<option value="'+s+'"'+(s===cur2?' selected':'')+'>'+s+' ('+(2*(DATA.pack[s]||0))+' AP)</option>';}).join('');
   spec2El.innerHTML='<option value="(none)"'+(cur2==='(none)'?' selected':'')+'>(none)</option>'+spec2Opt;
 }
-function buildOriginClassSelects(){
+function buildOriginClassSelects(bOverride){
   var elA=$('oclass'),elB=$('oclass2'); if(!elA||!elB)return;
-  var b=readBuild(); var cur=b.originClass||'(none)', cur2=b.originClass2||'(none)';
+  var b=bOverride||readBuild(); var cur=b.originClass||'(none)', cur2=b.originClass2||'(none)';
   function opts(sel){return DATA.classes.filter(function(c){return c===sel||!cloudRuleBarred('originClasses',c);}).map(function(c){
     return '<option value="'+c+'"'+(c===sel?' selected':'')+'>'+c+'</option>';}).join('');}
   elA.innerHTML='<option value="(none)"'+(cur==='(none)'?' selected':'')+'>(none)</option>'+opts(cur);
   elB.innerHTML='<option value="(none)"'+(cur2==='(none)'?' selected':'')+'>(none)</option>'+opts(cur2);
 }
-function buildMasteryGrid(){
+function buildMasteryGrid(bOverride){
   var g=$('mastgrid'); if(!g)return;
-  var b=readBuild(); var chk=b.masteries||[];
+  var b=bOverride||readBuild(); var chk=b.masteries||[];
   g.innerHTML=DATA.masteries.filter(function(m){return chk.includes(m)||!cloudRuleBarred('masteries',m);}).map(function(m){
     return '<label class="ck"><input type="checkbox" class="mastck" value="'+m+'"'+(chk.includes(m)?' checked':'')+'> '+m+'</label>';}).join('');
 }
@@ -2362,8 +2371,8 @@ function applyBuild(b,opts){
    if($('dm_boons'))$('dm_boons').checked=da.boons!==false;
    if($('dm_tasha'))$('dm_tasha').checked=da.tasha!==false;
    if($('dm_draws'))$('dm_draws').checked=da.drawbacks!==false;}
-  buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  buildSpeciesSelects(); buildOriginClassSelects(); buildMasteryGrid();   // D-GH44: re-derive from the loaded build so a selected cloud campaign still filters correctly
+  buildArtGrid(); buildBoonGrid(b);buildDrawGrid();buildDmList();
+  buildSpeciesSelects(b); buildOriginClassSelects(b); buildMasteryGrid(b);   // D-GH44 fix: pass the build being loaded, NOT readBuild()'s stale pre-load LOG — the "keep already-owned banned items visible" exemption must check the build actually being loaded, since LOG itself isn't rebuilt from it until replaceWholeLogFromBuild(_domReadBuild()) at the end of this function
   {const ap=b.appearance||{};['gender','age','height','build','hair','eyes','nose','skin','marks','voice','demeanour','quirk','likes','dislikes','father','mother','hometown','profession','familyfor','famevent','secret','drink','ambition','fear','prized','faith','companion','overall'].forEach(k=>set('ap_'+k,ap[k]||''));}
   const ck=(cls,arr)=>document.querySelectorAll('.'+cls).forEach(e=>e.checked=(arr||[]).includes(e.value));
   ck('saveck',b.saves);ck('skillck',b.skills);ck('expck',b.expertise);ck('mastck',b.masteries);ck('boonck',b.boons);ck('racck',b.racialTraits);ck('drawck',b.drawbacks);ck('toolck',b.tools);ck('instck',b.instruments);ck('toolexpck',b.toolExpertise);ck('linspellck',b.racialSpells);
