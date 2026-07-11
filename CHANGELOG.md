@@ -4,6 +4,13 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · docs(chargen) — fix stale/misleading comment on `PATCH_SLOTS.IDENTITY`**
+  (`tools/PACT-CharGen-Webtool.html`; comment-only, no logic touched, `DATA.version` unchanged). A
+  dead-code audit flagged the field as a removal candidate because its own comment said "otherwise
+  unused" — it's actually live and fully wired (`PATCH_FIELD_SLOT` → `_cgSlotPatch`'s IDENTITY case);
+  the comment used "unused" to mean "unused **by the cold-reviewed plan's taxonomy**," which read as
+  dead-code language out of context. Reworded to state plainly that both `IDENTITY` and `size` are live.
+
 - **2026-07-11 · docs(sessions) — add session note for the AUD-1 health-check task (D-GH47)**
   (`docs/sessions/2026-07-11-aud1-health-check.md`; no app code touched, `DATA.version` unchanged).
   Records three roadmap-spec reinterpretations, a `/code-review high` pass that found and fixed six real
