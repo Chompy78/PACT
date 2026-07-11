@@ -1540,10 +1540,17 @@ document.addEventListener('sync-ready', function () {
       if(!live.length){ listEl.innerHTML='<div style="padding:6px 12px;font-size:12px;color:var(--grey)">No saved characters yet.</div>'; return; }
       listEl.innerHTML = live.map(function(c){
         var ts = (c.updated_at||'').slice(0,10);
-        return '<button class="mi cloud-load-btn" data-cid="'+esc(c.id)+'">'+
+        var row = '<button class="mi cloud-load-btn" data-cid="'+esc(c.id)+'">'+
           '<span style="flex:1">'+esc(c.name||'Unnamed')+'</span>'+
           '<span style="font-size:10px;color:var(--grey);margin-left:6px;flex-shrink:0">'+ts+'</span>'+
           '</button>';
+        if(c.campaign_id){
+          row += '<button class="mi cloud-clone-btn" data-cid="'+esc(c.id)+'" data-name="'+esc(c.name||'Unnamed')+'" '+
+            'style="font-size:11px;color:var(--grey);padding:2px 10px 6px 24px" '+
+            'title="Copy this campaign character into a new standalone character you own outright">'+
+            '⧉ Clone to standalone</button>';
+        }
+        return row;
       }).join('');
       listEl.querySelectorAll('.cloud-load-btn').forEach(function(btn){
         btn.addEventListener('click', async function(){
@@ -1573,6 +1580,36 @@ document.addEventListener('sync-ready', function () {
           if(typeof window.render === 'function') window.render();
           cloudMenu.classList.remove('open');
           if(typeof window.flash  === 'function') window.flash('☁ Loaded: '+esc(label));
+        });
+      });
+      listEl.querySelectorAll('.cloud-clone-btn').forEach(function(btn){
+        btn.addEventListener('click', async function(e){
+          e.stopPropagation();
+          var srcName = btn.dataset.name;
+          if(!confirm('Clone "'+srcName+'" into a new standalone character? '+
+            'The clone is not tied to any campaign, starts at 0 AP, and the original is left untouched.')) return;
+          btn.disabled = true; var origText = btn.textContent; btn.textContent = 'Cloning…';
+          try {
+            var rec = await S.loadCharacter(btn.dataset.cid);
+            if(!rec||!rec.stats||!rec.stats.LOG){
+              alert('No character data found.');
+              btn.disabled = false; btn.textContent = origText;
+              return;
+            }
+            // Deep-copy: stats becomes a fresh record's payload, never shared with the source's.
+            var clonedStats = JSON.parse(JSON.stringify(rec.stats));
+            var res = await S.saveCharacter({
+              id: S.newCharacterId(),
+              name: (rec.name||srcName||'Character')+' (standalone copy)',
+              kind: 'livesheet',
+              stats: clonedStats
+              // ap and campaign_id are intentionally omitted — the server defaults them to
+              // 0 / NULL on insert, which is exactly "standalone, ap reset" (see sql/schema.sql).
+            });
+            if(res.error) throw res.error;
+            if(typeof window.flash === 'function') window.flash('⧉ Cloned to a standalone character');
+            renderCloudMenu();
+          } catch(err){ alert('Clone failed: '+err.message); btn.disabled = false; btn.textContent = origText; }
         });
       });
     } catch(err){

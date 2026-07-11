@@ -30,23 +30,6 @@ _(none currently — the last NOW item, the full engine module-bridge migration,
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## Feature: Clone campaign character to standalone — TODO
-Branch feat/clone-char-standalone. Let a player copy their campaign-linked character into a new standalone (non-campaign) character they own outright.
-
-```text
-In Live Sheet, add a "Clone to standalone" action for characters that belong to a campaign.
-The clone copies the raw character build data (stats, event log) into a new character record not tied to any campaign.
-ap on the clone is reset to 0 — ap is DM-authoritative and cannot carry over outside the campaign context.
-The original campaign character is untouched.
-The clone appears in the player's own character list and can be edited freely.
-Store only raw character data; derive everything else via compute() / rebuildStateFromEvents() at runtime — do not store derived values.
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** a player can clone a campaign character to a standalone record; the clone appears in their character list with ap = 0; the original is unchanged; parity still 20/0.
-
----
-
 ## Feature: DM clone campaign rules to another campaign — TODO
 Branch feat/clone-campaign-rules. Let a DM copy the rules configuration from one campaign and apply it as the starting point for another campaign's rules.
 
