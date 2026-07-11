@@ -522,16 +522,21 @@ document.addEventListener('campaign-ready', function () {
 
   function updateAuth(session){
     authGen++;
-    window._cloudSignedIn = !!session;
-    if (session) {
+    var wasSignedIn = window._cloudSignedIn;
+    var nowSignedIn = !!session;
+    window._cloudSignedIn = nowSignedIn;
+    if (nowSignedIn) {
       signInEl.style.display = 'none';
       selEl.style.display = '';
-      loadCampaigns();
+      // Supabase fires onAuthChange for every session event, incl. hourly TOKEN_REFRESHED — only
+      // refetch/rebuild the campaign UI on an actual sign-in transition, not on token housekeeping
+      // (this also collapses the redundant double-fetch this listener + currentSession() used to
+      // both trigger on page load, since the 2nd call now sees wasSignedIn already true).
+      if (!wasSignedIn) loadCampaigns();
     } else {
       signInEl.style.display = '';
       selEl.style.display = 'none';
-      myCampaigns = [];
-      applySelection('');
+      if (wasSignedIn) { myCampaigns = []; applySelection(''); }
     }
     renderStatus();
   }
