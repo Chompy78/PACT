@@ -72,12 +72,13 @@ alter table public.ap_awards    enable row level security;
 -- Base table privileges. RLS gates WHICH ROWS the authenticated role may touch,
 -- but the role still needs a table-level GRANT or every query is "permission
 -- denied". (Supabase normally auto-grants these; we set them explicitly so a
--- fresh project works.) characters deliberately gets NO blanket UPDATE — only
--- the column list below — so ap stays unwritable by players.
+-- fresh project works.) characters deliberately gets NO blanket UPDATE or
+-- INSERT — only the column lists below — so ap stays unwritable by players
+-- through either path.
 -- ---------------------------------------------------------------------------
 grant usage on schema public to authenticated, anon;
 
-grant select, insert, delete on public.characters to authenticated;
+grant select, delete on public.characters to authenticated;
 grant select, insert, update, delete on public.campaigns to authenticated;
 grant select, insert, update on public.profiles to authenticated;
 grant select on public.campaign_dms to authenticated;   -- writes via RPCs only
@@ -152,7 +153,9 @@ drop policy if exists characters_insert on public.characters;
 create policy characters_insert on public.characters
   -- campaign_id must be null on direct insert; join_campaign() (SECURITY DEFINER) bypasses
   -- this policy and sets it authoritatively, so the check doesn't block that path.
-  for insert with check (owner_id = auth.uid() and campaign_id is null);
+  -- ap must be exactly 0 on direct insert for the same reason -- only award_ap() (SECURITY
+  -- DEFINER) may ever set it to a nonzero value.
+  for insert with check (owner_id = auth.uid() and campaign_id is null and ap = 0);
 
 -- Players update their own character. The ap column is NOT in the GRANT below,
 -- so even though this policy passes, an attempt to write ap is rejected.
@@ -173,6 +176,14 @@ create policy characters_delete on public.characters
 -- ---------------------------------------------------------------------------
 revoke update on public.characters from authenticated, anon;
 grant update (name, kind, stats) on public.characters to authenticated;
+
+-- Same guard on INSERT: strip blanket INSERT, grant it only on the columns a
+-- new character actually needs. ap and campaign_id are excluded here too —
+-- any future insert naming either column is rejected by Postgres itself,
+-- before the characters_insert policy's WITH CHECK is even evaluated. Belt
+-- and suspenders with that policy's own `ap = 0` check above.
+revoke insert on public.characters from authenticated;
+grant insert (id, owner_id, name, kind, stats) on public.characters to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- award_ap(character, amount, note) — the ONLY ap write path. Any DM of the

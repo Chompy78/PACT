@@ -51,11 +51,16 @@
   attribution/dates the ledger already tracks for free into one anonymous number. (C) is left as a
   possible future tool, to be built and tested deliberately against the engine's ordering assumptions,
   not folded into this feature under time pressure.
-- **Status:** DONE for the above. **NOT YET DONE:** `characters.ap`'s "resets to 0 on clone" behavior is
-  still enforced only by the client omitting the field from the insert payload — there is no database-level
-  constraint (RLS `WITH CHECK` or column-restricted `GRANT`) stopping a future insert from setting a
-  nonzero `ap`, unlike the `characters` UPDATE path, which is already column-restricted. Filed as a
-  follow-up hardening task (touches `sql/rls-policies.sql`, a migration — out of scope for this UI change).
+- **Status:** DONE. The database-level backstop was also closed out the same day
+  (`sql/migrations/2026-07-11-lock-down-character-insert-ap.sql`, applied to the live project and folded
+  into `sql/rls-policies.sql`): `characters` INSERT is now column-restricted to `(id, owner_id, name,
+  kind, stats)` for `authenticated` — mirroring the existing UPDATE-path lockdown — and the
+  `characters_insert` policy's `WITH CHECK` now also requires `ap = 0`, independent of the grant. Verified
+  against the live project (not just the repo files, given this project's grant/RLS drift history): current
+  grants and policy text queried directly and matched the repo before changing anything; the only
+  client-side insert into `characters` in the whole codebase (`js/sync.js`'s `pushCharacter`) already sends
+  exactly that column list; `join_campaign()` is `SECURITY DEFINER` and unaffected. Advisor scan and recent
+  logs checked post-apply — no new issues.
 
 ---
 

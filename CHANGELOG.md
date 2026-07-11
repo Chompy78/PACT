@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · fix(sql) — database-level backstop: `characters.ap` can no longer be set on insert**
+  (`sql/rls-policies.sql`, `sql/migrations/2026-07-11-lock-down-character-insert-ap.sql`; applied to the
+  live project). Closes the "NOT YET DONE" follow-up from
+  D-GH-2026-07-11-clone-campaign-character-standalone: until now, a new character's `ap` resetting to `0`
+  was enforced only by the client choosing not to include the field on insert — nothing in the database
+  would have stopped a future insert from setting a nonzero value. `characters` INSERT is now
+  column-restricted to `(id, owner_id, name, kind, stats)` for `authenticated` (mirroring the existing
+  UPDATE-path lockdown), and the `characters_insert` policy's `WITH CHECK` now also requires `ap = 0`,
+  independently. Verified against the live project directly (not just the repo files) before and after;
+  Supabase advisor scan and recent logs checked post-apply — no new issues. Doesn't affect
+  `join_campaign()` (`SECURITY DEFINER`, bypasses this policy) or the app's only client-side character
+  insert (`js/sync.js`'s `pushCharacter`, which already sends exactly this column list).
 - **2026-07-11 · feat(livesheet) — clone a campaign character to a standalone character**
   (`tools/PACT-Live-Char-Sheet.html`, `js/sync.js`, `js/dm.js` import; D-GH-2026-07-11-clone-campaign-
   character-standalone). Campaign-linked characters get a "⧉ Clone to standalone" action that copies the
