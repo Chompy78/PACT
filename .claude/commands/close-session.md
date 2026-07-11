@@ -97,10 +97,25 @@ up, say so and skip this.
 
 Give a short punch list, grouped by the numbers above — done / not needed / needs action.
 
-For anything that needs a decision, don't ask yes/no one at a time — list every possible further action
-as a flat, numbered set (`A1`, `A2`, `A3`, ...) at the end of the report, each one line: what it does and
-why it's listed. Then ask once which ones (if any) to run, e.g. "Run A1 and A3? Say the letters, or 'none'."
-Wait for that single reply rather than confirming each item separately.
+For anything that needs a decision, use the tiered format from `AGENTS.md`'s Communication conventions —
+don't ask yes/no one at a time. By default, group every actionable follow-up (merges, branch cleanup,
+pushing a drafted note, etc.) under **one** top-level lettered question — e.g. "**A.** What should we run
+to close out?" — with options **A1**, **A2**, **A3**… underneath. If a genuinely separate decision doesn't
+fit that "run this action" shape (e.g. *when* to promote `preview` → `main` is a scheduling call, not a
+checklist item), give it its own letter (**B**, **C**…) instead of folding it into the same list.
+
+**Tag every option Recommended or Not recommended — with a reason, every time**, using the same bar as
+`AGENTS.md`: default to Recommended; withhold only when the action is destructive/hard to reverse, is a
+judgment call only the user can make, or depends on information not yet available. A clean, already-tested
+PR waiting on a merge, an already-merged branch waiting on cleanup, or an already-drafted note waiting on
+a push are exactly the kind of thing that defaults to Recommended — don't hold them back "to be safe" once
+they've already cleared their own gate (tests passed, review done, merge confirmed).
+
+Recommending an action never means running it unprompted — this skill stays report-only. Ask once which
+letters to run, e.g. "Run A1 and A3? Say the letters, or 'none'," and wait for that single reply rather
+than confirming each item separately. If the `AskUserQuestion` tool is used for this instead of plain
+text, follow `AGENTS.md`'s rule for it: retry once on a tool error before assuming anything, and restate
+which letters were chosen before acting on them.
 
 End with a one-line verdict: clear to close, or not yet (and why).
 

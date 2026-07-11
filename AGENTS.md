@@ -55,6 +55,43 @@ effort — and why — using this quick rubric:
 
 If none of these apply, state that and proceed.
 
+## Communication conventions
+
+### Presenting options and recommendations
+When presenting multiple options or recommendations, use tiered lettering: top-level question = A, B,
+C… (sequential, never repeated within a session); options under each = A1, A2, B1, B2, etc. (uppercase).
+Default to 2-4 genuine options where practical; don't invent filler options just to reach a target number.
+State the recommendation upfront with reasoning; skip the recommendation line if there's no genuine basis
+for one. Frame options wherever a real decision with distinct paths exists, even if not explicitly asked
+as a choice — don't wait to be asked "what are my options" before surfacing one. Do **not** use this
+format for simple clarification questions, factual confirmations, or requests for missing information —
+regular lists or single-fact answers never use this format. A follow-up decision point gets the next
+letter, not a nested sub-tier. Letters reset each new chat.
+
+This applies whether the decision is presented in prose or via the `AskUserQuestion` tool: give every
+option — not only the recommended one — a one-line reason in its `description` field, not a bare label.
+
+### `AskUserQuestion` — a tool error is not an answer
+- **If the tool call itself errors** (a permission/stream failure, not the user declining an option),
+  that is not an answer. Retry the *same* question once and wait for a genuine reply. Never substitute a
+  default or the "Recommended" option as if it were the user's answer — silently proceeding on an assumed
+  choice after a failed call is the actual bug this guards against, not a retry to avoid. Only surface the
+  failure to the user if the retry also fails.
+- **Restate the answer before acting on it.** Once a real answer comes back, say in one line which option
+  was received ("You picked: X — doing that now") before invoking anything downstream. This makes a
+  misread selection visible immediately instead of discovered after the fact.
+
+### Recommending a follow-up action (e.g. `/close-session`'s action list)
+When a skill or report ends with a list of possible follow-up actions, tag each one **Recommended** or
+**Not recommended — <reason>**. Default to recommending: withhold only when the action is destructive or
+hard to reverse (force-push, deleting a branch with unmerged commits, discarding uncommitted work), is a
+judgment call only the user can make (e.g. promoting `preview` → `main` is a release decision, not a
+mechanical step), or depends on information not yet available. Routine, already-verified work — merging a
+PR that's passed its test gate and review, deleting an already-merged branch, pushing an already-drafted
+note — defaults to Recommended; don't hold things back "to be safe" once they've already cleared their
+own gate. A recommended item still needs an explicit go-ahead before it runs — this only changes what gets
+labeled, not whether confirmation is still required for shared/hard-to-reverse state.
+
 ## Architecture — read before editing
 - **`js/engine.js` is the single source of truth for all game rules** (browser ES module). Exports:
   `DATA`, `compute`, `rebuildStateFromEvents`, `baseBuild`, `MUT`, `activeEvents`, `economy`, `foldBuild`.
