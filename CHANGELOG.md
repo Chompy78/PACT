@@ -16,6 +16,13 @@
   one-task-per-branch rule), so no live-remote check or renumbering is needed going forward. Existing
   `D-GH1`–`D-GH49` entries are untouched. Updated `AGENTS.md` and the `/add-roadmap-task`/`/pick-task`
   skills to match. Docs-only; `DATA.version` unchanged.
+- **2026-07-11 · feat(engine) — externalize the AP-by-level ladder to `js/ap-by-level.js` (D-GH49)**
+  New editable module exports `AP_BY_LEVEL` (the level→AP budget table) and `DEFAULT_LEVEL`; `js/engine.js`
+  imports them and surfaces `DATA.apByLevel`/`DATA.defaultAp`, keeping `DATA.levelAP`/`DATA.level1AP` as
+  back-compat aliases (`compute()`'s racial-trait lock reads `DATA.level1AP`). All three tools pick it up
+  through the existing DATA bridge — no tool change. Values are byte-identical to the old inline literal,
+  so `compute()` output is unchanged; `DATA.version` NOT bumped and `testing/expected/` unchanged; parity
+  stays **20/0**.
 
 - **2026-07-11 · docs(sessions) — add session note for the AUD-1 health-check task (D-GH47)**
   (`docs/sessions/2026-07-11-aud1-health-check.md`; no app code touched, `DATA.version` unchanged).

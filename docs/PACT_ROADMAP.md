@@ -30,20 +30,6 @@ _(none currently — the last NOW item, the full engine module-bridge migration,
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## Externalize CharGen default AP + AP-by-level table — TODO
-Branch feat/ap-by-level. Previously gated on "Task 6" (CharGen's DATA/compute bridge) — that landed in
-D-GH26, so CharGen now imports `DATA` live from `js/engine.js` and this task is unblocked and can proceed
-independently of the remaining `feat/engine-bridge-all-tools` work.
-- Add js/ap-by-level.js exporting AP_BY_LEVEL = {1:50, 2:70, ...} and DEFAULT_LEVEL.
-- js/engine.js imports it and surfaces it on DATA (DATA.apByLevel, DATA.defaultAp). All three tools get
-  it automatically via their existing DATA bridge.
-- CharGen reads the default budget + level→AP lookup THROUGH the engine bridge — never the file directly.
-- AP-per-level is mechanics: bump DATA.version and update the REV-01 baseline in the same PR.
-**Done when:** editing a value in js/ap-by-level.js changes the default budget / level options in every tool
-that's on the shared engine, with no other code change; engine API stable; parity passes.
-
----
-
 ## Feature: Clone campaign character to standalone — TODO
 Branch feat/clone-char-standalone. Let a player copy their campaign-linked character into a new standalone (non-campaign) character they own outright.
 
@@ -88,7 +74,7 @@ In Live Sheet (and optionally DM Console), display the character's current D&D 2
 
 Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 
-Note: this overlaps with the existing "Externalize CharGen default AP + AP-by-level table" task. Best done after that task lands, or coordinate changes to avoid duplicating the AP table.
+Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, exposed as `DATA.apByLevel`). Build advancement tracks on top of that single source — reuse `AP_BY_LEVEL` as the "average" baseline rather than duplicating the AP ladder here.
 ```
 
 **Done when:** advancement tracks are stored in engine data; a DM can select or customise a track per campaign; the Live Sheet shows the D&D 2024 equivalent level label; parity still 20/0.
