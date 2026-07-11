@@ -231,30 +231,6 @@ list fully within the viewport, verified manually at a few scroll depths and by 
 currently works around this with a forced scroll-to-0 + oversized viewport — that workaround can be
 removed once this lands). Parity still 20/0 (unaffected — no engine.js change).
 
-## Fix: "Level up" buy-tile stays free and clickable past Hit Die 20 — TODO
-Branch fix/live-sheet-level-cap-tile-disable. Found via the e2e harness's `hd-cap` scenario, which
-initially ran a character away to HD 44 before a client-side guard was added to the test script.
-Mechanics-adjacent but restores intended behavior rather than changing a rule — flag during implementation
-whether DATA.version needs a bump; my read is no, since DATA.levelAP already stops at 20 today.
-
-```text
-In tools/PACT-Live-Char-Sheet.html, the "Level up → Hit Die N" buy-panel tile's AP cost is derived from
-DATA.levelAP, which only defines entries through level 20 (js/engine.js). Past HD 20, the cost
-calculation falls through to 0 AP instead of the tile being disabled/hidden — it stays clickable
-indefinitely, letting a character level up for free with no bound. levelDelta() correctly returns 0 past
-20 (used elsewhere to detect "at cap"), but the buy-panel tile itself isn't gated the same way.
-
-Repro: get a character to Hit Die 20 in the Live Sheet, keep clicking "Level up → Hit Die 21/22/23…" —
-each succeeds at 0 AP cost with no limit.
-
-Fix: gate the "Level up" tile the same way other at-cap states are handled — disable/hide it (or price it
-as unaffordable/blocked) once hd >= 20, consistent with levelDelta(20) <= 0 already meaning "at cap"
-elsewhere in the codebase.
-```
-**Done when:** clicking "Level up" at Hit Die 20 is blocked/disabled rather than free; the e2e harness's
-`--scenario hd-cap` can drop its explicit "exclude Level-up tiles once hd>=20" workaround once this
-lands. Parity still 20/0.
-
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
