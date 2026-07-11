@@ -50,6 +50,17 @@
   after a subsequent sign-out and repopulate campaign state. Re-verified: 20/0 parity, offline boot intact,
   and headless-browser checks that a banned-but-owned species/origin-class/mastery now survives a character
   load unmodified while still being correctly filtered out of pickers for builds that don't already own it.
+  **Follow-up cleanup pass (same PR, remaining review findings):** `js/engine.js` gains a new
+  `RULE_BAN_FIELDS` export (display-only, next to `validate()` — never bumps `DATA.version`) so the
+  kind→rules-field mapping lives in one place instead of being hardcoded separately per tool; CharGen's
+  `cloudRuleBarred()` now sources it from there (Live Sheet's own copy is untouched — out of scope for
+  this PR). `buildSpeciesSelects`/`buildOriginClassSelects`/`buildMasteryGrid` now share a
+  `cloudAllowedList()` filter helper instead of repeating the same filter-unless-already-selected shape
+  three times. `window._cloudCampaignRules` (redundant, fully derivable from `window._cloudCampaign.rules`)
+  is gone, replaced by a `cloudRules()` accessor. `refreshCloudFilters()` and the boot-time picker
+  population now compute `readBuild()` once and share it instead of each of the 4-5 picker-rebuild
+  functions independently re-folding the event log. Re-verified: 20/0 parity, offline boot intact, and the
+  same filter/load/sign-out behavioral checks as above all still pass unchanged.
 
 - **2026-07-10 · fix(sql) — lock down remaining Supabase function EXECUTE grants (anon)** (D-GH15
   addendum; `sql/migrations/2026-07-10-lock-down-remaining-function-grants.sql`, `sql/rls-policies.sql`;

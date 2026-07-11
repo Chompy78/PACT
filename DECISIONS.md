@@ -55,9 +55,20 @@
   joined a campaign (e.g. via that missing UI) sees an empty list in CharGen's new campaign picker — it works
   today only for a DM/co-DM previewing their own campaign's rules, or a player who already has a
   campaign-bound character from some other route. Filed as a new roadmap item below.
-- **Status:** IN FORCE as of 2026-07-11. Engine: unchanged (`js/engine.js`'s `validate()` predates this,
-  D-GH14). Tool: `tools/PACT-CharGen-Webtool.html` — two-script module bridge, header campaign widget,
-  `buildSpeciesSelects()`/`buildOriginClassSelects()`/`buildMasteryGrid()`/`cloudRuleBarred()`.
+- **Addendum (same PR, cleanup pass on `/code-review` findings):** two of the review's cleanup findings
+  needed a scope call. (a) `cloudRuleBarred()`'s kind→rules-field mapping was hardcoded a second time here,
+  duplicating both `validate()`'s own schema and a third, narrower copy already in Live Sheet — fixed by
+  exporting it once from `js/engine.js` as `RULE_BAN_FIELDS` (display-only, next to `validate()`, never
+  read by `compute()` — no `DATA.version` bump, same precedent as `racialFx`/`drawbackFx`/`masteryFx`) and
+  having CharGen consume it. Live Sheet's own copy is deliberately **not** touched here — updating it is a
+  second tool's file, outside this PR's stated scope, and a legitimate small follow-up rather than
+  something worth expanding this branch for. (b) `window._cloudCampaignRules` (a second global, derivable
+  from `window._cloudCampaign.rules` and only ever written alongside it) is gone, replaced by a
+  `cloudRules()` accessor — removes a class of drift bug with no behavior change.
+- **Status:** IN FORCE as of 2026-07-11. Engine: `js/engine.js` gains `RULE_BAN_FIELDS` (display-only,
+  addendum above); `validate()` itself predates this, D-GH14. Tool: `tools/PACT-CharGen-Webtool.html` —
+  two-script module bridge, header campaign widget, `buildSpeciesSelects()`/`buildOriginClassSelects()`/
+  `buildMasteryGrid()`/`cloudRuleBarred()`/`cloudAllowedList()`/`cloudRules()`.
 
 ## D-GH41 · CharGen's budget/drawback conflation caused unbounded AP inflation on every save/load/switch cycle
 - **Context:** the task owner reported that saving and reloading a character in CharGen added AP, and each
