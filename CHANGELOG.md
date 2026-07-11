@@ -4,6 +4,75 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-11 · chore(testing) — add `playwright` + `supabase` CLI as devDependencies**
+  (`testing/package.json`, `testing/package-lock.json`; dev-tooling only, no app code touched,
+  `DATA.version` unchanged). Both were installed and verified working during the save-integrity session
+  (Playwright launches Chromium; `npx supabase --version` resolves) but never landed in the repo, so a
+  fresh checkout/CI would have had to rediscover and reinstall them. `npm run e2e:character` and local
+  Supabase CLI usage (`npx supabase ...`) now resolve immediately after `cd testing && npm install`.
+
+- **2026-07-11 · fix(sql) — database-level backstop: `characters.ap` can no longer be set on insert**
+  (`sql/rls-policies.sql`, `sql/migrations/2026-07-11-lock-down-character-insert-ap.sql`; applied to the
+  live project). Closes the "NOT YET DONE" follow-up from
+  D-GH-2026-07-11-clone-campaign-character-standalone: until now, a new character's `ap` resetting to `0`
+  was enforced only by the client choosing not to include the field on insert — nothing in the database
+  would have stopped a future insert from setting a nonzero value. `characters` INSERT is now
+  column-restricted to `(id, owner_id, name, kind, stats)` for `authenticated` (mirroring the existing
+  UPDATE-path lockdown), and the `characters_insert` policy's `WITH CHECK` now also requires `ap = 0`,
+  independently. Verified against the live project directly (not just the repo files) before and after;
+  Supabase advisor scan and recent logs checked post-apply — no new issues. Doesn't affect
+  `join_campaign()` (`SECURITY DEFINER`, bypasses this policy) or the app's only client-side character
+  insert (`js/sync.js`'s `pushCharacter`, which already sends exactly this column list).
+- **2026-07-11 · feat(livesheet) — clone a campaign character to a standalone character**
+  (`tools/PACT-Live-Char-Sheet.html`, `js/sync.js`, `js/dm.js` import; D-GH-2026-07-11-clone-campaign-
+  character-standalone). Campaign-linked characters get a "⧉ Clone to standalone" action that copies the
+  raw build data (stats/event log) into a brand-new character record owned by the player, not tied to any
+  campaign. `campaign_id` is omitted from the insert so the server defaults it to `NULL`; the verified,
+  DM-Console-only `characters.ap` running total also resets to `0` on the new row (no DM is left to vouch
+  for it), but any AP that DM actually awarded isn't lost — the clone fetches the source character's full
+  `ap_awards` history and appends one itemized log entry per award (real date, amount, DM, note),
+  oldest-first, after the existing history. The original campaign character is left untouched: the
+  source read uses a new pure-read `peekCharacter()` (`js/sync.js`) instead of `loadCharacter()`, since
+  the latter's `reconcile()` can silently push this device's pending local edits to the server as a side
+  effect — which would have contradicted the "original untouched" guarantee. Also guards against
+  duplicate clones (an in-flight lock survives the Cloud menu being closed/reopened mid-clone) and shows
+  an accurate "saved locally, will sync when online" flash instead of a false success message when
+  offline. Display-only; `DATA.version` unchanged. See `DECISIONS.md` for the append-vs-splice reasoning
+  (the migrated awards are never inserted into the log's historical positions, to avoid retroactively
+  repricing an already-frozen purchase — the same class of risk documented in D-GH34/36/37). Also: the
+  clone list's row markup is now a shared `buildCharRow()` helper (computes each character's escaped name
+  once instead of twice), a successful clone updates the local character list in place instead of
+  re-fetching the whole list from the server, and the clone no longer JSON-round-trips `stats` purely for
+  a defensive copy it didn't need (the source read is already a fresh, unaliased object). A retry after a
+  failed clone now reuses the same pending clone id instead of minting a fresh one each click — the first
+  failed attempt already wrote a dirty local record before the network push failed, so retrying with a new
+  id would have left that one behind as an invisible orphan that later syncs up as a duplicate character;
+  the id is cleared once a clone actually succeeds.
+- **2026-07-11 · docs(chargen) — fix stale/misleading comment on `PATCH_SLOTS.IDENTITY`**
+  (`tools/PACT-CharGen-Webtool.html`; comment-only, no logic touched, `DATA.version` unchanged). A
+  dead-code audit flagged the field as a removal candidate because its own comment said "otherwise
+  unused" — it's actually live and fully wired (`PATCH_FIELD_SLOT` → `_cgSlotPatch`'s IDENTITY case);
+  the comment used "unused" to mean "unused **by the cold-reviewed plan's taxonomy**," which read as
+  dead-code language out of context. Reworded to state plainly that both `IDENTITY` and `size` are live.
+- **2026-07-11 · docs(process) — retire sequential D-GH numbers for D-GH-\<date\>-\<slug\>**
+  (D-GH-2026-07-11-dgh-numbering-scheme). The old scheme collided at least eight times across this
+  project's history; the new form is collision-proof by construction (piggybacks on the already-enforced
+  one-task-per-branch rule), so no live-remote check or renumbering is needed going forward. Existing
+  `D-GH1`–`D-GH49` entries are untouched. Updated `AGENTS.md` and the `/add-roadmap-task`/`/pick-task`
+  skills to match. Docs-only; `DATA.version` unchanged.
+- **2026-07-11 · feat(engine) — externalize the AP-by-level ladder to `js/ap-by-level.js` (D-GH49)**
+  New editable module exports `AP_BY_LEVEL` (the level→AP budget table) and `DEFAULT_LEVEL`; `js/engine.js`
+  imports them and surfaces `DATA.apByLevel`/`DATA.defaultAp`, keeping `DATA.levelAP`/`DATA.level1AP` as
+  back-compat aliases (`compute()`'s racial-trait lock reads `DATA.level1AP`). All three tools pick it up
+  through the existing DATA bridge — no tool change. Values are byte-identical to the old inline literal,
+  so `compute()` output is unchanged; `DATA.version` NOT bumped and `testing/expected/` unchanged; parity
+  stays **20/0**.
+- **2026-07-11 · chore(engine) — remove unused `DATA.benchLevels` and `DATA.armourStandalone`**
+  Both were provably dead (a repo-wide dead-code audit found zero reads outside their own definitions):
+  `benchLevels` was a redundant inverse copy of `DATA.levelAP`, `armourStandalone` an orphaned twin of
+  the live `DATA.armourClimb`. Deleted from the `js/engine.js` DATA literal; display-agnostic values
+  never read by `compute()`, so `DATA.version` unchanged. Parity stays **20/0**.
+
 - **2026-07-11 · docs(sessions) — add session note for the AUD-1 health-check task (D-GH47)**
   (`docs/sessions/2026-07-11-aud1-health-check.md`; no app code touched, `DATA.version` unchanged).
   Records three roadmap-spec reinterpretations, a `/code-review high` pass that found and fixed six real
@@ -11,6 +80,20 @@
   session's PR #160 (renumbered to D-GH47), and a rebase that reported "no conflicts" while silently
   leaving a duplicate/orphaned `DECISIONS.md` title line — caught only by reading the merged content
   directly rather than trusting the rebase's own success message.
+- **2026-07-11 · feat — Feature B: save-file integrity (tamper-evidence)** (D-GH48; `js/engine.js`,
+  `js/character-store.js`, all three `tools/*.html`; `DATA.version` unchanged — additive, no `compute()`
+  change; parity **20/0**). Engine gains synchronous `signPayload`/`verifyPayload` + a self-contained
+  SHA-256 (validated against the NIST vectors) and an order-independent canonical serializer.
+  `js/character-store.js` owns the file-format policy: `buildCharacterEnvelope()` signs **by default**
+  (`sig:{alg,hash}`) so any exported file is signed by construction, while the localStorage autosave/local
+  save opt out with `{sign:false}` (that copy is never signature-checked on the way back in). The read side
+  is a single shared `verifyCharacterEnvelope()` returning `{status, tampered, envelope}`, called by every
+  file-load path — Live Sheet import and CharGen load flash a **non-blocking** warning; DM Console badges the
+  roster card ("⚠ edited") and adds a Flags-&-notes line (a file that is both tampered *and* a different
+  rules version now shows both notices). `sig` is metadata the engine never reads, so signed files
+  price/rebuild identically and older/unsigned files still load. Tamper-EVIDENT, not tamper-proof — the
+  offline stopgap before the Supabase server-side enforcement phase; the cloud load path is intentionally
+  out of scope (server-authoritative under RLS). Graduated from `docs/PACT_ROADMAP.md`.
 
 - **2026-07-11 · docs(sessions) — add session note for the communication-conventions fix (D-GH46)**
   (`docs/sessions/2026-07-11-communication-conventions.md`; no app code touched, `DATA.version`

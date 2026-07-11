@@ -458,7 +458,7 @@ function redo(){ if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save
 const KEY='pactLiveSheet';
 // D-GH40: local save now carries the same CHAR_SCHEMA shape the file Save/Export use (schema+name added;
 // was {LOG,SEQ,rules,id} untagged) — purely additive, load() below already tolerates either shape.
-function save(){ try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:foldBuild(null).name,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId()})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); } }
+function save(){ try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:foldBuild(null).name,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId()},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); } }
 function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
 // Feature-detect Web Share (files) rather than sniffing the user agent — this is the reliable
 // save path on iOS Safari/PWA, where a plain blob+<a download> is known to silently fail (it
@@ -513,8 +513,16 @@ function _apNudgeBanner(spent){
 // older untagged/CharGen-tagged LOG file — the `if(d.LOG)` check already tolerated the shape structurally;
 // the fix here is restoring `id` when the file has one (it never did before this), so a file round-tripped
 // out and back in keeps its identity instead of silently minting a new character each time.
-function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=JSON.parse(e.target.result); if(d.LOG){LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
-  if(loadedRules&&loadedRules!==RULES){flash('Loaded a '+loadedRules+' character into '+RULES+' rules — old prices are frozen.');_showVersionBanner();}  else flash('Loaded character.');try{if(!LOG.some(function(e){return e.type==='names';}))openNames();}catch(e){}}}catch(err){alert('Bad file: '+err.message);}}; fr.readAsText(file); }
+function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=JSON.parse(e.target.result);
+  // Tamper-evidence (D-GH48): verify the INCOMING file before save() re-signs it with the current
+  // contents. Non-blocking — a hand-edited/corrupted file is flagged but still loads.
+  const _tampered=!!(window.verifyCharacterEnvelope&&window.verifyCharacterEnvelope(d).tampered);
+  if(d.LOG){LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
+  // Compose the load notice so a file that is BOTH tampered AND a different rules version shows both.
+  var _msgs=[];
+  if(_tampered){_msgs.push('⚠ This file was edited outside PACT — its signature no longer matches. It has still been loaded; double-check the numbers before playing.');}
+  if(loadedRules&&loadedRules!==RULES){_showVersionBanner();_msgs.push('Loaded a '+loadedRules+' character into '+RULES+' rules — old prices are frozen.');}
+  flash(_msgs.length?_msgs.join(' '):'Loaded character.');try{if(!LOG.some(function(e){return e.type==='names';}))openNames();}catch(e){}}}catch(err){alert('Bad file: '+err.message);}}; fr.readAsText(file); }
 // One-click switch to the Character Generator (D-GH38): save locally, stage a same-origin handoff baton,
 // navigate. CharGen consumes ?handoff=<id> on boot. No file to export/import. writeHandoff/currentCharId are
 // bridged from js/character-store.js. Online-only (the SW serves .html network-first; a unique handoff URL is
@@ -1397,14 +1405,16 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
 </div></div>
 
 <script type="module">
-  import { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
   import { listMyCampaigns, getCampaign } from '../js/campaign.js';
+  import { getAwardHistory } from '../js/dm.js';
   import { validate, DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
-  import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40)
-  window._syncBridge = { saveCharacter, loadCharacter, listCharacters, newCharacterId, initSync };
+  import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48)
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync };
   window._authBridge = { currentSession, onAuthChange };
   window._campaignBridge = { listMyCampaigns, getCampaign };
+  window._dmBridge = { getAwardHistory };
   window._engineBridge = { validate };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
@@ -1414,6 +1424,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   window.DATA = DATA; window.compute = compute; window.baseBuild = baseBuild; window.MUT = MUT;
   window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs;
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
+  window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   document.dispatchEvent(new Event('engine-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -1424,11 +1435,19 @@ document.addEventListener('sync-ready', function () {
   'use strict';
   var S = window._syncBridge;
   var A = window._authBridge;
+  var DM = window._dmBridge;
   var cloudBtn  = document.getElementById('cloudBtn');
   var cloudMenu = document.getElementById('cloudMenu');
   var _session  = null;
   var _campaignName = null;   // name of the campaign_id on the currently loaded character, if any
   var _rulesStatus  = 'none'; // 'none' | 'active' | 'unavailable' — see renderCloudStatusBadge()
+  var _cloningIds   = new Set(); // character ids with a clone-to-standalone in flight — persists
+                                  // across renderCloudMenu() rebuilds so reopening the ☁ menu mid-clone
+                                  // can't start a second concurrent clone of the same character
+  var _pendingCloneIds = {};     // sourceCid -> the new clone's id, kept ONLY across a failed attempt
+                                  // so a retry re-targets the same (already-locally-saved) clone instead
+                                  // of minting a second one and leaving the first as an orphan; cleared
+                                  // on success (same memoized-id pattern as currentCharId()/__charId)
 
   function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -1528,44 +1547,137 @@ document.addEventListener('sync-ready', function () {
       var chars = await S.listCharacters();
       var live  = (chars||[]).filter(function(c){ return c.kind==='livesheet'; });
       var listEl = document.getElementById('cloudCharList');
-      if(!live.length){ listEl.innerHTML='<div style="padding:6px 12px;font-size:12px;color:var(--grey)">No saved characters yet.</div>'; return; }
-      listEl.innerHTML = live.map(function(c){
+
+      // One row-template + one render pass, shared by the initial fetch-backed render and
+      // any later local-only update (e.g. after a clone) that must NOT re-fetch the whole
+      // list from the server just to show one new entry.
+      function buildCharRow(c){
+        var nm = esc(c.name||'Unnamed');
         var ts = (c.updated_at||'').slice(0,10);
-        return '<button class="mi cloud-load-btn" data-cid="'+esc(c.id)+'">'+
-          '<span style="flex:1">'+esc(c.name||'Unnamed')+'</span>'+
+        var row = '<button class="mi cloud-load-btn" data-cid="'+esc(c.id)+'">'+
+          '<span style="flex:1">'+nm+'</span>'+
           '<span style="font-size:10px;color:var(--grey);margin-left:6px;flex-shrink:0">'+ts+'</span>'+
           '</button>';
-      }).join('');
-      listEl.querySelectorAll('.cloud-load-btn').forEach(function(btn){
-        btn.addEventListener('click', async function(){
-          var label = btn.querySelector('span').textContent;
-          if(!confirm('Load "'+label+'"? This replaces your current character history.')) return;
-          var rec = await S.loadCharacter(btn.dataset.cid);
-          if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return; }
-          window._dmAp = rec.ap || 0;
-          window._ignorePlayerAp = false;
-          window._cloudCampaignRules = null;
-          _campaignName = null; _rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
-          if(rec.campaign_id && window._campaignBridge) {
-            try {
-              var camps = await window._campaignBridge.listMyCampaigns();
-              var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
-              if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; _rulesStatus = 'active'; }
-            } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds */ }
-          }
-          renderCloudStatusBadge();
-          var d = rec.stats;
-          window.LOG = d.LOG;
-          window.SEQ = d.SEQ||(d.LOG.length+1);
-          window.loadedRules = d.rules||null;
-          window.REDO = []; window.viewAt = null;
-          if(window.__charId !== undefined) window.__charId = rec.id;
-          if(typeof window.save   === 'function') window.save();
-          if(typeof window.render === 'function') window.render();
-          cloudMenu.classList.remove('open');
-          if(typeof window.flash  === 'function') window.flash('☁ Loaded: '+esc(label));
+        if(c.campaign_id){
+          row += '<button class="mi cloud-clone-btn" data-cid="'+esc(c.id)+'" data-name="'+nm+'" '+
+            'style="font-size:11px;color:var(--grey);padding:2px 10px 6px 24px" '+
+            'title="Copy this campaign character into a new standalone character you own outright">'+
+            '⧉ Clone to standalone</button>';
+        }
+        return row;
+      }
+
+      function renderCharListUI(){
+        if(!live.length){ listEl.innerHTML='<div style="padding:6px 12px;font-size:12px;color:var(--grey)">No saved characters yet.</div>'; return; }
+        listEl.innerHTML = live.map(buildCharRow).join('');
+        listEl.querySelectorAll('.cloud-load-btn').forEach(function(btn){
+          btn.addEventListener('click', async function(){
+            var label = btn.querySelector('span').textContent;
+            if(!confirm('Load "'+label+'"? This replaces your current character history.')) return;
+            var rec = await S.loadCharacter(btn.dataset.cid);
+            if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return; }
+            window._dmAp = rec.ap || 0;
+            window._ignorePlayerAp = false;
+            window._cloudCampaignRules = null;
+            _campaignName = null; _rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
+            if(rec.campaign_id && window._campaignBridge) {
+              try {
+                var camps = await window._campaignBridge.listMyCampaigns();
+                var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
+                if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; _rulesStatus = 'active'; }
+              } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds */ }
+            }
+            renderCloudStatusBadge();
+            var d = rec.stats;
+            window.LOG = d.LOG;
+            window.SEQ = d.SEQ||(d.LOG.length+1);
+            window.loadedRules = d.rules||null;
+            window.REDO = []; window.viewAt = null;
+            if(window.__charId !== undefined) window.__charId = rec.id;
+            if(typeof window.save   === 'function') window.save();
+            if(typeof window.render === 'function') window.render();
+            cloudMenu.classList.remove('open');
+            if(typeof window.flash  === 'function') window.flash('☁ Loaded: '+esc(label));
+          });
         });
-      });
+        listEl.querySelectorAll('.cloud-clone-btn').forEach(function(btn){
+          btn.addEventListener('click', async function(e){
+          e.stopPropagation();
+          var cid = btn.dataset.cid;
+          if(_cloningIds.has(cid)) return;   // already cloning this character — ignore the extra click
+          var srcName = btn.dataset.name;
+          if(!confirm('Clone "'+srcName+'" into a new standalone character? '+
+            'The clone is not tied to any campaign; any AP your DM awarded is copied into its history '+
+            'as individual entries, and the original is left untouched.')) return;
+          _cloningIds.add(cid);
+          btn.disabled = true; var origText = btn.textContent; btn.textContent = 'Cloning…';
+          try {
+            // peekCharacter (not loadCharacter) — a pure read that never pushes this device's
+            // pending local edits back to the server, so cloning truly cannot touch the original.
+            var rec = await S.peekCharacter(cid);
+            if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return; }
+            // rec.stats is already a fresh, unaliased parse (peekCharacter never returns a
+            // shared/live reference) — safe to mutate directly, no defensive deep-copy needed.
+            var clonedStats = rec.stats;
+            clonedStats.SEQ = clonedStats.SEQ || (clonedStats.LOG.length + 1);
+
+            // Migrate the DM Console's verified AP awards into itemized log entries, oldest
+            // first, so a player doesn't lose access to points a real DM verifiably granted
+            // them just because the clone leaves the campaign (see DECISIONS.md). These are
+            // APPENDED after the existing history, never spliced into it — the engine's replay
+            // is order-sensitive (racial-trait pricing locks in based on log position, and
+            // "prices freeze at purchase"), so inserting historical entries into the middle of
+            // an already-priced log could retroactively change what earlier purchases cost.
+            // Best-effort: the clone still proceeds if the history can't be read.
+            try {
+              var history = await DM.getAwardHistory(cid);
+              (history||[]).slice().reverse().forEach(function(row){   // reverse: oldest first
+                clonedStats.LOG.push({
+                  seq: clonedStats.SEQ++,
+                  ts: Date.parse(row.created_at) || Date.now(),
+                  type: 'award',
+                  amount: row.amount,
+                  note: row.note || '',
+                  label: (row.note && row.note.trim() ? row.note.trim() : 'AP award') +
+                    ' (DM award' + (row.dm ? ' from '+row.dm : '') + ', migrated on clone)',
+                  rules: clonedStats.rules || window.RULES
+                });
+              });
+            } catch(histErr) { /* non-fatal — clone still proceeds without the itemized migration */ }
+
+            var cloneName = (rec.name||srcName||'Character')+' (standalone copy)';
+            // Reuse the same new-character id across a retry instead of minting a fresh one
+            // every click: saveCharacter() writes to localStorage before it even attempts the
+            // network push, so a failed attempt already left a dirty local record behind under
+            // its id — retrying with a NEW id would leave that first one as an orphan that
+            // later syncs up as an invisible duplicate. Cleared on success, below.
+            var newId = _pendingCloneIds[cid] || (_pendingCloneIds[cid] = S.newCharacterId());
+            var res = await S.saveCharacter({
+              id: newId,
+              name: cloneName,
+              kind: 'livesheet',
+              stats: clonedStats
+              // ap and campaign_id are intentionally omitted — the server defaults them to
+              // 0 / NULL on insert (see sql/schema.sql). Verified DM Console AP isn't lost —
+              // it's migrated above as ordinary itemized log entries instead.
+            });
+            if(res.error) throw res.error;
+            delete _pendingCloneIds[cid];
+            if(typeof window.flash === 'function') window.flash(res.synced
+              ? '⧉ Cloned to a standalone character'
+              : '⧉ Cloned locally (offline — will sync to the cloud when online)');
+            // Update the in-memory list and re-render locally instead of calling
+            // S.listCharacters() again — the clone's id/name/timestamp are already known,
+            // so a full server re-fetch would only be re-reading data we already have.
+            live.unshift({ id: res.id, name: cloneName, kind: 'livesheet', campaign_id: null, updated_at: new Date().toISOString() });
+            renderCharListUI();
+          } catch(err){ alert('Clone failed: '+err.message); }
+          finally { _cloningIds.delete(cid); btn.disabled = false; btn.textContent = origText; }
+          });
+        });
+      }
+
+      renderCharListUI();
     } catch(err){
       var listEl = document.getElementById('cloudCharList');
       if(listEl) listEl.innerHTML='<div style="padding:6px 12px;font-size:12px;color:#c00">Error: '+esc(err.message)+'</div>';

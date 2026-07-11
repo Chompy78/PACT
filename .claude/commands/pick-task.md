@@ -28,8 +28,8 @@ git show origin/preview:testing/expected/expected-results.csv
 
 — and to return only compact text, not the raw files: the branch-naming convention, the current expected
 pass count (the number of data rows in `expected-results.csv` — that's the live "N passed / 0 failed"
-target, not a number to hardcode), every roadmap `— TODO` item in NOW/NEXT/LATER, and the highest existing
-`D-GH#` decision number.
+target, not a number to hardcode), and every roadmap `— TODO` item in NOW/NEXT/LATER. (No need to fetch a
+highest `D-GH#` — decision codes are now `D-GH-<date>-<branch-slug>`, collision-proof without a lookup.)
 
 If `git show` fails (e.g. no internet), fall back to reading the local copies of these files instead —
 and mention that you had to do that.

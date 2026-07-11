@@ -182,14 +182,18 @@ Before finishing a task / opening a PR, update what applies (newest on top):
 More than one agent may be active. **`docs/PACT_ROADMAP.md` has a single writer** — don't append to it.
 If you have new roadmap items, output them in **this exact format** for the human to fold in, then carry on:
 
-**`D-GH<N>` numbering (see D-GH43).** Four collisions have already happened (D-GH19/20, D-GH25/27,
-D-GH26/28, D-GH30/42/43 — the last a *triple* collision, caught by the 2026-07-10 docs-consistency audit)
-from computing "next = highest + 1" off a stale local read. Before claiming a new number, check
-the **live** remote, not an earlier read this session:
-`git fetch origin preview && git show origin/preview:DECISIONS.md | grep -oE 'D-GH[0-9]+' | sort -t H -k2 -n -u | tail -1`.
-If a collision still slips through post-merge, the accepted fix is: keep the earlier-merged entry's number,
-renumber the later one to the next free number, and add an addendum note under it — no scramble needed,
-this is expected, documented behavior.
+**`D-GH-<date>-<slug>` numbering (see D-GH49).** The old sequential `D-GH<N>` scheme is retired — it
+collided repeatedly (see the "Addendum" notes throughout `DECISIONS.md` for the full trail, at least
+D-GH19/20, D-GH25/27, D-GH26/28, D-GH30/42/43, D-GH44/45, D-GH46/47, and D-GH47/48/49) because
+"next = highest + 1" is a shared mutable counter across concurrent sessions, and a live-remote check right
+before claiming a number still leaves a race: nothing stops a different branch from merging its own claim
+in the gap between your check and your merge. Existing `D-GH1`–`D-GH49` entries stay as historical
+numbers — do not renumber them. **Every new decision** gets an ID of the form
+`D-GH-<YYYY-MM-DD>-<branch-slug>` — e.g. `D-GH-2026-07-11-ap-by-level` — using today's date and the
+task's own branch slug (the part after `type/`, e.g. `feat/ap-by-level` → `ap-by-level`). This is
+collision-proof **by construction**: the one-task-per-branch rule already guarantees no two tasks share a
+branch slug, so no live-remote check or renumbering step is ever needed. (In the near-impossible case the
+exact same slug is reused on the exact same date — e.g. a same-day redo — append `-2`, `-3`, etc.)
 
 ````
 ## <short title> — TODO
