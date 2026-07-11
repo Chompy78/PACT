@@ -168,32 +168,6 @@ caught if a human remembers to open engine-parity.html.
 **Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 20/0
 when run locally too.
 
-## Fix: feature-search autocomplete renders off-screen once the page is scrolled — TODO
-Branch fix/chargen-feature-autocomplete-scroll-position. Found while building the character-gen e2e
-harness (testing/scripts/random-manual-e2e.mjs, PR #146 and follow-up). Display-only — do NOT bump
-DATA.version; just log in CHANGELOG.
-
-```text
-In tools/PACT-CharGen-Webtool.html, the "Chosen features" search autocomplete menu (`.featac`, built by
-the `_featAC` input handler) is `position: fixed`, but its `top` is computed by adding the input's
-viewport-relative getBoundingClientRect() position PLUS window.scrollY. Since `position: fixed` is
-already viewport-relative, this double-counts the scroll offset — the menu's computed `top` ends up
-scrollY pixels too far down. Confirmed live via getBoundingClientRect(): with scrollY=347 on a page
-~10500px tall, the menu rendered at top=4005px inside a 4000px-tall viewport — genuinely off-screen.
-
-Repro: open CharGen, scroll down at all (the form is long), type into "+ search all" under Chosen
-features. The suggestion dropdown appears but renders below the visible viewport — unclickable until you
-scroll back to the very top.
-
-Fix is one of:
-1. Don't add window.scrollY when positioning a position:fixed element (likely the simplest, correct fix).
-2. Or switch the menu to position:absolute if scroll-following was actually wanted.
-```
-**Done when:** opening the feature-search autocomplete at any scroll position renders the suggestion
-list fully within the viewport, verified manually at a few scroll depths and by the e2e harness (which
-currently works around this with a forced scroll-to-0 + oversized viewport — that workaround can be
-removed once this lands). Parity still 20/0 (unaffected — no engine.js change).
-
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
