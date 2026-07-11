@@ -11,6 +11,20 @@
   session's PR #160 (renumbered to D-GH47), and a rebase that reported "no conflicts" while silently
   leaving a duplicate/orphaned `DECISIONS.md` title line — caught only by reading the merged content
   directly rather than trusting the rebase's own success message.
+- **2026-07-11 · feat — Feature B: save-file integrity (tamper-evidence)** (D-GH48; `js/engine.js`,
+  `js/character-store.js`, all three `tools/*.html`; `DATA.version` unchanged — additive, no `compute()`
+  change; parity **20/0**). Engine gains synchronous `signPayload`/`verifyPayload` + a self-contained
+  SHA-256 (validated against the NIST vectors) and an order-independent canonical serializer.
+  `js/character-store.js` owns the file-format policy: `buildCharacterEnvelope()` signs **by default**
+  (`sig:{alg,hash}`) so any exported file is signed by construction, while the localStorage autosave/local
+  save opt out with `{sign:false}` (that copy is never signature-checked on the way back in). The read side
+  is a single shared `verifyCharacterEnvelope()` returning `{status, tampered, envelope}`, called by every
+  file-load path — Live Sheet import and CharGen load flash a **non-blocking** warning; DM Console badges the
+  roster card ("⚠ edited") and adds a Flags-&-notes line (a file that is both tampered *and* a different
+  rules version now shows both notices). `sig` is metadata the engine never reads, so signed files
+  price/rebuild identically and older/unsigned files still load. Tamper-EVIDENT, not tamper-proof — the
+  offline stopgap before the Supabase server-side enforcement phase; the cloud load path is intentionally
+  out of scope (server-authoritative under RLS). Graduated from `docs/PACT_ROADMAP.md`.
 
 - **2026-07-11 · docs(sessions) — add session note for the communication-conventions fix (D-GH46)**
   (`docs/sessions/2026-07-11-communication-conventions.md`; no app code touched, `DATA.version`

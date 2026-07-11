@@ -670,3 +670,139 @@ export const RULE_BAN_FIELDS = {
   masteries: 'bannedMasteries',
   boons: 'bannedBoons',
 };
+
+/* =========================================================================
+ * Save-file integrity — tamper-EVIDENT signing (D-GH48, Feature B)
+ * -------------------------------------------------------------------------
+ * signPayload()/verifyPayload() stamp an exported/saved character file with a
+ * SHA-256 digest over its own contents so a hand-edited or corrupted file is
+ * DETECTED on load. This is the offline stopgap before the Supabase
+ * server-side enforcement phase — being client-side, it is tamper-EVIDENT,
+ * NOT tamper-proof: a determined editor who recomputes the digest can defeat
+ * it (stopping that needs a secret the browser can't hold). The goal here is
+ * to catch accidental edits, truncation/corruption, and casual tampering.
+ *
+ * Pure, synchronous, dependency-free, and works in file:// contexts too (no
+ * SubtleCrypto / secure-context requirement). Additive to the public API —
+ * compute() and rebuildStateFromEvents() are untouched, so engine parity is
+ * unaffected. The `sig` field verifyPayload() checks is metadata the rest of
+ * the engine never reads, so an unsigned or signed file both price identically.
+ * ========================================================================= */
+
+export const SIG_ALG = 'PACT-SHA256-v1';
+
+// Deterministic, key-order-independent JSON serialization. Arrays keep their
+// order (a character's LOG order is meaningful); object keys are sorted so a
+// save re-serialized with a different key order still verifies. undefined and
+// function values are dropped, matching JSON.stringify's own behaviour.
+function _canonicalJSON(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  // Array elements that JSON.stringify serializes as `null` — undefined, holes, functions, symbols —
+  // must canonicalize to `null` too, or a save (written with JSON.stringify) verifies as `tampered`
+  // against its own signature after the undefined→null round-trip. Index-based iteration (not .map,
+  // which skips holes) so a sparse array element is caught. Object properties with those values are
+  // dropped below, matching JSON.stringify's object behaviour.
+  if (Array.isArray(v)) {
+    const parts = [];
+    for (let i = 0; i < v.length; i++) {
+      const s = _canonicalJSON(v[i]);
+      parts.push(s === undefined ? 'null' : s);
+    }
+    return '[' + parts.join(',') + ']';
+  }
+  const keys = Object.keys(v).sort();
+  const parts = [];
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i], val = v[k];
+    if (val === undefined || typeof val === 'function') continue;
+    parts.push(JSON.stringify(k) + ':' + _canonicalJSON(val));
+  }
+  return '{' + parts.join(',') + '}';
+}
+
+// Synchronous SHA-256 over a JS string (UTF-8 encoded) → lowercase hex.
+// Self-contained standard implementation; validated against the NIST vectors
+// for "", "abc", the pangram, and the 448-bit message.
+function _sha256hex(msg) {
+  function rotr(x, n) { return (x >>> n) | (x << (32 - n)); }
+  const K = [
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const enc = unescape(encodeURIComponent(msg));
+  const bytes = [];
+  for (let i = 0; i < enc.length; i++) bytes.push(enc.charCodeAt(i) & 0xff);
+  const l = bytes.length;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  const bitHi = Math.floor(l / 0x20000000);   // high 32 bits of the 64-bit bit-length (l*8 >> 32)
+  const bitLo = (l * 8) >>> 0;
+  bytes.push((bitHi>>>24)&0xff,(bitHi>>>16)&0xff,(bitHi>>>8)&0xff,bitHi&0xff);
+  bytes.push((bitLo>>>24)&0xff,(bitLo>>>16)&0xff,(bitLo>>>8)&0xff,bitLo&0xff);
+  const w = new Array(64);
+  for (let off = 0; off < bytes.length; off += 64) {
+    for (let i = 0; i < 16; i++)
+      w[i] = (bytes[off+i*4]<<24)|(bytes[off+i*4+1]<<16)|(bytes[off+i*4+2]<<8)|(bytes[off+i*4+3]);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i-15],7) ^ rotr(w[i-15],18) ^ (w[i-15]>>>3);
+      const s1 = rotr(w[i-2],17) ^ rotr(w[i-2],19) ^ (w[i-2]>>>10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+    }
+    let a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for (let i = 0; i < 64; i++) {
+      const S1 = rotr(e,6) ^ rotr(e,11) ^ rotr(e,25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[i] + w[i]) | 0;
+      const S0 = rotr(a,2) ^ rotr(a,13) ^ rotr(a,22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      h=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0;
+    }
+    H[0]=(H[0]+a)|0; H[1]=(H[1]+b)|0; H[2]=(H[2]+c)|0; H[3]=(H[3]+d)|0;
+    H[4]=(H[4]+e)|0; H[5]=(H[5]+f)|0; H[6]=(H[6]+g)|0; H[7]=(H[7]+h)|0;
+  }
+  let hex = '';
+  for (let i = 0; i < 8; i++) hex += ('00000000' + (H[i]>>>0).toString(16)).slice(-8);
+  return hex;
+}
+
+/**
+ * signPayload(obj) — return a NEW object identical to `obj` but carrying a
+ * `sig` field { alg, hash } whose hash is the SHA-256 of the canonical form of
+ * everything EXCEPT `sig`. Never mutates the input; re-signing is deterministic.
+ * Any existing `sig` is replaced (so re-saving an already-signed file re-signs it).
+ */
+export function signPayload(obj) {
+  const out = {};
+  Object.keys(obj || {}).forEach(k => { if (k !== 'sig') out[k] = obj[k]; });
+  const hash = _sha256hex(_canonicalJSON(out));
+  out.sig = { alg: SIG_ALG, hash };
+  return out;
+}
+
+/**
+ * verifyPayload(obj) — check a payload's `sig`. Never throws. Returns one of:
+ *   { signed:false, valid:false, status:'unsigned'    } — no signature present
+ *   { signed:true,  valid:false, status:'unknown-alg' } — signed by an alg we don't know
+ *   { signed:true,  valid:true,  status:'ok'          } — digest matches, untampered
+ *   { signed:true,  valid:false, status:'tampered'    } — digest mismatch (edited/corrupted)
+ * Callers flag on 'tampered' (and may on 'unknown-alg'); 'unsigned' is silent —
+ * an older or hand-built file is not the same as a tampered one, and flagging is
+ * non-blocking either way.
+ */
+export function verifyPayload(obj) {
+  if (!obj || typeof obj !== 'object' || !obj.sig || typeof obj.sig !== 'object')
+    return { signed: false, valid: false, status: 'unsigned' };
+  if (obj.sig.alg !== SIG_ALG)
+    return { signed: true, valid: false, status: 'unknown-alg' };
+  const payload = {};
+  Object.keys(obj).forEach(k => { if (k !== 'sig') payload[k] = obj[k]; });
+  const ok = _sha256hex(_canonicalJSON(payload)) === obj.sig.hash;
+  return { signed: true, valid: ok, status: ok ? 'ok' : 'tampered' };
+}
