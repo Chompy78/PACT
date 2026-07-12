@@ -142,6 +142,48 @@ building.
 Claude is always the final authority; Copilot is a second pair of eyes on the *plan*, never on the code, and
 only when a wrong approach would be expensive to unwind.
 
+## Rules-correctness review (not just code quality)
+`/code-review`'s default lens is bugs/reuse/simplification — it does **not** check the math against the
+Player's Guide. For any PR that touches `js/engine.js`'s `compute()` or `DATA` (ladders, caps, gates,
+prices), explicitly ask for a domain-correctness pass in addition to the usual code review, e.g.:
+
+```
+/code-review high — also verify the new pricing/gate logic against the Player's Guide (docs/PACT-Players-Guide.html):
+check the AP cost, the level/HD gate, and any cap against what the guide actually specifies, not just
+that the code is internally consistent.
+```
+
+A change can be well-written, pass parity, and still be *wrong* if the number it encodes doesn't match the
+rules text — code review alone won't catch that; only a check against the source document will.
+
+## AI working defaults
+- Default to Sonnet at standard effort for spec-driven execution (a roadmap task with a clear "Done when").
+  Reach for Opus / higher effort only when the task is genuinely ambiguous or architectural — a design
+  trade-off with no single obviously-correct answer, not just "this file is long."
+- One task per fresh session/branch (see the Conventions in `docs/PACT_ROADMAP.md`) — don't let a session
+  accrete unrelated work; if a second task surfaces mid-session, finish or park the first, then branch fresh.
+- Read large files once, purposefully (grep for the symbol, don't re-read `js/engine.js` wholesale on every
+  turn) — see "Don't read large files wholesale" in `AGENTS.md`.
+
+## When to run a full multi-agent audit
+A full audit (parallel agents each covering one lens — rules-logic correctness, security/RLS, a usability
+click-through, docs-consistency) is worth its cost only for **major releases or big refactors** — not
+routine PRs, where `/code-review` at an appropriate effort level is enough. A rough shape for one, if/when
+it's warranted:
+```
+Fan out N agents, one per lens:
+  1. Rules-logic: diff js/engine.js's compute()/DATA against docs/PACT-Players-Guide.html for the
+     areas touched since the last release.
+  2. Security/RLS: run testing/scripts/audit.py --rls plus a manual read of sql/rls-policies.sql for
+     any new table/column touched this release.
+  3. Usability: click through the pre-release manual QA checklist above end-to-end, in a real browser.
+  4. Docs-consistency: confirm CHANGELOG.md/DECISIONS.md/docs/PACT_ROADMAP.md agree with what actually
+     shipped (no graduated-but-still-listed items, no undocumented decisions).
+Synthesize findings into one report before deciding to ship.
+```
+This is deliberately heavier than a normal task's review cadence — reserve it for moments where the cost of
+a missed regression (a bad release, a security gap) is much higher than the cost of running it.
+
 ## Two things to watch
 - **Keep `js/engine.js` off-limits** unless a task explicitly targets it; the tools depend on its stable API.
 - **Tool/engine build versions must stay in sync** — see `docs/VERSION-SYNC.md` before bumping anything.

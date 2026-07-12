@@ -154,8 +154,13 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   `service_role`/secret key** or any private credential.
 - **Target:** modern evergreen browsers on phones and desktops (current Chrome/Edge/Firefox/Safari, incl.
   iOS Safari). Prefer widely-supported JS/CSS; no legacy/IE shims.
-- After any change, `testing/tests/engine-parity.html` must report **9 passed / 0 failed** (how to run it —
+- After any change, `testing/tests/engine-parity.html` must report **20 passed / 0 failed** (how to run it —
   browser or headless — is in `docs/HOW-TO-WORK.md`). Keep `engine.js`'s public API stable if you touch it.
+- **Every player-controlled value that reaches innerHTML/an attribute must pass through `esc()`** (or the
+  tool's equivalent escaping helper) before it's rendered — character names, campaign names, free-text
+  spell/item names, anything a signed-in user can set that another user's browser will later render (DM
+  Console rosters, shared campaigns). This is a hard invariant, not a style preference — cloud data now
+  crosses users, so an unescaped field is a stored-XSS path, not just a display bug (REV-12).
 
 ## Don't read large files wholesale (token budget)
 - **`js/engine.js` (~237 KB)** — don't read end-to-end unless the task targets the engine; `grep` for the
