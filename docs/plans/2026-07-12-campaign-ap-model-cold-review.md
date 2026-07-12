@@ -154,6 +154,34 @@ comment; parity 20/0.
 
 ---
 
+## Implementation recon (2026-07-12 — verified in code, for the session that implements this)
+Engine foundation is already committed (the two-pool `compute()` comment). Confirmed by reading the code:
+- **`compute()` already returns everything needed:** `spendable = (ignorePlayerAp ? 0 : playerAp) + dmAp`,
+  `remaining = spendable − total`, and the returned **`budget` is an ALIAS of `spendable`**. So a tool only
+  needs to pass `{dmAp, ignorePlayerAp}` and display `r.spendable` — no tool-side arithmetic. `remaining` is
+  already "spendable − spent" in-engine (the reviewers' A1 interpretation); the `min(ledgerRemaining,
+  spendable)` display cap matters only where the **Live Sheet uses the frozen `economy()` ledger**
+  (`eco.available`) for live buy-gating — reconcile the display there, NOT in the engine.
+- **Live Sheet — three render paths disagree today (the whole bug, intra-tool):**
+  - `refreshBuy()` and the time-travel render path both **pre-mix**: `b.budget = (ignPlr?0:eco.earned)+dmAp`
+    then `compute(b)`. → keep `b.budget = eco.earned` (raw), call
+    `compute(b, {dmAp: window._dmAp, ignorePlayerAp: window._ignorePlayerAp})`, display `r.spendable`.
+  - `renderSheet()` calls `compute(b)` with **no opts** (shows player-only) — the intra-tool inconsistency;
+    give it the same opts.
+  - Globals already populated on load: `window._dmAp = rec.ap`; `window._ignorePlayerAp = camp.ignore_player_ap`.
+- **CharGen — the harder half, VERIFY FIRST:** it displays `r.total + ' / ' + r.budget` plus an apText
+  summary, with **no DM-AP concept**. It has cloud campaign-**rules** wiring (from the ban work:
+  `window._cloudCampaignRules` / `cloudRuleBarred`), but whether it can read the character's **DM AP
+  (`characters.ap`) and the campaign `ignore_player_ap`** is **UNVERIFIED**. Confirm this dependency before
+  building the CharGen display/lock/four-states/tooltip work — if the plumbing is absent, wiring CharGen to
+  read `characters.ap` + the campaign toggle is an added work item (CharGen's module bridge historically had
+  no cloud/auth wiring beyond campaign rules).
+- **Suggested order:** (1) Live Sheet migration (contained) + the before/after blocker check on real DM-AP
+  characters; (2) verify CharGen's DM-AP access; (3) CharGen display + lock + four states + tooltips;
+  (4) the `displayRemaining` cap + toggle-flip grandfather warning.
+
+---
+
 ## Reviewer instructions (for the cold review — now complete)
 [Retained for provenance.] You are reviewing this plan cold, with no repo access — judge logic, clarity,
 scope, and risk, not code correctness you cannot verify. Find gaps, shaky assumptions, better alternatives,
