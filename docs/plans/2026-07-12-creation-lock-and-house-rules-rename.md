@@ -90,6 +90,26 @@ explicit lock. This mainly affects **Path B** (binding an already-built characte
 binding does not silently reopen creation; if the DM wants to grant creation room to such a character, that's
 an explicit, separate action (out of scope for v1 — flag in the invite plan's Path B).
 
+**L7 — Undo/reversibility semantics (follow from L1's two triggers).**
+- **The automatic spend-threshold lock is fully reversible.** The lock is not a stored flag — the engine
+  recomputes it from the log on every replay. Undoing the purchase that crossed the target drops cumulative
+  spend back under it, so the next recompute *un-locks* and repriced items return to creation prices. Fluid
+  while building — mistakes are always back-out-able.
+- **The explicit `creationLocked` (Finalise / Go live, or DM hard-lock) is permanent.** One-way; undo does
+  not reopen it. It must sit behind a **confirmation prompt** ("this finalises your character — no take-backs").
+- **Implementation-verify (D-GH30 adjacency):** confirm this recompute-reverses-the-lock behaviour is
+  consistent with the Live Sheet's *frozen* `economy()` ledger (committed per-purchase costs) — the soft-lock
+  reversal must not fight the frozen ledger. Flag for the cold review.
+
+**L8 — Creation-state indicator (both tools; pairs with AP-model D6/D6a).**
+It must be obvious which mode a character is in, with the two states the user named:
+- **In generation mode** (below target, not finalised): e.g. `🔨 In creation — 40 / 50 AP spent (locks at
+  50)` — shows creation pricing is active *and* progress toward the trigger. Undo is fluid here (L7).
+- **Reached the trigger / finalised**: e.g. `🔒 In play — creation locked`; a *soft* (threshold) lock notes
+  it's still reversible by reducing spend, a *hard* (finalised) lock notes it's permanent.
+Render identically in CharGen and the Live Sheet, using the same compact + tap-for-detail treatment as the
+AP breakdown (D6/D6a), so AP total and creation-state read as one coherent status line.
+
 ## Prerequisite deliverable — house-rules / campaign name separation
 Do this **first** (its own branch/PR) so the lock code isn't wading through the ambiguous naming:
 - Rename the local house-rules feature so "campaign" means *only* real cloud membership:
@@ -150,6 +170,11 @@ Do this **first** (its own branch/PR) so the lock code isn't wading through the 
   matches; raising unlocks, lowering-below-spend reprices (and warns).
 - **Precedence test:** a campaign-bound character below target shows unlocked even if its local `inPlay` is
   true (log wins).
+- **Undo-reverses-soft-lock test (L7):** a purchase that crosses the target reprices items; undoing it
+  returns spend below target and reprices them *back* to creation rates. An explicit `creationLocked` does
+  NOT reverse on undo. Verify against the Live Sheet frozen ledger too.
+- **Mode-indicator test (L8):** the "🔨 In creation (X/Y)" vs "🔒 In play — locked" states render correctly
+  and identically in both tools, and the progress-to-trigger figure is accurate.
 - **Rename sweep:** no remaining `cat:'campaign'` / `applyCampaignCode` / `b.campaign`; house-rules code
   still applies restrictions; real campaign membership unaffected.
 - Supabase advisor + logs after the migration/RPC (per repo process).
