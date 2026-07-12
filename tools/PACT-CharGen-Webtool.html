@@ -610,11 +610,13 @@ document.addEventListener('sync-ready', function () {
     if (!listEl) return;   // menu closed while the list was loading
     if (!mine.length) { listEl.innerHTML = '<div style="padding:6px 10px;font-size:12px;color:var(--grey)">No saved characters yet.</div>'; return; }
     listEl.innerHTML = mine.map(function (c) {
-      return '<button type="button" class="mi cg-cloud-load-btn" data-cid="' + _apEsc(c.id) + '">' + _apEsc(c.name || 'Unnamed') +
+      return '<button type="button" class="mi cg-cloud-load-btn" data-cid="' + _apEsc(c.id) + '" data-cname="' + _apEsc(c.name || 'Unnamed') + '">' + _apEsc(c.name || 'Unnamed') +
         ' <span style="color:var(--grey);font-weight:400">— ' + _apEsc((c.updated_at || '').slice(0, 10)) + '</span></button>';
     }).join('');
     listEl.querySelectorAll('.cg-cloud-load-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () { onLoadClick(btn.dataset.cid, btn.textContent.trim()); });
+      // data-cname, not btn.textContent — textContent includes the trailing date <span>, so the confirm
+      // dialog + flash would read "Aria — 2026-07-10" instead of the clean character name.
+      btn.addEventListener('click', function () { onLoadClick(btn.dataset.cid, btn.dataset.cname); });
     });
   }
 
@@ -2688,8 +2690,15 @@ function randomizeRoll(){
   b.stats=b.stats||{}; ABILS.forEach(a=>{b.stats[a]=(+b.stats[a])||10;});
   b.hd=(+b.hd)||1; b.profBonus=(+b.profBonus)||2; b.languages=b.languages!=null?(+b.languages):1;
   b.weaponProf=b.weaponProf||{}; b.armour=b.armour||{};
-  const budget=(+b.budget)||DATA.level1AP||50;
-  const C=x=>compute(x);
+  // Randomize fills up to the SPENDABLE ceiling — player AP plus DM-granted AP when the campaign is active
+  // (feat/campaign-ap-model) — not just the raw player budget, so a loaded campaign character with DM AP
+  // isn't left under-built. Passing _cgDmOpts() to BOTH the ceiling and C() also measures the OVER BUDGET
+  // warning against spendable, not the player-only budget, so the affordability gate below doesn't trip
+  // spuriously once spend passes the player budget. _cgDmOpts() is a no-op ({dmAp:0,ignorePlayerAp:false})
+  // for a local build with no active campaign, so ordinary local randomize behaviour is unchanged.
+  const _dmO=_cgDmOpts();
+  const budget=compute(b,_dmO).spendable||DATA.level1AP||50;
+  const C=x=>compute(x,_dmO);
   const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
   function tryAct(mut){ const snap=JSON.stringify(b);
     const _hw=ww=>ww.filter(w=>typeof isAdvisory==='function'?!isAdvisory(w):true).length;  // count only HARD (⚠) warnings; advisory (ⓘ) notes are allowed

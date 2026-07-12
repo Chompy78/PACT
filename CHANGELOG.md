@@ -4,6 +4,29 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · fix — four aggregate-review findings across both tools**
+  (`tools/PACT-Live-Char-Sheet.html`, `tools/PACT-CharGen-Webtool.html`; `js/engine.js` untouched, no
+  `DATA.version` bump, parity 20/0). A pre-promotion `/code-review high` over the whole `main…preview`
+  diff surfaced these; all four verified fixed in a real browser (13/13 checks):
+  - **(pre-existing, likely already live) Live Sheet "☁ Save to cloud" saved an empty record.** It read
+    `window.RULES`/`window.LOG`/`window.SEQ`, which are always `undefined` (top-level `let` bindings are
+    never mirrored onto `window` — the same bug class already fixed in the adjacent Load handler). The
+    persisted `stats` collapsed to `{name}` with no event log, so any later load failed with "No character
+    data found." Now routes through `buildCharacterEnvelope({name,rules:RULES,LOG,SEQ,id})` (bare
+    identifiers) — the identical shape `save()`/`exportJSON()` already use, so it can't regress this way again.
+  - **CharGen 🎲 Randomize ignored DM AP.** Its spend cap used the raw player budget and `compute()` with no
+    opts, so a loaded campaign character with DM AP was under-built and its affordability gate tripped a
+    spurious OVER BUDGET past the player budget. Now caps at `compute(b,_cgDmOpts()).spendable` and measures
+    OVER BUDGET with the same opts — a no-op for local builds (verified: `{dmAp:0}` opts match no-opts across
+    all 20 fixtures), correct fill-to-spendable for campaign characters.
+  - **Live Sheet grandfather notice read as a hard "⚠ Needs review".** The non-blocking `ignore_player_ap`
+    notice was pushed into `validate()`'s issues[] unconditionally; the tray had no advisory tier, so a
+    benign, expected state alarmed the player — while CharGen showed the identical notice as a calm ⓘ. Added
+    `_lsIsAdvisory()` (mirrors CharGen's `isAdvisory()` verbatim) and split the tray: advisory notes render as
+    ⓘ and don't inflate the "Needs review (N)" count.
+  - **CharGen cloud-load label included the date.** The load confirm/flash read the button's full
+    `textContent` ("Aria — 2026-07-10"); now carries a `data-cname` with the clean name.
+
 - **2026-07-12 · refactor(live-sheet) — collapse the `_dmApStatus`/`_rulesStatus` hand-mirror into one
   variable** (`tools/PACT-Live-Char-Sheet.html`; display-only, no `DATA.version` bump, parity 20/0).
   Code-review follow-up from `feat/campaign-ap-model`: `window._dmApStatus` was a second, hand-mirrored
