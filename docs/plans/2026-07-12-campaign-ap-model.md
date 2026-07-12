@@ -83,9 +83,20 @@ empty it says *why*, rather than silently disappearing:
 - **In a campaign, player AP switched off** (`ignore_player_ap`): `20 AP — DM only · player AP off for this
   campaign`, with the Player-AP input locked (per D2).
 This applies to **both** CharGen and the Live Sheet so the state reads identically in either tool.
-**Open judgment call (prominence):** for pure-local users who never join a campaign, the "no DM AP"
-indicator should be *subtle* (a quiet greyed breakdown line) rather than a prominent badge, to avoid nagging
-— recommended default, pending confirmation.
+
+**D6a — Prominence: greyed, present-not-hidden, with a tap/hover tooltip (progressive disclosure).**
+An inactive/empty AP jar is **always shown but greyed out**, never removed; the *why* lives in a tooltip so
+the default view stays uncluttered (important on phones). This is one consistent rule for every inactive
+jar:
+- empty **DM** jar → greyed, tooltip e.g. "No DM AP — this character isn't in a campaign."
+- switched-off **Player** jar (`ignore_player_ap`) → greyed/locked, tooltip e.g. "Player AP is off for this
+  campaign; you build from DM AP only."
+Design principle: **show more, not less — but move the detail into tooltips**; the headline stays a compact
+total + short breakdown.
+**Mobile caveat (must design in, not retrofit):** a hover-only tooltip is invisible on touchscreens, and
+many players are on phones. The tooltip MUST be **tap-to-reveal** (tap the greyed item or a small ⓘ
+affordance), with hover as a desktop bonus — and the explanation must be accessible (e.g. `aria-label`),
+not hover-only.
 
 ## Files involved
 - `js/engine.js` — clarifying comment + stale-doc fix at `compute()`; no formula change (the
@@ -125,6 +136,8 @@ indicator should be *subtle* (a quiet greyed breakdown line) rather than a promi
   explicitly indicates "no campaign, no DM AP" (D6) in both tools.
 - **State-display check:** all three D6 states render correctly and identically in CharGen and the Live
   Sheet (not-in-campaign / player-AP-allowed / player-AP-switched-off).
+- **Mobile tooltip check (D6a):** the greyed-jar explanation is reachable by **tap** on a touchscreen (not
+  hover-only) and exposes accessible text — verify on a phone-width viewport.
 
 ## Done when
 - Both tools display an identical spendable total (Player + DM, honoring `ignore_player_ap`) for the same
