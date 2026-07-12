@@ -126,21 +126,6 @@ so there's no embedded copy left to drift.
 **Done when:** audit.py fails loudly if any version string diverges from js/engine.js; passes clean on
 the current tree.
 
-## REV-11 — Add CI: headless engine-parity gate on every PR — TODO
-Branch chore/rev11-ci-engine-parity. Promoted from LATER — no CI exists today, so a regression is only
-caught if a human remembers to open engine-parity.html.
-
-```text
-1. Add a headless Node runner (dev-tooling only, not a runtime dependency of the shipped app) that
-   imports js/engine.js as an ES module, runs the same FIXTURES engine-parity.html uses, and asserts each
-   result against testing/expected/expected-results.csv.
-2. Wire it as a GitHub Action that runs on every PR touching js/engine.js or testing/**.
-3. No npm runtime deps for the app itself — this tooling lives entirely in the CI job/devDependencies,
-   consistent with the "vanilla JS, no build step" rule for the shipped app.
-```
-**Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 20/0
-when run locally too.
-
 ---
 
 ## Retire the PACTRULES code + carry campaign rules via a LOG snapshot — TODO

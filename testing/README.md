@@ -3,10 +3,15 @@
 ## Test harnesses
 
 - **`tests/engine-parity.html`** — regression gate for `js/engine.js`. Run in a browser; expect **20 passed / 0 failed** (check `testing/expected/expected-results.csv`'s row count — don't assume a fixed number). See `docs/HOW-TO-WORK.md` for instructions.
+- **`scripts/engine-parity-ci.mjs`** (**REV-11**) — headless Node port of `tests/engine-parity.html`: same
+  fixtures, same `expected-results.csv`, same assertions, no browser needed. Runs automatically in CI (see
+  `.github/workflows/engine-parity.yml`) on PRs touching `js/engine.js` or `testing/**`; a CLI agent should
+  run it directly (`node testing/scripts/engine-parity-ci.mjs`) rather than opening the browser page.
 - **`campaign-test.html`** — end-to-end harness for `js/campaign.js` and `js/dm.js` (requires Supabase sign-in).
 - **`sync-test.html`** — end-to-end harness for `js/sync.js` (requires Supabase sign-in).
 - **`scripts/random-manual-e2e.mjs`** — headless Playwright harness for character generation +
-  advancement (progress on **REV-11**, the "no headless runner yet" gap). Drives the real CharGen
+  advancement (a second, complementary REV-11 harness — this one is randomized/UI-driven, `engine-parity-ci.mjs`
+  above is fixed-fixture/pure-engine). Drives the real CharGen
   and Live Sheet UI — species/class selects, ability +/- steppers, skill checkboxes, the "Open in Live
   Sheet" / "Open in CharGen" switch buttons, "+ Award AP" / "Level up" / buy-panel tiles — with its own
   randomization; it never calls the app's built-in `randomizeBuild()`. Also drops the finished
