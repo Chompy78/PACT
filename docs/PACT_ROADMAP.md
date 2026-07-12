@@ -114,20 +114,6 @@ Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, 
 
 ---
 
-## AUD-1 follow-up: version/build-sync check — TODO
-Branch chore/aud1-version-sync-check. Do AFTER AUD-1 (Automated health check) lands.
-
-```text
-Extend testing/scripts/audit.py (from AUD-1) with a check that BUILD (js/engine.js) and its mirrors
-(CharGen title/header, Live Sheet line-1 comment, DM Console TOOL_VERSION) all match. DATA.version no
-longer needs a separate CharGen-mirror check — CharGen imports DATA live from js/engine.js as of D-GH26,
-so there's no embedded copy left to drift.
-```
-**Done when:** audit.py fails loudly if any version string diverges from js/engine.js; passes clean on
-the current tree.
-
----
-
 ## Retire the PACTRULES code + carry campaign rules via a LOG snapshot — TODO
 Branch refactor/retire-pactrules-code. Remove the redundant local PACTRULES "campaign code" path from both tools and instead carry DM-authoritative campaign restrictions in the character's own event log. Full design: `docs/plans/2026-07-12-campaign-rules-snapshot.md`.
 
