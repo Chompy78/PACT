@@ -4,6 +4,11 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · docs(agents) — add "Fix depth" communication convention**
+  (`AGENTS.md`). New rule under Communication conventions: when a problem has both a shallow fix and a
+  deeper root-cause fix, surface **both** as options (tiered A/B format) with a recommendation — default to
+  the deeper fix unless it's risky/wide/soon-obsolete — instead of silently proposing only the cheap one.
+
 - **2026-07-12 · refactor(rules) — one kind token per ban call site; `RULE_BAN_FIELDS` accepts `draws` as a `drawbacks` alias**
   (`js/engine.js`, `tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; `DATA.version`
   unchanged, parity 20/0). Code-review follow-up: the two ban-checkers used different kind vocabularies for
