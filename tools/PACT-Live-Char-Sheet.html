@@ -610,6 +610,12 @@ function validate(){
   {var _un=0;for(var i=0;i<(b.dabblerCantrips||0);i++){if(!((b.dabblerCantripNames||[])[i]||'').trim())_un++;}for(var L=1;L<=9;L++){for(var j=0;j<((b.innate||[])[L-1]||0);j++){if(!(((b.innateNames||[])[L-1]||[])[j]||'').trim())_un++;}}(b.traditions||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(!d.name||d.name==='(none)')return;for(var i=0;i<(d.cantrips||0);i++){if(!((d.cantripNames||[])[i]||'').trim())_un++;}for(var L=1;L<=9;L++){for(var j=0;j<((d.known||[])[L-1]||0);j++){if(!(((d.knownNames||[])[L-1]||[])[j]||'').trim())_un++;}}});});if(_un>0)issues.push(_un+' spell name'+(_un>1?'s':'')+' not filled in — tap ✎ Name to record them (purchases are locked; naming is optional)');}
   return issues;
 }
+// Advisory (informational, non-blocking) validate() notes vs hard "needs review" issues — mirrors
+// CharGen's isAdvisory() verbatim (same two patterns) so both tools classify the identical notice the
+// same way. The ignore_player_ap grandfather notice is a NORMAL, expected state ("purchases are kept,
+// it never gates anything"), so it must render as a calm ⓘ note, not inflate the ⚠ "Needs review (N)"
+// count the way every other issue does (feat/campaign-ap-model review follow-up).
+function _lsIsAdvisory(w){return /switched off player-entered AP/.test(w)||/no Ki-using ability/.test(w);}
 
 // ---------------- buy panel builders ----------------
 function opt(v){return '<option value="'+String(v).replace(/"/g,'&quot;')+'">'+v+'</option>';}
@@ -724,7 +730,10 @@ function render(){
   });
   led+='</table>'; $('ledger').innerHTML=led;
   // --- validation tray ---
-  const iss=validate(); $('tray').innerHTML=iss.length?('<b>⚠ Needs review ('+iss.length+')</b><ul>'+iss.map(i=>'<li>'+i+'</li>').join('')+'</ul>'):'<span class="ok">✓ No issues — everything legal & grandfathered.</span>';
+  {const iss=validate(); const _hard=iss.filter(w=>!_lsIsAdvisory(w)), _adv=iss.filter(_lsIsAdvisory);
+   let _tray=_hard.length?('<b>⚠ Needs review ('+_hard.length+')</b><ul>'+_hard.map(i=>'<li>'+i+'</li>').join('')+'</ul>'):'<span class="ok">✓ No issues — everything legal & grandfathered.</span>';
+   if(_adv.length)_tray+='<ul style="list-style:none;padding-left:0;margin:6px 0 0;color:var(--grey);font-size:12px">'+_adv.map(i=>'<li>ⓘ '+i+'</li>').join('')+'</ul>';
+   $('tray').innerHTML=_tray;}
   // --- time-travel slider ---
   $('tt').max=LOG.length; $('tt').value=(viewAt==null?LOG.length:viewAt);
   $('ttlabel').textContent=(viewAt==null?'live (head)':'viewing after event '+viewAt+' of '+LOG.length);
@@ -1590,7 +1599,13 @@ document.addEventListener('sync-ready', function () {
             }
           } catch(e) { /* non-fatal — can't reach campaign rules right now, don't block the save */ }
         }
-        var stats = { rules: window.RULES, name: b.name, LOG: window.LOG, SEQ: window.SEQ };
+        // Bare RULES/LOG/SEQ, not window.X — they're top-level `let` bindings in this file's main script
+        // and are never mirrored onto window, so `window.RULES`/`window.LOG`/`window.SEQ` were always
+        // undefined and this handler silently saved a character with NO event log (unloadable on read).
+        // Route through buildCharacterEnvelope so the cloud save carries the identical {schema,rules,name,
+        // LOG,SEQ,id} shape as the local save()/exportJSON() (D-GH40), rather than a hand-built subset that
+        // regressed this way. (Same window.X-doesn't-alias-a-let bug the Load handler above already fixed.)
+        var stats = window.buildCharacterEnvelope({ name: b.name, rules: RULES, LOG: LOG, SEQ: SEQ, id: id }, { sign: false });
         var res   = await S.saveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet', stats: stats });
         if(res.error) throw res.error;
         if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
