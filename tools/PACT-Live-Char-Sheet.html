@@ -318,7 +318,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 .aplegend .g{background:#14501f}.aplegend .r{background:#7a0000}.aplegend .k{background:#444}
 #apFloat{position:fixed;top:10px;right:14px;z-index:1500;display:flex;align-items:baseline;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:6px 16px;box-shadow:0 3px 14px rgba(0,0,0,.22);font-family:var(--font);cursor:default;transition:transform .12s ease}#apFloat b{font-size:22px;font-weight:800;color:var(--navytx);line-height:1}#apFloat span{font-size:10px;font-weight:600;color:var(--grey);text-transform:uppercase;letter-spacing:.06em}#apFloat.neg b{color:var(--bad)}#apFloat.flash{transform:scale(1.14)}@media print{#apFloat{display:none!important}}.moremenu{display:none;position:absolute;right:0;top:calc(100% + 5px);background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:6px;z-index:3000;min-width:215px;text-align:left}.moremenu.open{display:block}.moremenu .mi{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:7px 10px;border-radius:6px;font:inherit;font-size:13px;cursor:pointer}.moremenu .mi:hover{background:var(--lt)}.moremenu .mi-theme{display:flex;align-items:center;gap:6px;padding:6px 10px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}.moremenu .mi-theme select{flex:1}.dmtog{background:none;border:0;color:#cfe0f7;font:inherit;font-weight:700;cursor:pointer;padding:0}.eco{display:block}.ecoline{display:flex;flex-wrap:wrap;align-items:center;gap:5px 18px;background:#16294d;color:#cfe0f7;padding:9px 16px;font-size:13px}.ecoline b{color:#fff;font-size:16px}.ecoline .ed{color:#9fc0ff;font-size:12px}.ecoline .ed.warn{color:#ffcf6b;font-weight:700}.ecoline .drift{color:#7fd98a;font-size:12px}.ecoline .swapchip{margin-left:auto;background:rgba(60,200,120,.22);border:1px solid rgba(120,230,170,.5);border-radius:12px;padding:2px 11px;font-size:12px;font-weight:700;color:#d6ffe6;white-space:nowrap}.ecoline .swapchip+.campchip{margin-left:8px}
 .ecoline .campchip{margin-left:auto;display:inline-flex;align-items:center;gap:5px;max-width:46vw;background:rgba(255,255,255,.13);border-radius:12px;padding:3px 13px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap}.ecoline .campchip .cc-lbl{font-weight:600;opacity:.82;text-transform:uppercase;letter-spacing:.04em;font-size:10.5px}.ecoline .campchip .cc-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}@media(max-width:880px){.ecoline .campchip{max-width:60vw;padding:3px 10px}.ecoline .campchip .cc-lbl{display:none}.top{gap:5px;padding:8px 10px}.top h1{font-size:15px}.top .v{display:none}.top .btn .bl{display:none}.top .btn{padding:6px 9px;font-size:15px}.top #themesel{min-width:0;width:84px}}</style></head><body>
-<div id="apFloat" title="AP available (earned − spent) — updates live as you buy, undo, or gain awards"><b id="apFloatN">0</b><span>AP left</span></div>
+<div id="apFloat" title="AP available (Player AP + DM-granted AP − spent) — updates live as you buy, undo, or gain awards"><b id="apFloatN">0</b><span>AP left</span></div>
 <div class="top"><h1>🧬 PACT — Live Character Sheet</h1><span class="v" id="verline">event-sourced · prices freeze at purchase</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
 <button class="btn g" onclick="undo()" title="Undo">↶ <span class="bl">Undo</span></button><button class="btn g" onclick="redo()" title="Redo">↷ <span class="bl">Redo</span></button>
 <button class="btn g" id="exportBtn" onclick="exportJSON()" title="Export character to a file">⬇ <span class="bl">Export</span></button>
@@ -412,10 +412,18 @@ function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)
 // b.budget stays raw Player AP; DM AP is layered in here at compute() time only, never pre-mixed into
 // b.budget or persisted — see the anti-double-count invariant documented on compute() in js/engine.js.
 function apCeiling(uptoIdx){ return compute(foldBuild(uptoIdx),{dmAp:window._dmAp||0,ignorePlayerAp:!!window._ignorePlayerAp}).spendable; }
-// AP actually available to spend right now: the ceiling above minus what the frozen ledger already
-// spent — capped so it's never shown as more headroom than the ceiling allows, and never negative.
-// Display/gating-only; does NOT touch or reprice the frozen ledger (economy()).
-function apAvailable(uptoIdx){ const sp=apCeiling(uptoIdx),spent=economy(uptoIdx).spent; return Math.max(0,Math.min(sp-spent,sp)); }
+// Pure formula (no I/O) — the one place "AP available" is defined, shared by apAvailable() below AND by
+// render()/refreshBuy()/renderSheet(), which already have a fresh spendable/spent in scope and would
+// otherwise pay a redundant foldBuild+compute+economy just to reuse a value they already computed.
+// Deliberately NOT floored at 0 — an overspent character (with or without DM AP) shows the true deficit,
+// matching this app's existing "negative AP left" convention (.neg/OVER BUDGET); flooring would hide the
+// magnitude behind a bare "0" and would also wrongly let a 0-cost purchase through buy()'s `cost>avail`
+// gate while overspent. Never exceeds the ceiling since spent>=0 always (drawback buys are excluded from
+// spent — see economy()) — no separate cap needed on top of that.
+function _apRemaining(spendable,spent){ return spendable-spent; }
+// AP actually available to spend right now, for callers with only an index (buy(), buyoffDrawback(),
+// paid spell-swap costs) — not the frozen ledger itself, does not touch or reprice it (economy()).
+function apAvailable(uptoIdx){ return _apRemaining(apCeiling(uptoIdx),economy(uptoIdx).spent); }
 // AP-source status (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model — 4th-state parity with
 // CharGen): 'none' (no cloud character loaded, or one with no campaign), 'active' (campaign resolved),
 // 'unavailable' (character IS in a campaign but its DM AP/rules couldn't be read right now — must NOT
@@ -473,7 +481,7 @@ const KEY='pactLiveSheet';
 // D-GH40: local save now carries the same CHAR_SCHEMA shape the file Save/Export use (schema+name added;
 // was {LOG,SEQ,rules,id} untagged) — purely additive, load() below already tolerates either shape.
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:foldBuild(null).name,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId()},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); } }
-function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
+function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
 // Feature-detect Web Share (files) rather than sniffing the user agent — this is the reliable
 // save path on iOS Safari/PWA, where a plain blob+<a download> is known to silently fail (it
 // often just opens the JSON in a new tab instead of saving a file). Falls back to the existing
@@ -644,7 +652,7 @@ function render(){
   const head = viewAt==null;
   const idx = viewAt;
   const b=foldBuild(idx); const eco=economy(idx); const _dmAp=window._dmAp||0,_ignPlr=!!window._ignorePlayerAp; const r=compute(b,{dmAp:_dmAp,ignorePlayerAp:_ignPlr}); const m=r.mods;
-  const _apAvail=Math.max(0,Math.min(r.spendable-eco.spent,r.spendable)), _apOver=(r.spendable-eco.spent)<0;
+  const _apAvail=_apRemaining(r.spendable,eco.spent), _apOver=_apAvail<0;
   _apNudgeBanner(eco.spent);
   // --- top economy ---
   const committed = LOG.filter(e=>e.type==='buy'&&e.cat!=='drawback').reduce((s,e)=>s+e.cost,0);
@@ -736,7 +744,7 @@ function _catOf(lab){
   if(lab==='DM house rules')return 'DM / Advanced';
   return 'Heritage & extras';
 }
-function refreshBuy(){const b=foldBuild(null),eco=economy(null),_dmAp=window._dmAp||0,_ignPlr=!!window._ignorePlayerAp;const r=compute(b,{dmAp:_dmAp,ignorePlayerAp:_ignPlr});const avail=Math.max(0,Math.min(r.spendable-eco.spent,r.spendable));buildBuyPanel(b,r,Object.assign({},eco,{available:avail}),viewAt==null);}
+function refreshBuy(){const b=foldBuild(null),eco=economy(null),_dmAp=window._dmAp||0,_ignPlr=!!window._ignorePlayerAp;const r=compute(b,{dmAp:_dmAp,ignorePlayerAp:_ignPlr});const avail=_apRemaining(r.spendable,eco.spent);buildBuyPanel(b,r,Object.assign({},eco,{available:avail}),viewAt==null);}
 // AP a character gains advancing one level (benchmark anchors, interpolated)
 function levelDelta(hd){return (DATA.levelAP[hd+1]||DATA.levelAP[hd]||0)-(DATA.levelAP[hd]||0);}
 function toggleTasha(){var b=foldBuild(null);var on=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);emit({type:"buy",cat:"tasharule",payload:{v:!on},cost:0,label:"DM house rule — Tasha abilities "+(!on?"allowed":"barred"),level:b.hd});}
@@ -919,7 +927,7 @@ function buildBuyPanel(b,r,eco,head){
 
 // ---------------- full character sheet overlay (shared renderer; see sheet_assets.py) ----------------
 function renderSheet(){const b=foldBuild(null),eco=economy(null),r=compute(b,{dmAp:window._dmAp||0,ignorePlayerAp:!!window._ignorePlayerAp});
-  const avail=Math.max(0,Math.min(r.spendable-eco.spent,r.spendable));
+  const avail=_apRemaining(r.spendable,eco.spent);
   return renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ AP-Level '+apLevel(eco.earned),noSpell:LS_noSpell});}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;if(ov.style.display==='block'){ov.style.display='none';}else{$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}
 // B1 (v0.100): LS-only "no-Spellcasting" sheet view — full sheet vs hide the computed Spellcasting section + manual slot box. CharGen never sets ctx.noSpell, so its sheet is unchanged (parity holds).
@@ -1499,22 +1507,32 @@ document.addEventListener('sync-ready', function () {
     }
   }
 
-  A.onAuthChange(function(s){ _session = s; renderCloudStatusBadge(); });
+  // auth.js's onAuthChange calls cb(event, session) — session is the 2nd arg, not the 1st (matches
+  // CharGen's campaign-ready listener; this one previously bound _session to the event STRING instead).
+  A.onAuthChange(function(event,session){ _session = session; renderCloudStatusBadge(); if(event==='SIGNED_OUT'){ _lsResetCloudApState(); if(typeof window.render==='function') window.render(); } });
   A.currentSession().then(function(s){ _session = s; renderCloudStatusBadge(); refreshCloudCampaignRules(); });
 
   // Fetch the active character's campaign rules on load/sign-in (not just at cloud-save)
   // so banned masteries/boons are filtered out of the pickers as you build, not just
   // rejected at the last step. See D-GH14 follow-up.
+  // Also resolves the AP-model fields (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model) for
+  // the CURRENTLY-loaded character — not just the campaign-rules badge. Without this, a signed-in player
+  // who reloads the page (rather than clicking ☁ Cloud → Load again) would see the rules badge correctly
+  // reflect their campaign while the AP chip silently stayed at "player only" until they re-clicked Load.
   async function refreshCloudCampaignRules(){
     if(!_session || typeof window.currentCharId !== 'function') { renderCloudStatusBadge(); return; }
     try {
       var rec = await S.loadCharacter(window.currentCharId());
-      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; _rulesStatus = 'none'; renderCloudStatusBadge(); return; }
+      window._dmAp = rec ? (rec.ap || 0) : 0;
+      window._ignorePlayerAp = false;
+      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; _rulesStatus = 'none'; window._dmApStatus = 'none'; renderCloudStatusBadge(); return; }
+      window._dmApStatus = 'unavailable';   // interim, resolved just below — correctly NOT "no DM AP" if getCampaign throws
       var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
       window._cloudCampaignRules = camp ? (camp.rules || {}) : null;
       _campaignName = camp ? camp.name : null;
       _rulesStatus = camp ? 'active' : 'unavailable';
-    } catch(e) { _rulesStatus = 'unavailable'; /* non-fatal — pickers just fall back to unfiltered until this succeeds */ }
+      if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; window._dmApStatus = 'active'; }
+    } catch(e) { _rulesStatus = 'unavailable'; window._dmApStatus = 'unavailable'; /* non-fatal — pickers/AP just fall back until this succeeds */ }
     renderCloudStatusBadge();
     if(typeof window.render === 'function') window.render();
   }
@@ -1614,11 +1632,18 @@ document.addEventListener('sync-ready', function () {
             }
             renderCloudStatusBadge();
             var d = rec.stats;
-            window.LOG = d.LOG;
-            window.SEQ = d.SEQ||(d.LOG.length+1);
-            window.loadedRules = d.rules||null;
-            window.REDO = []; window.viewAt = null;
-            if(window.__charId !== undefined) window.__charId = rec.id;
+            // Bare assignment, not window.X= — LOG/SEQ/loadedRules/REDO/viewAt/__charId are top-level
+            // `let` bindings in this file's main script, which do NOT become window properties; a
+            // window.X= write here is a dead write to an unused property that every render()/foldBuild()/
+            // economy()/buy() call (all of which read the bare identifier) never sees. This previously
+            // meant clicking "Load" updated the AP-model globals above but silently left the sheet/ledger
+            // showing the PREVIOUSLY loaded character. Mirrors _lsConsumeHandoff()'s already-correct
+            // pattern a few hundred lines up.
+            LOG = d.LOG;
+            SEQ = d.SEQ||(d.LOG.length+1);
+            loadedRules = d.rules||null;
+            REDO = []; viewAt = null;
+            if(rec.id) __charId = rec.id;
             if(typeof window.save   === 'function') window.save();
             if(typeof window.render === 'function') window.render();
             cloudMenu.classList.remove('open');

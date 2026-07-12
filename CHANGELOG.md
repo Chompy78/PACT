@@ -4,39 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
-- **2026-07-12 · feat(ap-model) — CharGen and the Live Sheet now show one identical spendable-AP total**
-  (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; `js/engine.js` untouched, no
-  `DATA.version` bump, parity 20/0). Closes `feat/campaign-ap-model`
-  (`docs/plans/2026-07-12-campaign-ap-model-cold-review.md`).
-  - **Live Sheet:** stopped pre-mixing DM AP into `b.budget` (it was also never actually spendable — `buy()`
-    gated purchases against the raw player-only ledger even though the display showed DM AP). All AP-gating
-    call sites (`render()`, `refreshBuy()`, `renderSheet()`, `buy()`, `buyoffDrawback()`, `buildBuyPanel()`,
-    paid spell-swap costs) now share `apCeiling()`/`apAvailable()`, built on
-    `compute(b,{dmAp,ignorePlayerAp})`; `b.budget` stays raw Player AP. Verified byte-identical
-    `compute()` output (total/hp/ac/tier/warnings/spendable) between the old pre-mix formula and the new
-    opts path across 3 constructed DM-AP characters.
-  - **CharGen — first cloud character-load feature.** Investigation found CharGen had *zero* cloud
-    character concept (only a campaign-rules-ban picker, unrelated to any saved character) — DM AP
-    (`characters.ap`) was fundamentally unreachable, not just unwired. Added a ☁ Cloud menu (save/load,
-    `kind:'chargen'` — the DB schema already allowed it) mirroring the Live Sheet's, reusing CharGen's own
-    `_cgApplyEnvelope()`/`_cgEnvelope()` for the actual load/save (bare `LOG=`/`SEQ=` assignment, not
-    `window.LOG=` — see the Live Sheet bug noted below, deliberately not copied). Displays spendable +
-    breakdown ("70 AP — 50 player + 20 DM"), locks the Player-AP `<select>` when `ignore_player_ap` is on,
-    and renders all four AP-source states (no campaign / combined / DM-only-locked / DM AP unavailable) via
-    an accessible tap-to-reveal disclosure button (keyboard + screen-reader reachable, not hover-only).
-  - **`displayRemaining` cap:** both tools now show `max(0, min(spendable − frozenSpent, spendable))` as
-    "AP left" instead of the frozen ledger's player-only `earned − spent` — verified against the plan's
-    stated cases (Player 50/DM 20/spent 60 → 10, not −10; `ignore_player_ap` flips ON with spent player AP →
-    capped at the DM-only ceiling, never negative). Never touches the frozen ledger itself.
-  - **`ignore_player_ap` toggle-flip:** non-blocking grandfather notice in both tools (Live Sheet's
-    validation tray; CharGen's advisory warnings) when the ledger shows more spent than DM AP alone could
-    fund — purchases are kept, never deleted/refunded/rewritten.
-  - **Fourth display state ("DM AP unavailable"):** added `window._dmApStatus` (`'none'|'active'|
-    'unavailable'`) to both tools, reset on every non-cloud load path (new/reset/local-file/handoff) so a
-    stale cloud campaign from a previously-loaded character never bleeds into an unrelated build.
-  - Scope note: this went beyond the original "display/validation-only" framing once CharGen's missing
-    cloud-load plumbing was discovered mid-task — the user chose to build it now rather than defer (see
-    DECISIONS.md for the option analysis).
+- **2026-07-12 · feat(ap-model) — CharGen and the Live Sheet now show one identical spendable-AP total,
+  honoring DM AP + `ignore_player_ap`** (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`;
+  `js/engine.js` untouched, no `DATA.version` bump, parity 20/0). Closes `feat/campaign-ap-model`. Live
+  Sheet stopped pre-mixing DM AP into `b.budget` (it was also never actually spendable before — `buy()`
+  gated against the raw player-only ledger even though the display showed DM AP); CharGen got its first
+  cloud character-load/save feature, since it had no cloud character concept at all to hang DM AP off of;
+  both tools now show a capped "AP left", a non-blocking grandfather notice on an `ignore_player_ap`
+  toggle-flip, and a fourth "DM AP unavailable" display state. A `/code-review` pass found and fixed a
+  pre-existing, unrelated Live Sheet bug in the same code path (`window.LOG=` writes that silently never
+  updated the real `LOG`, so "Load character" swapped the AP display but not the actual character). Full
+  narrative in `docs/sessions/2026-07-12-campaign-ap-model-implementation.md`; option analysis in
+  `DECISIONS.md` `D-GH-2026-07-12-campaign-ap-model`.
 
 - **2026-07-12 · docs(engine) — document compute()'s two-pool AP model + anti-double-count invariant**
   (`js/engine.js`; comment-only, no logic change, parity unchanged). First foundation slice of the campaign

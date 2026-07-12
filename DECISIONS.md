@@ -28,26 +28,26 @@
   Live Sheet's pattern from scratch — much smaller net-new logic than it first appeared once that reuse was
   identified. The DB schema (`characters.kind` check constraint) already listed `'chargen'` as a valid kind,
   suggesting this was always intended, just never built.
-- **Also found, deliberately NOT fixed here (separate, pre-existing bug, out of scope for an AP-model task):**
-  the Live Sheet's cloud "Load character" click handler assigns `window.LOG = d.LOG` / `window.SEQ = ...` /
-  `window.__charId = rec.id` — but `LOG`/`SEQ`/`__charId` are top-level `let` bindings in the Live Sheet's
-  main classic `<script>`, which do **not** become `window` properties; a `window.X =` write there is a dead
-  write to an unused property, shadowed by (and never syncing back to) the real lexical binding every other
-  function in the file actually reads. Verified in a real browser (Playwright): clicking "Load" on a saved
-  character updates `window._dmAp`/`window._ignorePlayerAp` correctly (those were never `let`-shadowed) but
-  does **not** actually swap the character's LOG/SEQ/id — `render()`/`save()` keep operating on the
-  previously-loaded character's data. The codebase's own *working* pattern for this
-  (`_lsConsumeHandoff()`, bare `LOG=`/`SEQ=` assignment) sits a few hundred lines away in the same file,
-  suggesting this is an unintentional copy-paste of the (correctly `window.`-scoped) `_dmAp`/`_ignorePlayerAp`
-  idiom onto fields that don't share that scoping. Also found in the same handler: `A.onAuthChange(function(s)
-  {...})` binds `_session` to `js/auth.js`'s `event` string (first callback arg), not the `session` object
-  (second arg) — CharGen's own `campaign-ready` listener gets this right (`function (event, session)`). Ported
-  into CharGen's new cloud-load handler using the *correct* patterns (bare assignment via
-  `_cgApplyEnvelope()`; two-arg `onAuthChange`), not copies of either bug. Flagged as a new roadmap item
-  (see this session's output) rather than fixed here — it's a general cloud-sync correctness bug, unrelated
-  to the AP-model formula, and risks scope creep in an already-large change.
-- **Status:** In force. CharGen's cloud load/save shipped in this change; the Live Sheet bug above is
-  filed as open follow-up work, not yet fixed.
+- **Also found — a separate, pre-existing Live Sheet bug, fixed in this same change once `/code-review`
+  surfaced it (initially logged here as "deliberately not fixed," reversed once independent review flagged
+  it twice as highest-confidence/highest-impact):** the Live Sheet's cloud "Load character" click handler
+  assigned `window.LOG = d.LOG` / `window.SEQ = ...` / `window.__charId = rec.id` — but `LOG`/`SEQ`/
+  `__charId` are top-level `let` bindings in the Live Sheet's main classic `<script>`, which do **not**
+  become `window` properties; a `window.X =` write there is a dead write to an unused property, shadowed by
+  (and never syncing back to) the real lexical binding every other function in the file actually reads.
+  Verified in a real browser (Playwright): clicking "Load" updated `window._dmAp`/`window._ignorePlayerAp`
+  correctly (those were never `let`-shadowed) but did **not** actually swap the character's LOG/SEQ/id —
+  `render()`/`save()` kept operating on the previously-loaded character's data. Fixed to bare `LOG=`/`SEQ=`/
+  `__charId=` assignment, matching the codebase's own already-correct `_lsConsumeHandoff()` pattern a few
+  hundred lines away (the likely origin: an unintentional copy-paste of the correctly `window.`-scoped
+  `_dmAp`/`_ignorePlayerAp` idiom onto fields that don't share that scoping). Re-verified post-fix in a real
+  browser: LOG/SEQ/`__charId`/the rendered sheet name all correctly swap to the newly-loaded character.
+  Also found and fixed in the same handler's neighborhood: `A.onAuthChange(function(s){...})` bound
+  `_session` to `js/auth.js`'s `event` string (first callback arg), not the `session` object (second arg) —
+  CharGen's own `campaign-ready` listener already had this right (`function (event, session)`); Live Sheet's
+  now matches, and a `SIGNED_OUT` transition resets the AP-model globals it previously left stale.
+- **Status:** In force. CharGen's cloud load/save and the Live Sheet fixes above all shipped in this change;
+  parity 20/0, `js/engine.js` untouched.
 
 ---
 

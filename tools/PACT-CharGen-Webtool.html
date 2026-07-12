@@ -579,7 +579,7 @@ document.addEventListener('sync-ready', function () {
   var S = window._syncBridge, A = window._authBridge, C = window._campaignBridge;
   var cgCloudBtn = document.getElementById('cgCloudBtn'), cgCloudMenu = document.getElementById('cgCloudMenu');
   var _session = null;
-  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+  var _cloudMenuGen = 0;   // bumped on every open — a stale in-flight listCharacters() checks this before writing the list, so a rapid close+reopen can't race a slower-loading earlier open
 
   cgCloudBtn.addEventListener('click', function (e) {
     e.stopPropagation();
@@ -591,25 +591,27 @@ document.addEventListener('sync-ready', function () {
   });
 
   async function renderCgCloudMenu() {
+    var gen = ++_cloudMenuGen;
     if (!_session) {
       cgCloudMenu.innerHTML = '<div style="padding:6px 10px;font-size:12px;color:var(--grey)">Sign in to save this character to the cloud, or load one you saved before.</div>' +
         '<a href="../login.html" class="mi">🔑 Sign in</a>';
       return;
     }
-    cgCloudMenu.innerHTML = '<div style="padding:2px 10px 6px;font-size:11px;color:var(--grey)">' + esc(_session.user.email || '') + '</div>' +
+    cgCloudMenu.innerHTML = '<div style="padding:2px 10px 6px;font-size:11px;color:var(--grey)">' + _apEsc(_session.user.email || '') + '</div>' +
       '<button type="button" class="mi" id="cgCloudSaveBtn">☁ Save to cloud</button>' +
       '<div style="padding:8px 10px 2px;font-size:11px;color:var(--grey);font-weight:700">Load saved character</div>' +
       '<div id="cgCloudCharList"><div style="padding:6px 10px;font-size:12px;color:var(--grey)">Loading…</div></div>';
     document.getElementById('cgCloudSaveBtn').addEventListener('click', onSaveClick);
     var chars;
     try { chars = await S.listCharacters(); } catch (err) { chars = []; }
+    if (gen !== _cloudMenuGen) return;   // a newer open (or a close) superseded this fetch — discard it
     var mine = (chars || []).filter(function (c) { return c.kind === 'chargen'; });
     var listEl = document.getElementById('cgCloudCharList');
     if (!listEl) return;   // menu closed while the list was loading
     if (!mine.length) { listEl.innerHTML = '<div style="padding:6px 10px;font-size:12px;color:var(--grey)">No saved characters yet.</div>'; return; }
     listEl.innerHTML = mine.map(function (c) {
-      return '<button type="button" class="mi cg-cloud-load-btn" data-cid="' + esc(c.id) + '">' + esc(c.name || 'Unnamed') +
-        ' <span style="color:var(--grey);font-weight:400">— ' + esc((c.updated_at || '').slice(0, 10)) + '</span></button>';
+      return '<button type="button" class="mi cg-cloud-load-btn" data-cid="' + _apEsc(c.id) + '">' + _apEsc(c.name || 'Unnamed') +
+        ' <span style="color:var(--grey);font-weight:400">— ' + _apEsc((c.updated_at || '').slice(0, 10)) + '</span></button>';
     }).join('');
     listEl.querySelectorAll('.cg-cloud-load-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { onLoadClick(btn.dataset.cid, btn.textContent.trim()); });
@@ -635,7 +637,7 @@ document.addEventListener('sync-ready', function () {
     window._dmAp = rec.ap || 0;
     window._ignorePlayerAp = false;
     window._dmApStatus = rec.campaign_id ? 'unavailable' : 'none';   // resolve below; 'unavailable' is the correct interim state, not silently 0
-    if (typeof __charId !== 'undefined') __charId = rec.id;   // bare assignment — __charId is a top-level `let`, so a window._ write here would silently shadow-fail (see the Live Sheet's own cloud-load bug this deliberately avoids)
+    if (rec.id) __charId = rec.id;   // bare assignment — __charId is a top-level `let`, so a window.X= write here would silently shadow-fail (see the Live Sheet's own cloud-load bug, fixed elsewhere in this change — deliberately not repeated here)
     _cgApplyEnvelope(rec.stats, { clearHistory: true });      // bare LOG/SEQ assignment inside — same reason
     cgCloudMenu.classList.remove('open');
     if (rec.campaign_id && C) {
@@ -2653,11 +2655,11 @@ function _cgConsumeHandoff(){
 function _cgRestoreAutosave(){try{
   const raw=localStorage.getItem(CG_AUTOSAVE_KEY);
   if(raw){const d=JSON.parse(raw);
-    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});return true;}}
+    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgResetCloudApState();_cgApplyEnvelope(d,{clearHistory:true});return true;}}
   // one-time migration of the pre-Step-4 flat-build autosave, then remove the old key
   const legacy=localStorage.getItem(CG_AUTOSAVE_KEY_LEGACY);
   if(legacy){const b=JSON.parse(legacy);
-    if(b&&typeof b==='object'){applyBuild(b,{clearHistory:true});try{_cgAutosave();}catch(e){}try{localStorage.removeItem(CG_AUTOSAVE_KEY_LEGACY);}catch(e){}return true;}}
+    if(b&&typeof b==='object'){_cgResetCloudApState();applyBuild(b,{clearHistory:true});try{_cgAutosave();}catch(e){}try{localStorage.removeItem(CG_AUTOSAVE_KEY_LEGACY);}catch(e){}return true;}}
   return false;
 }catch(e){return false;}}
 
