@@ -75,6 +75,18 @@ public API, and buys little). Instead, add a clarifying comment at `compute()` d
 model and the D4 invariant, and fix the stale return-shape doc block. (This was "C1"; the deeper
 de-overloading is folded into D1, so a standalone rename is unnecessary.)
 
+**D6 — Explicit AP-source state; an empty DM jar is LABELLED, not hidden.**
+Both tools show the same small set of AP states, and the breakdown line always shows both jars — if a jar is
+empty it says *why*, rather than silently disappearing:
+- **Not in a campaign** (local, or signed-in but unlinked): `50 AP — 50 player · No campaign, no DM AP`.
+- **In a campaign, player AP allowed:** `70 AP — 50 player + 20 DM`.
+- **In a campaign, player AP switched off** (`ignore_player_ap`): `20 AP — DM only · player AP off for this
+  campaign`, with the Player-AP input locked (per D2).
+This applies to **both** CharGen and the Live Sheet so the state reads identically in either tool.
+**Open judgment call (prominence):** for pure-local users who never join a campaign, the "no DM AP"
+indicator should be *subtle* (a quiet greyed breakdown line) rather than a prominent badge, to avoid nagging
+— recommended default, pending confirmation.
+
 ## Files involved
 - `js/engine.js` — clarifying comment + stale-doc fix at `compute()`; no formula change (the
   `opts`-based composition already exists).
@@ -109,7 +121,10 @@ de-overloading is folded into D1, so a standalone rename is unnecessary.)
   total in CharGen and the Live Sheet; toggling the campaign's `ignore_player_ap` changes both identically.
 - **Double-count regression:** edit/save a DM-AP character in CharGen, reload in the Live Sheet — the DM AP
   is counted exactly once (the saved Player-AP award is unchanged).
-- **Local-character regression:** a local/offline character's displayed AP is unchanged.
+- **Local-character regression:** a local/offline character's displayed AP is unchanged **and** it now
+  explicitly indicates "no campaign, no DM AP" (D6) in both tools.
+- **State-display check:** all three D6 states render correctly and identically in CharGen and the Live
+  Sheet (not-in-campaign / player-AP-allowed / player-AP-switched-off).
 
 ## Done when
 - Both tools display an identical spendable total (Player + DM, honoring `ignore_player_ap`) for the same
