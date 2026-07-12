@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · feat(rules) — campaign rules can now ban drawbacks and arts**
+  (`js/engine.js`, `tools/DM-Console.html`; `D-GH-2026-07-12-campaign-rules-snapshot`; `DATA.version`
+  unchanged — `validate()` is display-only and never read by `compute()`, parity still 20/0). Extends the
+  cloud campaign rules format with `bannedDrawbacks` + `bannedArts`, mirroring the existing five ban fields:
+  `validate()` gains the two checks (surfaced as violations wherever it's already consumed — CharGen and Live
+  Sheet on join/save), `RULE_BAN_FIELDS` gains the two kinds, and the DM Console rules editor gains two grids.
+  This is the enforcement MVP of the retire-PACTRULES-code plan
+  (`docs/plans/2026-07-12-campaign-rules-snapshot.md`). Live-picker *hiding* of banned drawbacks/arts is a
+  deliberate, purely-additive fast-follow (see DECISIONS) — not shipped here.
+
 - **2026-07-11 · chore(testing) — add `playwright` + `supabase` CLI as devDependencies**
   (`testing/package.json`, `testing/package-lock.json`; dev-tooling only, no app code touched,
   `DATA.version` unchanged). Both were installed and verified working during the save-integrity session
