@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · chore(testing) — AUD-1 follow-up: audit.py now catches BUILD mirror drift**
+  (`testing/scripts/audit.py`; no app code touched, parity 20/0). New `check_build_version_sync()`:
+  compares `js/engine.js`'s `BUILD` (the documented single source of truth, `docs/VERSION-SYNC.md`)
+  against its four hand-maintained mirrors — CharGen's line-1 comment/`<title>`/header `.sub` label,
+  Live Sheet's line-1 comment, DM Console's `TOOL_VERSION` — and fails loudly on any mismatch.
+  `index.html` stays excluded (reads `BUILD` live, can never drift); `DATA.version` needs no
+  CharGen-mirror check since CharGen imports `DATA` live from `js/engine.js` as of D-GH26. Verified
+  both directions: 6/6 pass on the current (in-sync) tree, and a deliberately mismatched
+  `TOOL_VERSION` correctly fails with exit 1 (then restored — confirmed clean diff).
+
 - **2026-07-12 · chore(testing) — REV-11: headless engine-parity gate now runs in CI**
   (`testing/scripts/engine-parity-ci.mjs`, `.github/workflows/engine-parity.yml`,
   `testing/README.md`/`docs/HOW-TO-WORK.md` updated; no runtime app code touched, parity 20/0 — this

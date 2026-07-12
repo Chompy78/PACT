@@ -23,6 +23,10 @@ What it checks (file-based, offline):
   * engine-symbol drift guard: each tool imports DATA/compute/baseBuild/MUT/... from
     js/engine.js and re-defines none of them locally (the modern successor to the old
     "hand-copied MUT byte-compare" check — see the block comment on check_engine_bridge)
+  * build-version mirror sync: js/engine.js's BUILD matches CharGen's line-1 comment/
+    <title>/header label, Live Sheet's line-1 comment, and DM Console's TOOL_VERSION
+    (see docs/VERSION-SYNC.md; DATA.version needs no separate check — CharGen imports
+    DATA live from js/engine.js as of D-GH26, so there's no embedded copy left to drift)
 
 Optional (with --rls): as a non-DM player, confirm the Supabase REST API REJECTS both
 (a) a write to characters.ap (the DM-only column) and (b) setting campaign_id to a
@@ -343,6 +347,54 @@ def check_engine_bridge(rep):
             rep.ok("%s re-defines no engine symbols locally" % name)
 
 
+def check_build_version_sync(rep):
+    # -------------------------------------------------------------------
+    # Build-version mirror guard (AUD-1 follow-up).
+    #
+    # js/engine.js's `BUILD` is the single source of truth (docs/VERSION-SYNC.md); the three
+    # tools mirror it by HAND (a cosmetic display string, not a live import — unlike DATA,
+    # which CharGen imports live from js/engine.js as of D-GH26, so DATA.version needs no
+    # separate CharGen-mirror check here; only BUILD is copy-pasted). index.html reads BUILD
+    # live at load and is deliberately excluded — it can never drift, so checking it would be
+    # a no-op. This guard fails loudly the moment any one of the four hand-mirrors is bumped
+    # without the others, catching exactly the class of drift docs/VERSION-SYNC.md's manual
+    # "bump procedure" depends on a human remembering to follow correctly.
+    # -------------------------------------------------------------------
+    rep.group("build-version mirror sync")
+    engine_src = read("js/engine.js")
+    m = re.search(r'export const BUILD\s*=\s*"([^"]+)"', engine_src)
+    if not m:
+        rep.fail("js/engine.js: could not find `export const BUILD = \"...\"`")
+        return
+    build = m.group(1)
+    rep.ok("js/engine.js BUILD = %s (source of truth)" % build)
+
+    mirrors = [
+        ("tools/PACT-CharGen-Webtool.html", "line-1 comment",
+         re.compile(r"^<!--\*\*PACT-CharGen-Webtool (v[\d.]+)\.html\*\*-->")),
+        ("tools/PACT-CharGen-Webtool.html", "<title> Web Tool label",
+         re.compile(r"<title>[^<]*Web Tool (v[\d.]+)")),
+        ("tools/PACT-CharGen-Webtool.html", 'header .sub label',
+         re.compile(r'class="sub">Web Tool · (v[\d.]+)<')),
+        ("tools/PACT-Live-Char-Sheet.html", "line-1 comment",
+         re.compile(r"^<!--\*\*PACT-Live-Char-Sheet (v[\d.]+)\.html\*\*-->")),
+        ("tools/DM-Console.html", "TOOL_VERSION",
+         re.compile(r"var TOOL_VERSION\s*=\s*'(v[\d.]+)'")),
+    ]
+    for path, label, pattern in mirrors:
+        src = read(path)
+        name = Path(path).name
+        hit = pattern.search(src)
+        if not hit:
+            rep.fail("%s: could not find %s (pattern didn't match — did the markup change shape?)" % (name, label))
+            continue
+        found = hit.group(1)
+        if found == build:
+            rep.ok("%s %s = %s" % (name, label, found))
+        else:
+            rep.fail("%s %s = %s, expected %s (js/engine.js BUILD)" % (name, label, found, build))
+
+
 def check_large_assets(rep):
     rep.group("large media assets (warning only)")
     # source-assets/ holds pre-optimization originals by design — never flag them.
@@ -448,6 +500,7 @@ def main(argv=None):
     check_sw_registration(rep)
     check_sw_install_no_skipwaiting(rep)
     check_engine_bridge(rep)
+    check_build_version_sync(rep)
     check_large_assets(rep)
     if args.rls:
         check_rls(rep)
