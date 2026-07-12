@@ -3,10 +3,14 @@
 > **Status: design capture (pre-implementation).** Part of the campaign-model program (siblings:
 > `2026-07-12-campaign-ap-model.md`, `2026-07-11-campaign-join-invite-flow.md`). Engine-model work sitting
 > next to the known D-GH30 / `feat/ap-model-reconcile` tension → intended for cold plan review before code.
-> Proceeds on **D2 / E1** (spend-based trigger, DM-adjustable). **⚠ F1 REDEFINED:** the Player's-Guide check
-> (see "MAJOR FINDING" below) shows creation-lock does **not reprice AP** — it *closes a creation-only list*
-> and *enables gold+downtime*. The trigger/control/UX layer (D2, E1, L4, L7, L8) still holds; the *effect*
-> layer is being redefined. **Awaiting designer direction (H1/H2) before this plan is review-ready.**
+> **⚠ STATUS: DEFERRED / DECOUPLE (2026-07-12).** Two investigations (Player's Guide + engine H1) revealed
+> this is a far larger, foundational engine-rules project than "activate dormant machinery": creation-lock
+> does **not reprice AP** (off-model); the real effects (availability block + gold/downtime) are **unbuilt**
+> (downtime absent entirely); solo characters can't auto-lock by design. **Hard lock DROPPED** (lock is a
+> campaign concept). **Recommendation: split this out as its own future initiative** (needs game-design
+> decisions on downtime/gold/reprice) and ship the three tractable pieces first (house-rules rename → AP
+> model → invite). Trigger/control/UX (D2/E1/L4/L7/L8) preserved for that future project. The **house-rules
+> rename** portion of this plan is independent and still ready to go now.
 
 ## Goal
 Make "creation lock" (the switch from cheap character-creation pricing to full in-play pricing) actually
@@ -163,14 +167,41 @@ required.**
 *creation closes ⇒ (a) block the creation-only list, (b) enable gold + downtime.* The **trigger/control/UX
 layer is unaffected** (D2, E1, offline materialization, L4, L7, L8 all still hold); only the *effect* changes.
 
+## H1 RESULT (engine investigation, 2026-07-12) — the in-play model is essentially UNBUILT
+- **Availability blocking: does NOT exist.** No gate/warning/rejection for any creation-only item (dumps,
+  drawbacks, `originClass2`, `species2`, cross-race traits) tied to lock/creation state. The lock's ONLY
+  functional effect in the whole engine is the racial-trait reprice (which the Guide says shouldn't happen).
+  Net-new build, and the existing reprice likely needs removing/reworking.
+- **Gold: inert input only.** `add("Starting gold", b.gold||0)` — a player-entered, AP-priced field, no
+  engine-derived cost, no in-play awareness. **Downtime: entirely absent** (no field, no concept, zero hits).
+  So "gold+downtime as secondary in-play costs" is essentially all net-new.
+- **Solo characters cannot auto-lock — by explicit design (D-GH32).** The threshold auto-lock is hard-gated
+  behind a `campaignBound` event; a local/solo character never auto-locks. Today the *only* lock path for a
+  solo character is an explicit `creationLocked` event.
+
+## Strategic consequence — DECOUPLE the in-play/creation-lock model (recommended)
+The reframed feature is **not** "activate dormant machinery" — the two real rules-effects (availability
+block + gold/downtime) are unmodelled, downtime doesn't exist at all, and the one existing lock behaviour is
+off-model. This is a **large, foundational engine-rules project** that also needs genuine *game-design*
+decisions (do we model downtime? gold-as-secondary-cost? remove the reprice?) — not something to bundle with
+the invite/AP work. **Recommendation:** split it out as its own future initiative; proceed now with the
+three tractable pieces (house-rules rename → AP model → invite). This plan's **trigger/control/UX layer**
+(D2/E1/L4/L7/L8) is preserved for that future project.
+
+## Hard-lock decision — DROPPED (lock is a campaign concept; solo characters don't lock in v1)
+Given the engine deliberately never auto-locks solo characters (D-GH32) and the in-play model is a
+campaign-driven concept, the cleanest resolution (matching both the user's instinct and the engine): **no
+explicit hard lock in v1; solo/local characters simply build freely and don't "lock."** The DM-adjustable
+soft threshold remains the (future) campaign mechanism. A DM "seal / no-take-backs" stays a possible later
+refinement only if undo-reopens-creation proves a real in-play problem.
+
 ## Open questions (superseding G)
-- **H1 — Does the engine already model the two real effects?** i.e. does `compute()`/replay enforce the
-  creation-only availability block and add gold+downtime to in-play purchases? **Needs an engine
-  investigation** — that determines what the lock feature actually has to build.
 - **H2 — Racial-trait reprice: intended higher-tier rule, or divergence to fix?** Designer call (Guide is
-  ambiguous; engine does it, one DM line hints at it).
-- **D/E/F: confirmed D2 / E1** (spend-based trigger, DM-adjustable). **F1 redefined** per the finding above
-  (availability + gold/downtime, not repricing).
+  ambiguous; engine does it, one DM line hints at it). Feeds the decoupled in-play project.
+- **Do we model downtime at all? / gold as a real secondary cost?** Game-design decisions for the decoupled
+  project, not resolvable from code.
+- **D/E confirmed D2 / E1.** **F1 redefined** (availability + gold/downtime, not repricing). **Hard lock
+  dropped** (above).
 
 ## Risks
 - **D-GH30 adjacency:** the lock stamps pricing per purchase in replay order; keep the "spent/remaining"
