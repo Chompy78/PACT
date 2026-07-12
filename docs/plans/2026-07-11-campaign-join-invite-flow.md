@@ -1,203 +1,259 @@
 # Plan: Campaign join/invite UI (Path A: new-player token invite, Path B: bind existing character)
 
+> **Revision 2** — revised after three independent cold reviews (2026-07-12). Each review finding was
+> triaged against the actual code (see "Review outcome" at the bottom), not applied blindly. The most
+> consequential change: the original plan's `stats={budget:N}` character-creation shape was **verified
+> wrong** and corrected (see Approach step A4). The feature is now **split into two deliverables** (Path A,
+> Path B) per two reviewers' recommendation.
+
 ## Goal
-PACT is a static tabletop-RPG character tool suite (vanilla JS, GitHub Pages, Supabase backend). Right
-now a DM can create a campaign and a player can *technically* join one via a Postgres RPC, but **no
-production UI calls that RPC anywhere** — joining a campaign is currently only exercisable from a
-developer test harness. This plan adds the missing front-end for two flows:
-- **Path A** — a DM invites a brand-new player: DM generates a single-use, per-player token that
-  pre-sets a starting AP amount and a starting build-point budget; the player redeems it to create a new
-  character already bound to the campaign with those starting values.
-- **Path B** — an existing player with an already-built character binds that character to a campaign via
-  invite code, sees non-blocking rule-violation warnings if their build conflicts with the campaign's
-  rules, but can bind regardless (DM sorts it out later).
+PACT is a static tabletop-RPG character tool suite (vanilla JS, GitHub Pages, Supabase backend). A DM can
+create a campaign and a player can *technically* join via a Postgres RPC, but **no production UI calls it**
+— joining is only exercisable from a dev test harness today. This plan adds the missing front-end as two
+independent deliverables:
+- **Path A** — a DM invites a brand-new player via a single-use, per-player token carrying a starting AP
+  amount and a starting build budget; the player redeems it to get a new character already bound to the
+  campaign with those starting values.
+- **Path B** — an existing player binds an already-built character to a campaign via the campaign's shared
+  invite code, sees non-blocking rule-violation warnings via the engine's `validate()`, and binds
+  regardless (unless the server rejects for a real blocking condition).
+
+## Split into two deliverables (branches/PRs)
+Two reviewers independently recommended splitting; it also fits the repo's "one task per branch, small
+focused PR" rule. The two are genuinely independent (different RPCs, different UI entry points):
+- **Deliverable 1 — Path A** (branch `feat/campaign-invite-tokens`): new `campaign_invites` table,
+  `create_player_invite` + `redeem_player_invite` RPCs, DM-Console "Invite new player" UI, CharGen
+  `?invite=` redemption flow. Higher user value, self-contained.
+- **Deliverable 2 — Path B** (branch `feat/campaign-bind-character`): `bind_character_to_campaign` RPC
+  (reuses the existing shared `invite_code`, no new table), CharGen "Join campaign" action with
+  `validate()` warnings. Reviewable/hardenable independently without blocking Path A.
+
+Everything below is written to be implemented in that order; Path B has no dependency on Path A.
 
 ## Context
-Repo rules that shape this plan (paraphrased from the repo's own `AGENTS.md`):
+Repo rules that shape this plan (paraphrased from the repo's own `AGENTS.md`, verified):
 - Vanilla JS only, no frameworks/bundlers/npm. GitHub Pages hosts static files only — **no custom backend
-  code in the repo**; Supabase (hosted Postgres + Auth, reached from the browser, protected by
-  row-level-security) is the only backend allowed.
-- Only the Supabase anon/publishable key is ever committed; the `service_role` key must never be
-  committed or used client-side.
-- `js/engine.js` is the single source of truth for game rules and its public API must stay stable;
-  nothing outside it may re-implement rules logic.
-- The DB stores only raw character data; derived values (HP/AC/AP/warnings) are computed at runtime, never
-  stored. `ap` (DM-awarded bonus AP) is server-authoritative and DM-only — a local client push must never
-  overwrite it.
-- After any migration/RLS/schema change, the repo's process requires running the Supabase security
-  advisor and skimming recent logs before opening a PR — this project has already shipped grant/RLS
-  drift bugs twice (its own decision log calls these out by name: REV-04 and a follow-up around
-  REV-07/function-grant lockdown), so new RPCs get extra scrutiny.
-- Engine-parity tests must stay at the repo's current expected pass count (20/0) after any change.
+  code in the repo**; Supabase (hosted Postgres + Auth, browser-reached, RLS-protected) is the only backend.
+- Only the Supabase anon/publishable key is committed; the `service_role` key must never be committed or
+  used client-side.
+- `js/engine.js` is the single source of truth for game rules; its public API must stay stable and **no
+  rules/log-format logic may be re-implemented outside it** (this directly rules out constructing a
+  character's event-log envelope in SQL — see A4).
+- The DB stores only raw character data; derived values are computed at runtime, never stored. `ap` is
+  server-authoritative and DM-only; a local client push must never overwrite it.
+- Neither `characters.ap` nor `characters.campaign_id` may be set via a direct client write — both are
+  excluded from every column-level grant, so a `SECURITY DEFINER` RPC is the only path (a prior migration
+  closed a bypass where `campaign_id` was directly player-writable).
+- After any migration/RLS/RPC change, run the Supabase security advisor and skim recent logs before the PR
+  — this project has shipped grant/RLS drift twice (its decision log names REV-04 and the REV-07/function-
+  grant lockdown). New RPCs get extra scrutiny.
+- Engine-parity tests must stay at the current expected pass count (20/0).
 
 ## Assumptions vs. verified facts
 
-**Verified (read directly in the code):**
-- `sql/schema.sql` already defines the full membership model: `campaigns` (with a shared, DM-visible
-  `invite_code` and `dm_invite_code`), `campaign_dms` (DM/co-DM membership), `characters` (has a nullable
-  `campaign_id` FK, `on delete set null`), `ap_awards` (award ledger).
-- Two `SECURITY DEFINER` RPCs already exist and are wired to `authenticated`-only grants:
-  `join_campaign(p_code)` — looks up a campaign by its shared `invite_code`, blocks re-joining, and
-  **inserts a brand-new** `characters` row (`name='New Character'`, `campaign_id` set). `join_as_dm(p_code)`
-  — the co-DM equivalent, inserts into `campaign_dms`.
-- `characters` has **no** blanket INSERT/UPDATE grant to `authenticated`; only column-restricted grants
-  (`insert (id, owner_id, name, kind, stats)`, `update (name, kind, stats)`). Both `ap` and `campaign_id`
-  are excluded from every direct grant — the only way to set either is through a `SECURITY DEFINER`
-  function. A migration (`2026-06-30-rev04-campaign-rls.sql`) explicitly closed a prior bypass where
-  `campaign_id` was directly player-writable.
-- **Neither existing RPC can do Path B.** `join_campaign()` only creates a brand-new character row; there
-  is no existing RPC that binds an *already-existing* character (one a player already built) to a
-  campaign by code. This is a genuine gap, not just missing UI.
-- **Path A's "single-use per-player token carrying starting AP + build budget" also does not exist yet.**
-  The existing `invite_code` is a shared, reusable, campaign-wide code with no per-player state and no way
-  to attach starting AP/budget values — it is a different mechanism from what Path A asks for.
-- `js/engine.js` exports `validate(b, rules)` (already in the file's own export-list comment) —
-  "check a build against a DM's campaign rules... Pure and side-effect-free... Returns
-  `{ ok, violations: [{code, message}] }`... never throws on a malformed/empty rules object." This is
-  exactly the non-blocking check Path B needs.
-- `b.budget` is the build's own starting-AP-budget field — `compute()` reads it directly
-  (`const playerAp=b.budget||0`) and `baseBuild()` initializes it to `budget:0`. This is the field Path A's
-  "build budget" should set on the new character's `stats`.
-- `js/campaign.js` has `createCampaign`, `joinCampaign`, `joinAsDm`, `promoteToDm`/`removeDm`,
-  `regenerateInviteCode`/`regenerateDmInviteCode`, `setIgnorePlayerAp`, `setCampaignRules`,
-  `getCampaignDms`, `listMyCampaigns`, `getCampaign` — no invite-token or bind-existing-character function.
-- `tools/DM-Console.html` has a campaign panel (`#campPanel`/`#campSel`/`#campCodes`) that *displays*
-  existing invite codes read-only — there is no "create campaign" or "invite new player" button anywhere
-  in it today.
-- `tools/PACT-CharGen-Webtool.html` already imports `listMyCampaigns, getCampaign` and populates a
-  campaign `<select>` used purely for **live rule-filtering** (species/boons/drawbacks pickers) — but that
-  select only shows campaigns the player has *already* joined, and nothing in CharGen ever calls
-  `joinCampaign()`. `tools/PACT-Live-Char-Sheet.html` separately has a "House rules code" feature that its
-  own code comment says is explicitly **not** the cloud campaign system — a distinct, older, local-only
-  mechanism not to be confused with this feature.
-- Migration files follow `sql/migrations/YYYY-MM-DD-slug.sql`, one file per change, applied by hand via
-  the Supabase SQL editor (no migration-runner tooling in-repo).
+**Verified (read directly in the code during planning + a dedicated review-verification pass):**
+- **Auth is email/password only — NO OAuth.** `js/auth.js` exports a programmatically-callable
+  `login(email, password)` whose only sign-in call is `supabase.auth.signInWithPassword({email,password})`
+  — an in-page async call, no page redirect, so URL query params (`?invite=`) survive login. There is no
+  `signInWithOAuth` anywhere. (Registration/password-reset *do* use `emailRedirectTo`/`redirectTo` — see
+  the redemption-survival note in A4.)
+- **`join_campaign(p_code)` already enforces one-character-per-player-per-campaign** via
+  `if exists (select 1 from characters where campaign_id=v_campaign.id and owner_id=auth.uid()) then raise…`
+  It inserts only `(owner_id, campaign_id, name='New Character')`; `stats`, `ap`, `kind` fall to table
+  defaults (`'{}'::jsonb`, `0`, `'livesheet'`).
+- **`characters` column facts:** `name text not null default 'New Character'` (no length CHECK);
+  `stats jsonb not null default '{}'::jsonb`; `ap integer not null default 0`;
+  `kind text not null default 'livesheet' check (kind in ('chargen','livesheet'))`;
+  `campaign_id uuid references campaigns(id) on delete set null` (nullable). **No insert-time trigger** on
+  `characters` — the client is fully responsible for the stats shape (the only trigger is a BEFORE UPDATE
+  `updated_at` stamp).
+- **CharGen persists a LOG-envelope, not a flat build.** The cloud `stats` column holds
+  `{schema, rules, name, LOG, SEQ, id}`; on load CharGen replays it (`if(d.LOG&&Array.isArray(d.LOG)){ const
+  b=foldBuild(d.LOG);…}`). A raw `stats={budget:N}` matches **neither** load branch, so it would NOT
+  reconstruct as a real character (though `compute()` itself defensively coerces missing fields and would
+  not hard-crash). **This invalidates the original plan's `stats={budget:N}` approach** — corrected in A4.
+- **Player membership is derived solely from `characters.campaign_id`** (co-DMs live in `campaign_dms`).
+  `listMyCampaigns()` and `dm.js getRoster()` both key off `characters.campaign_id` with no separate
+  player-membership table — so once the RPC sets `campaign_id`, the DM roster shows the player with no
+  extra wiring (R1 #10 / R3 #6 satisfied).
+- `js/engine.js` exports `validate(b, rules) → { ok, violations:[{code,message}] }` — pure, never throws on
+  a malformed/empty rules object. Exactly the non-blocking check Path B needs.
+- Migration files follow `sql/migrations/YYYY-MM-DD-slug.sql`, applied by hand via the Supabase SQL editor;
+  `sql/schema.sql` is the cumulative source of truth kept in sync alongside each migration.
 
-**Assumed (not yet confirmed — flagged for the reviewer):**
-- That `sql/schema.sql` is meant to be hand-kept in sync with each new migration file (both exist in the
-  repo and look duplicative of each other) — this plan updates both, but the exact intended relationship
-  between them wasn't independently confirmed.
-- That a brand-new player redeeming a Path-A token must already have (or create) a Supabase Auth account
-  before redemption — i.e. the token identifies a *campaign slot*, not a pre-provisioned user. The token
-  is claimed by whichever authenticated user redeems it first.
-- That Path A's redemption flow should hand the player into CharGen (to actually spend the preset budget
-  building a character) rather than creating a fully-blank character — this seems like the natural fit
-  given CharGen already owns "build a new character from a budget," but it's a design choice, not a fact.
-- That Path B should be exposed in **both** CharGen and Live Sheet eventually, but this plan scopes the
-  first implementation to CharGen only (see Out of scope) since that's where the existing campaign-select
-  and rule-filtering UI already lives.
+**Assumed (not yet confirmed — flagged for implementation):**
+- **How CharGen sets a build's starting budget** (an award event inside the LOG vs. a direct budget field)
+  is not yet traced end-to-end. This determines exactly how redemption seeds `starting_budget` into a
+  CharGen-loadable character (see A4 + Risks). **This is the #1 implementation spike.**
+- That a brand-new player must create/hold a Supabase Auth account before redeeming; the token identifies a
+  *campaign slot*, claimed by whichever authenticated user redeems it first (token-possession = authz — see
+  Design decisions).
+
+## Design decisions resolved from review (document these in DECISIONS.md)
+These were open questions all three reviews flagged; resolved here so implementation isn't ad-hoc:
+1. **One character per player per campaign — enforced server-side**, mirroring the verified `join_campaign`
+   guard. `redeem_player_invite` and `bind_character_to_campaign` both reject if the caller already owns a
+   character in the target campaign. (Not a front-end-only check.)
+2. **Rebind contract for `bind_character_to_campaign`:** allow only when the character's `campaign_id IS
+   NULL`; already-bound-to-the-same-campaign → friendly no-op success; bound to a *different* campaign →
+   reject (no "transfer/leave campaign" feature in v1). Owner check required (`auth.uid()` owns the row).
+3. **Token possession = authorization.** Whoever holds the token and is authenticated may redeem it; the DM
+   controls sharing. No per-recipient email binding in v1 (would need an `intended_email` column — out of
+   scope). Accepted risk, documented.
+4. **`kind='chargen'` for redeemed characters** (vs `join_campaign`'s `'livesheet'` default) because a
+   Path-A player builds in CharGen. This is *why* the LOG-envelope shape in A4 matters.
+5. **`join_campaign` retained, not deprecated.** It stays the "quick join with the shared code, blank
+   livesheet character, no preset budget" path; Path A is the "DM-curated single-use token with preset
+   budget/AP, chargen character" path. To avoid confusing duplicate UI, Path A's DM-Console action is
+   labeled distinctly ("Invite new player") and `join_campaign` gets no new UI here. Document the three
+   distinct mechanisms (shared `invite_code` → `join_campaign`; `dm_invite_code` → `join_as_dm`; per-player
+   token → `redeem_player_invite`).
+6. **No token expiry/revocation in v1** (accepted risk, documented). The migration adds a nullable
+   `expires_at` column now (cheap future-proofing, avoids a later migration) but redemption does not yet
+   enforce it. Invite listing/revoke/audit are a named backlog follow-up.
+7. **Backwards compatibility:** existing campaigns, existing `invite_code`/`dm_invite_code`, and existing
+   characters are unaffected and need no data migration — this is purely additive.
 
 ## Proposed approach
-1. **New migration** `sql/migrations/2026-07-11-player-invite-tokens.sql`:
-   - New table `campaign_invites` (`id`, `campaign_id` FK, `token` unique CSPRNG-generated — reuse the
-     `gen_random_bytes`-based pattern the repo already uses for `invite_code`/`dm_invite_code`, not
-     `random()` — `starting_ap` int, `starting_budget` int, `created_by` FK profiles, `created_at`,
-     `redeemed_by` FK profiles nullable, `redeemed_at` nullable).
-   - RLS: DM/co-DM of the campaign can `select`/`insert` their campaign's rows; no direct client
-     `update`; nobody gets a blanket grant — redemption goes through a `SECURITY DEFINER` RPC only.
-   - RPC `create_player_invite(p_campaign_id, p_starting_ap, p_starting_budget) returns text` (the token)
-     — caller must be a DM/co-DM of the campaign (mirror the existing `is_campaign_dm` check pattern).
-   - RPC `redeem_player_invite(p_token, p_name) returns uuid` (new character id) — atomically claims the
-     token (`update campaign_invites set redeemed_by=auth.uid(), redeemed_at=now() where token=p_token and
-     redeemed_by is null`, checking the row-count to reject a race/double-redeem), then inserts a
-     `characters` row with `campaign_id`, `ap=starting_ap`, `stats={budget:starting_budget}`,
-     `kind='chargen'`, `owner_id=auth.uid()`, `name=p_name`.
-   - RPC `bind_character_to_campaign(p_character_id, p_code) returns void` (Path B) — verifies
-     `auth.uid()` owns the character, looks up the campaign by its existing shared `invite_code`, sets
-     `campaign_id` on that character row. No new state needed since it reuses the existing `invite_code`.
-   - Grant `execute` on all three to `authenticated` only, explicitly revoke from `public` (mirrors every
-     existing RPC in the file).
-   - Mirror the same table/functions into `sql/schema.sql` (cumulative source of truth).
-2. **`js/campaign.js`**: add thin wrappers `createPlayerInvite(campaignId, startingAp, startingBudget)`,
-   `redeemPlayerInvite(token, name)`, `bindCharacterToCampaign(characterId, code)` — same pattern as the
-   existing RPC wrappers in this file.
-3. **`tools/DM-Console.html`**: add an "Invite new player" action in the campaign panel (near `#campCodes`)
-   — a small form for starting AP + starting budget, calls `createPlayerInvite`, displays the resulting
-   token/link with a copy button (same UX pattern as the existing invite-code display).
-4. **`tools/PACT-CharGen-Webtool.html`**:
-   - On load, detect an `?invite=<token>` URL param; if present and the user isn't signed in, prompt
-     sign-in/register first (reuse `js/auth.js`), then call `redeemPlayerInvite`, load the resulting
-     character, and open the build flow with `budget` already set from the token (Path A).
-   - Add a "Join campaign" action (enter invite code) next to the existing campaign `<select>` for an
-     already-built character, calling `bindCharacterToCampaign`; on success, re-run `validate()` against
-     the campaign's `rules` and show any violations as non-blocking warnings (character stays bound
-     regardless) — this is Path B, scoped to CharGen for v1.
-5. Run `testing/tests/engine-parity.html` (expect the repo's current pass count, 20/0) — no `engine.js`
-   changes are planned, this just confirms nothing broke.
-6. Run the Supabase security advisor against the new migration before opening the PR, per the repo's own
-   process (grant/RLS drift has bitten this project twice before).
-7. Update `CHANGELOG.md` / `DECISIONS.md` per the repo's own per-change checklist, and graduate this item
-   out of `docs/PACT_ROADMAP.md`.
+
+### Deliverable 1 — Path A
+**A1. Migration** `sql/migrations/2026-07-11-player-invite-tokens.sql` (+ mirror into `sql/schema.sql`):
+- Table `campaign_invites`: `id`, `campaign_id` FK, `token` unique (CSPRNG via the repo's existing
+  `gen_random_bytes` pattern, **not** `random()`), `starting_ap int`, `starting_budget int`,
+  `created_by` FK profiles, `created_at`, `expires_at` (nullable, not yet enforced), `redeemed_by` FK
+  profiles nullable, `redeemed_at` nullable.
+- RLS: DM/co-DM of the campaign may `select`/`insert` their rows (mirror the existing `is_campaign_dm`
+  helper); no direct client `update`; redemption only via the SECURITY DEFINER RPC.
+- RPC `create_player_invite(p_campaign_id, p_starting_ap, p_starting_budget) → text` — caller must be
+  DM/co-DM; returns the token.
+- RPC `redeem_player_invite(p_token, p_name) → uuid` — **single function body = one implicit transaction**,
+  so a failed character insert auto-rolls-back the token claim (no orphaned-consumed-token failure mode).
+  Steps: (a) atomic claim `update campaign_invites set redeemed_by=auth.uid(), redeemed_at=now() where
+  token=p_token and redeemed_by is null` then check row-count — **if already redeemed by *this* user, treat
+  as idempotent recovery: return the existing character id instead of erroring**; if redeemed by someone
+  else, reject. (b) enforce one-per-player-per-campaign. (c) validate/coalesce `p_name` (trim; empty/null →
+  `'New Character'`; cap length since there's no DB CHECK). (d) insert a character `owner_id=auth.uid(),
+  campaign_id, name, kind='chargen', ap=starting_ap` and **stats = the DB default `'{}'::jsonb`** (see A4 —
+  the budget is seeded client-side, NOT inserted here as `{budget:N}`).
+- Grant `execute` to `authenticated` only; revoke from `public`.
+
+**A2. `js/campaign.js`** — thin wrappers `createPlayerInvite(campaignId, startingAp, startingBudget)` and
+`redeemPlayerInvite(token, name)`, matching existing RPC-wrapper style.
+
+**A3. `tools/DM-Console.html`** — "Invite new player" action near `#campCodes`: inputs for starting AP +
+starting budget, calls `createPlayerInvite`, shows the **canonical URL**
+`https://chompy78.github.io/PACT/tools/PACT-CharGen-Webtool.html?invite=<token>` with a copy button (reuse
+the existing invite-code copy UX).
+
+**A4. `tools/PACT-CharGen-Webtool.html`** — redemption + budget seeding (the corrected core):
+- On load, detect `?invite=<token>`. Persist the token to `sessionStorage` **before** any auth step, so it
+  survives (i) an unauthenticated player registering via email-confirm redirect and (ii) a page
+  reload/crash. (Login itself doesn't redirect, but registration's `emailRedirectTo` does — hence storage,
+  not reliance on the query param alone.)
+- If unauthenticated, prompt sign-in/register (reuse `js/auth.js login`), then resume from the stored token.
+- Call `redeemPlayerInvite(token, name)` → new character id (idempotent: a repeat call by the same user
+  returns the same id, so double-click / crash-recovery is safe).
+- **Seed the starting budget client-side, in the engine's own format** (keeps LOG/rules logic in JS, per the
+  hard rule): construct the initial CharGen LOG-envelope containing the starting budget, `foldBuild` it, and
+  `saveCharacter`. The exact seed primitive (an `award` event of `starting_budget` AP vs. a budget field)
+  must be confirmed against CharGen's normal new-character path first — **the #1 spike.** Until seeded, a
+  freshly-redeemed character is a valid blank campaign-bound chargen character (`stats='{}'`), so a crash
+  between redeem and seed is recoverable (player opens the blank character; re-seed reads `starting_budget`
+  from the still-readable redeemed invite row).
+- After load: select the new character, populate the campaign `<select>` from `listMyCampaigns()` and select
+  the matching campaign so rule-filtering (`_cloudCampaign`) is active; confirm `ap`/budget reflect the token.
+
+### Deliverable 2 — Path B
+**B1. Migration** (can share the same file or a second dated one): RPC
+`bind_character_to_campaign(p_character_id, p_code) → void` — SECURITY DEFINER; verify `auth.uid()` owns the
+character; look up the campaign by the existing shared `invite_code`; enforce the rebind contract (bind only
+if `campaign_id IS NULL`; same-campaign = no-op success; different-campaign = reject); enforce
+one-per-player-per-campaign; set `campaign_id`. Grant to `authenticated`, revoke from `public`.
+
+**B2. `js/campaign.js`** — wrapper `bindCharacterToCampaign(characterId, code)`.
+
+**B3. `tools/PACT-CharGen-Webtool.html`** — "Join campaign" action beside the campaign selector: enter code,
+call `bindCharacterToCampaign`, fetch the campaign `rules`, run `validate(build, rules)`, show violations as
+**non-blocking warnings**; the character stays bound unless the server rejected the bind. Re-run `validate()`
+whenever the character is subsequently opened in that campaign context (rules can change; cost is negligible
+and it matches CharGen's existing live rule-filtering behavior).
+
+### Shared closeout (both deliverables)
+Run `engine-parity.html` (expect 20/0 — no engine changes); run the Supabase security advisor
+(`get_advisors`) + skim `get_logs`; update `CHANGELOG.md` / `DECISIONS.md` (record decisions 1–7 above) and
+graduate the item from `docs/PACT_ROADMAP.md`.
 
 ## Files involved
-- `sql/migrations/2026-07-11-player-invite-tokens.sql` (new) — table + 3 RPCs + grants/RLS.
-- `sql/schema.sql` — mirror the new table/functions.
+- `sql/migrations/2026-07-11-player-invite-tokens.sql` (new) + `sql/schema.sql` (mirror) — table + RPCs +
+  grants/RLS.
 - `js/campaign.js` — 3 new wrapper functions.
-- `tools/DM-Console.html` — "Invite new player" UI in the campaign panel.
-- `tools/PACT-CharGen-Webtool.html` — `?invite=` redemption handling + "Join campaign" (bind existing)
-  action.
-- `CHANGELOG.md`, `DECISIONS.md`, `docs/PACT_ROADMAP.md` — doc bookkeeping per the repo's checklist.
+- `tools/DM-Console.html` — "Invite new player" UI (Path A).
+- `tools/PACT-CharGen-Webtool.html` — `?invite=` redemption + budget seeding (Path A); "Join campaign" bind
+  + `validate()` warnings (Path B).
+- `CHANGELOG.md`, `DECISIONS.md`, `docs/PACT_ROADMAP.md` — bookkeeping per the repo checklist.
 
 ## Out of scope
-- Live Sheet's Path-B UI (binding an already-built *event-sourced* character) — same RPC works for it,
-  but the UI work is deferred to a follow-up task to keep this change reviewable.
-- Any change to co-DM invites (`join_as_dm`), the existing shared `invite_code`/`dm_invite_code` system,
-  or `award_ap` — all already work and are untouched by this plan.
-- Kicking/removing a player from a campaign, or un-binding a character's `campaign_id`.
-- Retroactively binding characters created before this feature shipped.
-- Any `engine.js` or `compute()` change — `validate()` already exists and is used as-is.
+- Live Sheet's Path-B UI (binding an already-built *event-sourced* character) — the RPC works for it, but
+  the UI is a follow-up. (Verification confirms Live Sheet can *open* a campaign-bound character since it
+  already reads `campaign_id` for rules — it just can't create the binding yet.)
+- Token expiry enforcement, revocation, invite listing/audit (named backlog follow-up; column reserved).
+- Per-recipient (`intended_email`) token binding, campaign transfer/leave, kicking players, un-binding.
+- Rate-limiting invite generation (documented absence, backlog).
+- Any `engine.js`/`compute()` change — `validate()` is used as-is.
 
 ## Alternatives considered
-- **Reuse the existing shared `invite_code` for Path A too** (skip the new token table) — rejected: the
-  roadmap item specifically calls for a *single-use, per-player* token carrying starting AP/budget, which
-  a shared reusable code structurally can't express (no per-redemption state, no way to attach values).
-- **Do the AP/budget bind server-side automatically on first login via a magic link**, instead of a
-  visible token/code — rejected as unnecessary complexity; the existing invite-code UX (DM shares a short
-  code, player types it in) is already the repo's established pattern and this plan keeps it consistent.
-- **Put Path A redemption in a new standalone `join.html` page** instead of CharGen — considered, but
-  CharGen already owns "start a new character from a budget," so redeeming into it avoids building a
-  second character-creation entry point.
+- **Reuse the shared `invite_code` for Path A** (skip the new table) — rejected: Path A needs single-use,
+  per-player state + preset AP/budget, which a shared reusable code can't express.
+- **Construct the CharGen LOG-envelope inside the redeem RPC (SQL)** so the character loads fully-formed —
+  rejected: that re-implements the engine's log/rules format in SQL, violating the "no rules logic outside
+  engine.js" hard rule and is brittle. Client-side seeding (A4) keeps that logic in JS.
+- **A dedicated `join.html` interstitial** for redemption instead of doing it in CharGen — considered; a
+  `sessionStorage` token stash inside CharGen achieves the same auth/crash survival without a second entry
+  point, and CharGen already owns "build from a budget."
+- **One combined PR** — rejected in favor of the Path A / Path B split (two reviewers; smaller PRs).
 
 ## Risks / open questions
-- **Double-redemption race**: two browser tabs or two people racing the same token. Mitigated by the
-  atomic conditional-update-then-check-rowcount pattern in `redeem_player_invite`, but this is the
-  highest-value thing for a reviewer to sanity-check.
-- **Token guessability**: must use the same CSPRNG approach as the existing invite codes, not a
-  predictable sequence — flagged explicitly in the migration step above so it isn't missed.
-- **CharGen's "load a character that only has `{budget:N}` set, nothing else"** path hasn't been traced
-  end-to-end — need to confirm `compute()`/CharGen's load path handles a minimal stats object gracefully
-  before considering Path A done (see Verification).
-- **Grant/RLS drift**: this repo has shipped two prior incidents from exactly this class of change (new
-  grants/RLS on `characters`/campaign tables) — the Supabase advisor step is non-negotiable here, not
-  a nice-to-have.
-- Whether unauthenticated players should be able to preview *which* campaign they're joining before
-  creating an account (open UX question, not answered by this plan).
+- **CharGen budget-seed primitive (#1 spike):** exactly how a new build's budget is set must be confirmed
+  before A4 is implementable; get it wrong and Path A characters load without their preset budget.
+- **Double-redemption / double-submit:** covered by the atomic `update … where redeemed_by is null` +
+  row-count check, made idempotent so a same-user retry returns the existing character. Highest-value thing
+  for a reviewer to sanity-check.
+- **Token guessability:** must use the existing CSPRNG pattern, not `random()`.
+- **Grant/RLS drift:** this class of change bit the repo twice — the advisor step is non-negotiable.
+- **Registration email-confirm round-trip:** whether the Supabase project requires email confirmation (a
+  redirect) is environment-dependent; the `sessionStorage` stash makes Path A robust either way.
 
 ## Verification
-- `testing/tests/engine-parity.html` → still passes at the repo's current expected count (no engine
-  changes expected).
-- Run Supabase `get_advisors` against the new migration; resolve any new findings before merging.
-- Manual QA (Path A): DM generates an invite with a non-zero starting AP + budget in DM-Console → a second
-  (unauthenticated) browser/account opens the link → is prompted to sign in/register → lands in CharGen
-  with the campaign pre-selected, rule-filtering active, and the starting budget already reflected in the
-  build's remaining-AP display.
-- Manual QA (Path A, race): attempt to redeem the same token twice (two tabs) → second attempt is
-  rejected, only one character is created.
-- Manual QA (Path B): an existing player with a built character (some of whose choices violate the target
-  campaign's `rules`) enters the invite code → character's `campaign_id` is set → non-blocking violation
-  warnings are shown → character remains usable/bound.
-- Regression QA: confirm a direct REST/PostgREST write attempting to set `campaign_id` or `ap` on a
-  `characters` row (bypassing the RPCs) still fails, per the existing RLS/grant lockdown.
+- `testing/tests/engine-parity.html` → still **20/0** (no engine changes).
+- Supabase `get_advisors` (Dashboard Security-Advisor-equivalent) after the migration; resolve new findings;
+  skim `get_logs`.
+- **Prerequisite spike (before RPC implementation):** confirm CharGen loads a minimal/blank campaign-bound
+  character and that its budget-seed primitive works — Path A is blocked if not.
+- **Authorization regression tests (explicit):** a non-DM cannot `create_player_invite`; a co-DM can; one
+  player cannot `bind_character_to_campaign` another player's character; double-redemption is rejected
+  (verify the atomic claim + row-count, not just the UI message); existing `join_campaign` + shared
+  `invite_code` still work; direct REST/PostgREST writes to `characters.campaign_id` / `characters.ap`
+  still fail.
+- **Path A success (full journey):** DM creates invite (non-zero AP+budget) → copies canonical link → player
+  opens it in a fresh session → signs in/registers → token redeems → new character created, campaign-bound,
+  `ap`=invite AP, budget=invite budget, loads in CharGen with campaign pre-selected and rule-filtering active.
+- **Path A race / double-submit / interrupted recovery:** same token in two tabs/accounts → one character
+  only, later attempts fail cleanly; double-click redeem → one character; redeem succeeds then browser
+  closes/refreshes before UI completes → token stays consumed, the created character remains accessible and
+  re-openable, budget re-seedable.
+- **Path B success + existing-campaign cases:** built character violating campaign rules enters code → binds
+  → `validate()` warnings shown non-blockingly → stays bound; then test `campaign_id IS NULL` (binds),
+  already-same-campaign (no-op success), already-different-campaign (rejected) — behaviour matches decision 2.
+- **Live Sheet compat:** confirm Live Sheet can open a character bound via CharGen.
 
 ## Done when
-- Both RPCs (`create_player_invite`, `redeem_player_invite`, `bind_character_to_campaign`) exist, are
-  migrated, and pass the advisor check.
-- DM-Console can generate a Path-A invite; CharGen can redeem one end-to-end into a new campaign-bound
-  character with the preset budget/AP.
-- CharGen can bind an already-built character to a campaign via invite code and shows `validate()`
-  warnings non-blockingly.
-- `engine-parity.html` still passes at the current expected count.
-- `CHANGELOG.md`/`DECISIONS.md`/roadmap updated per the repo's checklist.
+- Deliverable 1: `create_player_invite` + `redeem_player_invite` migrated and advisor-clean; DM-Console
+  generates a canonical invite link; CharGen redeems it end-to-end into a campaign-bound chargen character
+  with the preset budget/AP correctly seeded and loadable; race/double-submit/recovery all behave.
+- Deliverable 2: `bind_character_to_campaign` migrated and advisor-clean; CharGen binds an existing character
+  by code, shows `validate()` warnings non-blockingly, and enforces the rebind contract (decision 2).
+- `engine-parity.html` still 20/0; authorization regression tests pass.
+- `CHANGELOG.md`/`DECISIONS.md` (decisions 1–7)/roadmap updated.
 
 ---
 
@@ -220,7 +276,18 @@ false findings cost the implementer a wasted cycle.
 
 ---
 
-## Review outcome (fill in after the review + implementation — not part of the cold review)
-- Reviewer findings: TBD
-- Materially changed the plan? TBD
-- Without the review, what would have happened: TBD
+## Review outcome (three cold reviews, triaged 2026-07-12 against the actual code)
+- **Reviewers:** 3 independent cold reviews. **~30 distinct findings** → **accept ~19 / reject 1 /
+  defer-to-backlog 4 / verified-already-satisfied ~6.**
+- **Rejected (1):** Review 2's "critical blocker: OAuth redirect loses the `?invite=` token." Verified moot
+  — the app uses email/password only (`signInWithPassword`, in-page, no redirect), so login preserves the
+  query param. The *mechanism* it recommended (sessionStorage token stash) was still adopted, but on
+  different grounds (registration email-confirm redirect + crash recovery), not OAuth.
+- **Materially changed the plan? YES.** (a) The character-creation shape was corrected — `stats={budget:N}`
+  is verified wrong (CharGen uses a LOG-envelope); redemption now inserts the default `'{}'` and seeds the
+  budget client-side in engine format. (b) Split into two deliverables/PRs. (c) Added explicit server-side
+  policies for one-char-per-campaign, the rebind contract, idempotent recovery, `p_name` validation, and
+  token-possession authz. (d) Expanded verification with authorization-regression + recovery tests.
+- **Without the review:** the implementer would have shipped a `redeem_player_invite` that creates
+  characters CharGen can't load (the `stats={budget:N}` bug), and left the already-bound-character and
+  duplicate-membership behaviours undefined — both real defects the reviews caught before any code was written.
