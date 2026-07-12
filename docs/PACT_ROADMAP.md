@@ -151,6 +151,39 @@ when run locally too.
 
 ---
 
+## Retire the PACTRULES code + carry campaign rules via a LOG snapshot — TODO
+Branch refactor/retire-pactrules-code. Remove the redundant local PACTRULES "campaign code" path from both tools and instead carry DM-authoritative campaign restrictions in the character's own event log. Full design: `docs/plans/2026-07-12-campaign-rules-snapshot.md`.
+
+```text
+The restriction MVP — bannedDrawbacks/bannedArts enforced via validate() and hidden from the pickers —
+already shipped (PR #174, in CHANGELOG). This task is the remaining half:
+
+(a) Retire the local PACTRULES "#3" path from BOTH tools + test fixtures:
+    - remove b.campaign, the cat:'campaign' buy event + MUT.campaign mutator (js/engine.js),
+      the _campEnc/_campDec PACTRULES codec, and the "House rules code / Campaign" UI in
+      CharGen and Live Sheet;
+    - drop any "campaign" entries from testing/fixtures/ (pre-launch, so existing cat:'campaign'
+      events / shared PACTRULES codes going inert is acceptable — no real data to migrate).
+(b) Carry campaign restrictions offline via a LOG rules-snapshot (same materialization pattern as
+    the creation lock):
+    - on bind + on each sync while online-in-a-campaign, the client writes/refreshes a rules-snapshot
+      LOG event materialized from campaigns.rules;
+    - add a resolveRules() that returns the LIVE cloud rules when online-in-a-campaign (authoritative,
+      player can't touch them) else the LOG snapshot; point the existing validate()/cloudRuleBarred()
+      call sites at it — do NOT reimplement any rule logic;
+    - removing the snapshot (e.g. after leaving/cloning out of a campaign) is a logged LOG action, so
+      it leaves an auditable trail.
+Leave b.houseRules (#2, the DM-customisations / non-core toggle) completely untouched — it is a
+different, engine-read feature.
+Display/validation-only — validate()/cloudRuleBarred() are never read by compute(); do NOT bump
+DATA.version, just log in CHANGELOG. Log the trust-boundary reasoning as
+D-GH-2026-07-12-retire-pactrules-code in DECISIONS.md.
+```
+
+**Done when:** the PACTRULES "#3" code path is gone from both tools + fixtures; a bound character carries a refreshed rules snapshot in its LOG that applies offline and is overridden by live cloud rules when online; removing the snapshot is a logged action; `b.houseRules` (#2) is unaffected; parity still 20/0.
+
+---
+
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
