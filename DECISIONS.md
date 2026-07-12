@@ -38,6 +38,18 @@
   UX gap noted above (warned-not-hidden) is therefore closed. Still open from the broader plan
   (`docs/plans/2026-07-12-campaign-rules-snapshot.md`): retiring the `b.campaign`/PACTRULES `#3` code and the
   LOG rules-snapshot + resolver for offline carry.
+- **Addendum (kind-vocabulary reconciliation, code-review follow-up):** the two ban-checkers speak different
+  kind vocabularies for the *same* category — the legacy local path uses `'draws'` (`campBarred`,
+  `isDisabled`, `HOUSE.disabled.draws`, `CG_CAMPAIGN.draws`, `dmAdd`, `_campRows` — some of it *persisted*),
+  while the new cloud path uses `'drawbacks'` (via `RULE_BAN_FIELDS`). Adjacent `campBarred('draws')` and
+  `cloudRuleBarred('drawbacks')` calls were a fail-open footgun (a `'draws'` typo into `cloudRuleBarred`
+  resolves to nothing and silently stops hiding bans). **Options:** (A) blanket-rename `'draws'→'drawbacks'`
+  everywhere — rejected: migrates two persisted formats and is thrown away by retire-PACTRULES; (B) a
+  comment — rejected: documents the trap without removing it; (C) make `RULE_BAN_FIELDS` (the shared export
+  whose job is to centralize the tools' kind vocabulary) accept `draws` as a documented alias of
+  `drawbacks`, and unify the call sites onto `'draws'`. **Decision: (C)** — zero migration, and *either*
+  token now resolves in *both* checkers, so the fail-silent path is structurally impossible. The alias is
+  marked to retire alongside the PACTRULES `'draws'` subsystem.
 
 ---
 

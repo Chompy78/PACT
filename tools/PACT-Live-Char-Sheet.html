@@ -803,7 +803,7 @@ function buildBuyPanel(b,r,eco,head){
    ['Drawbacks (gain AP)',()=>{
      const DRAW_ORDER=['Body','Mind','Social','Magic','Wild & Story','DM custom','Other'];
      const {boughtOff:_bo}=activeEvents(null);
-     const avail=DATA.drawbackList.filter(x=>!campBarred('draws',x)&&(b.drawbacks.includes(x)||!cloudRuleBarred('drawbacks',x)));
+     const avail=DATA.drawbackList.filter(x=>!campBarred('draws',x)&&(b.drawbacks.includes(x)||!cloudRuleBarred('draws',x)));
      const byCat={};avail.forEach(x=>{const c=(DATA.drawbackCat&&DATA.drawbackCat[x])||'Other';(byCat[c]=byCat[c]||[]).push(x);});
      const cats=DRAW_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>DRAW_ORDER.indexOf(c)<0).sort());
      return cats.map(c=>{

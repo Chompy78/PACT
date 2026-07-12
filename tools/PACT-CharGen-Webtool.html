@@ -906,7 +906,7 @@ function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=b
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
 function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=_db.drawbacks||[];const q=_bdFilter('drawfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
   const byCat={};Object.keys(D).forEach(k=>{var _bar=campBarred('draws',k);if(!_bar&&isDisabled('draws',k)&&!chk.includes(k))return;
-    if(!chk.includes(k)&&cloudRuleBarred('drawbacks',k))return;   // cloud campaign rules — hide banned drawbacks (mirror boons live-filter); keep already-selected
+    if(!chk.includes(k)&&cloudRuleBarred('draws',k))return;   // cloud campaign rules — hide banned drawbacks (mirror boons live-filter); keep already-selected. 'draws' matches the adjacent campBarred kind (aliased in RULE_BAN_FIELDS)
     const dr=D[k];
     if(q && (k+' '+(dr.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
     (byCat[dr.cat]=byCat[dr.cat]||[]).push(k);});

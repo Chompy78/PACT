@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · refactor(rules) — one kind token per ban call site; `RULE_BAN_FIELDS` accepts `draws` as a `drawbacks` alias**
+  (`js/engine.js`, `tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; `DATA.version`
+  unchanged, parity 20/0). Code-review follow-up: the two ban-checkers used different kind vocabularies for
+  the same category — `campBarred('draws', …)` (the legacy PACTRULES/`HOUSE.disabled` vocabulary) next to
+  `cloudRuleBarred('drawbacks', …)` — so a future copy-paste of `'draws'` into `cloudRuleBarred` would have
+  silently failed open (no `'draws'` key → `false`, bans stop hiding). Rather than migrate the persisted
+  `'draws'` storage key (thrown away by the pending retire-PACTRULES work anyway), `RULE_BAN_FIELDS` now maps
+  **both** `drawbacks` (canonical) and `draws` (documented alias) to `bannedDrawbacks`, and the two picker
+  call sites use `'draws'` to match their adjacent `campBarred('draws', …)`. Either token now resolves in
+  either checker — the fail-silent trap is structurally gone.
+
 - **2026-07-12 · feat(rules) — banned drawbacks/arts are now hidden from the pickers (+ de-diverge Live Sheet's `cloudRuleBarred`)**
   (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`;
   `D-GH-2026-07-12-campaign-rules-snapshot`; `DATA.version` unchanged, parity still 20/0). Closes the

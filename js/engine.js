@@ -693,7 +693,12 @@ export const RULE_BAN_FIELDS = {
   originClasses: 'bannedOriginClasses',
   masteries: 'bannedMasteries',
   boons: 'bannedBoons',
-  drawbacks: 'bannedDrawbacks',
+  drawbacks: 'bannedDrawbacks',   // canonical kind
+  draws: 'bannedDrawbacks',       // alias: the tools' live-filter/campBarred vocabulary abbreviates
+                                  // "drawbacks" to "draws" (HOUSE.disabled.draws, CG_CAMPAIGN.draws).
+                                  // Accepting both lets cloudRuleBarred() and campBarred() use ONE kind
+                                  // token per call site — instead of 'draws' silently failing open here.
+                                  // Retire alongside the PACTRULES 'draws' subsystem.
   arts: 'bannedArts',
 };
 
