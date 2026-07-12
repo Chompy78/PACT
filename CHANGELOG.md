@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · feat(ap-model) — CharGen and the Live Sheet now show one identical spendable-AP total,
+  honoring DM AP + `ignore_player_ap`** (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`;
+  `js/engine.js` untouched, no `DATA.version` bump, parity 20/0). Closes `feat/campaign-ap-model`. Live
+  Sheet stopped pre-mixing DM AP into `b.budget` (it was also never actually spendable before — `buy()`
+  gated against the raw player-only ledger even though the display showed DM AP); CharGen got its first
+  cloud character-load/save feature, since it had no cloud character concept at all to hang DM AP off of;
+  both tools now show a capped "AP left", a non-blocking grandfather notice on an `ignore_player_ap`
+  toggle-flip, and a fourth "DM AP unavailable" display state. A `/code-review` pass found and fixed a
+  pre-existing, unrelated Live Sheet bug in the same code path (`window.LOG=` writes that silently never
+  updated the real `LOG`, so "Load character" swapped the AP display but not the actual character). Full
+  narrative in `docs/sessions/2026-07-12-campaign-ap-model-implementation.md`; option analysis in
+  `DECISIONS.md` `D-GH-2026-07-12-campaign-ap-model`.
+
 - **2026-07-12 · docs(engine) — document compute()'s two-pool AP model + anti-double-count invariant**
   (`js/engine.js`; comment-only, no logic change, parity unchanged). First foundation slice of the campaign
   AP model (`docs/plans/2026-07-12-campaign-ap-model-cold-review.md`): documents at the composition point
