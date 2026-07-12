@@ -3,14 +3,16 @@
 > **Status: design capture (pre-implementation).** Part of the campaign-model program (siblings:
 > `2026-07-12-campaign-ap-model.md`, `2026-07-11-campaign-join-invite-flow.md`). Engine-model work sitting
 > next to the known D-GH30 / `feat/ap-model-reconcile` tension → intended for cold plan review before code.
-> **⚠ STATUS: DEFERRED / DECOUPLE (2026-07-12).** Two investigations (Player's Guide + engine H1) revealed
-> this is a far larger, foundational engine-rules project than "activate dormant machinery": creation-lock
-> does **not reprice AP** (off-model); the real effects (availability block + gold/downtime) are **unbuilt**
-> (downtime absent entirely); solo characters can't auto-lock by design. **Hard lock DROPPED** (lock is a
-> campaign concept). **Recommendation: split this out as its own future initiative** (needs game-design
-> decisions on downtime/gold/reprice) and ship the three tractable pieces first (house-rules rename → AP
-> model → invite). Trigger/control/UX (D2/E1/L4/L7/L8) preserved for that future project. The **house-rules
-> rename** portion of this plan is independent and still ready to go now.
+> **⚠ STATUS: SPLIT (2026-07-12).** Investigations (Player's Guide + engine H1) reframed this. Creation-lock
+> does **not reprice AP** (off-model); the real rules-effect is *availability blocking* + (deferred)
+> gold/downtime. **Key insight:** the availability block was historically enforced by the Live Sheet UI not
+> offering creation-only options — interchangeable tools break that, so it must become an explicit lock
+> state. Splits into: **(A) availability-lock + DM-enforced hard-lock + mode indicator — tractable & needed**
+> before real campaign play (mostly UI-gating on a DM-authoritative lock flag + bounding undo); **(B) gold +
+> downtime cost model — deferred** (net-new, needs game-design). **Build order still: house-rules rename → AP
+> model → invite (this slice is pre-launch-safe), then (A) as fast-follow before real campaign play, (B)
+> whenever.** Hard lock **reinstated** (DM-enforced, undo-proof). The **house-rules rename** portion is
+> independent and ready now.
 
 ## Goal
 Make "creation lock" (the switch from cheap character-creation pricing to full in-play pricing) actually
@@ -105,14 +107,16 @@ an explicit, separate action (out of scope for v1 — flag in the invite plan's 
   consistent with the Live Sheet's *frozen* `economy()` ledger (committed per-purchase costs) — the soft-lock
   reversal must not fight the frozen ledger. Flag for the cold review.
 
-**L8 — Creation-state indicator (both tools; pairs with AP-model D6/D6a).**
-It must be obvious which mode a character is in, with the two states the user named:
-- **In generation mode** (below target, not finalised): e.g. `🔨 In creation — 40 / 50 AP spent (locks at
-  50)` — shows creation pricing is active *and* progress toward the trigger. Undo is fluid here (L7).
-- **Reached the trigger / finalised**: e.g. `🔒 In play — creation locked`; a *soft* (threshold) lock notes
-  it's still reversible by reducing spend, a *hard* (finalised) lock notes it's permanent.
-Render identically in CharGen and the Live Sheet, using the same compact + tap-for-detail treatment as the
-AP breakdown (D6/D6a), so AP total and creation-state read as one coherent status line.
+**L8 — Creation-state indicator (both tools; pairs with AP-model D6/D6a). Two presentations by context.**
+It must be obvious which mode a character is in:
+- **Local / solo play:** a prominent **green "In creation mode" banner** + a **Lock button**; the banner
+  clears (or turns to a locked state) when the player locks.
+- **Campaign play:** an **info bar / tooltip** — "Still in creation — haven't reached the lock threshold
+  yet" — driven by the DM's target; **no player lock button** (the DM enforces the lock).
+- **Locked state (either context):** `🔒 In play — creation locked`. For a DM/hard lock, it's permanent;
+  the creation-only pickers are hidden/disabled.
+Same underlying lock state, rendered per context. Use the same compact + tap-for-detail treatment as the AP
+breakdown (D6/D6a) so AP total and creation-state read as one coherent status line.
 
 ## Prerequisite deliverable — house-rules / campaign name separation
 Do this **first** (its own branch/PR) so the lock code isn't wading through the ambiguous naming:
@@ -188,12 +192,35 @@ the invite/AP work. **Recommendation:** split it out as its own future initiativ
 three tractable pieces (house-rules rename → AP model → invite). This plan's **trigger/control/UX layer**
 (D2/E1/L4/L7/L8) is preserved for that future project.
 
-## Hard-lock decision — DROPPED (lock is a campaign concept; solo characters don't lock in v1)
-Given the engine deliberately never auto-locks solo characters (D-GH32) and the in-play model is a
-campaign-driven concept, the cleanest resolution (matching both the user's instinct and the engine): **no
-explicit hard lock in v1; solo/local characters simply build freely and don't "lock."** The DM-adjustable
-soft threshold remains the (future) campaign mechanism. A DM "seal / no-take-backs" stays a possible later
-refinement only if undo-reopens-creation proves a real in-play problem.
+## KEY INSIGHT (2026-07-12) — the availability block WAS the tool separation
+Historically, creation-only options (2nd origin class/species, cross-race traits, drawbacks, stat dumps)
+were "locked away" purely because **the Live Sheet's UI never offered them** — only CharGen did. Two
+separate, non-interchangeable tools = those options only existed in the creation tool. **That was the
+enforcement.** Making the tools interchangeable (switch buttons; the AP-model unification) **breaks it** —
+a player can now take an in-play character back into CharGen and undo/re-buy all those creation-only things
+("spend to level 1, then undo and rebuild a different character"). So the enforcement that used to be
+implicit in the tool split must become an **explicit lock state both tools respect.** This is why the
+availability-lock is needed now — it's replacing an enforcement mechanism interchangeability removes.
+
+**Re-scope (partly reverses the earlier "decouple everything"):**
+- **(A) Availability-lock + DM-enforced hard-lock + mode indicator — TRACTABLE and NEEDED before real
+  campaign play.** Not a giant `compute()` model: it's a DM-authoritative lock flag + both tools gating
+  their creation-only pickers on it + bounding undo + the indicator. The engine already half-tracks lock
+  state.
+- **(B) Gold + downtime in-play cost model — DEFERRED.** The genuinely net-new, game-design-heavy part
+  (downtime is absent entirely). Stays decoupled; needs designer decisions.
+
+## Hard-lock decision — REINSTATED (DM-enforced per player, undo-proof)
+The hard lock is worthwhile after all — it's what stops undo-and-rebuild. Requirements:
+- **DM-enforced per individual player:** a **DM-authoritative server-side lock flag** (set by the DM like
+  the AP target, via a DM-only RPC), materialized into the character's log so it's offline-visible.
+- **Undo-proof:** the lock **bounds undo** — the player cannot revert past the lock point to rebuild. (A
+  plain player-authored `creationLocked` event isn't enough on its own, since the player could undo it away;
+  the DM flag is the authority.)
+- **Local/solo play:** a **Lock button** the player presses to finalise themselves (no DM to enforce it).
+- Availability effect: once locked, **both tools hide/disable the creation-only pickers** (2nd origin
+  class/species, cross-race traits, drawbacks, stat dumps) — the explicit replacement for the old
+  tool-separation enforcement.
 
 ## Open questions (superseding G)
 - **H2 — Racial-trait reprice: intended higher-tier rule, or divergence to fix?** Designer call (Guide is
