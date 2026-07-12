@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · chore(testing) — REV-11: headless engine-parity gate now runs in CI**
+  (`testing/scripts/engine-parity-ci.mjs`, `.github/workflows/engine-parity.yml`,
+  `testing/README.md`/`docs/HOW-TO-WORK.md` updated; no runtime app code touched, parity 20/0 — this
+  script *is* the parity check). A faithful Node port of `testing/tests/engine-parity.html`'s assert
+  mode: same 20 fixtures (build/live-sheet/event-sourcing ids now *discovered* from the fixture
+  directories rather than hardcoded, so a new fixture is picked up automatically), same
+  `expected-results.csv`, same per-fixture assertions incl. the CG-003/CG-007 special-cases. Wired as a
+  new, separate GitHub Action (`.github/workflows/engine-parity.yml`) — deliberately not folded into the
+  existing `character-gen-e2e.yml` randomized Playwright harness, since this one needs no browser install
+  and finishes in seconds, so it can gate a wider path set (`testing/**`, not just tool/engine-touching
+  PRs) without slowing every PR down. Verified both directions: passes clean on the real fixtures, and
+  correctly fails (exit 1) when an expected value is deliberately corrupted.
+
 - **2026-07-12 · docs — batch: REV-12 esc() hard invariant, rules-correctness review note, AI working
   defaults, pre-release audit trigger, stale parity-count fix; graduate REV-10 as already-resolved**
   (`AGENTS.md`, `docs/HOW-TO-WORK.md`, `docs/PACT_ROADMAP.md`; no code change). Five small roadmap items

@@ -1,0 +1,39 @@
+name: Engine parity gate
+
+# Headless regression gate (REV-11): asserts js/engine.js's compute()/rebuildStateFromEvents() output
+# for all 20 fixtures against testing/expected/expected-results.csv — the same assertions
+# testing/tests/engine-parity.html runs in a browser, ported to Node so it can run in CI with no
+# browser/install step. See testing/scripts/engine-parity-ci.mjs.
+#
+# This is deliberately separate from character-gen-e2e.yml (REV-11's earlier randomized UI harness):
+# that one drives the real tool UI end-to-end and needs a Chromium install; this one is a pure Node
+# assertion against fixed fixtures and finishes in seconds, so it gates a broader path set
+# (any testing/** change, not just tool/engine-touching PRs) without slowing every PR down.
+
+on:
+  pull_request:
+    paths:
+      - "js/engine.js"
+      - "testing/fixtures/**"
+      - "testing/expected/**"
+      - "testing/scripts/engine-parity-ci.mjs"
+      - ".github/workflows/engine-parity.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: engine-parity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the headless engine-parity gate
+        run: node testing/scripts/engine-parity-ci.mjs

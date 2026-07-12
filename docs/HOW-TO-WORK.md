@@ -66,19 +66,28 @@ behaviour won't match production.
 
 ## Verifying the engine without a browser (the gate)
 The regression gate is **`testing/tests/engine-parity.html`** — a browser page that must report
-**20 passed / 0 failed**. A CLI agent has no browser, and **there is no headless runner yet** (building one
-is tracked as **REV-11** in the roadmap). Until then, verify the engine by importing it in **Node** (the
-engine is a clean ES module and runs under Node unchanged):
+**20 passed / 0 failed**. A CLI agent has no browser, so run the headless port instead
+(**`testing/scripts/engine-parity-ci.mjs`**, REV-11) — same fixtures, same `expected-results.csv`, same
+assertions, just Node instead of a `<script type="module">` in a page:
+
+```
+# from the repo root (Node 18+):
+node testing/scripts/engine-parity-ci.mjs
+```
+It prints a PASS/FAIL line per fixture and exits non-zero on any failure — this is also what
+`.github/workflows/engine-parity.yml` runs on every PR touching `js/engine.js` or `testing/**`, so a
+regression fails CI automatically, not just when a human remembers to open the browser page.
+
+For a one-off spot-check of a single fixture (e.g. while iterating on a pricing change before the full
+gate matters), importing the engine directly in Node still works:
 
 ```
 # from the repo root (Node 18+):
 node -e "import('./js/engine.js').then(async m => {
   const fs = await import('node:fs/promises');
-  for (const f of ['CG-001-default-empty-build','CG-002-valid-50ap-build','CG-003-over-budget-build']) {
-    const b = JSON.parse(await fs.readFile('testing/fixtures/builds/'+f+'.json','utf8'));
-    const r = m.compute(b);
-    console.log(f, 'total', r.total, 'remaining', r.remaining, 'warnings', (r.warnings||[]).length);
-  }
+  const b = JSON.parse(await fs.readFile('testing/fixtures/builds/CG-002-valid-50ap-build.json','utf8'));
+  const r = m.compute(b);
+  console.log('total', r.total, 'remaining', r.remaining, 'warnings', (r.warnings||[]).length);
 });"
 ```
 Compare the numbers to the baseline in `testing/expected/expected-results.csv`.
