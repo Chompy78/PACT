@@ -80,11 +80,22 @@ Repo rules that shape this plan (paraphrased from the repo's own `AGENTS.md`, ve
   a malformed/empty rules object. Exactly the non-blocking check Path B needs.
 - Migration files follow `sql/migrations/YYYY-MM-DD-slug.sql`, applied by hand via the Supabase SQL editor;
   `sql/schema.sql` is the cumulative source of truth kept in sync alongside each migration.
+- **CharGen's budget is a singleton `award` event (the #1 spike, now RESOLVED).**
+  `foldBuild(LOG).budget = economy(LOG).earned = Σ (award.amount)` (+ drawback earnings, 0 for a fresh
+  character). CharGen represents the budget field as exactly one `award` event in the LOG, shape
+  `{type:'award', amount:N, note:'Budget', noLock:true, label:'Award — budget (N AP)', seq, ts, rules}` —
+  and the engine reads **only** `type` + `amount` (the rest is cosmetic ledger metadata). A blank CharGen
+  character's LOG is **not empty**: it already carries one seed award event (default `amount=DATA.level1AP`).
+  So seeding a starting budget of N is a single award event. **Crucial loader constraint:** the cloud
+  envelope must have `schema:'pact-character/1'` (`CHAR_SCHEMA`) + a `LOG` array or `readCharacterEnvelope`
+  rejects it (returns null) — so `stats='{}'` is **not** CharGen-loadable, which shapes the recovery story
+  in A4.
 
 **Assumed (not yet confirmed — flagged for implementation):**
-- **How CharGen sets a build's starting budget** (an award event inside the LOG vs. a direct budget field)
-  is not yet traced end-to-end. This determines exactly how redemption seeds `starting_budget` into a
-  CharGen-loadable character (see A4 + Risks). **This is the #1 implementation spike.**
+- **Starting-AP vs. starting-budget semantics.** This plan maps the token's two values to the engine's two
+  AP sources: `starting_budget` → the build's own player AP (`b.budget`, seeded as the award event) and
+  `starting_ap` → the DM-awarded `characters.ap` column (`dmAp`). If the DM actually means them as a single
+  pool, collapse to one. One-line product confirmation, not a code risk.
 - That a brand-new player must create/hold a Supabase Auth account before redeeming; the token identifies a
   *campaign slot*, claimed by whichever authenticated user redeems it first (token-possession = authz — see
   Design decisions).
@@ -134,7 +145,9 @@ These were open questions all three reviews flagged; resolved here so implementa
   else, reject. (b) enforce one-per-player-per-campaign. (c) validate/coalesce `p_name` (trim; empty/null →
   `'New Character'`; cap length since there's no DB CHECK). (d) insert a character `owner_id=auth.uid(),
   campaign_id, name, kind='chargen', ap=starting_ap` and **stats = the DB default `'{}'::jsonb`** (see A4 —
-  the budget is seeded client-side, NOT inserted here as `{budget:N}`).
+  the budget is seeded client-side, NOT inserted here as `{budget:N}`). (e) return the new character id AND
+  `starting_budget` (so the client seeds immediately). RLS on `campaign_invites` must let the redeemer
+  `select` their own redeemed row (for crash recovery — see A4).
 - Grant `execute` to `authenticated` only; revoke from `public`.
 
 **A2. `js/campaign.js`** — thin wrappers `createPlayerInvite(campaignId, startingAp, startingBudget)` and
@@ -154,12 +167,17 @@ the existing invite-code copy UX).
 - Call `redeemPlayerInvite(token, name)` → new character id (idempotent: a repeat call by the same user
   returns the same id, so double-click / crash-recovery is safe).
 - **Seed the starting budget client-side, in the engine's own format** (keeps LOG/rules logic in JS, per the
-  hard rule): construct the initial CharGen LOG-envelope containing the starting budget, `foldBuild` it, and
-  `saveCharacter`. The exact seed primitive (an `award` event of `starting_budget` AP vs. a budget field)
-  must be confirmed against CharGen's normal new-character path first — **the #1 spike.** Until seeded, a
-  freshly-redeemed character is a valid blank campaign-bound chargen character (`stats='{}'`), so a crash
-  between redeem and seed is recoverable (player opens the blank character; re-seed reads `starting_budget`
-  from the still-readable redeemed invite row).
+  hard rule — spike now RESOLVED). Concretely: build `LOG = [{type:'award', amount:starting_budget,
+  note:'Budget', noLock:true, label:'Award — budget ('+starting_budget+' AP)', seq:1, ts:Date.now(),
+  rules:DATA.version}]`, wrap via `buildCharacterEnvelope({name, rules:DATA.version, LOG, SEQ:2, id})` (which
+  stamps `schema:'pact-character/1'`), and `saveCharacter` that as the character's `stats`. On load
+  `foldBuild(d.LOG)` then yields `budget=starting_budget`. Keep it a **singleton** award (a second would sum).
+- **Recovery nuance (refined by the spike):** a redeemed-but-not-yet-seeded character has `stats='{}'`, which
+  CharGen's loader REJECTS (`readCharacterEnvelope` requires `schema==='pact-character/1'`) — so it is NOT a
+  "valid blank character." Recovery: on opening a redeemed character whose `stats` don't parse as a
+  `CHAR_SCHEMA` envelope, re-read `starting_budget` from the still-readable redeemed `campaign_invites` row
+  (RLS must let the redeemer `select` their own redeemed invite) and seed as above. The `redeem` RPC returns
+  `starting_budget` (+ `starting_ap`) so the happy path seeds immediately without the extra query.
 - After load: select the new character, populate the campaign `<select>` from `listMyCampaigns()` and select
   the matching campaign so rule-filtering (`_cloudCampaign`) is active; confirm `ap`/budget reflect the token.
 
@@ -213,8 +231,9 @@ graduate the item from `docs/PACT_ROADMAP.md`.
 - **One combined PR** — rejected in favor of the Path A / Path B split (two reviewers; smaller PRs).
 
 ## Risks / open questions
-- **CharGen budget-seed primitive (#1 spike):** exactly how a new build's budget is set must be confirmed
-  before A4 is implementable; get it wrong and Path A characters load without their preset budget.
+- **CharGen budget-seed primitive (#1 spike — RESOLVED):** confirmed to be a singleton `award` event in the
+  LOG (`budget = Σ award.amount`); the concrete seed + envelope is specified in A4. Residual care: keep it a
+  singleton and stamp `schema:'pact-character/1'`, or the character loads wrong / not at all.
 - **Double-redemption / double-submit:** covered by the atomic `update … where redeemed_by is null` +
   row-count check, made idempotent so a same-user retry returns the existing character. Highest-value thing
   for a reviewer to sanity-check.
@@ -227,8 +246,9 @@ graduate the item from `docs/PACT_ROADMAP.md`.
 - `testing/tests/engine-parity.html` → still **20/0** (no engine changes).
 - Supabase `get_advisors` (Dashboard Security-Advisor-equivalent) after the migration; resolve new findings;
   skim `get_logs`.
-- **Prerequisite spike (before RPC implementation):** confirm CharGen loads a minimal/blank campaign-bound
-  character and that its budget-seed primitive works — Path A is blocked if not.
+- **Prerequisite spike — RESOLVED (no longer blocking):** the budget-seed primitive is confirmed (singleton
+  `award` event; envelope needs `schema:'pact-character/1'`) and specified in A4. Remaining test: seed a
+  character with `starting_budget=N` and confirm CharGen loads it with `budget=N` and rule-filtering active.
 - **Authorization regression tests (explicit):** a non-DM cannot `create_player_invite`; a co-DM can; one
   player cannot `bind_character_to_campaign` another player's character; double-redemption is rejected
   (verify the atomic claim + row-count, not just the UI message); existing `join_campaign` + shared
