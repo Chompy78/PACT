@@ -262,6 +262,45 @@ D-GH-2026-07-12-retire-pactrules-code in DECISIONS.md.
   lenses) is worth running — major releases/big refactors only, not routine PRs — with a sample workflow
   shape for reference.
 
+**Code-review follow-ups (from `feat/campaign-ap-model`)** — low-severity cleanup flagged by
+`/code-review`, not fixed in that PR (low risk / negligible impact either way):
+
+## Live Sheet: collapse `_dmApStatus` / `_rulesStatus` duplication — TODO
+Branch refactor/livesheet-dmapstatus-dedup. `tools/PACT-Live-Char-Sheet.html`'s `sync-ready` listener keeps `window._dmApStatus` as a hand-mirrored copy of the local `_rulesStatus` var.
+
+```text
+The AP-model work (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model) added window._dmApStatus
+('none'|'active'|'unavailable') to drive the four-state AP-source chip. It is set to the SAME value as the
+pre-existing local _rulesStatus var, at the same call sites (the cloud-load handler + refreshCloudCampaignRules()).
+Two vars mirrored by hand = a future edit can update one and forget the other, silently desyncing the AP
+chip from the campaign-rules badge.
+Collapse to one source of truth: either promote _rulesStatus to window._rulesStatus and delete
+window._dmApStatus (pointing the AP-source display + the .ecoline "DM AP unavailable" chip at it), or keep
+window._dmApStatus and derive the badge from it — whichever reads cleaner. Keep the reset-on-non-cloud-load
+paths (_lsResetCloudApState) pointed at the surviving variable.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** one variable drives both the campaign-rules badge and the AP-source display; no hand-mirrored second copy remains; parity still 20/0.
+
+## Live Sheet: avoid redundant fold+compute in `apAvailable()`/`apCeiling()` hot paths — TODO
+Branch perf/livesheet-apavailable-fold-reuse. `apCeiling()`/`apAvailable()` re-run `foldBuild`+`compute`+`economy` from scratch on every call, even from sites that only need a cheap ledger read.
+
+```text
+The AP-model work routed buy(), buyoffDrawback(), and the paid spell-swap eligibility checks
+(openNames()/_swapTally()) through apAvailable(null), which internally does foldBuild(null)+compute()+
+economy(null). The pre-AP-model code at those sites only needed economy(null).available — no fold, no
+compute. So every purchase click / swap-dialog interaction now pays a full rules recompute it doesn't need.
+Add a pure (spendable, spent)-taking helper (already exists as _apRemaining) — and/or a (b, eco)-accepting
+overload of apAvailable — so call sites that already have a fresh build/economy/compute-result in scope
+(render() already does) reuse it instead of re-deriving via the uptoIdx API. Keep the index-based
+apAvailable(uptoIdx) for genuinely index-driven callers (time-travel scrub UI).
+Judged negligible at current LOG sizes — this is a cleanup, not a hot-path emergency.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** `buy()` / `buyoffDrawback()` / the paid spell-swap checks no longer trigger a `foldBuild`+`compute()` beyond what they already need; parity still 20/0.
+
 ---
 
 # Conventions
