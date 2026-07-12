@@ -690,6 +690,12 @@ function apLevel(ap){var lv=0;for(var L=1;L<=20;L++){if((DATA.levelAP[L]||1e9)<=
 // 'unavailable' (character IS in a campaign but its DM AP/rules couldn't be read right now — must NOT read
 // as "no DM AP"). Defaults to 'none' so a fresh/local build behaves exactly as before this feature.
 window._dmApStatus = window._dmApStatus || 'none';
+// DM AP counts toward the spendable total ONLY when the campaign is fully resolved ('active'). In 'none'
+// (no / orphaned campaign — e.g. a campaign deleted while the character kept its `ap`, campaign_id set null
+// per the schema's `on delete set null`) and 'unavailable' (rules unconfirmed) the total shows player AP
+// only — matching exactly what _apSourceHTML() labels, so #total and the breakdown line can never disagree.
+// The Live Sheet gates identically (via apCeiling / render's _dmAp), so both tools show the same total.
+function _cgDmOpts(){var a=window._dmApStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp};}
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
@@ -3021,7 +3027,7 @@ function sheetStats(r,b){
   return abil+'<div class="sublab">Combat</div>'+combat+'<div class="sublab">Magic & wealth</div>'+spell;
 }
 function sgn(x){return (x>=0?'+':'')+x;}
-function renderSheet(){const b=readBuild(),r=compute(b,{dmAp:window._dmAp||0,ignorePlayerAp:!!window._ignorePlayerAp});
+function renderSheet(){const b=readBuild(),r=compute(b,_cgDmOpts());
   return renderCharSheet(b,r,{apText:r.total+' / '+r.budget+' AP spent  ·  ≈ Level '+(apLevel(r.budget)||'<1')+' by budget'});}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;const showing=ov.style.display==='block';
   if(showing){ov.style.display='none';}else{$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}
@@ -3218,12 +3224,12 @@ function _cgRenderInner(){
   // raw Player-AP field; DM AP + ignore_player_ap are layered in here via compute()'s opts, exactly like
   // the Live Sheet, so the two tools show the identical spendable total for the same character. Never
   // written back into b.budget/the LOG/an export — see the anti-double-count invariant on compute().
-  const r=compute(b,{dmAp:window._dmAp||0,ignorePlayerAp:!!window._ignorePlayerAp});annotate(b,r);
-  {const bi=$('budget');if(bi)bi.disabled=!!window._ignorePlayerAp;const bw=$('budget_w');if(bw)bw.textContent=window._ignorePlayerAp?'🔒 locked — your DM has switched off player AP this campaign':'';}
+  const _dmO=_cgDmOpts();const r=compute(b,_dmO);annotate(b,r);
+  {const bi=$('budget');if(bi)bi.disabled=_dmO.ignorePlayerAp;const bw=$('budget_w');if(bw)bw.textContent=_dmO.ignorePlayerAp?'🔒 locked — your DM has switched off player AP this campaign':'';}
   {const al=$('apSourceLine');if(al)al.innerHTML=_apSourceHTML(r);}
   // Toggle-flip grandfather notice (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): non-blocking
   // — purchases already made with player AP are kept (never deleted/refunded/rewritten), this only informs.
-  if(window._ignorePlayerAp){const _spent=economy(LOG).spent,_dm=window._dmAp||0;if(_spent>_dm)r.warnings=r.warnings.concat(['Your DM has switched off player-entered AP for this campaign — purchases already made with player AP are kept, but no longer count toward new spending. Only '+_dm+' DM AP is available for anything new.']);}
+  if(_dmO.ignorePlayerAp){const _spent=economy(LOG).spent,_dm=_dmO.dmAp;if(_spent>_dm)r.warnings=r.warnings.concat(['Your DM has switched off player-entered AP for this campaign — purchases already made with player AP are kept, but no longer count toward new spending. Only '+_dm+' DM AP is available for anything new.']);}
   // Cloud campaign rules (D-GH44): validate() is the shared engine export (js/engine.js) — never
   // reimplemented here. Picker filtering above handles simple banned-name membership; this catches
   // everything else (incl. multi-discipline count) as a warning, e.g. if a stricter campaign is

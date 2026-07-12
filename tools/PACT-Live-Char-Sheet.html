@@ -411,7 +411,12 @@ function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)
 // Composed AP ceiling (Player AP, honoring campaign ignore_player_ap, + DM AP — D-GH-2026-07-12-campaign-ap-model).
 // b.budget stays raw Player AP; DM AP is layered in here at compute() time only, never pre-mixed into
 // b.budget or persisted — see the anti-double-count invariant documented on compute() in js/engine.js.
-function apCeiling(uptoIdx){ return compute(foldBuild(uptoIdx),{dmAp:window._dmAp||0,ignorePlayerAp:!!window._ignorePlayerAp}).spendable; }
+// DM AP counts ONLY when the campaign is fully resolved ('active'); in 'none' (no / orphaned campaign) and
+// 'unavailable' (rules unconfirmed) the ceiling is player-only, so "AP left" never counts DM AP the display
+// can't stand behind — and so the DM chip can't read "from DM" while the total excludes it. CharGen gates
+// identically (see _cgDmOpts), so both tools show the same spendable total in every state.
+function _dmOpts(){var a=window._dmApStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp};}
+function apCeiling(uptoIdx){ return compute(foldBuild(uptoIdx),_dmOpts()).spendable; }
 // Pure formula (no I/O) — the one place "AP available" is defined, shared by apAvailable() below AND by
 // render()/refreshBuy()/renderSheet(), which already have a fresh spendable/spent in scope and would
 // otherwise pay a redundant foldBuild+compute+economy just to reuse a value they already computed.
@@ -651,7 +656,7 @@ function render(){
   {const vl=$('verline');if(vl)vl.textContent='rules '+RULES+(loadedRules&&loadedRules!==RULES?' · loaded from '+loadedRules:'')+' · prices freeze at purchase';}
   const head = viewAt==null;
   const idx = viewAt;
-  const b=foldBuild(idx); const eco=economy(idx); const _dmAp=window._dmAp||0,_ignPlr=!!window._ignorePlayerAp; const r=compute(b,{dmAp:_dmAp,ignorePlayerAp:_ignPlr}); const m=r.mods;
+  const b=foldBuild(idx); const eco=economy(idx); const _dmO=_dmOpts(),_dmAp=_dmO.dmAp,_ignPlr=_dmO.ignorePlayerAp; const r=compute(b,_dmO); const m=r.mods;
   const _apAvail=_apRemaining(r.spendable,eco.spent), _apOver=_apAvail<0;
   _apNudgeBanner(eco.spent);
   // --- top economy ---
@@ -744,7 +749,7 @@ function _catOf(lab){
   if(lab==='DM house rules')return 'DM / Advanced';
   return 'Heritage & extras';
 }
-function refreshBuy(){const b=foldBuild(null),eco=economy(null),_dmAp=window._dmAp||0,_ignPlr=!!window._ignorePlayerAp;const r=compute(b,{dmAp:_dmAp,ignorePlayerAp:_ignPlr});const avail=_apRemaining(r.spendable,eco.spent);buildBuyPanel(b,r,Object.assign({},eco,{available:avail}),viewAt==null);}
+function refreshBuy(){const b=foldBuild(null),eco=economy(null);const r=compute(b,_dmOpts());const avail=_apRemaining(r.spendable,eco.spent);buildBuyPanel(b,r,Object.assign({},eco,{available:avail}),viewAt==null);}
 // AP a character gains advancing one level (benchmark anchors, interpolated)
 function levelDelta(hd){return (DATA.levelAP[hd+1]||DATA.levelAP[hd]||0)-(DATA.levelAP[hd]||0);}
 function toggleTasha(){var b=foldBuild(null);var on=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);emit({type:"buy",cat:"tasharule",payload:{v:!on},cost:0,label:"DM house rule — Tasha abilities "+(!on?"allowed":"barred"),level:b.hd});}
@@ -926,7 +931,7 @@ function buildBuyPanel(b,r,eco,head){
 }
 
 // ---------------- full character sheet overlay (shared renderer; see sheet_assets.py) ----------------
-function renderSheet(){const b=foldBuild(null),eco=economy(null),r=compute(b,{dmAp:window._dmAp||0,ignorePlayerAp:!!window._ignorePlayerAp});
+function renderSheet(){const b=foldBuild(null),eco=economy(null),r=compute(b,_dmOpts());
   const avail=_apRemaining(r.spendable,eco.spent);
   return renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ AP-Level '+apLevel(eco.earned),noSpell:LS_noSpell});}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;if(ov.style.display==='block'){ov.style.display='none';}else{$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}

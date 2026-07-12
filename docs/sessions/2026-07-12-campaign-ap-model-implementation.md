@@ -47,6 +47,16 @@ unplanned scope expansion and a `/code-review` pass that reversed one of this se
   fields — so a returning player would see accurate campaign-rules filtering but a stale "player AP only"
   chip until they re-opened the Cloud menu). All fixed and re-verified before this branch was considered
   done.
+- **A second `/code-review` pass (post-PR) caught one more: DM AP counted toward `#total` but not the
+  label, in both `none` and `unavailable` states.** A character whose campaign was deleted keeps its
+  `characters.ap` while `campaign_id` goes null (`on delete set null`); loading it, `compute()` still added
+  that orphaned DM AP to the spendable total while the AP-source line read "player only" — a self-
+  contradiction. Fixed by gating the DM-AP contribution on `window._dmApStatus === 'active'` in **both**
+  tools (`_cgDmOpts()` / `_dmOpts()`): DM AP counts only when the campaign is fully resolved; in `none`
+  (no/orphaned) and `unavailable` (rules unconfirmed) the total is player-only, exactly matching the
+  labels/chip — and the two tools now agree in every state, including the transient failed-fetch interim
+  (the "⚠ DM AP unavailable" chip's promise that the total may rise on reconnect is now literally true).
+  Verified across all three states in both tools in a real browser (12/12 checks).
 
 ## Verification approach (no headless test runner for the tools exists — REV-11)
 Both tools' `engine.js`-dependent logic was verified in Node (direct `js/engine.js` imports — the
