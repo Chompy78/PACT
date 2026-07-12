@@ -354,6 +354,16 @@ export function compute(b, opts){
   if(drawGain>14) W.push("Drawbacks grant "+drawGain+" AP — note most tables cap at 14 AP (check with your DM)");
   if((b.drawbacks||[]).length>3) W.push((b.drawbacks||[]).length+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
   add("Starting gold",b.gold||0);
+  // --- AP composition: the two-pool model (see docs/plans/2026-07-12-campaign-ap-model-cold-review.md) ---
+  // Spendable AP is composed HERE, once, from two independently-stored pools so every tool shows ONE total:
+  //   • Player AP = b.budget  — folded from the character's own `award` events; raw, player-owned.
+  //   • DM AP     = opts.dmAp  — campaign-granted; stored server-side only, NEVER in the character's log.
+  // opts.ignorePlayerAp (a campaign toggle) drops the player pool from the ceiling but NEVER refunds or
+  // rewrites it — purchases already made are grandfathered; only the ceiling changes.
+  // ANTI-DOUBLE-COUNT INVARIANT: `spendable` is derived and returned on THIS result object. Callers must
+  // DISPLAY it, never write it (or dmAp) back into b.budget / the award log / an export — else a reload
+  // double-counts. `budget` in the return is a legacy display alias of `spendable`. `remaining` =
+  // spendable − total(spent). (Two pools today; the composition is additive if more are ever added.)
   const playerAp=b.budget||0; const _opts=opts||{}; const dmAp=Number(_opts.dmAp)||0;
   const spendable=(_opts.ignorePlayerAp?0:playerAp)+dmAp; const remaining=spendable-total;
   if(remaining<0) W.unshift("OVER BUDGET by "+(-remaining)+" AP");
