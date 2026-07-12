@@ -3,7 +3,10 @@
 > **Status: design capture (pre-implementation).** Part of the campaign-model program (siblings:
 > `2026-07-12-campaign-ap-model.md`, `2026-07-11-campaign-join-invite-flow.md`). Engine-model work sitting
 > next to the known D-GH30 / `feat/ap-model-reconcile` tension → intended for cold plan review before code.
-> Proceeds on the recommended **D1 / E1 / F1** calls (see Decisions L1); flag if any is wrong.
+> Proceeds on **D2 / E1 / F1** (D flipped from award-based to spend-based — see L1; award-based would lock a
+> player before they could spend their allocation at creation prices). **Scope (G) is still open** pending a
+> Player's-Guide check — the engine today reprices ONLY own-species racial traits (not 2nd species / 2nd
+> class, contrary to initial belief).
 
 ## Goal
 Make "creation lock" (the switch from cheap character-creation pricing to full in-play pricing) actually
@@ -41,10 +44,19 @@ collision).
   switch, not a dial; this is why there's no "two threshold numbers" collision.)
 - **Campaign character:** a **DM-set AP target** (per player) auto-locks when reached, via `campaignBound` +
   the carried target.
-- **D1 (basis):** the target is measured against AP **awarded/reached** ("awarded a full Level-1 allocation
-  → creation closes"), matching Scenario 2. **F1 (scope):** locked = the existing **pricing switch** (race
-  traits creation→full, stamped per purchase); no budget-freeze/edit-block this round. **E1 (reversible):**
-  the DM can adjust (below).
+- **D2 (basis) — SPEND-based, not award-based.** The lock fires on cumulative AP **spent** crossing the
+  target, NOT on AP awarded. This is the engine's native behaviour and it is load-bearing: awards are
+  `noLock` (never count toward the lock), so a player can hold a large *unspent* awarded pile and stay
+  unlocked, then **spend their whole allocation at creation prices** — each purchase is stamped at the price
+  valid at that moment, cheap while cumulative spend is under the target, expensive only beyond it. (An
+  award-based trigger, the rejected D1, would lock a topped-up player *before* they could spend, forcing
+  their whole build at locked prices — a real bug caught in review.) The target therefore acts as a
+  **creation-priced spend cap**; spending past it is in-play advancement at full price.
+- **F1 (scope):** locked = the existing **pricing switch**, stamped per purchase; no budget-freeze/edit-block
+  this round. **NOTE — the exact set of repriced items is the open G question:** the engine today reprices
+  ONLY own-species non-pack racial traits; whether the rules intend 2nd origin species / 2nd origin class (or
+  more) to also flip must be confirmed against the Player's Guide before this plan is review-ready (see Open
+  questions). **E1 (reversible):** the DM can adjust (below).
 
 **L2 — The DM-adjustable target is one DB number.**
 A new DM-authoritative, per-character value `characters.creation_ap_target` (integer, nullable; default =
@@ -110,10 +122,16 @@ Do this **first** (its own branch/PR) so the lock code isn't wading through the 
 - The AP-display and invite work (sibling plans).
 
 ## Open questions
-- **Does the lock reprice only race-defining traits, or other creation-discounted purchases too?** Verified
-  today it's race traits; must confirm against the Player's Guide whether other creation discounts should
-  also flip on lock, or the lock is mechanically incomplete. **Needs a rules check before implementation.**
-- **D1/E1/F1 confirmation** — proceeding on these; correct if any is wrong.
+- **G — Does the lock reprice only race-defining traits, or 2nd origin species / 2nd origin class (or more)
+  too?** Engine investigation is DEFINITIVE that today **only** own-species non-pack racial traits reprice on
+  lock; `species2` (flat 2× pack), `originClass2` (flat 14 AP), lineage, and every other cost are NOT
+  lock-gated. The user expected more, so this is a **rules-intent question** for the Player's Guide:
+  - **G1** — engine is right, race-traits-only → lock feature stays small (make the existing single reprice
+    DM-adjustable/offline-safe; likely no new-item `DATA.version` bump).
+  - **G2** — engine is incomplete, more should reprice → a real engine-rules expansion (new repricing per
+    item, Player's-Guide alignment, `DATA.version` bump, new fixtures per category). Much larger/riskier.
+  Settle via a targeted Player's-Guide grep before this plan is review-ready.
+- **D/E/F: confirmed D2 / E1 / F1** (D2 = spend-based, corrected from D1).
 
 ## Risks
 - **D-GH30 adjacency:** the lock stamps pricing per purchase in replay order; keep the "spent/remaining"
