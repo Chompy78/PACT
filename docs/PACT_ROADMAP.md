@@ -30,6 +30,28 @@ _(none currently — the last NOW item, the full engine module-bridge migration,
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## Feature: Campaign AP model — one interchangeable spendable-AP total (IN PROGRESS) — TODO
+Branch feat/campaign-ap-model (engine foundation already on `preview`). Make CharGen and the Live Sheet show the identical spendable-AP total for the same character (honoring DM AP + the campaign `ignore_player_ap` toggle), since the two tools are interchangeable. Full cold-reviewed plan + in-code recon: `docs/plans/2026-07-12-campaign-ap-model-cold-review.md`.
+
+```text
+Engine foundation DONE + on preview: compute() already composes spendable=(ignorePlayerAp?0:playerAp)+dmAp
+and returns it (budget is its alias; remaining=spendable-total); a documentation comment is committed.
+Remaining (see the plan's "Implementation recon"):
+- Live Sheet: stop pre-mixing DM AP into b.budget (refreshBuy + time-travel paths); give renderSheet the
+  same opts; keep b.budget raw; display r.spendable. Before/after BLOCKER check on real DM-AP characters
+  (all compute outputs identical, not just AP).
+- CharGen: VERIFY FIRST whether it can read the character's DM AP (characters.ap) + campaign
+  ignore_player_ap (it has cloud campaign-RULES wiring, but DM-AP access is unconfirmed); then display
+  spendable + breakdown, lock the Player-AP input when player AP is disallowed, render the four AP-source
+  states (incl. "DM AP unavailable" ≠ "no DM AP") with tap-to-reveal accessible tooltips.
+- Reconcile display remaining as min(ledgerRemaining, spendable); on an ignore_player_ap flip, grandfather
+  purchases + warn (never silent overspend, never rewrite the log).
+Display-only — do NOT bump DATA.version; parity still 20/0.
+```
+**Done when:** both tools display an identical spendable total via compute(b,{dmAp,ignorePlayerAp}); b.budget stays raw Player AP; DM AP never persisted; CharGen locks the Player-AP input when disallowed; the four display states render identically in both tools; parity still 20/0.
+
+---
+
 ## Feature: Campaign join/invite UI (two onboarding paths) — TODO
 Branch feat/campaign-join-flow. Wire up the missing player-facing UI for actually joining a campaign — `join_campaign()` exists as a tested SQL RPC but has zero production UI anywhere in the app today (confirmed 2026-07-11), and it only ever creates a blank character, with no path for an existing character to join.
 

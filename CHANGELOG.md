@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · docs(engine) — document compute()'s two-pool AP model + anti-double-count invariant**
+  (`js/engine.js`; comment-only, no logic change, parity unchanged). First foundation slice of the campaign
+  AP model (`docs/plans/2026-07-12-campaign-ap-model-cold-review.md`): documents at the composition point
+  that spendable = Player AP (`b.budget`, folded from award events) + DM AP (`opts.dmAp`, server-only), that
+  `ignorePlayerAp` drops the player pool without refunding it, that the returned `budget` is a legacy alias
+  of `spendable`, and the anti-double-count invariant (never write derived spendable/dmAp back into the
+  log/budget/exports).
+
 - **2026-07-12 · docs(agents) — add "Fix depth" communication convention**
   (`AGENTS.md`). New rule under Communication conventions: when a problem has both a shallow fix and a
   deeper root-cause fix, surface **both** as options (tiered A/B format) with a recommendation — default to
