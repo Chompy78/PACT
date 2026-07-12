@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · refactor(live-sheet) — collapse the `_dmApStatus`/`_rulesStatus` hand-mirror into one
+  variable** (`tools/PACT-Live-Char-Sheet.html`; display-only, no `DATA.version` bump, parity 20/0).
+  Code-review follow-up from `feat/campaign-ap-model`: `window._dmApStatus` was a second, hand-mirrored
+  copy of the pre-existing `_rulesStatus` var (set to the same value at the same two call sites — the
+  cloud-load handler and `refreshCloudCampaignRules()`), risking a future edit updating one and forgetting
+  the other. Promoted `_rulesStatus` to `window._rulesStatus` (it needed cross-closure access anyway —
+  `apCeiling()`/`_dmOpts()` live outside the `sync-ready` listener's closure that originally declared it
+  `var`-local) and deleted `window._dmApStatus` entirely; the AP-source chip and the campaign-rules badge
+  now read the identical variable, so they cannot desync. Verified in a real browser: the four-state AP
+  display, the "from DM"/"unavailable" chips, and the campaign-rules badge all still render correctly
+  post-collapse (9/9 checks).
+
 - **2026-07-12 · chore(testing) — AUD-1 follow-up: audit.py now catches BUILD mirror drift**
   (`testing/scripts/audit.py`; no app code touched, parity 20/0). New `check_build_version_sync()`:
   compares `js/engine.js`'s `BUILD` (the documented single source of truth, `docs/VERSION-SYNC.md`)
