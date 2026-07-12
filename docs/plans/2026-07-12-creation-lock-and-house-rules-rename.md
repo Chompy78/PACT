@@ -207,8 +207,10 @@ availability-lock is needed now — it's replacing an enforcement mechanism inte
   campaign play.** Not a giant `compute()` model: it's a DM-authoritative lock flag + both tools gating
   their creation-only pickers on it + bounding undo + the indicator. The engine already half-tracks lock
   state.
-- **(B) Gold + downtime in-play cost model — DEFERRED.** The genuinely net-new, game-design-heavy part
-  (downtime is absent entirely). Stays decoupled; needs designer decisions.
+- **(B) Gold + downtime in-play LEDGER — DEFERRED (scope clarified 2026-07-12).** NOT a cost/pricing model —
+  the only requirement is to **add up gold + downtime accrued on in-play purchases and show a running
+  ledger** (so it's "accounted for"). Much smaller than H1 implied; still deferred as later work, but no
+  game-design decision needed beyond "track and total it." Downtime is still a from-scratch field/unit.
 
 ## Hard-lock decision — REINSTATED (DM-enforced per player, undo-proof)
 The hard lock is worthwhile after all — it's what stops undo-and-rebuild. Requirements:
@@ -225,8 +227,9 @@ The hard lock is worthwhile after all — it's what stops undo-and-rebuild. Requ
 ## Open questions (superseding G)
 - **H2 — Racial-trait reprice: intended higher-tier rule, or divergence to fix?** Designer call (Guide is
   ambiguous; engine does it, one DM line hints at it). Feeds the decoupled in-play project.
-- **Do we model downtime at all? / gold as a real secondary cost?** Game-design decisions for the decoupled
-  project, not resolvable from code.
+- **Gold + downtime (B):** scope now clear — **just tally + ledger** (add up gold and downtime accrued
+  in-play, show a running total). No pricing-model design needed; only a downtime field/unit to add.
+  Deferred as later work.
 - **D/E confirmed D2 / E1.** **F1 redefined** (availability + gold/downtime, not repricing). **Hard lock
   dropped** (above).
 
