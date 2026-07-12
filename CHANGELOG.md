@@ -4,6 +4,21 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · docs — batch: REV-12 esc() hard invariant, rules-correctness review note, AI working
+  defaults, pre-release audit trigger, stale parity-count fix; graduate REV-10 as already-resolved**
+  (`AGENTS.md`, `docs/HOW-TO-WORK.md`, `docs/PACT_ROADMAP.md`; no code change). Five small roadmap items
+  bundled into one docs-only PR: (1) `AGENTS.md` Hard rules now states the `esc()`-everywhere invariant
+  explicitly (REV-12); (2) also fixed a stale "9 passed / 0 failed" parity count sitting right next to it
+  (every other reference already said 20); (3) `docs/HOW-TO-WORK.md` documents the rules-correctness
+  `/code-review` prompt pattern for engine PRs; (4) an "AI working defaults" note (model/effort defaults,
+  one-task-per-session, don't read large files wholesale — A8); (5) a pre-release full-audit trigger note
+  with a sample multi-lens workflow shape (A10). **REV-10 graduated without a code change** — its premise
+  (`.claude/` fully untracked) is outdated: `.gitignore` already scopes to just the ephemeral state
+  (`*.json`, `.fpp-reminder-state`, `worktrees/`), while `.claude/commands/*.md`/`.claude/agents/*.md` are
+  intentionally tracked project content (the skills this repo's agents use, e.g. `add-roadmap-task`) —
+  running the old `git rm --cached -r .claude` instruction literally would have deleted them from version
+  control, a regression, not a fix.
+
 - **2026-07-12 · feat(ap-model) — CharGen and the Live Sheet now show one identical spendable-AP total,
   honoring DM AP + `ignore_player_ap`** (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`;
   `js/engine.js` untouched, no `DATA.version` bump, parity 20/0). Closes `feat/campaign-ap-model`. Live

@@ -114,16 +114,6 @@ Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, 
 
 ---
 
-## Document a rules-correctness review pass in docs/HOW-TO-WORK.md — TODO
-Branch docs/rules-review-note. `/code-review`'s default lens is bugs/reuse, not domain (PHB) correctness.
-
-```text
-Add a short note + example prompt: for any PR touching js/engine.js's compute()/DATA, run /code-review
-with an explicit instruction to check the math against the Player's Guide (caps, gates, prices) rather
-than only generic code-quality issues.
-```
-**Done when:** docs/HOW-TO-WORK.md documents this usage pattern with a copy-pasteable example prompt.
-
 ## AUD-1 follow-up: version/build-sync check — TODO
 Branch chore/aud1-version-sync-check. Do AFTER AUD-1 (Automated health check) lands.
 
@@ -189,9 +179,6 @@ D-GH-2026-07-12-retire-pactrules-code in DECISIONS.md.
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
-- **REV-10** — `.claude/` is tracked despite `.gitignore`. Fix: `git rm --cached -r .claude` (keep on disk), commit.
-- **REV-12** — Make "every player-controlled value passes through `esc()`" a hard invariant; add a line to
-  `AGENTS.md` Hard rules. Rises in importance once cloud data crosses users.
 - **REV-13** — Dead grant maps `grantSk/grantTl/grantIn` in `engine.js` (~:62) are never populated. Wire up
   or remove; don't change pricing without updating the REV-01 baseline in the same PR.
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
@@ -229,19 +216,11 @@ D-GH-2026-07-12-retire-pactrules-code in DECISIONS.md.
 - **A7 — Lighthouse 85 → 90.** Add a Lighthouse CI GitHub Action to auto-catch perf regressions. *Then
   (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for the real score gain —
   *caveats:* a big engine change; do it only after REV-01 makes the gate real.
-- **A8 — AI working defaults.** Add a short "working efficiently" note to `docs/HOW-TO-WORK.md`: Sonnet +
-  default effort for spec-driven execution (Opus only for ambiguous/architectural), one task per fresh
-  session, read big files once.
 - **A9 — Orphaned-export sweep.** One-time audit: grep every named export in `js/engine.js`'s Exports
   line and confirm each is referenced by at least one of the three tools; write findings to
   `docs/sessions/<date>-orphaned-export-sweep.md` (find-and-report only — no deletion inline). File any
   confirmed zero-reference export as its own follow-up roadmap item, same pattern as REV-13's dead grant
   maps.
-- **A10 — Pre-release full-audit trigger note.** Document in `docs/HOW-TO-WORK.md` when a full
-  multi-agent Workflow audit (rules-logic + security/RLS + usability click-through + docs-consistency
-  lenses) is worth running — major releases/big refactors only, not routine PRs — with a sample workflow
-  shape for reference.
-
 **Code-review follow-ups (from `feat/campaign-ap-model`)** — low-severity cleanup flagged by
 `/code-review`, not fixed in that PR (low risk / negligible impact either way):
 
