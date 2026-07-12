@@ -415,7 +415,7 @@ function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)
 // 'unavailable' (rules unconfirmed) the ceiling is player-only, so "AP left" never counts DM AP the display
 // can't stand behind — and so the DM chip can't read "from DM" while the total excludes it. CharGen gates
 // identically (see _cgDmOpts), so both tools show the same spendable total in every state.
-function _dmOpts(){var a=window._dmApStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp};}
+function _dmOpts(){var a=window._rulesStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp};}
 function apCeiling(uptoIdx){ return compute(foldBuild(uptoIdx),_dmOpts()).spendable; }
 // Pure formula (no I/O) — the one place "AP available" is defined, shared by apAvailable() below AND by
 // render()/refreshBuy()/renderSheet(), which already have a fresh spendable/spent in scope and would
@@ -432,9 +432,13 @@ function apAvailable(uptoIdx){ return _apRemaining(apCeiling(uptoIdx),economy(up
 // AP-source status (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model — 4th-state parity with
 // CharGen): 'none' (no cloud character loaded, or one with no campaign), 'active' (campaign resolved),
 // 'unavailable' (character IS in a campaign but its DM AP/rules couldn't be read right now — must NOT
-// read as "no DM AP"). Set by the cloud-load handler below; reset by every non-cloud load path.
-window._dmApStatus = window._dmApStatus || 'none';
-function _lsResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';}
+// read as "no DM AP"). This is the SAME window._rulesStatus the sync-ready listener's campaign-rules
+// badge uses (collapsed from an original separate window._dmApStatus mirror — one variable, one place
+// it's set, D-GH-2026-07-12-livesheet-dmapstatus-dedup) — initialized here so it exists before the
+// cloud module (and 'sync-ready') has had a chance to load. Set by the cloud-load handler /
+// refreshCloudCampaignRules(); reset by every non-cloud load path.
+window._rulesStatus = window._rulesStatus || 'none';
+function _lsResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._rulesStatus='none';}
 // price a prospective change: frozen delta against the CURRENT committed build
 function priceOf(cat,payload){
   const cur=foldBuild(null);
@@ -664,7 +668,7 @@ function render(){
   // Reprice on the CREATION basis (inPlay:false) so an imported creation character shows no phantom drift.
   // In-play purchases stay frozen at their higher price, so they correctly read as locked > reprice (a kept premium).
   const reprice = compute(Object.assign({},b,{inPlay:false})).total;
-  $('eco').innerHTML=(function(){var ap=eco.earned||0,L=0;for(var k=1;k<=20;k++){if((DATA.levelAP[k]||1e9)<=ap)L=k;else break;}var nx=DATA.levelAP[L+1];var cb=b.campaign&&b.campaign.n;var nbar=cb?((b.campaign.boons||[]).length+(b.campaign.draws||[]).length+(b.campaign.arts||[]).length):0;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._dmApStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):(_dmAp?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b>Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx?(' · <span class="ed">'+(nx-ap)+' AP to reach equivalent of Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+(cb?(' <span class="campchip" title="Campaign: '+esc(b.campaign.n)+' — '+nbar+' barred; travels with this save"><span class="cc-lbl">Campaign</span> 🛡 <span class="cc-nm">'+esc(b.campaign.n)+'</span></span>'):'')+'</div>';})();
+  $('eco').innerHTML=(function(){var ap=eco.earned||0,L=0;for(var k=1;k<=20;k++){if((DATA.levelAP[k]||1e9)<=ap)L=k;else break;}var nx=DATA.levelAP[L+1];var cb=b.campaign&&b.campaign.n;var nbar=cb?((b.campaign.boons||[]).length+(b.campaign.draws||[]).length+(b.campaign.arts||[]).length):0;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):(_dmAp?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b>Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx?(' · <span class="ed">'+(nx-ap)+' AP to reach equivalent of Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+(cb?(' <span class="campchip" title="Campaign: '+esc(b.campaign.n)+' — '+nbar+' barred; travels with this save"><span class="cc-lbl">Campaign</span> 🛡 <span class="cc-nm">'+esc(b.campaign.n)+'</span></span>'):'')+'</div>';})();
   {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent / '+eco.earned+' earned'+(_dmAp?' · '+_dmAp+' from DM':'');}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
   const ABCOL={STR:'#E03C28',DEX:'#4CAF50',CON:'#E8872B',INT:'#3F6FD8',WIS:'#00ACC1',CHA:'#9C27B0'};
@@ -1477,7 +1481,11 @@ document.addEventListener('sync-ready', function () {
   var cloudMenu = document.getElementById('cloudMenu');
   var _session  = null;
   var _campaignName = null;   // name of the campaign_id on the currently loaded character, if any
-  var _rulesStatus  = 'none'; // 'none' | 'active' | 'unavailable' — see renderCloudStatusBadge()
+  // 'none' | 'active' | 'unavailable' — see renderCloudStatusBadge(). window-scoped (not a local var) so
+  // apCeiling()/_dmOpts() (outside this closure, feat/campaign-ap-model) can read the SAME resolution
+  // signal that drives the campaign-rules badge, instead of a second hand-mirrored copy — collapsed from
+  // the original window._dmApStatus duplicate, D-GH-2026-07-12-livesheet-dmapstatus-dedup.
+  window._rulesStatus = window._rulesStatus || 'none';
   var _cloningIds   = new Set(); // character ids with a clone-to-standalone in flight — persists
                                   // across renderCloudMenu() rebuilds so reopening the ☁ menu mid-clone
                                   // can't start a second concurrent clone of the same character
@@ -1498,11 +1506,11 @@ document.addEventListener('sync-ready', function () {
     if(!_session){
       el.textContent = '🔒 Not signed in';
       el.title = 'Working locally. Sign in via the ☁ Cloud menu to save to a campaign.';
-    } else if(_rulesStatus === 'active' && _campaignName){
+    } else if(window._rulesStatus === 'active' && _campaignName){
       el.classList.add('good');
       el.textContent = '☁ Campaign: ' + _campaignName + ' — DM rules active';
       el.title = 'Signed in as ' + _session.user.email + '. Bound to "' + _campaignName + '" — the DM\'s campaign rules were fetched successfully and are being enforced.';
-    } else if(_rulesStatus === 'unavailable'){
+    } else if(window._rulesStatus === 'unavailable'){
       el.classList.add('warn');
       el.textContent = '⚠ Campaign' + (_campaignName ? (': ' + _campaignName) : '') + ' — rules unavailable';
       el.title = 'Signed in as ' + _session.user.email + '. This character is attached to a campaign but its DM rules could not be fetched — banned items may not be filtered until this succeeds.';
@@ -1530,14 +1538,14 @@ document.addEventListener('sync-ready', function () {
       var rec = await S.loadCharacter(window.currentCharId());
       window._dmAp = rec ? (rec.ap || 0) : 0;
       window._ignorePlayerAp = false;
-      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; _rulesStatus = 'none'; window._dmApStatus = 'none'; renderCloudStatusBadge(); return; }
-      window._dmApStatus = 'unavailable';   // interim, resolved just below — correctly NOT "no DM AP" if getCampaign throws
+      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; renderCloudStatusBadge(); return; }
+      window._rulesStatus = 'unavailable';   // interim, resolved just below — correctly NOT "no DM AP" if getCampaign throws
       var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
       window._cloudCampaignRules = camp ? (camp.rules || {}) : null;
       _campaignName = camp ? camp.name : null;
-      _rulesStatus = camp ? 'active' : 'unavailable';
-      if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; window._dmApStatus = 'active'; }
-    } catch(e) { _rulesStatus = 'unavailable'; window._dmApStatus = 'unavailable'; /* non-fatal — pickers/AP just fall back until this succeeds */ }
+      window._rulesStatus = camp ? 'active' : 'unavailable';
+      if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; }
+    } catch(e) { window._rulesStatus = 'unavailable'; /* non-fatal — pickers/AP just fall back until this succeeds */ }
     renderCloudStatusBadge();
     if(typeof window.render === 'function') window.render();
   }
@@ -1626,14 +1634,13 @@ document.addEventListener('sync-ready', function () {
             window._dmAp = rec.ap || 0;
             window._ignorePlayerAp = false;
             window._cloudCampaignRules = null;
-            _campaignName = null; _rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
-            window._dmApStatus = _rulesStatus;   // same resolution signal drives the AP-model's 4th display state (feat/campaign-ap-model)
+            _campaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
             if(rec.campaign_id && window._campaignBridge) {
               try {
                 var camps = await window._campaignBridge.listMyCampaigns();
                 var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
-                if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; _rulesStatus = 'active'; window._dmApStatus = 'active'; }
-              } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds; window._dmApStatus correctly stays 'unavailable', not silently 'none' */ }
+                if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; window._rulesStatus = 'active'; }
+              } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds; window._rulesStatus correctly stays 'unavailable', not silently 'none' */ }
             }
             renderCloudStatusBadge();
             var d = rec.stats;
