@@ -32,9 +32,12 @@
   this work). Bundling (C)'s refactor here is exactly the "small task quietly turns big" pattern this session
   was trying to avoid. Known, accepted UX gap until the fast-follow: banned drawbacks/arts are *warned* on
   save rather than *hidden* from the picker, unlike boons/species/masteries which are hidden.
-- **Status:** In force. Enforcement shipped (this change). Fast-follow (live-picker hiding for
-  drawbacks/arts, and folding Live Sheet's `cloudRuleBarred()` onto `RULE_BAN_FIELDS`) is open — see the
-  roadmap hand-off note for this branch.
+- **Status:** In force. Enforcement shipped, and the fast-follow (option B/C) shipped immediately after:
+  banned drawbacks/arts are now hidden from the pickers in both tools, and Live Sheet's `cloudRuleBarred()`
+  was folded onto `RULE_BAN_FIELDS` (option C — removing its hardcoded `{masteries, boons}` divergence). The
+  UX gap noted above (warned-not-hidden) is therefore closed. Still open from the broader plan
+  (`docs/plans/2026-07-12-campaign-rules-snapshot.md`): retiring the `b.campaign`/PACTRULES `#3` code and the
+  LOG rules-snapshot + resolver for offline carry.
 
 ---
 

@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · feat(rules) — banned drawbacks/arts are now hidden from the pickers (+ de-diverge Live Sheet's `cloudRuleBarred`)**
+  (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`;
+  `D-GH-2026-07-12-campaign-rules-snapshot`; `DATA.version` unchanged, parity still 20/0). Closes the
+  enforcement-only gap from the previous entry: a cloud-campaign character's drawback and art pickers now
+  live-filter out DM-banned entries (already-selected ones grandfathered), matching how boons/species/
+  masteries already behave. Live Sheet's `cloudRuleBarred()` no longer hardcodes `{masteries, boons}` — it
+  now derives its kind→field map from the shared engine export `RULE_BAN_FIELDS` (imported + exposed on
+  `window`), so it stays in lockstep with `validate()` and covers every ban kind at once. UI wiring only; no
+  engine/`compute()` change.
+
 - **2026-07-12 · feat(rules) — campaign rules can now ban drawbacks and arts**
   (`js/engine.js`, `tools/DM-Console.html`; `D-GH-2026-07-12-campaign-rules-snapshot`; `DATA.version`
   unchanged — `validate()` is display-only and never read by `compute()`, parity still 20/0). Extends the
