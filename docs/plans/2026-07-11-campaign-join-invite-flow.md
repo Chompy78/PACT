@@ -5,6 +5,11 @@
 > consequential change: the original plan's `stats={budget:N}` character-creation shape was **verified
 > wrong** and corrected (see Approach step A4). The feature is now **split into two deliverables** (Path A,
 > Path B) per two reviewers' recommendation.
+>
+> **Prerequisite (added 2026-07-12):** Path A ("invited character builds from DM AP") depends on the
+> **Campaign AP model** work — `docs/plans/2026-07-12-campaign-ap-model.md` — which makes CharGen DM-AP-aware
+> and gives both tools an identical spendable-AP total. Do that piece first, or Path A's DM-AP seeding won't
+> be visible in CharGen.
 
 ## Goal
 PACT is a static tabletop-RPG character tool suite (vanilla JS, GitHub Pages, Supabase backend). A DM can
