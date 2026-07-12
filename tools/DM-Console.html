@@ -444,6 +444,8 @@
               <div class="ruleblock"><div class="lbl">Banned origin classes</div><div class="rulegrid" id="ruleBannedOriginClasses"></div></div>
               <div class="ruleblock"><div class="lbl">Banned weapon masteries</div><div class="rulegrid" id="ruleBannedMasteries"></div></div>
               <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
+              <div class="ruleblock"><div class="lbl">Banned drawbacks</div><div class="rulegrid" id="ruleBannedDrawbacks"></div></div>
+              <div class="ruleblock"><div class="lbl">Banned arts</div><div class="rulegrid" id="ruleBannedArts"></div></div>
               <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--light);margin:8px 0;cursor:pointer">
                 <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
               </label>
@@ -1208,7 +1210,9 @@ document.addEventListener('campaign-ready', function () {
     ['ruleBannedOriginSpecies', function(){ return Object.keys(_D.pack||{}); }],
     ['ruleBannedOriginClasses', function(){ return _D.classes||[]; }],
     ['ruleBannedMasteries', function(){ return Object.keys(_D.masteryFx||{}); }],
-    ['ruleBannedBoons', function(){ return Object.keys(_D.boons||{}); }]
+    ['ruleBannedBoons', function(){ return Object.keys(_D.boons||{}); }],
+    ['ruleBannedDrawbacks', function(){ return Object.keys(_D.drawbacks||{}); }],
+    ['ruleBannedArts', function(){ return Object.keys(_D.arts||{}); }]
   ];
   function renderRuleGrids(){
     RULE_GRIDS.forEach(function(pair){
@@ -1250,6 +1254,8 @@ document.addEventListener('campaign-ready', function () {
     setRuleGridChecked('ruleBannedOriginClasses', r.bannedOriginClasses);
     setRuleGridChecked('ruleBannedMasteries', r.bannedMasteries);
     setRuleGridChecked('ruleBannedBoons', r.bannedBoons);
+    setRuleGridChecked('ruleBannedDrawbacks', r.bannedDrawbacks);
+    setRuleGridChecked('ruleBannedArts', r.bannedArts);
     ruleMultiDisc.checked = r.multiDisciplineAllowed !== false;
     currentHouseRules = Object.assign({}, r.houseRules || {});
     renderHouseRules();
@@ -1270,6 +1276,8 @@ document.addEventListener('campaign-ready', function () {
       bannedOriginClasses: getRuleGridChecked('ruleBannedOriginClasses'),
       bannedMasteries: getRuleGridChecked('ruleBannedMasteries'),
       bannedBoons: getRuleGridChecked('ruleBannedBoons'),
+      bannedDrawbacks: getRuleGridChecked('ruleBannedDrawbacks'),
+      bannedArts: getRuleGridChecked('ruleBannedArts'),
       multiDisciplineAllowed: ruleMultiDisc.checked,
       houseRules: currentHouseRules
     };

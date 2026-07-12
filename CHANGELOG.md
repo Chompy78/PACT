@@ -4,6 +4,42 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · docs(agents) — add "Fix depth" communication convention**
+  (`AGENTS.md`). New rule under Communication conventions: when a problem has both a shallow fix and a
+  deeper root-cause fix, surface **both** as options (tiered A/B format) with a recommendation — default to
+  the deeper fix unless it's risky/wide/soon-obsolete — instead of silently proposing only the cheap one.
+
+- **2026-07-12 · refactor(rules) — one kind token per ban call site; `RULE_BAN_FIELDS` accepts `draws` as a `drawbacks` alias**
+  (`js/engine.js`, `tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; `DATA.version`
+  unchanged, parity 20/0). Code-review follow-up: the two ban-checkers used different kind vocabularies for
+  the same category — `campBarred('draws', …)` (the legacy PACTRULES/`HOUSE.disabled` vocabulary) next to
+  `cloudRuleBarred('drawbacks', …)` — so a future copy-paste of `'draws'` into `cloudRuleBarred` would have
+  silently failed open (no `'draws'` key → `false`, bans stop hiding). Rather than migrate the persisted
+  `'draws'` storage key (thrown away by the pending retire-PACTRULES work anyway), `RULE_BAN_FIELDS` now maps
+  **both** `drawbacks` (canonical) and `draws` (documented alias) to `bannedDrawbacks`, and the two picker
+  call sites use `'draws'` to match their adjacent `campBarred('draws', …)`. Either token now resolves in
+  either checker — the fail-silent trap is structurally gone.
+
+- **2026-07-12 · feat(rules) — banned drawbacks/arts are now hidden from the pickers (+ de-diverge Live Sheet's `cloudRuleBarred`)**
+  (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`;
+  `D-GH-2026-07-12-campaign-rules-snapshot`; `DATA.version` unchanged, parity still 20/0). Closes the
+  enforcement-only gap from the previous entry: a cloud-campaign character's drawback and art pickers now
+  live-filter out DM-banned entries (already-selected ones grandfathered), matching how boons/species/
+  masteries already behave. Live Sheet's `cloudRuleBarred()` no longer hardcodes `{masteries, boons}` — it
+  now derives its kind→field map from the shared engine export `RULE_BAN_FIELDS` (imported + exposed on
+  `window`), so it stays in lockstep with `validate()` and covers every ban kind at once. UI wiring only; no
+  engine/`compute()` change.
+
+- **2026-07-12 · feat(rules) — campaign rules can now ban drawbacks and arts**
+  (`js/engine.js`, `tools/DM-Console.html`; `D-GH-2026-07-12-campaign-rules-snapshot`; `DATA.version`
+  unchanged — `validate()` is display-only and never read by `compute()`, parity still 20/0). Extends the
+  cloud campaign rules format with `bannedDrawbacks` + `bannedArts`, mirroring the existing five ban fields:
+  `validate()` gains the two checks (surfaced as violations wherever it's already consumed — CharGen and Live
+  Sheet on join/save), `RULE_BAN_FIELDS` gains the two kinds, and the DM Console rules editor gains two grids.
+  This is the enforcement MVP of the retire-PACTRULES-code plan
+  (`docs/plans/2026-07-12-campaign-rules-snapshot.md`). Live-picker *hiding* of banned drawbacks/arts is a
+  deliberate, purely-additive fast-follow (see DECISIONS) — not shipped here.
+
 - **2026-07-11 · chore(testing) — add `playwright` + `supabase` CLI as devDependencies**
   (`testing/package.json`, `testing/package-lock.json`; dev-tooling only, no app code touched,
   `DATA.version` unchanged). Both were installed and verified working during the save-integrity session

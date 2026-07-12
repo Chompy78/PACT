@@ -627,7 +627,8 @@ export function rebuildStateFromEvents(baseSnapshot, events, opts) {
  * validate(b, rules) — check a build against a DM's campaign rules (D-GH14).
  * `rules` is the campaign's `rules` JSON column (DM-authoritative, read-only
  * to players): { bannedSpecies, bannedOriginSpecies, bannedMasteries,
- * bannedBoons, bannedOriginClasses, multiDisciplineAllowed, houseRules }.
+ * bannedBoons, bannedDrawbacks, bannedArts, bannedOriginClasses,
+ * multiDisciplineAllowed, houseRules }.
  * Pure and side-effect-free; does not touch compute() or pricing. Returns
  * { ok, violations: [{code, message}] } — never throws on a malformed/empty
  * rules object (every field defaults to "no restriction").
@@ -660,6 +661,16 @@ export function validate(b, rules) {
       violations.push({ code: 'bannedBoons', message: 'Boon "' + bo + '" is banned in this campaign.' });
     }
   }
+  for (const dw of (b.drawbacks || [])) {
+    if (has(r.bannedDrawbacks, dw)) {
+      violations.push({ code: 'bannedDrawbacks', message: 'Drawback "' + dw + '" is banned in this campaign.' });
+    }
+  }
+  for (const ar of (b.arts || [])) {
+    if (has(r.bannedArts, ar)) {
+      violations.push({ code: 'bannedArts', message: 'Art "' + ar + '" is banned in this campaign.' });
+    }
+  }
   if (r.multiDisciplineAllowed === false) {
     const nDisc = (b.traditions || []).reduce((s, t) => s + ((t.disciplines || []).length), 0);
     if (nDisc > 1) {
@@ -682,6 +693,13 @@ export const RULE_BAN_FIELDS = {
   originClasses: 'bannedOriginClasses',
   masteries: 'bannedMasteries',
   boons: 'bannedBoons',
+  drawbacks: 'bannedDrawbacks',   // canonical kind
+  draws: 'bannedDrawbacks',       // alias: the tools' live-filter/campBarred vocabulary abbreviates
+                                  // "drawbacks" to "draws" (HOUSE.disabled.draws, CG_CAMPAIGN.draws).
+                                  // Accepting both lets cloudRuleBarred() and campBarred() use ONE kind
+                                  // token per call site — instead of 'draws' silently failing open here.
+                                  // Retire alongside the PACTRULES 'draws' subsystem.
+  arts: 'bannedArts',
 };
 
 /* =========================================================================
