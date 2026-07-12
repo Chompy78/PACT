@@ -30,6 +30,8 @@ _(none currently — the last NOW item, the full engine module-bridge migration,
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+---
+
 ## Feature: Campaign join/invite UI (two onboarding paths) — TODO
 Branch feat/campaign-join-flow. Wire up the missing player-facing UI for actually joining a campaign — `join_campaign()` exists as a tested SQL RPC but has zero production UI anywhere in the app today (confirmed 2026-07-11), and it only ever creates a blank character, with no path for an existing character to join.
 
@@ -112,51 +114,42 @@ Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, 
 
 ---
 
-## Document a rules-correctness review pass in docs/HOW-TO-WORK.md — TODO
-Branch docs/rules-review-note. `/code-review`'s default lens is bugs/reuse, not domain (PHB) correctness.
+## Retire the PACTRULES code + carry campaign rules via a LOG snapshot — TODO
+Branch refactor/retire-pactrules-code. Remove the redundant local PACTRULES "campaign code" path from both tools and instead carry DM-authoritative campaign restrictions in the character's own event log. Full design: `docs/plans/2026-07-12-campaign-rules-snapshot.md`.
 
 ```text
-Add a short note + example prompt: for any PR touching js/engine.js's compute()/DATA, run /code-review
-with an explicit instruction to check the math against the Player's Guide (caps, gates, prices) rather
-than only generic code-quality issues.
+The restriction MVP — bannedDrawbacks/bannedArts enforced via validate() and hidden from the pickers —
+already shipped (PR #174, in CHANGELOG). This task is the remaining half:
+
+(a) Retire the local PACTRULES "#3" path from BOTH tools + test fixtures:
+    - remove b.campaign, the cat:'campaign' buy event + MUT.campaign mutator (js/engine.js),
+      the _campEnc/_campDec PACTRULES codec, and the "House rules code / Campaign" UI in
+      CharGen and Live Sheet;
+    - drop any "campaign" entries from testing/fixtures/ (pre-launch, so existing cat:'campaign'
+      events / shared PACTRULES codes going inert is acceptable — no real data to migrate).
+(b) Carry campaign restrictions offline via a LOG rules-snapshot (same materialization pattern as
+    the creation lock):
+    - on bind + on each sync while online-in-a-campaign, the client writes/refreshes a rules-snapshot
+      LOG event materialized from campaigns.rules;
+    - add a resolveRules() that returns the LIVE cloud rules when online-in-a-campaign (authoritative,
+      player can't touch them) else the LOG snapshot; point the existing validate()/cloudRuleBarred()
+      call sites at it — do NOT reimplement any rule logic;
+    - removing the snapshot (e.g. after leaving/cloning out of a campaign) is a logged LOG action, so
+      it leaves an auditable trail.
+Leave b.houseRules (#2, the DM-customisations / non-core toggle) completely untouched — it is a
+different, engine-read feature.
+Display/validation-only — validate()/cloudRuleBarred() are never read by compute(); do NOT bump
+DATA.version, just log in CHANGELOG. Log the trust-boundary reasoning as
+D-GH-2026-07-12-retire-pactrules-code in DECISIONS.md.
 ```
-**Done when:** docs/HOW-TO-WORK.md documents this usage pattern with a copy-pasteable example prompt.
 
-## AUD-1 follow-up: version/build-sync check — TODO
-Branch chore/aud1-version-sync-check. Do AFTER AUD-1 (Automated health check) lands.
-
-```text
-Extend testing/scripts/audit.py (from AUD-1) with a check that BUILD (js/engine.js) and its mirrors
-(CharGen title/header, Live Sheet line-1 comment, DM Console TOOL_VERSION) all match. DATA.version no
-longer needs a separate CharGen-mirror check — CharGen imports DATA live from js/engine.js as of D-GH26,
-so there's no embedded copy left to drift.
-```
-**Done when:** audit.py fails loudly if any version string diverges from js/engine.js; passes clean on
-the current tree.
-
-## REV-11 — Add CI: headless engine-parity gate on every PR — TODO
-Branch chore/rev11-ci-engine-parity. Promoted from LATER — no CI exists today, so a regression is only
-caught if a human remembers to open engine-parity.html.
-
-```text
-1. Add a headless Node runner (dev-tooling only, not a runtime dependency of the shipped app) that
-   imports js/engine.js as an ES module, runs the same FIXTURES engine-parity.html uses, and asserts each
-   result against testing/expected/expected-results.csv.
-2. Wire it as a GitHub Action that runs on every PR touching js/engine.js or testing/**.
-3. No npm runtime deps for the app itself — this tooling lives entirely in the CI job/devDependencies,
-   consistent with the "vanilla JS, no build step" rule for the shipped app.
-```
-**Done when:** a PR that breaks a fixture fails CI automatically; a clean PR passes; parity still 20/0
-when run locally too.
+**Done when:** the PACTRULES "#3" code path is gone from both tools + fixtures; a bound character carries a refreshed rules snapshot in its LOG that applies offline and is overridden by live cloud rules when online; removing the snapshot is a logged action; `b.houseRules` (#2) is unaffected; parity still 20/0.
 
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
-- **REV-10** — `.claude/` is tracked despite `.gitignore`. Fix: `git rm --cached -r .claude` (keep on disk), commit.
-- **REV-12** — Make "every player-controlled value passes through `esc()`" a hard invariant; add a line to
-  `AGENTS.md` Hard rules. Rises in importance once cloud data crosses users.
 - **REV-13** — Dead grant maps `grantSk/grantTl/grantIn` in `engine.js` (~:62) are never populated. Wire up
   or remove; don't change pricing without updating the REV-01 baseline in the same PR.
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
@@ -194,18 +187,31 @@ when run locally too.
 - **A7 — Lighthouse 85 → 90.** Add a Lighthouse CI GitHub Action to auto-catch perf regressions. *Then
   (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for the real score gain —
   *caveats:* a big engine change; do it only after REV-01 makes the gate real.
-- **A8 — AI working defaults.** Add a short "working efficiently" note to `docs/HOW-TO-WORK.md`: Sonnet +
-  default effort for spec-driven execution (Opus only for ambiguous/architectural), one task per fresh
-  session, read big files once.
 - **A9 — Orphaned-export sweep.** One-time audit: grep every named export in `js/engine.js`'s Exports
   line and confirm each is referenced by at least one of the three tools; write findings to
   `docs/sessions/<date>-orphaned-export-sweep.md` (find-and-report only — no deletion inline). File any
   confirmed zero-reference export as its own follow-up roadmap item, same pattern as REV-13's dead grant
   maps.
-- **A10 — Pre-release full-audit trigger note.** Document in `docs/HOW-TO-WORK.md` when a full
-  multi-agent Workflow audit (rules-logic + security/RLS + usability click-through + docs-consistency
-  lenses) is worth running — major releases/big refactors only, not routine PRs — with a sample workflow
-  shape for reference.
+**Code-review follow-ups (from `feat/campaign-ap-model`)** — low-severity cleanup flagged by
+`/code-review`, not fixed in that PR (low risk / negligible impact either way):
+
+## Live Sheet: avoid redundant fold+compute in `apAvailable()`/`apCeiling()` hot paths — TODO
+Branch perf/livesheet-apavailable-fold-reuse. `apCeiling()`/`apAvailable()` re-run `foldBuild`+`compute`+`economy` from scratch on every call, even from sites that only need a cheap ledger read.
+
+```text
+The AP-model work routed buy(), buyoffDrawback(), and the paid spell-swap eligibility checks
+(openNames()/_swapTally()) through apAvailable(null), which internally does foldBuild(null)+compute()+
+economy(null). The pre-AP-model code at those sites only needed economy(null).available — no fold, no
+compute. So every purchase click / swap-dialog interaction now pays a full rules recompute it doesn't need.
+Add a pure (spendable, spent)-taking helper (already exists as _apRemaining) — and/or a (b, eco)-accepting
+overload of apAvailable — so call sites that already have a fresh build/economy/compute-result in scope
+(render() already does) reuse it instead of re-deriving via the uptoIdx API. Keep the index-based
+apAvailable(uptoIdx) for genuinely index-driven callers (time-travel scrub UI).
+Judged negligible at current LOG sizes — this is a cleanup, not a hot-path emergency.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** `buy()` / `buyoffDrawback()` / the paid spell-swap checks no longer trigger a `foldBuild`+`compute()` beyond what they already need; parity still 20/0.
 
 ---
 

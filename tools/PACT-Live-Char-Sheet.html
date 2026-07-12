@@ -316,9 +316,9 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 .aplegend span{display:flex;align-items:center;gap:4px;white-space:nowrap}
 .aplegend .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 .aplegend .g{background:#14501f}.aplegend .r{background:#7a0000}.aplegend .k{background:#444}
-#apFloat{position:fixed;top:10px;right:14px;z-index:1500;display:flex;align-items:baseline;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:6px 16px;box-shadow:0 3px 14px rgba(0,0,0,.22);font-family:var(--font);cursor:default;transition:transform .12s ease}#apFloat b{font-size:22px;font-weight:800;color:var(--navytx);line-height:1}#apFloat span{font-size:10px;font-weight:600;color:var(--grey);text-transform:uppercase;letter-spacing:.06em}#apFloat.neg b{color:var(--bad)}#apFloat.flash{transform:scale(1.14)}@media print{#apFloat{display:none!important}}.moremenu{display:none;position:absolute;right:0;top:calc(100% + 5px);background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:6px;z-index:3000;min-width:215px;text-align:left}.moremenu.open{display:block}.moremenu .mi{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:7px 10px;border-radius:6px;font:inherit;font-size:13px;cursor:pointer}.moremenu .mi:hover{background:var(--lt)}.moremenu .mi-theme{display:flex;align-items:center;gap:6px;padding:6px 10px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}.moremenu .mi-theme select{flex:1}.dmtog{background:none;border:0;color:#cfe0f7;font:inherit;font-weight:700;cursor:pointer;padding:0}.eco{display:block}.ecoline{display:flex;flex-wrap:wrap;align-items:center;gap:5px 18px;background:#16294d;color:#cfe0f7;padding:9px 16px;font-size:13px}.ecoline b{color:#fff;font-size:16px}.ecoline .ed{color:#9fc0ff;font-size:12px}.ecoline .drift{color:#7fd98a;font-size:12px}.ecoline .swapchip{margin-left:auto;background:rgba(60,200,120,.22);border:1px solid rgba(120,230,170,.5);border-radius:12px;padding:2px 11px;font-size:12px;font-weight:700;color:#d6ffe6;white-space:nowrap}.ecoline .swapchip+.campchip{margin-left:8px}
+#apFloat{position:fixed;top:10px;right:14px;z-index:1500;display:flex;align-items:baseline;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:6px 16px;box-shadow:0 3px 14px rgba(0,0,0,.22);font-family:var(--font);cursor:default;transition:transform .12s ease}#apFloat b{font-size:22px;font-weight:800;color:var(--navytx);line-height:1}#apFloat span{font-size:10px;font-weight:600;color:var(--grey);text-transform:uppercase;letter-spacing:.06em}#apFloat.neg b{color:var(--bad)}#apFloat.flash{transform:scale(1.14)}@media print{#apFloat{display:none!important}}.moremenu{display:none;position:absolute;right:0;top:calc(100% + 5px);background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:6px;z-index:3000;min-width:215px;text-align:left}.moremenu.open{display:block}.moremenu .mi{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:7px 10px;border-radius:6px;font:inherit;font-size:13px;cursor:pointer}.moremenu .mi:hover{background:var(--lt)}.moremenu .mi-theme{display:flex;align-items:center;gap:6px;padding:6px 10px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}.moremenu .mi-theme select{flex:1}.dmtog{background:none;border:0;color:#cfe0f7;font:inherit;font-weight:700;cursor:pointer;padding:0}.eco{display:block}.ecoline{display:flex;flex-wrap:wrap;align-items:center;gap:5px 18px;background:#16294d;color:#cfe0f7;padding:9px 16px;font-size:13px}.ecoline b{color:#fff;font-size:16px}.ecoline .ed{color:#9fc0ff;font-size:12px}.ecoline .ed.warn{color:#ffcf6b;font-weight:700}.ecoline .drift{color:#7fd98a;font-size:12px}.ecoline .swapchip{margin-left:auto;background:rgba(60,200,120,.22);border:1px solid rgba(120,230,170,.5);border-radius:12px;padding:2px 11px;font-size:12px;font-weight:700;color:#d6ffe6;white-space:nowrap}.ecoline .swapchip+.campchip{margin-left:8px}
 .ecoline .campchip{margin-left:auto;display:inline-flex;align-items:center;gap:5px;max-width:46vw;background:rgba(255,255,255,.13);border-radius:12px;padding:3px 13px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap}.ecoline .campchip .cc-lbl{font-weight:600;opacity:.82;text-transform:uppercase;letter-spacing:.04em;font-size:10.5px}.ecoline .campchip .cc-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}@media(max-width:880px){.ecoline .campchip{max-width:60vw;padding:3px 10px}.ecoline .campchip .cc-lbl{display:none}.top{gap:5px;padding:8px 10px}.top h1{font-size:15px}.top .v{display:none}.top .btn .bl{display:none}.top .btn{padding:6px 9px;font-size:15px}.top #themesel{min-width:0;width:84px}}</style></head><body>
-<div id="apFloat" title="AP available (earned − spent) — updates live as you buy, undo, or gain awards"><b id="apFloatN">0</b><span>AP left</span></div>
+<div id="apFloat" title="AP available (Player AP + DM-granted AP − spent) — updates live as you buy, undo, or gain awards"><b id="apFloatN">0</b><span>AP left</span></div>
 <div class="top"><h1>🧬 PACT — Live Character Sheet</h1><span class="v" id="verline">event-sourced · prices freeze at purchase</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
 <button class="btn g" onclick="undo()" title="Undo">↶ <span class="bl">Undo</span></button><button class="btn g" onclick="redo()" title="Redo">↷ <span class="bl">Redo</span></button>
 <button class="btn g" id="exportBtn" onclick="exportJSON()" title="Export character to a file">⬇ <span class="bl">Export</span></button>
@@ -408,6 +408,37 @@ function eventsUpTo(uptoIdx){ return uptoIdx==null ? LOG : LOG.slice(0,uptoIdx);
 function activeEvents(uptoIdx){ return window._engineFold.activeEvents(eventsUpTo(uptoIdx)); }
 function foldBuild(uptoIdx){ return window._engineFold.foldBuild(eventsUpTo(uptoIdx)); }
 function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)); }
+// Composed AP ceiling (Player AP, honoring campaign ignore_player_ap, + DM AP — D-GH-2026-07-12-campaign-ap-model).
+// b.budget stays raw Player AP; DM AP is layered in here at compute() time only, never pre-mixed into
+// b.budget or persisted — see the anti-double-count invariant documented on compute() in js/engine.js.
+// DM AP counts ONLY when the campaign is fully resolved ('active'); in 'none' (no / orphaned campaign) and
+// 'unavailable' (rules unconfirmed) the ceiling is player-only, so "AP left" never counts DM AP the display
+// can't stand behind — and so the DM chip can't read "from DM" while the total excludes it. CharGen gates
+// identically (see _cgDmOpts), so both tools show the same spendable total in every state.
+function _dmOpts(){var a=window._rulesStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp};}
+function apCeiling(uptoIdx){ return compute(foldBuild(uptoIdx),_dmOpts()).spendable; }
+// Pure formula (no I/O) — the one place "AP available" is defined, shared by apAvailable() below AND by
+// render()/refreshBuy()/renderSheet(), which already have a fresh spendable/spent in scope and would
+// otherwise pay a redundant foldBuild+compute+economy just to reuse a value they already computed.
+// Deliberately NOT floored at 0 — an overspent character (with or without DM AP) shows the true deficit,
+// matching this app's existing "negative AP left" convention (.neg/OVER BUDGET); flooring would hide the
+// magnitude behind a bare "0" and would also wrongly let a 0-cost purchase through buy()'s `cost>avail`
+// gate while overspent. Never exceeds the ceiling since spent>=0 always (drawback buys are excluded from
+// spent — see economy()) — no separate cap needed on top of that.
+function _apRemaining(spendable,spent){ return spendable-spent; }
+// AP actually available to spend right now, for callers with only an index (buy(), buyoffDrawback(),
+// paid spell-swap costs) — not the frozen ledger itself, does not touch or reprice it (economy()).
+function apAvailable(uptoIdx){ return _apRemaining(apCeiling(uptoIdx),economy(uptoIdx).spent); }
+// AP-source status (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model — 4th-state parity with
+// CharGen): 'none' (no cloud character loaded, or one with no campaign), 'active' (campaign resolved),
+// 'unavailable' (character IS in a campaign but its DM AP/rules couldn't be read right now — must NOT
+// read as "no DM AP"). This is the SAME window._rulesStatus the sync-ready listener's campaign-rules
+// badge uses (collapsed from an original separate window._dmApStatus mirror — one variable, one place
+// it's set, D-GH-2026-07-12-livesheet-dmapstatus-dedup) — initialized here so it exists before the
+// cloud module (and 'sync-ready') has had a chance to load. Set by the cloud-load handler /
+// refreshCloudCampaignRules(); reset by every non-cloud load path.
+window._rulesStatus = window._rulesStatus || 'none';
+function _lsResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._rulesStatus='none';}
 // price a prospective change: frozen delta against the CURRENT committed build
 function priceOf(cat,payload){
   const cur=foldBuild(null);
@@ -421,7 +452,7 @@ function priceOf(cat,payload){
 function legalCheck(cat,payload){
   const cur=foldBuild(null); const cand=clone(cur); (MUT[cat]||(()=>{}))(cand,payload);
   const seen={}; compute(cur).warnings.forEach(w=>{seen[w]=(seen[w]||0)+1;});
-  return compute(cand).warnings.filter(w=>{ if(/OVER BUDGET/.test(w))return false; if(seen[w]>0){seen[w]--;return false;} return true; }); // OVER BUDGET is a soft planning advisory only — the live economy (eco.available, frozen prices) already gates affordability in buy(); never hard-block a purchase you can actually pay for. Otherwise: new warnings introduced — by content, not count (so Vigor 1→2→3 each flag)
+  return compute(cand).warnings.filter(w=>{ if(/OVER BUDGET/.test(w))return false; if(seen[w]>0){seen[w]--;return false;} return true; }); // OVER BUDGET is a soft planning advisory only — the live economy (apAvailable(), frozen prices) already gates affordability in buy(); never hard-block a purchase you can actually pay for. Otherwise: new warnings introduced — by content, not count (so Vigor 1→2→3 each flag)
 }
 
 function emit(ev){ ev.seq=SEQ++; ev.ts=Date.now(); ev.rules=ev.rules||RULES; LOG.push(ev); REDO=[]; viewAt=null; save(); render(); }
@@ -436,8 +467,8 @@ function buy(cat,payload,label){
   // (B1) duplicate guard — block re-buying an owned single-instance proficiency
   if(DUP_FIELD[cat] && payload && payload.v!=null && (foldBuild(null)[DUP_FIELD[cat]]||[]).indexOf(payload.v)>=0){
     alert('⛔ Already owned — "'+payload.v+'" can only be bought once.'); return; }
-  const cost=priceOf(cat,payload); const eco=economy(null);
-  if(cat!=='drawback' && cost>eco.available){ flash('Not enough AP: needs '+cost+', have '+eco.available); return; }
+  const cost=priceOf(cat,payload); const avail=apAvailable(null);
+  if(cat!=='drawback' && cost>avail){ flash('Not enough AP: needs '+cost+', have '+avail); return; }
   // (B2) split rules warnings: hard violations are blocked with a popup; intended-but-flagged ones stay confirm-through
   const warns=legalCheck(cat,payload);
   const hard=warns.filter(function(w){return !SOFT_WARN.test(w);});
@@ -449,8 +480,8 @@ function buy(cat,payload,label){
   if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
 }
 function takeDrawback(v){ const refund=DATA.drawbacks[v]||0; emit({type:'buy',cat:'drawback',payload:{v},cost:-refund,label:'Drawback — '+v,level:foldBuild(null).hd}); }
-function buyoffDrawback(v){ const refund=DATA.drawbacks[v]||0; const cost=refund*3; const eco=economy(null);
-  if(cost>eco.available){flash('Buying off costs '+cost+' AP (3×); you have '+eco.available);return;} emit({type:'buyoff',refVal:v,cost,label:'Bought off — '+v}); }
+function buyoffDrawback(v){ const refund=DATA.drawbacks[v]||0; const cost=refund*3; const avail=apAvailable(null);
+  if(cost>avail){flash('Buying off costs '+cost+' AP (3×); you have '+avail);return;} emit({type:'buyoff',refVal:v,cost,label:'Bought off — '+v}); }
 function undo(){ if(!LOG.length)return; if(LOG[LOG.length-1].type==='award'&&!LOG[LOG.length-1].disc){flash('AP awards lock your history — buys made before an award can\'t be undone.');return;} REDO.push(LOG.pop()); viewAt=null; save(); render(); }
 function redo(){ if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save(); render(); }
 
@@ -459,7 +490,7 @@ const KEY='pactLiveSheet';
 // D-GH40: local save now carries the same CHAR_SCHEMA shape the file Save/Export use (schema+name added;
 // was {LOG,SEQ,rules,id} untagged) — purely additive, load() below already tolerates either shape.
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:foldBuild(null).name,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId()},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); } }
-function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
+function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
 // Feature-detect Web Share (files) rather than sniffing the user agent — this is the reliable
 // save path on iOS Safari/PWA, where a plain blob+<a download> is known to silently fail (it
 // often just opens the JSON in a new tab instead of saving a file). Falls back to the existing
@@ -517,7 +548,7 @@ function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=
   // Tamper-evidence (D-GH48): verify the INCOMING file before save() re-signs it with the current
   // contents. Non-blocking — a hand-edited/corrupted file is flagged but still loads.
   const _tampered=!!(window.verifyCharacterEnvelope&&window.verifyCharacterEnvelope(d).tampered);
-  if(d.LOG){LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
+  if(d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
   // Compose the load notice so a file that is BOTH tampered AND a different rules version shows both.
   var _msgs=[];
   if(_tampered){_msgs.push('⚠ This file was edited outside PACT — its signature no longer matches. It has still been loaded; double-check the numbers before playing.');}
@@ -545,6 +576,7 @@ function _lsConsumeHandoff(){
     const p=takeHandoff(u);
     try{history.replaceState(null,'',location.pathname+location.hash);}catch(e){}   // strip ?handoff: a reload must not re-trigger
     if(!p)return false;
+    _lsResetCloudApState();
     LOG=p.LOG;SEQ=p.SEQ||(LOG.length+1);loadedRules=p.rules||null;if(p.id)__charId=p.id;REDO=[];viewAt=null;
     save();
     if(loadedRules&&loadedRules!==RULES){flash('Opened your '+loadedRules+' character from CharGen — old prices frozen under '+RULES+' rules.');_showVersionBanner();}
@@ -553,7 +585,7 @@ function _lsConsumeHandoff(){
   }catch(e){console.error('PACT Live Sheet: handoff consume failed',e);return false;}
 }
 function resetAll(){ if(confirm('Wipe this character and its whole history? This starts a clean '+RULES+' character.')){
-  LOG=[];REDO=[];SEQ=1;viewAt=null;loadedRules=null;   // a reset character is born under the current rules
+  LOG=[];REDO=[];SEQ=1;viewAt=null;loadedRules=null;_lsResetCloudApState();   // a reset character is born under the current rules
   const _vb=$('versionBanner');if(_vb)_vb.remove();   // clear any stale version-mismatch banner
   window._apNudgeDismissedFor=null;   // a freshly wiped character should see the low-spend nudge again
   seedNew();   // re-seed a fresh level-1 character so the budget isn't empty (no false "over budget")
@@ -570,9 +602,20 @@ function validate(){
     if(e.cat==='drawback'&&!(e.payload.v in DATA.drawbacks)) issues.push('Drawback no longer in rules: '+e.payload.v);
   });
   compute(b).warnings.filter(w=>!/^OVER BUDGET/.test(w)).forEach(w=>issues.push('Rule warning: '+w));
+  // Toggle-flip grandfather notice (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): if
+  // ignore_player_ap is on and the frozen ledger shows more spent than DM AP alone could have funded,
+  // some of that spend came from player AP that no longer counts. Non-blocking — purchases are kept
+  // (never deleted/refunded/rewritten); this only informs, it never gates anything.
+  if(window._ignorePlayerAp){const _spent=economy(null).spent,_dm=window._dmAp||0;if(_spent>_dm)issues.push('Your DM has switched off player-entered AP for this campaign — purchases already made with player AP are kept, but no longer count toward new spending. Only '+_dm+' DM AP is available for anything new.');}
   {var _un=0;for(var i=0;i<(b.dabblerCantrips||0);i++){if(!((b.dabblerCantripNames||[])[i]||'').trim())_un++;}for(var L=1;L<=9;L++){for(var j=0;j<((b.innate||[])[L-1]||0);j++){if(!(((b.innateNames||[])[L-1]||[])[j]||'').trim())_un++;}}(b.traditions||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(!d.name||d.name==='(none)')return;for(var i=0;i<(d.cantrips||0);i++){if(!((d.cantripNames||[])[i]||'').trim())_un++;}for(var L=1;L<=9;L++){for(var j=0;j<((d.known||[])[L-1]||0);j++){if(!(((d.knownNames||[])[L-1]||[])[j]||'').trim())_un++;}}});});if(_un>0)issues.push(_un+' spell name'+(_un>1?'s':'')+' not filled in — tap ✎ Name to record them (purchases are locked; naming is optional)');}
   return issues;
 }
+// Advisory (informational, non-blocking) validate() notes vs hard "needs review" issues — mirrors
+// CharGen's isAdvisory() verbatim (same two patterns) so both tools classify the identical notice the
+// same way. The ignore_player_ap grandfather notice is a NORMAL, expected state ("purchases are kept,
+// it never gates anything"), so it must render as a calm ⓘ note, not inflate the ⚠ "Needs review (N)"
+// count the way every other issue does (feat/campaign-ap-model review follow-up).
+function _lsIsAdvisory(w){return /switched off player-entered AP/.test(w)||/no Ki-using ability/.test(w);}
 
 // ---------------- buy panel builders ----------------
 function opt(v){return '<option value="'+String(v).replace(/"/g,'&quot;')+'">'+v+'</option>';}
@@ -623,15 +666,16 @@ function render(){
   {const vl=$('verline');if(vl)vl.textContent='rules '+RULES+(loadedRules&&loadedRules!==RULES?' · loaded from '+loadedRules:'')+' · prices freeze at purchase';}
   const head = viewAt==null;
   const idx = viewAt;
-  const b=foldBuild(idx); const eco=economy(idx); const _dmAp=window._dmAp||0,_ignPlr=!!window._ignorePlayerAp; b.budget=(_ignPlr?0:eco.earned)+_dmAp; const r=compute(b); const m=r.mods;
+  const b=foldBuild(idx); const eco=economy(idx); const _dmO=_dmOpts(),_dmAp=_dmO.dmAp,_ignPlr=_dmO.ignorePlayerAp; const r=compute(b,_dmO); const m=r.mods;
+  const _apAvail=_apRemaining(r.spendable,eco.spent), _apOver=_apAvail<0;
   _apNudgeBanner(eco.spent);
   // --- top economy ---
   const committed = LOG.filter(e=>e.type==='buy'&&e.cat!=='drawback').reduce((s,e)=>s+e.cost,0);
   // Reprice on the CREATION basis (inPlay:false) so an imported creation character shows no phantom drift.
   // In-play purchases stay frozen at their higher price, so they correctly read as locked > reprice (a kept premium).
   const reprice = compute(Object.assign({},b,{inPlay:false})).total;
-  $('eco').innerHTML=(function(){var ap=eco.earned||0,L=0;for(var k=1;k<=20;k++){if((DATA.levelAP[k]||1e9)<=ap)L=k;else break;}var nx=DATA.levelAP[L+1];var cb=b.campaign&&b.campaign.n;var nbar=cb?((b.campaign.boons||[]).length+(b.campaign.draws||[]).length+(b.campaign.arts||[]).length):0;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmchip=_dmAp?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'';return '<div class="ecoline"><b>Lv '+L+'</b> · <b>'+eco.available+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx?(' · <span class="ed">'+(nx-ap)+' AP to reach equivalent of Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+(cb?(' <span class="campchip" title="Campaign: '+esc(b.campaign.n)+' — '+nbar+' barred; travels with this save"><span class="cc-lbl">Campaign</span> 🛡 <span class="cc-nm">'+esc(b.campaign.n)+'</span></span>'):'')+'</div>';})();
-  {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=eco.available+' AP';if(ls)ls.textContent='· '+eco.spent+' spent / '+eco.earned+' earned'+(_dmAp?' · '+_dmAp+' from DM':'');}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(eco.available),_prev=_afb.getAttribute('data-v');_afn.textContent=eco.available;_afb.classList.toggle('neg',eco.available<0);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
+  $('eco').innerHTML=(function(){var ap=eco.earned||0,L=0;for(var k=1;k<=20;k++){if((DATA.levelAP[k]||1e9)<=ap)L=k;else break;}var nx=DATA.levelAP[L+1];var cb=b.campaign&&b.campaign.n;var nbar=cb?((b.campaign.boons||[]).length+(b.campaign.draws||[]).length+(b.campaign.arts||[]).length):0;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):(_dmAp?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b>Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx?(' · <span class="ed">'+(nx-ap)+' AP to reach equivalent of Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+(cb?(' <span class="campchip" title="Campaign: '+esc(b.campaign.n)+' — '+nbar+' barred; travels with this save"><span class="cc-lbl">Campaign</span> 🛡 <span class="cc-nm">'+esc(b.campaign.n)+'</span></span>'):'')+'</div>';})();
+  {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent / '+eco.earned+' earned'+(_dmAp?' · '+_dmAp+' from DM':'');}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
   const ABCOL={STR:'#E03C28',DEX:'#4CAF50',CON:'#E8872B',INT:'#3F6FD8',WIS:'#00ACC1',CHA:'#9C27B0'};
   let sh='<div class="shname">'+esc(b.name||'Unnamed Hero')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ AP-Level '+apLevel(eco.earned)+' · Prof +'+r.prof+'</div>';
@@ -686,13 +730,16 @@ function render(){
   });
   led+='</table>'; $('ledger').innerHTML=led;
   // --- validation tray ---
-  const iss=validate(); $('tray').innerHTML=iss.length?('<b>⚠ Needs review ('+iss.length+')</b><ul>'+iss.map(i=>'<li>'+i+'</li>').join('')+'</ul>'):'<span class="ok">✓ No issues — everything legal & grandfathered.</span>';
+  {const iss=validate(); const _hard=iss.filter(w=>!_lsIsAdvisory(w)), _adv=iss.filter(_lsIsAdvisory);
+   let _tray=_hard.length?('<b>⚠ Needs review ('+_hard.length+')</b><ul>'+_hard.map(i=>'<li>'+i+'</li>').join('')+'</ul>'):'<span class="ok">✓ No issues — everything legal & grandfathered.</span>';
+   if(_adv.length)_tray+='<ul style="list-style:none;padding-left:0;margin:6px 0 0;color:var(--grey);font-size:12px">'+_adv.map(i=>'<li>ⓘ '+i+'</li>').join('')+'</ul>';
+   $('tray').innerHTML=_tray;}
   // --- time-travel slider ---
   $('tt').max=LOG.length; $('tt').value=(viewAt==null?LOG.length:viewAt);
   $('ttlabel').textContent=(viewAt==null?'live (head)':'viewing after event '+viewAt+' of '+LOG.length);
   $('histwrap').style.opacity=head?'1':'.6';
   // --- buy panel (only at head) ---
-  buildBuyPanel(b,r,eco,head);
+  buildBuyPanel(b,r,Object.assign({},eco,{available:_apAvail}),head);
 }
 
 function flash(msg){let f=$('flash');f.textContent=msg;f.style.display='block';clearTimeout(flash._t);flash._t=setTimeout(()=>f.style.display='none',2600);}
@@ -715,7 +762,7 @@ function _catOf(lab){
   if(lab==='DM house rules')return 'DM / Advanced';
   return 'Heritage & extras';
 }
-function refreshBuy(){const b=foldBuild(null),eco=economy(null);b.budget=(window._ignorePlayerAp?0:eco.earned)+(window._dmAp||0);const r=compute(b);buildBuyPanel(b,r,eco,viewAt==null);}
+function refreshBuy(){const b=foldBuild(null),eco=economy(null);const r=compute(b,_dmOpts());const avail=_apRemaining(r.spendable,eco.spent);buildBuyPanel(b,r,Object.assign({},eco,{available:avail}),viewAt==null);}
 // AP a character gains advancing one level (benchmark anchors, interpolated)
 function levelDelta(hd){return (DATA.levelAP[hd+1]||DATA.levelAP[hd]||0)-(DATA.levelAP[hd]||0);}
 function toggleTasha(){var b=foldBuild(null);var on=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);emit({type:"buy",cat:"tasharule",payload:{v:!on},cost:0,label:"DM house rule — Tasha abilities "+(!on?"allowed":"barred"),level:b.hd});}
@@ -780,7 +827,7 @@ function buildBuyPanel(b,r,eco,head){
       const gate=blocked?(hdOk?('needs '+statNote):('needs '+(+ar.hd||1)+' HD'+(statNote?' \u0026 '+statNote:''))):(ar.prereqNote?('Prereq: '+ar.prereqNote+' \u2713'):'');
       const label=x+' \u2014 '+ar.ap+' AP ('+BAND_S[ar.band||0]+')';
       if(b.arts.includes(x))return ibOwned(label);return ib(label,'art',{v:x},gate);};
-    const avail=(DATA.artList||[]).filter(x=>{const a=DATA.arts[x]||{};if(!(_tashaOK||!a.noncore))return false;if(campBarred('arts',x))return false;if(a.cat==='Fighting Style'&&a.reqFeat)return false;return true;});
+    const avail=(DATA.artList||[]).filter(x=>{const a=DATA.arts[x]||{};if(!(_tashaOK||!a.noncore))return false;if(campBarred('arts',x))return false;if(!b.arts.includes(x)&&cloudRuleBarred('arts',x))return false;if(a.cat==='Fighting Style'&&a.reqFeat)return false;return true;});
     const byCat={};avail.forEach(x=>{const c=(DATA.arts[x]||{}).cat||'Other';(byCat[c]=byCat[c]||[]).push(x);});
     const cats=CATORD.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>CATORD.indexOf(c)<0).sort());
     return cats.map(c=>{const items=byCat[c].slice().sort();return '<div class="atcat" style="width:100%;font-size:10px;color:var(--grey);margin:6px 0 1px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">'+c+(c==='Fighting Style'?' \u2014 11 AP each (feature-granted ones are named free in the \u270E picker)':'')+'</div>'+items.map(renderArt).join('');}).join('') || '<span class="hint">No arts available.</span>';}],
@@ -803,7 +850,7 @@ function buildBuyPanel(b,r,eco,head){
    ['Drawbacks (gain AP)',()=>{
      const DRAW_ORDER=['Body','Mind','Social','Magic','Wild & Story','DM custom','Other'];
      const {boughtOff:_bo}=activeEvents(null);
-     const avail=DATA.drawbackList.filter(x=>!campBarred('draws',x));
+     const avail=DATA.drawbackList.filter(x=>!campBarred('draws',x)&&(b.drawbacks.includes(x)||!cloudRuleBarred('draws',x)));
      const byCat={};avail.forEach(x=>{const c=(DATA.drawbackCat&&DATA.drawbackCat[x])||'Other';(byCat[c]=byCat[c]||[]).push(x);});
      const cats=DRAW_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>DRAW_ORDER.indexOf(c)<0).sort());
      return cats.map(c=>{
@@ -897,8 +944,9 @@ function buildBuyPanel(b,r,eco,head){
 }
 
 // ---------------- full character sheet overlay (shared renderer; see sheet_assets.py) ----------------
-function renderSheet(){const b=foldBuild(null),r=compute(b),eco=economy(null);
-  return renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+eco.available+' available  ·  ≈ AP-Level '+apLevel(eco.earned),noSpell:LS_noSpell});}
+function renderSheet(){const b=foldBuild(null),eco=economy(null),r=compute(b,_dmOpts());
+  const avail=_apRemaining(r.spendable,eco.spent);
+  return renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ AP-Level '+apLevel(eco.earned),noSpell:LS_noSpell});}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;if(ov.style.display==='block'){ov.style.display='none';}else{$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}
 // B1 (v0.100): LS-only "no-Spellcasting" sheet view — full sheet vs hide the computed Spellcasting section + manual slot box. CharGen never sets ctx.noSpell, so its sheet is unchanged (parity holds).
 var LS_noSpell=(function(){try{return localStorage.getItem('pactLSnoSpell')==='1';}catch(e){return false;}})();
@@ -1256,7 +1304,7 @@ function _swapTally(){var SW=_nameSwapAvail();var freeCap=SW.avail||0;var rows=[
   // the free/paid economy here adds the ORIGINAL level's unit as the paid surcharge for same-level AND
   // cross-level-UP rows, so a FREE upgrade pays only the difference while a PAID upgrade pays the full new
   // cost (diff + unit[oldL] = unit[newL]). Down-swaps (refund-only) stay out of the economy. v0.322-F3
-  var knowns=rows.filter(function(e){var oL=_slotLv(e),nL=_spellLevel(e.value)||oL;return e.dataset.kind==='known'&&nL>=oL;});var costs=knowns.map(function(e){return _swapCost(_slotLv(e)||_spellLevel(e.value)||(+e.dataset.level||0));});var sp=_swapSplit(freeCap,costs,nonKnown.length);return {paid:sp.paid,n:sp.n,illegal:sp.illegal,avail:economy(null).available,freeUsed:sp.freeUsed,freeCap:freeCap,freeLeft:sp.freeLeft,nonKnown:nonKnown.length,knownN:knowns.length};}
+  var knowns=rows.filter(function(e){var oL=_slotLv(e),nL=_spellLevel(e.value)||oL;return e.dataset.kind==='known'&&nL>=oL;});var costs=knowns.map(function(e){return _swapCost(_slotLv(e)||_spellLevel(e.value)||(+e.dataset.level||0));});var sp=_swapSplit(freeCap,costs,nonKnown.length);return {paid:sp.paid,n:sp.n,illegal:sp.illegal,avail:apAvailable(null),freeUsed:sp.freeUsed,freeCap:freeCap,freeLeft:sp.freeLeft,nonKnown:nonKnown.length,knownN:knowns.length};}
 /* Per-discipline duplicate guard — you can't know the same spell twice within one tradition/
  * discipline (its cantrips + known spells + arcanum). The same spell may still appear in a
  * different discipline. Returns the list of duplicated names. */
@@ -1278,7 +1326,7 @@ function openNames(){var b=foldBuild(null);var H='',DLS='';var SW=_nameSwapAvail
   var _nl=b.languages||1;if(_nl>0){_dl('dl_lang',LANGS_2024);H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Languages</h3>';for(var i=0;i<_nl;i++)H+=_nmRow('lang::'+i,'Language '+(i+1),(b.languageNames||[])[i]||'','dl_lang','lang',false);}
   var dc=b.dabblerCantrips||0;if(dc){_dl('dl_dab',(DATA.spells||[]).filter(function(s){return s.l===0&&s.c.indexOf('Wizard')>=0;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Out-of-Tradition cantrips</h3>';for(var i=0;i<dc;i++)H+=_nmRow('dab::'+i,'Cantrip '+(i+1),(b.dabblerCantripNames||[])[i]||'','dl_dab','swap',false);}
   for(var L=1;L<=9;L++){var ic=(b.innate||[])[L-1]||0;if(ic){_dl('dl_inn_'+L,(DATA.spells||[]).filter(function(s){return s.l===L;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Innate L'+L+'</h3>';for(var i=0;i<ic;i++)H+=_nmRow('inn::'+L+'::'+i,'L'+L+' spell '+(i+1),(((b.innateNames||[])[L-1])||[])[i]||'','dl_inn_'+L,'swap',false);}}
-  (b.traditions||[]).forEach(function(t,ti){(t.disciplines||[]).forEach(function(d,di){if(!d.name||d.name==='(none)')return;var elig=eligibleSpells(b,ti,di)||{byLevel:{},maxLv:9};for(var Lx=0;Lx<=Math.max(0,elig.maxLv|0);Lx++)_dl('dl_'+ti+'_'+di+'_'+Lx,(elig.byLevel[Lx]||[]).map(function(x){return x.name;}));var _allKn=[];for(var La=1;La<=9;La++)(elig.byLevel[La]||[]).forEach(function(x){if(_allKn.indexOf(x.name)<0)_allKn.push(x.name);});_allKn.sort();_dl('dl_'+ti+'_'+di+'_all',_allKn);var off=[];for(var Lo=0;Lo<=9;Lo++)(elig.byLevel[Lo]||[]).forEach(function(x){if(x.off)off.push(x.name);});H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">'+_e(t.name)+' › '+_e(d.name)+'</h3>';if(off.length)H+='<div style="font-size:10.5px;color:var(--teal);margin:0 0 3px">Subclass adds: '+_e(off.join(', '))+'</div>';var cn=d.cantrips||0;for(var i=0;i<cn;i++)H+=_nmRow('tr::'+ti+'::'+di+'::c::'+i,'Cantrip '+(i+1),(d.cantripNames||[])[i]||'','dl_'+ti+'_'+di+'_0','swap',SW.ok);for(var L=1;L<=9;L++){var kn=(d.known||[])[L-1]||0;var hint=(L>elig.maxLv)?' ⚠R'+L:'';for(var i=0;i<kn;i++)H+=_nmRow('tr::'+ti+'::'+di+'::k::'+L+'::'+i,'L'+L+' spell '+(i+1)+hint,(((d.knownNames||[])[L-1])||[])[i]||'','dl_'+ti+'_'+di+'_'+L,'swap',(SW.ok||economy(null).available>=_swapCost(L)));}for(var ai=0;ai<4;ai++){var aL=6+ai;var ac=(d.arcanum||[])[ai]||0;if(ac){_dl('dl_arc_'+ti+'_'+di+'_'+aL,(DATA.spells||[]).filter(function(s){return s.l===aL&&s.c.indexOf('Warlock')>=0;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Mystic Arcanum L'+aL+'</h3>';for(var aj=0;aj<ac;aj++)H+=_nmRow('tr::'+ti+'::'+di+'::a::'+ai+'::'+aj,'L'+aL+' arcanum '+(aj+1),(((d.arcanumNames||[])[ai])||[])[aj]||'','dl_arc_'+ti+'_'+di+'_'+aL,'swap',SW.ok);}}});});
+  (b.traditions||[]).forEach(function(t,ti){(t.disciplines||[]).forEach(function(d,di){if(!d.name||d.name==='(none)')return;var elig=eligibleSpells(b,ti,di)||{byLevel:{},maxLv:9};for(var Lx=0;Lx<=Math.max(0,elig.maxLv|0);Lx++)_dl('dl_'+ti+'_'+di+'_'+Lx,(elig.byLevel[Lx]||[]).map(function(x){return x.name;}));var _allKn=[];for(var La=1;La<=9;La++)(elig.byLevel[La]||[]).forEach(function(x){if(_allKn.indexOf(x.name)<0)_allKn.push(x.name);});_allKn.sort();_dl('dl_'+ti+'_'+di+'_all',_allKn);var off=[];for(var Lo=0;Lo<=9;Lo++)(elig.byLevel[Lo]||[]).forEach(function(x){if(x.off)off.push(x.name);});H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">'+_e(t.name)+' › '+_e(d.name)+'</h3>';if(off.length)H+='<div style="font-size:10.5px;color:var(--teal);margin:0 0 3px">Subclass adds: '+_e(off.join(', '))+'</div>';var cn=d.cantrips||0;for(var i=0;i<cn;i++)H+=_nmRow('tr::'+ti+'::'+di+'::c::'+i,'Cantrip '+(i+1),(d.cantripNames||[])[i]||'','dl_'+ti+'_'+di+'_0','swap',SW.ok);for(var L=1;L<=9;L++){var kn=(d.known||[])[L-1]||0;var hint=(L>elig.maxLv)?' ⚠R'+L:'';for(var i=0;i<kn;i++)H+=_nmRow('tr::'+ti+'::'+di+'::k::'+L+'::'+i,'L'+L+' spell '+(i+1)+hint,(((d.knownNames||[])[L-1])||[])[i]||'','dl_'+ti+'_'+di+'_'+L,'swap',(SW.ok||apAvailable(null)>=_swapCost(L)));}for(var ai=0;ai<4;ai++){var aL=6+ai;var ac=(d.arcanum||[])[ai]||0;if(ac){_dl('dl_arc_'+ti+'_'+di+'_'+aL,(DATA.spells||[]).filter(function(s){return s.l===aL&&s.c.indexOf('Warlock')>=0;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Mystic Arcanum L'+aL+'</h3>';for(var aj=0;aj<ac;aj++)H+=_nmRow('tr::'+ti+'::'+di+'::a::'+ai+'::'+aj,'L'+aL+' arcanum '+(aj+1),(((d.arcanumNames||[])[ai])||[])[aj]||'','dl_arc_'+ti+'_'+di+'_'+aL,'swap',SW.ok);}}});});
   (function(){var FSF=['Fighter: Fighting Style','Paladin: Fighting Style','Ranger: Fighting Style','Fighter: Additional Fighting Style'];var slots=(b.features||[]).filter(function(f){return FSF.indexOf(f)>=0;}).length;if(!slots)return;var opts=(DATA.artList||[]).filter(function(x){var a=DATA.arts[x]||{};if(a.cat!=='Fighting Style')return false;if(a.reqFeat&&(b.features||[]).indexOf(a.reqFeat)<0)return false;return true;});_dl('dl_fs',opts);H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Fighting Style</h3>';for(var fj=0;fj<slots;fj++)H+=_nmRow('fs::'+fj,'Style '+(fj+1),(b.fightingStyleNames||[])[fj]||'','dl_fs','swap',SW.ok);})();(function(){var _ls={};(DATA.artList||[]).forEach(function(x){var a=DATA.arts[x];if(a&&a.cat==='Fighting Style'&&a.grantCantrips)_ls[a.grantCantrips.list]=1;});Object.keys(_ls).forEach(function(L){_dl('dl_fscl_'+L,(DATA.spells||[]).filter(function(sp){return sp.l===0&&sp.c.indexOf(L)>=0;}).map(function(sp){return sp.n;}).sort());});})();H+='<div id="fsCantripBox"></div>';(function(){var mc=(b.features||[]).filter(function(f){return f==='Sorcerer: Metamagic';}).length;if(!mc)return;_dl('dl_mm',(DATA.metamagicOptions||[]).map(function(o){return o.n;}));H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Metamagic options</h3>';for(var mj=0;mj<mc;mj++)H+=_nmRow('mm::'+mj,'Option '+(mj+1),(b.metamagicNames||[])[mj]||'','dl_mm','swap',SW.ok);})();(function(){if((b.features||[]).indexOf('Fighter: Combat Superiority (maneuvers)')<0)return;var mc=3+(b.maneuverBuys||0);_dl('dl_mv',(DATA.maneuvers||[]).map(function(o){return o.n;}));H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Battle Master maneuvers <span style="font-weight:400;color:var(--grey);font-size:10px">— 3 free, extras on the 4/5/6… ladder</span></h3>';H+='<div style="margin:2px 0 4px"><button onclick="buyManeuver()" style="font-size:11px;padding:2px 8px;cursor:pointer">+ Buy maneuver ('+(4+(b.maneuverBuys||0))+' AP)</button></div>';for(var vj=0;vj<mc;vj++)H+=_nmRow('mv::'+vj,'Maneuver '+(vj+1),(b.maneuverNames||[])[vj]||'','dl_mv','swap',SW.ok);})();(function(){var GR=_ownedGrants(b);if(!GR.length)return;H+='<h3 style="color:var(--good);font-size:12px;margin:12px 0 2px">✦ Choice-grant spells <span style="color:var(--grey);font-weight:400;font-size:10.5px">— free off-list picks; not bought</span></h3>';GR.forEach(function(g,gi){var pool=(DATA.spells||[]).filter(function(s){return s.c.some(function(c){return g.from.indexOf(c)>=0;});}).map(function(s){return s.n;}).sort();_dl('dl_gr_'+gi,pool);H+='<div style="font-size:11px;color:var(--good);margin:6px 0 2px;font-weight:600">'+_e(g.label)+' <span style="color:var(--grey);font-weight:400">— '+_e(g.note)+'</span></div>';var prev=(b.grantNames||{})[g.key]||[];for(var i=0;i<6;i++)H+=_nmRow('grant::'+gi+'::'+i,'Spell '+(i+1),prev[i]||'','dl_gr_'+gi,'swap',SW.ok);});})();
   if(!H){flash('Nothing to name yet — buy spells or feats first.');return;}
   var ov=document.getElementById('namesOv');if(!ov){ov=document.createElement('div');ov.id='namesOv';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';document.body.appendChild(ov);}
@@ -1316,8 +1364,10 @@ function _campDec(code){if(!code||code.indexOf('PACTRULES:')!==0)return null;try
 function campBarred(kind,name){var c=(foldBuild(null)||{}).campaign;return !!(c&&c[kind]&&c[kind].indexOf(name)>=0);}
 /* DM-authoritative (Supabase) campaign rules — separate from the PACTRULES code above.
    window._cloudCampaignRules is populated on load/refresh in the sync-ready module script
-   below (see D-GH14 follow-up). banMap keys here match js/engine.js validate()'s field names. */
-function cloudRuleBarred(kind,name){var r=window._cloudCampaignRules;if(!r)return false;var banMap={masteries:'bannedMasteries',boons:'bannedBoons'};var arr=r[banMap[kind]];return !!(Array.isArray(arr)&&arr.indexOf(name)>=0);}
+   below (see D-GH14 follow-up). The kind→field mapping comes from the shared engine export
+   RULE_BAN_FIELDS (window.RULE_BAN_FIELDS) so this stays in lockstep with validate()'s schema
+   and covers every ban kind at once (was a hardcoded {masteries,boons} that silently diverged). */
+function cloudRuleBarred(kind,name){var r=window._cloudCampaignRules;if(!r)return false;var field=(window.RULE_BAN_FIELDS||{})[kind];var arr=field&&r[field];return !!(Array.isArray(arr)&&arr.indexOf(name)>=0);}
 function closeCampaign(){var ov=document.getElementById('campOv');if(ov)ov.style.display='none';}
 function _campRows(kind,items,barred){return items.map(function(n){var ck=(barred.indexOf(n)>=0)?' checked':'';return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;width:49%;margin:1px 0;box-sizing:border-box"><input type="checkbox" class="campck" data-kind="'+kind+'" data-name="'+String(n).replace(/"/g,'&quot;')+'"'+ck+'> '+String(n).replace(/</g,'&lt;')+'</label>';}).join('');}
 function openCampaign(){
@@ -1409,7 +1459,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   import { currentSession, onAuthChange } from '../js/auth.js';
   import { listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { getAwardHistory } from '../js/dm.js';
-  import { validate, DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48)
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync };
   window._authBridge = { currentSession, onAuthChange };
@@ -1421,7 +1471,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of
   // hand-copied inline duplicates. UI boot waits on engine-ready.
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (Live Sheet); never read by compute()
-  window.DATA = DATA; window.compute = compute; window.baseBuild = baseBuild; window.MUT = MUT;
+  window.DATA = DATA; window.compute = compute; window.baseBuild = baseBuild; window.MUT = MUT; window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs;
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
@@ -1440,7 +1490,11 @@ document.addEventListener('sync-ready', function () {
   var cloudMenu = document.getElementById('cloudMenu');
   var _session  = null;
   var _campaignName = null;   // name of the campaign_id on the currently loaded character, if any
-  var _rulesStatus  = 'none'; // 'none' | 'active' | 'unavailable' — see renderCloudStatusBadge()
+  // 'none' | 'active' | 'unavailable' — see renderCloudStatusBadge(). window-scoped (not a local var) so
+  // apCeiling()/_dmOpts() (outside this closure, feat/campaign-ap-model) can read the SAME resolution
+  // signal that drives the campaign-rules badge, instead of a second hand-mirrored copy — collapsed from
+  // the original window._dmApStatus duplicate, D-GH-2026-07-12-livesheet-dmapstatus-dedup.
+  window._rulesStatus = window._rulesStatus || 'none';
   var _cloningIds   = new Set(); // character ids with a clone-to-standalone in flight — persists
                                   // across renderCloudMenu() rebuilds so reopening the ☁ menu mid-clone
                                   // can't start a second concurrent clone of the same character
@@ -1461,11 +1515,11 @@ document.addEventListener('sync-ready', function () {
     if(!_session){
       el.textContent = '🔒 Not signed in';
       el.title = 'Working locally. Sign in via the ☁ Cloud menu to save to a campaign.';
-    } else if(_rulesStatus === 'active' && _campaignName){
+    } else if(window._rulesStatus === 'active' && _campaignName){
       el.classList.add('good');
       el.textContent = '☁ Campaign: ' + _campaignName + ' — DM rules active';
       el.title = 'Signed in as ' + _session.user.email + '. Bound to "' + _campaignName + '" — the DM\'s campaign rules were fetched successfully and are being enforced.';
-    } else if(_rulesStatus === 'unavailable'){
+    } else if(window._rulesStatus === 'unavailable'){
       el.classList.add('warn');
       el.textContent = '⚠ Campaign' + (_campaignName ? (': ' + _campaignName) : '') + ' — rules unavailable';
       el.title = 'Signed in as ' + _session.user.email + '. This character is attached to a campaign but its DM rules could not be fetched — banned items may not be filtered until this succeeds.';
@@ -1475,22 +1529,32 @@ document.addEventListener('sync-ready', function () {
     }
   }
 
-  A.onAuthChange(function(s){ _session = s; renderCloudStatusBadge(); });
+  // auth.js's onAuthChange calls cb(event, session) — session is the 2nd arg, not the 1st (matches
+  // CharGen's campaign-ready listener; this one previously bound _session to the event STRING instead).
+  A.onAuthChange(function(event,session){ _session = session; renderCloudStatusBadge(); if(event==='SIGNED_OUT'){ _lsResetCloudApState(); if(typeof window.render==='function') window.render(); } });
   A.currentSession().then(function(s){ _session = s; renderCloudStatusBadge(); refreshCloudCampaignRules(); });
 
   // Fetch the active character's campaign rules on load/sign-in (not just at cloud-save)
   // so banned masteries/boons are filtered out of the pickers as you build, not just
   // rejected at the last step. See D-GH14 follow-up.
+  // Also resolves the AP-model fields (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model) for
+  // the CURRENTLY-loaded character — not just the campaign-rules badge. Without this, a signed-in player
+  // who reloads the page (rather than clicking ☁ Cloud → Load again) would see the rules badge correctly
+  // reflect their campaign while the AP chip silently stayed at "player only" until they re-clicked Load.
   async function refreshCloudCampaignRules(){
     if(!_session || typeof window.currentCharId !== 'function') { renderCloudStatusBadge(); return; }
     try {
       var rec = await S.loadCharacter(window.currentCharId());
-      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; _rulesStatus = 'none'; renderCloudStatusBadge(); return; }
+      window._dmAp = rec ? (rec.ap || 0) : 0;
+      window._ignorePlayerAp = false;
+      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; renderCloudStatusBadge(); return; }
+      window._rulesStatus = 'unavailable';   // interim, resolved just below — correctly NOT "no DM AP" if getCampaign throws
       var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
       window._cloudCampaignRules = camp ? (camp.rules || {}) : null;
       _campaignName = camp ? camp.name : null;
-      _rulesStatus = camp ? 'active' : 'unavailable';
-    } catch(e) { _rulesStatus = 'unavailable'; /* non-fatal — pickers just fall back to unfiltered until this succeeds */ }
+      window._rulesStatus = camp ? 'active' : 'unavailable';
+      if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; }
+    } catch(e) { window._rulesStatus = 'unavailable'; /* non-fatal — pickers/AP just fall back until this succeeds */ }
     renderCloudStatusBadge();
     if(typeof window.render === 'function') window.render();
   }
@@ -1535,7 +1599,13 @@ document.addEventListener('sync-ready', function () {
             }
           } catch(e) { /* non-fatal — can't reach campaign rules right now, don't block the save */ }
         }
-        var stats = { rules: window.RULES, name: b.name, LOG: window.LOG, SEQ: window.SEQ };
+        // Bare RULES/LOG/SEQ, not window.X — they're top-level `let` bindings in this file's main script
+        // and are never mirrored onto window, so `window.RULES`/`window.LOG`/`window.SEQ` were always
+        // undefined and this handler silently saved a character with NO event log (unloadable on read).
+        // Route through buildCharacterEnvelope so the cloud save carries the identical {schema,rules,name,
+        // LOG,SEQ,id} shape as the local save()/exportJSON() (D-GH40), rather than a hand-built subset that
+        // regressed this way. (Same window.X-doesn't-alias-a-let bug the Load handler above already fixed.)
+        var stats = window.buildCharacterEnvelope({ name: b.name, rules: RULES, LOG: LOG, SEQ: SEQ, id: id }, { sign: false });
         var res   = await S.saveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet', stats: stats });
         if(res.error) throw res.error;
         if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
@@ -1579,21 +1649,28 @@ document.addEventListener('sync-ready', function () {
             window._dmAp = rec.ap || 0;
             window._ignorePlayerAp = false;
             window._cloudCampaignRules = null;
-            _campaignName = null; _rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
+            _campaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
             if(rec.campaign_id && window._campaignBridge) {
               try {
                 var camps = await window._campaignBridge.listMyCampaigns();
                 var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
-                if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; _rulesStatus = 'active'; }
-              } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds */ }
+                if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; window._rulesStatus = 'active'; }
+              } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds; window._rulesStatus correctly stays 'unavailable', not silently 'none' */ }
             }
             renderCloudStatusBadge();
             var d = rec.stats;
-            window.LOG = d.LOG;
-            window.SEQ = d.SEQ||(d.LOG.length+1);
-            window.loadedRules = d.rules||null;
-            window.REDO = []; window.viewAt = null;
-            if(window.__charId !== undefined) window.__charId = rec.id;
+            // Bare assignment, not window.X= — LOG/SEQ/loadedRules/REDO/viewAt/__charId are top-level
+            // `let` bindings in this file's main script, which do NOT become window properties; a
+            // window.X= write here is a dead write to an unused property that every render()/foldBuild()/
+            // economy()/buy() call (all of which read the bare identifier) never sees. This previously
+            // meant clicking "Load" updated the AP-model globals above but silently left the sheet/ledger
+            // showing the PREVIOUSLY loaded character. Mirrors _lsConsumeHandoff()'s already-correct
+            // pattern a few hundred lines up.
+            LOG = d.LOG;
+            SEQ = d.SEQ||(d.LOG.length+1);
+            loadedRules = d.rules||null;
+            REDO = []; viewAt = null;
+            if(rec.id) __charId = rec.id;
             if(typeof window.save   === 'function') window.save();
             if(typeof window.render === 'function') window.render();
             cloudMenu.classList.remove('open');

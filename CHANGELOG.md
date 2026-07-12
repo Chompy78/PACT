@@ -4,6 +4,136 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-12 · fix — four aggregate-review findings across both tools**
+  (`tools/PACT-Live-Char-Sheet.html`, `tools/PACT-CharGen-Webtool.html`; `js/engine.js` untouched, no
+  `DATA.version` bump, parity 20/0). A pre-promotion `/code-review high` over the whole `main…preview`
+  diff surfaced these; all four verified fixed in a real browser (13/13 checks):
+  - **(pre-existing, likely already live) Live Sheet "☁ Save to cloud" saved an empty record.** It read
+    `window.RULES`/`window.LOG`/`window.SEQ`, which are always `undefined` (top-level `let` bindings are
+    never mirrored onto `window` — the same bug class already fixed in the adjacent Load handler). The
+    persisted `stats` collapsed to `{name}` with no event log, so any later load failed with "No character
+    data found." Now routes through `buildCharacterEnvelope({name,rules:RULES,LOG,SEQ,id})` (bare
+    identifiers) — the identical shape `save()`/`exportJSON()` already use, so it can't regress this way again.
+  - **CharGen 🎲 Randomize ignored DM AP.** Its spend cap used the raw player budget and `compute()` with no
+    opts, so a loaded campaign character with DM AP was under-built and its affordability gate tripped a
+    spurious OVER BUDGET past the player budget. Now caps at `compute(b,_cgDmOpts()).spendable` and measures
+    OVER BUDGET with the same opts — a no-op for local builds (verified: `{dmAp:0}` opts match no-opts across
+    all 20 fixtures), correct fill-to-spendable for campaign characters.
+  - **Live Sheet grandfather notice read as a hard "⚠ Needs review".** The non-blocking `ignore_player_ap`
+    notice was pushed into `validate()`'s issues[] unconditionally; the tray had no advisory tier, so a
+    benign, expected state alarmed the player — while CharGen showed the identical notice as a calm ⓘ. Added
+    `_lsIsAdvisory()` (mirrors CharGen's `isAdvisory()` verbatim) and split the tray: advisory notes render as
+    ⓘ and don't inflate the "Needs review (N)" count.
+  - **CharGen cloud-load label included the date.** The load confirm/flash read the button's full
+    `textContent` ("Aria — 2026-07-10"); now carries a `data-cname` with the clean name.
+
+- **2026-07-12 · refactor(live-sheet) — collapse the `_dmApStatus`/`_rulesStatus` hand-mirror into one
+  variable** (`tools/PACT-Live-Char-Sheet.html`; display-only, no `DATA.version` bump, parity 20/0).
+  Code-review follow-up from `feat/campaign-ap-model`: `window._dmApStatus` was a second, hand-mirrored
+  copy of the pre-existing `_rulesStatus` var (set to the same value at the same two call sites — the
+  cloud-load handler and `refreshCloudCampaignRules()`), risking a future edit updating one and forgetting
+  the other. Promoted `_rulesStatus` to `window._rulesStatus` (it needed cross-closure access anyway —
+  `apCeiling()`/`_dmOpts()` live outside the `sync-ready` listener's closure that originally declared it
+  `var`-local) and deleted `window._dmApStatus` entirely; the AP-source chip and the campaign-rules badge
+  now read the identical variable, so they cannot desync. Verified in a real browser: the four-state AP
+  display, the "from DM"/"unavailable" chips, and the campaign-rules badge all still render correctly
+  post-collapse (9/9 checks).
+
+- **2026-07-12 · chore(testing) — AUD-1 follow-up: audit.py now catches BUILD mirror drift**
+  (`testing/scripts/audit.py`; no app code touched, parity 20/0). New `check_build_version_sync()`:
+  compares `js/engine.js`'s `BUILD` (the documented single source of truth, `docs/VERSION-SYNC.md`)
+  against its four hand-maintained mirrors — CharGen's line-1 comment/`<title>`/header `.sub` label,
+  Live Sheet's line-1 comment, DM Console's `TOOL_VERSION` — and fails loudly on any mismatch.
+  `index.html` stays excluded (reads `BUILD` live, can never drift); `DATA.version` needs no
+  CharGen-mirror check since CharGen imports `DATA` live from `js/engine.js` as of D-GH26. Verified
+  both directions: 6/6 pass on the current (in-sync) tree, and a deliberately mismatched
+  `TOOL_VERSION` correctly fails with exit 1 (then restored — confirmed clean diff).
+
+- **2026-07-12 · chore(testing) — REV-11: headless engine-parity gate now runs in CI**
+  (`testing/scripts/engine-parity-ci.mjs`, `.github/workflows/engine-parity.yml`,
+  `testing/README.md`/`docs/HOW-TO-WORK.md` updated; no runtime app code touched, parity 20/0 — this
+  script *is* the parity check). A faithful Node port of `testing/tests/engine-parity.html`'s assert
+  mode: same 20 fixtures (build/live-sheet/event-sourcing ids now *discovered* from the fixture
+  directories rather than hardcoded, so a new fixture is picked up automatically), same
+  `expected-results.csv`, same per-fixture assertions incl. the CG-003/CG-007 special-cases. Wired as a
+  new, separate GitHub Action (`.github/workflows/engine-parity.yml`) — deliberately not folded into the
+  existing `character-gen-e2e.yml` randomized Playwright harness, since this one needs no browser install
+  and finishes in seconds, so it can gate a wider path set (`testing/**`, not just tool/engine-touching
+  PRs) without slowing every PR down. Verified both directions: passes clean on the real fixtures, and
+  correctly fails (exit 1) when an expected value is deliberately corrupted.
+
+- **2026-07-12 · docs — batch: REV-12 esc() hard invariant, rules-correctness review note, AI working
+  defaults, pre-release audit trigger, stale parity-count fix; graduate REV-10 as already-resolved**
+  (`AGENTS.md`, `docs/HOW-TO-WORK.md`, `docs/PACT_ROADMAP.md`; no code change). Five small roadmap items
+  bundled into one docs-only PR: (1) `AGENTS.md` Hard rules now states the `esc()`-everywhere invariant
+  explicitly (REV-12); (2) also fixed a stale "9 passed / 0 failed" parity count sitting right next to it
+  (every other reference already said 20); (3) `docs/HOW-TO-WORK.md` documents the rules-correctness
+  `/code-review` prompt pattern for engine PRs; (4) an "AI working defaults" note (model/effort defaults,
+  one-task-per-session, don't read large files wholesale — A8); (5) a pre-release full-audit trigger note
+  with a sample multi-lens workflow shape (A10). **REV-10 graduated without a code change** — its premise
+  (`.claude/` fully untracked) is outdated: `.gitignore` already scopes to just the ephemeral state
+  (`*.json`, `.fpp-reminder-state`, `worktrees/`), while `.claude/commands/*.md`/`.claude/agents/*.md` are
+  intentionally tracked project content (the skills this repo's agents use, e.g. `add-roadmap-task`) —
+  running the old `git rm --cached -r .claude` instruction literally would have deleted them from version
+  control, a regression, not a fix.
+
+- **2026-07-12 · feat(ap-model) — CharGen and the Live Sheet now show one identical spendable-AP total,
+  honoring DM AP + `ignore_player_ap`** (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`;
+  `js/engine.js` untouched, no `DATA.version` bump, parity 20/0). Closes `feat/campaign-ap-model`. Live
+  Sheet stopped pre-mixing DM AP into `b.budget` (it was also never actually spendable before — `buy()`
+  gated against the raw player-only ledger even though the display showed DM AP); CharGen got its first
+  cloud character-load/save feature, since it had no cloud character concept at all to hang DM AP off of;
+  both tools now show a capped "AP left", a non-blocking grandfather notice on an `ignore_player_ap`
+  toggle-flip, and a fourth "DM AP unavailable" display state. A `/code-review` pass found and fixed a
+  pre-existing, unrelated Live Sheet bug in the same code path (`window.LOG=` writes that silently never
+  updated the real `LOG`, so "Load character" swapped the AP display but not the actual character). Full
+  narrative in `docs/sessions/2026-07-12-campaign-ap-model-implementation.md`; option analysis in
+  `DECISIONS.md` `D-GH-2026-07-12-campaign-ap-model`.
+
+- **2026-07-12 · docs(engine) — document compute()'s two-pool AP model + anti-double-count invariant**
+  (`js/engine.js`; comment-only, no logic change, parity unchanged). First foundation slice of the campaign
+  AP model (`docs/plans/2026-07-12-campaign-ap-model-cold-review.md`): documents at the composition point
+  that spendable = Player AP (`b.budget`, folded from award events) + DM AP (`opts.dmAp`, server-only), that
+  `ignorePlayerAp` drops the player pool without refunding it, that the returned `budget` is a legacy alias
+  of `spendable`, and the anti-double-count invariant (never write derived spendable/dmAp back into the
+  log/budget/exports).
+
+- **2026-07-12 · docs(agents) — add "Fix depth" communication convention**
+  (`AGENTS.md`). New rule under Communication conventions: when a problem has both a shallow fix and a
+  deeper root-cause fix, surface **both** as options (tiered A/B format) with a recommendation — default to
+  the deeper fix unless it's risky/wide/soon-obsolete — instead of silently proposing only the cheap one.
+
+- **2026-07-12 · refactor(rules) — one kind token per ban call site; `RULE_BAN_FIELDS` accepts `draws` as a `drawbacks` alias**
+  (`js/engine.js`, `tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`; `DATA.version`
+  unchanged, parity 20/0). Code-review follow-up: the two ban-checkers used different kind vocabularies for
+  the same category — `campBarred('draws', …)` (the legacy PACTRULES/`HOUSE.disabled` vocabulary) next to
+  `cloudRuleBarred('drawbacks', …)` — so a future copy-paste of `'draws'` into `cloudRuleBarred` would have
+  silently failed open (no `'draws'` key → `false`, bans stop hiding). Rather than migrate the persisted
+  `'draws'` storage key (thrown away by the pending retire-PACTRULES work anyway), `RULE_BAN_FIELDS` now maps
+  **both** `drawbacks` (canonical) and `draws` (documented alias) to `bannedDrawbacks`, and the two picker
+  call sites use `'draws'` to match their adjacent `campBarred('draws', …)`. Either token now resolves in
+  either checker — the fail-silent trap is structurally gone.
+
+- **2026-07-12 · feat(rules) — banned drawbacks/arts are now hidden from the pickers (+ de-diverge Live Sheet's `cloudRuleBarred`)**
+  (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`;
+  `D-GH-2026-07-12-campaign-rules-snapshot`; `DATA.version` unchanged, parity still 20/0). Closes the
+  enforcement-only gap from the previous entry: a cloud-campaign character's drawback and art pickers now
+  live-filter out DM-banned entries (already-selected ones grandfathered), matching how boons/species/
+  masteries already behave. Live Sheet's `cloudRuleBarred()` no longer hardcodes `{masteries, boons}` — it
+  now derives its kind→field map from the shared engine export `RULE_BAN_FIELDS` (imported + exposed on
+  `window`), so it stays in lockstep with `validate()` and covers every ban kind at once. UI wiring only; no
+  engine/`compute()` change.
+
+- **2026-07-12 · feat(rules) — campaign rules can now ban drawbacks and arts**
+  (`js/engine.js`, `tools/DM-Console.html`; `D-GH-2026-07-12-campaign-rules-snapshot`; `DATA.version`
+  unchanged — `validate()` is display-only and never read by `compute()`, parity still 20/0). Extends the
+  cloud campaign rules format with `bannedDrawbacks` + `bannedArts`, mirroring the existing five ban fields:
+  `validate()` gains the two checks (surfaced as violations wherever it's already consumed — CharGen and Live
+  Sheet on join/save), `RULE_BAN_FIELDS` gains the two kinds, and the DM Console rules editor gains two grids.
+  This is the enforcement MVP of the retire-PACTRULES-code plan
+  (`docs/plans/2026-07-12-campaign-rules-snapshot.md`). Live-picker *hiding* of banned drawbacks/arts is a
+  deliberate, purely-additive fast-follow (see DECISIONS) — not shipped here.
+
 - **2026-07-11 · chore(testing) — add `playwright` + `supabase` CLI as devDependencies**
   (`testing/package.json`, `testing/package-lock.json`; dev-tooling only, no app code touched,
   `DATA.version` unchanged). Both were installed and verified working during the save-integrity session

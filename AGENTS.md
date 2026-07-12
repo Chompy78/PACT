@@ -71,6 +71,16 @@ letter, not a nested sub-tier. Letters reset each new chat.
 This applies whether the decision is presented in prose or via the `AskUserQuestion` tool: give every
 option — not only the recommended one — a one-line reason in its `description` field, not a bare label.
 
+### Fix depth — surface shallow vs deep, don't default to the cheap one
+When a problem admits both a **shallow fix** (a comment, a local guard, a minimal diff that just silences
+the symptom) and a **deeper fix** (removing the root cause, generalizing the underlying mechanism, making
+the bad state unrepresentable), present **both** as options — each with a one-line tradeoff — and give a
+recommendation. **Never silently propose only the cheap one.** Default the recommendation to the deeper
+fix when it's low/moderate risk and durable; recommend the shallow one only when the deep fix is genuinely
+risky, wide-reaching, or would be obsoleted by known upcoming work (say *which*). This is a real decision
+with distinct paths, so it uses the tiered A/B format above and is surfaced proactively — even when the
+user didn't ask "what are my options."
+
 ### `AskUserQuestion` — a tool error is not an answer
 - **If the tool call itself errors** (a permission/stream failure, not the user declining an option),
   that is not an answer. Retry the *same* question once and wait for a genuine reply. Never substitute a
@@ -144,8 +154,13 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   `service_role`/secret key** or any private credential.
 - **Target:** modern evergreen browsers on phones and desktops (current Chrome/Edge/Firefox/Safari, incl.
   iOS Safari). Prefer widely-supported JS/CSS; no legacy/IE shims.
-- After any change, `testing/tests/engine-parity.html` must report **9 passed / 0 failed** (how to run it —
+- After any change, `testing/tests/engine-parity.html` must report **20 passed / 0 failed** (how to run it —
   browser or headless — is in `docs/HOW-TO-WORK.md`). Keep `engine.js`'s public API stable if you touch it.
+- **Every player-controlled value that reaches innerHTML/an attribute must pass through `esc()`** (or the
+  tool's equivalent escaping helper) before it's rendered — character names, campaign names, free-text
+  spell/item names, anything a signed-in user can set that another user's browser will later render (DM
+  Console rosters, shared campaigns). This is a hard invariant, not a style preference — cloud data now
+  crosses users, so an unescaped field is a stored-XSS path, not just a display bug (REV-12).
 
 ## Don't read large files wholesale (token budget)
 - **`js/engine.js` (~237 KB)** — don't read end-to-end unless the task targets the engine; `grep` for the

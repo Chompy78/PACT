@@ -6,6 +6,98 @@
 
 ---
 
+## D-GH-2026-07-12-campaign-ap-model · Build CharGen's cloud character-load now, rather than defer it
+- **Context:** `feat/campaign-ap-model` set out to make CharGen and the Live Sheet display an identical
+  spendable-AP total (`docs/plans/2026-07-12-campaign-ap-model-cold-review.md`), framed as
+  "display/validation-only." Mid-task recon (the plan's own explicit "VERIFY FIRST" gate) found CharGen had
+  **no cloud character concept at all** — only a campaign-*rules*-ban picker (`window._cloudCampaign`,
+  D-GH44), unrelated to any saved character, no `.ap`/`campaign_id` in its JSON schema, no `js/sync.js`
+  import. DM AP (`characters.ap`) was not just unwired — there was nothing to hang it off of.
+- **Options:** (A1) build a full CharGen cloud character-load/save flow now, in this branch, mirroring the
+  Live Sheet's `☁ Cloud` menu — real feature addition, bigger diff, but delivers the plan end-to-end today.
+  (A2) wire only what's already available with zero new plumbing (`ignore_player_ap`, already fetched by the
+  existing rules picker) and leave DM AP permanently in the "unavailable" state until a later task adds
+  cloud load — smaller diff, matches the "display-only" framing, but ships a visibly incomplete feature.
+  (A3) defer all CharGen work to a follow-up branch, ship only the Live Sheet fix this round.
+- **Decision:** A1 — user's explicit choice when asked (AskUserQuestion), overriding the assistant's A2
+  recommendation.
+- **Why:** The plan's whole premise — CharGen and the Live Sheet as *interchangeable* tools — is hollow if
+  CharGen can never actually show a cloud character's real DM AP; A2 would ship a feature whose primary use
+  case (a campaign character opened in CharGen) never leaves the "unavailable" state. Reused CharGen's own
+  existing, tested `_cgApplyEnvelope()`/`_cgEnvelope()` for the actual load/save rather than re-deriving
+  Live Sheet's pattern from scratch — much smaller net-new logic than it first appeared once that reuse was
+  identified. The DB schema (`characters.kind` check constraint) already listed `'chargen'` as a valid kind,
+  suggesting this was always intended, just never built.
+- **Also found — a separate, pre-existing Live Sheet bug, fixed in this same change once `/code-review`
+  surfaced it (initially logged here as "deliberately not fixed," reversed once independent review flagged
+  it twice as highest-confidence/highest-impact):** the Live Sheet's cloud "Load character" click handler
+  assigned `window.LOG = d.LOG` / `window.SEQ = ...` / `window.__charId = rec.id` — but `LOG`/`SEQ`/
+  `__charId` are top-level `let` bindings in the Live Sheet's main classic `<script>`, which do **not**
+  become `window` properties; a `window.X =` write there is a dead write to an unused property, shadowed by
+  (and never syncing back to) the real lexical binding every other function in the file actually reads.
+  Verified in a real browser (Playwright): clicking "Load" updated `window._dmAp`/`window._ignorePlayerAp`
+  correctly (those were never `let`-shadowed) but did **not** actually swap the character's LOG/SEQ/id —
+  `render()`/`save()` kept operating on the previously-loaded character's data. Fixed to bare `LOG=`/`SEQ=`/
+  `__charId=` assignment, matching the codebase's own already-correct `_lsConsumeHandoff()` pattern a few
+  hundred lines away (the likely origin: an unintentional copy-paste of the correctly `window.`-scoped
+  `_dmAp`/`_ignorePlayerAp` idiom onto fields that don't share that scoping). Re-verified post-fix in a real
+  browser: LOG/SEQ/`__charId`/the rendered sheet name all correctly swap to the newly-loaded character.
+  Also found and fixed in the same handler's neighborhood: `A.onAuthChange(function(s){...})` bound
+  `_session` to `js/auth.js`'s `event` string (first callback arg), not the `session` object (second arg) —
+  CharGen's own `campaign-ready` listener already had this right (`function (event, session)`); Live Sheet's
+  now matches, and a `SIGNED_OUT` transition resets the AP-model globals it previously left stale.
+- **Status:** In force. CharGen's cloud load/save and the Live Sheet fixes above all shipped in this change;
+  parity 20/0, `js/engine.js` untouched.
+
+---
+
+## D-GH-2026-07-12-campaign-rules-snapshot · Ship drawback/art bans as enforcement-only; defer live-picker hiding
+- **Context:** The retire-PACTRULES plan (`docs/plans/2026-07-12-campaign-rules-snapshot.md`) adds
+  `bannedDrawbacks` + `bannedArts` to the cloud campaign rules so the DM-authoritative rules cover what the
+  old local PACTRULES code did. Two things a ban can do differ in surface: (1) **enforcement** —
+  `validate()` flags a chosen banned item as a violation (already wired at `PACT-CharGen-Webtool.html:3064`
+  and `PACT-Live-Char-Sheet.html:1529`); (2) **live-picker hiding** — the item is filtered out of the
+  picker before it can be chosen, via `cloudRuleBarred()`. Recon surfaced that these two tools' picker
+  filters have *diverged*: CharGen's `cloudRuleBarred()` derives its ban-field map from the shared engine
+  export `RULE_BAN_FIELDS` (so it picks up new fields for free), but Live Sheet's `cloudRuleBarred()`
+  hardcodes `{masteries, boons}` and today doesn't live-filter even species/class bans. So adding
+  live-hiding for drawbacks/arts would mean touching both tools' drawback/art picker render paths (with
+  grandfather semantics for already-selected items) *and* reopening the Live Sheet hardcoded-map divergence.
+- **Options:** (A) ship enforcement only (`validate()` + `RULE_BAN_FIELDS` + DM Console editor) — small,
+  self-contained, and immediately functional since `validate()` is already consumed. (B) ship enforcement +
+  live-picker hiding in both tools in one change. (C) ship enforcement + hiding, and while in there, refactor
+  Live Sheet's `cloudRuleBarred()` onto `RULE_BAN_FIELDS` so it stops diverging (also fixing its pre-existing
+  species/class gap).
+- **Decision:** (A). Banned drawbacks/arts are enforced-by-violation now; live-picker hiding is a documented,
+  purely-additive fast-follow.
+- **Why:** Enforcement is the load-bearing behaviour and `validate()` is already wired, so (A) is genuinely
+  functional, not inert. Live-hiding is a strict *superset* — (A) is a subset of both (B) and (C) with **zero
+  rework** to build on later — so deferring it costs nothing but de-risks this slice from the Live Sheet
+  divergence (which is really its own bug: Live Sheet's live-filter ignores species/class bans regardless of
+  this work). Bundling (C)'s refactor here is exactly the "small task quietly turns big" pattern this session
+  was trying to avoid. Known, accepted UX gap until the fast-follow: banned drawbacks/arts are *warned* on
+  save rather than *hidden* from the picker, unlike boons/species/masteries which are hidden.
+- **Status:** In force. Enforcement shipped, and the fast-follow (option B/C) shipped immediately after:
+  banned drawbacks/arts are now hidden from the pickers in both tools, and Live Sheet's `cloudRuleBarred()`
+  was folded onto `RULE_BAN_FIELDS` (option C — removing its hardcoded `{masteries, boons}` divergence). The
+  UX gap noted above (warned-not-hidden) is therefore closed. Still open from the broader plan
+  (`docs/plans/2026-07-12-campaign-rules-snapshot.md`): retiring the `b.campaign`/PACTRULES `#3` code and the
+  LOG rules-snapshot + resolver for offline carry.
+- **Addendum (kind-vocabulary reconciliation, code-review follow-up):** the two ban-checkers speak different
+  kind vocabularies for the *same* category — the legacy local path uses `'draws'` (`campBarred`,
+  `isDisabled`, `HOUSE.disabled.draws`, `CG_CAMPAIGN.draws`, `dmAdd`, `_campRows` — some of it *persisted*),
+  while the new cloud path uses `'drawbacks'` (via `RULE_BAN_FIELDS`). Adjacent `campBarred('draws')` and
+  `cloudRuleBarred('drawbacks')` calls were a fail-open footgun (a `'draws'` typo into `cloudRuleBarred`
+  resolves to nothing and silently stops hiding bans). **Options:** (A) blanket-rename `'draws'→'drawbacks'`
+  everywhere — rejected: migrates two persisted formats and is thrown away by retire-PACTRULES; (B) a
+  comment — rejected: documents the trap without removing it; (C) make `RULE_BAN_FIELDS` (the shared export
+  whose job is to centralize the tools' kind vocabulary) accept `draws` as a documented alias of
+  `drawbacks`, and unify the call sites onto `'draws'`. **Decision: (C)** — zero migration, and *either*
+  token now resolves in *both* checkers, so the fail-silent path is structurally impossible. The alias is
+  marked to retire alongside the PACTRULES `'draws'` subsystem.
+
+---
+
 ## D-GH-2026-07-11-clone-campaign-character-standalone · Clone-to-standalone: don't forfeit verified DM AP, and don't touch the original as a read side effect
 - **Context:** Live Sheet's "Clone to standalone" feature copies a campaign character's raw data into a
   new, non-campaign record the player owns outright. Two things in the existing sync/security model

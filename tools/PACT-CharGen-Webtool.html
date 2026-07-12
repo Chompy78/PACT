@@ -388,8 +388,21 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
    so a disabled nested Expertise box doesn't grey the whole skill/tool/save row. */
 .gridck label.ck > input[type=checkbox]:disabled + * { opacity: 0.5; }
 .gridck label.ck:has(> input:disabled) { opacity: 0.5; cursor: default; }
+
+/* Cloud character load/save dropdown (feat/campaign-ap-model) — mirrors the Live Sheet's
+   .moremenu/.mi pattern verbatim so the two tools' cloud UI looks and behaves the same. */
+.moremenu{display:none;position:absolute;right:0;top:calc(100% + 5px);background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:6px;z-index:3000;min-width:215px;text-align:left}
+.moremenu.open{display:block}
+.moremenu .mi{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:7px 10px;border-radius:6px;font:inherit;font-size:13px;cursor:pointer}
+.moremenu .mi:hover{background:var(--lt)}
+/* AP-source tap-to-reveal info button (feat/campaign-ap-model) — accessible disclosure, not hover-only */
+.apinfo{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--grey);font-size:10px;font-weight:700;cursor:pointer;padding:0;line-height:1;vertical-align:middle}
+.apinfo:hover,.apinfo:focus-visible{background:var(--lt);color:var(--ink)}
+.apinfotip{display:none;position:absolute;z-index:3000;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:8px 10px;font-size:11.5px;font-weight:400;width:240px;margin-top:4px}
+.apinfotip.open{display:block}
+#budget:disabled{opacity:.55;cursor:not-allowed}
 </style></head><body>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.200</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.200</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Save this character to the cloud, or load one you saved before" style="color:#fff;border-color:rgba(255,255,255,.35)">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
@@ -431,7 +444,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
   <span><b class="lgm" style="color:var(--bad)">&dagger;</b>Cross-class / cross-species</span>
   <span><span class="dot k"></span>Standard (skills, HP&hellip;)</span>
 </div>
-    <div class="bigtot" id="total">—</div><div class="hint">total / budget · <b id="eqlvl" style="color:var(--blue)">—</b></div>
+    <div class="bigtot" id="total">—</div><div class="hint">total / budget · <b id="eqlvl" style="color:var(--blue)">—</b></div><div class="hint" id="apSourceLine" style="position:relative"></div>
     <div class="meter"><div class="meterfill mok" id="meterfill"></div></div>
     <div class="statusline good" id="status">—</div>
     <ul class="warns" id="warns"></ul>
@@ -471,9 +484,16 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
   // type="module"> means a dead CDN only loses the cloud-campaign UI, not the character builder.
   import { currentSession, onAuthChange } from '../js/auth.js';
   import { listMyCampaigns, getCampaign } from '../js/campaign.js';
+  // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
+  // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
+  // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
+  import { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
   window._authBridge = { currentSession, onAuthChange };
   window._campaignBridge = { listMyCampaigns, getCampaign };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync };
   document.dispatchEvent(new Event('campaign-ready'));
+  initSync();
+  document.dispatchEvent(new Event('sync-ready'));
 </script>
 <script>
 document.addEventListener('campaign-ready', function () {
@@ -548,6 +568,95 @@ document.addEventListener('campaign-ready', function () {
 });
 </script>
 <script>
+// Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen's first
+// cloud character-load flow — mirrors the Live Sheet's ☁ Cloud dropdown, using 'chargen' as the `kind`
+// (the `characters` table already accepted it — see sql/schema.sql — the tool just never used it).
+// Deliberately independent of the campaign-RULES picker above (window._cloudCampaign, CG_CAMPAIGN): this
+// sets window._dmAp/_ignorePlayerAp/_dmApStatus from the LOADED CHARACTER's own campaign_id, not from
+// whatever the user has separately picked in the rules dropdown — those stay two distinct concepts.
+document.addEventListener('sync-ready', function () {
+  'use strict';
+  var S = window._syncBridge, A = window._authBridge, C = window._campaignBridge;
+  var cgCloudBtn = document.getElementById('cgCloudBtn'), cgCloudMenu = document.getElementById('cgCloudMenu');
+  var _session = null;
+  var _cloudMenuGen = 0;   // bumped on every open — a stale in-flight listCharacters() checks this before writing the list, so a rapid close+reopen can't race a slower-loading earlier open
+
+  cgCloudBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    cgCloudMenu.classList.toggle('open');
+    if (cgCloudMenu.classList.contains('open')) renderCgCloudMenu();
+  });
+  document.addEventListener('click', function (e) {
+    if (!cgCloudMenu.contains(e.target) && e.target !== cgCloudBtn) cgCloudMenu.classList.remove('open');
+  });
+
+  async function renderCgCloudMenu() {
+    var gen = ++_cloudMenuGen;
+    if (!_session) {
+      cgCloudMenu.innerHTML = '<div style="padding:6px 10px;font-size:12px;color:var(--grey)">Sign in to save this character to the cloud, or load one you saved before.</div>' +
+        '<a href="../login.html" class="mi">🔑 Sign in</a>';
+      return;
+    }
+    cgCloudMenu.innerHTML = '<div style="padding:2px 10px 6px;font-size:11px;color:var(--grey)">' + _apEsc(_session.user.email || '') + '</div>' +
+      '<button type="button" class="mi" id="cgCloudSaveBtn">☁ Save to cloud</button>' +
+      '<div style="padding:8px 10px 2px;font-size:11px;color:var(--grey);font-weight:700">Load saved character</div>' +
+      '<div id="cgCloudCharList"><div style="padding:6px 10px;font-size:12px;color:var(--grey)">Loading…</div></div>';
+    document.getElementById('cgCloudSaveBtn').addEventListener('click', onSaveClick);
+    var chars;
+    try { chars = await S.listCharacters(); } catch (err) { chars = []; }
+    if (gen !== _cloudMenuGen) return;   // a newer open (or a close) superseded this fetch — discard it
+    var mine = (chars || []).filter(function (c) { return c.kind === 'chargen'; });
+    var listEl = document.getElementById('cgCloudCharList');
+    if (!listEl) return;   // menu closed while the list was loading
+    if (!mine.length) { listEl.innerHTML = '<div style="padding:6px 10px;font-size:12px;color:var(--grey)">No saved characters yet.</div>'; return; }
+    listEl.innerHTML = mine.map(function (c) {
+      return '<button type="button" class="mi cg-cloud-load-btn" data-cid="' + _apEsc(c.id) + '" data-cname="' + _apEsc(c.name || 'Unnamed') + '">' + _apEsc(c.name || 'Unnamed') +
+        ' <span style="color:var(--grey);font-weight:400">— ' + _apEsc((c.updated_at || '').slice(0, 10)) + '</span></button>';
+    }).join('');
+    listEl.querySelectorAll('.cg-cloud-load-btn').forEach(function (btn) {
+      // data-cname, not btn.textContent — textContent includes the trailing date <span>, so the confirm
+      // dialog + flash would read "Aria — 2026-07-10" instead of the clean character name.
+      btn.addEventListener('click', function () { onLoadClick(btn.dataset.cid, btn.dataset.cname); });
+    });
+  }
+
+  async function onSaveClick() {
+    var btn = document.getElementById('cgCloudSaveBtn'); if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    try {
+      var id = currentCharId();
+      var stats = _cgEnvelope(false);   // unsigned — matches the Live Sheet's cloud stats shape; never signature-checked on the way back in
+      var res = await S.saveCharacter({ id: id, name: stats.name || 'Character', kind: 'chargen', stats: stats });
+      if (res.error) throw res.error;
+      if (typeof flash === 'function') flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
+    } catch (err) { alert('Save failed: ' + err.message); }
+    if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
+  }
+
+  async function onLoadClick(id, label) {
+    if (!confirm('Load "' + label + '"? This replaces your current character build.')) return;
+    var rec = await S.loadCharacter(id);
+    if (!rec || !rec.stats || !Array.isArray(rec.stats.LOG)) { alert('No character data found.'); return; }
+    window._dmAp = rec.ap || 0;
+    window._ignorePlayerAp = false;
+    window._dmApStatus = rec.campaign_id ? 'unavailable' : 'none';   // resolve below; 'unavailable' is the correct interim state, not silently 0
+    if (rec.id) __charId = rec.id;   // bare assignment — __charId is a top-level `let`, so a window.X= write here would silently shadow-fail (see the Live Sheet's own cloud-load bug, fixed elsewhere in this change — deliberately not repeated here)
+    _cgApplyEnvelope(rec.stats, { clearHistory: true });      // bare LOG/SEQ assignment inside — same reason
+    cgCloudMenu.classList.remove('open');
+    if (rec.campaign_id && C) {
+      try {
+        var camp = await C.getCampaign(rec.campaign_id);
+        if (camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._dmApStatus = 'active'; }
+      } catch (e) { /* non-fatal — stays 'unavailable', which correctly reads as "unknown", not "no DM AP" */ }
+      render();
+    }
+    if (typeof flash === 'function') flash('☁ Loaded: ' + label);
+  }
+
+  A.onAuthChange(function (event, session) { _session = session; });
+  A.currentSession().then(function (session) { _session = session; });
+});
+</script>
+<script>
 
 function _mod(s){return Math.floor((s-10)/2);}
 function _abilName(a){return a;}
@@ -575,6 +684,60 @@ function eligibleSpells(b,ti,di){
 // compute() is bridged from js/engine.js (engine-ready module, D-GH26).
 // the character's AP-equivalent level: the highest level whose budget-table value is <= ap (0 = below level 1)
 function apLevel(ap){var lv=0;for(var L=1;L<=20;L++){if((DATA.levelAP[L]||1e9)<=(+ap||0))lv=L;}return lv;}
+
+// AP-source display (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): the four states a
+// character's spendable AP can be in, matching the Live Sheet's DM-AP chip. window._dmApStatus is set by
+// the cloud load flow (sync-ready listener, below): 'none' (no cloud character loaded, or one loaded with
+// no campaign — Player AP only), 'active' (campaign resolved — combine or DM-only per ignore_player_ap),
+// 'unavailable' (character IS in a campaign but its DM AP/rules couldn't be read right now — must NOT read
+// as "no DM AP"). Defaults to 'none' so a fresh/local build behaves exactly as before this feature.
+window._dmApStatus = window._dmApStatus || 'none';
+// DM AP counts toward the spendable total ONLY when the campaign is fully resolved ('active'). In 'none'
+// (no / orphaned campaign — e.g. a campaign deleted while the character kept its `ap`, campaign_id set null
+// per the schema's `on delete set null`) and 'unavailable' (rules unconfirmed) the total shows player AP
+// only — matching exactly what _apSourceHTML() labels, so #total and the breakdown line can never disagree.
+// The Live Sheet gates identically (via apCeiling / render's _dmAp), so both tools show the same total.
+function _cgDmOpts(){var a=window._dmApStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp};}
+// Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
+// first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
+// into an unrelated local build/file/reset.
+function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';}
+function _apEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+function _apSourceHTML(r){
+  var st=window._dmApStatus||'none', ignPlr=!!window._ignorePlayerAp, dmAp=window._dmAp||0;
+  var label,tip;
+  if(st==='unavailable'){
+    label='⚠ DM AP unavailable — showing '+r.playerAp+' player AP only';
+    tip="This character is bound to a cloud campaign, but its DM-granted AP couldn't be read right now (offline, or the campaign is still loading). This is NOT the same as having no DM AP — your real spendable total may be higher once it reconnects.";
+  } else if(st==='active' && ignPlr){
+    label='🛡 '+r.spendable+' AP — DM only';
+    tip='Your DM has switched off player-entered AP for this campaign. Only DM-granted AP ('+dmAp+') counts toward your budget, so the Player AP field is locked. Purchases already made with player AP are kept (grandfathered), not deleted or refunded.';
+  } else if(st==='active'){
+    label='☁ '+r.spendable+' AP — '+r.playerAp+' player + '+dmAp+' DM';
+    tip='Your spendable budget combines the Player AP field ('+r.playerAp+') with '+dmAp+' AP your DM has granted this character. Combined live at display time — never saved as one number.';
+  } else {
+    label='🔒 '+r.playerAp+' AP — player only';
+    tip="This build isn't bound to a cloud campaign, so only the Player AP field counts. Load a cloud character bound to a campaign (☁ Cloud menu) to add DM-granted AP.";
+  }
+  return '<span>'+label+'</span> <button type="button" class="apinfo" id="apSourceBtn" aria-expanded="false" aria-describedby="apSourceTip" aria-label="Why this AP total? Details">ⓘ</button>'+
+    '<span class="apinfotip" id="apSourceTip" role="tooltip">'+_apEsc(tip)+'</span>';
+}
+// Tap/click/keyboard-accessible disclosure toggle (not hover-only — mobile-safe, screen-reader reachable).
+// Delegated on document since #apSourceLine's content is replaced on every render().
+document.addEventListener('click',function(e){
+  var btn=e.target.closest&&e.target.closest('#apSourceBtn');
+  var tip=document.getElementById('apSourceTip');
+  if(btn){
+    e.stopPropagation();
+    var open=tip&&tip.classList.toggle('open');
+    btn.setAttribute('aria-expanded',open?'true':'false');
+    return;
+  }
+  if(tip&&!tip.contains(e.target)){tip.classList.remove('open');var b2=document.getElementById('apSourceBtn');if(b2)b2.setAttribute('aria-expanded','false');}
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){var tip=document.getElementById('apSourceTip');if(tip)tip.classList.remove('open');var b=document.getElementById('apSourceBtn');if(b){b.setAttribute('aria-expanded','false');}}
+});
 
 
 const ABILS=["STR","DEX","CON","INT","WIS","CHA"];
@@ -846,7 +1009,8 @@ function buildArtGrid(){
   const BAND={0:'Sit',1:'Per-Rest',2:'At-Will',3:'Passive',4:'Premium'};
   const byCat={};
   DATA.artList.forEach(function(nm){if((DATA.arts[nm]||{}).cat==='Fighting Style'&&(DATA.arts[nm]||{}).reqFeat)return;/* combat fighting styles are buyable here at 11; class-gated Blessed/Druidic stay feature-only */
-    const ar=DATA.arts[nm]; if(!ar) return; /* campaign-barred arts are shown greyed+disabled, not hidden */
+    const ar=DATA.arts[nm]; if(!ar) return; /* campBarred (local house-rules) arts are shown greyed+disabled, not hidden */
+    if(!chk.includes(nm)&&cloudRuleBarred('arts',nm))return;   // cloud campaign rules — hide banned arts (mirror boons live-filter); keep already-selected
     if(q&&!(nm+' '+(ar.fx||'')+(ar.cat||'')+(ar.prereqNote||'')).toLowerCase().includes(q)&&!chk.includes(nm)) return;
     (byCat[ar.cat]=byCat[ar.cat]||[]).push(nm);
   });
@@ -904,7 +1068,9 @@ function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=b
         '<span class="dsc">'+(bo.fx||'')+'</span></label>';}).join('')+'</div>';});
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
 function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=_db.drawbacks||[];const q=_bdFilter('drawfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
-  const byCat={};Object.keys(D).forEach(k=>{var _bar=campBarred('draws',k);if(!_bar&&isDisabled('draws',k)&&!chk.includes(k))return;const dr=D[k];
+  const byCat={};Object.keys(D).forEach(k=>{var _bar=campBarred('draws',k);if(!_bar&&isDisabled('draws',k)&&!chk.includes(k))return;
+    if(!chk.includes(k)&&cloudRuleBarred('draws',k))return;   // cloud campaign rules — hide banned drawbacks (mirror boons live-filter); keep already-selected. 'draws' matches the adjacent campBarred kind (aliased in RULE_BAN_FIELDS)
+    const dr=D[k];
     if(q && (k+' '+(dr.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
     (byCat[dr.cat]=byCat[dr.cat]||[]).push(k);});
   const cats=DRAW_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>DRAW_ORDER.indexOf(c)<0));
@@ -1411,7 +1577,7 @@ function _commitWholeBuildFrame(){
 }
 function _clearHistory(){HIST.length=0;REDO.length=0;_openKey=null;_coalesceKey=null;_turnLatched=false;}
 // Reset = one undoable whole-build replace to a blank build (the confirm() stays in the button onclick).
-function resetBuild(){_fileHandle=null;_commitWholeBuildFrame();applyBuild({});}
+function resetBuild(){_fileHandle=null;_commitWholeBuildFrame();_cgResetCloudApState();applyBuild({});}
 
 // ---- Phase 2 Step 4 (Chunk D): Undo/Redo button state + keyboard shortcuts ----
 // Refresh the four buttons (desktop + mobile) from HIST/REDO depth. Called from render() (which runs after
@@ -2062,6 +2228,7 @@ async function loadViaPicker(){
 }
 function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
     const d=JSON.parse(e.target.result);
+    _cgResetCloudApState();   // a local file has no cloud campaign binding — don't carry over a prior cloud load's DM AP
     // Tamper-evidence (D-GH48): non-blocking flag if the incoming signed file's signature no longer matches.
     const _tampered=!!(window.verifyCharacterEnvelope&&window.verifyCharacterEnvelope(d).tampered);
     // Chunk C: three load branches, checked in order. A user file-load is ONE undoable step, so
@@ -2121,7 +2288,7 @@ function shareLink(){try{const enc=_encB(readBuild());const base=location.href.s
   flash(copied?('Shareable link copied to clipboard ('+url.length+' chars).'):'Link shown — copy it from the popup or the address bar.');
   }catch(err){flash('Could not build a share link.');}}
 function loadFromHash(){try{if(typeof location==='undefined'||!location.hash)return false;
-  if(location.hash.indexOf('#b=')!==0)return false;_fileHandle=null;applyBuild(_decB(location.hash.slice(3)),{clearHistory:true});flash('Shared build loaded ✓');return true;}catch(e){return false;}}
+  if(location.hash.indexOf('#b=')!==0)return false;_fileHandle=null;_cgResetCloudApState();applyBuild(_decB(location.hash.slice(3)),{clearHistory:true});flash('Shared build loaded ✓');return true;}catch(e){return false;}}
 /* ── Campaign Rules (DM bar tool) — mirrored into CharGen ── */
 var CG_CAMPAIGN=null;
 var _AK='DragonReachForgePACT';
@@ -2486,6 +2653,7 @@ function _cgConsumeHandoff(){
     const p=takeHandoff(u);
     try{history.replaceState(null,'',location.pathname+location.hash);}catch(e){}   // strip ?handoff: a reload must not re-trigger
     if(!p)return false;
+    _cgResetCloudApState();   // a Live Sheet handoff is a local transfer, not a cloud load — no DM AP/campaign to carry over
     _cgApplyEnvelope({LOG:p.LOG,SEQ:p.SEQ,id:p.id,rules:p.rules},{clearHistory:true});
     const fv=p.rules||'(unstamped)';
     if(typeof flash==='function')flash(fv===DATA.version?'Opened your character from the Live Sheet.':('Opened your Live Sheet character — repriced live under current '+DATA.version+' rules.'));
@@ -2495,11 +2663,11 @@ function _cgConsumeHandoff(){
 function _cgRestoreAutosave(){try{
   const raw=localStorage.getItem(CG_AUTOSAVE_KEY);
   if(raw){const d=JSON.parse(raw);
-    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});return true;}}
+    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgResetCloudApState();_cgApplyEnvelope(d,{clearHistory:true});return true;}}
   // one-time migration of the pre-Step-4 flat-build autosave, then remove the old key
   const legacy=localStorage.getItem(CG_AUTOSAVE_KEY_LEGACY);
   if(legacy){const b=JSON.parse(legacy);
-    if(b&&typeof b==='object'){applyBuild(b,{clearHistory:true});try{_cgAutosave();}catch(e){}try{localStorage.removeItem(CG_AUTOSAVE_KEY_LEGACY);}catch(e){}return true;}}
+    if(b&&typeof b==='object'){_cgResetCloudApState();applyBuild(b,{clearHistory:true});try{_cgAutosave();}catch(e){}try{localStorage.removeItem(CG_AUTOSAVE_KEY_LEGACY);}catch(e){}return true;}}
   return false;
 }catch(e){return false;}}
 
@@ -2522,8 +2690,15 @@ function randomizeRoll(){
   b.stats=b.stats||{}; ABILS.forEach(a=>{b.stats[a]=(+b.stats[a])||10;});
   b.hd=(+b.hd)||1; b.profBonus=(+b.profBonus)||2; b.languages=b.languages!=null?(+b.languages):1;
   b.weaponProf=b.weaponProf||{}; b.armour=b.armour||{};
-  const budget=(+b.budget)||DATA.level1AP||50;
-  const C=x=>compute(x);
+  // Randomize fills up to the SPENDABLE ceiling — player AP plus DM-granted AP when the campaign is active
+  // (feat/campaign-ap-model) — not just the raw player budget, so a loaded campaign character with DM AP
+  // isn't left under-built. Passing _cgDmOpts() to BOTH the ceiling and C() also measures the OVER BUDGET
+  // warning against spendable, not the player-only budget, so the affordability gate below doesn't trip
+  // spuriously once spend passes the player budget. _cgDmOpts() is a no-op ({dmAp:0,ignorePlayerAp:false})
+  // for a local build with no active campaign, so ordinary local randomize behaviour is unchanged.
+  const _dmO=_cgDmOpts();
+  const budget=compute(b,_dmO).spendable||DATA.level1AP||50;
+  const C=x=>compute(x,_dmO);
   const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
   function tryAct(mut){ const snap=JSON.stringify(b);
     const _hw=ww=>ww.filter(w=>typeof isAdvisory==='function'?!isAdvisory(w):true).length;  // count only HARD (⚠) warnings; advisory (ⓘ) notes are allowed
@@ -2861,7 +3036,7 @@ function sheetStats(r,b){
   return abil+'<div class="sublab">Combat</div>'+combat+'<div class="sublab">Magic & wealth</div>'+spell;
 }
 function sgn(x){return (x>=0?'+':'')+x;}
-function renderSheet(){const b=readBuild(),r=compute(b);
+function renderSheet(){const b=readBuild(),r=compute(b,_cgDmOpts());
   return renderCharSheet(b,r,{apText:r.total+' / '+r.budget+' AP spent  ·  ≈ Level '+(apLevel(r.budget)||'<1')+' by budget'});}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;const showing=ov.style.display==='block';
   if(showing){ov.style.display='none';}else{$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}
@@ -2938,7 +3113,7 @@ function warnTarget(w){var m;
   return null;}
 function sectionIdForWarning(w){for(var i=0;i<SECTIONS.length;i++){if(SECTIONS[i].warns.some(function(k){return w.indexOf(k)>=0;}))return 'sec'+(i+1);}return null;}
 // informational notes (not hard rule violations) — never counted as "issues" in the banner or section badges
-function isAdvisory(w){return /no Ki-using ability/.test(w);}
+function isAdvisory(w){return /no Ki-using ability/.test(w)||/switched off player-entered AP/.test(w);}
 function jumpToControl(id){const el=$(id);if(!el)return false;
   const fs=el.closest?el.closest('fieldset'):null;if(fs)fs.classList.remove('collapsed');var _h1=document.querySelector('.stickyhead');if(_h1&&getComputedStyle(_h1).position==='static'){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('flashhl');setTimeout(function(){el.classList.remove('flashhl');},1700);return true;}
   let off=0;const head=document.querySelector('.stickyhead');
@@ -3054,7 +3229,16 @@ function _cgRenderInner(){
   {var _ci=document.getElementById('campind');if(_ci)_ci.innerHTML=(b.campaign&&b.campaign.n)?('🛡 '+String(b.campaign.n).replace(/</g,'&lt;')+' ('+((b.campaign.boons||[]).length+(b.campaign.draws||[]).length+(b.campaign.arts||[]).length)+' barred)'):'';}
   // Medium/Heavy armour require STR 10 — auto-deselect if Strength drops below 10
   if((((b.stats&&b.stats.STR)||10)<10)){var _am=$('a_med'),_ah=$('a_heavy'),_ch=false;if(_am&&_am.checked){_am.checked=false;b.armour.medium=false;_ch=true;}if(_ah&&_ah.checked){_ah.checked=false;b.armour.heavy=false;_ch=true;}if(_ch){if(typeof flash==='function')flash('Medium/Heavy armour deselected — requires STR 10.');return _cgRenderInner();}}
-  const r=compute(b);annotate(b,r);
+  // Composed spendable AP (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): b.budget stays the
+  // raw Player-AP field; DM AP + ignore_player_ap are layered in here via compute()'s opts, exactly like
+  // the Live Sheet, so the two tools show the identical spendable total for the same character. Never
+  // written back into b.budget/the LOG/an export — see the anti-double-count invariant on compute().
+  const _dmO=_cgDmOpts();const r=compute(b,_dmO);annotate(b,r);
+  {const bi=$('budget');if(bi)bi.disabled=_dmO.ignorePlayerAp;const bw=$('budget_w');if(bw)bw.textContent=_dmO.ignorePlayerAp?'🔒 locked — your DM has switched off player AP this campaign':'';}
+  {const al=$('apSourceLine');if(al)al.innerHTML=_apSourceHTML(r);}
+  // Toggle-flip grandfather notice (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): non-blocking
+  // — purchases already made with player AP are kept (never deleted/refunded/rewritten), this only informs.
+  if(_dmO.ignorePlayerAp){const _spent=economy(LOG).spent,_dm=_dmO.dmAp;if(_spent>_dm)r.warnings=r.warnings.concat(['Your DM has switched off player-entered AP for this campaign — purchases already made with player AP are kept, but no longer count toward new spending. Only '+_dm+' DM AP is available for anything new.']);}
   // Cloud campaign rules (D-GH44): validate() is the shared engine export (js/engine.js) — never
   // reimplemented here. Picker filtering above handles simple banned-name membership; this catches
   // everything else (incl. multi-discipline count) as a warning, e.g. if a stricter campaign is

@@ -354,6 +354,16 @@ export function compute(b, opts){
   if(drawGain>14) W.push("Drawbacks grant "+drawGain+" AP — note most tables cap at 14 AP (check with your DM)");
   if((b.drawbacks||[]).length>3) W.push((b.drawbacks||[]).length+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
   add("Starting gold",b.gold||0);
+  // --- AP composition: the two-pool model (see docs/plans/2026-07-12-campaign-ap-model-cold-review.md) ---
+  // Spendable AP is composed HERE, once, from two independently-stored pools so every tool shows ONE total:
+  //   • Player AP = b.budget  — folded from the character's own `award` events; raw, player-owned.
+  //   • DM AP     = opts.dmAp  — campaign-granted; stored server-side only, NEVER in the character's log.
+  // opts.ignorePlayerAp (a campaign toggle) drops the player pool from the ceiling but NEVER refunds or
+  // rewrites it — purchases already made are grandfathered; only the ceiling changes.
+  // ANTI-DOUBLE-COUNT INVARIANT: `spendable` is derived and returned on THIS result object. Callers must
+  // DISPLAY it, never write it (or dmAp) back into b.budget / the award log / an export — else a reload
+  // double-counts. `budget` in the return is a legacy display alias of `spendable`. `remaining` =
+  // spendable − total(spent). (Two pools today; the composition is additive if more are ever added.)
   const playerAp=b.budget||0; const _opts=opts||{}; const dmAp=Number(_opts.dmAp)||0;
   const spendable=(_opts.ignorePlayerAp?0:playerAp)+dmAp; const remaining=spendable-total;
   if(remaining<0) W.unshift("OVER BUDGET by "+(-remaining)+" AP");
@@ -627,7 +637,8 @@ export function rebuildStateFromEvents(baseSnapshot, events, opts) {
  * validate(b, rules) — check a build against a DM's campaign rules (D-GH14).
  * `rules` is the campaign's `rules` JSON column (DM-authoritative, read-only
  * to players): { bannedSpecies, bannedOriginSpecies, bannedMasteries,
- * bannedBoons, bannedOriginClasses, multiDisciplineAllowed, houseRules }.
+ * bannedBoons, bannedDrawbacks, bannedArts, bannedOriginClasses,
+ * multiDisciplineAllowed, houseRules }.
  * Pure and side-effect-free; does not touch compute() or pricing. Returns
  * { ok, violations: [{code, message}] } — never throws on a malformed/empty
  * rules object (every field defaults to "no restriction").
@@ -660,6 +671,16 @@ export function validate(b, rules) {
       violations.push({ code: 'bannedBoons', message: 'Boon "' + bo + '" is banned in this campaign.' });
     }
   }
+  for (const dw of (b.drawbacks || [])) {
+    if (has(r.bannedDrawbacks, dw)) {
+      violations.push({ code: 'bannedDrawbacks', message: 'Drawback "' + dw + '" is banned in this campaign.' });
+    }
+  }
+  for (const ar of (b.arts || [])) {
+    if (has(r.bannedArts, ar)) {
+      violations.push({ code: 'bannedArts', message: 'Art "' + ar + '" is banned in this campaign.' });
+    }
+  }
   if (r.multiDisciplineAllowed === false) {
     const nDisc = (b.traditions || []).reduce((s, t) => s + ((t.disciplines || []).length), 0);
     if (nDisc > 1) {
@@ -682,6 +703,13 @@ export const RULE_BAN_FIELDS = {
   originClasses: 'bannedOriginClasses',
   masteries: 'bannedMasteries',
   boons: 'bannedBoons',
+  drawbacks: 'bannedDrawbacks',   // canonical kind
+  draws: 'bannedDrawbacks',       // alias: the tools' live-filter/campBarred vocabulary abbreviates
+                                  // "drawbacks" to "draws" (HOUSE.disabled.draws, CG_CAMPAIGN.draws).
+                                  // Accepting both lets cloudRuleBarred() and campBarred() use ONE kind
+                                  // token per call site — instead of 'draws' silently failing open here.
+                                  // Retire alongside the PACTRULES 'draws' subsystem.
+  arts: 'bannedArts',
 };
 
 /* =========================================================================
