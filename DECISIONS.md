@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-13-campaign-membership-helpers** — De-duplicate campaign-membership SQL checks across `join_campaign`/`redeem_player_invite`/`bind_character_to_campaign` into two internal helper functions, deliberately ungranted so they can't be called as a standalone client RPC
 - **D-GH-2026-07-13-campaign-bind-character** — Campaign join/invite UI Deliverable 2 (Path B): bind an existing character via the shared `invite_code`; non-blocking `validate()` warnings on join, placed in the ☁ Cloud menu rather than the header's rules-preview picker
 - **D-GH-2026-07-13-campaign-invite-tokens** — Campaign join/invite UI Deliverable 1 (Path A): a single-use, per-player CSPRNG token distinct from the shared `invite_code`, redemption reuses CharGen's own cloud-save helpers rather than re-deriving envelope construction
 - **D-GH-2026-07-13-log-fuzz-phase2** — LOG-direct pure-Node fuzzer as Phase 2 of the real-oracle plan; found a real `NaN` bug on its first run, held CI wiring back rather than bundling the engine fix into a test-only change
@@ -84,6 +85,46 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-13-campaign-membership-helpers · De-duplicate campaign-membership SQL checks
+- **Context:** `/code-review ultra` on PR #202 (`D-GH-2026-07-13-campaign-bind-character`) found, via two
+  independent finder angles (Reuse, Altitude), that `join_campaign`, `redeem_player_invite`, and
+  `bind_character_to_campaign` each hand-rolled their own "look up campaign by shared `invite_code`" and
+  "does this owner already have a character in this campaign" checks. Deferred out of that PR's scope at
+  the time since fixing it meant touching two already-shipped functions, not just the new one — filed as
+  a roadmap follow-up (`refactor/campaign-membership-helpers`) and picked up here.
+- **Options (how to share the logic):** (A) a shared SQL helper function, called from all three RPCs.
+  (B) leave the duplication — three RPCs is a small, closed set, and the checks are short enough that
+  drift risk is low. (C) collapse the three RPCs into one parameterized function — over-abstracts three
+  call sites with genuinely different pre/post logic (new-blank-character vs. token-redemption vs.
+  existing-character-rebind) into one branchy function, trading duplication for a different readability
+  cost.
+- **Decision (A):** two small helpers — `find_campaign_by_invite_code(code)` (raises on miss, matching
+  the exact prior error text) and `owner_has_character_in_campaign(campaign, owner)` (a boolean predicate,
+  since the two callers that need it raise with *different* wording — "You have already joined this
+  campaign" vs. "…with another character" — so the helper can't own the exception itself without losing
+  that distinction).
+- **Why:** (A) over (B) — the duplication was already flagged twice independently by code review, a signal
+  it's worth fixing rather than accepting; a helper function is the standard Postgres idiom for this, no
+  new abstraction layer needed. (A) over (C) — the three RPCs' surrounding logic (blank-character insert,
+  token-consumption, rebind-contract branching) is different enough that merging them would trade a small
+  amount of literal duplication for a much larger branchy function, a worse trade.
+  **Design point — not `SECURITY DEFINER`, not granted to `authenticated`:** both helpers run
+  `plpgsql`/`sql` without their own `SECURITY DEFINER`. Since they're only ever called *from inside* the
+  three outer `SECURITY DEFINER` RPCs, Postgres's privilege-elevation rule (current_user stays elevated
+  through nested non-definer calls) means they already run with the outer function's elevated context —
+  no separate elevation needed. Consequently they're also deliberately **not** granted `EXECUTE` to
+  `authenticated` (unlike `is_campaign_dm`/`owner`/`member`, which genuinely need that grant because they
+  ARE invoked directly from RLS policy `USING` clauses, running as the *invoking* role, not a definer's).
+  Verified post-migration: `information_schema.role_routine_grants` shows only `postgres` holding
+  `EXECUTE` on either helper — `authenticated` cannot call them as a standalone `/rest/v1/rpc/...` request.
+- **Status:** Shipped (`refactor/campaign-membership-helpers`). Migration
+  (`sql/migrations/2026-07-13-campaign-membership-helpers.sql`) applied to the live Supabase project;
+  `find_campaign_by_invite_code('ZZZZZZ')` smoke-tested to confirm it still raises the exact original
+  error text (`No campaign with that invite code`). Advisor shows no new finding class — the two new
+  helpers don't appear in the "authenticated can execute this SECURITY DEFINER function" WARN list at all
+  (every client-facing RPC does), confirming the lockdown is effective, not just intended.
+  `testing/tests/engine-parity.html` unaffected (20/0 — no `js/engine.js` change).
 
 ## D-GH-2026-07-13-campaign-bind-character · Campaign join/invite UI, Deliverable 2 (Path B): bind an existing character
 - **Context:** Deliverable 1 (Path A, `D-GH-2026-07-13-campaign-invite-tokens`) covers a DM inviting a

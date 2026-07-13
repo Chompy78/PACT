@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · refactor(campaign) — de-duplicate campaign-membership SQL checks**
+  (`sql/migrations/2026-07-13-campaign-membership-helpers.sql` + mirrored into
+  `sql/schema.sql`/`sql/rls-policies.sql`; no `js/engine.js` change, parity unchanged 20/0). Pure internal
+  refactor: `join_campaign`, `redeem_player_invite`, and `bind_character_to_campaign` each hand-rolled
+  their own "look up campaign by shared `invite_code`" and "does this owner already have a character in
+  this campaign" checks — flagged by two independent `/code-review ultra` angles (Reuse, Altitude) on
+  PR #202 and deferred at the time since fixing it meant touching two already-shipped functions. Both
+  checks are now two internal helper functions (`find_campaign_by_invite_code`,
+  `owner_has_character_in_campaign`), not `SECURITY DEFINER` themselves and not granted to
+  `authenticated`/`public` — reachable only from inside the three `SECURITY DEFINER` RPCs, which already
+  run elevated. No error messages or behavior changed (verified: the unique partial index from the Path B
+  migration remains the sole race guard for all three functions; advisor shows no new finding class — the
+  two new helpers don't even appear in the "authenticated can execute" WARN list, confirming they're
+  correctly unreachable as standalone RPCs). See `DECISIONS.md`
+  `D-GH-2026-07-13-campaign-membership-helpers`.
+
 - **2026-07-13 · feat(campaign) — Campaign join/invite UI, Deliverable 2 (Path B): bind an existing
   character to a campaign** (`sql/migrations/2026-07-13-campaign-bind-character.sql` + mirrored into
   `sql/schema.sql`/`sql/rls-policies.sql`; `js/campaign.js`; `tools/PACT-CharGen-Webtool.html`; no

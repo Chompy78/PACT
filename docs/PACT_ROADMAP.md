@@ -32,30 +32,6 @@ _(none currently — the last NOW item, the full engine module-bridge migration,
 
 ---
 
-## Improvement: de-duplicate campaign-membership SQL checks — TODO
-Branch refactor/campaign-membership-helpers. `join_campaign`, `redeem_player_invite`, and
-`bind_character_to_campaign` (all in `sql/schema.sql`) each hand-roll their own "look up campaign by
-invite_code" and "already joined this campaign as another character" checks.
-
-```text
-Found during /code-review ultra on PR #202 (Path B, campaign-bind-character) — Reuse and Altitude angles
-both flagged it independently. Deliberately deferred out of Path B's scope since fixing it means touching
-two already-shipped functions (join_campaign, redeem_player_invite), not just the new one. Full deferral
-rationale: DECISIONS.md D-GH-2026-07-13-campaign-bind-character.
-
-Extract the shared lookup/check logic into a small internal helper function (or functions) in
-sql/schema.sql, used by all three RPCs. Must preserve exact existing error messages/behavior — the unique
-partial index added in the 2026-07-13 migration (idx_characters_owner_campaign_unique) is already the
-authoritative race guard for all three, so this refactor is about code duplication only, not correctness.
-Mirror into sql/migrations/ as a new dated migration file (function replacement only, no schema change).
-Re-run testing/tests/engine-parity.html (20/0 — unaffected, but confirm) and the Supabase advisor after
-applying. Low risk, not urgent — pure internal refactor with no user-visible behavior change.
-```
-
-**Done when:** `join_campaign`, `redeem_player_invite`, and `bind_character_to_campaign` all delegate their campaign-lookup-by-code and already-joined checks to shared helper function(s); no behavior change; advisor clean; parity still 20/0.
-
----
-
 ## Feature: Advancement tracks + D&D 2024 level equivalency — TODO
 Branch feat/advancement-tracks. Store AP-per-level advancement tracks (slow/average/fast + custom) and a D&D 2024 equivalent level reference table; let DMs select or customise a track per campaign.
 
