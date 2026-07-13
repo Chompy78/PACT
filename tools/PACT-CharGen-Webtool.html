@@ -2553,7 +2553,7 @@ function applyBuild(b,opts){
   render();
   // re-assert the primary selects last, so nothing during the row rebuilds can leave them stale
   set('oclass',b.originClass||'(none)');set('oclass2',b.originClass2||'(none)');
-  set('spec',b.species||'(none)');set('spec2',b.species2||'(none)');
+  set('spec',b.species||'(none)');set('spec2',b.species2||'(none)');set('charsize',b.size||'Small');
   set('hd',b.hd||1);set('profBonus',b.profBonus||2);set('budget',b.budget||DATA.level1AP);
   // Phase 2 Step 3 (Chunk 5, Category E): rebuild LOG from the freshly-written DOM so every whole-build-
   // replacement flow that funnels through applyBuild (loadFile — both the CharGen-flat and Live-Sheet-LOG

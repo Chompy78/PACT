@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · fix — CharGen: species-choosable size clobbered on Live Sheet → CharGen handoff**
+  (`tools/PACT-CharGen-Webtool.html`, `applyBuild()` only). A Tiefling (or any species with a
+  choosable size) that round-tripped Live Sheet → CharGen lost its "Medium" choice back to "Small".
+  Root cause: `applyBuild()` writes DOM controls, then calls `render()` — but at that point `LOG`
+  hasn't been resynced from the DOM yet (that resync runs later in the same function), so `render()`
+  computes off stale, previous-build `LOG` data. A stale species can make `sizeChoosable` wrongly
+  false, which triggers the size block's one-way destructive `cs.value='Small'` reset — and nothing
+  ever restores it once the species becomes correct again. `applyBuild()` already re-asserts several
+  other fields (`spec`/`spec2`/`oclass`/`oclass2`/`hd`/`profBonus`/`budget`) in a block *after*
+  `render()` specifically to fix this class of clobbering; `charsize` was simply missing from that
+  list. Added it. Caught by the widened tool-switch field diff in `random-manual-e2e.mjs` (2026-07-13,
+  below) during CI on the preview→main promotion PR — the harness's previous 3-field diff never
+  looked at `size`. No `DATA.version` bump (UI-only, no `compute()` output change);
+  `engine-parity.html`/`engine-parity-ci.mjs` still 20/0.
 - **2026-07-13 · test — `random-manual-e2e.mjs`: a genuinely independent oracle, not just a
   self-check** (`testing/scripts/random-manual-e2e.mjs` only). Every tool bridges the SAME
   `js/engine.js` onto `window`, so the harness's prior checks ("displayed AP == `economy().available`")
