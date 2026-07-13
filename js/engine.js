@@ -425,7 +425,7 @@ export function baseBuild() { return {name:'',budget:0,originClass:'Fighter',ori
  inPlay:true}; }
 
 /* mutators: apply one purchased payload to the build in place */
-export const MUT = {campaign:(b,p)=>{b.campaign=p.v;},
+export const MUT = {
  create:(b,p)=>{},   // level-1 baseline (Hit Die + starting state); effect already in baseBuild
  patch:(b,p)=>{Object.assign(b,p.patch);},   // imported-from-generator bundle (a whole field set)
  names:(b,p)=>{if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
@@ -507,11 +507,12 @@ export function economy(events) {
 // state AS OF JUST BEFORE that purchase (not after), so a purchase whose own cost crosses the
 // threshold still prices as the one that crossed it, not as already-locked — matching this
 // codebase's existing "prices freeze at time of purchase" rule (see priceOf() in the Live Sheet
-// tool). NOTE: `campaignBound` (real cloud-campaign membership, gating this mechanism) is unrelated
-// to the existing `cat:'campaign'` buy event/`b.campaign` field — that's CharGen/Live Sheet's
-// local, offline, code-paste house-rules feature (see applyCampaignCode() in the Live Sheet tool);
-// real campaign membership today lives only as a `campaign_id` column in Supabase, invisible to
-// pure LOG replay, which is exactly why a LOG-level `campaignBound` event is needed here at all.
+// tool). NOTE: `campaignBound` (real cloud-campaign membership, gating this mechanism) is distinct
+// from campaign restrictions/rules: real campaign membership today lives only as a `campaign_id`
+// column in Supabase, invisible to pure LOG replay, which is exactly why a LOG-level `campaignBound`
+// event is needed here at all. (The old local `cat:'campaign'`/`b.campaign` PACTRULES code-paste
+// feature was retired in refactor/retire-pactrules-code; any legacy `cat:'campaign'` event now
+// replays inert via the missing-mutator no-op below.)
 //
 // e.noLock: an event (buy/buyoff/names) may opt its own cost OUT of the automatic
 // threshold accumulation below — real AP accounting (economy()) is unaffected, this
@@ -704,11 +705,10 @@ export const RULE_BAN_FIELDS = {
   masteries: 'bannedMasteries',
   boons: 'bannedBoons',
   drawbacks: 'bannedDrawbacks',   // canonical kind
-  draws: 'bannedDrawbacks',       // alias: the tools' live-filter/campBarred vocabulary abbreviates
-                                  // "drawbacks" to "draws" (HOUSE.disabled.draws, CG_CAMPAIGN.draws).
-                                  // Accepting both lets cloudRuleBarred() and campBarred() use ONE kind
-                                  // token per call site — instead of 'draws' silently failing open here.
-                                  // Retire alongside the PACTRULES 'draws' subsystem.
+  draws: 'bannedDrawbacks',       // alias: the tools' live-filter vocabulary abbreviates "drawbacks" to
+                                  // "draws" (e.g. HOUSE.disabled.draws). Accepting both lets
+                                  // cloudRuleBarred() use ONE kind token per call site — instead of
+                                  // 'draws' silently failing open here.
   arts: 'bannedArts',
 };
 

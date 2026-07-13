@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · refactor — retire the local PACTRULES "#3" code path (part a of the retire-pactrules task)**
+  (`js/engine.js`, `tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`, 6 build fixtures;
+  **no `DATA.version` bump**, engine-parity **20/0**). Removed the redundant client-trusted "House rules
+  code" feature now that DM-authoritative cloud rules (`validate()`/`RULE_BAN_FIELDS`, incl.
+  bannedDrawbacks/bannedArts since PR #174) cover it server-side. Deleted: `MUT.campaign`/`b.campaign`/the
+  `cat:'campaign'` event, the `_campEnc`/`_campDec` `PACTRULES:` codec, `campBarred` + the "🛡 House rules
+  code"/"🛡 Campaign" UI and its `campchip`/`campind` display in both tools, the dead `PATCH_SLOTS.CAMPAIGN`
+  key, and the `"campaign": null` field from 6 CG build fixtures. **Kept** (surgical splits): the cloud
+  `cloudRuleBarred()`/`RULE_BAN_FIELDS` path (#1), `b.houseRules` (#2), and Live Sheet's PACTAP AP-grant
+  codec (`_apEnc`/`_apDec`, which shares `_apHash`/`_AK`). Legacy `cat:'campaign'` events replay inert (the
+  engine's `_replay` tolerates a missing mutator). Verified in real Chromium (`random-manual-e2e.mjs` 2/2:
+  CharGen pickers + advancement + DM Console import). Why in `DECISIONS.md`
+  (D-GH-2026-07-13-retire-pactrules-code). Remaining: part (b), the offline LOG rules-snapshot + resolver.
 - **2026-07-13 · docs — orphaned-export sweep of `js/engine.js` (A9, find-and-report only)**
   (`docs/sessions/2026-07-13-orphaned-export-sweep.md`; no code changed). Grepped all 14 named exports
   across the tools + `js/` + tests: 13 are referenced; **`SIG_ALG`** is a confirmed zero-reference export
