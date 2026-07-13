@@ -217,6 +217,22 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- campaign_invites — single-use per-player invite tokens (Path A). A DM sees
+-- all invites for their campaign; a redeemer can read their own redeemed row
+-- (CharGen's crash-recovery path re-reads starting_budget from it if a
+-- redeemed character's stats weren't seeded yet). Writes happen only through
+-- create_player_invite()/redeem_player_invite() (both SECURITY DEFINER) — no
+-- insert/update/delete policy.
+-- ---------------------------------------------------------------------------
+alter table public.campaign_invites enable row level security;
+
+drop policy if exists campaign_invites_select on public.campaign_invites;
+create policy campaign_invites_select on public.campaign_invites
+  for select using (is_campaign_dm(campaign_id) or redeemed_by = auth.uid());
+
+grant select on public.campaign_invites to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Allow authenticated users to call the controlled RPCs.
 -- ---------------------------------------------------------------------------
 grant execute on function public.join_campaign(text)                to authenticated;
@@ -226,6 +242,11 @@ grant execute on function public.remove_dm(uuid, uuid)              to authentic
 grant execute on function public.regenerate_invite_code(uuid)       to authenticated;
 grant execute on function public.regenerate_dm_invite_code(uuid)    to authenticated;
 grant execute on function public.award_ap(uuid, integer, text)      to authenticated;
+grant execute on function public.create_player_invite(uuid, integer, integer) to authenticated;
+grant execute on function public.redeem_player_invite(text, text)             to authenticated;
+
+revoke execute on function public.create_player_invite(uuid, integer, integer) from public;
+revoke execute on function public.redeem_player_invite(text, text)             from public;
 
 -- Postgres grants EXECUTE to PUBLIC by default on every new function; revoke it here
 -- so award_ap is authenticated-only rather than relying solely on its internal

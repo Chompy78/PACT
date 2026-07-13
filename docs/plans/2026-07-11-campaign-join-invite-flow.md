@@ -1,5 +1,10 @@
 # Plan: Campaign join/invite UI (Path A: new-player token invite, Path B: bind existing character)
 
+> **Deliverable 1 (Path A) — SHIPPED 2026-07-13** on `feat/campaign-invite-tokens`. See `CHANGELOG.md`
+> and `DECISIONS.md` `D-GH-2026-07-13-campaign-invite-tokens` for what shipped and its one known gap
+> (browser click-through not exercised — see that entry's "Status"). **Deliverable 2 (Path B) is still
+> open** — everything below the Deliverable-1 sections still applies to it.
+>
 > **Revision 3** — re-verified 2026-07-13 against the shipped `feat/campaign-ap-model` code (closed
 > 2026-07-12, after this plan's Revision 2). No architectural change: every fact Revision 2 verified still
 > holds (see "Re-verification pass" below for the specific checks). The one real update is that CharGen's

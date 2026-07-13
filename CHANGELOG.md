@@ -4,6 +4,28 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · feat(campaign) — Campaign join/invite UI, Deliverable 1 (Path A): DM-issued
+  single-use player invite tokens** (`sql/migrations/2026-07-13-campaign-invite-tokens.sql` +
+  mirrored into `sql/schema.sql`/`sql/rls-policies.sql`; `js/campaign.js`; `tools/DM-Console.html`;
+  `tools/PACT-CharGen-Webtool.html`; `login.html`; no `js/engine.js` change, parity unchanged 20/0).
+  `join_campaign()` existed as a tested RPC with zero production UI and no way to preset a starting
+  budget; this ships the first of two onboarding paths from `docs/plans/2026-07-11-campaign-join-
+  invite-flow.md` (Revision 3). New `campaign_invites` table + `create_player_invite`/
+  `redeem_player_invite` SECURITY DEFINER RPCs (single-use, CSPRNG token, idempotent redemption for
+  double-click/crash recovery, one-character-per-player-per-campaign enforced server-side). DM
+  Console gets an "Invite new player" action generating a canonical CharGen link. CharGen detects
+  `?invite=<token>`, stashes it in `sessionStorage` across a `login.html` sign-in round-trip (that
+  redirect-back hook is new in `login.html` too), confirms with the player, then redeems it into a
+  brand-new campaign-bound `chargen` character pre-seeded with the DM-set starting AP/budget —
+  reusing CharGen's own `_cgEnvelope`/`_cgApplyEnvelope` cloud-save helpers and DM-AP-status
+  resolution pattern (shipped in the `feat/campaign-ap-model` change below) rather than re-deriving
+  either. Path B (binding an *existing* built character to a campaign) is a separate, still-open
+  deliverable — see `docs/PACT_ROADMAP.md`. Supabase advisor shows no new class of finding (the two
+  new RPCs carry the same "authenticated can execute this SECURITY DEFINER function" WARN as all 11
+  pre-existing campaign RPCs — the app's intended design). Full plan + design decisions:
+  `docs/plans/2026-07-11-campaign-join-invite-flow.md`; narrative: `DECISIONS.md`
+  `D-GH-2026-07-13-campaign-invite-tokens`.
+
 - **2026-07-13 · fix — `compute()`: `NaN` in a low-ability-score caster's known-spell over-cap
   surcharge (`DATA.version` v0.335 → v0.336)** (`js/engine.js` only). Found by `log-fuzz.mjs`
   (below) on its first run: the known-spell cap (`dmod+hd`) can go negative for a caster with a

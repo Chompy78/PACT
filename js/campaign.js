@@ -12,6 +12,15 @@ import { currentUser } from './auth.js';
 
 const CAMPAIGN_COLS = 'id, name, invite_code, dm_invite_code, ignore_player_ap, rules, dm_id';
 
+/**
+ * sessionStorage key for a pending Path-A player-invite token (see docs/plans/2026-07-11-
+ * campaign-join-invite-flow.md). CharGen stashes the `?invite=` token here so it survives a
+ * same-tab round-trip to login.html; login.html reads it after a successful sign-in and
+ * redirects back to CharGen with it. Shared here (not hand-duplicated in both files) so the
+ * two can't drift out of sync.
+ */
+export const PENDING_INVITE_KEY = 'pact_pending_invite';
+
 /** Create a campaign you will own/DM. Both invite codes are generated server-side. */
 export async function createCampaign(name) {
   const user = await currentUser();
@@ -71,6 +80,38 @@ export async function regenerateDmInviteCode(campaignId) {
   const { data, error } = await supabase.rpc('regenerate_dm_invite_code', { p_campaign: campaignId });
   if (error) throw error;
   return data;
+}
+
+/**
+ * DM-only: create a single-use player invite token carrying a preset starting DM
+ * AP amount and starting build budget. Returns the raw token — the caller builds
+ * the canonical CharGen `?invite=<token>` redemption URL from it.
+ */
+export async function createPlayerInvite(campaignId, startingAp, startingBudget) {
+  const { data, error } = await supabase.rpc('create_player_invite', {
+    p_campaign_id: campaignId,
+    p_starting_ap: startingAp | 0,
+    p_starting_budget: startingBudget | 0,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Redeem a player invite token as the signed-in user. Idempotent: a repeat call
+ * by the same user after a successful redemption returns the same result instead
+ * of erroring (double-click / interrupted-client recovery).
+ * @returns {Promise<{characterId:string, startingAp:number, startingBudget:number}>}
+ */
+export async function redeemPlayerInvite(token, name) {
+  const { data, error } = await supabase.rpc('redeem_player_invite', {
+    p_token: (token || '').trim(),
+    p_name: name || null,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error('Invite redemption returned no character');
+  return { characterId: row.character_id, startingAp: row.starting_ap, startingBudget: row.starting_budget };
 }
 
 /** DM-only: set the "ignore player-granted AP" campaign toggle. */

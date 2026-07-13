@@ -437,6 +437,20 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <input class="field ro" id="campDmCode" readonly>
             <button type="button" class="btn sm ghost" id="copyDmCode">Copy</button>
           </div>
+          <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
+            <div class="lbl">Invite new player</div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <input class="field" type="number" id="inviteStartAp" placeholder="Starting DM AP" min="0" step="1" style="width:140px">
+              <input class="field" type="number" id="inviteStartBudget" placeholder="Starting budget" min="0" step="1" style="width:140px">
+              <button type="button" class="btn sm" id="createInviteBtn">Generate invite link</button>
+            </div>
+            <div id="inviteLinkRow" style="display:none;align-items:center;gap:6px;margin-top:6px">
+              <input class="field ro" id="inviteLinkOut" readonly>
+              <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
+            </div>
+            <div id="inviteStatus" style="font-size:11px;color:var(--light);margin-top:4px"></div>
+            <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the starting AP/budget above. Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
+          </div>
           <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--light);margin-top:8px;cursor:pointer">
             <input type="checkbox" id="ignorePlayerAp"> Ignore player-entered AP
           </label>
@@ -1178,11 +1192,11 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 
 <script type="module">
   import { currentSession, onAuthChange } from '../js/auth.js';
-  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules } from '../js/campaign.js';
+  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite } from '../js/campaign.js';
   import { getRoster, awardAp, getAwardHistory } from '../js/dm.js';
   import { DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   import { verifyCharacterEnvelope } from '../js/character-store.js';   // tamper-evidence read-side (D-GH48)
-  window._campBridge = { currentSession, onAuthChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory };
+  window._campBridge = { currentSession, onAuthChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, createPlayerInvite };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy };
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   // Engine module bridge (D-GH26, extended D-GH36/D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
@@ -1206,6 +1220,13 @@ document.addEventListener('campaign-ready', function () {
   var campRoster   = document.getElementById('campRoster');
   var campRosterName = document.getElementById('campRosterName');
   var ignoreChk    = document.getElementById('ignorePlayerAp');
+  var inviteStartAp = document.getElementById('inviteStartAp');
+  var inviteStartBudget = document.getElementById('inviteStartBudget');
+  var createInviteBtn = document.getElementById('createInviteBtn');
+  var inviteLinkRow = document.getElementById('inviteLinkRow');
+  var inviteLinkOut = document.getElementById('inviteLinkOut');
+  var copyInviteLink = document.getElementById('copyInviteLink');
+  var inviteStatus = document.getElementById('inviteStatus');
   var ruleMultiDisc = document.getElementById('ruleMultiDisc');
   var ruleHouseRules = document.getElementById('ruleHouseRules');
   var ruleHouseRuleName = document.getElementById('ruleHouseRuleName');
@@ -1378,6 +1399,11 @@ document.addEventListener('campaign-ready', function () {
     document.getElementById('campPlayerCode').value = camp.invite_code||'';
     document.getElementById('campDmCode').value     = camp.dm_invite_code||'';
     ignoreChk.checked = !!camp.ignore_player_ap;
+    inviteLinkRow.style.display = 'none';
+    inviteLinkOut.value = '';
+    inviteStatus.textContent = '';
+    inviteStartAp.value = '';
+    inviteStartBudget.value = '';
     loadRulesIntoPanel(camp.rules);
     renderRuleCopyOptions();
     campSection.style.display = 'block';
@@ -1401,6 +1427,28 @@ document.addEventListener('campaign-ready', function () {
   ignoreChk.addEventListener('change', async function(){
     if(!currentCampId) return;
     await B.setIgnorePlayerAp(currentCampId, ignoreChk.checked);
+  });
+
+  createInviteBtn.addEventListener('click', async function(){
+    if(!currentCampId) return;
+    var ap = parseInt(inviteStartAp.value, 10); if(!(ap >= 0)) ap = 0;
+    var budget = parseInt(inviteStartBudget.value, 10); if(!(budget >= 0)) budget = 0;
+    createInviteBtn.disabled = true;
+    inviteStatus.textContent = 'Generating…';
+    inviteLinkRow.style.display = 'none';
+    try {
+      var token = await B.createPlayerInvite(currentCampId, ap, budget);
+      var url = new URL('PACT-CharGen-Webtool.html?invite=' + encodeURIComponent(token), location.href).href;
+      inviteLinkOut.value = url;
+      inviteLinkRow.style.display = 'flex';
+      inviteStatus.textContent = 'Single-use — share this link with the player.';
+    } catch(err){
+      inviteStatus.textContent = 'Error: '+esc(err.message);
+    }
+    createInviteBtn.disabled = false;
+  });
+  copyInviteLink.addEventListener('click', function(){
+    navigator.clipboard.writeText(inviteLinkOut.value);
   });
 
   async function loadRoster(campId){
