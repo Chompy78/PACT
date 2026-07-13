@@ -4,6 +4,12 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · refactor(engine) — remove REV-13 dead grant maps** (`js/engine.js`; no `DATA.version` bump,
+  parity 20/0). `compute()`'s `grantSk/grantTl/grantIn` "free-grant" scaffolds were declared empty and never
+  populated, so the paid-skill/tool filters that read them (`filter(s=>!grantSk[s])` …) only ever filtered an
+  empty set — every proficiency was already counted as paid. Removed the maps and simplified the filters to
+  their equivalent no-grant form (`.length`). Byte-identical output, so no REV-01 baseline change. If a future
+  feature grants free proficiencies, reintroduce the filter with a fixture that exercises it.
 - **2026-07-13 · chore/docs — low-risk hardening batch (B1/B4/B5/B3)** (no `DATA.version` bump, parity 20/0, e2e green):
   - **B5** — pinned `supabase-js` to exact **2.110.2** (was the `@2` major) in `js/supabase-client.js`, so a CDN
     minor/patch can't silently change offline/auth behaviour; the e2e stub route became a version-agnostic
