@@ -56,6 +56,26 @@ applying. Low risk, not urgent — pure internal refactor with no user-visible b
 
 ---
 
+## Fix: race-losing join_campaign/redeem_player_invite calls surface a raw DB error — TODO
+Branch fix/campaign-join-race-friendly-error. `join_campaign` and `redeem_player_invite`'s character-insert have no `unique_violation` exception handler, unlike `bind_character_to_campaign` (which got one in D-GH-2026-07-13-campaign-bind-character).
+
+```text
+A race that beats either RPC's pre-check surfaces a raw Postgres "duplicate key value violates unique
+constraint" error to the client instead of the friendly "You have already joined this campaign" message.
+Pre-existing, found during /code-review on PR #203 and deferred there as out of scope for a "no behavior
+change" refactor.
+
+Wrap the INSERT in join_campaign and the INSERT in redeem_player_invite's new-character branch in the
+same begin/exception when unique_violation then raise exception '...' pattern bind_character_to_campaign
+already uses (sql/schema.sql), each with the exact message text that function's own pre-check already
+raises. New dated migration mirroring the change into sql/schema.sql. Re-run
+testing/tests/engine-parity.html (20/0, unaffected) and the Supabase advisor after applying.
+```
+
+**Done when:** `join_campaign` and `redeem_player_invite` both convert a `unique_violation` race into their own existing friendly "already joined" message instead of a raw Postgres error; parity still 20/0.
+
+---
+
 ## Feature: Advancement tracks + D&D 2024 level equivalency — TODO
 Branch feat/advancement-tracks. Store AP-per-level advancement tracks (slow/average/fast + custom) and a D&D 2024 equivalent level reference table; let DMs select or customise a track per campaign.
 
@@ -105,6 +125,15 @@ Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, 
 - **A7 — Lighthouse 85 → 90.** Add a Lighthouse CI GitHub Action to auto-catch perf regressions. *Then
   (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for the real score gain —
   *caveats:* a big engine change; do it only after REV-01 makes the gate real.
+- **Harden `search_path` on SECURITY DEFINER functions against temp-table shadowing.** Every SECURITY
+  DEFINER function in `sql/schema.sql`/`sql/rls-policies.sql` (11+ instances, pre-existing) sets
+  `search_path = public` without also listing `pg_temp`, which doesn't fully close the classic
+  session-local-temp-table-shadowing pitfall. Low real-world exploitability today (Supabase/PostgREST
+  clients have no raw-SQL/DDL path), but worth closing repo-wide rather than piecemeal — a partial fix
+  across only some functions would be worse than no fix. Change every `set search_path = public` to
+  `set search_path = public, pg_temp` consistently; new dated migration; re-run
+  `testing/tests/engine-parity.html` (20/0) and the Supabase advisor. Found during `/code-review` on
+  PR #203. Branch `fix/harden-search-path-pg-temp`.
 **Code-review follow-ups (from `feat/campaign-ap-model`)** — low-severity cleanup flagged by
 `/code-review`, not fixed in that PR (low risk / negligible impact either way):
 
