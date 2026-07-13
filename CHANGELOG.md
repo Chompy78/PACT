@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · chore/docs — low-risk hardening batch (B1/B4/B5/B3)** (no `DATA.version` bump, parity 20/0, e2e green):
+  - **B5** — pinned `supabase-js` to exact **2.110.2** (was the `@2` major) in `js/supabase-client.js`, so a CDN
+    minor/patch can't silently change offline/auth behaviour; the e2e stub route became a version-agnostic
+    regex so it keeps intercepting across future pin bumps. (SW never intercepts the CDN — unaffected.)
+  - **B1** — replaced the stale partial "Exports:" block atop `js/engine.js` with a full **API contract**
+    (all 14 exports: signature + return shape + one-liner, grouped by concern), so agents grasp the API
+    without reading the ~238 KB body.
+  - **B4** — added a **one-line-per-decision index** (68 entries) to the top of `DECISIONS.md`.
+  - **B3** — added a **global error surface** (`error`/`unhandledrejection` → console with a `[PACT]` marker +
+    Report-issue URL, never swallowed) to all four pages, plus a visible **"Report an issue"** link in the
+    footers that have one (index + DM Console).
 - **2026-07-13 · feat — Live Sheet: carry campaign rules offline via a LOG snapshot + `resolveRules()` (part b of retire-pactrules)**
   (`tools/PACT-Live-Char-Sheet.html` only; `js/engine.js` untouched, no `DATA.version` bump, parity 20/0).
   A bound character now keeps a copy of its campaign's restriction rules in its own event LOG (a

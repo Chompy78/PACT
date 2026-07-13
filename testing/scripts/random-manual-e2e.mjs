@@ -78,7 +78,7 @@ const int = (rng, min, max) => min + Math.floor(rng() * (max - min + 1));
 function log(msg) { console.log(`[e2e] ${msg}`); }
 
 // ---------- Supabase CDN stub ----------
-// js/supabase-client.js does `import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'`
+// js/supabase-client.js does `import { createClient } from 'https://esm.sh/@supabase/supabase-js@<pinned>'`
 // — the only external network dependency in the whole app. Engine boot on both tools is
 // gated behind that same module graph (see AGENTS.md / D-GH26), so if the CDN is
 // unreachable (sandboxed/offline CI), `window.compute` never gets set and everything
@@ -105,7 +105,9 @@ export function createClient() {
 }
 `;
 async function stubSupabaseCdn(page) {
-  await page.route('https://esm.sh/@supabase/supabase-js@2', (route) =>
+  // Version-agnostic matcher so this keeps intercepting whatever exact version js/supabase-client.js
+  // is pinned to (e.g. @2.110.2) without needing an edit here on every pin bump.
+  await page.route(/esm\.sh\/@supabase\/supabase-js@/, (route) =>
     route.fulfill({ status: 200, contentType: 'application/javascript', body: SUPABASE_STUB_MODULE })
   );
 }

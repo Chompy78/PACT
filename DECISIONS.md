@@ -4,6 +4,80 @@
 > **Context → Options → Decision → Why → Status.** Newest at the TOP.
 > `CHANGELOG.md` records *what* changed; this records *why*.
 
+## Index
+
+> One line per decision, in document order (newest on top). Jump to the full
+> **Context → Options → Decision → Why → Status** entry below.
+
+- **D-GH-2026-07-13-campaign-rules-snapshot** — Carry campaign rules offline as an engine-inert LOG event, resolved live-first
+- **D-GH-2026-07-13-retire-pactrules-code** — Retire the local PACTRULES "#3" code path; cloud rules are the single restriction source
+- **D-GH-2026-07-12-campaign-ap-model** — Build CharGen's cloud character-load now, rather than defer it
+- **D-GH-2026-07-12-campaign-rules-snapshot** — Ship drawback/art bans as enforcement-only; defer live-picker hiding
+- **D-GH-2026-07-11-clone-campaign-character-standalone** — Clone-to-standalone: don't forfeit verified DM AP, and don't touch the original as a read side effect
+- **D-GH-2026-07-11-dgh-numbering-scheme** — Retire sequential D-GH numbers; use D-GH-\<date\>-\<slug\>
+- **D-GH48** — Save-file integrity: tamper-EVIDENT signing, in the engine, verified at every read path (Feature B)
+- **D-GH49** — Externalize the AP-by-level ladder: file source + back-compat DATA aliases, no version bump
+- **D-GH46** — Communication conventions: recommend-with-reasoning, and a tool error is not an answer
+- **D-GH47** — AUD-1 health-check: MUT-drift check reshaped into an engine-symbol drift guard; asset-size is a warning; RL…
+- **D-GH44** — CharGen campaign-rules awareness: separate module script for the cloud bridge; no campaign_id carry-forward…
+- **D-GH45** — A stale roadmap bug-fix entry survived two independent "doesn't reproduce" findings before being removed
+- **D-GH41** — CharGen's budget/drawback conflation caused unbounded AP inflation on every save/load/switch cycle
+- **D-GH40** — One unified save/export file format for both tools (was three divergent shapes)
+- **D-GH39** — CharGen's ability-score steppers never reached the LOG (found via switch-tool manual testing)
+- **D-GH38** — One-click tool switch on a shared js/character-store.js module (not a file merge)
+- **D-GH37** — Live Sheet + DM Console's foldBuild/activeEvents/economy bridged to js/engine.js (D-GH36's pause lifted — p…
+- **D-GH36** — DM Console's `MUT` bridged to js/engine.js; the matching foldBuild/economy bridge is paused (conflicts with…
+- **D-GH35** — CharGen event-sourcing model: build-equality undo, authoritative file loads, and a non-locking budget award
+- **D-GH34** — compute() supports two racial-trait pricing formats: replay-derived (presence-based) and legacy (inPlay fal…
+- **D-GH33** — CharGen imports the real js/engine.js MUT/foldBuild/activeEvents/economy/baseBuild (Phase 2 step 2)
+- **D-GH32** — Automatic `creationLocked` requires a `campaignBound` event; the explicit trigger doesn't
+- **D-GH31** — A LOG-driven `creationLocked` event/threshold replaces the dead `b.inPlay` flag (engine Phase 1)
+- **D-GH30** — Live Sheet's "AP left" reads the frozen ledger (`economy()`), not `compute()`'s retroactive recompute
+- **D-GH42** — Cloud/campaign status badge reads existing sync-ready state — no new cloud/auth plumbing
+- **D-GH43** — D-GH numbering: verify against the live remote before claiming, and treat renumber-on-merge as the accepted…
+- **D-GH29** — M365 Copilot is used only as a cold reviewer of self-contained plans — never as a repo-aware assistant
+- **D-GH27** — `/pick-task` may bundle several quick tasks into one branch/PR — the one exception to "one task per branch"
+- **D-GH28** — Homepage theme artwork is hand-authored SVG, not photos/illustrations
+- **D-GH26** — Engine module-bridge migration shipped as a safe subset (DATA/compute/baseBuild + Live Sheet MUT), not the…
+- **D-GH24** — CharGen/Live Sheet theme-restore check stays at the bottom of `<body>`, not inline in `<head>`
+- **D-GH25** — Leaked-password-protection roadmap item retired, not enabled
+- **D-GH23** — `/pick-task` Step 1 delegates its four `git show` fetches to an Explore subagent
+- **D-GH22** — `/run-task` uses native Claude Code worktrees (`EnterWorktree`), superseding the "Option A" sibling `pact-w…
+- **D-GH21** — `/plan-for-review` output is a trust-boundary crossing artifact — secrets excluded by instruction, not by gate
+- **D-GH20** — `ai-lessons-learned` auto-load in remote sessions: nudge-and-let-the-agent-decide, not auto-clone
+- **D-GH19** — Live Sheet mobile CSS: `!important` to fix a silent cascade-order shadowing bug
+- **D-GH18** — CharGen's `liveBase()` field diff vs `baseBuild()`: fixed the missing array, left `inPlay` out on purpose
+- **D-GH17** — REV-07: invite codes from `gen_random_bytes`, code length/rate-limiting deferred
+- **D-GH9** — Feature A found Live Sheet does NOT bridge DATA/compute/MUT from js/engine.js — edited both copies
+- **D-GH15** — Function EXECUTE grants: explicit `authenticated`, not implicit `PUBLIC`
+- **D-GH16** — Campaign rules follow-up: live-filter pickers where a pick surface exists, not everywhere
+- **D-GH14** — Campaign rules enforcement: separate `validate()` export, blocked at cloud push
+- **D-GH13** — Regression gate design: CSV baseline + two-mode runner
+- **D-GH12** — Campaign RLS: `campaign_id` column locked to SECURITY DEFINER path
+- **D-GH11** — Service worker caching strategy: network-first for app shell + engine
+- **D-GH7** — Campaign play: dual-source AP, co-DMs, and an award ledger
+- **D-GH4** — Data model: per-campaign non-exclusive roles, no player cap, ap locked at the column level
+- **D-GH8** — PWA service-worker registration lives in every tool page (Task 1)
+- **D-GH6** — Versioning scheme — three independent numbers
+- **D-GH5** — Mobile header uses an "app-shell" layout, not `position:fixed/sticky`
+- **D-GH3** — CharGen exports now match the Live Sheet's native event format
+- **D-GH2** — Carry the changelog / decisions / narrative discipline into the GitHub repo
+- **D-GH1** — Repo layout: one shared `js/engine.js`, tools are UI-only, deploy via GitHub Pages
+- **D-014** — PHB pages + drawback text are display data — fill them, keep `DATA.version` v0.322, bump build to v0.106
+- **D-013** — Outline labels never reset within a session (continue A→Z→AA, not restart at A1)
+- **D-012** — Character test fixtures — engine-verified generation (SPEC'D, not built)
+- **D-011** — GitHub hosting model — CLOSED (standalone single-file / offline)
+- **D-010** — DM consoles — merge into one "DM section" (DONE v0.105)
+- **D-009** — Option A — single-source engine via in-place byte-identical build (not templates, not file-merge)
+- **D-008** — Don't merge CharGen + Live-Sheet
+- **D-007** — Three-layer history docs + log-as-you-go
+- **D-006** — Addressable test codes (A–G), not renamed test files
+- **D-005** — Machine-checkable version marker + gates, because a doc can't watch itself
+- **D-004** — File types: prose = Markdown, flat tables = TSV, queried records = JSON
+- **D-003** — Keep history (archive), don't delete
+- **D-002** — Many small single-purpose files + archived history, NOT a merged megafile
+- **D-001** — Front-door `INDEX.md` as the single entry point
+
 ---
 
 ## D-GH-2026-07-13-campaign-rules-snapshot · Carry campaign rules offline as an engine-inert LOG event, resolved live-first

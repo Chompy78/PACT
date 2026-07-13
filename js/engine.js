@@ -5,12 +5,32 @@
  * regression test pack. Browser-compatible ES module — no Node APIs, no
  * require(), no npm. Import directly via <script type="module">.
  *
- * Exports:
- *   BUILD                                 - the cosmetic web-tool build number (v0.10x)
- *   DATA                                  - the full v0.332 rules dataset
- *   compute(build)                        - price a build, derive the sheet
- *   rebuildStateFromEvents(base, events)  - replay an append-only event log
- *   validate(build, campaignRules)        - check a build against DM campaign rules (D-GH14)
+ * ── API contract (all named exports; the three tools depend on these shapes) ──────────────────
+ * Data:
+ *   BUILD  : string   — cosmetic web-tool build number; the tools MIRROR it (see docs/VERSION-SYNC.md).
+ *   DATA   : object   — the full rules dataset (ladders, prices, gates, display maps, DATA.apByLevel).
+ *                       `DATA.version` is the rules version — bump ONLY on a mechanics/compute() change.
+ * Pricing / derivation:
+ *   compute(b, opts?) — price a build & derive the sheet. opts:{dmAp?, ignorePlayerAp?}. Returns
+ *                       {total, spendable, remaining, budget(=spendable), playerAp, dmAp, warnings,
+ *                        lines, itemize, hp, baseHP, prof, tier, mods, effScore, size, …}. Pure over
+ *                       (b, opts). NEVER store its output — derive at runtime.
+ *   baseBuild()       — a fresh blank level-1 build object (the fold/replay starting point).
+ *   MUT               — { cat: (build, payload) => void }; replay applies MUT[e.cat] per buy event.
+ * Event-sourcing (append-only LOG):
+ *   activeEvents(events) — {evs, boughtOff}: live events + a bought-off-drawback map.
+ *   economy(events)      — {earned, spent, available, drawbackEarned}: AP tally from a LOG (no fold/compute).
+ *   foldBuild(events)    — replay a LOG from baseBuild() → a build (b.budget = economy().earned).
+ *   rebuildStateFromEvents(base, events, opts?) — replay onto `base` (or an embedded {LOG}) → {ok, version, …}.
+ * Campaign rules (VALIDATION only — never read by compute()):
+ *   validate(b, rules)   — check a build against a campaign's rules JSON → {ok, violations:[{code,message}]}.
+ *   RULE_BAN_FIELDS      — { pickerKind → rules ban-list field }, e.g. arts→bannedArts (shared with the tools).
+ * Save-file integrity (tamper-EVIDENT, not secret — D-GH48):
+ *   SIG_ALG          : string — the algorithm tag stamped into a signed payload.
+ *   signPayload(obj)  — a copy of obj with a tamper-evident `sig` attached.
+ *   verifyPayload(obj)— {signed, valid, status}: check a signed payload's integrity.
+ *
+ * (Historical export note below; do not read the ~238 KB body wholesale — grep for the symbol you need.)
  *
  * The rules data and the compute() costing logic are lifted verbatim from
  * PACT-CharGen-Webtool-v0.104.html; the event-replay logic mirrors the

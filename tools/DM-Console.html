@@ -340,6 +340,10 @@
 </style>
 </head>
 <body>
+<script>/* PACT global error surface (B3) — log uncaught errors + promise rejections with a marker + report pointer; never swallow. */
+(function(){var RB='https://github.com/Chompy78/PACT/issues/new';function L(k,d){try{console.error('[PACT] '+k+':',d,'— report: '+RB);}catch(_){}}
+window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
+window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <header class="topbar">
   <h1><span class="dot"></span>PACT — DM Console</h1>
   <div class="summary" id="summary">No characters imported yet.</div>
@@ -478,7 +482,7 @@
     </div>
   </div>
 
-  <div class="footnote">PACT DM Console <span id="toolVer"></span> · read-only roster viewer · rules engine <span id="rulesVer"></span></div>
+  <div class="footnote">PACT DM Console <span id="toolVer"></span> · read-only roster viewer · rules engine <span id="rulesVer"></span> · <a href="https://github.com/Chompy78/PACT/issues/new" target="_blank" rel="noopener" style="color:inherit">Report an issue</a></div>
 </main>
 
 <script>
