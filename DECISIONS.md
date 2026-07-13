@@ -4,7 +4,185 @@
 > **Context → Options → Decision → Why → Status.** Newest at the TOP.
 > `CHANGELOG.md` records *what* changed; this records *why*.
 
+## Index
+
+> One line per decision, in document order (newest on top). Jump to the full
+> **Context → Options → Decision → Why → Status** entry below.
+
+- **D-GH-2026-07-13-chargen-charsize-clobber** — `applyBuild()`'s render()-before-LOG-resync ordering silently clobbers any DOM field the "re-assert primary selects" block omits (fixed `charsize` + `lineage`)
+- **D-GH-2026-07-13-random-e2e-real-oracle** — Give the random e2e harness a genuinely independent oracle (fresh Node-side engine import), not just a DOM self-check
+- **D-GH-2026-07-13-campaign-rules-snapshot** — Carry campaign rules offline as an engine-inert LOG event, resolved live-first
+- **D-GH-2026-07-13-retire-pactrules-code** — Retire the local PACTRULES "#3" code path; cloud rules are the single restriction source
+- **D-GH-2026-07-12-campaign-ap-model** — Build CharGen's cloud character-load now, rather than defer it
+- **D-GH-2026-07-12-campaign-rules-snapshot** — Ship drawback/art bans as enforcement-only; defer live-picker hiding
+- **D-GH-2026-07-11-clone-campaign-character-standalone** — Clone-to-standalone: don't forfeit verified DM AP, and don't touch the original as a read side effect
+- **D-GH-2026-07-11-dgh-numbering-scheme** — Retire sequential D-GH numbers; use D-GH-\<date\>-\<slug\>
+- **D-GH48** — Save-file integrity: tamper-EVIDENT signing, in the engine, verified at every read path (Feature B)
+- **D-GH49** — Externalize the AP-by-level ladder: file source + back-compat DATA aliases, no version bump
+- **D-GH46** — Communication conventions: recommend-with-reasoning, and a tool error is not an answer
+- **D-GH47** — AUD-1 health-check: MUT-drift check reshaped into an engine-symbol drift guard; asset-size is a warning; RL…
+- **D-GH44** — CharGen campaign-rules awareness: separate module script for the cloud bridge; no campaign_id carry-forward…
+- **D-GH45** — A stale roadmap bug-fix entry survived two independent "doesn't reproduce" findings before being removed
+- **D-GH41** — CharGen's budget/drawback conflation caused unbounded AP inflation on every save/load/switch cycle
+- **D-GH40** — One unified save/export file format for both tools (was three divergent shapes)
+- **D-GH39** — CharGen's ability-score steppers never reached the LOG (found via switch-tool manual testing)
+- **D-GH38** — One-click tool switch on a shared js/character-store.js module (not a file merge)
+- **D-GH37** — Live Sheet + DM Console's foldBuild/activeEvents/economy bridged to js/engine.js (D-GH36's pause lifted — p…
+- **D-GH36** — DM Console's `MUT` bridged to js/engine.js; the matching foldBuild/economy bridge is paused (conflicts with…
+- **D-GH35** — CharGen event-sourcing model: build-equality undo, authoritative file loads, and a non-locking budget award
+- **D-GH34** — compute() supports two racial-trait pricing formats: replay-derived (presence-based) and legacy (inPlay fal…
+- **D-GH33** — CharGen imports the real js/engine.js MUT/foldBuild/activeEvents/economy/baseBuild (Phase 2 step 2)
+- **D-GH32** — Automatic `creationLocked` requires a `campaignBound` event; the explicit trigger doesn't
+- **D-GH31** — A LOG-driven `creationLocked` event/threshold replaces the dead `b.inPlay` flag (engine Phase 1)
+- **D-GH30** — Live Sheet's "AP left" reads the frozen ledger (`economy()`), not `compute()`'s retroactive recompute
+- **D-GH42** — Cloud/campaign status badge reads existing sync-ready state — no new cloud/auth plumbing
+- **D-GH43** — D-GH numbering: verify against the live remote before claiming, and treat renumber-on-merge as the accepted…
+- **D-GH29** — M365 Copilot is used only as a cold reviewer of self-contained plans — never as a repo-aware assistant
+- **D-GH27** — `/pick-task` may bundle several quick tasks into one branch/PR — the one exception to "one task per branch"
+- **D-GH28** — Homepage theme artwork is hand-authored SVG, not photos/illustrations
+- **D-GH26** — Engine module-bridge migration shipped as a safe subset (DATA/compute/baseBuild + Live Sheet MUT), not the…
+- **D-GH24** — CharGen/Live Sheet theme-restore check stays at the bottom of `<body>`, not inline in `<head>`
+- **D-GH25** — Leaked-password-protection roadmap item retired, not enabled
+- **D-GH23** — `/pick-task` Step 1 delegates its four `git show` fetches to an Explore subagent
+- **D-GH22** — `/run-task` uses native Claude Code worktrees (`EnterWorktree`), superseding the "Option A" sibling `pact-w…
+- **D-GH21** — `/plan-for-review` output is a trust-boundary crossing artifact — secrets excluded by instruction, not by gate
+- **D-GH20** — `ai-lessons-learned` auto-load in remote sessions: nudge-and-let-the-agent-decide, not auto-clone
+- **D-GH19** — Live Sheet mobile CSS: `!important` to fix a silent cascade-order shadowing bug
+- **D-GH18** — CharGen's `liveBase()` field diff vs `baseBuild()`: fixed the missing array, left `inPlay` out on purpose
+- **D-GH17** — REV-07: invite codes from `gen_random_bytes`, code length/rate-limiting deferred
+- **D-GH9** — Feature A found Live Sheet does NOT bridge DATA/compute/MUT from js/engine.js — edited both copies
+- **D-GH15** — Function EXECUTE grants: explicit `authenticated`, not implicit `PUBLIC`
+- **D-GH16** — Campaign rules follow-up: live-filter pickers where a pick surface exists, not everywhere
+- **D-GH14** — Campaign rules enforcement: separate `validate()` export, blocked at cloud push
+- **D-GH13** — Regression gate design: CSV baseline + two-mode runner
+- **D-GH12** — Campaign RLS: `campaign_id` column locked to SECURITY DEFINER path
+- **D-GH11** — Service worker caching strategy: network-first for app shell + engine
+- **D-GH7** — Campaign play: dual-source AP, co-DMs, and an award ledger
+- **D-GH4** — Data model: per-campaign non-exclusive roles, no player cap, ap locked at the column level
+- **D-GH8** — PWA service-worker registration lives in every tool page (Task 1)
+- **D-GH6** — Versioning scheme — three independent numbers
+- **D-GH5** — Mobile header uses an "app-shell" layout, not `position:fixed/sticky`
+- **D-GH3** — CharGen exports now match the Live Sheet's native event format
+- **D-GH2** — Carry the changelog / decisions / narrative discipline into the GitHub repo
+- **D-GH1** — Repo layout: one shared `js/engine.js`, tools are UI-only, deploy via GitHub Pages
+- **D-014** — PHB pages + drawback text are display data — fill them, keep `DATA.version` v0.322, bump build to v0.106
+- **D-013** — Outline labels never reset within a session (continue A→Z→AA, not restart at A1)
+- **D-012** — Character test fixtures — engine-verified generation (SPEC'D, not built)
+- **D-011** — GitHub hosting model — CLOSED (standalone single-file / offline)
+- **D-010** — DM consoles — merge into one "DM section" (DONE v0.105)
+- **D-009** — Option A — single-source engine via in-place byte-identical build (not templates, not file-merge)
+- **D-008** — Don't merge CharGen + Live-Sheet
+- **D-007** — Three-layer history docs + log-as-you-go
+- **D-006** — Addressable test codes (A–G), not renamed test files
+- **D-005** — Machine-checkable version marker + gates, because a doc can't watch itself
+- **D-004** — File types: prose = Markdown, flat tables = TSV, queried records = JSON
+- **D-003** — Keep history (archive), don't delete
+- **D-002** — Many small single-purpose files + archived history, NOT a merged megafile
+- **D-001** — Front-door `INDEX.md` as the single entry point
+
 ---
+
+## D-GH-2026-07-13-chargen-charsize-clobber · applyBuild()'s render()-before-LOG-resync ordering silently clobbers omitted DOM fields
+- **Context:** A Tiefling round-tripped Live Sheet → CharGen lost its "Medium" size choice back to
+  "Small" — found by the widened tool-switch field diff in `random-manual-e2e.mjs` during CI on the
+  preview→main promotion PR (seed 29219918914), not by hand-testing. `applyBuild(b,opts)` writes DOM
+  controls from `b` first, then calls `render()` — but `LOG` (the classic-script variable `readBuild()
+  = foldBuild(LOG)` derives from) isn't resynced from the just-written DOM until later in the same
+  function (`replaceWholeLogFromBuild(_domReadBuild())`). That intermediate `render()` call therefore
+  computes `compute(readBuild())` off the *previous* build's stale `LOG`/species, which can make
+  `sizeChoosable` wrongly false — and the size block's `else` branch does a one-way destructive
+  `if(cs.value!=='Small')cs.value='Small'`. Nothing downstream ever restores it once species becomes
+  correct again, because the block's *choosable* branch only toggles visibility/text, never re-sets
+  `cs.value`.
+- **Options:** (A1) reorder `applyBuild()` to resync `LOG` before the first `render()` call — fixes the
+  root cause for every current and future field, but touches a function already flagged (in its own
+  comments) as fragile / load-bearing for several other flows (autosave restore, hash-load, Reset),
+  raising the risk of an unrelated regression for a one-field bug. (A2) add the missing field to the
+  **existing** "re-assert primary selects" block that already runs *after* `render()` specifically to
+  patch this exact class of clobbering for `spec`/`spec2`/`oclass`/`oclass2`/`hd`/`profBonus`/`budget`
+  — `charsize` was simply omitted from that list, an apparent oversight rather than an intentional
+  exclusion.
+- **Decision:** **A2.** Added `set('charsize',b.size||'Small');` to the re-assert block. Minimal,
+  pattern-consistent, verified via instrumented tracing and a clean re-run of the exact failing seed
+  plus a 10-seed confidence sweep — all pass.
+- **Why not A1:** the reorder is the more durable fix in the abstract, but `applyBuild()`'s own comments
+  already document awareness of this "compute-managed fields parked in hidden controls" divergence risk
+  (in `_cgApplyEnvelope()`, citing `size` by name) without previously acting on it — a sign this function
+  has accumulated enough surrounding assumptions that a structural reorder deserves its own
+  dedicated, reviewed change, not a ride-along in a one-field bug fix.
+- **A second confirmed instance, found by `/code-review` on this same PR before merge:** `lineage`
+  (line ~2535, set once before `render()`, never re-asserted) has the identical shape — a species with
+  lineages (Elf, etc.) whose `_mine` allow-list is derived from stale species during that intermediate
+  `render()` pass can have its just-set lineage silently blanked (`_sel.value=''`) at the render block
+  guarding `#lineage`/`.linspellck`. Fixed the same way: added `set('lineage',b.lineage||'');` to the
+  same re-assert block, in this PR (same file, same block, same one-line pattern already under review —
+  not scope creep). Verified via a 12-seed sweep post-fix, all pass. `lineage` was already in
+  `random-manual-e2e.mjs`'s portable-field diff list, so this was a real latent gap the harness could
+  have caught given the right random seed, not a hypothetical.
+- **Residual risk, logged for the next agent who touches `applyBuild()`:** ANY DOM field that (a) is
+  written earlier in `applyBuild()`, (b) feeds a `render()`-computed *choosability*/*gating* check, and
+  (c) is NOT in the re-assert block, is exposed to this exact clobber. Two instances found and fixed
+  the same way within one PR is a signal this is a recurring shape, not a one-off — if a THIRD instance
+  turns up, that's the trigger to stop patching individual fields and do the A1 structural reorder
+  instead. A lower-confidence, differently-shaped sibling family was flagged but NOT fixed here
+  (different code shape, needs its own verification): checkbox-uncheck resets driven by the same
+  stale-`b` read (`.expck`/`.toolexpck` lines ~2867/2870, `.racck` ~2806-2807, cascading `.linspellck`
+  ~2818) and cantrip-cap clamps (~2909, ~2989) — worth a follow-up pass if this class of bug keeps
+  surfacing.
+- **Status:** **In force.** UI-only; `js/engine.js`/`DATA.version` untouched, `compute()` output
+  unaffected, `engine-parity.html`/`engine-parity-ci.mjs` still 20/0.
+
+---
+
+## D-GH-2026-07-13-random-e2e-real-oracle · Give the random e2e harness a genuinely independent oracle
+- **Context:** `testing/scripts/random-manual-e2e.mjs` drives real UI clicks and checks invariants like
+  "the displayed AP equals `economy().available`." All three tools bridge the SAME `js/engine.js` onto
+  `window` (D-GH26/D-GH36/D-GH37), so that class of check is **self-referential**: if `compute()` or
+  `economy()` itself is wrong, every UI surface reads the display, `economy()`, and the buy panel from
+  the same wrong number and agrees with itself. The harness could not have caught either real bug found
+  earlier this session (the empty-cloud-save bug, CharGen's randomize-ignoring-DM-AP bug) — both were
+  found by `/code-review`, not this tool.
+- **Options:** (A1) leave it as a DOM-consistency smoke test only. (A2) give it a genuinely independent
+  oracle: a **second, freshly-imported instance of the same `js/engine.js`**, running in this Node
+  process (separate from the browser's long-lived module instance), fed the browser's real
+  randomly-generated LOG each iteration, cross-checked against both the browser AND against a
+  hand-written, spec-derived reimplementation of the spend-accounting rule. (A3) port the engine to a
+  second language/implementation for true implementation-diversity — rejected as wildly disproportionate
+  to the payoff for a single-repo hobby-scale tool.
+- **Decision:** **A2.** `js/engine.js` is already documented as "no Node APIs, no require(), no npm" —
+  it Node-imports cleanly with zero changes, so this cost one `import()` call, not a new build/bundling
+  step.
+- **Why this actually catches more, concretely:** four checks, each targeting a DIFFERENT failure mode a
+  self-check can't see: **(1)** Node-vs-browser agreement (`economy()`/`compute(foldBuild())` computed in
+  a fresh Node import vs the browser, same LOG) — catches state that leaked into the browser's long-lived
+  module instance across purchases. **(2)** dual-entry-point agreement — `foldBuild()+compute()` vs
+  `rebuildStateFromEvents()`, the engine's two documented ways to replay a LOG, must agree with each
+  other (both computed in the same Node process, isolating this from (1)). **(3)** spec-independent spend
+  reconciliation — a LOG-cost summation hand-written from the engine's documented behaviour, never
+  calling `economy()`/`_spendCost()` — the ONE check that can catch a bug in `economy()`'s own
+  categorization logic, since (1) and (2) would both reproduce that bug identically (they call the same
+  function). **(4)** `compute()` purity (same input twice → same output; input untouched) — catches a
+  hidden shared-mutation bug.
+- **Verified with two positive controls, not just "it ran green":** temporarily injected a `_spendCost()`
+  doubling bug — caught immediately and precisely by check (3) (`independently-summed LOG
+  cost=49 vs economy().spent=98`), before any downstream symptom (negative AP) even had a chance to fire,
+  correctly localizing the fault. Temporarily injected a `redo()` drop bug — caught immediately by the
+  new undo/redo round-trip check (previously zero coverage of undo/redo at all). Both reverted; the real
+  app then ran clean (0 false positives) across ~10 further iterations. `git blame`-visible in the PR, not
+  just asserted in this entry.
+- **A real bug found while BUILDING this** (not the app, the test): the first draft of the
+  Node-vs-browser check called `window.economy(LOG)` uniformly on both tools. Live Sheet shadows
+  `window.economy` with its own classic-script, **index**-based wrapper (`economy(uptoIdx)`, for its
+  time-travel/scrub UI — see AGENTS.md) — passing an array where that wrapper expects an index silently
+  produced an empty replay, reading `spent=0` regardless of the real LOG. CharGen has no such shadow
+  (`window.economy` there IS the raw engine function — AGENTS.md: "CharGen calls the engine's
+  array-parameter API directly"). Fixed by resolving the raw array-parameter function explicitly per
+  tool (`window._engineFold` on Live Sheet, `window` directly on CharGen) — a small, useful lesson: even
+  a "fresh, independent" oracle inherits bugs from HOW you wire it into the thing under test, and needs
+  its own positive-control verification, not just "it compiles and the happy path is green."
+- **Status:** **In force.** `js/engine.js` was not touched by this change (test-only); `DATA.version`
+  unaffected. `testing/tests/engine-parity.html`/CI parity gate unaffected (separate mechanism, static
+  fixtures — this is a live-random-LOG oracle, not a replacement for it).
 
 ## D-GH-2026-07-13-campaign-rules-snapshot · Carry campaign rules offline as an engine-inert LOG event, resolved live-first
 - **Context:** Part (b) of the retire-pactrules task (`docs/plans/2026-07-12-campaign-rules-snapshot.md`).

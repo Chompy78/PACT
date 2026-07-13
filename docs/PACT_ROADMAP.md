@@ -102,15 +102,11 @@ Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
-- **REV-13** — Dead grant maps `grantSk/grantTl/grantIn` in `engine.js` (~:62) are never populated. Wire up
-  or remove; don't change pricing without updating the REV-01 baseline in the same PR.
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
   named sub-pricers. Only safe once REV-01 gives real assertions; dedicated PR, byte-identical output.
 
 **Polish & hardening** (from the Task 5 audit session):
 - **Real icons** — replace the placeholder 192/512/180 PNGs with real artwork (needs your art).
-- **Pin/bundle supabase-js** — it's `@supabase/supabase-js@2` (major-pinned only); pin the exact version
-  (or vendor a local copy) so a CDN minor update can't change offline behaviour.
 
 **Landing-page follow-ups** (deferred from the redesign):
 - Extend theming to the guide and tools (index-only today).
@@ -121,18 +117,12 @@ Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, 
 - Supabase project setup · Icon & asset list (192/512/180) · Offline UX spec · Future-features roadmap.
 
 **Improvements** (recommended action first; the *then* line is a lower-priority upgrade with its caveat):
-- **A1 — Engine API contract.** Add a JSDoc block atop `js/engine.js` (signatures + one line per export) so
-  agents grasp the API without reading 238 KB. *Then (optional):* a dev-only `engine.d.ts` for IDE
-  autocomplete — *caveat:* a new format to maintain; can read as "TypeScript creeping in."
-- **A3 — Client error visibility.** Add a global `onerror`/`unhandledrejection` handler logging to the
-  console + a "Report issue" link in the footer. *Then (lower priority):* log errors to a Supabase table
-  once sign-in is the default — *caveats:* extra write traffic + a privacy note to document.
-- **A4 — DECISIONS.md index.** Add a one-line-per-decision index at the top + the rule "next code =
-  highest + 1" (and fix the dup via CU-5). *Then (lower priority):* auto-generate the index — *caveat:*
-  depends on AUD-1 existing.
-- **A5 — Bulk "back up all characters."** Add a "Back up all" button → one JSON bundle, plus restore, so a
-  localStorage user can't lose everything to a browser clear. *Then:* the Supabase migration supersedes it
-  — *caveat:* keep the local backup until cloud sign-in is the default.
+- **A1 — Engine API contract.** *(base shipped 2026-07-13)* Full JSDoc contract now sits atop `js/engine.js`.
+  *Remaining (optional):* a dev-only `engine.d.ts` for IDE autocomplete — *caveat:* a new format to maintain;
+  can read as "TypeScript creeping in."
+- **A3 — Client error visibility.** *(base shipped 2026-07-13)* Global `error`/`unhandledrejection` surface +
+  Report-issue link now on all pages. *Remaining (lower priority):* log errors to a Supabase table once
+  sign-in is the default — *caveats:* extra write traffic + a privacy note to document.
 - **A6 — Tag releases to the build version.** `git tag v0.x` (matching `BUILD`) + a GitHub Release per
   ship, for a labelled rollback point. *Then (lighter alternative):* tags only, no notes — *caveat:* less
   context on what each release shipped.

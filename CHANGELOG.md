@@ -4,6 +4,68 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · fix — CharGen: species-choosable size + lineage clobbered on Live Sheet → CharGen
+  handoff** (`tools/PACT-CharGen-Webtool.html`, `applyBuild()` only). A Tiefling (or any species with a
+  choosable size) that round-tripped Live Sheet → CharGen lost its "Medium" choice back to "Small".
+  Root cause: `applyBuild()` writes DOM controls, then calls `render()` — but at that point `LOG`
+  hasn't been resynced from the DOM yet (that resync runs later in the same function), so `render()`
+  computes off stale, previous-build `LOG` data. A stale species can make `sizeChoosable` wrongly
+  false, which triggers the size block's one-way destructive `cs.value='Small'` reset — and nothing
+  ever restores it once the species becomes correct again. `applyBuild()` already re-asserts several
+  other fields (`spec`/`spec2`/`oclass`/`oclass2`/`hd`/`profBonus`/`budget`) in a block *after*
+  `render()` specifically to fix this class of clobbering; `charsize` was simply missing from that
+  list. Added it. Caught by the widened tool-switch field diff in `random-manual-e2e.mjs` (2026-07-13,
+  below) during CI on the preview→main promotion PR — the harness's previous 3-field diff never
+  looked at `size`. A code review of the fix found a second, identically-shaped instance: a species
+  with lineages (Elf, etc.) that round-tripped the same way could have its chosen lineage silently
+  blanked, since `lineage` was set once (before `render()`) but likewise never re-asserted. Added
+  `lineage` to the same re-assert block. No `DATA.version` bump (UI-only, no `compute()` output
+  change); `engine-parity.html`/`engine-parity-ci.mjs` still 20/0.
+- **2026-07-13 · test — `random-manual-e2e.mjs`: a genuinely independent oracle, not just a
+  self-check** (`testing/scripts/random-manual-e2e.mjs` only). Every tool bridges the SAME
+  `js/engine.js` onto `window`, so the harness's prior checks ("displayed AP == `economy().available`")
+  were self-referential — a bug in `compute()`/`economy()` itself would pass, since every UI surface
+  agrees on the wrong number together. Added four checks that don't have that blind spot, run against
+  the real random LOG each iteration generates (not just the 20 static parity fixtures): **(1)**
+  Node-vs-browser agreement — the same `engine.js` freshly imported into this Node process, fed the
+  browser's real LOG, must match `economy()`/`compute(foldBuild())`; **(2)** dual-entry-point
+  agreement — `foldBuild()+compute()` vs `rebuildStateFromEvents()` must agree with each other;
+  **(3)** a hand-written, spec-derived LOG-cost reconciliation (not calling `economy()`) — the one
+  check that can catch a bug in `economy()`'s own categorization logic, since (1)/(2) would both
+  reproduce that bug identically; **(4)** `compute()` purity (same input twice → same output, input
+  untouched). Also replaced the tool-switch round-trip check's 3 hand-picked fields
+  (species/originClass/hd) with a curated ~20-field diff, and added a previously-entirely-unchecked
+  **undo/redo round-trip identity** check in Live Sheet advancement. Verified with two positive
+  controls (a temporary `_spendCost()` doubling bug, and a temporary `redo()` drop bug) — both caught
+  immediately and precisely by the new checks, then reverted; zero false positives across ~10 clean
+  runs against the real app. Fixed a real bug found while building this: `checkEconomyAgreement`
+  initially called `window.economy(LOG)` uniformly, but Live Sheet shadows `window.economy` with a
+  local INDEX-based wrapper (for its time-travel/scrub UI) — passing an array where an index is
+  expected silently replayed an empty LOG. Fixed to resolve the raw array-parameter engine function
+  per tool (`window._engineFold` on Live Sheet, `window` directly on CharGen).
+- **2026-07-13 · feat — back up / restore all local data from the landing page (A5)** (`index.html`;
+  localStorage-only, no engine/schema touch). A "Your data" section on `index.html` bundles every `pact*`
+  localStorage key (Live Sheet character, CharGen build, DM roster, settings — all same-origin) into one
+  downloadable JSON, and restores from it, so signed-out/local-only play survives a browser or cache clear.
+  Restore **whitelists `pact*` string keys** (a file can't write arbitrary storage) and confirms before
+  overwriting. Verified in a real browser (7/7), including the whitelist rejecting a malicious non-`pact` key.
+- **2026-07-13 · refactor(engine) — remove REV-13 dead grant maps** (`js/engine.js`; no `DATA.version` bump,
+  parity 20/0). `compute()`'s `grantSk/grantTl/grantIn` "free-grant" scaffolds were declared empty and never
+  populated, so the paid-skill/tool filters that read them (`filter(s=>!grantSk[s])` …) only ever filtered an
+  empty set — every proficiency was already counted as paid. Removed the maps and simplified the filters to
+  their equivalent no-grant form (`.length`). Byte-identical output, so no REV-01 baseline change. If a future
+  feature grants free proficiencies, reintroduce the filter with a fixture that exercises it.
+- **2026-07-13 · chore/docs — low-risk hardening batch (B1/B4/B5/B3)** (no `DATA.version` bump, parity 20/0, e2e green):
+  - **B5** — pinned `supabase-js` to exact **2.110.2** (was the `@2` major) in `js/supabase-client.js`, so a CDN
+    minor/patch can't silently change offline/auth behaviour; the e2e stub route became a version-agnostic
+    regex so it keeps intercepting across future pin bumps. (SW never intercepts the CDN — unaffected.)
+  - **B1** — replaced the stale partial "Exports:" block atop `js/engine.js` with a full **API contract**
+    (all 14 exports: signature + return shape + one-liner, grouped by concern), so agents grasp the API
+    without reading the ~238 KB body.
+  - **B4** — added a **one-line-per-decision index** (68 entries) to the top of `DECISIONS.md`.
+  - **B3** — added a **global error surface** (`error`/`unhandledrejection` → console with a `[PACT]` marker +
+    Report-issue URL, never swallowed) to all four pages, plus a visible **"Report an issue"** link in the
+    footers that have one (index + DM Console).
 - **2026-07-13 · feat — Live Sheet: carry campaign rules offline via a LOG snapshot + `resolveRules()` (part b of retire-pactrules)**
   (`tools/PACT-Live-Char-Sheet.html` only; `js/engine.js` untouched, no `DATA.version` bump, parity 20/0).
   A bound character now keeps a copy of its campaign's restriction rules in its own event LOG (a
