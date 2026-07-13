@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · perf — Live Sheet: stop re-folding+re-computing for "AP available" in hot paths**
+  (`tools/PACT-Live-Char-Sheet.html`; `js/engine.js` untouched, no `DATA.version` bump, parity 20/0).
+  The campaign-AP-model work had routed `buy()` and the paid spell-swap eligibility check through
+  `apAvailable(null)`, which internally runs a fresh `foldBuild(null)+compute()` — redundant next to the
+  fold each caller already had. (a) `buy()` now folds the LOG **once** (`b0`) and threads it into
+  `priceOf()`/`legalCheck()` (both gained an optional pre-folded-build param) and reuses it for the dup
+  guard, availability, and `b0.hd`, dropping ~4 redundant folds + 1 redundant `compute()` per purchase.
+  (b) `openNames()` hoisted its per-known-spell-slot `apAvailable(null)` out of the discipline loop into
+  one reuse of its existing `b` fold — was O(spell-slots) full recomputes, now O(1). The AP figure is
+  byte-identical (`apAvailable(null) === _apRemaining(compute(foldBuild(null),_dmOpts()).spendable,
+  economy(null).spent)`); `buyoffDrawback()`/`_swapTally()` left as-is (already one minimal call each).
 - **2026-07-12 · fix — four aggregate-review findings across both tools**
   (`tools/PACT-Live-Char-Sheet.html`, `tools/PACT-CharGen-Webtool.html`; `js/engine.js` untouched, no
   `DATA.version` bump, parity 20/0). A pre-promotion `/code-review high` over the whole `main…preview`

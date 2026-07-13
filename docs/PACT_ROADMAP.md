@@ -195,26 +195,6 @@ D-GH-2026-07-12-retire-pactrules-code in DECISIONS.md.
 **Code-review follow-ups (from `feat/campaign-ap-model`)** — low-severity cleanup flagged by
 `/code-review`, not fixed in that PR (low risk / negligible impact either way):
 
-## Live Sheet: avoid redundant fold+compute in `apAvailable()`/`apCeiling()` hot paths — TODO
-Branch perf/livesheet-apavailable-fold-reuse. `apCeiling()`/`apAvailable()` re-run `foldBuild`+`compute`+`economy` from scratch on every call, even from sites that only need a cheap ledger read.
-
-```text
-The AP-model work routed buy(), buyoffDrawback(), and the paid spell-swap eligibility checks
-(openNames()/_swapTally()) through apAvailable(null), which internally does foldBuild(null)+compute()+
-economy(null). The pre-AP-model code at those sites only needed economy(null).available — no fold, no
-compute. So every purchase click / swap-dialog interaction now pays a full rules recompute it doesn't need.
-Add a pure (spendable, spent)-taking helper (already exists as _apRemaining) — and/or a (b, eco)-accepting
-overload of apAvailable — so call sites that already have a fresh build/economy/compute-result in scope
-(render() already does) reuse it instead of re-deriving via the uptoIdx API. Keep the index-based
-apAvailable(uptoIdx) for genuinely index-driven callers (time-travel scrub UI).
-Judged negligible at current LOG sizes — this is a cleanup, not a hot-path emergency.
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** `buy()` / `buyoffDrawback()` / the paid spell-swap checks no longer trigger a `foldBuild`+`compute()` beyond what they already need; parity still 20/0.
-
----
-
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
