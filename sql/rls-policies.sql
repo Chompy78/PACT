@@ -244,9 +244,11 @@ grant execute on function public.regenerate_dm_invite_code(uuid)    to authentic
 grant execute on function public.award_ap(uuid, integer, text)      to authenticated;
 grant execute on function public.create_player_invite(uuid, integer, integer) to authenticated;
 grant execute on function public.redeem_player_invite(text, text)             to authenticated;
+grant execute on function public.bind_character_to_campaign(uuid, text)       to authenticated;
 
 revoke execute on function public.create_player_invite(uuid, integer, integer) from public;
 revoke execute on function public.redeem_player_invite(text, text)             from public;
+revoke execute on function public.bind_character_to_campaign(uuid, text)       from public;
 
 -- Postgres grants EXECUTE to PUBLIC by default on every new function; revoke it here
 -- so award_ap is authenticated-only rather than relying solely on its internal

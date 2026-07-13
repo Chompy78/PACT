@@ -397,3 +397,43 @@ begin
   return query select v_char_id, v_invite.starting_ap, v_invite.starting_budget, v_invite.campaign_id, false;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- bind_character_to_campaign — Path B: bind an already-built character to a
+-- campaign via the shared invite_code. Rebind contract: bind only if unbound;
+-- same-campaign is an idempotent no-op; a different campaign is rejected.
+-- ---------------------------------------------------------------------------
+create or replace function public.bind_character_to_campaign(p_character_id uuid, p_code text)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_campaign campaigns%rowtype;
+  v_char     characters%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  select * into v_char from characters where id = p_character_id and owner_id = auth.uid();
+  if not found then
+    raise exception 'Character not found';
+  end if;
+
+  select * into v_campaign from campaigns where invite_code = upper(p_code);
+  if not found then
+    raise exception 'No campaign with that invite code';
+  end if;
+
+  if v_char.campaign_id = v_campaign.id then
+    return;
+  end if;
+  if v_char.campaign_id is not null then
+    raise exception 'This character is already bound to a different campaign';
+  end if;
+
+  if exists (select 1 from characters where campaign_id = v_campaign.id and owner_id = auth.uid()) then
+    raise exception 'You have already joined this campaign with another character';
+  end if;
+
+  update characters set campaign_id = v_campaign.id where id = p_character_id;
+end;
+$$;
