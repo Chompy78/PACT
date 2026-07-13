@@ -32,26 +32,6 @@ _(none currently — the last NOW item, the full engine module-bridge migration,
 
 ---
 
-## Fix: race-losing join_campaign/redeem_player_invite calls surface a raw DB error — TODO
-Branch fix/campaign-join-race-friendly-error. `join_campaign` and `redeem_player_invite`'s character-insert have no `unique_violation` exception handler, unlike `bind_character_to_campaign` (which got one in D-GH-2026-07-13-campaign-bind-character).
-
-```text
-A race that beats either RPC's pre-check surfaces a raw Postgres "duplicate key value violates unique
-constraint" error to the client instead of the friendly "You have already joined this campaign" message.
-Pre-existing, found during /code-review on PR #203 and deferred there as out of scope for a "no behavior
-change" refactor.
-
-Wrap the INSERT in join_campaign and the INSERT in redeem_player_invite's new-character branch in the
-same begin/exception when unique_violation then raise exception '...' pattern bind_character_to_campaign
-already uses (sql/schema.sql), each with the exact message text that function's own pre-check already
-raises. New dated migration mirroring the change into sql/schema.sql. Re-run
-testing/tests/engine-parity.html (20/0, unaffected) and the Supabase advisor after applying.
-```
-
-**Done when:** `join_campaign` and `redeem_player_invite` both convert a `unique_violation` race into their own existing friendly "already joined" message instead of a raw Postgres error; parity still 20/0.
-
----
-
 ## Feature: Advancement tracks + D&D 2024 level equivalency — TODO
 Branch feat/advancement-tracks. Store AP-per-level advancement tracks (slow/average/fast + custom) and a D&D 2024 equivalent level reference table; let DMs select or customise a track per campaign.
 
