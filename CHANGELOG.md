@@ -4,8 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
-- **2026-07-13 · fix — CharGen: species-choosable size + lineage clobbered on Live Sheet → CharGen
-  handoff** (`tools/PACT-CharGen-Webtool.html`, `applyBuild()` only). A Tiefling (or any species with a
+- **2026-07-13 · test — `log-fuzz.mjs`: a pure-Node, LOG-direct fuzzer for `js/engine.js`**
+  (Phase 2 of the D-GH-2026-07-13-random-e2e-real-oracle plan; `testing/scripts/log-fuzz.mjs`,
+  `testing/README.md`, `testing/package.json`). `random-manual-e2e.mjs` (Phase 1) drives the
+  real browser UI, so it can only reach LOG shapes a DOM click path can produce; this harness
+  constructs LOG event objects directly against `MUT`'s documented shape (`{type:'buy',
+  cat:<key>,payload:{...}}` across all 44 mutation categories, plus `award`/`buyoff`/`name`/
+  `names`/`creationLocked`/`campaignBound`) and feeds them straight into `foldBuild()`/
+  `compute()`/`rebuildStateFromEvents()` — no browser, so it runs 3000 iterations in ~1-2
+  seconds. Checks: never throws, never produces `NaN` in `compute()`'s output, `foldBuild()`
+  purity, `compute()` purity (Phase 1's check, reused), and `foldBuild()+compute()` agreement
+  with `rebuildStateFromEvents(null, LOG)` on `.result`. Shrinks any failure to a minimal
+  reproducer (single-event delta-debug). **Its first run found a real bug** (see the next
+  entry) — not yet wired into CI pending that fix landing separately (`js/engine.js` is
+  high-risk; kept out of this tool-only change). No `DATA.version` bump (test-only).
   choosable size) that round-tripped Live Sheet → CharGen lost its "Medium" choice back to "Small".
   Root cause: `applyBuild()` writes DOM controls, then calls `render()` — but at that point `LOG`
   hasn't been resynced from the DOM yet (that resync runs later in the same function), so `render()`
