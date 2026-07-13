@@ -4,6 +4,12 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · docs — orphaned-export sweep of `js/engine.js` (A9, find-and-report only)**
+  (`docs/sessions/2026-07-13-orphaned-export-sweep.md`; no code changed). Grepped all 14 named exports
+  across the tools + `js/` + tests: 13 are referenced; **`SIG_ALG`** is a confirmed zero-reference export
+  (used only inside `engine.js` by `signPayload`/`verifyPayload`). Filed as a follow-up roadmap item
+  (de-export or justify). `rebuildStateFromEvents` is used only by the parity tests but is the tested
+  event-replay contract, so it stays. No `DATA.version` change.
 - **2026-07-13 · feat — DM Console: copy campaign rules from another campaign**
   (`tools/DM-Console.html`; `js/engine.js` untouched, no `DATA.version` bump, no schema/RLS change).
   A "Copy rules from…" picker on the Campaign Rules panel lists the DM's other campaigns (owner/co-DM);
