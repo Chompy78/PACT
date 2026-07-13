@@ -406,7 +406,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 (function(){var RB='https://github.com/Chompy78/PACT/issues/new';function L(k,d){try{console.error('[PACT] '+k+':',d,'— report: '+RB);}catch(_){}}
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.200</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Save this character to the cloud, or load one you saved before" style="color:#fff;border-color:rgba(255,255,255,.35)">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v0.200</span><span class="hd-pactver">PACT rules · v0.332</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Save this character to the cloud, or load one you saved before" style="color:#fff;border-color:rgba(255,255,255,.35)">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
@@ -486,13 +486,14 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // so this failure must never take engine-ready down with it; keeping it a separate <script
   // type="module"> means a dead CDN only loses the cloud-campaign UI, not the character builder.
   import { currentSession, onAuthChange } from '../js/auth.js';
-  import { listMyCampaigns, getCampaign } from '../js/campaign.js';
+  import { listMyCampaigns, getCampaign, redeemPlayerInvite, PENDING_INVITE_KEY } from '../js/campaign.js';
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
   import { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
   window._authBridge = { currentSession, onAuthChange };
-  window._campaignBridge = { listMyCampaigns, getCampaign };
+  window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite };
+  window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
@@ -571,6 +572,28 @@ document.addEventListener('campaign-ready', function () {
 });
 </script>
 <script>
+// Resolve window._dmAp/_ignorePlayerAp/_dmApStatus/_cloudCampaign from a character's live `ap` column
+// + campaign_id. Shared by the cloud load flow (onLoadClick, below) and Path-A invite redemption
+// (tryRedeem, further below) so the two can't silently drift apart on this state machine.
+async function _cgResolveDmApStatus(ap, campaignId){
+  window._dmAp = ap || 0;
+  window._ignorePlayerAp = false;
+  window._dmApStatus = campaignId ? 'unavailable' : 'none';   // resolved below -- 'unavailable' is the correct interim state, not silently 0
+  if(!campaignId) return;
+  var C = window._campaignBridge;
+  try{
+    var camp = C && await C.getCampaign(campaignId);
+    if(camp){
+      window._ignorePlayerAp = !!camp.ignore_player_ap;
+      window._dmApStatus = 'active';
+      window._cloudCampaign = camp;   // activates rule-filtering (cloudRuleBarred), same as the campaign-rules picker above
+      var selEl = document.getElementById('cgCloudCampSel');
+      if(selEl) selEl.value = camp.id;
+      if(typeof refreshCloudFilters === 'function') refreshCloudFilters();
+    }
+  }catch(e){ /* non-fatal -- stays 'unavailable', which correctly reads as "unknown", not "no DM AP" */ }
+}
+
 // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen's first
 // cloud character-load flow — mirrors the Live Sheet's ☁ Cloud dropdown, using 'chargen' as the `kind`
 // (the `characters` table already accepted it — see sql/schema.sql — the tool just never used it).
@@ -639,24 +662,122 @@ document.addEventListener('sync-ready', function () {
     if (!confirm('Load "' + label + '"? This replaces your current character build.')) return;
     var rec = await S.loadCharacter(id);
     if (!rec || !rec.stats || !Array.isArray(rec.stats.LOG)) { alert('No character data found.'); return; }
-    window._dmAp = rec.ap || 0;
-    window._ignorePlayerAp = false;
-    window._dmApStatus = rec.campaign_id ? 'unavailable' : 'none';   // resolve below; 'unavailable' is the correct interim state, not silently 0
     if (rec.id) __charId = rec.id;   // bare assignment — __charId is a top-level `let`, so a window.X= write here would silently shadow-fail (see the Live Sheet's own cloud-load bug, fixed elsewhere in this change — deliberately not repeated here)
     _cgApplyEnvelope(rec.stats, { clearHistory: true });      // bare LOG/SEQ assignment inside — same reason
     cgCloudMenu.classList.remove('open');
-    if (rec.campaign_id && C) {
-      try {
-        var camp = await C.getCampaign(rec.campaign_id);
-        if (camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._dmApStatus = 'active'; }
-      } catch (e) { /* non-fatal — stays 'unavailable', which correctly reads as "unknown", not "no DM AP" */ }
-      render();
-    }
+    await _cgResolveDmApStatus(rec.ap, rec.campaign_id);
+    render();
     if (typeof flash === 'function') flash('☁ Loaded: ' + label);
   }
 
   A.onAuthChange(function (event, session) { _session = session; });
   A.currentSession().then(function (session) { _session = session; });
+});
+</script>
+<script>
+// Campaign join/invite UI, Deliverable 1 -- Path A (feat/campaign-invite-tokens; see
+// docs/plans/2026-07-11-campaign-join-invite-flow.md, Revision 3). Redeem a DM-issued,
+// single-use ?invite=<token> link into a brand-new campaign-bound character, pre-seeded
+// with the DM-set starting AP + budget. A separate 'sync-ready' listener from the cloud
+// load/save block above (same reasoning as that block's own separation from engine-ready:
+// keeps this feature's failure modes isolated) -- but runs after it, so _cgEnvelope/
+// _cgApplyEnvelope/currentCharId (defined later in this file, in scope by the time
+// 'sync-ready' actually fires -- classic <script> blocks all run before any module-
+// dispatched event) and CHAR_SCHEMA (window-bridged by the engine-ready module) are safe
+// to call here.
+document.addEventListener('sync-ready', function () {
+  'use strict';
+  var A = window._authBridge, C = window._campaignBridge, S = window._syncBridge;
+  var PENDING_KEY = window.PENDING_INVITE_KEY;
+  var banner = document.getElementById('cgInviteBanner');
+  var _declinedThisLoad = false;
+  var _wasSignedIn = false;   // only re-attempt on an actual sign-in transition, not e.g. hourly TOKEN_REFRESHED -- matches the guard the cloud load/save listener above already uses for the same reason
+
+  function showBanner(text){ if(!banner) return; banner.style.display=''; banner.textContent=text; }
+  function hideBannerSoon(){ if(!banner) return; setTimeout(function(){ banner.style.display='none'; }, 6000); }
+  function clearPendingToken(){ try{ sessionStorage.removeItem(PENDING_KEY); }catch(e){} }
+
+  // Stash the token (sessionStorage survives a same-tab navigation to ../login.html and
+  // back, unlike the query param alone -- see the plan's "Registration email-confirm
+  // round-trip" risk note for the one case this doesn't cover: confirming from a NEW tab).
+  // Strip it from the visible URL so a reload/re-share of the current URL doesn't re-fire.
+  // Safe to do here (not before _cgConsumeHandoff's own boot-time URL edit) now that that
+  // function strips only its own ?handoff param rather than the whole query string.
+  (function stashInviteToken(){
+    var qs = new URLSearchParams(location.search);
+    var urlToken = qs.get('invite');
+    if(!urlToken) return;
+    try{ sessionStorage.setItem(PENDING_KEY, urlToken); }catch(e){}
+    qs.delete('invite');
+    var clean = location.pathname + (qs.toString()?('?'+qs.toString()):'') + location.hash;
+    try{ history.replaceState(null,'',clean); }catch(e){}
+  })();
+
+  var _redeeming = false;
+  async function tryRedeem(session){
+    if(_redeeming || _declinedThisLoad) return;
+    var token; try{ token = sessionStorage.getItem(PENDING_KEY); }catch(e){ token = null; }
+    if(!token) return;
+    _redeeming = true;   // set BEFORE the first await -- JS is single-threaded up to that point, so a
+                          // concurrent trigger (this function is called both directly and from onAuthChange)
+                          // can't slip past this guard and double-fire the confirm() dialog below.
+    try{
+      if(!session) session = await A.currentSession();
+      if(!session){
+        showBanner('You’ve been invited to a campaign. Sign in to accept it — this link stays valid until you do. → ');
+        if(banner){var a=document.createElement('a');a.href='../login.html';a.textContent='Sign in';a.style.color='#fff';a.style.fontWeight='700';banner.appendChild(a);}
+        return;
+      }
+      if(!confirm('Accept this campaign invite? This creates a brand-new character bound to the campaign and replaces your current in-progress build.')){
+        _declinedThisLoad = true;
+        clearPendingToken();   // a declined invite must not keep re-prompting on every later reload/sign-in in this tab
+        if(banner) banner.style.display='none';
+        return;
+      }
+      showBanner('Joining campaign…');
+      var res = await C.redeemPlayerInvite(token, null);   // no build exists yet at this point -- server default-names it
+
+      var ap, campaignId = res.campaignId;
+      if(res.isNew){
+        var seedLog = [{type:'award',amount:res.startingBudget,note:'Budget',noLock:true,
+          label:'Award — budget ('+res.startingBudget+' AP)',seq:1,ts:Date.now(),rules:DATA.version}];
+        _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:DATA.version,name:'New Character',LOG:seedLog,SEQ:2,id:res.characterId},{clearHistory:true});
+        var stats = _cgEnvelope(false);
+        var saveRes = await S.saveCharacter({id:res.characterId,name:stats.name||'New Character',kind:'chargen',stats:stats});
+        if(saveRes && saveRes.error) throw saveRes.error;
+        ap = res.startingAp;
+      } else {
+        // Idempotent replay (double-tab, retry after an earlier success): load what's ALREADY
+        // there instead of re-seeding, or a second tab's real progress would be silently
+        // overwritten back to a bare budget award.
+        var rec = await S.loadCharacter(res.characterId);
+        if(rec && rec.stats && Array.isArray(rec.stats.LOG)){
+          if(rec.id) __charId = rec.id;
+          _cgApplyEnvelope(rec.stats,{clearHistory:true});
+        }
+        ap = rec ? (rec.ap||0) : res.startingAp;   // rec.ap is live; res.startingAp is only the invite's original snapshot
+        if(rec && rec.campaign_id) campaignId = rec.campaign_id;
+      }
+
+      await _cgResolveDmApStatus(ap, campaignId);
+      clearPendingToken();
+      render();
+      showBanner('☁ Joined campaign — character created with '+res.startingBudget+' AP budget.');
+      hideBannerSoon();
+    }catch(err){
+      clearPendingToken();   // a terminal RPC error (already-joined, invalid/expired token, etc.) must not keep re-prompting either
+      showBanner('Could not join campaign: '+(err&&err.message?err.message:err));
+    }finally{
+      _redeeming = false;
+    }
+  }
+
+  A.onAuthChange(function(event, session){
+    var nowSignedIn = !!session;
+    if(nowSignedIn && !_wasSignedIn) tryRedeem(session);
+    _wasSignedIn = nowSignedIn;
+  });
+  tryRedeem();
 });
 </script>
 <script>
@@ -2617,10 +2738,14 @@ function _cgApplyEnvelope(d,opts){
 // LOG/SEQ, autosaves through its internal render(). rules carried so the stale-version reprice note fires.
 function _cgConsumeHandoff(){
   try{
-    const u=new URLSearchParams(location.search).get('handoff');
+    const qs=new URLSearchParams(location.search);
+    const u=qs.get('handoff');
     if(!u)return false;
     const p=takeHandoff(u);
-    try{history.replaceState(null,'',location.pathname+location.hash);}catch(e){}   // strip ?handoff: a reload must not re-trigger
+    // Strip only ?handoff (a reload must not re-trigger it) -- NOT the whole query string, so a
+    // still-pending ?invite= token (feat/campaign-invite-tokens; stashed separately once 'sync-ready'
+    // fires) survives this earlier, engine-ready-gated boot step instead of being silently wiped.
+    try{qs.delete('handoff');history.replaceState(null,'',location.pathname+(qs.toString()?('?'+qs.toString()):'')+location.hash);}catch(e){}
     if(!p)return false;
     _cgResetCloudApState();   // a Live Sheet handoff is a local transfer, not a cloud load — no DM AP/campaign to carry over
     _cgApplyEnvelope({LOG:p.LOG,SEQ:p.SEQ,id:p.id,rules:p.rules},{clearHistory:true});
