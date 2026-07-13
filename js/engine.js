@@ -96,13 +96,15 @@ export function compute(b, opts){
   const hp=row.baseHP + hd*(cm+hardy) + tough*4;
   // saves by stat
   const saveList=(b.saves||[]); add("Saving throws",DATA.saves[saveList.length]||0);
-  const grantSk={}, grantTl={}, grantIn={};
   // skills by name + expertise by name
   const skillList=(b.skills||[]); const expList=(b.expertise||[]);
-  // skills and tools/instruments run on independent ladders — each gets its own first two free
-  const paidSkills=skillList.filter(s=>!grantSk[s]).length;
+  // skills and tools/instruments run on independent ladders — each gets its own first two free.
+  // (REV-13: the never-populated grantSk/grantTl/grantIn "free-grant" scaffolds were removed — they only
+  //  ever filtered an empty set, i.e. every skill/tool/instrument was paid. Byte-identical output; if a
+  //  future feature grants free proficiencies, reintroduce the filter then, with a fixture that exercises it.)
+  const paidSkills=skillList.length;
   add("Skills",DATA.skills[paidSkills]||0);
-  const paidTools=(b.tools||[]).filter(t=>!grantTl[t]).length+(b.instruments||[]).filter(i=>!grantIn[i]).length+(b.customProfs||[]).length;
+  const paidTools=(b.tools||[]).length+(b.instruments||[]).length+(b.customProfs||[]).length;
   add("Tools & instruments",DATA.tools[paidTools]||0);
   add("Expertise",DATA.expertise[expList.length]||0);
   for(const x of expList) if(!skillList.includes(x)) W.push("Expertise in "+x+" needs the skill bought first");
