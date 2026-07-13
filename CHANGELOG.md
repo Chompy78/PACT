@@ -4,6 +4,28 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · test — `random-manual-e2e.mjs`: a genuinely independent oracle, not just a
+  self-check** (`testing/scripts/random-manual-e2e.mjs` only). Every tool bridges the SAME
+  `js/engine.js` onto `window`, so the harness's prior checks ("displayed AP == `economy().available`")
+  were self-referential — a bug in `compute()`/`economy()` itself would pass, since every UI surface
+  agrees on the wrong number together. Added four checks that don't have that blind spot, run against
+  the real random LOG each iteration generates (not just the 20 static parity fixtures): **(1)**
+  Node-vs-browser agreement — the same `engine.js` freshly imported into this Node process, fed the
+  browser's real LOG, must match `economy()`/`compute(foldBuild())`; **(2)** dual-entry-point
+  agreement — `foldBuild()+compute()` vs `rebuildStateFromEvents()` must agree with each other;
+  **(3)** a hand-written, spec-derived LOG-cost reconciliation (not calling `economy()`) — the one
+  check that can catch a bug in `economy()`'s own categorization logic, since (1)/(2) would both
+  reproduce that bug identically; **(4)** `compute()` purity (same input twice → same output, input
+  untouched). Also replaced the tool-switch round-trip check's 3 hand-picked fields
+  (species/originClass/hd) with a curated ~20-field diff, and added a previously-entirely-unchecked
+  **undo/redo round-trip identity** check in Live Sheet advancement. Verified with two positive
+  controls (a temporary `_spendCost()` doubling bug, and a temporary `redo()` drop bug) — both caught
+  immediately and precisely by the new checks, then reverted; zero false positives across ~10 clean
+  runs against the real app. Fixed a real bug found while building this: `checkEconomyAgreement`
+  initially called `window.economy(LOG)` uniformly, but Live Sheet shadows `window.economy` with a
+  local INDEX-based wrapper (for its time-travel/scrub UI) — passing an array where an index is
+  expected silently replayed an empty LOG. Fixed to resolve the raw array-parameter engine function
+  per tool (`window._engineFold` on Live Sheet, `window` directly on CharGen).
 - **2026-07-13 · feat — back up / restore all local data from the landing page (A5)** (`index.html`;
   localStorage-only, no engine/schema touch). A "Your data" section on `index.html` bundles every `pact*`
   localStorage key (Live Sheet character, CharGen build, DM roster, settings — all same-origin) into one

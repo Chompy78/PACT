@@ -18,7 +18,15 @@
   character onto **DM Console**'s real file-drop roster import and cross-checks the rendered row
   (species/class/HP/AC/AP-available) against the source tool's own numbers — DM Console's cloud/
   campaign features (sign-in, award AP, campaign rules) aren't exercised, since they need a live
-  Supabase session, not just the CDN stub. Runs automatically in CI (see
+  Supabase session, not just the CDN stub. **Independent oracle (D-GH-2026-07-13-random-e2e-real-oracle):**
+  because all three tools bridge the same `js/engine.js` onto `window`, a check like "the displayed AP
+  equals `economy().available`" is self-referential — a bug in `compute()`/`economy()` itself would pass.
+  This harness also freshly `import()`s `js/engine.js` into this Node process (a separate module instance
+  from the browser's) and, on the real random LOG each iteration generates, cross-checks Node-vs-browser
+  agreement, the two engine entry points (`foldBuild()+compute()` vs `rebuildStateFromEvents()`) against
+  each other, a hand-written spec-derived spend reconciliation (not calling `economy()`), `compute()`
+  purity, an undo/redo round-trip identity, and a ~20-field tool-switch diff. Failures are prefixed
+  `[oracle:...]`. Runs automatically in CI (see
   `.github/workflows/character-gen-e2e.yml`) on PRs touching any of the three tools or `js/engine.js`/
   `js/character-store.js`. To run locally:
   ```
