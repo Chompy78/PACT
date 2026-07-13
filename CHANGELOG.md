@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · feat — DM Console: copy campaign rules from another campaign**
+  (`tools/DM-Console.html`; `js/engine.js` untouched, no `DATA.version` bump, no schema/RLS change).
+  A "Copy rules from…" picker on the Campaign Rules panel lists the DM's other campaigns (owner/co-DM);
+  picking one loads its rules JSON into the current form via the existing `loadRulesIntoPanel()` — a
+  starting-point copy, not a live link. Nothing persists until the DM clicks the existing **Save rules**
+  button, which writes only the current campaign through the existing `setCampaignRules()` (DM-only, RLS).
+  The source campaign is never mutated (the loader clones `houseRules` into a fresh object and only reads
+  grid values — verified in a real Chromium DOM, 13/13, incl. the source-unchanged property). Picker hides
+  when the DM has no other campaigns; option labels use `textContent` (no innerHTML), so no `esc()` needed.
 - **2026-07-13 · perf — Live Sheet: stop re-folding+re-computing for "AP available" in hot paths**
   (`tools/PACT-Live-Char-Sheet.html`; `js/engine.js` untouched, no `DATA.version` bump, parity 20/0).
   The campaign-AP-model work had routed `buy()` and the paid spell-swap eligibility check through
