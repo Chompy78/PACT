@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · feat — Live Sheet: carry campaign rules offline via a LOG snapshot + `resolveRules()` (part b of retire-pactrules)**
+  (`tools/PACT-Live-Char-Sheet.html` only; `js/engine.js` untouched, no `DATA.version` bump, parity 20/0).
+  A bound character now keeps a copy of its campaign's restriction rules in its own event LOG (a
+  `rulesSnapshot` event that is **inert to the engine** — `_spendCost()`→0, `_replay()` skips non-`buy`,
+  verified no AP/build/economy effect), so the bans still apply offline or when the cloud rules are
+  momentarily unreachable. New `resolveRules()` returns the LIVE cloud rules when online-in-campaign
+  (authoritative) else the latest LOG snapshot else null; `cloudRuleBarred()` and the multi-discipline
+  check now funnel through it. The snapshot is refreshed from live rules on sync/load (deduped — no LOG
+  churn) and **cleared with a logged event** when the character is confirmed standalone (leave/clone), so
+  a left campaign stops applying stale bans. `undo()` drops trailing snapshot metadata (re-materialized on
+  next sync) so it never blocks undoing a real action; the ledger hides snapshot rows (still audit-visible
+  in the raw LOG/export). `b.houseRules` (#2) untouched. Verified: engine-inertness (Node) + resolver logic
+  (Chromium, 18/18) + `random-manual-e2e` 2/2. Why in `DECISIONS.md`
+  (D-GH-2026-07-13-campaign-rules-snapshot). **Completes the retire-pactrules roadmap task.**
 - **2026-07-13 · refactor — retire the local PACTRULES "#3" code path (part a of the retire-pactrules task)**
   (`js/engine.js`, `tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`, 6 build fixtures;
   **no `DATA.version` bump**, engine-parity **20/0**). Removed the redundant client-trusted "House rules

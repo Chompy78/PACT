@@ -99,34 +99,6 @@ Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, 
 
 ---
 
-## Carry campaign rules offline via a LOG rules-snapshot + resolver (part b of retire-pactrules) — TODO
-Branch feat/campaign-rules-snapshot. Part **(a)** — retiring the local PACTRULES "#3" code path from both
-tools + fixtures — **shipped** (2026-07-13, `refactor/retire-pactrules-code`; see CHANGELOG +
-D-GH-2026-07-13-retire-pactrules-code). This is the remaining half: give a bound character an offline copy
-of its campaign's restrictions. Full design: `docs/plans/2026-07-12-campaign-rules-snapshot.md`.
-
-```text
-Carry campaign restrictions offline via a LOG rules-snapshot (same materialization pattern as the
-creation lock — see js/engine.js _replay ~529-536, and the readiness addendum in the design doc):
-    - on bind + on each sync while online-in-a-campaign, the client writes/refreshes a rules-snapshot
-      LOG event materialized from campaigns.rules;
-    - add a resolveRules() that returns the LIVE cloud rules when online-in-a-campaign (authoritative,
-      player can't touch them) else the LOG snapshot; point the existing validate()/cloudRuleBarred()
-      call sites at it — do NOT reimplement any rule logic;
-    - removing the snapshot (e.g. after leaving/cloning out of a campaign) is a logged LOG action, so
-      it leaves an auditable trail.
-Leave b.houseRules (#2, the DM-customisations / non-core toggle) completely untouched — it is a
-different, engine-read feature.
-Display/validation-only — validate()/cloudRuleBarred() are never read by compute(); do NOT bump
-DATA.version, just log in CHANGELOG. This half adds a new LOG event type + resolver precedence, so it is a
-strong /plan-for-review candidate before implementation (a wrong snapshot/precedence design is expensive
-to unwind).
-```
-
-**Done when:** a bound character carries a refreshed rules snapshot in its LOG that applies offline and is overridden by live cloud rules when online; removing the snapshot is a logged action; `b.houseRules` (#2) is unaffected; parity still 20/0.
-
----
-
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**

@@ -488,7 +488,13 @@ function buy(cat,payload,label){
 function takeDrawback(v){ const refund=DATA.drawbacks[v]||0; emit({type:'buy',cat:'drawback',payload:{v},cost:-refund,label:'Drawback — '+v,level:foldBuild(null).hd}); }
 function buyoffDrawback(v){ const refund=DATA.drawbacks[v]||0; const cost=refund*3; const avail=apAvailable(null);
   if(cost>avail){flash('Buying off costs '+cost+' AP (3×); you have '+avail);return;} emit({type:'buyoff',refVal:v,cost,label:'Bought off — '+v}); }
-function undo(){ if(!LOG.length)return; if(LOG[LOG.length-1].type==='award'&&!LOG[LOG.length-1].disc){flash('AP awards lock your history — buys made before an award can\'t be undone.');return;} REDO.push(LOG.pop()); viewAt=null; save(); render(); }
+function undo(){
+  // rulesSnapshot events are sync-written metadata, not user actions — never the undo target (they
+  // re-materialize on the next online sync). Drop any trailing ones so undo hits the real last action.
+  var _dropped=false; while(LOG.length && LOG[LOG.length-1] && LOG[LOG.length-1].type==='rulesSnapshot'){ LOG.pop(); _dropped=true; }
+  if(!LOG.length){ if(_dropped){save();render();} return; }
+  if(LOG[LOG.length-1].type==='award'&&!LOG[LOG.length-1].disc){ if(_dropped){save();render();} flash('AP awards lock your history — buys made before an award can\'t be undone.');return; }
+  REDO.push(LOG.pop()); viewAt=null; save(); render(); }
 function redo(){ if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save(); render(); }
 
 // ---------------- persistence ----------------
@@ -724,6 +730,7 @@ function render(){
   let led='<table class="led"><tr><th>#</th><th>Event</th><th>AP</th><th></th></tr>';
   const boff=activeEvents(idx).boughtOff;
   (idx==null?LOG:LOG.slice(0,idx)).forEach(e=>{
+    if(e&&e.type==='rulesSnapshot')return;   // offline campaign-rules metadata — not an AP-ledger action (still audit-visible in the raw LOG/export)
     let ap='', cls='', act='';
     if(e.type==='award'){ap='+'+e.amount;cls='aw';}
     else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff[e.payload&&e.payload.v]);
@@ -901,7 +908,7 @@ function buildBuyPanel(b,r,eco,head){
        if((b.subSpellBundles||[]).indexOf(id)>=0)s+=ibOwned(lbl,'Always-prepared bundle bought');else s+=ib(lbl,'subbundle',{v:id});});
      return s||'<span class="hint">No subclass with an expanded spell list is open yet — pick one in CharGen and import.</span>';}],
    ['Spellcasting',()=>{
-     const multiOK=!(window._cloudCampaignRules&&window._cloudCampaignRules.multiDisciplineAllowed===false);
+     const _rr=resolveRules(); const multiOK=!(_rr&&_rr.multiDisciplineAllowed===false);
      if(!b.traditions.length||!b.traditions[0]){let s='';for(const t of ["Arcane","Divine","Primal"])for(const d of (DATA.disc[t]||[]))s+=ib('Open '+t+' / '+d,'found',{ti:0,trad:t,disc:d});return s;}
      let s='';
      b.traditions.forEach(function(t,ti){
@@ -1375,7 +1382,35 @@ function _spbRender(){
    below (see D-GH14 follow-up). The kind→field mapping comes from the shared engine export
    RULE_BAN_FIELDS (window.RULE_BAN_FIELDS) so this stays in lockstep with validate()'s schema
    and covers every ban kind at once (was a hardcoded {masteries,boons} that silently diverged). */
-function cloudRuleBarred(kind,name){var r=window._cloudCampaignRules;if(!r)return false;var field=(window.RULE_BAN_FIELDS||{})[kind];var arr=field&&r[field];return !!(Array.isArray(arr)&&arr.indexOf(name)>=0);}
+// ── Offline campaign-rules carry (feat/campaign-rules-snapshot, D-GH-2026-07-13-campaign-rules-snapshot) ──
+// A bound character carries a copy of its campaign's restriction rules inside its own event LOG, so the
+// bans still apply when offline (or when the cloud rules can't be reached right now). The snapshot is a
+// `rulesSnapshot` LOG event that is INERT to the engine — `_spendCost()` returns 0 for it and `_replay()`
+// skips every non-`buy` event, so it never affects AP, the folded build, or the creation-lock. It rides
+// along in the LOG/save/JSON-export like any other event.
+function _latestLogSnapshotRules(){
+  for(var i=LOG.length-1;i>=0;i--){ var e=LOG[i]; if(e&&e.type==='rulesSnapshot') return e.campRules||null; }
+  return null;
+}
+// The rules that apply RIGHT NOW: live cloud rules when online-in-campaign (authoritative — the player
+// can't edit them); otherwise the last snapshot carried in this character's LOG (offline, or rules
+// temporarily unreachable = 'unavailable'); null when neither (no campaign). This is the single source
+// every rule-read below funnels through.
+function resolveRules(){
+  if(window._rulesStatus==='active') return window._cloudCampaignRules||null;
+  return _latestLogSnapshotRules();
+}
+// Materialize/refresh the LOG snapshot from a rules object (pass null to CLEAR — a logged leave/standalone
+// action). Deduped: does nothing when the snapshot already matches, so repeated syncs don't bloat the LOG.
+// Persists locally itself (save) so the offline copy survives a reload even on code paths that don't save.
+function _writeRulesSnapshot(campRules){
+  var next = campRules || null;
+  if(JSON.stringify(_latestLogSnapshotRules()) === JSON.stringify(next)) return false;   // unchanged — skip
+  LOG.push({type:'rulesSnapshot', campRules:next, seq:SEQ++, ts:Date.now()});
+  if(typeof save==='function') save();
+  return true;
+}
+function cloudRuleBarred(kind,name){var r=resolveRules();if(!r)return false;var field=(window.RULE_BAN_FIELDS||{})[kind];var arr=field&&r[field];return !!(Array.isArray(arr)&&arr.indexOf(name)>=0);}
 
 function toggleMore(e){if(e)e.stopPropagation();var m=document.getElementById('moremenu');if(m)m.classList.toggle('open');}
 function closeMore(){var m=document.getElementById('moremenu');if(m)m.classList.remove('open');}
@@ -1530,13 +1565,13 @@ document.addEventListener('sync-ready', function () {
       var rec = await S.loadCharacter(window.currentCharId());
       window._dmAp = rec ? (rec.ap || 0) : 0;
       window._ignorePlayerAp = false;
-      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; renderCloudStatusBadge(); return; }
+      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; if(rec && typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(null); /* rec present but no campaign_id = confirmed standalone → clear the offline snapshot (a logged leave) */ renderCloudStatusBadge(); return; }
       window._rulesStatus = 'unavailable';   // interim, resolved just below — correctly NOT "no DM AP" if getCampaign throws
       var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
       window._cloudCampaignRules = camp ? (camp.rules || {}) : null;
       _campaignName = camp ? camp.name : null;
       window._rulesStatus = camp ? 'active' : 'unavailable';
-      if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; }
+      if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; if(typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(window._cloudCampaignRules); /* refresh the offline snapshot from the live rules */ }
     } catch(e) { window._rulesStatus = 'unavailable'; /* non-fatal — pickers/AP just fall back until this succeeds */ }
     renderCloudStatusBadge();
     if(typeof window.render === 'function') window.render();
@@ -1654,6 +1689,12 @@ document.addEventListener('sync-ready', function () {
             loadedRules = d.rules||null;
             REDO = []; viewAt = null;
             if(rec.id) __charId = rec.id;
+            // Offline campaign-rules carry: now that LOG is the loaded character's, refresh its snapshot
+            // from the live rules (or clear it if this character is standalone) before save() persists it.
+            if(typeof window._writeRulesSnapshot==='function'){
+              if(window._rulesStatus==='active' && window._cloudCampaignRules){ window._writeRulesSnapshot(window._cloudCampaignRules); }
+              else if(rec && !rec.campaign_id){ window._writeRulesSnapshot(null); }
+            }
             if(typeof window.save   === 'function') window.save();
             if(typeof window.render === 'function') window.render();
             cloudMenu.classList.remove('open');
