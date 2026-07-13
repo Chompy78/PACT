@@ -138,12 +138,16 @@
   bug while building an unrelated tool is not an invitation to fix it inline — even a fix that's
   fully understood and low-risk still needs its own branch and its own pass through the
   engine-change checklist (parity fixtures, `DATA.version` judgment call, `/code-review`).
-- **Why not wire CI yet:** the bug above reproduces on ~0.5-1% of individual iterations, which
-  is a near-certainty within any 2000-3000 iteration run — wiring `log-fuzz.mjs` into
-  `.github/workflows/engine-parity.yml` right now would make every future PR touching
-  `js/engine.js` fail on a pre-existing, unrelated defect. Wiring it in is a fast follow-up once
-  the knownCap fix lands on its own branch.
-- **Status:** **In force.** Test-only; `js/engine.js`/`DATA.version` untouched by this change.
+- **Why not wire CI yet (at the time):** the bug above reproduces on ~0.5-1% of individual
+  iterations, which is a near-certainty within any 2000-3000 iteration run — wiring
+  `log-fuzz.mjs` into `.github/workflows/engine-parity.yml` right then would have made every
+  future PR touching `js/engine.js` fail on a pre-existing, unrelated defect.
+- **Follow-up landed the same day:** the `knownCap` fix shipped on its own branch
+  (`fix/engine-knowncap-nan`, `DATA.version` v0.335→v0.336 — see the CHANGELOG entry), verified
+  via `engine-parity` (20/0) and 15,000+ clean `log-fuzz.mjs` iterations, and `log-fuzz.mjs` is
+  now wired into `.github/workflows/engine-parity.yml` as a `log-fuzz` job.
+- **Status:** **In force** (the tool itself). The "not yet wired into CI" caveat above is
+  resolved — CI wiring is live as of the `knownCap` fix.
 
 ---
 
