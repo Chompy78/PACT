@@ -35,4 +35,32 @@
   ```
   `testing/package.json` is dev/CI-only tooling — the app itself still needs no npm install.
 
+- **`scripts/log-fuzz.mjs`** (Phase 2 of the D-GH-2026-07-13-random-e2e-real-oracle plan) — a
+  pure-Node, LOG-direct fuzzer for `js/engine.js`. Unlike `random-manual-e2e.mjs` (which drives
+  the real browser UI and can only reach LOG shapes a DOM click path can produce),
+  `log-fuzz.mjs` constructs LOG event objects directly — the exact shape `MUT`'s handlers
+  expect (`{type:'buy',cat:<MUT key>,payload:{...}}` for every one of the 44 mutation
+  categories, plus `award`/`buyoff`/`name`/`names`/`creationLocked`/`campaignBound`) — and feeds
+  them straight into `foldBuild()`/`compute()`/`rebuildStateFromEvents()`. No browser, no
+  Chromium install, so it runs thousands of iterations in ~1-2 seconds (measured: 2000-3000
+  iterations/~1-2s). It checks: the engine never throws (including a non-deterministic throw on
+  a repeat call), never produces a `NaN` anywhere across every object it computes, `compute()`
+  doesn't mutate its input, `foldBuild()` is pure (same LOG twice → identical build), `compute()`
+  is pure (Phase 1's purity check, reused), and `foldBuild()+compute()` agrees with
+  `rebuildStateFromEvents(null, LOG)` on `.result` (the two
+  documented engine entry points — see the in-file comment for why this compares `.result`, not
+  the raw `.build`). On any failure it shrinks the failing LOG down to a minimal reproducer
+  (single-event delta-debug to a fixpoint) before printing it. It is not trying to generate
+  *legal* characters — budget/rules legality is already covered by `engine-parity-ci.mjs`'s
+  fixed fixtures and `random-manual-e2e.mjs`'s independent oracle; this tool's job is narrower:
+  does the engine ever misbehave on *any* MUT-shaped LOG. **Not yet wired into CI** — its first
+  real run found a genuine (if low-severity, display-only) bug in `compute()`'s known-spell
+  over-cap surcharge math (a negative `knownCap` for a very-low-ability-score caster reads past
+  an empty array, producing `NaN`); wiring this into `.github/workflows/engine-parity.yml` is
+  a fast follow-up once that fix lands on its own branch (`js/engine.js` is high-risk — see
+  AGENTS.md — so it isn't bundled into this tool-only change). To run locally:
+  ```
+  node testing/scripts/log-fuzz.mjs [--iterations N] [--events N] [--seed N]
+  ```
+
 Fixtures in `fixtures/`; expected engine output in `expected/`.

@@ -17,6 +17,7 @@ on:
       - "testing/fixtures/**"
       - "testing/expected/**"
       - "testing/scripts/engine-parity-ci.mjs"
+      - "testing/scripts/log-fuzz.mjs"
       - ".github/workflows/engine-parity.yml"
   workflow_dispatch:
 
@@ -37,3 +38,22 @@ jobs:
 
       - name: Run the headless engine-parity gate
         run: node testing/scripts/engine-parity-ci.mjs
+
+  log-fuzz:
+    # Phase 2 of D-GH-2026-07-13-random-e2e-real-oracle: a pure-Node, LOG-direct fuzzer for
+    # js/engine.js (testing/scripts/log-fuzz.mjs — see testing/README.md). Held out of CI in
+    # PR #195 until the NaN bug it found on its first run was fixed (D-GH-2026-07-13-log-fuzz-
+    # phase2); wiring it in now that the fix has landed. Deliberately a separate job (not a step
+    # in `parity`) so its failure is visually distinct from a fixed-fixture regression, even
+    # though it shares this workflow's fast pure-Node trigger scope.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the LOG-direct engine fuzzer
+        run: node testing/scripts/log-fuzz.mjs --iterations 3000 --events 60 --seed ${{ github.run_id }}
