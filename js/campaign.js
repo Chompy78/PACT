@@ -127,6 +127,21 @@ export async function redeemPlayerInvite(token, name) {
   };
 }
 
+/**
+ * Path B: bind an already-built character to a campaign by its shared invite code.
+ * Rebind contract: succeeds as a no-op if already bound to this same campaign; throws
+ * if bound to a different one. Caller must own the character (enforced server-side).
+ * @returns {Promise<string>} the bound campaign's id
+ */
+export async function bindCharacterToCampaign(characterId, code) {
+  const { data, error } = await supabase.rpc('bind_character_to_campaign', {
+    p_character_id: characterId,
+    p_code: (code || '').trim().toUpperCase(),
+  });
+  if (error) throw error;
+  return data;
+}
+
 /** DM-only: set the "ignore player-granted AP" campaign toggle. */
 export async function setIgnorePlayerAp(campaignId, value) {
   const { error } = await supabase

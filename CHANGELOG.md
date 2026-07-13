@@ -4,6 +4,37 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · feat(campaign) — Campaign join/invite UI, Deliverable 2 (Path B): bind an existing
+  character to a campaign** (`sql/migrations/2026-07-13-campaign-bind-character.sql` + mirrored into
+  `sql/schema.sql`/`sql/rls-policies.sql`; `js/campaign.js`; `tools/PACT-CharGen-Webtool.html`; no
+  `js/engine.js` change, parity unchanged 20/0). Completes `docs/plans/2026-07-11-campaign-join-invite-
+  flow.md`'s two-deliverable split (Deliverable 1/Path A shipped above). New `bind_character_to_campaign`
+  SECURITY DEFINER RPC reuses the campaign's existing shared `invite_code` (not Path A's per-player
+  token) to bind an *already-built* character — the rebind contract enforces bind-only-if-unbound,
+  same-campaign-is-a-no-op, different-campaign-is-rejected, and one-character-per-player-per-campaign,
+  all server-side. CharGen's ☁ Cloud menu gets a "Join campaign" action (placed there rather than the
+  header's campaign-rules picker, which is a display-only preview independent of any specific character
+  — see the plan's Revision 4 note): saves the current character to the cloud first if needed, binds it,
+  then runs the engine's `validate(build, rules)` and shows any violations as non-blocking warnings — the
+  character stays bound regardless, since an independently-built character may carry pre-campaign
+  "violations" a hard refusal would make unfixable. Reuses the `_cgResolveDmApStatus()` helper built for
+  Path A to activate DM-AP display and rule-filtering. Supabase advisor shows no new class of finding.
+  Full design: `docs/plans/2026-07-11-campaign-join-invite-flow.md`; decisions:
+  `DECISIONS.md` → `D-GH-2026-07-13-campaign-bind-character`.
+
+- **2026-07-13 · fix(campaign) — `/code-review ultra` pass on the bind-character PR fixed a race and a
+  stale-display bug before merge** (same files as the entry above). `bind_character_to_campaign` had a
+  TOCTOU race in its one-character-per-player-per-campaign check (shared with the already-shipped
+  `join_campaign`/`redeem_player_invite`) — closed with a `unique index on characters(owner_id,
+  campaign_id) where campaign_id is not null`, authoritative for all three functions at once. The join
+  flow's success message/rule validation could read the wrong campaign (`window._cloudCampaign` is also
+  written by the unrelated rules-preview picker) — fixed by having `_cgResolveDmApStatus()` return the
+  freshly-resolved campaign for callers to use locally instead of trusting the shared global. Also: the
+  RPC now returns the bound campaign id directly (was `void`, forcing an extra round-trip); the
+  "already bound" banner no longer offers a "switch campaigns" action that always fails; an offline save
+  is now detected before attempting the bind instead of surfacing a confusing raw network error. See
+  `DECISIONS.md` `D-GH-2026-07-13-campaign-bind-character` for the full list.
+
 - **2026-07-13 · feat(campaign) — Campaign join/invite UI, Deliverable 1 (Path A): DM-issued
   single-use player invite tokens** (`sql/migrations/2026-07-13-campaign-invite-tokens.sql` +
   mirrored into `sql/schema.sql`/`sql/rls-policies.sql`; `js/campaign.js`; `tools/DM-Console.html`;
