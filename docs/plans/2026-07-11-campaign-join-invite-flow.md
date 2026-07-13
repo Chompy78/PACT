@@ -1,15 +1,84 @@
 # Plan: Campaign join/invite UI (Path A: new-player token invite, Path B: bind existing character)
 
+> **Deliverable 1 (Path A) — SHIPPED 2026-07-13** on `feat/campaign-invite-tokens`. See `CHANGELOG.md`
+> and `DECISIONS.md` `D-GH-2026-07-13-campaign-invite-tokens` for what shipped and its one known gap
+> (browser click-through not exercised — see that entry's "Status").
+>
+> **Deliverable 2 (Path B) — re-verified 2026-07-13, before implementation.** Every B1-B3 fact still
+> holds (`bind_character_to_campaign` doesn't exist anywhere yet; `characters_update`'s grant still
+> excludes `campaign_id`, confirming the SECURITY DEFINER RPC is still the only write path; `validate(b,
+> rules)`'s signature is unchanged). Two corrections from re-checking against the now-current code:
+> 1. **UI placement.** B3 says "beside the campaign selector" — that header element (`#cgCloudCampSel`)
+>    is the campaign-*rules* preview picker (filters live pickers by a campaign's rules, independent of
+>    any specific character), not a natural home for a per-character bind action. Placing "Join campaign"
+>    inside the existing `#cgCloudMenu` (☁ Cloud dropdown, next to Save/Load — built for Path A) fits
+>    better: it's already where users look for actions on the currently-open character, and reuses an
+>    existing menu instead of adding a second UI surface.
+> 2. **"Non-blocking" framing.** B3's rationale ("matches CharGen/Live Sheet's live-filter warnings") is
+>    imprecise — the Live Sheet's *actual* existing use of the engine's `validate()` (its cloud-save
+>    handler, `tools/PACT-Live-Char-Sheet.html` ~line 1606) is a **blocking** `alert()` that refuses to
+>    save an *already-bound* character with new rule violations. Path B's non-blocking choice for the
+>    *first-time join* case still stands on its own merits — an independently-built character may already
+>    carry pre-campaign "violations" that would make a hard bind refusal unusable — but it's a deliberate
+>    divergence from that existing pattern, not a match to it. Note for symmetry: CharGen's own live
+>    rule-filtering (`_cloudCampaign`/`cloudRuleBarred`, hides banned options from pickers once a campaign
+>    is active) already provides a soft guard against *new* violations after a Path B bind, same as it
+>    does for Path A's redeemed characters — no extra save-time gate is needed for that case.
+> 3. **Confirmed:** `js/sync.js`'s `saveCharacter`/`pushCharacter` inserts a `characters` row if none
+>    exists yet for that id (update-then-insert-on-miss). Since `bind_character_to_campaign` requires an
+>    existing owned row (decision 2's owner check), the join flow must call `saveCharacter` first if the
+>    current character has never been saved to the cloud, then bind.
+>
+> **Revision 3** — re-verified 2026-07-13 against the shipped `feat/campaign-ap-model` code (closed
+> 2026-07-12, after this plan's Revision 2). No architectural change: every fact Revision 2 verified still
+> holds (see "Re-verification pass" below for the specific checks). The one real update is that CharGen's
+> cloud save/load — which did not exist as a shipped feature when Revision 2's "Verified facts" were
+> written — is now live, with ready-made helpers Path A should call directly instead of re-deriving (A4
+> updated accordingly).
+>
 > **Revision 2** — revised after three independent cold reviews (2026-07-12). Each review finding was
 > triaged against the actual code (see "Review outcome" at the bottom), not applied blindly. The most
 > consequential change: the original plan's `stats={budget:N}` character-creation shape was **verified
 > wrong** and corrected (see Approach step A4). The feature is now **split into two deliverables** (Path A,
 > Path B) per two reviewers' recommendation.
 >
-> **Prerequisite (added 2026-07-12):** Path A ("invited character builds from DM AP") depends on the
-> **Campaign AP model** work — `docs/plans/2026-07-12-campaign-ap-model.md` — which makes CharGen DM-AP-aware
-> and gives both tools an identical spendable-AP total. Do that piece first, or Path A's DM-AP seeding won't
-> be visible in CharGen.
+> **Prerequisite — RESOLVED 2026-07-12.** Path A ("invited character builds from DM AP") depended on the
+> **Campaign AP model** work — `docs/plans/2026-07-12-campaign-ap-model.md`. That work shipped and closed
+> the same day (`CHANGELOG.md`: "CharGen and the Live Sheet now show one identical spendable-AP total,
+> honoring DM AP + `ignore_player_ap`... CharGen got its first cloud character-load/save feature"). This
+> plan is no longer blocked.
+
+## Re-verification pass (2026-07-13, before implementation)
+Checked every fact this plan's "Verified" section depends on against the current code, since
+`feat/campaign-ap-model` touched CharGen materially after Revision 2 was written:
+- **Still exactly as verified:** `characters` table shape (`sql/schema.sql` — nullable `campaign_id`,
+  `kind check (kind in ('chargen','livesheet'))`, `stats jsonb default '{}'`, `ap integer default 0`);
+  `characters_insert` RLS (`sql/rls-policies.sql`) still requires `campaign_id is null and ap = 0`, and the
+  column-level grant (`grant insert (id, owner_id, name, kind, stats)`) still excludes both — confirms a
+  SECURITY DEFINER RPC is still the only path to set either. `is_campaign_dm()` helper still exists
+  (`sql/rls-policies.sql`). The `gen_random_bytes`-based CSPRNG token pattern this plan calls for is still
+  the established convention (`sql/migrations/2026-07-02-rev07-csprng-invite-codes.sql`). `js/auth.js`
+  `login()` still only calls `signInWithPassword` — no OAuth anywhere, so the query-param-survives-login
+  claim still holds. `js/engine.js` still exports `validate(b, rules)` with the same signature. No
+  `campaign_invites` table or `create_player_invite`/`redeem_player_invite`/`bind_character_to_campaign`
+  RPC exists anywhere in `sql/` yet — a clean slate, no naming collision with anything shipped since.
+  `js/campaign.js`'s existing wrapper names (`createCampaign`, `joinCampaign`, `joinAsDm`,
+  `regenerateInviteCode`, `listMyCampaigns`, `getCampaign`, …) confirm this plan's proposed
+  `createPlayerInvite`/`redeemPlayerInvite`/`bindCharacterToCampaign` names fit the house camelCase
+  convention.
+- **New since Revision 2 — CharGen's cloud save/load is now real, and A4 should reuse it directly:**
+  `tools/PACT-CharGen-Webtool.html` now has `_cgEnvelope(sign)` (~line 2589, `return
+  buildCharacterEnvelope({name:val('cname')||'', rules:DATA.version, LOG, SEQ, id:currentCharId()},
+  {sign:sign!==false})`), `_cgApplyEnvelope(d, opts)` (~line 2592, applies a loaded envelope back onto
+  `LOG`/`SEQ`), and `currentCharId()` (~line 2506, stable per-character id generator) — these already wrap
+  exactly the envelope-construction logic Revision 2's A4 proposed writing from scratch. There is also a
+  live cloud Load/Save menu (`sync-ready` listener, ~line 580 onward) whose `onLoadClick` (~line 638)
+  already contains the **exact DM-AP-status resolution Path A's redemption needs**: it sets
+  `window._dmAp = rec.ap || 0`, `window._dmApStatus = rec.campaign_id ? 'unavailable' : 'none'`, then
+  resolves the real status by calling `C.getCampaign(rec.campaign_id)` and setting
+  `window._ignorePlayerAp` / `window._dmApStatus = 'active'` from the result. **Action for A4:** call
+  `_cgEnvelope`/`_cgApplyEnvelope`/`currentCharId()` and mirror `onLoadClick`'s DM-AP-resolution block
+  directly, rather than hand-rolling envelope construction or AP-status resolution a second time.
 
 ## Goal
 PACT is a static tabletop-RPG character tool suite (vanilla JS, GitHub Pages, Supabase backend). A DM can
@@ -174,9 +243,17 @@ the existing invite-code copy UX).
 - **Seed the starting budget client-side, in the engine's own format** (keeps LOG/rules logic in JS, per the
   hard rule — spike now RESOLVED). Concretely: build `LOG = [{type:'award', amount:starting_budget,
   note:'Budget', noLock:true, label:'Award — budget ('+starting_budget+' AP)', seq:1, ts:Date.now(),
-  rules:DATA.version}]`, wrap via `buildCharacterEnvelope({name, rules:DATA.version, LOG, SEQ:2, id})` (which
-  stamps `schema:'pact-character/1'`), and `saveCharacter` that as the character's `stats`. On load
-  `foldBuild(d.LOG)` then yields `budget=starting_budget`. Keep it a **singleton** award (a second would sum).
+  rules:DATA.version}]`, then **reuse CharGen's own `_cgEnvelope`/`saveCharacter` pair** (shipped in
+  `feat/campaign-ap-model`, ~line 2589 — `_cgEnvelope(sign)` already wraps `buildCharacterEnvelope({name,
+  rules:DATA.version, LOG, SEQ, id:currentCharId()}, {sign})` and stamps `schema:'pact-character/1'`) rather
+  than calling `buildCharacterEnvelope` a second, independent way. On load `foldBuild(d.LOG)` then yields
+  `budget=starting_budget`. Keep it a **singleton** award (a second would sum).
+- **Reuse the existing DM-AP-status resolution**, not a new implementation: CharGen's cloud Load flow
+  (`onLoadClick`, ~line 638) already does exactly what redemption needs — set `window._dmAp = (redeemed
+  character's) ap`, `window._dmApStatus` from whether `campaign_id` is set, then resolve via
+  `C.getCampaign(campaign_id)` into `window._ignorePlayerAp`/`window._dmApStatus = 'active'`. Call the same
+  pattern (factor into a small shared helper if that avoids duplicating the block) after redemption instead
+  of writing a parallel resolution path.
 - **Recovery nuance (refined by the spike):** a redeemed-but-not-yet-seeded character has `stats='{}'`, which
   CharGen's loader REJECTS (`readCharacterEnvelope` requires `schema==='pact-character/1'`) — so it is NOT a
   "valid blank character." Recovery: on opening a redeemed character whose `stats` don't parse as a

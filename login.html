@@ -75,9 +75,24 @@
       register, login, forgotPassword, logout,
       currentUser, onAuthChange, myProfile
     } from './js/auth.js';
+    import { PENDING_INVITE_KEY } from './js/campaign.js';
 
     const $ = id => document.getElementById(id);
     let mode = 'login';   // 'login' | 'register'
+
+    // Campaign join/invite UI, Deliverable 1 -- Path A (docs/plans/2026-07-11-campaign-join-
+    // invite-flow.md): CharGen stashes a pending ?invite=<token> into sessionStorage (under
+    // PENDING_INVITE_KEY, shared via js/campaign.js) before sending an unauthenticated player
+    // here to sign in. On a successful sign-in, resume the trip back to CharGen with it rather
+    // than showing the generic signed-in view. Doesn't cover the registration email-confirm
+    // redirect landing in a NEW tab (sessionStorage is per-tab) -- accepted limitation, see the
+    // plan's risk notes.
+    function resumePendingInvite() {
+      let token; try { token = sessionStorage.getItem(PENDING_INVITE_KEY); } catch { token = null; }
+      if (!token) return false;
+      location.href = 'tools/PACT-CharGen-Webtool.html?invite=' + encodeURIComponent(token);
+      return true;
+    }
 
     function setMode(m) {
       mode = m;
@@ -116,11 +131,15 @@
         if (mode === 'register') {
           await register(email, password, $('displayName').value.trim());
           // If email confirmation is OFF, a session exists immediately.
-          if (await currentUser()) { await showSignedIn(); }
+          if (await currentUser()) { if (!resumePendingInvite()) await showSignedIn(); }
           else { msg('Account created — check your email to confirm, then sign in.', 'ok'); setMode('login'); }
         } else {
           await login(email, password);
-          await showSignedIn();
+          // Only resume a pending invite right after THIS sign-in submission, not on every
+          // later boot-time "already signed in" check below -- otherwise a stale token left
+          // over from a declined/failed invite (see js/campaign.js PENDING_INVITE_KEY) would
+          // hijack any unrelated future visit to this page in the same tab.
+          if (!resumePendingInvite()) await showSignedIn();
         }
       } catch (err) {
         msg(err.message || String(err), 'err');

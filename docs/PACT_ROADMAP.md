@@ -32,51 +32,23 @@ _(none currently — the last NOW item, the full engine module-bridge migration,
 
 ---
 
-## Feature: Campaign join/invite UI (two onboarding paths) — TODO
-Branch feat/campaign-join-flow. Wire up the missing player-facing UI for actually joining a campaign — `join_campaign()` exists as a tested SQL RPC but has zero production UI anywhere in the app today (confirmed 2026-07-11), and it only ever creates a blank character, with no path for an existing character to join.
+## Fix: race-losing join_campaign/redeem_player_invite calls surface a raw DB error — TODO
+Branch fix/campaign-join-race-friendly-error. `join_campaign` and `redeem_player_invite`'s character-insert have no `unique_violation` exception handler, unlike `bind_character_to_campaign` (which got one in D-GH-2026-07-13-campaign-bind-character).
 
 ```text
-Two distinct onboarding paths, both needed:
+A race that beats either RPC's pre-check surfaces a raw Postgres "duplicate key value violates unique
+constraint" error to the client instead of the friendly "You have already joined this campaign" message.
+Pre-existing, found during /code-review on PR #203 and deferred there as out of scope for a "no behavior
+change" refactor.
 
-PATH A — DM invites a brand-new player (no character yet):
-- DM Console gets an "Invite new player" action that generates a single-use invite token, distinct from
-  the existing shared campaign invite_code — this one is per-player and consumed on redemption (a second
-  login can't reuse it).
-- The invite carries two DM-set values at creation time: the initial AP award, and the origin AP
-  cutover/budget the character must be built against (e.g. "Level 1, 50 AP") — this becomes the
-  character's legitimate starting budget, so the fresh build the player creates against it can't be
-  "illegal" (over-budget); there's no build to retroactively validate, only a budget to build within.
-- Redeeming the invite (needs its own UI — likely in Live Sheet or a dedicated join screen) creates a
-  brand-new character bound to the campaign, pre-loaded with that starting AP as a real award (reuse the
-  existing award_ap()/ap_awards path, not a new AP mechanism).
-- This likely needs a new SQL migration: a per-player invite token table (code, campaign_id, ap amount,
-  origin budget, redeemed_by/redeemed_at, single-use enforcement) plus a SECURITY DEFINER RPC to redeem it
-  — do not bolt this onto the existing shared `invite_code` column, which is intentionally a different,
-  reusable mechanism.
-
-PATH B — an existing player (with an already-built character) joins a campaign:
-- A "Join campaign with existing character" action: the player picks one of their own already-built
-  characters (full creation/purchase log) plus a campaign invite code.
-- Validate the existing LOG against the target campaign's rules using the engine's existing `validate()`
-  (js/engine.js) — do not reimplement rule-checking. Non-blocking: surface violations as warnings/flags
-  for the player and DM to see, rather than refusing the join outright (matches how campaign-rule
-  violations are already surfaced elsewhere in the app, e.g. CharGen/Live Sheet's live-filter warnings).
-- This binds `campaign_id` on the EXISTING character record rather than creating a new blank one — the
-  current `characters_insert` RLS policy forces `campaign_id is null` on direct insert and the UPDATE
-  grant doesn't include `campaign_id` either, so this needs a new SECURITY DEFINER RPC (parallel to
-  `join_campaign()`, but taking an existing character id instead of creating a blank row).
-- Any AP already present on that existing character (i.e. anything in its own event log — the
-  honor-system tier, see D-GH-2026-07-11-clone-campaign-character-standalone) stays exactly as-is and is
-  NEVER reclassified as DM-Console-verified `ap`. The DM-Console `ap` running total (characters.ap) starts
-  at 0 for the now-bound character, same as any other campaign character — only award_ap() ever sets it,
-  never this import.
-
-Given the data-model/RLS surface (new invite-token table, two new SECURITY DEFINER RPCs, campaign_id
-binding on an existing row) and two new UI flows across two tools, this is a strong candidate for
-/plan-for-review before implementation — a wrong approach here would be expensive to unwind.
+Wrap the INSERT in join_campaign and the INSERT in redeem_player_invite's new-character branch in the
+same begin/exception when unique_violation then raise exception '...' pattern bind_character_to_campaign
+already uses (sql/schema.sql), each with the exact message text that function's own pre-check already
+raises. New dated migration mirroring the change into sql/schema.sql. Re-run
+testing/tests/engine-parity.html (20/0, unaffected) and the Supabase advisor after applying.
 ```
 
-**Done when:** a DM can invite a brand-new player and that player can build a character against the DM-set starting budget entirely through the UI; a player with an existing character can join a campaign through the UI, sees any rule violations flagged rather than being silently blocked, and keeps their existing AP as player-made; parity still 20/0.
+**Done when:** `join_campaign` and `redeem_player_invite` both convert a `unique_violation` race into their own existing friendly "already joined" message instead of a raw Postgres error; parity still 20/0.
 
 ---
 
@@ -129,6 +101,15 @@ Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, 
 - **A7 — Lighthouse 85 → 90.** Add a Lighthouse CI GitHub Action to auto-catch perf regressions. *Then
   (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for the real score gain —
   *caveats:* a big engine change; do it only after REV-01 makes the gate real.
+- **Harden `search_path` on SECURITY DEFINER functions against temp-table shadowing.** Every SECURITY
+  DEFINER function in `sql/schema.sql`/`sql/rls-policies.sql` (11+ instances, pre-existing) sets
+  `search_path = public` without also listing `pg_temp`, which doesn't fully close the classic
+  session-local-temp-table-shadowing pitfall. Low real-world exploitability today (Supabase/PostgREST
+  clients have no raw-SQL/DDL path), but worth closing repo-wide rather than piecemeal — a partial fix
+  across only some functions would be worse than no fix. Change every `set search_path = public` to
+  `set search_path = public, pg_temp` consistently; new dated migration; re-run
+  `testing/tests/engine-parity.html` (20/0) and the Supabase advisor. Found during `/code-review` on
+  PR #203. Branch `fix/harden-search-path-pg-temp`.
 **Code-review follow-ups (from `feat/campaign-ap-model`)** — low-severity cleanup flagged by
 `/code-review`, not fixed in that PR (low risk / negligible impact either way):
 

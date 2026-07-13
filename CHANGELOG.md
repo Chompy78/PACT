@@ -4,6 +4,86 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · refactor(campaign) — de-duplicate campaign-membership SQL checks**
+  (`sql/migrations/2026-07-13-campaign-membership-helpers.sql` + mirrored into
+  `sql/schema.sql`/`sql/rls-policies.sql`; no `js/engine.js` change, parity unchanged 20/0). Pure internal
+  refactor: `join_campaign`, `redeem_player_invite`, and `bind_character_to_campaign` each hand-rolled
+  their own "look up campaign by shared `invite_code`" (`join_campaign`/`bind_character_to_campaign` only)
+  and "already joined this campaign" (all three) checks — flagged by two independent `/code-review ultra`
+  angles (Reuse, Altitude) on PR #202 and deferred at the time. The lookup is now one new helper,
+  `find_campaign_by_invite_code`; the membership check reuses the pre-existing `is_campaign_member()`
+  rather than adding a second near-identical function (a `/code-review` pass on this PR itself caught that
+  duplication before merge). No error messages or behavior changed — verified against a live smoke test
+  and the Supabase advisor. See `DECISIONS.md` `D-GH-2026-07-13-campaign-membership-helpers` for detail,
+  including two findings deferred as separate follow-ups (a pre-existing race-handling asymmetry between
+  the three RPCs, and a `search_path` hardening gap shared by every `SECURITY DEFINER` function in the file).
+
+- **2026-07-13 · feat(campaign) — Campaign join/invite UI, Deliverable 2 (Path B): bind an existing
+  character to a campaign** (`sql/migrations/2026-07-13-campaign-bind-character.sql` + mirrored into
+  `sql/schema.sql`/`sql/rls-policies.sql`; `js/campaign.js`; `tools/PACT-CharGen-Webtool.html`; no
+  `js/engine.js` change, parity unchanged 20/0). Completes `docs/plans/2026-07-11-campaign-join-invite-
+  flow.md`'s two-deliverable split (Deliverable 1/Path A shipped above). New `bind_character_to_campaign`
+  SECURITY DEFINER RPC reuses the campaign's existing shared `invite_code` (not Path A's per-player
+  token) to bind an *already-built* character — the rebind contract enforces bind-only-if-unbound,
+  same-campaign-is-a-no-op, different-campaign-is-rejected, and one-character-per-player-per-campaign,
+  all server-side. CharGen's ☁ Cloud menu gets a "Join campaign" action (placed there rather than the
+  header's campaign-rules picker, which is a display-only preview independent of any specific character
+  — see the plan's Revision 4 note): saves the current character to the cloud first if needed, binds it,
+  then runs the engine's `validate(build, rules)` and shows any violations as non-blocking warnings — the
+  character stays bound regardless, since an independently-built character may carry pre-campaign
+  "violations" a hard refusal would make unfixable. Reuses the `_cgResolveDmApStatus()` helper built for
+  Path A to activate DM-AP display and rule-filtering. Supabase advisor shows no new class of finding.
+  Full design: `docs/plans/2026-07-11-campaign-join-invite-flow.md`; decisions:
+  `DECISIONS.md` → `D-GH-2026-07-13-campaign-bind-character`.
+
+- **2026-07-13 · fix(campaign) — `/code-review ultra` pass on the bind-character PR fixed a race and a
+  stale-display bug before merge** (same files as the entry above). `bind_character_to_campaign` had a
+  TOCTOU race in its one-character-per-player-per-campaign check (shared with the already-shipped
+  `join_campaign`/`redeem_player_invite`) — closed with a `unique index on characters(owner_id,
+  campaign_id) where campaign_id is not null`, authoritative for all three functions at once. The join
+  flow's success message/rule validation could read the wrong campaign (`window._cloudCampaign` is also
+  written by the unrelated rules-preview picker) — fixed by having `_cgResolveDmApStatus()` return the
+  freshly-resolved campaign for callers to use locally instead of trusting the shared global. Also: the
+  RPC now returns the bound campaign id directly (was `void`, forcing an extra round-trip); the
+  "already bound" banner no longer offers a "switch campaigns" action that always fails; an offline save
+  is now detected before attempting the bind instead of surfacing a confusing raw network error. See
+  `DECISIONS.md` `D-GH-2026-07-13-campaign-bind-character` for the full list.
+
+- **2026-07-13 · feat(campaign) — Campaign join/invite UI, Deliverable 1 (Path A): DM-issued
+  single-use player invite tokens** (`sql/migrations/2026-07-13-campaign-invite-tokens.sql` +
+  mirrored into `sql/schema.sql`/`sql/rls-policies.sql`; `js/campaign.js`; `tools/DM-Console.html`;
+  `tools/PACT-CharGen-Webtool.html`; `login.html`; no `js/engine.js` change, parity unchanged 20/0).
+  `join_campaign()` existed as a tested RPC with zero production UI and no way to preset a starting
+  budget; this ships the first of two onboarding paths from `docs/plans/2026-07-11-campaign-join-
+  invite-flow.md` (Revision 3). New `campaign_invites` table + `create_player_invite`/
+  `redeem_player_invite` SECURITY DEFINER RPCs (single-use, CSPRNG token, idempotent redemption for
+  double-click/crash recovery, one-character-per-player-per-campaign enforced server-side). DM
+  Console gets an "Invite new player" action generating a canonical CharGen link. CharGen detects
+  `?invite=<token>`, stashes it in `sessionStorage` across a `login.html` sign-in round-trip (that
+  redirect-back hook is new in `login.html` too), confirms with the player, then redeems it into a
+  brand-new campaign-bound `chargen` character pre-seeded with the DM-set starting AP/budget —
+  reusing CharGen's own `_cgEnvelope`/`_cgApplyEnvelope` cloud-save helpers and DM-AP-status
+  resolution pattern (shipped in the `feat/campaign-ap-model` change below) rather than re-deriving
+  either. Path B (binding an *existing* built character to a campaign) is a separate, still-open
+  deliverable — see `docs/PACT_ROADMAP.md`. Supabase advisor shows no new class of finding (the two
+  new RPCs carry the same "authenticated can execute this SECURITY DEFINER function" WARN as all 11
+  pre-existing campaign RPCs — the app's intended design). Full plan + design decisions:
+  `docs/plans/2026-07-11-campaign-join-invite-flow.md`; narrative: `DECISIONS.md`
+  `D-GH-2026-07-13-campaign-invite-tokens`.
+
+- **2026-07-13 · fix(campaign) — `/code-review ultra` pass on the invite-tokens PR fixed a race and a
+  data-loss bug before merge** (same files as the entry above, plus `login.html`). `redeem_player_invite`
+  now attempts its atomic claim before checking idempotency (a same-user double-click could previously
+  race and error instead of recovering); the client now only re-seeds a character on a genuinely fresh
+  redemption (`is_new`, new RPC return field) instead of unconditionally overwriting `stats` on every
+  redemption — a double-tab or retry was silently wiping real progress back to a bare budget award.
+  Also: a stale pending-invite token could hijack an unrelated later sign-in in `login.html`; the
+  redemption listener re-fired on every `onAuthChange` event including hourly token refreshes; a NULL
+  argument could bypass `create_player_invite`'s sign check; `js/campaign.js`'s `| 0` coercion could
+  silently wrap huge inputs; the DM-AP-status resolution logic duplicated between CharGen's cloud-load
+  flow and the redemption flow is now one shared helper. See `DECISIONS.md`
+  `D-GH-2026-07-13-campaign-invite-tokens` (Status, follow-up paragraph) for the full list.
+
 - **2026-07-13 · fix — `compute()`: `NaN` in a low-ability-score caster's known-spell over-cap
   surcharge (`DATA.version` v0.335 → v0.336)** (`js/engine.js` only). Found by `log-fuzz.mjs`
   (below) on its first run: the known-spell cap (`dmod+hd`) can go negative for a caster with a

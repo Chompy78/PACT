@@ -12,6 +12,15 @@ import { currentUser } from './auth.js';
 
 const CAMPAIGN_COLS = 'id, name, invite_code, dm_invite_code, ignore_player_ap, rules, dm_id';
 
+/**
+ * sessionStorage key for a pending Path-A player-invite token (see docs/plans/2026-07-11-
+ * campaign-join-invite-flow.md). CharGen stashes the `?invite=` token here so it survives a
+ * same-tab round-trip to login.html; login.html reads it after a successful sign-in and
+ * redirects back to CharGen with it. Shared here (not hand-duplicated in both files) so the
+ * two can't drift out of sync.
+ */
+export const PENDING_INVITE_KEY = 'pact_pending_invite';
+
 /** Create a campaign you will own/DM. Both invite codes are generated server-side. */
 export async function createCampaign(name) {
   const user = await currentUser();
@@ -69,6 +78,66 @@ export async function regenerateInviteCode(campaignId) {
 /** DM-only: regenerate the DM invite code. Returns the new code. */
 export async function regenerateDmInviteCode(campaignId) {
   const { data, error } = await supabase.rpc('regenerate_dm_invite_code', { p_campaign: campaignId });
+  if (error) throw error;
+  return data;
+}
+
+/** Non-negative integer, or 0 -- doesn't wrap on huge input the way `x | 0` (32-bit
+ * bitwise truncation) would; an out-of-range value is instead left for Postgres's
+ * own `integer` column to reject with a real error rather than silently corrupting. */
+function _nonNegInt(n) {
+  n = Math.trunc(Number(n));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * DM-only: create a single-use player invite token carrying a preset starting DM
+ * AP amount and starting build budget. Returns the raw token — the caller builds
+ * the canonical CharGen `?invite=<token>` redemption URL from it.
+ */
+export async function createPlayerInvite(campaignId, startingAp, startingBudget) {
+  const { data, error } = await supabase.rpc('create_player_invite', {
+    p_campaign_id: campaignId,
+    p_starting_ap: _nonNegInt(startingAp),
+    p_starting_budget: _nonNegInt(startingBudget),
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Redeem a player invite token as the signed-in user. Idempotent: a repeat call
+ * by the same user after a successful redemption returns the same result (with
+ * isNew:false) instead of erroring (double-click / interrupted-client recovery) —
+ * the caller must NOT re-seed the character when isNew is false, or it will
+ * silently overwrite any real progress made since the first redemption.
+ * @returns {Promise<{characterId:string, startingAp:number, startingBudget:number, campaignId:string, isNew:boolean}>}
+ */
+export async function redeemPlayerInvite(token, name) {
+  const { data, error } = await supabase.rpc('redeem_player_invite', {
+    p_token: (token || '').trim(),
+    p_name: name || null,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error('Invite redemption returned no character');
+  return {
+    characterId: row.character_id, startingAp: row.starting_ap, startingBudget: row.starting_budget,
+    campaignId: row.campaign_id, isNew: row.is_new,
+  };
+}
+
+/**
+ * Path B: bind an already-built character to a campaign by its shared invite code.
+ * Rebind contract: succeeds as a no-op if already bound to this same campaign; throws
+ * if bound to a different one. Caller must own the character (enforced server-side).
+ * @returns {Promise<string>} the bound campaign's id
+ */
+export async function bindCharacterToCampaign(characterId, code) {
+  const { data, error } = await supabase.rpc('bind_character_to_campaign', {
+    p_character_id: characterId,
+    p_code: (code || '').trim().toUpperCase(),
+  });
   if (error) throw error;
   return data;
 }

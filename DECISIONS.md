@@ -9,6 +9,9 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-13-campaign-membership-helpers** — De-duplicate campaign-membership SQL checks: one new ungranted helper for the invite_code lookup, reuse the pre-existing `is_campaign_member()` for the membership check rather than adding a second near-duplicate function (a self-review catch)
+- **D-GH-2026-07-13-campaign-bind-character** — Campaign join/invite UI Deliverable 2 (Path B): bind an existing character via the shared `invite_code`; non-blocking `validate()` warnings on join, placed in the ☁ Cloud menu rather than the header's rules-preview picker
+- **D-GH-2026-07-13-campaign-invite-tokens** — Campaign join/invite UI Deliverable 1 (Path A): a single-use, per-player CSPRNG token distinct from the shared `invite_code`, redemption reuses CharGen's own cloud-save helpers rather than re-deriving envelope construction
 - **D-GH-2026-07-13-log-fuzz-phase2** — LOG-direct pure-Node fuzzer as Phase 2 of the real-oracle plan; found a real `NaN` bug on its first run, held CI wiring back rather than bundling the engine fix into a test-only change
 - **D-GH-2026-07-13-chargen-charsize-clobber** — `applyBuild()`'s render()-before-LOG-resync ordering silently clobbers any DOM field the "re-assert primary selects" block omits (fixed `charsize` + `lineage`)
 - **D-GH-2026-07-13-random-e2e-real-oracle** — Give the random e2e harness a genuinely independent oracle (fresh Node-side engine import), not just a DOM self-check
@@ -80,6 +83,220 @@
 - **D-003** — Keep history (archive), don't delete
 - **D-002** — Many small single-purpose files + archived history, NOT a merged megafile
 - **D-001** — Front-door `INDEX.md` as the single entry point
+
+---
+
+## D-GH-2026-07-13-campaign-membership-helpers · De-duplicate campaign-membership SQL checks
+- **Context:** `/code-review ultra` on PR #202 (`D-GH-2026-07-13-campaign-bind-character`) found, via two
+  independent finder angles (Reuse, Altitude), that `join_campaign`, `redeem_player_invite`, and
+  `bind_character_to_campaign` each hand-rolled their own "look up campaign by shared `invite_code`" and
+  "does this owner already have a character in this campaign" checks. Deferred out of that PR's scope at
+  the time since fixing it meant touching two already-shipped functions, not just the new one — filed as
+  a roadmap follow-up (`refactor/campaign-membership-helpers`) and picked up here.
+- **Options (how to share the logic):** (A) a shared SQL helper function, called from all three RPCs.
+  (B) leave the duplication — three RPCs is a small, closed set, and the checks are short enough that
+  drift risk is low. (C) collapse the three RPCs into one parameterized function — over-abstracts three
+  call sites with genuinely different pre/post logic (new-blank-character vs. token-redemption vs.
+  existing-character-rebind) into one branchy function, trading duplication for a different readability
+  cost.
+- **Decision (A):** one new helper, `find_campaign_by_invite_code(code)` (raises on miss, matching the
+  exact prior error text; used by `join_campaign`/`bind_character_to_campaign` only —
+  `redeem_player_invite` resolves via a single-use token against `campaign_invites`, a different lookup,
+  not this one). The "already joined" check reuses the **pre-existing** `is_campaign_member(campaign)`
+  (`rls-policies.sql`) instead of a new function — see the follow-up paragraph below for why the first
+  draft got this wrong. Each call site still writes its own `if is_campaign_member(...) then raise
+  exception '...'` with its own message text, so the boolean-predicate shape preserves the two different
+  error strings ("You have already joined this campaign" vs. "…with another character") without the
+  helper needing to own the exception itself.
+- **Why:** (A) over (B) — the duplication was already flagged twice independently by code review, a signal
+  it's worth fixing rather than accepting; a helper function is the standard Postgres idiom for this, no
+  new abstraction layer needed. (A) over (C) — the three RPCs' surrounding logic (blank-character insert,
+  token-consumption, rebind-contract branching) is different enough that merging them would trade a small
+  amount of literal duplication for a much larger branchy function, a worse trade.
+  **Design point — not `SECURITY DEFINER`, not granted to `authenticated`:** `find_campaign_by_invite_code`
+  runs plain `plpgsql` without its own `SECURITY DEFINER`. Since it's only ever called *from inside* the
+  two outer `SECURITY DEFINER` RPCs, Postgres's privilege-elevation rule (current_user stays elevated
+  through nested non-definer calls) means it already runs with the outer function's elevated context — no
+  separate elevation needed. Consequently it's also deliberately **not** granted `EXECUTE` to
+  `authenticated` (unlike `is_campaign_dm`/`owner`/`member`, which genuinely need that grant because they
+  ARE invoked directly from RLS policy `USING` clauses, running as the *invoking* role, not a definer's).
+  Verified post-migration: `information_schema.role_routine_grants` shows only `postgres` holding
+  `EXECUTE` on it — `authenticated` cannot call it as a standalone `/rest/v1/rpc/...` request.
+- **Follow-up: `/code-review` pass on this PR itself, before merge.** 10 finder angles; one real
+  duplication bug and one real documentation bug, both fixed; two pre-existing (not introduced by this PR)
+  gaps found and deferred as separate follow-ups rather than scope-crept into a "pure refactor" PR.
+  - **Fixed — self-duplication:** the first draft added a *second* new helper,
+    `owner_has_character_in_campaign(campaign, owner)`, for the "already joined" check — but every call
+    site always passed `auth.uid()` as `owner`, and that's exactly what the pre-existing
+    `is_campaign_member(campaign)` already checks (`rls-policies.sql`, identical query body). Caught by
+    this PR's own Reuse angle before merge; replaced with `is_campaign_member` everywhere, deleting the
+    redundant function (dropped via `drop function if exists` in a corrective migration since it had
+    already been briefly live). Ironic given the PR's whole purpose is removing duplication — kept as the
+    canonical example of why review-your-own-refactor is worth the pass.
+  - **Fixed — misleading doc comment:** the helper-block comment originally implied all three RPCs
+    hand-rolled *both* check shapes; `redeem_player_invite` never hand-rolled an invite_code lookup
+    (different mechanism, see Decision above). Comment corrected to name exactly which RPCs use which helper.
+  - **Deferred — race-handling asymmetry (real, pre-existing, not introduced here):** `join_campaign` and
+    `redeem_player_invite`'s character-insert have no `unique_violation` handler, unlike
+    `bind_character_to_campaign` (added in `D-GH-2026-07-13-campaign-bind-character`). A race that beats
+    both RPCs' pre-check surfaces a raw Postgres constraint-violation error instead of the friendly "You
+    have already joined this campaign" message. Real bug, but pre-existing and out of a "no behavior
+    change" refactor's scope — filed as a roadmap follow-up (see the TODO block output alongside this
+    session's work) rather than silently expanding this PR.
+  - **Deferred — `search_path` hardening (real, pre-existing, not introduced here):** every `SECURITY
+    DEFINER` function in `schema.sql`/`rls-policies.sql` (11+ instances, confirmed pre-existing) sets
+    `search_path = public` without also listing `pg_temp`, which doesn't fully close the classic
+    session-local-temp-table-shadowing pitfall. `find_campaign_by_invite_code` inherits the same pattern.
+    Real latent risk, low exploitability today (Supabase/PostgREST clients have no raw-SQL/DDL path), but
+    fixing it piecemeal in just the one function this PR touches would leave the other 10+ inconsistent —
+    a repo-wide `search_path` hardening pass is its own follow-up, not this PR's job.
+- **Status:** Shipped (`refactor/campaign-membership-helpers`). Migration
+  (`sql/migrations/2026-07-13-campaign-membership-helpers.sql`, plus a corrective re-apply after the
+  self-duplication fix above) applied to the live Supabase project; `find_campaign_by_invite_code('ZZZZZZ')`
+  smoke-tested twice (before and after the fix) to confirm it still raises the exact original error text
+  (`No campaign with that invite code`). Advisor shows no new finding class both times — the new helper
+  never appears in the "authenticated can execute this SECURITY DEFINER function" WARN list (every
+  client-facing RPC does), confirming the lockdown is effective, not just intended. `get_logs` (postgres
+  service) skimmed post-apply — the only ERROR-severity entry is this PR's own smoke test; no unrelated
+  errors. `testing/tests/engine-parity.html` unaffected (20/0 — no `js/engine.js` change).
+
+## D-GH-2026-07-13-campaign-bind-character · Campaign join/invite UI, Deliverable 2 (Path B): bind an existing character
+- **Context:** Deliverable 1 (Path A, `D-GH-2026-07-13-campaign-invite-tokens`) covers a DM inviting a
+  brand-new player. Path B is the other half: a player who already has a built character (own creation
+  log, possibly with purchases made with no campaign context at all) binds it to a campaign via the
+  campaign's *existing* shared `invite_code` — no new token table needed, since this isn't single-use or
+  DM-curated with a preset budget the way Path A's token is. Re-verified `docs/plans/2026-07-11-campaign-
+  join-invite-flow.md`'s B1-B3 steps against the current code before implementing (Revision 4 note in
+  that file): all facts still held (`bind_character_to_campaign` didn't exist yet;
+  `characters_update`'s grant still excludes `campaign_id`, confirming a SECURITY DEFINER RPC is the
+  only write path; `validate(b, rules)`'s signature unchanged; `saveCharacter`/`pushCharacter` inserts a
+  row if none exists yet for that id, needed since the bind RPC requires an existing owned row).
+- **Options (UI placement):** (A) beside the header's campaign-rules picker (`#cgCloudCampSel`), as the
+  plan originally suggested. (B) inside the existing ☁ Cloud menu (`#cgCloudMenu`, built for Path A),
+  next to Save/Load.
+- **Decision (A):** (B) — `#cgCloudCampSel` is a display-only *rules preview* picker, independent of any
+  specific character (lets a signed-out-of-a-campaign player still preview a campaign's rules while
+  building). Binding is a per-character action; the ☁ Cloud menu is already where players look for
+  actions on the character they currently have open, and reuses an existing menu surface instead of
+  adding a second one.
+- **Options (rule-violation handling on join):** (A) block the bind entirely if `validate()` finds
+  violations (matches the Live Sheet's existing *save-time* engine-`validate()` check, which does block
+  saving new purchases for an already-bound character that would break rules). (B) bind regardless, show
+  violations as non-blocking warnings.
+- **Decision (B):** the plan's original choice, re-confirmed on its own merits (not because it "matches"
+  an existing pattern — checked, and it doesn't: the Live Sheet's check is a *blocking* `alert()`, for a
+  different scenario). An independently-built character joining a campaign for the first time may
+  already carry purchases that predate any campaign context; refusing the bind over that would make the
+  feature unusable for exactly the case it exists to serve. CharGen's own live rule-filtering
+  (`_cloudCampaign`/`cloudRuleBarred`), which Path B's bind activates the same way Path A's redemption
+  does, already softly guards against *new* violations after the join — no extra save-time gate needed.
+- **Why:** matches decision 2 from the shared plan (rebind contract: bind only if unbound; same-campaign
+  is an idempotent no-op; different-campaign is rejected — no transfer/leave-campaign in v1) and decision
+  1 (one-character-per-player-per-campaign, enforced server-side, same pattern as Path A/`join_campaign`).
+- **Status:** Shipped (`feat/campaign-bind-character`). Migration applied to the live Supabase project;
+  advisor shows no new class of finding (same accepted "authenticated can execute this SECURITY DEFINER
+  function" WARN pattern as every other campaign RPC). `bind_character_to_campaign` confirmed
+  `SECURITY DEFINER` via introspection.
+- **Follow-up: `/code-review ultra` pass (2026-07-13), 10 finder angles, 7 findings, all fixed before
+  merge.** Two were genuine correctness bugs the plan's design review didn't catch: (1) the
+  one-character-per-player-per-campaign check (an unlocked `EXISTS`-then-write, the same shape already
+  used by `join_campaign`/`redeem_player_invite`) had a TOCTOU race — two concurrent bind calls could
+  both pass the check before either commit. Closed with a `unique index on characters(owner_id,
+  campaign_id) where campaign_id is not null`, which is authoritative for **all three** functions at
+  once (not just the new one), plus a friendly `unique_violation` handler in
+  `bind_character_to_campaign` for the race window specifically. (2) `onJoinCampaignClick`'s success
+  message and `validate()` rules read `window._cloudCampaign`, a global also written by the *unrelated*
+  campaign-rules preview picker — after a successful bind, that global could already reflect a
+  different campaign than the one just bound, showing the wrong name/rules. Fixed by having
+  `_cgResolveDmApStatus()` **return** the freshly-resolved campaign object so callers use that local
+  value instead of trusting the shared global. Also fixed: `bind_character_to_campaign` returned `void`
+  instead of the bound campaign id, forcing an extra `loadCharacter()` round-trip the client no longer
+  needs; the "already bound" banner claimed a player could "switch" campaigns by entering a different
+  code, which the rebind contract always rejects — the join form is now hidden (not just relabeled) once
+  a character is actively bound; an offline save wasn't detected before attempting the bind, producing a
+  confusing raw network error instead of a clear message; a code comment claiming the pre-bind save was
+  "a no-op if unchanged" was factually wrong (it always writes). **Deferred, not fixed:** the SQL
+  duplication of the "campaign lookup by code" and "already joined" patterns across three functions —
+  fully consolidating it would mean touching already-shipped `join_campaign`/`redeem_player_invite`,
+  which is out of this PR's scope; filed as a roadmap follow-up.
+
+---
+
+## D-GH-2026-07-13-campaign-invite-tokens · Campaign join/invite UI, Deliverable 1 (Path A): single-use per-player tokens
+- **Context:** `join_campaign()` already lets a player join via the campaign's shared, reusable
+  `invite_code`, but it only ever creates a blank `livesheet` character with no way for the DM to
+  preset a starting AP/budget. `docs/plans/2026-07-11-campaign-join-invite-flow.md` (through three
+  cold reviews, Revision 2) designed a second, distinct mechanism — Path A — for this: a single-use,
+  per-player token a DM issues with a preset starting AP + budget, which the player redeems into a
+  brand-new campaign-bound `chargen` character built from a known-legal budget from the start (no
+  retroactive validation needed, since there's no build until the token is redeemed). Revision 2 had
+  one open blocker: it depended on the "Campaign AP model" work (`feat/campaign-ap-model`) to give
+  CharGen any DM-AP concept to seed. That prerequisite shipped and closed 2026-07-12. This session
+  re-verified Revision 2's facts against the now-current code (Revision 3) before implementing —
+  everything held, with one concrete improvement: CharGen's cloud save/load (which didn't exist as a
+  shipped feature when Revision 2 was written) now has ready-made `_cgEnvelope`/`_cgApplyEnvelope`/
+  `currentCharId()` helpers and an existing DM-AP-status resolution pattern (`onLoadClick`) that
+  redemption should call directly instead of re-deriving.
+- **Options (token generation):** (A) reuse the 6-char `gen_invite_code()` alphabet/length used for
+  the shared `invite_code`/`dm_invite_code`. (B) a longer, higher-entropy CSPRNG token (32 hex chars
+  from 16 `gen_random_bytes`), since this token travels only in a URL and is never hand-typed, unlike
+  the 6-char codes.
+- **Decision (A):** (B) — the existing 6-char alphabet is sized for manual entry; a URL-only,
+  single-use token has no such constraint, so it uses more entropy. The uniqueness-check loop is kept
+  for consistency with `gen_invite_code()`'s pattern even though 128 bits is already effectively
+  collision-free.
+- **Options (auth-survival across the invite link):** (A) rely on the query param surviving whatever
+  auth navigation happens. (B) stash the token in `sessionStorage` before any auth step, since CharGen
+  has no inline sign-in form (it only links out to `login.html`), so a real page navigation happens
+  for any unauthenticated player. (C) build a full inline sign-in/register form inside CharGen so the
+  player never leaves the page.
+- **Decision (auth-survival):** (B), plus a small, generic addition to `login.html` itself: after a
+  successful sign-in, if a pending invite token is stashed, redirect back to CharGen with it rather
+  than showing the normal signed-in view. (C) was rejected — it would duplicate `login.html`'s
+  existing, working auth-form UI/logic (email/password, register, forgot-password) inside CharGen for
+  a first version, which is more new surface area than the problem needs; the login.html redirect-back
+  hook is small, generic, and reusable rather than a one-off hack.
+- **Why:** matches the plan's own decisions 1–7 (one character per player per campaign enforced
+  server-side; token-possession = authorization, no per-recipient binding in v1; no expiry/revocation
+  enforcement in v1, column reserved; `redeem_player_invite` is idempotent for the same user so
+  double-click/interrupted-client recovery doesn't error). The single function body per RPC gives one
+  implicit transaction, so a failed character insert (e.g. "already joined") auto-rolls-back the token
+  claim — no orphaned-consumed-token failure mode.
+- **Status:** Shipped (`feat/campaign-invite-tokens`). Migration applied directly to the live
+  Supabase project via the MCP `apply_migration` tool (user explicitly chose this over manual
+  SQL-editor application when asked); Supabase security advisor shows no new class of finding, only
+  the same "authenticated can execute this SECURITY DEFINER function" WARN every other campaign RPC
+  in this app already carries by design. Schema/RLS/grants verified via direct introspection
+  post-apply (RLS enabled; exactly one SELECT policy matching the DM-or-redeemer rule; `authenticated`
+  has no direct write grant on `campaign_invites`; both functions confirmed `SECURITY DEFINER`).
+  **Known gap:** full browser click-through (DM creates an invite in DM Console, a real player account
+  redeems it in CharGen) was not exercised — this environment has no way to drive a real two-account
+  browser session without creating test data in the live production project, so that pass is still
+  owed before this feature is exercised for a real campaign. Path B (binding an existing built
+  character to a campaign via the shared invite code) is a separate, still-open deliverable — the
+  plan's own recommended split, tracked as its own roadmap item.
+- **Follow-up: `/code-review ultra` pass (2026-07-13), 10 finder angles, ~15 findings triaged.**
+  Two were genuine correctness bugs beyond polish: (1) `redeem_player_invite`'s original shape checked
+  idempotency BEFORE attempting the claim, so two truly concurrent calls from the same user (a
+  double-click) could race — the loser's own claim then found 0 rows and raised "invalid or already
+  redeemed" instead of recovering. Fixed by attempting the atomic claim FIRST and only falling back to
+  the idempotency check on 0 rows affected, which correctly recognizes "it was actually me" regardless
+  of commit order. (2) The client unconditionally re-seeded and overwrote a character's `stats` on
+  every redemption, including an idempotent replay (double-tab, retry) — silently destroying any real
+  progress made since the first successful redemption. Fixed by having `redeem_player_invite` return
+  `campaign_id`/`is_new` so the client only seeds on a genuinely fresh redemption and otherwise loads
+  the existing character instead. Also fixed: a stale/declined/errored pending-invite token was never
+  cleared from `sessionStorage`, so `login.html`'s new resume-after-sign-in hook could hijack any later
+  unrelated sign-in in the same tab (moved the resume call out of the generic boot-time `showSignedIn()`
+  into only the two actual submit-driven sign-in paths, and clear the token on decline/error too); the
+  `onAuthChange` handler re-firing `tryRedeem()` on every session event including hourly
+  `TOKEN_REFRESHED` (now guards on an actual sign-in transition, matching the existing pattern used
+  elsewhere in the same file); `create_player_invite`'s `< 0` check silently passing a NULL argument
+  through SQL's three-valued logic; `js/campaign.js`'s `| 0` coercion wrapping huge inputs via 32-bit
+  truncation instead of leaving Postgres to reject them; a redundant `loadCharacter()` round-trip now
+  avoided on the common (fresh-redemption) path since the RPC returns `campaign_id` directly; and the
+  DM-AP-status-resolution duplication between `onLoadClick` and the redemption flow, now a single
+  shared `_cgResolveDmApStatus()` helper. Full findings list in the PR's code-review report.
 
 ---
 
