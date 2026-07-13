@@ -1565,13 +1565,13 @@ document.addEventListener('sync-ready', function () {
       var rec = await S.loadCharacter(window.currentCharId());
       window._dmAp = rec ? (rec.ap || 0) : 0;
       window._ignorePlayerAp = false;
-      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; if(rec) _writeRulesSnapshot(null); /* rec present but no campaign_id = confirmed standalone → clear the offline snapshot (a logged leave) */ renderCloudStatusBadge(); return; }
+      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; if(rec && typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(null); /* rec present but no campaign_id = confirmed standalone → clear the offline snapshot (a logged leave) */ renderCloudStatusBadge(); return; }
       window._rulesStatus = 'unavailable';   // interim, resolved just below — correctly NOT "no DM AP" if getCampaign throws
       var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
       window._cloudCampaignRules = camp ? (camp.rules || {}) : null;
       _campaignName = camp ? camp.name : null;
       window._rulesStatus = camp ? 'active' : 'unavailable';
-      if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; _writeRulesSnapshot(window._cloudCampaignRules); /* refresh the offline snapshot from the live rules */ }
+      if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; if(typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(window._cloudCampaignRules); /* refresh the offline snapshot from the live rules */ }
     } catch(e) { window._rulesStatus = 'unavailable'; /* non-fatal — pickers/AP just fall back until this succeeds */ }
     renderCloudStatusBadge();
     if(typeof window.render === 'function') window.render();
@@ -1691,8 +1691,10 @@ document.addEventListener('sync-ready', function () {
             if(rec.id) __charId = rec.id;
             // Offline campaign-rules carry: now that LOG is the loaded character's, refresh its snapshot
             // from the live rules (or clear it if this character is standalone) before save() persists it.
-            if(window._rulesStatus==='active' && window._cloudCampaignRules){ _writeRulesSnapshot(window._cloudCampaignRules); }
-            else if(rec && !rec.campaign_id){ _writeRulesSnapshot(null); }
+            if(typeof window._writeRulesSnapshot==='function'){
+              if(window._rulesStatus==='active' && window._cloudCampaignRules){ window._writeRulesSnapshot(window._cloudCampaignRules); }
+              else if(rec && !rec.campaign_id){ window._writeRulesSnapshot(null); }
+            }
             if(typeof window.save   === 'function') window.save();
             if(typeof window.render === 'function') window.render();
             cloudMenu.classList.remove('open');
