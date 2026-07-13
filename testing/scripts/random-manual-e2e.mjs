@@ -21,6 +21,29 @@
   features (sign-in, award AP, campaign rules) are NOT exercised — they need a live Supabase
   session/roster, not just the CDN stub — see docs/PACT_ROADMAP.md for that as future work.
 
+  ---- The oracle (why this can catch more than "the DOM agrees with itself") ----
+  Every tool bridges the SAME js/engine.js onto `window`, so a naive check like "the displayed
+  AP equals economy().available" is self-referential: if compute()/economy() itself is wrong,
+  every UI surface agrees on the WRONG number and the check passes anyway. This harness also
+  runs a genuinely independent oracle, on the real random LOG each iteration generates
+  (not just the 20 static parity fixtures):
+    1. Node-vs-browser agreement — the SAME js/engine.js source, freshly imported into this
+       Node process (a separate module instantiation from the browser's), fed the browser's
+       real LOG, must produce identical economy()/compute(foldBuild()) output. Catches any
+       state that leaked into the browser's long-lived module instance across purchases.
+    2. Dual-entry-point agreement — foldBuild(LOG)+compute() and rebuildStateFromEvents(null,
+       LOG) are two separately-documented engine entry points that both replay the same LOG;
+       they must agree with each other (computed in the SAME Node process, so this isolates
+       divergence between the two entry points from the Node-vs-browser question above).
+    3. Spec-independent spend reconciliation — a HAND-WRITTEN summation of the LOG's own
+       recorded buy/buyoff/names costs (written from the engine's documented behaviour, not by
+       calling economy()/`_spendCost()`) must match economy().spent. This is the one check
+       that can catch a bug in economy()'s own categorization logic, which (1) and (2) cannot
+       — they'd both reproduce the same bug identically since they call the same function.
+    4. compute() purity — calling compute(b) twice on the same build must return identical
+       results, and must not mutate `b` — catches any hidden shared-state/mutation bug.
+  See checkEngineInvariants() below. Failures are reported with the `[oracle]` prefix.
+
   Requires the `playwright` package to be resolvable (either `npm i -D playwright`
   in a scratch dir on NODE_PATH, or a global install — this sandbox has one at
   `npm root -g`). Chromium must be installed for Playwright.
@@ -35,7 +58,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // CJS require honors NODE_PATH (unlike ESM's static `import`), so this resolves a
 // globally-installed `playwright` without needing a local node_modules/ in the repo.
@@ -192,6 +215,128 @@ function wireDialogs(page, state) {
   });
 }
 
+// ---------- Phase 1: engine invariants (the independent oracle — see file header) ----------
+
+// Hand-written from the engine's OWN documented behaviour (js/engine.js's `_spendCost`/`economy`
+// comments), NOT by calling either — this is the one check that can catch a bug in economy()'s
+// own categorization logic, since every other check here ultimately calls that same function.
+function independentSpend(LOG) {
+  let spent = 0;
+  for (const e of LOG || []) {
+    if (!e) continue;
+    if (e.type === 'buy' && e.cat !== 'drawback') spent += Number(e.cost) || 0;
+    else if (e.type === 'buyoff') spent += Number(e.cost) || 0;
+    else if (e.type === 'names') spent += Number(e.cost) || 0;
+    // award / buy-drawback / anything else: not spend (drawbacks refund via `earned`, not `spent`)
+  }
+  return spent;
+}
+
+const deepClone = (o) => (o == null ? o : JSON.parse(JSON.stringify(o)));
+const deepEqualJSON = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// compute() purity: same input twice -> same output, and the input itself must be untouched.
+// Runs entirely in this Node process (fresh engine import) — no browser involved.
+//
+// r1/r2 each get their OWN clone (never the same object, and never the caller's `build`), so a
+// mutation during call 1 can't taint call 2's determinism comparison. Mutation is tested
+// separately via a THIRD, dedicated clone: snapshot it, hand it to compute(), then compare —
+// this is the only way to actually detect a mutation, since compute() must be given a real
+// object it could mutate (an earlier version of this function called compute() with a fresh
+// deepClone() every time and then compared the ORIGINAL `build` against itself, which can never
+// differ because `build` was never passed to compute() at all — a tautological check that could
+// never fire).
+function checkComputePurity(ENGINE, build, label) {
+  const notes = [];
+  const r1 = ENGINE.compute(deepClone(build));
+  const r2 = ENGINE.compute(deepClone(build));
+  if (!deepEqualJSON(r1, r2)) notes.push(`[oracle:${label}] compute() is not deterministic on the same input (two calls differed)`);
+  const probe = deepClone(build);
+  const before = deepClone(probe);
+  ENGINE.compute(probe);
+  if (!deepEqualJSON(before, probe)) notes.push(`[oracle:${label}] compute() mutated its input build object`);
+  return notes;
+}
+
+// Node-vs-browser + spec-independent spend reconciliation. Safe for BOTH tools: economy(LOG) is
+// a pure function of the LOG alone, so this never depends on whether readBuild()/foldBuild() are
+// in sync with the DOM.
+//
+// window.economy has a DIFFERENT signature per tool: CharGen calls the engine's array-parameter
+// API directly onto window (economy(events)); Live Sheet shadows window.economy with its own
+// classic-script INDEX-based wrapper (economy(uptoIdx) -> window._engineFold.economy(eventsUpTo(
+// uptoIdx))) for its time-travel/scrub UI (see AGENTS.md). Passing this check's LOG array to Live
+// Sheet's wrapper as if it were an index silently produces an empty replay. Resolve the RAW,
+// array-parameter engine function explicitly (window._engineFold on Live Sheet, window directly
+// on CharGen) so this check is fed the exact same LOG on both sides regardless of which tool.
+async function checkEconomyAgreement(ENGINE, page, label) {
+  const notes = [];
+  const pageSide = await page.evaluate(() => {
+    const raw = window._engineFold || { economy: window.economy };
+    const log = typeof LOG !== 'undefined' ? LOG : [];
+    const eco = raw.economy(log);
+    return { LOG: log, spent: eco.spent, earned: eco.earned, available: eco.available };
+  });
+  const nodeEco = ENGINE.economy(pageSide.LOG);
+  if (nodeEco.spent !== pageSide.spent) notes.push(`[oracle:${label}] economy().spent: browser=${pageSide.spent} vs fresh-Node-import=${nodeEco.spent} (same LOG — state leaked into the browser's engine instance?)`);
+  if (nodeEco.earned !== pageSide.earned) notes.push(`[oracle:${label}] economy().earned: browser=${pageSide.earned} vs fresh-Node-import=${nodeEco.earned}`);
+  if (nodeEco.available !== pageSide.available) notes.push(`[oracle:${label}] economy().available: browser=${pageSide.available} vs fresh-Node-import=${nodeEco.available}`);
+  const spec = independentSpend(pageSide.LOG);
+  if (spec !== pageSide.spent) notes.push(`[oracle:${label}] spend reconciliation: independently-summed LOG cost=${spec} vs economy().spent=${pageSide.spent} (a real economy()/spend-categorization logic bug, not a wiring bug)`);
+  return notes;
+}
+
+// Live-Sheet-only (LOG is that tool's authoritative build source, so foldBuild(LOG) is meaningful
+// there): cross-check the two documented engine entry points that both replay a LOG —
+// foldBuild()+compute() and rebuildStateFromEvents() — against each other AND against the browser.
+//
+// Resolves the RAW, array-parameter foldBuild explicitly (window._engineFold on Live Sheet,
+// window directly on CharGen) rather than the tool's own `foldBuild(null)` convention — the same
+// array-vs-index hazard as window.economy (see checkEconomyAgreement above): were this function
+// ever reused for a tool whose window.foldBuild is index-based AND doesn't happen to have
+// eventsUpTo(null)===LOG by coincidence, `foldBuild(null)` could silently mean something other
+// than "the LOG this check just read." Explicit resolution removes that assumption entirely.
+async function checkFoldRebuildAgreement(ENGINE, page, label) {
+  const notes = [];
+  const pageSide = await page.evaluate(() => {
+    const raw = window._engineFold || { foldBuild: window.foldBuild };
+    const log = typeof LOG !== 'undefined' ? LOG : [];
+    const b = raw.foldBuild(log);
+    const r = window.compute(b);
+    return { LOG: log, budget: b.budget, total: r.total, remaining: r.remaining };
+  });
+  const nodeBuild = ENGINE.foldBuild(pageSide.LOG);
+  const nodeResult = ENGINE.compute(nodeBuild);
+  const nodeRebuild = ENGINE.rebuildStateFromEvents(null, pageSide.LOG);
+  if (nodeResult.total !== pageSide.total) notes.push(`[oracle:${label}] compute(foldBuild(LOG)).total: browser=${pageSide.total} vs fresh-Node-import=${nodeResult.total}`);
+  if (nodeResult.remaining !== pageSide.remaining) notes.push(`[oracle:${label}] compute(foldBuild(LOG)).remaining: browser=${pageSide.remaining} vs fresh-Node-import=${nodeResult.remaining}`);
+  if (nodeBuild.budget !== pageSide.budget) notes.push(`[oracle:${label}] foldBuild(LOG).budget: browser=${pageSide.budget} vs fresh-Node-import=${nodeBuild.budget}`);
+  if (nodeRebuild.total !== nodeResult.total) notes.push(`[oracle:${label}] dual-entry-point mismatch: rebuildStateFromEvents(null,LOG).total=${nodeRebuild.total} vs foldBuild(LOG)+compute().total=${nodeResult.total} (same Node process, same LOG)`);
+  if (nodeRebuild.remaining !== nodeResult.remaining) notes.push(`[oracle:${label}] dual-entry-point mismatch: rebuildStateFromEvents(null,LOG).remaining=${nodeRebuild.remaining} vs foldBuild(LOG)+compute().remaining=${nodeResult.remaining}`);
+  if (nodeRebuild.budget !== nodeBuild.budget) notes.push(`[oracle:${label}] dual-entry-point mismatch: rebuildStateFromEvents(null,LOG).budget=${nodeRebuild.budget} vs foldBuild(LOG).budget=${nodeBuild.budget}`);
+  return notes;
+}
+
+// Runs the whole oracle for one tool/moment. `fullCrossCheck` additionally runs the
+// foldBuild/rebuildStateFromEvents comparison — only meaningful where LOG is the build's
+// authoritative source (Live Sheet), not where a DOM-driven readBuild() is (CharGen mid-edit).
+// The fold path resolves the raw array-parameter foldBuild explicitly (see
+// checkFoldRebuildAgreement's comment) — not `window.foldBuild(null)` — so this stays correct
+// even if a future caller ever passes `fullCrossCheck: true` for a tool whose window.foldBuild
+// isn't already the tool-current-state convention this happens to coincide with today.
+async function checkEngineInvariants(ENGINE, page, label, { fullCrossCheck = false } = {}) {
+  const notes = [];
+  const build = await page.evaluate((useFold) => {
+    if (!useFold) return window.readBuild();
+    const raw = window._engineFold || { foldBuild: window.foldBuild };
+    return raw.foldBuild(typeof LOG !== 'undefined' ? LOG : []);
+  }, fullCrossCheck);
+  notes.push(...checkComputePurity(ENGINE, build, label));
+  notes.push(...(await checkEconomyAgreement(ENGINE, page, label)));
+  if (fullCrossCheck) notes.push(...(await checkFoldRebuildAgreement(ENGINE, page, label)));
+  return notes;
+}
+
 // ---------- CharGen: random manual build ----------
 async function randomizeCharGen(page, rng) {
   await page.goto(`${page.__baseUrl}/PACT/tools/PACT-CharGen-Webtool.html`);
@@ -293,38 +438,51 @@ async function randomCheckSubset(page, selector, rng, n) {
 // character between the two tools, so this is what the harness drives too: a real
 // click, a real navigation, and a same-origin localStorage handoff — the app's own code,
 // not a script-side shortcut.
+//
+// Field list is curated (not a full deep-diff of the whole build): primitives + simple string
+// arrays that both readBuild() (CharGen, DOM-driven) and foldBuild(null) (Live Sheet, LOG-driven)
+// share and populate the same way. Deliberately excludes fields with legitimately different
+// internal shapes between the two representations (armour, traditions, freeSub, customProfs, …) —
+// diffing those would risk false positives, not real signal. Was 3 fields (species/originClass/hd);
+// this catches a lossy handoff on any of the ~20 fields below instead.
+const PORTABLE_PRIMITIVE_FIELDS = ['species', 'species2', 'originClass', 'originClass2', 'hd', 'profBonus', 'hardy', 'tough', 'languages', 'wornArmour', 'martiallyBound', 'lineage', 'extraClasses', 'gold', 'size', 'sorcery', 'ki', 'attune'];
+const PORTABLE_ARRAY_FIELDS = ['racialTraits', 'boons', 'drawbacks', 'arts', 'masteries', 'saves', 'skills', 'tools', 'instruments', 'toolExpertise', 'expertise', 'customProfs'];
+
+function portableSnapshot(b) {
+  const out = {};
+  for (const k of PORTABLE_PRIMITIVE_FIELDS) out[k] = b[k];
+  for (const k of PORTABLE_ARRAY_FIELDS) out[k] = (b[k] || []).slice().sort();
+  out.stats = Object.assign({ STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 }, b.stats || {});
+  return out;
+}
+function diffPortableFields(before, after) {
+  const mismatches = [];
+  for (const k of PORTABLE_PRIMITIVE_FIELDS) if (before[k] !== after[k]) mismatches.push(k);
+  for (const k of PORTABLE_ARRAY_FIELDS) if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) mismatches.push(k);
+  for (const k of Object.keys(before.stats)) if (before.stats[k] !== after.stats[k]) mismatches.push(`stats.${k}`);
+  return mismatches;
+}
+
 async function switchToLiveSheetViaButton(page) {
-  const before = await page.evaluate(() => {
-    const b = window.readBuild();
-    return { species: b.species, originClass: b.originClass, hd: b.hd, total: window.compute(b).total };
-  });
+  const before = portableSnapshot(await page.evaluate(() => window.readBuild()));
   await page.getByRole('button', { name: /Open in Live Sheet/ }).first().click();
   await page.waitForURL(/PACT-Live-Char-Sheet\.html/);
   await page.waitForFunction(() => typeof window.compute === 'function');
   await page.waitForFunction(() => typeof window.foldBuild === 'function' && window.foldBuild(null).hd >= 1);
   await dismissNamesModalIfOpen(page);
-  const after = await page.evaluate(() => {
-    const b = window.foldBuild(null);
-    return { species: b.species, originClass: b.originClass, hd: b.hd };
-  });
-  const mismatches = ['species', 'originClass', 'hd'].filter((k) => before[k] !== after[k]);
+  const after = portableSnapshot(await page.evaluate(() => window.foldBuild(null)));
+  const mismatches = diffPortableFields(before, after);
   return { ok: mismatches.length === 0, before, after, mismatches };
 }
 
 async function switchToCharGenViaButton(page) {
-  const before = await page.evaluate(() => {
-    const b = window.foldBuild(null);
-    return { species: b.species, originClass: b.originClass, hd: b.hd };
-  });
+  const before = portableSnapshot(await page.evaluate(() => window.foldBuild(null)));
   await page.getByRole('button', { name: /Open in CharGen/ }).first().click();
   await page.waitForURL(/PACT-CharGen-Webtool\.html/);
   await page.waitForFunction(() => typeof window.compute === 'function');
   await page.waitForFunction(() => (window.readBuild() || {}).hd >= 1);
-  const after = await page.evaluate(() => {
-    const b = window.readBuild();
-    return { species: b.species, originClass: b.originClass, hd: b.hd };
-  });
-  const mismatches = ['species', 'originClass', 'hd'].filter((k) => before[k] !== after[k]);
+  const after = portableSnapshot(await page.evaluate(() => window.readBuild()));
+  const mismatches = diffPortableFields(before, after);
   return { ok: mismatches.length === 0, before, after, mismatches };
 }
 
@@ -335,6 +493,34 @@ async function dismissNamesModalIfOpen(page) {
   if (await page.locator('#namesOv').isVisible().catch(() => false)) {
     await page.getByRole('button', { name: 'Skip for now' }).click().catch(() => {});
   }
+}
+
+// Undo-then-redo must be a true round trip: the folded build after undo+redo must be
+// identical to the build right before undo was called. Previously entirely unchecked.
+// Calls undo()/redo() directly (not a DOM click) — Live Sheet has TWO Undo buttons on the page
+// (desktop toolbar + mobile action bar), both wired to the exact same onclick="undo()", so a
+// role-based click would be Playwright-strict-mode-ambiguous; calling the function they both
+// invoke exercises identical app code without that ambiguity.
+//
+// Compares the FOLDED BUILD, not raw LOG length/contents: undo() permanently drops any trailing
+// `rulesSnapshot` events (sync-written metadata, never redo-restorable by design — see
+// D-GH-2026-07-13-campaign-rules-snapshot) before it even reaches the real undo target, so LOG
+// length/shape after a genuine undo+redo round trip can legitimately differ from before. Since
+// `rulesSnapshot` is engine-inert (never read by `foldBuild()`/`_replay()`), the folded build is
+// the correct, drop-immune invariant — it's unaffected by whether snapshot events happen to be
+// present, absent, or mid-drop, and this also means no LOG-length pre-check is needed to skip a
+// no-op undo (award-locked / empty LOG): the build is trivially unchanged in that case too.
+async function checkUndoRedoRoundTrip(page, rng, label) {
+  const notes = [];
+  if (!chance(rng, 0.6)) return notes; // sampled, not every level — keep the advancement loop light
+  const before = await page.evaluate(() => window.foldBuild(null));
+  await page.evaluate(() => window.undo());
+  await page.waitForTimeout(30);
+  await page.evaluate(() => window.redo());
+  await page.waitForTimeout(30);
+  const after = await page.evaluate(() => window.foldBuild(null));
+  if (!deepEqualJSON(after, before)) notes.push(`[oracle:${label}] undo/redo round trip: folded build differs after undo-then-redo (should be identical to the build right before undo)`);
+  return notes;
 }
 
 // ---------- Live Sheet: advancement via real buy-panel clicks ----------
@@ -399,6 +585,8 @@ async function advanceCharacter(page, rng, state, levels) {
     }
     const trayText = await page.locator('#tray').innerText().catch(() => '');
     log(`  level ${lvl + 1}: HD=${inv.hd} HP=${inv.hp} AC=${inv.ac} AP-left=${inv.apLeft} tray="${trayText.slice(0, 60).replace(/\n/g, ' ')}"`);
+
+    report.invariantFailures.push(...(await checkUndoRedoRoundTrip(page, rng, `livesheet-lvl${lvl + 1}`)));
   }
 
   return report;
@@ -505,6 +693,10 @@ async function testDmConsole(context, baseUrl, exported) {
 // ---------- main ----------
 async function main() {
   await ensurePactSymlink();
+  // A completely separate module instantiation of the SAME js/engine.js source the browser
+  // bridges onto window — this is what makes the Phase-1 oracle checks (see file header)
+  // independent rather than self-referential.
+  const ENGINE = await import(pathToFileURL(path.join(REPO_ROOT, 'js', 'engine.js')).href);
   const port = 8000 + (SEED % 500);
   const server = await startServer(port);
   const baseUrl = `http://localhost:${port}`;
@@ -532,6 +724,7 @@ async function main() {
         log(`generated: ${JSON.stringify({ name: genReport.name, total: genReport.total, budget: genReport.budget, remaining: genReport.remaining })}`);
         if (genReport.remaining < 0) iterResult.notes.push(`char-gen over budget by ${-genReport.remaining} AP`);
         if (genReport.hardWarnings.length) iterResult.notes.push(`char-gen has ${genReport.hardWarnings.length} unresolved warning(s): ${genReport.hardWarnings.slice(0, 3).join(' | ')}`);
+        iterResult.notes.push(...(await checkEngineInvariants(ENGINE, page, 'chargen')));
 
         const toLiveSheet = await switchToLiveSheetViaButton(page);
         if (!toLiveSheet.ok) iterResult.notes.push(`switch to Live Sheet lost data: ${JSON.stringify(toLiveSheet.mismatches)} (before=${JSON.stringify(toLiveSheet.before)} after=${JSON.stringify(toLiveSheet.after)})`);
@@ -539,6 +732,7 @@ async function main() {
         const advReport = await advanceCharacter(page, rng, state, LEVELS_PER_CHAR);
         log(`advancement: levelsGranted=${advReport.levelsGranted} purchases=${advReport.purchasesApplied}/${advReport.purchasesAttempted} softWarnAccepted=${state.softWarnAccepted} softWarnDeclined=${state.softWarnDeclined} hardBlocked=${state.hardBlocked}`);
         if (advReport.invariantFailures.length) iterResult.notes.push(...advReport.invariantFailures);
+        iterResult.notes.push(...(await checkEngineInvariants(ENGINE, page, 'livesheet', { fullCrossCheck: true })));
 
         // Round-trip back to CharGen — the reverse direction of the same handoff feature,
         // now carrying the leveled-up character (HD > 1) instead of a fresh one.
