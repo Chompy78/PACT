@@ -22,6 +22,19 @@
   Full design: `docs/plans/2026-07-11-campaign-join-invite-flow.md`; decisions:
   `DECISIONS.md` → `D-GH-2026-07-13-campaign-bind-character`.
 
+- **2026-07-13 · fix(campaign) — `/code-review ultra` pass on the bind-character PR fixed a race and a
+  stale-display bug before merge** (same files as the entry above). `bind_character_to_campaign` had a
+  TOCTOU race in its one-character-per-player-per-campaign check (shared with the already-shipped
+  `join_campaign`/`redeem_player_invite`) — closed with a `unique index on characters(owner_id,
+  campaign_id) where campaign_id is not null`, authoritative for all three functions at once. The join
+  flow's success message/rule validation could read the wrong campaign (`window._cloudCampaign` is also
+  written by the unrelated rules-preview picker) — fixed by having `_cgResolveDmApStatus()` return the
+  freshly-resolved campaign for callers to use locally instead of trusting the shared global. Also: the
+  RPC now returns the bound campaign id directly (was `void`, forcing an extra round-trip); the
+  "already bound" banner no longer offers a "switch campaigns" action that always fails; an offline save
+  is now detected before attempting the bind instead of surfacing a confusing raw network error. See
+  `DECISIONS.md` `D-GH-2026-07-13-campaign-bind-character` for the full list.
+
 - **2026-07-13 · feat(campaign) — Campaign join/invite UI, Deliverable 1 (Path A): DM-issued
   single-use player invite tokens** (`sql/migrations/2026-07-13-campaign-invite-tokens.sql` +
   mirrored into `sql/schema.sql`/`sql/rls-policies.sql`; `js/campaign.js`; `tools/DM-Console.html`;

@@ -399,12 +399,20 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- One-character-per-player-per-campaign, enforced at the database level (closes
+-- a TOCTOU race the EXISTS-then-write checks below can't close on their own —
+-- see the matching comment in sql/migrations/2026-07-13-campaign-bind-character.sql).
+-- ---------------------------------------------------------------------------
+create unique index if not exists idx_characters_owner_campaign_unique
+  on public.characters(owner_id, campaign_id) where campaign_id is not null;
+
+-- ---------------------------------------------------------------------------
 -- bind_character_to_campaign — Path B: bind an already-built character to a
 -- campaign via the shared invite_code. Rebind contract: bind only if unbound;
 -- same-campaign is an idempotent no-op; a different campaign is rejected.
 -- ---------------------------------------------------------------------------
 create or replace function public.bind_character_to_campaign(p_character_id uuid, p_code text)
-returns void language plpgsql security definer set search_path = public as $$
+returns uuid language plpgsql security definer set search_path = public as $$
 declare
   v_campaign campaigns%rowtype;
   v_char     characters%rowtype;
@@ -424,7 +432,7 @@ begin
   end if;
 
   if v_char.campaign_id = v_campaign.id then
-    return;
+    return v_campaign.id;
   end if;
   if v_char.campaign_id is not null then
     raise exception 'This character is already bound to a different campaign';
@@ -434,6 +442,12 @@ begin
     raise exception 'You have already joined this campaign with another character';
   end if;
 
-  update characters set campaign_id = v_campaign.id where id = p_character_id;
+  begin
+    update characters set campaign_id = v_campaign.id where id = p_character_id;
+  exception when unique_violation then
+    raise exception 'You have already joined this campaign with another character';
+  end;
+
+  return v_campaign.id;
 end;
 $$;

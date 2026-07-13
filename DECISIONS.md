@@ -121,8 +121,29 @@
 - **Status:** Shipped (`feat/campaign-bind-character`). Migration applied to the live Supabase project;
   advisor shows no new class of finding (same accepted "authenticated can execute this SECURITY DEFINER
   function" WARN pattern as every other campaign RPC). `bind_character_to_campaign` confirmed
-  `SECURITY DEFINER` via introspection. `/code-review ultra` run before merge per the repo's `sql/`
-  requirement — see below for the outcome.
+  `SECURITY DEFINER` via introspection.
+- **Follow-up: `/code-review ultra` pass (2026-07-13), 10 finder angles, 7 findings, all fixed before
+  merge.** Two were genuine correctness bugs the plan's design review didn't catch: (1) the
+  one-character-per-player-per-campaign check (an unlocked `EXISTS`-then-write, the same shape already
+  used by `join_campaign`/`redeem_player_invite`) had a TOCTOU race — two concurrent bind calls could
+  both pass the check before either commit. Closed with a `unique index on characters(owner_id,
+  campaign_id) where campaign_id is not null`, which is authoritative for **all three** functions at
+  once (not just the new one), plus a friendly `unique_violation` handler in
+  `bind_character_to_campaign` for the race window specifically. (2) `onJoinCampaignClick`'s success
+  message and `validate()` rules read `window._cloudCampaign`, a global also written by the *unrelated*
+  campaign-rules preview picker — after a successful bind, that global could already reflect a
+  different campaign than the one just bound, showing the wrong name/rules. Fixed by having
+  `_cgResolveDmApStatus()` **return** the freshly-resolved campaign object so callers use that local
+  value instead of trusting the shared global. Also fixed: `bind_character_to_campaign` returned `void`
+  instead of the bound campaign id, forcing an extra `loadCharacter()` round-trip the client no longer
+  needs; the "already bound" banner claimed a player could "switch" campaigns by entering a different
+  code, which the rebind contract always rejects — the join form is now hidden (not just relabeled) once
+  a character is actively bound; an offline save wasn't detected before attempting the bind, producing a
+  confusing raw network error instead of a clear message; a code comment claiming the pre-bind save was
+  "a no-op if unchanged" was factually wrong (it always writes). **Deferred, not fixed:** the SQL
+  duplication of the "campaign lookup by code" and "already joined" patterns across three functions —
+  fully consolidating it would mean touching already-shipped `join_campaign`/`redeem_player_invite`,
+  which is out of this PR's scope; filed as a roadmap follow-up.
 
 ---
 

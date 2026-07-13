@@ -13,8 +13,23 @@
 -- IS NULL; already bound to the SAME campaign is an idempotent no-op success; bound to
 -- a DIFFERENT campaign is rejected outright (no transfer/leave-campaign feature in v1).
 
+-- ===========================================================================
+-- One-character-per-player-per-campaign, enforced at the database level.
+-- join_campaign(), redeem_player_invite(), and bind_character_to_campaign() each
+-- have their own EXISTS-then-write check for this (a UX fast-path with a friendly
+-- error), but none of those checks lock the row they read — two concurrent calls
+-- for the same owner/campaign (double-click, two tabs, or two different unbound
+-- characters) can both pass the check before either write commits. This unique
+-- partial index closes that race for all three functions at once: only one row
+-- per (owner_id, campaign_id) pair can exist once campaign_id is set.
+-- ===========================================================================
+create unique index if not exists idx_characters_owner_campaign_unique
+  on public.characters(owner_id, campaign_id) where campaign_id is not null;
+
+-- drop first: return type changes void -> uuid, and CREATE OR REPLACE can't alter one.
+drop function if exists public.bind_character_to_campaign(uuid, text);
 create or replace function public.bind_character_to_campaign(p_character_id uuid, p_code text)
-returns void language plpgsql security definer set search_path = public as $$
+returns uuid language plpgsql security definer set search_path = public as $$
 declare
   v_campaign campaigns%rowtype;
   v_char     characters%rowtype;
@@ -34,7 +49,7 @@ begin
   end if;
 
   if v_char.campaign_id = v_campaign.id then
-    return;   -- already bound to this campaign -- idempotent no-op, matches join_campaign's style
+    return v_campaign.id;   -- already bound to this campaign -- idempotent no-op, matches join_campaign's style
   end if;
   if v_char.campaign_id is not null then
     raise exception 'This character is already bound to a different campaign';
@@ -44,7 +59,15 @@ begin
     raise exception 'You have already joined this campaign with another character';
   end if;
 
-  update characters set campaign_id = v_campaign.id where id = p_character_id;
+  -- The EXISTS check above is the friendly-message fast path; the unique index is the
+  -- authoritative guarantee for the race window between that check and this write.
+  begin
+    update characters set campaign_id = v_campaign.id where id = p_character_id;
+  exception when unique_violation then
+    raise exception 'You have already joined this campaign with another character';
+  end;
+
+  return v_campaign.id;
 end;
 $$;
 

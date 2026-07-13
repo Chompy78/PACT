@@ -573,13 +573,18 @@ document.addEventListener('campaign-ready', function () {
 </script>
 <script>
 // Resolve window._dmAp/_ignorePlayerAp/_dmApStatus/_cloudCampaign from a character's live `ap` column
-// + campaign_id. Shared by the cloud load flow (onLoadClick, below) and Path-A invite redemption
-// (tryRedeem, further below) so the two can't silently drift apart on this state machine.
+// + campaign_id. Shared by the cloud load flow (onLoadClick, below) and Path-A/Path-B campaign-join
+// flows (tryRedeem/onJoinCampaignClick, further below) so the two can't silently drift apart on this
+// state machine. Returns the resolved campaign object (or null) -- window._cloudCampaign is ALSO
+// written by the separate campaign-rules PREVIEW picker (applySelection, above) for its own purpose
+// (letting a player preview a different campaign's rules while building), so it can be overwritten
+// again after this call returns; a caller that needs to display/act on THIS resolution's specific
+// result (e.g. "you just joined campaign X") must use the return value, not the global afterward.
 async function _cgResolveDmApStatus(ap, campaignId){
   window._dmAp = ap || 0;
   window._ignorePlayerAp = false;
   window._dmApStatus = campaignId ? 'unavailable' : 'none';   // resolved below -- 'unavailable' is the correct interim state, not silently 0
-  if(!campaignId) return;
+  if(!campaignId) return null;
   var C = window._campaignBridge;
   try{
     var camp = C && await C.getCampaign(campaignId);
@@ -590,8 +595,10 @@ async function _cgResolveDmApStatus(ap, campaignId){
       var selEl = document.getElementById('cgCloudCampSel');
       if(selEl) selEl.value = camp.id;
       if(typeof refreshCloudFilters === 'function') refreshCloudFilters();
+      return camp;
     }
   }catch(e){ /* non-fatal -- stays 'unavailable', which correctly reads as "unknown", not "no DM AP" */ }
+  return null;
 }
 
 // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen's first
@@ -628,18 +635,21 @@ document.addEventListener('sync-ready', function () {
       '<div style="padding:8px 10px 2px;font-size:11px;color:var(--grey);font-weight:700">Join campaign</div>' +
       '<div style="padding:2px 10px 6px">' +
       (window._dmApStatus === 'active' && window._cloudCampaign
-        ? '<div style="font-size:12px;color:var(--grey)">Bound to <b>' + _apEsc(window._cloudCampaign.name || '') + '</b>. Enter a different code below to switch (only works if not yet bound elsewhere).</div>'
-        : '') +
-      '<div style="display:flex;gap:6px;align-items:center;margin-top:4px">' +
-      '<input type="text" id="cgJoinCode" placeholder="Invite code" maxlength="6" style="flex:1;min-width:0;text-transform:uppercase">' +
-      '<button type="button" class="btn" id="cgJoinBtn" style="padding:4px 9px;font-size:12px">Join</button>' +
-      '</div>' +
-      '<div id="cgJoinStatus" style="font-size:11px;color:var(--grey);margin-top:4px"></div>' +
+        // Already bound: no input/button -- bind_character_to_campaign always rejects binding to a
+        // DIFFERENT campaign once bound (no rebind/transfer feature in v1), so offering a "switch"
+        // action here would be a guaranteed-to-fail affordance, not a real option.
+        ? '<div style="font-size:12px;color:var(--grey)">Bound to <b>' + _apEsc(window._cloudCampaign.name || '') + '</b>. Rebinding to a different campaign isn’t supported yet.</div>'
+        : '<div style="display:flex;gap:6px;align-items:center">' +
+          '<input type="text" id="cgJoinCode" placeholder="Invite code" maxlength="6" style="flex:1;min-width:0;text-transform:uppercase">' +
+          '<button type="button" class="btn" id="cgJoinBtn" style="padding:4px 9px;font-size:12px">Join</button>' +
+          '</div>' +
+          '<div id="cgJoinStatus" style="font-size:11px;color:var(--grey);margin-top:4px"></div>') +
       '</div>' +
       '<div style="padding:8px 10px 2px;font-size:11px;color:var(--grey);font-weight:700">Load saved character</div>' +
       '<div id="cgCloudCharList"><div style="padding:6px 10px;font-size:12px;color:var(--grey)">Loading…</div></div>';
     document.getElementById('cgCloudSaveBtn').addEventListener('click', onSaveClick);
-    document.getElementById('cgJoinBtn').addEventListener('click', onJoinCampaignClick);
+    var _joinBtn = document.getElementById('cgJoinBtn');
+    if (_joinBtn) _joinBtn.addEventListener('click', onJoinCampaignClick);
     var chars;
     try { chars = await S.listCharacters(); } catch (err) { chars = []; }
     if (gen !== _cloudMenuGen) return;   // a newer open (or a close) superseded this fetch — discard it
@@ -684,21 +694,25 @@ document.addEventListener('sync-ready', function () {
     if (statusEl) statusEl.textContent = 'Joining…';
     try {
       var id = currentCharId();
-      // bind_character_to_campaign requires an existing owned characters row -- save first
-      // (a no-op network-wise if this character was already saved and unchanged).
+      // bind_character_to_campaign requires an existing owned characters row -- save first.
+      // NOT a no-op when unchanged: saveCharacter/pushCharacter (js/sync.js) always issues a
+      // network write when online, with no dirty-check.
       var stats = _cgEnvelope(false);
       var saveRes = await S.saveCharacter({ id: id, name: stats.name || 'Character', kind: 'chargen', stats: stats });
       if (saveRes && saveRes.error) throw saveRes.error;
+      if (saveRes && saveRes.synced === false) throw new Error("You're offline — reconnect, then try joining again.");
 
-      await C.bindCharacterToCampaign(id, code);
-
-      var rec = await S.loadCharacter(id);
-      await _cgResolveDmApStatus(rec ? rec.ap : 0, rec ? rec.campaign_id : null);
+      // Returns the bound campaign's id directly (no separate loadCharacter round-trip needed
+      // to discover it -- ap is unaffected by a bind, so window._dmAp already has the right value).
+      var campaignId = await C.bindCharacterToCampaign(id, code);
+      var camp = await _cgResolveDmApStatus(window._dmAp || 0, campaignId);
       render();
 
-      var rules = window._cloudCampaign ? window._cloudCampaign.rules : null;
+      // Use the LOCAL camp value, not window._cloudCampaign -- that global is also written by the
+      // separate campaign-rules preview picker and can have moved on by the time this code runs.
+      var campName = camp ? camp.name : 'the campaign';
+      var rules = camp ? camp.rules : null;
       var v = (window._engineBridge && rules) ? window._engineBridge.validate(readBuild(), rules) : { ok: true, violations: [] };
-      var campName = window._cloudCampaign ? window._cloudCampaign.name : 'campaign';
       if (statusEl) {
         if (!v.violations || !v.violations.length) {
           statusEl.textContent = '✓ Joined ' + campName + '.';
@@ -707,7 +721,7 @@ document.addEventListener('sync-ready', function () {
             v.violations.map(function (x) { return '<li>' + _apEsc(x.message) + '</li>'; }).join('') + '</ul>';
         }
       }
-      if (typeof flash === 'function') flash('☁ Joined ' + campName);
+      if (typeof flash === 'function') flash('☁ Joined ' + campName);   // flash() uses textContent -- safe with an unescaped name
     } catch (err) {
       if (statusEl) statusEl.textContent = 'Could not join: ' + (err && err.message ? err.message : err);
     }
