@@ -84,3 +84,45 @@ add to #1.
 - #3 (PACTRULES code) is removed; the cloud rules bar drawbacks + arts; a bound character carries a
   refreshed rules snapshot in its log that applies offline and is overridden by live rules online; removal
   is a logged action; parity still 20/0; #2 untouched.
+
+---
+
+## Readiness addendum (2026-07-13, code-verified pre-implementation — no code changed)
+
+A read-only sweep of the current tree to confirm this plan still matches reality before anyone starts.
+Findings for the implementer:
+
+- **The "Extend #1 for parity" step is ALREADY SHIPPED (PR #174) — do not redo it.** `validate()` already
+  emits `bannedDrawbacks`/`bannedArts` violations (`js/engine.js` ~675–681), `RULE_BAN_FIELDS` already maps
+  `drawbacks`/`draws → bannedDrawbacks` and `arts → bannedArts` (~706–712), and DM Console already has the
+  `ruleBannedDrawbacks`/`ruleBannedArts` editor grids wired through load + save
+  (`tools/DM-Console.html` ~456–457, 1226–1227, 1269–1270, 1291–1292). So this task is now ONLY the two
+  remaining halves: **(a) retire the PACTRULES `#3` path** and **(b) add the snapshot + `resolveRules()`
+  resolver**.
+
+- **This task DOES touch `js/engine.js`** (so treat the public API as under change, and it is a legitimate
+  `/code-review` + cold-review candidate): the campaign mutator is a member of the exported `MUT` map —
+  `export const MUT = {campaign:(b,p)=>{b.campaign=p.v;}, …}` at `js/engine.js:428`. Removing it (plus any
+  `cat:'campaign'` handling in the fold/replay path) is an engine edit. `compute()` pricing is unaffected,
+  so no `DATA.version` bump — but the parity gate (20/0) still applies because `MUT`/replay is exercised.
+
+- **`#3` artifacts to remove and where they live** (verified present): `b.campaign` (6 refs),
+  `cat:'campaign'` (3), `_campEnc`/`_campDec` PACTRULES codec (4+4), `PACTRULES` (11), `applyCampaignCode`
+  (6) — all in `js/engine.js` + `tools/PACT-CharGen-Webtool.html` + `tools/PACT-Live-Char-Sheet.html`.
+
+- **⚠️ TRAP — do NOT delete `campaignBound`.** `campaignBound` is a *different, keep-it* feature (the
+  creation-lock ratchet: `js/engine.js` ~511, 529–536; fixtures `EV-007/008/009`). It is explicitly
+  unrelated to the `cat:'campaign'`/`b.campaign` PACTRULES feature (the engine comment at ~510–514 says so).
+  The plan's "drop campaign entries from `testing/fixtures/`" means only `#3` (`cat:'campaign'`) data —
+  the `campaignBound` fixtures must survive untouched, or the creation-lock tests break. (Confirm which
+  fixtures actually carry a `cat:'campaign'` buy event before deleting anything — several fixture hits on
+  the word "campaign" are `campaignBound`, not `#3`.)
+
+- **Snapshot/resolver materialization pattern to mirror:** the creation-lock's in-replay running-state
+  bookkeeping at `js/engine.js` ~529–536 (`_locked`/`_spent`/`_campaignBound`, last-wins per event) is the
+  precedent the rules-snapshot event + `resolveRules()` precedence should follow, per the plan's step 3.
+
+**Recommendation:** implement in two PRs to keep each reviewable — PR-a (retire `#3`, engine + both tools +
+fixtures, `/code-review` gate) then PR-b (snapshot event + `resolveRules()`). Given the engine surface and
+the `campaignBound` trap, a cold plan review before PR-a is worthwhile (AGENTS.md "Cold plan review" trigger
+is met: engine/rules + multi-file + a wrong retirement costs >1 cycle to undo).
