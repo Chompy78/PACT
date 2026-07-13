@@ -172,11 +172,6 @@ D-GH-2026-07-12-retire-pactrules-code in DECISIONS.md.
 - **A7 — Lighthouse 85 → 90.** Add a Lighthouse CI GitHub Action to auto-catch perf regressions. *Then
   (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for the real score gain —
   *caveats:* a big engine change; do it only after REV-01 makes the gate real.
-- **A9 — Orphaned-export sweep.** One-time audit: grep every named export in `js/engine.js`'s Exports
-  line and confirm each is referenced by at least one of the three tools; write findings to
-  `docs/sessions/<date>-orphaned-export-sweep.md` (find-and-report only — no deletion inline). File any
-  confirmed zero-reference export as its own follow-up roadmap item, same pattern as REV-13's dead grant
-  maps.
 **Code-review follow-ups (from `feat/campaign-ap-model`)** — low-severity cleanup flagged by
 `/code-review`, not fixed in that PR (low risk / negligible impact either way):
 
