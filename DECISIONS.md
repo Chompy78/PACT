@@ -97,8 +97,8 @@
   into `foldBuild()`/`compute()`/`rebuildStateFromEvents()`, no browser at all.
 - **Decision:** **A2.** `js/engine.js` is a clean ES module with zero DOM/Node-incompatible code
   (already proven by Phase 1's fresh-import oracle), so this cost nothing beyond writing the
-  generator. Result: 3000 iterations in ~1-2 seconds vs. Phase 1's handful-per-run — three orders
-  of magnitude more LOG-shape coverage per CI minute.
+  generator. Result: 2000-3000 iterations in ~1-2 seconds (measured) vs. Phase 1's
+  handful-per-run — three orders of magnitude more LOG-shape coverage per CI minute.
 - **Design choices worth recording:**
   - **Not trying to generate "legal" characters.** DATA-pool values keep most events realistic
     (real species/class/skill/drawback names) so they exercise real `MUT` code paths, but

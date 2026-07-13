@@ -11,9 +11,11 @@
   constructs LOG event objects directly against `MUT`'s documented shape (`{type:'buy',
   cat:<key>,payload:{...}}` across all 44 mutation categories, plus `award`/`buyoff`/`name`/
   `names`/`creationLocked`/`campaignBound`) and feeds them straight into `foldBuild()`/
-  `compute()`/`rebuildStateFromEvents()` — no browser, so it runs 3000 iterations in ~1-2
-  seconds. Checks: never throws, never produces `NaN` in `compute()`'s output, `foldBuild()`
-  purity, `compute()` purity (Phase 1's check, reused), and `foldBuild()+compute()` agreement
+  `compute()`/`rebuildStateFromEvents()` — no browser, so it runs thousands of iterations in a
+  couple of seconds (verified: 2000-3000 iterations in ~1-2s). Checks: never throws (including a
+  non-deterministic throw on a 3rd equivalent `compute()` call), never produces `NaN` anywhere
+  across every object it computes, `compute()` doesn't mutate its input, `foldBuild()` purity,
+  `compute()` purity (Phase 1's check, reused), and `foldBuild()+compute()` agreement
   with `rebuildStateFromEvents(null, LOG)` on `.result`. Shrinks any failure to a minimal
   reproducer (single-event delta-debug). **Its first run found a real bug** (see the next
   entry) — not yet wired into CI pending that fix landing separately (`js/engine.js` is

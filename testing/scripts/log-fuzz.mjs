@@ -40,6 +40,8 @@ function argVal(name, dflt) {
 }
 const ITERATIONS = parseInt(argVal('iterations', '500'), 10);
 const MAX_EVENTS = parseInt(argVal('events', '40'), 10);
+if (!Number.isInteger(ITERATIONS) || ITERATIONS < 1) { console.error(`--iterations must be a positive integer, got ${argVal('iterations', '500')}`); process.exit(1); }
+if (!Number.isInteger(MAX_EVENTS) || MAX_EVENTS < 1) { console.error(`--events must be a positive integer, got ${argVal('events', '40')}`); process.exit(1); }
 const SEED = parseInt(argVal('seed', String(Date.now() & 0xffffffff)), 10);
 
 // ---------- seeded RNG (mulberry32 — same generator as random-manual-e2e.mjs, so a --seed is
@@ -242,22 +244,40 @@ function runChecks(ENGINE, LOG) {
     return failures; // nothing else is meaningful to check once this has thrown
   }
 
-  const nanPath = findNaN(result) || findNaN(build);
-  if (nanPath) failures.push({ tag: 'nan', note: `NaN found at ${nanPath}` });
+  // NaN-hunt every object this function produces, not just `build`/`result` — `deepEqualJSON`
+  // is a JSON.stringify comparison, and JSON.stringify serializes NaN (and undefined-valued
+  // keys) the same as `null`, so a purity check below comparing e.g. `{x:NaN}` against
+  // `{x:null}` (or two DIFFERENT NaN-producing paths) would see them as "equal" and miss a real
+  // divergence. Independently NaN-scanning each object closes that gap without needing a
+  // NaN-aware deep-equal.
+  const nanScan = (label, obj) => { const p = findNaN(obj); if (p) failures.push({ tag: 'nan', note: `NaN found at ${label}${p.slice(1)}` }); };
+  nanScan('$.result', result);
+  nanScan('$.build', build);
 
   // fold purity: foldBuild always starts from a fresh baseBuild(), so replaying the same LOG
   // twice must be byte-identical — a MUT handler leaking state across calls would violate this.
   const build2 = ENGINE.foldBuild(LOG);
+  nanScan('$.build2', build2);
   if (!deepEqualJSON(build, build2)) failures.push({ tag: 'foldPurity', note: 'foldBuild(LOG) is not deterministic (two calls on the same LOG differed)' });
 
   // compute purity (Phase 1 pattern, ported): same input twice -> same output; input untouched.
   const r1 = ENGINE.compute(deepClone(build));
   const r2 = ENGINE.compute(deepClone(build));
+  nanScan('$.r1', r1);
+  nanScan('$.r2', r2);
   if (!deepEqualJSON(r1, r2)) failures.push({ tag: 'computePurity', note: 'compute() is not deterministic on the same input' });
   const probe = deepClone(build);
   const before = deepClone(probe);
-  try { ENGINE.compute(probe); } catch { /* already reported via 'throw' above if reachable from foldBuild's own output */ }
-  if (!deepEqualJSON(before, probe)) failures.push({ tag: 'computeMutates', note: 'compute() mutated its input build object' });
+  try {
+    const r3 = ENGINE.compute(probe);
+    nanScan('$.r3', r3);
+    if (!deepEqualJSON(before, probe)) failures.push({ tag: 'computeMutates', note: 'compute() mutated its input build object' });
+  } catch (e) {
+    // Not swallowed: r1/r2 above already called compute() successfully on an equivalent clone,
+    // so a throw here means compute() is non-deterministic (throws on some calls, not others) —
+    // a real, distinct finding, not something the earlier top-of-function throw check could see.
+    failures.push({ tag: 'throw', note: `compute() threw non-deterministically (succeeded twice above, then threw on a 3rd equivalent call): ${e && e.message}` });
+  }
 
   // dual entry point agreement: rebuildStateFromEvents(null, LOG) replays from the same blank
   // baseBuild() as foldBuild(). Compared on `.result` (compute()'s priced output — the only

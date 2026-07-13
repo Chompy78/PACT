@@ -42,10 +42,12 @@
   expect (`{type:'buy',cat:<MUT key>,payload:{...}}` for every one of the 44 mutation
   categories, plus `award`/`buyoff`/`name`/`names`/`creationLocked`/`campaignBound`) — and feeds
   them straight into `foldBuild()`/`compute()`/`rebuildStateFromEvents()`. No browser, no
-  Chromium install, so it runs thousands of iterations in ~1-2 seconds. It checks: the engine
-  never throws, never produces a `NaN` anywhere in `compute()`'s output, `foldBuild()` is pure
-  (same LOG twice → identical build), `compute()` is pure (Phase 1's purity check, reused), and
-  `foldBuild()+compute()` agrees with `rebuildStateFromEvents(null, LOG)` on `.result` (the two
+  Chromium install, so it runs thousands of iterations in ~1-2 seconds (measured: 2000-3000
+  iterations/~1-2s). It checks: the engine never throws (including a non-deterministic throw on
+  a repeat call), never produces a `NaN` anywhere across every object it computes, `compute()`
+  doesn't mutate its input, `foldBuild()` is pure (same LOG twice → identical build), `compute()`
+  is pure (Phase 1's purity check, reused), and `foldBuild()+compute()` agrees with
+  `rebuildStateFromEvents(null, LOG)` on `.result` (the two
   documented engine entry points — see the in-file comment for why this compares `.result`, not
   the raw `.build`). On any failure it shrinks the failing LOG down to a minimal reproducer
   (single-event delta-debug to a fixpoint) before printing it. It is not trying to generate
