@@ -102,10 +102,14 @@
   `bind_character_to_campaign`. (B) add a single shared helper function both RPCs call instead of
   duplicating the begin/exception block.
 - **Decision:** (A) — mirrors the already-shipped, already-reviewed `bind_character_to_campaign` pattern
-  exactly, keeping all three RPCs' race-handling shape identical and easy to audit together. (B) would
-  introduce a fourth near-duplicate helper for a two-line block used in only two places — not enough
-  duplication to justify the indirection (the opposite mistake `D-GH-2026-07-13-campaign-membership-helpers`
-  fixed, where the duplicated logic was a multi-line lookup, not a two-line catch clause).
+  exactly, keeping all three RPCs' race-handling shape identical and easy to audit together. (B) would add
+  a helper to save a two-line catch clause already duplicated three times (this change brings
+  `join_campaign`/`redeem_player_invite` in line with `bind_character_to_campaign`, which already carries
+  it) — but the statement each block wraps differs per call site (a plain `insert`, a five-column `insert`,
+  an `update`), so a shared helper would need dynamic SQL to stay generic, trading a two-line save for a
+  real readability/type-safety cost. Not worth it for a block this small (the opposite mistake
+  `D-GH-2026-07-13-campaign-membership-helpers` fixed, where the duplicated logic was a multi-line lookup,
+  not a two-line catch clause).
 - **Why:** the friendly message already exists in both functions' pre-check — this only closes the race
   window between that check and the write, using the exact same recovery pattern already live and verified
   for `bind_character_to_campaign`. No new behavior on the non-race path, no signature/return-type change.
