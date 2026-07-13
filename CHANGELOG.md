@@ -8,17 +8,15 @@
   (`sql/migrations/2026-07-13-campaign-membership-helpers.sql` + mirrored into
   `sql/schema.sql`/`sql/rls-policies.sql`; no `js/engine.js` change, parity unchanged 20/0). Pure internal
   refactor: `join_campaign`, `redeem_player_invite`, and `bind_character_to_campaign` each hand-rolled
-  their own "look up campaign by shared `invite_code`" and "does this owner already have a character in
-  this campaign" checks — flagged by two independent `/code-review ultra` angles (Reuse, Altitude) on
-  PR #202 and deferred at the time since fixing it meant touching two already-shipped functions. Both
-  checks are now two internal helper functions (`find_campaign_by_invite_code`,
-  `owner_has_character_in_campaign`), not `SECURITY DEFINER` themselves and not granted to
-  `authenticated`/`public` — reachable only from inside the three `SECURITY DEFINER` RPCs, which already
-  run elevated. No error messages or behavior changed (verified: the unique partial index from the Path B
-  migration remains the sole race guard for all three functions; advisor shows no new finding class — the
-  two new helpers don't even appear in the "authenticated can execute" WARN list, confirming they're
-  correctly unreachable as standalone RPCs). See `DECISIONS.md`
-  `D-GH-2026-07-13-campaign-membership-helpers`.
+  their own "look up campaign by shared `invite_code`" (`join_campaign`/`bind_character_to_campaign` only)
+  and "already joined this campaign" (all three) checks — flagged by two independent `/code-review ultra`
+  angles (Reuse, Altitude) on PR #202 and deferred at the time. The lookup is now one new helper,
+  `find_campaign_by_invite_code`; the membership check reuses the pre-existing `is_campaign_member()`
+  rather than adding a second near-identical function (a `/code-review` pass on this PR itself caught that
+  duplication before merge). No error messages or behavior changed — verified against a live smoke test
+  and the Supabase advisor. See `DECISIONS.md` `D-GH-2026-07-13-campaign-membership-helpers` for detail,
+  including two findings deferred as separate follow-ups (a pre-existing race-handling asymmetry between
+  the three RPCs, and a `search_path` hardening gap shared by every `SECURITY DEFINER` function in the file).
 
 - **2026-07-13 · feat(campaign) — Campaign join/invite UI, Deliverable 2 (Path B): bind an existing
   character to a campaign** (`sql/migrations/2026-07-13-campaign-bind-character.sql` + mirrored into

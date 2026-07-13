@@ -297,16 +297,13 @@ revoke execute on function public.remove_dm(uuid, uuid)           from public;
 revoke execute on function public.regenerate_invite_code(uuid)    from public;
 revoke execute on function public.regenerate_dm_invite_code(uuid) from public;
 
--- campaign-membership helper functions (find_campaign_by_invite_code,
--- owner_has_character_in_campaign, defined in schema.sql;
--- D-GH-2026-07-13-campaign-membership-helpers): unlike is_campaign_dm/owner/
--- member above, these are NEVER called from an RLS policy's USING clause —
--- only from inside join_campaign/redeem_player_invite/bind_character_to_campaign,
--- which already run elevated as SECURITY DEFINER. So no grant to authenticated
--- at all, just strip the PUBLIC default so they can't be called as a
--- standalone client RPC.
+-- find_campaign_by_invite_code (schema.sql; D-GH-2026-07-13-campaign-
+-- membership-helpers): unlike is_campaign_dm/owner/member above, it's NEVER
+-- called from an RLS policy's USING clause — only from inside
+-- join_campaign/bind_character_to_campaign, which already run elevated as
+-- SECURITY DEFINER. So no grant to authenticated at all, just strip the
+-- PUBLIC default so it can't be called as a standalone client RPC.
 revoke execute on function public.find_campaign_by_invite_code(text) from public;
-revoke execute on function public.owner_has_character_in_campaign(uuid, uuid) from public;
 
 -- Trigger-only functions (handle_new_user, add_owner_as_dm, set_updated_at,
 -- defined in schema.sql): revoke execute from public, no replacement grant —

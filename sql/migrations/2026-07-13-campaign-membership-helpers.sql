@@ -5,10 +5,12 @@
 --
 -- Pure internal refactor, no behavior change: join_campaign, redeem_player_invite, and
 -- bind_character_to_campaign each hand-rolled their own "look up campaign by shared
--- invite_code" and "does this owner already have a character in this campaign" checks.
--- Found during /code-review ultra on PR #202 (campaign-bind-character) — Reuse and
--- Altitude angles both flagged it independently; deferred out of that PR's scope since
--- fixing it meant touching two already-shipped functions. See DECISIONS.md
+-- invite_code" check (join_campaign and bind_character_to_campaign only —
+-- redeem_player_invite resolves via a single-use token against campaign_invites, a
+-- different lookup) and "does this owner already have a character in this campaign"
+-- check (all three). Found during /code-review ultra on PR #202 (campaign-bind-character)
+-- — Reuse and Altitude angles both flagged it independently; deferred out of that PR's
+-- scope since fixing it meant touching two already-shipped functions. See DECISIONS.md
 -- D-GH-2026-07-13-campaign-bind-character (Status/follow-up) and
 -- D-GH-2026-07-13-campaign-membership-helpers for the full write-up.
 --
@@ -21,11 +23,17 @@
 -- needed before `create or replace function` on any of them.
 
 -- ===========================================================================
--- New internal helpers. Not SECURITY DEFINER themselves: called only from
--- inside the SECURITY DEFINER RPCs below, they run under that outer function's
--- already-elevated context, so no separate elevation is needed. Deliberately
--- not granted to authenticated/public (see revokes at the end of this file)
--- so they can't be invoked directly as a standalone client RPC.
+-- New helper for the invite_code lookup. Not SECURITY DEFINER itself: called
+-- only from inside the SECURITY DEFINER RPCs below, it runs under that outer
+-- function's already-elevated context, so no separate elevation is needed.
+-- Deliberately not granted to authenticated/public (see revoke at the end of
+-- this file) so it can't be invoked directly as a standalone client RPC.
+--
+-- The "already joined this campaign" check reuses the pre-existing
+-- is_campaign_member(p_campaign) (sql/rls-policies.sql) — checked against
+-- auth.uid() internally — rather than a new function; every call site here
+-- would have passed auth.uid() as the owner anyway, so a second near-identical
+-- helper would just have duplicated is_campaign_member's own query shape.
 -- ===========================================================================
 create or replace function public.find_campaign_by_invite_code(p_code text)
 returns campaigns language plpgsql set search_path = public as $$
@@ -39,13 +47,14 @@ begin
 end;
 $$;
 
-create or replace function public.owner_has_character_in_campaign(p_campaign uuid, p_owner uuid)
-returns boolean language sql set search_path = public as $$
-  select exists (select 1 from characters where campaign_id = p_campaign and owner_id = p_owner);
-$$;
+-- Drop the short-lived owner_has_character_in_campaign(uuid, uuid) helper if this
+-- migration was already run once before this fix (dev/staging re-runs only —
+-- it was never in a tagged release). No-op on a DB that never had it.
+drop function if exists public.owner_has_character_in_campaign(uuid, uuid);
 
 -- ===========================================================================
--- join_campaign — now delegates its lookup/check to the helpers above.
+-- join_campaign — now delegates its lookup/check to find_campaign_by_invite_code
+-- and the pre-existing is_campaign_member.
 -- ===========================================================================
 create or replace function public.join_campaign(p_code text)
 returns uuid language plpgsql security definer set search_path = public as $$
@@ -59,7 +68,7 @@ begin
 
   v_campaign := find_campaign_by_invite_code(p_code);
 
-  if owner_has_character_in_campaign(v_campaign.id, auth.uid()) then
+  if is_campaign_member(v_campaign.id) then
     raise exception 'You have already joined this campaign';
   end if;
 
@@ -72,7 +81,8 @@ end;
 $$;
 
 -- ===========================================================================
--- redeem_player_invite — same "already joined" check, now delegated.
+-- redeem_player_invite — same "already joined" check, now delegated to
+-- is_campaign_member.
 -- ===========================================================================
 create or replace function public.redeem_player_invite(p_token text, p_name text default null)
 returns table(character_id uuid, starting_ap integer, starting_budget integer, campaign_id uuid, is_new boolean)
@@ -92,7 +102,7 @@ begin
     returning * into v_invite;
 
   if found then
-    if owner_has_character_in_campaign(v_invite.campaign_id, auth.uid()) then
+    if is_campaign_member(v_invite.campaign_id) then
       raise exception 'You have already joined this campaign';
     end if;
 
@@ -151,7 +161,7 @@ begin
     raise exception 'This character is already bound to a different campaign';
   end if;
 
-  if owner_has_character_in_campaign(v_campaign.id, auth.uid()) then
+  if is_campaign_member(v_campaign.id) then
     raise exception 'You have already joined this campaign with another character';
   end if;
 
@@ -166,12 +176,11 @@ end;
 $$;
 
 -- ===========================================================================
--- Lock down the new helpers: Postgres grants EXECUTE to PUBLIC by default on
--- every new function; revoke it so these are unreachable as standalone client
--- RPCs (they're only ever called from inside the SECURITY DEFINER functions
+-- Lock down the new helper: Postgres grants EXECUTE to PUBLIC by default on
+-- every new function; revoke it so this is unreachable as a standalone client
+-- RPC (it's only ever called from inside the SECURITY DEFINER functions
 -- above). No grant to authenticated either — unlike is_campaign_dm() etc.,
--- these are never called from an RLS policy's USING clause, so the invoking
--- role never needs its own EXECUTE on them.
+-- it's never called from an RLS policy's USING clause, so the invoking role
+-- never needs its own EXECUTE on it.
 -- ===========================================================================
 revoke execute on function public.find_campaign_by_invite_code(text) from public;
-revoke execute on function public.owner_has_character_in_campaign(uuid, uuid) from public;
