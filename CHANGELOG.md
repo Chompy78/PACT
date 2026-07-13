@@ -34,6 +34,8 @@
   reproducer (single-event delta-debug). **Its first run found a real bug** (see the next
   entry) — not yet wired into CI pending that fix landing separately (`js/engine.js` is
   high-risk; kept out of this tool-only change). No `DATA.version` bump (test-only).
+- **2026-07-13 · fix — CharGen: species-choosable size + lineage clobbered on Live Sheet → CharGen
+  handoff** (`tools/PACT-CharGen-Webtool.html`, `applyBuild()` only). A Tiefling (or any species with a
   choosable size) that round-tripped Live Sheet → CharGen lost its "Medium" choice back to "Small".
   Root cause: `applyBuild()` writes DOM controls, then calls `render()` — but at that point `LOG`
   hasn't been resynced from the DOM yet (that resync runs later in the same function), so `render()`
