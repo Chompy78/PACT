@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · refactor(campaign) — de-duplicate campaign-membership SQL checks**
+  (`sql/migrations/2026-07-13-campaign-membership-helpers.sql` + mirrored into
+  `sql/schema.sql`/`sql/rls-policies.sql`; no `js/engine.js` change, parity unchanged 20/0). Pure internal
+  refactor: `join_campaign`, `redeem_player_invite`, and `bind_character_to_campaign` each hand-rolled
+  their own "look up campaign by shared `invite_code`" (`join_campaign`/`bind_character_to_campaign` only)
+  and "already joined this campaign" (all three) checks — flagged by two independent `/code-review ultra`
+  angles (Reuse, Altitude) on PR #202 and deferred at the time. The lookup is now one new helper,
+  `find_campaign_by_invite_code`; the membership check reuses the pre-existing `is_campaign_member()`
+  rather than adding a second near-identical function (a `/code-review` pass on this PR itself caught that
+  duplication before merge). No error messages or behavior changed — verified against a live smoke test
+  and the Supabase advisor. See `DECISIONS.md` `D-GH-2026-07-13-campaign-membership-helpers` for detail,
+  including two findings deferred as separate follow-ups (a pre-existing race-handling asymmetry between
+  the three RPCs, and a `search_path` hardening gap shared by every `SECURITY DEFINER` function in the file).
+
 - **2026-07-13 · feat(campaign) — Campaign join/invite UI, Deliverable 2 (Path B): bind an existing
   character to a campaign** (`sql/migrations/2026-07-13-campaign-bind-character.sql` + mirrored into
   `sql/schema.sql`/`sql/rls-policies.sql`; `js/campaign.js`; `tools/PACT-CharGen-Webtool.html`; no

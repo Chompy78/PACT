@@ -186,6 +186,28 @@ create table if not exists public.ap_awards (
 create index if not exists idx_ap_awards_char on public.ap_awards(character_id);
 
 -- ---------------------------------------------------------------------------
+-- find_campaign_by_invite_code — shared "look up campaign by shared invite_code"
+-- lookup for join_campaign and bind_character_to_campaign (NOT
+-- redeem_player_invite, which resolves via a single-use token against
+-- campaign_invites instead — a different lookup). The "does this owner already
+-- have a character in this campaign" check all three RPCs share reuses the
+-- pre-existing is_campaign_member() (rls-policies.sql) rather than a new
+-- function. See DECISIONS.md D-GH-2026-07-13-campaign-membership-helpers for
+-- why this isn't SECURITY DEFINER and isn't granted to authenticated.
+-- ---------------------------------------------------------------------------
+create or replace function public.find_campaign_by_invite_code(p_code text)
+returns campaigns language plpgsql set search_path = public as $$
+declare v_campaign campaigns%rowtype;
+begin
+  select * into v_campaign from campaigns where invite_code = upper(p_code);
+  if not found then
+    raise exception 'No campaign with that invite code';
+  end if;
+  return v_campaign;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- join_campaign(code) — the ONLY way a player joins, so they never need broad
 -- read access to the campaigns table. Runs as definer: looks up the campaign by
 -- code, blocks re-joining, and creates the caller's character in it. A DM may
@@ -202,13 +224,9 @@ begin
     raise exception 'Not authenticated';
   end if;
 
-  select * into v_campaign from campaigns where invite_code = upper(p_code);
-  if not found then
-    raise exception 'No campaign with that invite code';
-  end if;
+  v_campaign := find_campaign_by_invite_code(p_code);
 
-  if exists (select 1 from characters
-             where campaign_id = v_campaign.id and owner_id = auth.uid()) then
+  if is_campaign_member(v_campaign.id) then
     raise exception 'You have already joined this campaign';
   end if;
 
@@ -366,7 +384,7 @@ begin
     returning * into v_invite;
 
   if found then
-    if exists (select 1 from characters where campaign_id = v_invite.campaign_id and owner_id = auth.uid()) then
+    if is_campaign_member(v_invite.campaign_id) then
       raise exception 'You have already joined this campaign';
     end if;
 
@@ -426,10 +444,7 @@ begin
     raise exception 'Character not found';
   end if;
 
-  select * into v_campaign from campaigns where invite_code = upper(p_code);
-  if not found then
-    raise exception 'No campaign with that invite code';
-  end if;
+  v_campaign := find_campaign_by_invite_code(p_code);
 
   if v_char.campaign_id = v_campaign.id then
     return v_campaign.id;
@@ -438,7 +453,7 @@ begin
     raise exception 'This character is already bound to a different campaign';
   end if;
 
-  if exists (select 1 from characters where campaign_id = v_campaign.id and owner_id = auth.uid()) then
+  if is_campaign_member(v_campaign.id) then
     raise exception 'You have already joined this campaign with another character';
   end if;
 
