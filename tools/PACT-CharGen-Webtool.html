@@ -572,6 +572,28 @@ document.addEventListener('campaign-ready', function () {
 });
 </script>
 <script>
+// Resolve window._dmAp/_ignorePlayerAp/_dmApStatus/_cloudCampaign from a character's live `ap` column
+// + campaign_id. Shared by the cloud load flow (onLoadClick, below) and Path-A invite redemption
+// (tryRedeem, further below) so the two can't silently drift apart on this state machine.
+async function _cgResolveDmApStatus(ap, campaignId){
+  window._dmAp = ap || 0;
+  window._ignorePlayerAp = false;
+  window._dmApStatus = campaignId ? 'unavailable' : 'none';   // resolved below -- 'unavailable' is the correct interim state, not silently 0
+  if(!campaignId) return;
+  var C = window._campaignBridge;
+  try{
+    var camp = C && await C.getCampaign(campaignId);
+    if(camp){
+      window._ignorePlayerAp = !!camp.ignore_player_ap;
+      window._dmApStatus = 'active';
+      window._cloudCampaign = camp;   // activates rule-filtering (cloudRuleBarred), same as the campaign-rules picker above
+      var selEl = document.getElementById('cgCloudCampSel');
+      if(selEl) selEl.value = camp.id;
+      if(typeof refreshCloudFilters === 'function') refreshCloudFilters();
+    }
+  }catch(e){ /* non-fatal -- stays 'unavailable', which correctly reads as "unknown", not "no DM AP" */ }
+}
+
 // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen's first
 // cloud character-load flow — mirrors the Live Sheet's ☁ Cloud dropdown, using 'chargen' as the `kind`
 // (the `characters` table already accepted it — see sql/schema.sql — the tool just never used it).
@@ -640,19 +662,11 @@ document.addEventListener('sync-ready', function () {
     if (!confirm('Load "' + label + '"? This replaces your current character build.')) return;
     var rec = await S.loadCharacter(id);
     if (!rec || !rec.stats || !Array.isArray(rec.stats.LOG)) { alert('No character data found.'); return; }
-    window._dmAp = rec.ap || 0;
-    window._ignorePlayerAp = false;
-    window._dmApStatus = rec.campaign_id ? 'unavailable' : 'none';   // resolve below; 'unavailable' is the correct interim state, not silently 0
     if (rec.id) __charId = rec.id;   // bare assignment — __charId is a top-level `let`, so a window.X= write here would silently shadow-fail (see the Live Sheet's own cloud-load bug, fixed elsewhere in this change — deliberately not repeated here)
     _cgApplyEnvelope(rec.stats, { clearHistory: true });      // bare LOG/SEQ assignment inside — same reason
     cgCloudMenu.classList.remove('open');
-    if (rec.campaign_id && C) {
-      try {
-        var camp = await C.getCampaign(rec.campaign_id);
-        if (camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._dmApStatus = 'active'; }
-      } catch (e) { /* non-fatal — stays 'unavailable', which correctly reads as "unknown", not "no DM AP" */ }
-      render();
-    }
+    await _cgResolveDmApStatus(rec.ap, rec.campaign_id);
+    render();
     if (typeof flash === 'function') flash('☁ Loaded: ' + label);
   }
 
@@ -677,14 +691,18 @@ document.addEventListener('sync-ready', function () {
   var PENDING_KEY = window.PENDING_INVITE_KEY;
   var banner = document.getElementById('cgInviteBanner');
   var _declinedThisLoad = false;
+  var _wasSignedIn = false;   // only re-attempt on an actual sign-in transition, not e.g. hourly TOKEN_REFRESHED -- matches the guard the cloud load/save listener above already uses for the same reason
 
   function showBanner(text){ if(!banner) return; banner.style.display=''; banner.textContent=text; }
   function hideBannerSoon(){ if(!banner) return; setTimeout(function(){ banner.style.display='none'; }, 6000); }
+  function clearPendingToken(){ try{ sessionStorage.removeItem(PENDING_KEY); }catch(e){} }
 
   // Stash the token (sessionStorage survives a same-tab navigation to ../login.html and
   // back, unlike the query param alone -- see the plan's "Registration email-confirm
   // round-trip" risk note for the one case this doesn't cover: confirming from a NEW tab).
   // Strip it from the visible URL so a reload/re-share of the current URL doesn't re-fire.
+  // Safe to do here (not before _cgConsumeHandoff's own boot-time URL edit) now that that
+  // function strips only its own ?handoff param rather than the whole query string.
   (function stashInviteToken(){
     var qs = new URLSearchParams(location.search);
     var urlToken = qs.get('invite');
@@ -696,7 +714,7 @@ document.addEventListener('sync-ready', function () {
   })();
 
   var _redeeming = false;
-  async function tryRedeem(){
+  async function tryRedeem(session){
     if(_redeeming || _declinedThisLoad) return;
     var token; try{ token = sessionStorage.getItem(PENDING_KEY); }catch(e){ token = null; }
     if(!token) return;
@@ -704,7 +722,7 @@ document.addEventListener('sync-ready', function () {
                           // concurrent trigger (this function is called both directly and from onAuthChange)
                           // can't slip past this guard and double-fire the confirm() dialog below.
     try{
-      var session = await A.currentSession();
+      if(!session) session = await A.currentSession();
       if(!session){
         showBanner('You’ve been invited to a campaign. Sign in to accept it — this link stays valid until you do. → ');
         if(banner){var a=document.createElement('a');a.href='../login.html';a.textContent='Sign in';a.style.color='#fff';a.style.fontWeight='700';banner.appendChild(a);}
@@ -712,49 +730,53 @@ document.addEventListener('sync-ready', function () {
       }
       if(!confirm('Accept this campaign invite? This creates a brand-new character bound to the campaign and replaces your current in-progress build.')){
         _declinedThisLoad = true;
+        clearPendingToken();   // a declined invite must not keep re-prompting on every later reload/sign-in in this tab
         if(banner) banner.style.display='none';
         return;
       }
       showBanner('Joining campaign…');
       var res = await C.redeemPlayerInvite(token, null);   // no build exists yet at this point -- server default-names it
-      var seedLog = [{type:'award',amount:res.startingBudget,note:'Budget',noLock:true,
-        label:'Award — budget ('+res.startingBudget+' AP)',seq:1,ts:Date.now(),rules:DATA.version}];
-      _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:DATA.version,name:'New Character',LOG:seedLog,SEQ:2,id:res.characterId},{clearHistory:true});
 
-      var stats = _cgEnvelope(false);
-      var saveRes = await S.saveCharacter({id:res.characterId,name:stats.name||'New Character',kind:'chargen',stats:stats});
-      if(saveRes && saveRes.error) throw saveRes.error;
-
-      window._dmAp = res.startingAp || 0;
-      window._ignorePlayerAp = false;
-      window._dmApStatus = 'unavailable';   // resolved below -- 'unavailable' is the correct interim state, not silently 0
-      try{
+      var ap, campaignId = res.campaignId;
+      if(res.isNew){
+        var seedLog = [{type:'award',amount:res.startingBudget,note:'Budget',noLock:true,
+          label:'Award — budget ('+res.startingBudget+' AP)',seq:1,ts:Date.now(),rules:DATA.version}];
+        _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:DATA.version,name:'New Character',LOG:seedLog,SEQ:2,id:res.characterId},{clearHistory:true});
+        var stats = _cgEnvelope(false);
+        var saveRes = await S.saveCharacter({id:res.characterId,name:stats.name||'New Character',kind:'chargen',stats:stats});
+        if(saveRes && saveRes.error) throw saveRes.error;
+        ap = res.startingAp;
+      } else {
+        // Idempotent replay (double-tab, retry after an earlier success): load what's ALREADY
+        // there instead of re-seeding, or a second tab's real progress would be silently
+        // overwritten back to a bare budget award.
         var rec = await S.loadCharacter(res.characterId);
-        if(rec && rec.campaign_id){
-          var camp = await C.getCampaign(rec.campaign_id);
-          if(camp){
-            window._ignorePlayerAp = !!camp.ignore_player_ap;
-            window._dmApStatus = 'active';
-            window._cloudCampaign = camp;   // activates rule-filtering (cloudRuleBarred), same as the campaign-rules picker above
-            var selEl = document.getElementById('cgCloudCampSel');
-            if(selEl) selEl.value = camp.id;
-            if(typeof refreshCloudFilters === 'function') refreshCloudFilters();
-          }
+        if(rec && rec.stats && Array.isArray(rec.stats.LOG)){
+          if(rec.id) __charId = rec.id;
+          _cgApplyEnvelope(rec.stats,{clearHistory:true});
         }
-      }catch(e){ /* non-fatal -- stays 'unavailable', which correctly reads as "unknown", not "no DM AP" */ }
+        ap = rec ? (rec.ap||0) : res.startingAp;   // rec.ap is live; res.startingAp is only the invite's original snapshot
+        if(rec && rec.campaign_id) campaignId = rec.campaign_id;
+      }
 
-      try{ sessionStorage.removeItem(PENDING_KEY); }catch(e){}
+      await _cgResolveDmApStatus(ap, campaignId);
+      clearPendingToken();
       render();
       showBanner('☁ Joined campaign — character created with '+res.startingBudget+' AP budget.');
       hideBannerSoon();
     }catch(err){
+      clearPendingToken();   // a terminal RPC error (already-joined, invalid/expired token, etc.) must not keep re-prompting either
       showBanner('Could not join campaign: '+(err&&err.message?err.message:err));
     }finally{
       _redeeming = false;
     }
   }
 
-  A.onAuthChange(function(event, session){ if(session) tryRedeem(); });
+  A.onAuthChange(function(event, session){
+    var nowSignedIn = !!session;
+    if(nowSignedIn && !_wasSignedIn) tryRedeem(session);
+    _wasSignedIn = nowSignedIn;
+  });
   tryRedeem();
 });
 </script>
@@ -2716,10 +2738,14 @@ function _cgApplyEnvelope(d,opts){
 // LOG/SEQ, autosaves through its internal render(). rules carried so the stale-version reprice note fires.
 function _cgConsumeHandoff(){
   try{
-    const u=new URLSearchParams(location.search).get('handoff');
+    const qs=new URLSearchParams(location.search);
+    const u=qs.get('handoff');
     if(!u)return false;
     const p=takeHandoff(u);
-    try{history.replaceState(null,'',location.pathname+location.hash);}catch(e){}   // strip ?handoff: a reload must not re-trigger
+    // Strip only ?handoff (a reload must not re-trigger it) -- NOT the whole query string, so a
+    // still-pending ?invite= token (feat/campaign-invite-tokens; stashed separately once 'sync-ready'
+    // fires) survives this earlier, engine-ready-gated boot step instead of being silently wiped.
+    try{qs.delete('handoff');history.replaceState(null,'',location.pathname+(qs.toString()?('?'+qs.toString()):'')+location.hash);}catch(e){}
     if(!p)return false;
     _cgResetCloudApState();   // a Live Sheet handoff is a local transfer, not a cloud load — no DM AP/campaign to carry over
     _cgApplyEnvelope({LOG:p.LOG,SEQ:p.SEQ,id:p.id,rules:p.rules},{clearHistory:true});

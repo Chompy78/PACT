@@ -137,6 +137,28 @@
   owed before this feature is exercised for a real campaign. Path B (binding an existing built
   character to a campaign via the shared invite code) is a separate, still-open deliverable — the
   plan's own recommended split, tracked as its own roadmap item.
+- **Follow-up: `/code-review ultra` pass (2026-07-13), 10 finder angles, ~15 findings triaged.**
+  Two were genuine correctness bugs beyond polish: (1) `redeem_player_invite`'s original shape checked
+  idempotency BEFORE attempting the claim, so two truly concurrent calls from the same user (a
+  double-click) could race — the loser's own claim then found 0 rows and raised "invalid or already
+  redeemed" instead of recovering. Fixed by attempting the atomic claim FIRST and only falling back to
+  the idempotency check on 0 rows affected, which correctly recognizes "it was actually me" regardless
+  of commit order. (2) The client unconditionally re-seeded and overwrote a character's `stats` on
+  every redemption, including an idempotent replay (double-tab, retry) — silently destroying any real
+  progress made since the first successful redemption. Fixed by having `redeem_player_invite` return
+  `campaign_id`/`is_new` so the client only seeds on a genuinely fresh redemption and otherwise loads
+  the existing character instead. Also fixed: a stale/declined/errored pending-invite token was never
+  cleared from `sessionStorage`, so `login.html`'s new resume-after-sign-in hook could hijack any later
+  unrelated sign-in in the same tab (moved the resume call out of the generic boot-time `showSignedIn()`
+  into only the two actual submit-driven sign-in paths, and clear the token on decline/error too); the
+  `onAuthChange` handler re-firing `tryRedeem()` on every session event including hourly
+  `TOKEN_REFRESHED` (now guards on an actual sign-in transition, matching the existing pattern used
+  elsewhere in the same file); `create_player_invite`'s `< 0` check silently passing a NULL argument
+  through SQL's three-valued logic; `js/campaign.js`'s `| 0` coercion wrapping huge inputs via 32-bit
+  truncation instead of leaving Postgres to reject them; a redundant `loadCharacter()` round-trip now
+  avoided on the common (fresh-redemption) path since the RPC returns `campaign_id` directly; and the
+  DM-AP-status-resolution duplication between `onLoadClick` and the redemption flow, now a single
+  shared `_cgResolveDmApStatus()` helper. Full findings list in the PR's code-review report.
 
 ---
 

@@ -1443,12 +1443,14 @@ document.addEventListener('campaign-ready', function () {
       inviteLinkRow.style.display = 'flex';
       inviteStatus.textContent = 'Single-use — share this link with the player.';
     } catch(err){
-      inviteStatus.textContent = 'Error: '+esc(err.message);
+      inviteStatus.textContent = 'Error: '+err.message;   // .textContent is inherently XSS-safe -- esc() here would double-escape entities into literal garbled text
     }
     createInviteBtn.disabled = false;
   });
   copyInviteLink.addEventListener('click', function(){
-    navigator.clipboard.writeText(inviteLinkOut.value);
+    navigator.clipboard.writeText(inviteLinkOut.value).catch(function(){
+      inviteStatus.textContent = 'Could not copy — select and copy the link manually.';
+    });
   });
 
   async function loadRoster(campId){

@@ -82,6 +82,14 @@ export async function regenerateDmInviteCode(campaignId) {
   return data;
 }
 
+/** Non-negative integer, or 0 -- doesn't wrap on huge input the way `x | 0` (32-bit
+ * bitwise truncation) would; an out-of-range value is instead left for Postgres's
+ * own `integer` column to reject with a real error rather than silently corrupting. */
+function _nonNegInt(n) {
+  n = Math.trunc(Number(n));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 /**
  * DM-only: create a single-use player invite token carrying a preset starting DM
  * AP amount and starting build budget. Returns the raw token — the caller builds
@@ -90,8 +98,8 @@ export async function regenerateDmInviteCode(campaignId) {
 export async function createPlayerInvite(campaignId, startingAp, startingBudget) {
   const { data, error } = await supabase.rpc('create_player_invite', {
     p_campaign_id: campaignId,
-    p_starting_ap: startingAp | 0,
-    p_starting_budget: startingBudget | 0,
+    p_starting_ap: _nonNegInt(startingAp),
+    p_starting_budget: _nonNegInt(startingBudget),
   });
   if (error) throw error;
   return data;
@@ -99,9 +107,11 @@ export async function createPlayerInvite(campaignId, startingAp, startingBudget)
 
 /**
  * Redeem a player invite token as the signed-in user. Idempotent: a repeat call
- * by the same user after a successful redemption returns the same result instead
- * of erroring (double-click / interrupted-client recovery).
- * @returns {Promise<{characterId:string, startingAp:number, startingBudget:number}>}
+ * by the same user after a successful redemption returns the same result (with
+ * isNew:false) instead of erroring (double-click / interrupted-client recovery) —
+ * the caller must NOT re-seed the character when isNew is false, or it will
+ * silently overwrite any real progress made since the first redemption.
+ * @returns {Promise<{characterId:string, startingAp:number, startingBudget:number, campaignId:string, isNew:boolean}>}
  */
 export async function redeemPlayerInvite(token, name) {
   const { data, error } = await supabase.rpc('redeem_player_invite', {
@@ -111,7 +121,10 @@ export async function redeemPlayerInvite(token, name) {
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
   if (!row) throw new Error('Invite redemption returned no character');
-  return { characterId: row.character_id, startingAp: row.starting_ap, startingBudget: row.starting_budget };
+  return {
+    characterId: row.character_id, startingAp: row.starting_ap, startingBudget: row.starting_budget,
+    campaignId: row.campaign_id, isNew: row.is_new,
+  };
 }
 
 /** DM-only: set the "ignore player-granted AP" campaign toggle. */

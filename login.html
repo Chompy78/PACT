@@ -106,7 +106,6 @@
     function msg(text, kind) { const el = $('msg'); el.textContent = text; el.className = 'msg ' + (kind || ''); }
 
     async function showSignedIn() {
-      if (resumePendingInvite()) return;   // navigating away -- don't bother rendering the signed-in view
       $('authView').classList.add('hidden');
       $('signedView').classList.remove('hidden');
       let name = '';
@@ -132,11 +131,15 @@
         if (mode === 'register') {
           await register(email, password, $('displayName').value.trim());
           // If email confirmation is OFF, a session exists immediately.
-          if (await currentUser()) { await showSignedIn(); }
+          if (await currentUser()) { if (!resumePendingInvite()) await showSignedIn(); }
           else { msg('Account created — check your email to confirm, then sign in.', 'ok'); setMode('login'); }
         } else {
           await login(email, password);
-          await showSignedIn();
+          // Only resume a pending invite right after THIS sign-in submission, not on every
+          // later boot-time "already signed in" check below -- otherwise a stale token left
+          // over from a declined/failed invite (see js/campaign.js PENDING_INVITE_KEY) would
+          // hijack any unrelated future visit to this page in the same tab.
+          if (!resumePendingInvite()) await showSignedIn();
         }
       } catch (err) {
         msg(err.message || String(err), 'err');

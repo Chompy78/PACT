@@ -26,6 +26,19 @@
   `docs/plans/2026-07-11-campaign-join-invite-flow.md`; narrative: `DECISIONS.md`
   `D-GH-2026-07-13-campaign-invite-tokens`.
 
+- **2026-07-13 · fix(campaign) — `/code-review ultra` pass on the invite-tokens PR fixed a race and a
+  data-loss bug before merge** (same files as the entry above, plus `login.html`). `redeem_player_invite`
+  now attempts its atomic claim before checking idempotency (a same-user double-click could previously
+  race and error instead of recovering); the client now only re-seeds a character on a genuinely fresh
+  redemption (`is_new`, new RPC return field) instead of unconditionally overwriting `stats` on every
+  redemption — a double-tab or retry was silently wiping real progress back to a bare budget award.
+  Also: a stale pending-invite token could hijack an unrelated later sign-in in `login.html`; the
+  redemption listener re-fired on every `onAuthChange` event including hourly token refreshes; a NULL
+  argument could bypass `create_player_invite`'s sign check; `js/campaign.js`'s `| 0` coercion could
+  silently wrap huge inputs; the DM-AP-status resolution logic duplicated between CharGen's cloud-load
+  flow and the redemption flow is now one shared helper. See `DECISIONS.md`
+  `D-GH-2026-07-13-campaign-invite-tokens` (Status, follow-up paragraph) for the full list.
+
 - **2026-07-13 · fix — `compute()`: `NaN` in a low-ability-score caster's known-spell over-cap
   surcharge (`DATA.version` v0.335 → v0.336)** (`js/engine.js` only). Found by `log-fuzz.mjs`
   (below) on its first run: the known-spell cap (`dmod+hd`) can go negative for a caster with a
