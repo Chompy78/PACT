@@ -411,7 +411,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
-<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="openCampaign()" title="Local house rules (not the cloud campaign system) — DM: bar boons/drawbacks/arts and share a text code; barred items are blocked here too">🛡 House rules code</button><span id="campind" style="font-size:11px;color:var(--good);font-weight:700"></span><button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
+<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
 <button class="btn ghost" onclick="if(confirm('Reset the entire build? (Your theme is kept.)')){resetBuild();}">↺ Reset</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
@@ -426,7 +426,6 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button>
-<button class="btn ghost" onclick="openCampaign()" title="Local house rules (not the cloud campaign system) — DM: bar boons/drawbacks/arts and share a text code; barred items are blocked here too">🛡 House rules code</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button>
 </div>
 <div id="sheetview"><div class="shtop"><b>📋 Character Sheet</b><button class="btn" onclick="window.print()">🖨 Print</button><button class="btn ghost" onclick="toggleSheet()">✕ Close — back to builder</button></div><div id="sheetbody"></div></div>
@@ -571,7 +570,7 @@ document.addEventListener('campaign-ready', function () {
 // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen's first
 // cloud character-load flow — mirrors the Live Sheet's ☁ Cloud dropdown, using 'chargen' as the `kind`
 // (the `characters` table already accepted it — see sql/schema.sql — the tool just never used it).
-// Deliberately independent of the campaign-RULES picker above (window._cloudCampaign, CG_CAMPAIGN): this
+// Deliberately independent of the cloud campaign-RULES picker above (window._cloudCampaign): this
 // sets window._dmAp/_ignorePlayerAp/_dmApStatus from the LOADED CHARACTER's own campaign_id, not from
 // whatever the user has separately picked in the rules dropdown — those stay two distinct concepts.
 document.addEventListener('sync-ready', function () {
@@ -988,7 +987,7 @@ function effBoons(){const o={};for(const k in DATA.boons)o[k]={hd:DATA.boons[k].
   for(const k in (HOUSE.boons||{})){const h=HOUSE.boons[k];const builtin=DATA.boons[k];o[k]={hd:+h.hd||1,ap:+h.ap||0,fx:h.fx||(o[k]&&o[k].fx)||'',cat:builtin?(builtin.cat||'Other'):'DM custom',custom:true};}return o;}
 function effDraws(){const o={};for(const k in DATA.drawbacks)o[k]={ap:DATA.drawbacks[k],fx:(DATA.drawbackFx&&DATA.drawbackFx[k])||'',cat:(DATA.drawbackCat&&DATA.drawbackCat[k])||'Other',custom:false};
   for(const k in (HOUSE.draws||{})){const h=HOUSE.draws[k];o[k]={ap:+h.ap||0,fx:h.fx||(o[k]&&o[k].fx)||'',cat:'DM custom',custom:true};}return o;}
-function isDisabled(kind,name){return (HOUSE.disabled&&HOUSE.disabled[kind]||[]).includes(name)||campBarred(kind,name);}
+function isDisabled(kind,name){return (HOUSE.disabled&&HOUSE.disabled[kind]||[]).includes(name);}
 function _bdFilter(id){const e=$(id);return e?(e.value||'').toLowerCase().trim():'';}
 const BOON_ORDER=['Combat','Defence','Skill & Utility','Social','Magic','Wild & Story','DM custom','Other'];
 const DRAW_ORDER=['Body','Mind','Social','Magic','Wild & Story','DM custom','Other'];
@@ -997,7 +996,7 @@ function _reqSpan(txt,unmet){return txt?'<span class="req" style="font-size:9.5p
 function buildArtGrid(){
   const g=$('artgrid'); if(!g) return;
   // Phase 2 Step 3 (Chunk 1, Category D): reads current membership from LOG instead of the DOM. Safe at
-  // every call site verified (boot, applyBuild, applyCampaignCode): applyBuild() always follows this with
+  // every call site verified (boot, applyBuild): applyBuild() always follows this with
   // its own direct ck('artck',...) DOM write that doesn't depend on this grid's "owned" calculation, and
   // annotate() recomputes the AP-total display from compute()'s ledger afterward — so this function's own
   // chk-derived AP total (below) is a throwaway initial value in those flows either way.
@@ -1009,7 +1008,7 @@ function buildArtGrid(){
   const BAND={0:'Sit',1:'Per-Rest',2:'At-Will',3:'Passive',4:'Premium'};
   const byCat={};
   DATA.artList.forEach(function(nm){if((DATA.arts[nm]||{}).cat==='Fighting Style'&&(DATA.arts[nm]||{}).reqFeat)return;/* combat fighting styles are buyable here at 11; class-gated Blessed/Druidic stay feature-only */
-    const ar=DATA.arts[nm]; if(!ar) return; /* campBarred (local house-rules) arts are shown greyed+disabled, not hidden */
+    const ar=DATA.arts[nm]; if(!ar) return;
     if(!chk.includes(nm)&&cloudRuleBarred('arts',nm))return;   // cloud campaign rules — hide banned arts (mirror boons live-filter); keep already-selected
     if(q&&!(nm+' '+(ar.fx||'')+(ar.cat||'')+(ar.prereqNote||'')).toLowerCase().includes(q)&&!chk.includes(nm)) return;
     (byCat[ar.cat]=byCat[ar.cat]||[]).push(nm);
@@ -1039,10 +1038,9 @@ function buildArtGrid(){
       var hdLabel=ar.hd>1?' · <span style="font-size:10px;font-weight:700;color:'+(hdOk?'#888':'#C00000')+'">'+(hdOk?'':'⚠ ')+'HD '+ar.hd+'+</span>':'';
       var prereqLabel=(!blocked&&prereq)?' <span style="font-size:9.5px;color:#a06000" title="'+prereq+'">· '+prereq+'</span>':'';
       var dscSpan='<span class="dsc">'+(ar.fx||'')+'</span>';  // blocked items greyed by CSS :disabled
-      var _bar=campBarred('arts',nm);
-      return '<label class="ck'+(_bar?' barred':'')+'" title="'+(_bar?'Barred by the DM for this campaign':'')+'">'+
-        '<input type="checkbox" class="artck" value="'+esc+'"'+((!_bar&&owned)?' checked':'')+(_bar?' disabled':'')+'>'+
-        ' '+nm+'<span class="c">'+ar.ap+' AP</span>'+hdLabel+_reqSpan(_reqP.join(', '),!statOk)+prereqLabel+(_bar?'<span class="barredtag">barred</span>':'')+
+      return '<label class="ck">'+
+        '<input type="checkbox" class="artck" value="'+esc+'"'+(owned?' checked':'')+'>'+
+        ' '+nm+'<span class="c">'+ar.ap+' AP</span>'+hdLabel+_reqSpan(_reqP.join(', '),!statOk)+prereqLabel+
         dscSpan+'</label>';
     }).join('');
     html+='</div>';
@@ -1054,7 +1052,7 @@ function buildArtGrid(){
 
 
 function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=bOverride||readBuild();const st=_bb.stats||{};const B=effBoons();const chk=_bb.boons||[];const q=_bdFilter('boonfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly. bOverride: applyBuild() passes the build being loaded (D-GH44 fix) so this doesn't filter against the stale pre-load LOG. */
-  const byCat={};Object.keys(B).forEach(k=>{var _bar=campBarred('boons',k);if(!_bar&&isDisabled('boons',k)&&!chk.includes(k))return;
+  const byCat={};Object.keys(B).forEach(k=>{if(isDisabled('boons',k)&&!chk.includes(k))return;
     if(!chk.includes(k)&&cloudRuleBarred('boons',k))return;   // cloud campaign rules (D-GH44) — mirror Live Sheet's live-filter: remove, don't disable
     const bo=B[k];
     if(q && (k+' '+(bo.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
@@ -1063,13 +1061,12 @@ function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=b
   cats.forEach(c=>byCat[c].sort((a,b)=>((B[a].hd||1)-(B[b].hd||1))||a.localeCompare(b)));   // within a category: by HD requirement, then alphabetical
   let html='';cats.forEach(cat=>{
     html+='<div class="sublab">'+cat+'</div><div class="gridck zebra" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(max(280px,calc((100% - 6px)/4)),1fr));gap:2px">'+byCat[cat].map(k=>{const bo=B[k];var _rp=[],_ru=false;var _ms=bo.minStats||{};for(var _k in _ms){_rp.push(_k+' '+_ms[_k]+'+');if((st[_k]||10)<_ms[_k])_ru=true;}var _msa=bo.minStatsAny;if(_msa&&_msa.stats){_rp.push(_msa.stats.join('/')+' '+_msa.val+'+');if(!_msa.stats.some(function(a){return (st[a]||10)>=_msa.val;}))_ru=true;}
-      var _bar=campBarred('boons',k);
-      return '<label class="ck'+(bo.custom?' hr':'')+(_bar?' barred':'')+'" title="'+(_bar?'Barred by the DM for this campaign':'')+'"><input type="checkbox" class="boonck" value="'+k.replace(/"/g,'&quot;')+'"'+((!_bar&&chk.includes(k))?' checked':'')+(_bar?' disabled':'')+'> '+k+'<span class="c">'+bo.ap+' AP</span>'+(bo.hd>1?'<span class="req" style="font-size:10px;color:var(--grey)"> · HD '+bo.hd+'+</span>':'')+_reqSpan(_rp.join(', '),_ru)+(bo.custom?'<span class="dmtag">DM</span>':'')+(_bar?'<span class="barredtag">barred</span>':'')+
+      return '<label class="ck'+(bo.custom?' hr':'')+'"><input type="checkbox" class="boonck" value="'+k.replace(/"/g,'&quot;')+'"'+(chk.includes(k)?' checked':'')+'> '+k+'<span class="c">'+bo.ap+' AP</span>'+(bo.hd>1?'<span class="req" style="font-size:10px;color:var(--grey)"> · HD '+bo.hd+'+</span>':'')+_reqSpan(_rp.join(', '),_ru)+(bo.custom?'<span class="dmtag">DM</span>':'')+
         '<span class="dsc">'+(bo.fx||'')+'</span></label>';}).join('')+'</div>';});
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
 function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=_db.drawbacks||[];const q=_bdFilter('drawfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
-  const byCat={};Object.keys(D).forEach(k=>{var _bar=campBarred('draws',k);if(!_bar&&isDisabled('draws',k)&&!chk.includes(k))return;
-    if(!chk.includes(k)&&cloudRuleBarred('draws',k))return;   // cloud campaign rules — hide banned drawbacks (mirror boons live-filter); keep already-selected. 'draws' matches the adjacent campBarred kind (aliased in RULE_BAN_FIELDS)
+  const byCat={};Object.keys(D).forEach(k=>{if(isDisabled('draws',k)&&!chk.includes(k))return;
+    if(!chk.includes(k)&&cloudRuleBarred('draws',k))return;   // cloud campaign rules — hide banned drawbacks (mirror boons live-filter); keep already-selected. 'draws' is aliased to bannedDrawbacks in RULE_BAN_FIELDS
     const dr=D[k];
     if(q && (k+' '+(dr.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
     (byCat[dr.cat]=byCat[dr.cat]||[]).push(k);});
@@ -1077,8 +1074,7 @@ function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild(
   cats.forEach(c=>byCat[c].sort((a,b)=>a.localeCompare(b)));   // within a category: alphabetical
   let html='';cats.forEach(cat=>{
     html+='<div class="sublab">'+cat+'</div><div class="gridck zebra" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(max(280px,calc((100% - 6px)/4)),1fr));gap:2px">'+byCat[cat].map(k=>{const dr=D[k];var _rp=[],_ru=false;var _mx=(DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k])||{};for(var _k in _mx){_rp.push(_k+' ≤ '+_mx[_k]);if((st[_k]||10)>_mx[_k])_ru=true;}
-    var _bar=campBarred('draws',k);
-    return '<label class="ck'+(dr.custom?' hr':'')+(_bar?' barred':'')+'" title="'+(_bar?'Barred by the DM for this campaign':'')+'"><input type="checkbox" class="drawck" value="'+k.replace(/"/g,'&quot;')+'"'+((!_bar&&chk.includes(k))?' checked':'')+(_bar?' disabled':'')+'> '+k+'<span class="c">+'+dr.ap+' AP</span>'+_reqSpan(_rp.join(', '),_ru)+(dr.custom?'<span class="dmtag">DM</span>':'')+(_bar?'<span class="barredtag">barred</span>':'')+
+    return '<label class="ck'+(dr.custom?' hr':'')+'"><input type="checkbox" class="drawck" value="'+k.replace(/"/g,'&quot;')+'"'+(chk.includes(k)?' checked':'')+'> '+k+'<span class="c">+'+dr.ap+' AP</span>'+_reqSpan(_rp.join(', '),_ru)+(dr.custom?'<span class="dmtag">DM</span>':'')+
       '<span class="dsc">'+(dr.fx||'')+'</span></label>';}).join('')+'</div>';});
   html=html||'<span class="hint">No drawbacks match your filter.</span>';
   g.innerHTML=html;}
@@ -1473,7 +1469,7 @@ const INDEXED_TRADITION_CATS=new Set(['found','rank','cantrip','slot','known','d
 const PATCH_SLOTS=Object.freeze({IDENTITY:'identity',STATS:'stats',HD_PROF:'hdProf',ECONOMY:'economy',
   LANGUAGES:'languages',ATTUNEMENT:'attunement',KI:'ki',SORCERY:'sorcery',ARMOUR:'armour',
   WEAPON_PROF:'weaponProf',APPEARANCE:'appearance',HOUSE_RULES:'houseRules',CUSTOM_PROFS:'customProfs',
-  FREE_SUB:'freeSub',TRADITIONS:'traditions',NAMES:'names',CAMPAIGN:'campaign',
+  FREE_SUB:'freeSub',TRADITIONS:'traditions',NAMES:'names',
   VIGOR:'vigor',INNATE:'innate',MISC:'misc'});
 
 function nextSeq(log){let max=0;(log||[]).forEach(function(e){if(e&&typeof e.seq==='number'&&e.seq>max)max=e.seq;});return max+1;}
@@ -2099,21 +2095,21 @@ function _domReadBuild(){
     }));
     return {name:card.querySelector('.trad-name').value,rank:+card.querySelector('.trad-rank').value,disciplines:discs};
   });
-  (trads||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(d&&(DATA.noCantrip||[]).indexOf(d.name)>=0){d.cantrips=0;d.cantripNames=[];}});}); return {campaign:CG_CAMPAIGN,name:val('cname'),budget:+val('budget'),originClass:val('oclass'),originClass2:val('oclass2'),
+  (trads||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(d&&(DATA.noCantrip||[]).indexOf(d.name)>=0){d.cantrips=0;d.cantripNames=[];}});}); return {name:val('cname'),budget:+val('budget'),originClass:val('oclass'),originClass2:val('oclass2'),
     species:val('spec'),species2:val('spec2'),racialTraits:ckVals('racck'),lineage:val('lineage'),racialSpells:ckVals('linspellck'),stats,
     hd:+val('hd'),profBonus:+(val('profBonus')||2),hardy:+val('hardy'),tough:+val('tough'),
     saves:ckVals('saveck'),skills:ckVals('skillck'),expertise:ckVals('expck'),languages:+(val('languages')||0),
     tools:ckVals('toolck'),instruments:ckVals('instck'),customProfs:rowsVals('cprofrow'),toolExpertise:ckVals('toolexpck'),
-    arts:ckVals('artck').filter(function(_x){return !campBarred('arts',_x);}),
+    arts:ckVals('artck'),
     weaponProf:wp,masteries:ckVals('mastck'),
     armour:{light:chk('a_light'),medium:chk('a_med'),heavy:chk('a_heavy'),shield:chk('a_shield')},
     extraClasses:0,unlockedClasses:[...document.querySelectorAll('.classunlock:checked')].filter(e=>!e.disabled).map(e=>e.dataset.cls).filter(c=>c!==val('oclass')&&c!==val('oclass2')),features:rowsVals('feat2row'),traditions:trads,
     subAbilities:[...document.querySelectorAll('.subabilrow')].map(e=>e.value).filter(Boolean),
     subSpellBundles:[...document.querySelectorAll('.subbundlerow')].map(e=>e.value).filter(Boolean),
     freeSub:(()=>{const o={};document.querySelectorAll('.freesub').forEach(s=>{if(s.value)o[s.dataset.cls]=s.value;});return o;})(),
-    drawbacks:ckVals('drawck').filter(function(_x){return !campBarred('draws',_x);}),gold:+val('gold'),dabblerCantrips:+(val('dabblerCantrips')||0),
+    drawbacks:ckVals('drawck'),gold:+val('gold'),dabblerCantrips:+(val('dabblerCantrips')||0),
     attune:+(val('attune')||0),ki:+(val('ki')||0),sorcery:+(val('sorcery')||0),wornArmour:val('wornArmour')||'',martiallyBound:val('martiallyBound')||'(none)',
-    boons:ckVals('boonck').filter(function(_x){return !campBarred('boons',_x);}),innate:[...Array(9)].map((_,i)=>+(val('innate_'+(i+1))||0)),
+    boons:ckVals('boonck'),innate:[...Array(9)].map((_,i)=>+(val('innate_'+(i+1))||0)),
     appearance:{gender:val('ap_gender'),age:val('ap_age'),height:val('ap_height'),build:val('ap_build'),
       hair:val('ap_hair'),eyes:val('ap_eyes'),nose:val('ap_nose'),skin:val('ap_skin'),marks:val('ap_marks'),
       voice:val('ap_voice'),demeanour:val('ap_demeanour'),quirk:val('ap_quirk'),likes:val('ap_likes'),dislikes:val('ap_dislikes'),
@@ -2289,15 +2285,10 @@ function shareLink(){try{const enc=_encB(readBuild());const base=location.href.s
   }catch(err){flash('Could not build a share link.');}}
 function loadFromHash(){try{if(typeof location==='undefined'||!location.hash)return false;
   if(location.hash.indexOf('#b=')!==0)return false;_fileHandle=null;_cgResetCloudApState();applyBuild(_decB(location.hash.slice(3)),{clearHistory:true});flash('Shared build loaded ✓');return true;}catch(e){return false;}}
-/* ── Campaign Rules (DM bar tool) — mirrored into CharGen ── */
-var CG_CAMPAIGN=null;
-var _AK='DragonReachForgePACT';
-function _apHash(str){var h=5381>>>0;for(var i=0;i<str.length;i++){h=(((h*33)>>>0)^str.charCodeAt(i))>>>0;}return h.toString(36);}
-function _campEnc(o){var pl=JSON.stringify(o);var c=pl+'|'+_apHash(pl);var u=encodeURIComponent(c);var x='';for(var i=0;i<u.length;i++)x+=String.fromCharCode(u.charCodeAt(i)^_AK.charCodeAt(i%_AK.length));return 'PACTRULES:'+btoa(x);}
-function _campDec(code){if(!code||code.indexOf('PACTRULES:')!==0)return null;try{var x=atob(code.slice(10));var u='';for(var i=0;i<x.length;i++)u+=String.fromCharCode(x.charCodeAt(i)^_AK.charCodeAt(i%_AK.length));var c=decodeURIComponent(u);var p=c.lastIndexOf('|');if(p<0)return null;var pl=c.slice(0,p),hh=c.slice(p+1);if(_apHash(pl)!==hh)return null;var o=JSON.parse(pl);return (o&&typeof o==='object')?{n:String(o.n||''),boons:o.boons||[],draws:o.draws||[],arts:o.arts||[]}:null;}catch(e){return null;}}
-function campBarred(kind,name){var c=CG_CAMPAIGN;return !!(c&&c[kind]&&c[kind].indexOf(name)>=0);}
-// ── Cloud campaign rules (feat/chargen-campaign-rules, D-GH44) — separate from the local PACTRULES
-// mechanism above: DM-set rules on a signed-in cloud campaign (js/campaign.js), read-only here.
+// ── Cloud campaign rules (feat/chargen-campaign-rules, D-GH44). (The old local PACTRULES
+// "House rules code" paste feature was retired in refactor/retire-pactrules-code — campaign
+// restrictions now come only from the DM-authoritative cloud rules below.)
+// DM-set rules on a signed-in cloud campaign (js/campaign.js), read-only here.
 // Mirrors Live Sheet's live-filter (D-GH16): banned-but-unowned choices are filtered OUT of pickers
 // entirely, not shown disabled. window._cloudCampaign is set by the campaign-ready listener; the
 // rules object itself is derived here rather than cached in a second global that could drift from it.
@@ -2349,31 +2340,6 @@ function refreshCloudFilters(){
   buildSpeciesSelects(b); buildOriginClassSelects(b); buildMasteryGrid(b); buildBoonGrid(b);
   if(typeof render==='function')render();
 }
-function _campRows(kind,items,barred){return items.map(function(n){var ck=(barred.indexOf(n)>=0)?' checked':'';return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;width:49%;margin:1px 0;box-sizing:border-box"><input type="checkbox" class="campck" data-kind="'+kind+'" data-name="'+String(n).replace(/"/g,'&quot;')+'"'+ck+'> '+String(n).replace(/</g,'&lt;')+'</label>';}).join('');}
-function closeCampaign(){var ov=document.getElementById('campOv');if(ov)ov.style.display='none';}
-function openCampaign(){
-  var cur=CG_CAMPAIGN||{n:'',boons:[],draws:[],arts:[]};
-  var ov=document.getElementById('campOv');
-  if(!ov){ov=document.createElement('div');ov.id='campOv';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:none;align-items:flex-start;justify-content:center;padding:3vh 0';ov.onclick=function(e){if(e.target===ov)closeCampaign();};document.body.appendChild(ov);}
-  var boons=(DATA.boonList||[]).slice().sort(),draws=(DATA.drawbackList||[]).slice().sort(),arts=(DATA.artList||[]).slice().sort();
-  var nbar=(cur.boons||[]).length+(cur.draws||[]).length+(cur.arts||[]).length;
-  ov.innerHTML='<div style="background:var(--card);color:var(--ink);border-radius:12px;padding:16px 20px;max-width:680px;width:94%;max-height:92vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.35)">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;color:var(--blue);font-size:16px">&#x1F6E1; House Rules Code</h2><button onclick="closeCampaign()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--grey)">&#x2715;</button></div>'+
-    '<p style="font-size:11.5px;color:var(--grey);margin:4px 0 8px">A local, text-code house-rules list &mdash; <b>not</b> the cloud campaign system (that lives in the Live Sheet/DM Console). <b>DM:</b> name it, tick anything to bar, then <b>Generate code</b> and share it. <b>Players:</b> paste a code below and <b>Load</b> &mdash; it is saved with your character so anyone can see it.</p>'+
-    '<input id="campName" placeholder="Campaign name &mdash; e.g. DragonLance: John&#39;s campaign" value="'+String(cur.n||'').replace(/"/g,'&quot;')+'" style="width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink);margin-bottom:8px">'+
-    '<details open><summary style="cursor:pointer;font-weight:700;font-size:12px;color:var(--teal)">Boons to bar ('+boons.length+')</summary><div style="display:flex;flex-wrap:wrap;gap:1px 4px;margin:4px 0">'+_campRows('boons',boons,cur.boons||[])+'</div></details>'+
-    '<details><summary style="cursor:pointer;font-weight:700;font-size:12px;color:var(--teal)">Drawbacks to bar ('+draws.length+')</summary><div style="display:flex;flex-wrap:wrap;gap:1px 4px;margin:4px 0">'+_campRows('draws',draws,cur.draws||[])+'</div></details>'+
-    '<details><summary style="cursor:pointer;font-weight:700;font-size:12px;color:var(--teal)">Arts &amp; Techniques to bar ('+arts.length+')</summary><div style="display:flex;flex-wrap:wrap;gap:1px 4px;margin:4px 0">'+_campRows('arts',arts,cur.arts||[])+'</div></details>'+
-    '<div style="margin:10px 0 4px;text-align:right"><button class="btn" onclick="genCampaignCode()">&#x2699; Generate code</button></div>'+
-    '<textarea id="campCode" placeholder="Generated code appears here, or paste a PACTRULES code to load" style="width:100%;box-sizing:border-box;height:54px;font-family:monospace;font-size:10px;padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink)"></textarea>'+
-    '<div style="margin-top:8px;text-align:right"><button class="btn g" onclick="closeCampaign()">Close</button> <button class="btn" onclick="applyCampaignCode()">&#x2B07; Load these rules</button></div>'+
-    (cur.n?('<div style="margin-top:8px;font-size:11px;color:var(--good)">Loaded: <b>'+String(cur.n).replace(/</g,'&lt;')+'</b> &mdash; '+nbar+' barred</div>'):'')+
-    '</div>';
-  ov.style.display='flex';
-}
-function _campCollect(){var camp={n:(document.getElementById('campName').value||'').trim(),boons:[],draws:[],arts:[]};document.querySelectorAll('#campOv .campck').forEach(function(c){if(c.checked)camp[c.dataset.kind].push(c.dataset.name);});return camp;}
-function genCampaignCode(){var camp=_campCollect();if(!camp.n){flash('Give the campaign a name first.');return;}document.getElementById('campCode').value=_campEnc(camp);flash('Code generated — copy it and share it with your players.');}
-function applyCampaignCode(){var raw=(document.getElementById('campCode').value||'').trim();var camp=raw?_campDec(raw):_campCollect();if(raw&&!camp){flash('That is not a valid PACTRULES code.');return;}if(!camp.n){flash('Name the campaign (or paste a valid code) first.');return;}CG_CAMPAIGN=camp;closeCampaign();if(typeof render==='function')render();buildArtGrid();buildBoonGrid();buildDrawGrid();flash('Campaign “'+camp.n+'” loaded — '+((camp.boons||[]).length+(camp.draws||[]).length+(camp.arts||[]).length)+' items barred. Saved with this character.');}
 
 function liveBase(){
   // Scratch base for buildToLiveLog()'s synthetic import burst — derives from the engine's
@@ -2508,7 +2474,6 @@ function _buildEventBurst(b){
   emitPatch('Attunement',{attune:b.attune});emitPatch('Ki & Sorcery points',{ki:b.ki,sorcery:b.sorcery});emitPatch('Martially Bound',{martiallyBound:b.martiallyBound});
   emitPatch('Character size',{size:b.size});emitPatch('Starting gold',{gold:b.gold});
   if(CG_NAMES&&((CG_NAMES.lang&&CG_NAMES.lang.length)||(CG_NAMES.dab&&CG_NAMES.dab.length)||(CG_NAMES.inn&&CG_NAMES.inn.some(function(a){return a&&a.length;}))||(CG_NAMES.tr&&CG_NAMES.tr.length)||(CG_NAMES.grants&&Object.keys(CG_NAMES.grants).length)||(CG_NAMES.feat&&Object.keys(CG_NAMES.feat).length)))ev({type:'names',dab:CG_NAMES.dab||[],inn:CG_NAMES.inn||[[],[],[],[],[],[],[],[],[]],feat:CG_NAMES.feat||{},lang:CG_NAMES.lang||[],grants:CG_NAMES.grants||{},tr:CG_NAMES.tr||[],label:'Named spells & languages'});
-  if(b.campaign&&b.campaign.n)ev({type:'buy',cat:'campaign',payload:{v:b.campaign},cost:0,level:1,label:'Campaign rules — '+b.campaign.n});
   return LOG;
 }
 // Phase 2 Step 3 (Chunk 0): the LOG-mutation-API's whole-build-replacement helper. opts is currently
@@ -2542,7 +2507,6 @@ function applyBuild(b,opts){
   // (_commitWholeBuildFrame); boot/autosave/shared-link pass {clearHistory:true} to wipe history instead.
   const _prevSusp=_histSuspended;_histSuspended=true;
   try{
-  if(b&&b.campaign)CG_CAMPAIGN=b.campaign;
   __charId=(b&&b.id)||genCharId();   // loading a build adopts its id; a fresh/blank build gets a new one
   const set=(id,v)=>{const e=$(id);if(e)e.value=v;};
   set('cname',b.name||'');set('budget',b.budget||DATA.level1AP);set('oclass',b.originClass||'(none)');set('oclass2',b.originClass2||'(none)');
@@ -3226,7 +3190,6 @@ function buildGuide(b,r){const tips=[];
 function render(){ _cgRenderInner(); }
 function _cgRenderInner(){
   const b=readBuild();
-  {var _ci=document.getElementById('campind');if(_ci)_ci.innerHTML=(b.campaign&&b.campaign.n)?('🛡 '+String(b.campaign.n).replace(/</g,'&lt;')+' ('+((b.campaign.boons||[]).length+(b.campaign.draws||[]).length+(b.campaign.arts||[]).length)+' barred)'):'';}
   // Medium/Heavy armour require STR 10 — auto-deselect if Strength drops below 10
   if((((b.stats&&b.stats.STR)||10)<10)){var _am=$('a_med'),_ah=$('a_heavy'),_ch=false;if(_am&&_am.checked){_am.checked=false;b.armour.medium=false;_ch=true;}if(_ah&&_ah.checked){_ah.checked=false;b.armour.heavy=false;_ch=true;}if(_ch){if(typeof flash==='function')flash('Medium/Heavy armour deselected — requires STR 10.');return _cgRenderInner();}}
   // Composed spendable AP (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): b.budget stays the

@@ -80,21 +80,6 @@ binding on an existing row) and two new UI flows across two tools, this is a str
 
 ---
 
-## Feature: DM clone campaign rules to another campaign — TODO
-Branch feat/clone-campaign-rules. Let a DM copy the rules configuration from one campaign and apply it as the starting point for another campaign's rules.
-
-```text
-In DM Console, add a "Copy rules from…" action on the Campaign Rules panel.
-Present the DM with a list of their other campaigns; selecting one copies that campaign's rules JSON into the current campaign's rules fields.
-The DM can then adjust before saving — this is a starting-point copy, not a live link.
-Write the copied rules to Supabase only on explicit save (DM-only, protected by RLS).
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** a DM can copy rules from one of their campaigns into another and save them; the source campaign is unchanged; parity still 20/0.
-
----
-
 ## Feature: Advancement tracks + D&D 2024 level equivalency — TODO
 Branch feat/advancement-tracks. Store AP-per-level advancement tracks (slow/average/fast + custom) and a D&D 2024 equivalent level reference table; let DMs select or customise a track per campaign.
 
@@ -111,39 +96,6 @@ Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, 
 ```
 
 **Done when:** advancement tracks are stored in engine data; a DM can select or customise a track per campaign; the Live Sheet shows the D&D 2024 equivalent level label; parity still 20/0.
-
----
-
-## Retire the PACTRULES code + carry campaign rules via a LOG snapshot — TODO
-Branch refactor/retire-pactrules-code. Remove the redundant local PACTRULES "campaign code" path from both tools and instead carry DM-authoritative campaign restrictions in the character's own event log. Full design: `docs/plans/2026-07-12-campaign-rules-snapshot.md`.
-
-```text
-The restriction MVP — bannedDrawbacks/bannedArts enforced via validate() and hidden from the pickers —
-already shipped (PR #174, in CHANGELOG). This task is the remaining half:
-
-(a) Retire the local PACTRULES "#3" path from BOTH tools + test fixtures:
-    - remove b.campaign, the cat:'campaign' buy event + MUT.campaign mutator (js/engine.js),
-      the _campEnc/_campDec PACTRULES codec, and the "House rules code / Campaign" UI in
-      CharGen and Live Sheet;
-    - drop any "campaign" entries from testing/fixtures/ (pre-launch, so existing cat:'campaign'
-      events / shared PACTRULES codes going inert is acceptable — no real data to migrate).
-(b) Carry campaign restrictions offline via a LOG rules-snapshot (same materialization pattern as
-    the creation lock):
-    - on bind + on each sync while online-in-a-campaign, the client writes/refreshes a rules-snapshot
-      LOG event materialized from campaigns.rules;
-    - add a resolveRules() that returns the LIVE cloud rules when online-in-a-campaign (authoritative,
-      player can't touch them) else the LOG snapshot; point the existing validate()/cloudRuleBarred()
-      call sites at it — do NOT reimplement any rule logic;
-    - removing the snapshot (e.g. after leaving/cloning out of a campaign) is a logged LOG action, so
-      it leaves an auditable trail.
-Leave b.houseRules (#2, the DM-customisations / non-core toggle) completely untouched — it is a
-different, engine-read feature.
-Display/validation-only — validate()/cloudRuleBarred() are never read by compute(); do NOT bump
-DATA.version, just log in CHANGELOG. Log the trust-boundary reasoning as
-D-GH-2026-07-12-retire-pactrules-code in DECISIONS.md.
-```
-
-**Done when:** the PACTRULES "#3" code path is gone from both tools + fixtures; a bound character carries a refreshed rules snapshot in its LOG that applies offline and is overridden by live cloud rules when online; removing the snapshot is a logged action; `b.houseRules` (#2) is unaffected; parity still 20/0.
 
 ---
 
@@ -187,33 +139,8 @@ D-GH-2026-07-12-retire-pactrules-code in DECISIONS.md.
 - **A7 — Lighthouse 85 → 90.** Add a Lighthouse CI GitHub Action to auto-catch perf regressions. *Then
   (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for the real score gain —
   *caveats:* a big engine change; do it only after REV-01 makes the gate real.
-- **A9 — Orphaned-export sweep.** One-time audit: grep every named export in `js/engine.js`'s Exports
-  line and confirm each is referenced by at least one of the three tools; write findings to
-  `docs/sessions/<date>-orphaned-export-sweep.md` (find-and-report only — no deletion inline). File any
-  confirmed zero-reference export as its own follow-up roadmap item, same pattern as REV-13's dead grant
-  maps.
 **Code-review follow-ups (from `feat/campaign-ap-model`)** — low-severity cleanup flagged by
 `/code-review`, not fixed in that PR (low risk / negligible impact either way):
-
-## Live Sheet: avoid redundant fold+compute in `apAvailable()`/`apCeiling()` hot paths — TODO
-Branch perf/livesheet-apavailable-fold-reuse. `apCeiling()`/`apAvailable()` re-run `foldBuild`+`compute`+`economy` from scratch on every call, even from sites that only need a cheap ledger read.
-
-```text
-The AP-model work routed buy(), buyoffDrawback(), and the paid spell-swap eligibility checks
-(openNames()/_swapTally()) through apAvailable(null), which internally does foldBuild(null)+compute()+
-economy(null). The pre-AP-model code at those sites only needed economy(null).available — no fold, no
-compute. So every purchase click / swap-dialog interaction now pays a full rules recompute it doesn't need.
-Add a pure (spendable, spent)-taking helper (already exists as _apRemaining) — and/or a (b, eco)-accepting
-overload of apAvailable — so call sites that already have a fresh build/economy/compute-result in scope
-(render() already does) reuse it instead of re-deriving via the uptoIdx API. Keep the index-based
-apAvailable(uptoIdx) for genuinely index-driven callers (time-travel scrub UI).
-Judged negligible at current LOG sizes — this is a cleanup, not a hot-path emergency.
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** `buy()` / `buyoffDrawback()` / the paid spell-swap checks no longer trigger a `foldBuild`+`compute()` beyond what they already need; parity still 20/0.
-
----
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.

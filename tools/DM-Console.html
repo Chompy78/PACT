@@ -439,6 +439,15 @@
           <details id="campRulesDetails" style="margin-top:10px">
             <summary style="cursor:pointer;font-size:11px;color:var(--light);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
             <div style="margin-top:8px">
+              <div class="ruleblock" id="ruleCopyBlock" style="display:none">
+                <div class="lbl">Copy rules from another campaign</div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <select class="field" id="ruleCopyFrom" style="flex:1"><option value="">— select a campaign —</option></select>
+                  <button type="button" class="btn sm ghost" id="ruleCopyBtn">Copy</button>
+                </div>
+                <span id="ruleCopyStatus" style="font-size:11px;color:var(--light)"></span>
+                <div class="grantnote">Loads that campaign’s rules into the form below as a starting point. Nothing is saved until you click <b>Save rules</b>; the source campaign is left unchanged.</div>
+              </div>
               <div class="ruleblock"><div class="lbl">Banned species</div><div class="rulegrid" id="ruleBannedSpecies"></div></div>
               <div class="ruleblock"><div class="lbl">Banned as 2nd origin species</div><div class="rulegrid" id="ruleBannedOriginSpecies"></div></div>
               <div class="ruleblock"><div class="lbl">Banned origin classes</div><div class="rulegrid" id="ruleBannedOriginClasses"></div></div>
@@ -1197,6 +1206,9 @@ document.addEventListener('campaign-ready', function () {
   var ruleHouseRules = document.getElementById('ruleHouseRules');
   var ruleHouseRuleName = document.getElementById('ruleHouseRuleName');
   var ruleSaveStatus = document.getElementById('ruleSaveStatus');
+  var ruleCopyBlock  = document.getElementById('ruleCopyBlock');
+  var ruleCopyFrom   = document.getElementById('ruleCopyFrom');
+  var ruleCopyStatus = document.getElementById('ruleCopyStatus');
   var currentCampaigns = [];
   var currentCampId = null;
   var currentHouseRules = {};
@@ -1292,6 +1304,34 @@ document.addEventListener('campaign-ready', function () {
     }
   });
 
+  // Populate the "Copy rules from…" picker with the DM's OTHER campaigns (exclude the one being edited).
+  // Hidden entirely when there's nothing to copy from. Options use textContent (no innerHTML), so campaign
+  // names need no esc() here — same pattern as the campaign selector above.
+  function renderRuleCopyOptions(){
+    var others = currentCampaigns.filter(function(c){ return c.id !== currentCampId; });
+    ruleCopyFrom.innerHTML = '<option value="">— select a campaign —</option>';
+    others.forEach(function(c){
+      var o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = c.name + (c.isOwner ? ' (owner)' : ' (co-DM)');
+      ruleCopyFrom.appendChild(o);
+    });
+    ruleCopyStatus.textContent = '';
+    ruleCopyBlock.style.display = others.length ? 'block' : 'none';
+  }
+  document.getElementById('ruleCopyBtn').addEventListener('click', function(){
+    var srcId = ruleCopyFrom.value;
+    if(!srcId){ ruleCopyStatus.textContent = 'Pick a campaign to copy from.'; return; }
+    var src = currentCampaigns.find(function(c){ return c.id === srcId; });
+    if(!src){ ruleCopyStatus.textContent = 'That campaign is no longer available — refresh and try again.'; return; }
+    // Starting-point copy, not a live link: loadRulesIntoPanel() only fills the form (it clones houseRules
+    // into a fresh object and reads grid values), so the source campaign object is never mutated and nothing
+    // reaches Supabase until the DM clicks the existing "Save rules" button for the CURRENT campaign.
+    if(!confirm('Replace the rules in the form with “'+src.name+'”’s rules?\n\nNothing is saved until you click Save rules; the source campaign is left unchanged.')) return;
+    loadRulesIntoPanel(src.rules);
+    ruleCopyStatus.textContent = 'Copied from “'+src.name+'”. Review the rules below, then click Save rules to apply them to this campaign.';
+  });
+
   function updateAuth(session){
     if(session){
       campWho.textContent = session.user.email;
@@ -1335,6 +1375,7 @@ document.addEventListener('campaign-ready', function () {
     document.getElementById('campDmCode').value     = camp.dm_invite_code||'';
     ignoreChk.checked = !!camp.ignore_player_ap;
     loadRulesIntoPanel(camp.rules);
+    renderRuleCopyOptions();
     campSection.style.display = 'block';
     campRosterName.textContent = camp.name;
     var emptyEl = document.getElementById('empty');

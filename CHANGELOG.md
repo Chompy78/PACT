@@ -4,6 +4,59 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · feat — Live Sheet: carry campaign rules offline via a LOG snapshot + `resolveRules()` (part b of retire-pactrules)**
+  (`tools/PACT-Live-Char-Sheet.html` only; `js/engine.js` untouched, no `DATA.version` bump, parity 20/0).
+  A bound character now keeps a copy of its campaign's restriction rules in its own event LOG (a
+  `rulesSnapshot` event that is **inert to the engine** — `_spendCost()`→0, `_replay()` skips non-`buy`,
+  verified no AP/build/economy effect), so the bans still apply offline or when the cloud rules are
+  momentarily unreachable. New `resolveRules()` returns the LIVE cloud rules when online-in-campaign
+  (authoritative) else the latest LOG snapshot else null; `cloudRuleBarred()` and the multi-discipline
+  check now funnel through it. The snapshot is refreshed from live rules on sync/load (deduped — no LOG
+  churn) and **cleared with a logged event** when the character is confirmed standalone (leave/clone), so
+  a left campaign stops applying stale bans. `undo()` drops trailing snapshot metadata (re-materialized on
+  next sync) so it never blocks undoing a real action; the ledger hides snapshot rows (still audit-visible
+  in the raw LOG/export). `b.houseRules` (#2) untouched. Verified: engine-inertness (Node) + resolver logic
+  (Chromium, 18/18) + `random-manual-e2e` 2/2. Why in `DECISIONS.md`
+  (D-GH-2026-07-13-campaign-rules-snapshot). **Completes the retire-pactrules roadmap task.**
+- **2026-07-13 · refactor — retire the local PACTRULES "#3" code path (part a of the retire-pactrules task)**
+  (`js/engine.js`, `tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`, 6 build fixtures;
+  **no `DATA.version` bump**, engine-parity **20/0**). Removed the redundant client-trusted "House rules
+  code" feature now that DM-authoritative cloud rules (`validate()`/`RULE_BAN_FIELDS`, incl.
+  bannedDrawbacks/bannedArts since PR #174) cover it server-side. Deleted: `MUT.campaign`/`b.campaign`/the
+  `cat:'campaign'` event, the `_campEnc`/`_campDec` `PACTRULES:` codec, `campBarred` + the "🛡 House rules
+  code"/"🛡 Campaign" UI and its `campchip`/`campind` display in both tools, the dead `PATCH_SLOTS.CAMPAIGN`
+  key, and the `"campaign": null` field from 6 CG build fixtures. **Kept** (surgical splits): the cloud
+  `cloudRuleBarred()`/`RULE_BAN_FIELDS` path (#1), `b.houseRules` (#2), and Live Sheet's PACTAP AP-grant
+  codec (`_apEnc`/`_apDec`, which shares `_apHash`/`_AK`). Legacy `cat:'campaign'` events replay inert (the
+  engine's `_replay` tolerates a missing mutator). Verified in real Chromium (`random-manual-e2e.mjs` 2/2:
+  CharGen pickers + advancement + DM Console import). Why in `DECISIONS.md`
+  (D-GH-2026-07-13-retire-pactrules-code). Remaining: part (b), the offline LOG rules-snapshot + resolver.
+- **2026-07-13 · docs — orphaned-export sweep of `js/engine.js` (A9, find-and-report only)**
+  (`docs/sessions/2026-07-13-orphaned-export-sweep.md`; no code changed). Grepped all 14 named exports
+  across the tools + `js/` + tests: 13 are referenced; **`SIG_ALG`** is a confirmed zero-reference export
+  (used only inside `engine.js` by `signPayload`/`verifyPayload`). Filed as a follow-up roadmap item
+  (de-export or justify). `rebuildStateFromEvents` is used only by the parity tests but is the tested
+  event-replay contract, so it stays. No `DATA.version` change.
+- **2026-07-13 · feat — DM Console: copy campaign rules from another campaign**
+  (`tools/DM-Console.html`; `js/engine.js` untouched, no `DATA.version` bump, no schema/RLS change).
+  A "Copy rules from…" picker on the Campaign Rules panel lists the DM's other campaigns (owner/co-DM);
+  picking one loads its rules JSON into the current form via the existing `loadRulesIntoPanel()` — a
+  starting-point copy, not a live link. Nothing persists until the DM clicks the existing **Save rules**
+  button, which writes only the current campaign through the existing `setCampaignRules()` (DM-only, RLS).
+  The source campaign is never mutated (the loader clones `houseRules` into a fresh object and only reads
+  grid values — verified in a real Chromium DOM, 13/13, incl. the source-unchanged property). Picker hides
+  when the DM has no other campaigns; option labels use `textContent` (no innerHTML), so no `esc()` needed.
+- **2026-07-13 · perf — Live Sheet: stop re-folding+re-computing for "AP available" in hot paths**
+  (`tools/PACT-Live-Char-Sheet.html`; `js/engine.js` untouched, no `DATA.version` bump, parity 20/0).
+  The campaign-AP-model work had routed `buy()` and the paid spell-swap eligibility check through
+  `apAvailable(null)`, which internally runs a fresh `foldBuild(null)+compute()` — redundant next to the
+  fold each caller already had. (a) `buy()` now folds the LOG **once** (`b0`) and threads it into
+  `priceOf()`/`legalCheck()` (both gained an optional pre-folded-build param) and reuses it for the dup
+  guard, availability, and `b0.hd`, dropping ~4 redundant folds + 1 redundant `compute()` per purchase.
+  (b) `openNames()` hoisted its per-known-spell-slot `apAvailable(null)` out of the discipline loop into
+  one reuse of its existing `b` fold — was O(spell-slots) full recomputes, now O(1). The AP figure is
+  byte-identical (`apAvailable(null) === _apRemaining(compute(foldBuild(null),_dmOpts()).spendable,
+  economy(null).spent)`); `buyoffDrawback()`/`_swapTally()` left as-is (already one minimal call each).
 - **2026-07-12 · fix — four aggregate-review findings across both tools**
   (`tools/PACT-Live-Char-Sheet.html`, `tools/PACT-CharGen-Webtool.html`; `js/engine.js` untouched, no
   `DATA.version` bump, parity 20/0). A pre-promotion `/code-review high` over the whole `main…preview`
