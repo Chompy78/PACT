@@ -402,6 +402,20 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       </div>
     </section>
 
+    <section class="tools-group" aria-label="Local data backup">
+      <h2 class="section-head">Your data</h2>
+      <div style="text-align:center;font-size:13px;line-height:1.55;max-width:640px;margin:0 auto">
+        Everything you make while <b>signed out</b> lives only in this browser. Back it up to one file so a
+        cache/browser clear — or switching devices — can't lose your characters, DM roster, and settings.
+        <div style="margin-top:12px;display:inline-flex;gap:10px;flex-wrap:wrap;justify-content:center">
+          <button type="button" id="backupBtn" style="font:inherit;font-size:13px;padding:8px 16px;border:1px solid currentColor;border-radius:8px;background:transparent;color:inherit;cursor:pointer">⬇ Back up local data</button>
+          <button type="button" id="restoreBtn" style="font:inherit;font-size:13px;padding:8px 16px;border:1px solid currentColor;border-radius:8px;background:transparent;color:inherit;cursor:pointer">⬆ Restore from file</button>
+          <input type="file" id="restoreFile" accept="application/json,.json" hidden>
+        </div>
+        <div id="backupMsg" role="status" aria-live="polite" style="margin-top:8px;min-height:16px;font-size:12px;opacity:.85"></div>
+      </div>
+    </section>
+
     <footer>If a tool loads blank, open the browser console (F12) and check that <code>js/engine.js</code> returned 200. · <a href="https://github.com/Chompy78/PACT/issues/new" target="_blank" rel="noopener">Report an issue</a> <span id="buildVer"></span></footer>
   </div>
 
@@ -540,6 +554,57 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
         window.addEventListener('focus', function () { reg.update(); });
       });
     }
+
+    /* ---- Local-data backup / restore (B2, A5): bundle every `pact*` localStorage key to one JSON file and
+       restore from it. localStorage is per-origin, so this single page covers every tool's storage. Protects
+       local-only (signed-out) play from a browser/cache clear. ---- */
+    (function () {
+      var msg = document.getElementById('backupMsg');
+      function say(t, bad) { if (msg) { msg.textContent = t; msg.style.color = bad ? 'var(--bad,#b00020)' : ''; } }
+      function pactKeys() {
+        var out = [];
+        for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && /^pact/i.test(k)) out.push(k); }
+        return out;
+      }
+      var backupBtn = document.getElementById('backupBtn');
+      if (backupBtn) backupBtn.addEventListener('click', function () {
+        try {
+          var keys = pactKeys();
+          if (!keys.length) { say('Nothing stored locally yet — make a character first.'); return; }
+          var data = {}; keys.forEach(function (k) { data[k] = localStorage.getItem(k); });
+          var bundle = { _pactBackup: 1, exportedAt: new Date().toISOString(), origin: location.origin, keys: data };
+          var url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }));
+          var a = document.createElement('a');
+          a.href = url; a.download = 'pact-local-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+          say('Backed up ' + keys.length + ' item' + (keys.length > 1 ? 's' : '') + ' ✓');
+        } catch (e) { say('Backup failed: ' + (e && e.message || e), true); }
+      });
+      var restoreBtn = document.getElementById('restoreBtn');
+      var restoreFile = document.getElementById('restoreFile');
+      if (restoreBtn && restoreFile) {
+        restoreBtn.addEventListener('click', function () { restoreFile.value = ''; restoreFile.click(); });
+        restoreFile.addEventListener('change', function () {
+          var f = restoreFile.files && restoreFile.files[0]; if (!f) return;
+          var r = new FileReader();
+          r.onload = function () {
+            try {
+              var b = JSON.parse(String(r.result || ''));
+              var keys = b && b.keys;
+              if (!b || b._pactBackup !== 1 || !keys || typeof keys !== 'object') { say('That is not a PACT local-backup file.', true); return; }
+              // restore ONLY pact* keys with string values — never let a file write arbitrary storage
+              var names = Object.keys(keys).filter(function (k) { return /^pact/i.test(k) && typeof keys[k] === 'string'; });
+              if (!names.length) { say('No PACT data found in that file.', true); return; }
+              if (!confirm('Restore ' + names.length + ' item' + (names.length > 1 ? 's' : '') + ' into this browser?\n\nThis OVERWRITES any character or settings currently stored here under those keys.')) return;
+              names.forEach(function (k) { try { localStorage.setItem(k, keys[k]); } catch (e) {} });
+              say('Restored ' + names.length + ' item' + (names.length > 1 ? 's' : '') + ' ✓ — reopen a tool to see them.');
+            } catch (e) { say('Restore failed — not a valid backup file.', true); }
+          };
+          r.readAsText(f);
+        });
+      }
+    })();
   </script>
 </body>
 </html>
