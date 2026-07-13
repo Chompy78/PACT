@@ -80,21 +80,6 @@ binding on an existing row) and two new UI flows across two tools, this is a str
 
 ---
 
-## Feature: DM clone campaign rules to another campaign — TODO
-Branch feat/clone-campaign-rules. Let a DM copy the rules configuration from one campaign and apply it as the starting point for another campaign's rules.
-
-```text
-In DM Console, add a "Copy rules from…" action on the Campaign Rules panel.
-Present the DM with a list of their other campaigns; selecting one copies that campaign's rules JSON into the current campaign's rules fields.
-The DM can then adjust before saving — this is a starting-point copy, not a live link.
-Write the copied rules to Supabase only on explicit save (DM-only, protected by RLS).
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** a DM can copy rules from one of their campaigns into another and save them; the source campaign is unchanged; parity still 20/0.
-
----
-
 ## Feature: Advancement tracks + D&D 2024 level equivalency — TODO
 Branch feat/advancement-tracks. Store AP-per-level advancement tracks (slow/average/fast + custom) and a D&D 2024 equivalent level reference table; let DMs select or customise a track per campaign.
 
