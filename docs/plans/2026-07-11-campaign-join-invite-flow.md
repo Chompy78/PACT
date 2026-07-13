@@ -2,8 +2,32 @@
 
 > **Deliverable 1 (Path A) — SHIPPED 2026-07-13** on `feat/campaign-invite-tokens`. See `CHANGELOG.md`
 > and `DECISIONS.md` `D-GH-2026-07-13-campaign-invite-tokens` for what shipped and its one known gap
-> (browser click-through not exercised — see that entry's "Status"). **Deliverable 2 (Path B) is still
-> open** — everything below the Deliverable-1 sections still applies to it.
+> (browser click-through not exercised — see that entry's "Status").
+>
+> **Deliverable 2 (Path B) — re-verified 2026-07-13, before implementation.** Every B1-B3 fact still
+> holds (`bind_character_to_campaign` doesn't exist anywhere yet; `characters_update`'s grant still
+> excludes `campaign_id`, confirming the SECURITY DEFINER RPC is still the only write path; `validate(b,
+> rules)`'s signature is unchanged). Two corrections from re-checking against the now-current code:
+> 1. **UI placement.** B3 says "beside the campaign selector" — that header element (`#cgCloudCampSel`)
+>    is the campaign-*rules* preview picker (filters live pickers by a campaign's rules, independent of
+>    any specific character), not a natural home for a per-character bind action. Placing "Join campaign"
+>    inside the existing `#cgCloudMenu` (☁ Cloud dropdown, next to Save/Load — built for Path A) fits
+>    better: it's already where users look for actions on the currently-open character, and reuses an
+>    existing menu instead of adding a second UI surface.
+> 2. **"Non-blocking" framing.** B3's rationale ("matches CharGen/Live Sheet's live-filter warnings") is
+>    imprecise — the Live Sheet's *actual* existing use of the engine's `validate()` (its cloud-save
+>    handler, `tools/PACT-Live-Char-Sheet.html` ~line 1606) is a **blocking** `alert()` that refuses to
+>    save an *already-bound* character with new rule violations. Path B's non-blocking choice for the
+>    *first-time join* case still stands on its own merits — an independently-built character may already
+>    carry pre-campaign "violations" that would make a hard bind refusal unusable — but it's a deliberate
+>    divergence from that existing pattern, not a match to it. Note for symmetry: CharGen's own live
+>    rule-filtering (`_cloudCampaign`/`cloudRuleBarred`, hides banned options from pickers once a campaign
+>    is active) already provides a soft guard against *new* violations after a Path B bind, same as it
+>    does for Path A's redeemed characters — no extra save-time gate is needed for that case.
+> 3. **Confirmed:** `js/sync.js`'s `saveCharacter`/`pushCharacter` inserts a `characters` row if none
+>    exists yet for that id (update-then-insert-on-miss). Since `bind_character_to_campaign` requires an
+>    existing owned row (decision 2's owner check), the join flow must call `saveCharacter` first if the
+>    current character has never been saved to the cloud, then bind.
 >
 > **Revision 3** — re-verified 2026-07-13 against the shipped `feat/campaign-ap-model` code (closed
 > 2026-07-12, after this plan's Revision 2). No architectural change: every fact Revision 2 verified still
