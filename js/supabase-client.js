@@ -6,9 +6,9 @@
 // NEVER put the secret/service_role key in here.
 
 // Pinned to an EXACT version (not the `@2` major) so a CDN-side minor/patch release can't silently
-// change offline/auth behaviour under us. To bump: pick a new 2.x, update this line AND the version in
-// the e2e stub route (testing/scripts/random-manual-e2e.mjs uses a version-agnostic regex, so it keeps
-// matching), then re-run the pre-release QA. `@2` last resolved to 2.110.2 (2026-07-13).
+// change offline/auth behaviour under us. To bump: change ONLY this line to a new 2.x, then re-run the
+// pre-release QA. The e2e stub (testing/scripts/random-manual-e2e.mjs) matches the import with a
+// version-agnostic regex, so it needs no edit on a bump. `@2` last resolved to 2.110.2 (2026-07-13).
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.2';
 
 export const SUPABASE_URL = 'https://piuprrrnaotrtxucrtsb.supabase.co';
