@@ -4,6 +4,12 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · feat — back up / restore all local data from the landing page (A5)** (`index.html`;
+  localStorage-only, no engine/schema touch). A "Your data" section on `index.html` bundles every `pact*`
+  localStorage key (Live Sheet character, CharGen build, DM roster, settings — all same-origin) into one
+  downloadable JSON, and restores from it, so signed-out/local-only play survives a browser or cache clear.
+  Restore **whitelists `pact*` string keys** (a file can't write arbitrary storage) and confirms before
+  overwriting. Verified in a real browser (7/7), including the whitelist rejecting a malicious non-`pact` key.
 - **2026-07-13 · refactor(engine) — remove REV-13 dead grant maps** (`js/engine.js`; no `DATA.version` bump,
   parity 20/0). `compute()`'s `grantSk/grantTl/grantIn` "free-grant" scaffolds were declared empty and never
   populated, so the paid-skill/tool filters that read them (`filter(s=>!grantSk[s])` …) only ever filtered an

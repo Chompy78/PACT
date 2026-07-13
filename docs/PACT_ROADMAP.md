@@ -123,9 +123,6 @@ Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, 
 - **A3 — Client error visibility.** *(base shipped 2026-07-13)* Global `error`/`unhandledrejection` surface +
   Report-issue link now on all pages. *Remaining (lower priority):* log errors to a Supabase table once
   sign-in is the default — *caveats:* extra write traffic + a privacy note to document.
-- **A5 — Bulk "back up all characters."** Add a "Back up all" button → one JSON bundle, plus restore, so a
-  localStorage user can't lose everything to a browser clear. *Then:* the Supabase migration supersedes it
-  — *caveat:* keep the local backup until cloud sign-in is the default.
 - **A6 — Tag releases to the build version.** `git tag v0.x` (matching `BUILD`) + a GitHub Release per
   ship, for a labelled rollback point. *Then (lighter alternative):* tags only, no notes — *caveat:* less
   context on what each release shipped.
