@@ -237,13 +237,24 @@ const deepEqualJSON = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // compute() purity: same input twice -> same output, and the input itself must be untouched.
 // Runs entirely in this Node process (fresh engine import) — no browser involved.
+//
+// r1/r2 each get their OWN clone (never the same object, and never the caller's `build`), so a
+// mutation during call 1 can't taint call 2's determinism comparison. Mutation is tested
+// separately via a THIRD, dedicated clone: snapshot it, hand it to compute(), then compare —
+// this is the only way to actually detect a mutation, since compute() must be given a real
+// object it could mutate (an earlier version of this function called compute() with a fresh
+// deepClone() every time and then compared the ORIGINAL `build` against itself, which can never
+// differ because `build` was never passed to compute() at all — a tautological check that could
+// never fire).
 function checkComputePurity(ENGINE, build, label) {
   const notes = [];
-  const before = deepClone(build);
   const r1 = ENGINE.compute(deepClone(build));
   const r2 = ENGINE.compute(deepClone(build));
   if (!deepEqualJSON(r1, r2)) notes.push(`[oracle:${label}] compute() is not deterministic on the same input (two calls differed)`);
-  if (!deepEqualJSON(before, build)) notes.push(`[oracle:${label}] compute() mutated its input build object`);
+  const probe = deepClone(build);
+  const before = deepClone(probe);
+  ENGINE.compute(probe);
+  if (!deepEqualJSON(before, probe)) notes.push(`[oracle:${label}] compute() mutated its input build object`);
   return notes;
 }
 
@@ -278,12 +289,21 @@ async function checkEconomyAgreement(ENGINE, page, label) {
 // Live-Sheet-only (LOG is that tool's authoritative build source, so foldBuild(LOG) is meaningful
 // there): cross-check the two documented engine entry points that both replay a LOG —
 // foldBuild()+compute() and rebuildStateFromEvents() — against each other AND against the browser.
+//
+// Resolves the RAW, array-parameter foldBuild explicitly (window._engineFold on Live Sheet,
+// window directly on CharGen) rather than the tool's own `foldBuild(null)` convention — the same
+// array-vs-index hazard as window.economy (see checkEconomyAgreement above): were this function
+// ever reused for a tool whose window.foldBuild is index-based AND doesn't happen to have
+// eventsUpTo(null)===LOG by coincidence, `foldBuild(null)` could silently mean something other
+// than "the LOG this check just read." Explicit resolution removes that assumption entirely.
 async function checkFoldRebuildAgreement(ENGINE, page, label) {
   const notes = [];
   const pageSide = await page.evaluate(() => {
-    const b = window.foldBuild(null);
+    const raw = window._engineFold || { foldBuild: window.foldBuild };
+    const log = typeof LOG !== 'undefined' ? LOG : [];
+    const b = raw.foldBuild(log);
     const r = window.compute(b);
-    return { LOG: typeof LOG !== 'undefined' ? LOG : [], budget: b.budget, total: r.total, remaining: r.remaining };
+    return { LOG: log, budget: b.budget, total: r.total, remaining: r.remaining };
   });
   const nodeBuild = ENGINE.foldBuild(pageSide.LOG);
   const nodeResult = ENGINE.compute(nodeBuild);
@@ -300,9 +320,17 @@ async function checkFoldRebuildAgreement(ENGINE, page, label) {
 // Runs the whole oracle for one tool/moment. `fullCrossCheck` additionally runs the
 // foldBuild/rebuildStateFromEvents comparison — only meaningful where LOG is the build's
 // authoritative source (Live Sheet), not where a DOM-driven readBuild() is (CharGen mid-edit).
+// The fold path resolves the raw array-parameter foldBuild explicitly (see
+// checkFoldRebuildAgreement's comment) — not `window.foldBuild(null)` — so this stays correct
+// even if a future caller ever passes `fullCrossCheck: true` for a tool whose window.foldBuild
+// isn't already the tool-current-state convention this happens to coincide with today.
 async function checkEngineInvariants(ENGINE, page, label, { fullCrossCheck = false } = {}) {
   const notes = [];
-  const build = await page.evaluate((useFold) => (useFold ? window.foldBuild(null) : window.readBuild()), fullCrossCheck);
+  const build = await page.evaluate((useFold) => {
+    if (!useFold) return window.readBuild();
+    const raw = window._engineFold || { foldBuild: window.foldBuild };
+    return raw.foldBuild(typeof LOG !== 'undefined' ? LOG : []);
+  }, fullCrossCheck);
   notes.push(...checkComputePurity(ENGINE, build, label));
   notes.push(...(await checkEconomyAgreement(ENGINE, page, label)));
   if (fullCrossCheck) notes.push(...(await checkFoldRebuildAgreement(ENGINE, page, label)));
@@ -417,8 +445,8 @@ async function randomCheckSubset(page, selector, rng, n) {
 // internal shapes between the two representations (armour, traditions, freeSub, customProfs, …) —
 // diffing those would risk false positives, not real signal. Was 3 fields (species/originClass/hd);
 // this catches a lossy handoff on any of the ~20 fields below instead.
-const PORTABLE_PRIMITIVE_FIELDS = ['species', 'species2', 'originClass', 'originClass2', 'hd', 'profBonus', 'hardy', 'tough', 'languages', 'wornArmour', 'martiallyBound'];
-const PORTABLE_ARRAY_FIELDS = ['racialTraits', 'boons', 'drawbacks', 'arts', 'masteries', 'saves', 'skills', 'tools', 'instruments', 'toolExpertise', 'expertise'];
+const PORTABLE_PRIMITIVE_FIELDS = ['species', 'species2', 'originClass', 'originClass2', 'hd', 'profBonus', 'hardy', 'tough', 'languages', 'wornArmour', 'martiallyBound', 'lineage', 'extraClasses', 'gold', 'size', 'sorcery', 'ki', 'attune'];
+const PORTABLE_ARRAY_FIELDS = ['racialTraits', 'boons', 'drawbacks', 'arts', 'masteries', 'saves', 'skills', 'tools', 'instruments', 'toolExpertise', 'expertise', 'customProfs'];
 
 function portableSnapshot(b) {
   const out = {};
@@ -468,25 +496,30 @@ async function dismissNamesModalIfOpen(page) {
 }
 
 // Undo-then-redo must be a true round trip: the folded build after undo+redo must be
-// byte-identical to the build right before undo was called. Previously entirely unchecked.
+// identical to the build right before undo was called. Previously entirely unchecked.
 // Calls undo()/redo() directly (not a DOM click) — Live Sheet has TWO Undo buttons on the page
 // (desktop toolbar + mobile action bar), both wired to the exact same onclick="undo()", so a
 // role-based click would be Playwright-strict-mode-ambiguous; calling the function they both
 // invoke exercises identical app code without that ambiguity.
+//
+// Compares the FOLDED BUILD, not raw LOG length/contents: undo() permanently drops any trailing
+// `rulesSnapshot` events (sync-written metadata, never redo-restorable by design — see
+// D-GH-2026-07-13-campaign-rules-snapshot) before it even reaches the real undo target, so LOG
+// length/shape after a genuine undo+redo round trip can legitimately differ from before. Since
+// `rulesSnapshot` is engine-inert (never read by `foldBuild()`/`_replay()`), the folded build is
+// the correct, drop-immune invariant — it's unaffected by whether snapshot events happen to be
+// present, absent, or mid-drop, and this also means no LOG-length pre-check is needed to skip a
+// no-op undo (award-locked / empty LOG): the build is trivially unchanged in that case too.
 async function checkUndoRedoRoundTrip(page, rng, label) {
   const notes = [];
   if (!chance(rng, 0.6)) return notes; // sampled, not every level — keep the advancement loop light
-  const before = await page.evaluate(() => ({ log: LOG.length, build: window.foldBuild(null) }));
-  if (before.log === 0) return notes;
+  const before = await page.evaluate(() => window.foldBuild(null));
   await page.evaluate(() => window.undo());
   await page.waitForTimeout(30);
-  const afterUndo = await page.evaluate(() => LOG.length);
-  if (afterUndo === before.log) return notes; // award-locked / no-op undo — round trip trivially holds
   await page.evaluate(() => window.redo());
   await page.waitForTimeout(30);
-  const after = await page.evaluate(() => ({ log: LOG.length, build: window.foldBuild(null) }));
-  if (after.log !== before.log) notes.push(`[oracle:${label}] undo/redo round trip: LOG length before=${before.log} after=${after.log} (redo did not restore the popped event)`);
-  else if (!deepEqualJSON(after.build, before.build)) notes.push(`[oracle:${label}] undo/redo round trip: folded build differs after undo-then-redo (should be identical to the build right before undo)`);
+  const after = await page.evaluate(() => window.foldBuild(null));
+  if (!deepEqualJSON(after, before)) notes.push(`[oracle:${label}] undo/redo round trip: folded build differs after undo-then-redo (should be identical to the build right before undo)`);
   return notes;
 }
 
