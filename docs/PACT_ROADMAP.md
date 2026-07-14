@@ -95,29 +95,6 @@ practical. Display-only feature — no DATA.version/compute() involvement; parit
 
 ---
 
-## Live Sheet economy-line: tuned-curve vs earned-AP pace readout — TODO
-Branch feat/livesheet-eco-track-level. Decide and implement whether Live Sheet's `#eco` economy line should move to the campaign's tuned budget curve or stay an earned-AP pace readout.
-
-```text
-Follows feat/advancement-tracks (PR #206). That PR replaced the header "≈ AP-Level" chip (earned AP vs the
-fixed default DATA.levelAP table) with "≈ Track-Level" (AP spent vs the campaign's tuned levelBudgetCurve),
-but deliberately LEFT the separate #eco economy line (tools/PACT-Live-Char-Sheet.html, the
-$('eco').innerHTML block) showing "Lv L · X AP to reach equivalent of Lv L+1" computed from eco.earned
-against DATA.levelAP — a distinct earning-pace widget.
-
-Decide: (a) leave it as an earned-AP pace readout (it answers a different question than Track-Level),
-(b) move it onto the tuned budget curve for consistency with the header, or (c) show both, clearly
-labelled. Then implement the choice, making the label unambiguous about which metric it is so it doesn't
-read as a third competing "level" number.
-
-Display-only — do NOT bump DATA.version; just log in CHANGELOG. If the reasoning is non-obvious, log a
-DECISIONS.md note as D-GH-<date>-livesheet-eco-track-level.
-```
-
-**Done when:** the `#eco` economy line's level readout is either intentionally kept as an earned-AP pace metric or moved to the tuned curve, with an unambiguous label distinguishing it from the header Track-Level; parity still 20/0.
-
----
-
 ## Tools: back-to-Home navigation + toolbar button cleanup — TODO
 Branch feat/tools-home-nav-cleanup. Add a "← Home" link back to index.html in each tool's header (tools/PACT-CharGen-Webtool.html, tools/PACT-Live-Char-Sheet.html, tools/DM-Console.html), and audit/reduce each tool's header/toolbar button clutter in the same PR.
 
