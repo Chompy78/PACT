@@ -4,6 +4,11 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-14 · feat(docs) — link the roadmap interface from the landing page** (`index.html`; no
+  `js/engine.js`/`DATA.version`/`BUILD` change, parity unaffected 20/0). Adds a "Project" section with a
+  Roadmap card (matching the existing tool-card markup/style) linking to `docs/roadmap.html`, so the
+  visual roadmap is reachable in one click from the index.
+
 - **2026-07-13 · fix(campaign) — `join_campaign`/`redeem_player_invite` race surfaces friendly error, not raw DB error**
   (`sql/schema.sql` + `sql/migrations/2026-07-13-campaign-join-race-friendly-error.sql`; no `js/engine.js`
   change, parity unchanged 20/0). Both RPCs' character-insert had no `unique_violation` handler, unlike
