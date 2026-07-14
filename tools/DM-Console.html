@@ -344,6 +344,7 @@
 (function(){var RB='https://github.com/Chompy78/PACT/issues/new';function L(k,d){try{console.error('[PACT] '+k+':',d,'— report: '+RB);}catch(_){}}
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
+<script src="../js/ui-helpers.js"></script>
 <header class="topbar">
   <h1><span class="dot"></span>PACT — DM Console</h1>
   <div class="summary" id="summary">No characters imported yet.</div>
@@ -1280,8 +1281,6 @@ document.addEventListener('campaign-ready', function () {
   var currentCampaigns = [];
   var currentCampId = null;
   var currentHouseRules = {};
-
-  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   // ---- Campaign Rules panel (D-GH14) ----
   var _D = (typeof DATA !== 'undefined') ? DATA : {};
