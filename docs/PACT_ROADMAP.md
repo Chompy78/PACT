@@ -111,6 +111,51 @@ Display/process-only — does not touch js/engine.js or DATA.version; just log i
 
 ---
 
+## Advancement-tracks follow-up: end-to-end browser verification — TODO
+Branch test/advancement-tracks-e2e. Drive the advancement dials shipped in `feat/advancement-tracks` (PR #206) through a real browser with an AI/browser-automation tool, since they need Supabase auth + a live campaign the headless parity gate can't exercise.
+
+```text
+Depends on PR #206 (feat/advancement-tracks) being merged first. Using a browser-automation/AI tool
+(signed in to a test Supabase account with a live campaign):
+1. DM Console → Campaign Rules: confirm the three new controls (Level budget curve, Award pace, Starting
+   tier) render, the L20 preview updates live, and preset<->field sync works (picking Generous sets
+   83/+28; editing a number flips the preset to Custom).
+2. Save rules -> reload -> confirm all three persist in campaigns.rules.
+3. Change Starting tier -> confirm the player-invite "Starting budget" field pre-fills and stays editable.
+4. As a player bound to that campaign, open Live Sheet -> confirm the header shows "≈ Track-Level N"
+   derived from AP spent against the campaign's tuned curve; an unbound character falls back to Standard.
+5. Check the browser console for errors at each step.
+Fold the reproducible parts into the existing e2e harness (testing/scripts, character-gen-e2e.yml) if
+practical. Display-only feature — no DATA.version/compute() involvement; parity still 20/0.
+```
+
+**Done when:** the DM-panel↔bound-player advancement-dials round-trip is verified working in a real browser (save/load/persist, invite pre-fill, Track-Level label), with any bugs found either fixed or filed.
+
+---
+
+## Live Sheet economy-line: tuned-curve vs earned-AP pace readout — TODO
+Branch feat/livesheet-eco-track-level. Decide and implement whether Live Sheet's `#eco` economy line should move to the campaign's tuned budget curve or stay an earned-AP pace readout.
+
+```text
+Follows feat/advancement-tracks (PR #206). That PR replaced the header "≈ AP-Level" chip (earned AP vs the
+fixed default DATA.levelAP table) with "≈ Track-Level" (AP spent vs the campaign's tuned levelBudgetCurve),
+but deliberately LEFT the separate #eco economy line (tools/PACT-Live-Char-Sheet.html, the
+$('eco').innerHTML block) showing "Lv L · X AP to reach equivalent of Lv L+1" computed from eco.earned
+against DATA.levelAP — a distinct earning-pace widget.
+
+Decide: (a) leave it as an earned-AP pace readout (it answers a different question than Track-Level),
+(b) move it onto the tuned budget curve for consistency with the header, or (c) show both, clearly
+labelled. Then implement the choice, making the label unambiguous about which metric it is so it doesn't
+read as a third competing "level" number.
+
+Display-only — do NOT bump DATA.version; just log in CHANGELOG. If the reasoning is non-obvious, log a
+DECISIONS.md note as D-GH-<date>-livesheet-eco-track-level.
+```
+
+**Done when:** the `#eco` economy line's level readout is either intentionally kept as an earned-AP pace metric or moved to the tuned curve, with an unambiguous label distinguishing it from the header Track-Level; parity still 20/0.
+
+---
+
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 ## Engine review cleanup: drawback buyoff IDs, signature guard, baseBuild dedupe, noLock scoping — TODO
