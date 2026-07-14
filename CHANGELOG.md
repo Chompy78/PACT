@@ -4,6 +4,48 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · fix(campaign) — `join_campaign`/`redeem_player_invite` race surfaces friendly error, not raw DB error**
+  (`sql/schema.sql` + `sql/migrations/2026-07-13-campaign-join-race-friendly-error.sql`; no `js/engine.js`
+  change, parity unchanged 20/0). Both RPCs' character-insert had no `unique_violation` handler, unlike
+  `bind_character_to_campaign` (`D-GH-2026-07-13-campaign-bind-character`) — a race that beat either RPC's
+  `is_campaign_member()` pre-check hit `idx_characters_owner_campaign_unique` and surfaced a raw Postgres
+  "duplicate key value violates unique constraint" error instead of the existing friendly "You have already
+  joined this campaign" message. Wrapped each insert in the same `begin/exception when unique_violation`
+  pattern already proven in `bind_character_to_campaign`. Verified live: both functions now carry the
+  handler (`pg_proc` introspection); Supabase advisor shows no new finding class; `get_logs` shows only
+  pre-existing unrelated errors. Closes the roadmap follow-up filed alongside
+  `D-GH-2026-07-13-campaign-membership-helpers`. See `DECISIONS.md`
+  `D-GH-2026-07-13-campaign-join-race-friendly-error`.
+- **2026-07-14 · feat — campaign advancement dials (budget curve · award pace · starting tier)**
+  (`js/advancement.js` new; `js/engine.js` import+`DATA` assignments; `tools/DM-Console.html`,
+  `tools/PACT-Live-Char-Sheet.html`; display/config-only, no `compute()` change, no `DATA.version` bump,
+  parity 20/0). New `js/advancement.js` holds three display-only reference tables surfaced on
+  `DATA.levelBudgetCurves` (Standard 79/+24 → L20 535, Generous 83/+28 → 615), `DATA.awardPaces`
+  (Slow 5 / Average 7 / Fast 10 AP/session), `DATA.startingTierRatios` (Prelude 0.7× … Legendary 1.6×) —
+  none read by `compute()` or `_replay()`. DM Console's Campaign Rules panel gained three controls (preset
+  + editable numbers, live L20 preview, preset↔field sync), persisted into the existing `campaigns.rules`
+  JSONB via `setCampaignRules` (no new column/RPC/RLS); the player-invite "Starting budget" field now
+  pre-fills from the campaign's starting tier (editable per invite). Live Sheet's header/overlay "≈ AP-Level"
+  chip (earned-AP vs the fixed default table) was **replaced** by "≈ Track-Level" (AP *spent* vs the
+  campaign's tuned budget curve, Standard fallback when unbound); the now-orphaned `apLevel()` helper was
+  removed from Live Sheet. Dropped from the original roadmap task: the "D&D 2024 equivalent" label (the
+  existing "Level N" already IS that per the guide's identity rule — a redundant chip); deferred: custom
+  per-level curve UI and the `DATA.level1AP` creation-lock coherence fix (a real mechanics change, its own
+  PR). Graduates the "Advancement tracks + D&D 2024 level equivalency" roadmap item. See `DECISIONS.md`
+  `D-GH-2026-07-14-advancement-tracks`.
+- **2026-07-14 · feat(docs) — `docs/roadmap.html`: a standalone visual roadmap interface** (new file;
+  no `js/engine.js` change, no `DATA.version` bump, parity unaffected 20/0). A self-contained, vanilla-JS
+  single page (no build step, no dependencies — same static/GitHub-Pages ethos as the tools) that renders
+  both open work (from `docs/PACT_ROADMAP.md`) and shipped history (207 entries parsed from
+  `CHANGELOG.md`) in seven interchangeable views: **Board** (Now/Next/Later/Shipped columns), **Timeline**
+  (planned + shipped-per-day), **Category**, **Priority** swimlanes, a graphical radial **Map**
+  (mind-map clustering items around category hubs around a PACT center), a sortable **Table**, and a
+  **Dashboard** (delivery-cadence bar chart, by-category/status/priority breakdowns, at-a-glance stats).
+  A shared control bar (text search + status/category/priority filters) drives every view live; clicking
+  any item opens a detail dialog. Theme-aware (light/dark via `prefers-color-scheme` + a manual toggle),
+  responsive, all player-facing text run through `esc()`. The data is a point-in-time snapshot embedded in
+  the page; regenerate by re-parsing the two source docs when it drifts.
+
 - **2026-07-13 · refactor(campaign) — de-duplicate campaign-membership SQL checks**
   (`sql/migrations/2026-07-13-campaign-membership-helpers.sql` + mirrored into
   `sql/schema.sql`/`sql/rls-policies.sql`; no `js/engine.js` change, parity unchanged 20/0). Pure internal

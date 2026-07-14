@@ -39,6 +39,8 @@
 
 // AP-by-level ladder lives in its own editable file (feat/ap-by-level); surfaced on DATA below.
 import { AP_BY_LEVEL, DEFAULT_LEVEL } from './ap-by-level.js';
+// Per-campaign advancement dials (display/config-only; never read by compute()/_replay()).
+import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advancement.js';
 
 export const BUILD = "v0.200";
 
@@ -53,6 +55,11 @@ DATA.apByLevel = AP_BY_LEVEL;
 DATA.defaultAp = AP_BY_LEVEL[DEFAULT_LEVEL];
 DATA.levelAP   = AP_BY_LEVEL;                 // back-compat alias (tool display / apLevel())
 DATA.level1AP  = AP_BY_LEVEL[DEFAULT_LEVEL];  // back-compat alias (compute racial-trait lock)
+// Per-campaign advancement dials — display/config-only reference tables, never
+// read by compute() or _replay(); editing js/advancement.js does not bump DATA.version.
+DATA.levelBudgetCurves  = LEVEL_BUDGET_CURVES;
+DATA.awardPaces         = AWARD_PACES;
+DATA.startingTierRatios = STARTING_TIER_RATIOS;
 
 /* ---- shared helpers ------------------------------------------------------ */
 const _mod = s => Math.floor((s - 10) / 2);

@@ -9,6 +9,8 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-13-campaign-join-race-friendly-error** — `join_campaign`/`redeem_player_invite`'s character-insert now converts a `unique_violation` race into the same friendly "already joined" message `bind_character_to_campaign` already uses, instead of a raw Postgres error
+- **D-GH-2026-07-14-advancement-tracks** — Campaign advancement as three display-only per-campaign dials (level budget curve / award pace / starting tier) stored in `campaigns.rules`; dropped the D&D-equivalent chip as redundant with the existing `Level N`; replaced (not added to) Live Sheet's earned-AP `apLevel` chip with a spent-AP tuned-curve `trackLevel`; left `js/ap-by-level.js` untouched (pace curve ≠ budget curve)
 - **D-GH-2026-07-13-campaign-membership-helpers** — De-duplicate campaign-membership SQL checks: one new ungranted helper for the invite_code lookup, reuse the pre-existing `is_campaign_member()` for the membership check rather than adding a second near-duplicate function (a self-review catch)
 - **D-GH-2026-07-13-campaign-bind-character** — Campaign join/invite UI Deliverable 2 (Path B): bind an existing character via the shared `invite_code`; non-blocking `validate()` warnings on join, placed in the ☁ Cloud menu rather than the header's rules-preview picker
 - **D-GH-2026-07-13-campaign-invite-tokens** — Campaign join/invite UI Deliverable 1 (Path A): a single-use, per-player CSPRNG token distinct from the shared `invite_code`, redemption reuses CharGen's own cloud-save helpers rather than re-deriving envelope construction
@@ -85,6 +87,89 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-13-campaign-join-race-friendly-error · `join_campaign`/`redeem_player_invite` race surfaces friendly error, not raw DB error
+- **Context:** filed as a roadmap follow-up from `D-GH-2026-07-13-campaign-membership-helpers`'s own
+  `/code-review` pass: `join_campaign` and `redeem_player_invite`'s character-insert had no
+  `unique_violation` exception handler, unlike `bind_character_to_campaign` (which got one in
+  `D-GH-2026-07-13-campaign-bind-character` to close the same TOCTOU race). All three RPCs share the same
+  unlocked "`is_campaign_member()` check, then insert/update" shape, and all three write into the same
+  `idx_characters_owner_campaign_unique` partial index — so all three can lose the same race. A race that
+  beats either RPC's pre-check hit that index and surfaced a raw Postgres "duplicate key value violates
+  unique constraint" error to the client instead of the friendly "You have already joined this campaign"
+  message the pre-check itself already raises.
+- **Options:** (A) wrap the insert in `begin/exception when unique_violation` inside each function, raising
+  the exact message text the function's own pre-check already uses — the pattern already proven in
+  `bind_character_to_campaign`. (B) add a single shared helper function both RPCs call instead of
+  duplicating the begin/exception block.
+- **Decision:** (A) — mirrors the already-shipped, already-reviewed `bind_character_to_campaign` pattern
+  exactly, keeping all three RPCs' race-handling shape identical and easy to audit together. (B) would add
+  a helper to save a two-line catch clause already duplicated three times (this change brings
+  `join_campaign`/`redeem_player_invite` in line with `bind_character_to_campaign`, which already carries
+  it) — but the statement each block wraps differs per call site (a plain `insert`, a five-column `insert`,
+  an `update`), so a shared helper would need dynamic SQL to stay generic, trading a two-line save for a
+  real readability/type-safety cost. Not worth it for a block this small (the opposite mistake
+  `D-GH-2026-07-13-campaign-membership-helpers` fixed, where the duplicated logic was a multi-line lookup,
+  not a two-line catch clause).
+- **Why:** the friendly message already exists in both functions' pre-check — this only closes the race
+  window between that check and the write, using the exact same recovery pattern already live and verified
+  for `bind_character_to_campaign`. No new behavior on the non-race path, no signature/return-type change.
+- **Status:** Shipped. Migration `sql/migrations/2026-07-13-campaign-join-race-friendly-error.sql` applied
+  to the live Supabase project (`apply_migration`); confirmed both functions carry the handler via `pg_proc`
+  introspection (`prosrc ilike '%unique_violation%'`). Advisor shows no new finding class — `join_campaign`
+  and `redeem_player_invite` were already in the "authenticated can execute this SECURITY DEFINER function"
+  WARN list before this change, unaffected by it. `get_logs` (postgres service) skimmed post-apply — the
+  only ERROR-severity entries are pre-existing "No campaign with that invite code" smoke-test errors from
+  earlier sessions, no new/unrelated errors. `testing/scripts/engine-parity-ci.mjs` unaffected (20/0 — no
+  `js/engine.js` change).
+## D-GH-2026-07-14-advancement-tracks · Campaign advancement dials (budget curve · award pace · starting tier)
+- **Context:** the roadmap's "Advancement tracks + D&D 2024 level equivalency" asked for DM-selectable
+  per-campaign advancement tracks plus a D&D-2024-equivalent level label, display-only. The design went
+  through several cross-AI review rounds; the load-bearing findings, all verified against the actual code
+  before acting: (1) the PACT Players Guide defines **two distinct** AP-per-level curves — a *pace* curve
+  (AP earned by level: 1→50…20→491, which is exactly what `js/ap-by-level.js`'s `AP_BY_LEVEL` already is)
+  and a separate, larger *budget* curve (AP a complete level-N build is expected to have spent: Standard
+  1→79…20→535 at +24/lvl, Generous 1→83…20→615 at +28/lvl). Conflating them (reusing `AP_BY_LEVEL` as the
+  "standard track") was a real error in two of the reviews. (2) Live Sheet **already** shows two level
+  numbers in its header: `Level {b.hd}` (the character's actual level — and, per the guide's own
+  "PACT level = Hit Dice = D&D 2024 level" identity rule, already the D&D-equivalent) and
+  `≈ AP-Level {apLevel(eco.earned)}` (earned AP mapped to the fixed default table). A proposed third
+  "≈ D&D N" chip would just restate `Level {b.hd}` one comma over.
+- **Options:** (A) implement the four-axis model literally as the latest handoff proposed — including a
+  distinct `DND_LEVEL_EQUIVALENT` table + chip, consolidating `ap-by-level.js` into `advancement.js` with a
+  deprecation shim, and adding the new level chip *alongside* the existing two. (B) implement only the
+  genuinely-new, non-redundant pieces: the three DM dials + a single tuned-curve level indicator that
+  *replaces* the existing earned-AP chip, drop the D&D chip, and leave `ap-by-level.js` alone.
+- **Decision (B).** New `js/advancement.js` exports `LEVEL_BUDGET_CURVES` (Standard/Generous),
+  `AWARD_PACES` (Slow/Average/Fast AP-per-session — a documented baseline only; nothing auto-awards), and
+  `STARTING_TIER_RATIOS` (Prelude/Standard/Veteran/Legendary multipliers of the tuned L1), surfaced on
+  `DATA.levelBudgetCurves`/`DATA.awardPaces`/`DATA.startingTierRatios`. None are read by `compute()` or
+  `_replay()` (verified: engine's import + `DATA` assignments are the only additions; parity 20/0, no
+  `DATA.version` bump). The DM sets them per-campaign in the existing `campaigns.rules` JSONB via the
+  existing `setCampaignRules` whole-object replace — no new column/RPC/RLS. Live Sheet's `apLevel` chip is
+  **replaced** by `trackLevel` (AP *spent* vs the tuned budget curve, Standard fallback when unbound/
+  untuned); the orphaned `apLevel` helper was deleted from Live Sheet (still lives, unrelated, in CharGen
+  and DM Console). The player-invite "Starting budget" field pre-fills from the campaign's starting tier,
+  visible and editable per invite.
+- **Why:** (A) adds two failure modes for no user-visible gain — a second level number that duplicates
+  `b.hd`, and a deprecation shim + `ap-by-level.js` churn touching a file whose `AP_BY_LEVEL` **is**
+  mechanics (read by `compute()`'s creation-lock via `DATA.level1AP`), i.e. risk on the exact file the
+  budget curves must NOT be conflated with. (B) ships what the DM actually asked for (tuning dials) and
+  fixes the "which level number do I trust" confusion by *replacing* rather than *adding*.
+- **Deferred / dropped (explicitly, so they aren't lost):** the D&D-2024-equivalent label/table — dropped
+  as redundant with `Level {b.hd}`. Custom DM-authored per-level curve UI — deferred (the data shape leaves
+  room; the three presets plus a free-edit "Custom" numeric override cover v1). The `DATA.level1AP`
+  creation-lock threshold still hardcodes the default L1 rather than a campaign's tuned `levelBudgetCurve.l1`
+  — that IS a `compute()`/`_replay()` mechanics change (needs a `DATA.version` bump + fixture refresh), so
+  it's its own follow-up PR, out of this display-only change's scope.
+- **Status:** Shipped (`feat/advancement-tracks`). Parity 20/0 (headless CI); `DATA` fields confirmed to
+  surface with correct L20 math (535/615); `DATA.version` unchanged. **Not** browser-E2E'd end-to-end: the
+  DM rules panel and a bound player's Live Sheet require Supabase auth + a live campaign, impractical to
+  drive headlessly here — the `trackLevel` algorithm and tier-prefill math were verified directly in Node
+  instead, and a manual in-browser pass of the DM-panel↔bound-player round-trip is recommended before
+  release. Also left for a follow-up decision (flagged, not silently changed): Live Sheet's `#eco` economy
+  line still shows an earned-AP "Lv L · X AP to reach Lv L+1" pace readout using the fixed default table —
+  a distinct earning-pace widget, deliberately out of this task's "replace the identity chip" scope.
 
 ## D-GH-2026-07-13-campaign-membership-helpers · De-duplicate campaign-membership SQL checks
 - **Context:** `/code-review ultra` on PR #202 (`D-GH-2026-07-13-campaign-bind-character`) found, via two

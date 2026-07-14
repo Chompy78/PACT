@@ -384,7 +384,20 @@ function eligibleSpells(b,ti,di){
 }
 // compute() is bridged from js/engine.js (engine-ready module, D-GH26).
 // the character's AP-equivalent level: the highest level whose budget-table value is <= ap (0 = below level 1)
-function apLevel(ap){var lv=0;for(var L=1;L<=20;L++){if((DATA.levelAP[L]||1e9)<=(+ap||0))lv=L;}return lv;}
+// Track-level: how far this character's AP SPENT has progressed against the bound
+// campaign's tuned level-budget curve (feat/advancement-tracks). Display-only — never
+// affects pricing. Reads the DM-tuned curve via resolveRules() (live cloud rules or the
+// offline LOG snapshot); falls back to the Standard preset when unbound/untuned or when
+// a stale cached engine lacks DATA.levelBudgetCurves. Replaces the old earned-AP apLevel()
+// chip in the header/overlay (its only two callers) — see DECISIONS D-GH-2026-07-14-advancement-tracks.
+function trackLevel(spent){
+  var r=resolveRules()||{};
+  var std=(DATA.levelBudgetCurves&&DATA.levelBudgetCurves.standard)||{l1:79,inc:24};
+  var bc=(r.levelBudgetCurve&&r.levelBudgetCurve.l1!=null)?r.levelBudgetCurve:std;
+  var l1=+bc.l1||79,inc=+bc.inc||24,lv=0;
+  for(var L=1;L<=20;L++){ if(l1+inc*(L-1)<=(+spent||0)) lv=L; }
+  return lv;
+}
 
 
 const $=id=>document.getElementById(id); const ABILS=["STR","DEX","CON","INT","WIS","CHA"];
@@ -694,7 +707,7 @@ function render(){
   {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent / '+eco.earned+' earned'+(_dmAp?' · '+_dmAp+' from DM':'');}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
   const ABCOL={STR:'#E03C28',DEX:'#4CAF50',CON:'#E8872B',INT:'#3F6FD8',WIS:'#00ACC1',CHA:'#9C27B0'};
-  let sh='<div class="shname">'+esc(b.name||'Unnamed Hero')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ AP-Level '+apLevel(eco.earned)+' · Prof +'+r.prof+'</div>';
+  let sh='<div class="shname">'+esc(b.name||'Unnamed Hero')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent)+' · Prof +'+r.prof+'</div>';
   const _abGov={STR:'Melee attack & damage · Athletics · carrying & grappling',DEX:'AC (light/medium) · finesse & ranged attacks · Initiative · Acrobatics, Stealth',CON:'Hit Points · concentration · Constitution saves',INT:'Arcana, History, Investigation, Nature, Religion · Wizard-style casting',WIS:'Perception, Insight, Medicine, Survival · Cleric/Druid/Ranger casting',CHA:'Persuasion, Deception, Intimidation, Performance · Bard/Sorcerer/Warlock/Paladin casting'};
   sh+='<div class="abrow">'+ABILS.map(a=>'<div class="abx itip" title="'+esc(a+' '+((r.effScore&&r.effScore[a])||b.stats[a])+' ('+sgn(m[a])+') — governs '+(_abGov[a]||''))+'"><b style="color:'+ABCOL[a]+'">'+a+'</b><span>'+((r.effScore&&r.effScore[a])||b.stats[a])+'</span><i>'+sgn(m[a])+'</i></div>').join('')+'</div>';
   const _hpRed=(b.drawbacks||[]).includes('Frail')||(b.drawbacks||[]).includes('Glass Frame');
@@ -963,7 +976,7 @@ function buildBuyPanel(b,r,eco,head){
 // ---------------- full character sheet overlay (shared renderer; see sheet_assets.py) ----------------
 function renderSheet(){const b=foldBuild(null),eco=economy(null),r=compute(b,_dmOpts());
   const avail=_apRemaining(r.spendable,eco.spent);
-  return renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ AP-Level '+apLevel(eco.earned),noSpell:LS_noSpell});}
+  return renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ Track-Level '+trackLevel(eco.spent),noSpell:LS_noSpell});}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;if(ov.style.display==='block'){ov.style.display='none';}else{$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}
 // B1 (v0.100): LS-only "no-Spellcasting" sheet view — full sheet vs hide the computed Spellcasting section + manual slot box. CharGen never sets ctx.noSpell, so its sheet is unchanged (parity holds).
 var LS_noSpell=(function(){try{return localStorage.getItem('pactLSnoSpell')==='1';}catch(e){return false;}})();
