@@ -388,14 +388,20 @@ function eligibleSpells(b,ti,di){
 // campaign's tuned level-budget curve (feat/advancement-tracks). Display-only — never
 // affects pricing. Reads the DM-tuned curve via resolveRules() (live cloud rules or the
 // offline LOG snapshot); falls back to the Standard preset when unbound/untuned or when
-// a stale cached engine lacks DATA.levelBudgetCurves. Replaces the old earned-AP apLevel()
-// chip in the header/overlay (its only two callers) — see DECISIONS D-GH-2026-07-14-advancement-tracks.
-function trackLevel(spent){
+// a stale cached engine lacks DATA.levelBudgetCurves. Originally replaced the old earned-AP
+// apLevel() chip (fixed DATA.levelAP ladder) in the header/overlay; the #eco line's "Earned
+// Lv" readout was later migrated onto this same curve too, called with eco.earned instead of
+// eco.spent, so the two readouts can only differ by spent-vs-earned — never by which curve is
+// in effect (see D-GH-2026-07-14-livesheet-eco-track-level).
+function _levelCurve(){
   var r=resolveRules()||{};
   var std=(DATA.levelBudgetCurves&&DATA.levelBudgetCurves.standard)||{l1:79,inc:24};
   var bc=(r.levelBudgetCurve&&r.levelBudgetCurve.l1!=null)?r.levelBudgetCurve:std;
-  var l1=+bc.l1||79,inc=+bc.inc||24,lv=0;
-  for(var L=1;L<=20;L++){ if(l1+inc*(L-1)<=(+spent||0)) lv=L; }
+  return {l1:+bc.l1||79,inc:+bc.inc||24};
+}
+function trackLevel(spent){
+  var c=_levelCurve(),lv=0;
+  for(var L=1;L<=20;L++){ if(c.l1+c.inc*(L-1)<=(+spent||0)) lv=L; }
   return lv;
 }
 
@@ -703,7 +709,7 @@ function render(){
   // Reprice on the CREATION basis (inPlay:false) so an imported creation character shows no phantom drift.
   // In-play purchases stay frozen at their higher price, so they correctly read as locked > reprice (a kept premium).
   const reprice = compute(Object.assign({},b,{inPlay:false})).total;
-  $('eco').innerHTML=(function(){var ap=eco.earned||0,L=0;for(var k=1;k<=20;k++){if((DATA.levelAP[k]||1e9)<=ap)L=k;else break;}var nx=DATA.levelAP[L+1];var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):(_dmAp?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b>Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx?(' · <span class="ed">'+(nx-ap)+' AP to reach equivalent of Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>';})();
+  $('eco').innerHTML=(function(){var ap=eco.earned||0;var _c=_levelCurve();var L=trackLevel(ap);var nx=(L<20)?(_c.l1+_c.inc*L):null;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):(_dmAp?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b title="Pace based on AP earned so far (including any not yet spent), against the same level-budget curve as the header\'s ≈ Track-Level. This differs from Track-Level whenever you\'re holding unspent AP — Track-Level reflects only AP actually spent.">Earned Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx?(' · <span class="ed">'+(nx-ap)+' AP to reach Earned Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>';})();
   {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent / '+eco.earned+' earned'+(_dmAp?' · '+_dmAp+' from DM':'');}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
   const ABCOL={STR:'#E03C28',DEX:'#4CAF50',CON:'#E8872B',INT:'#3F6FD8',WIS:'#00ACC1',CHA:'#9C27B0'};

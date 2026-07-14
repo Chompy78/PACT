@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-14 · fix(livesheet) — unify eco-line "Earned Lv" onto the same tuned curve as header
+  Track-Level** (`tools/PACT-Live-Char-Sheet.html`; no `js/engine.js`/`DATA.version`/`BUILD` change,
+  parity 20/0). The `#eco` block's "Lv" chip computed level-equivalence from `eco.earned` against the
+  fixed `DATA.levelAP` ladder, while the header's `≈ Track-Level` used `eco.spent` against the campaign's
+  DM-tuned `levelBudgetCurve` (feat/advancement-tracks, PR #206) — two different curves, so the numbers
+  could silently disagree for the same character. Extracted `_levelCurve()` out of `trackLevel()` and had
+  the eco line call `trackLevel(eco.earned)` instead of its own inline fixed-ladder loop, relabelled
+  "Lv" → "Earned Lv" with a tooltip distinguishing it from Track-Level. Now the two readouts can only
+  differ by spent-vs-earned AP, never by which curve is in effect. See
+  D-GH-2026-07-14-livesheet-eco-track-level.
+
 - **2026-07-14 · docs — refresh `docs/roadmap.html` data snapshot** (`docs/roadmap.html`; no
   `js/engine.js`/`DATA.version`/`BUILD` change, parity unaffected 20/0). Re-parsed the embedded item
   snapshot against the current `CHANGELOG.md`/`PACT_ROADMAP.md` after the campaign race-fix and
