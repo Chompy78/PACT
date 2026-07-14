@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-14 · feat(docs) — `docs/roadmap.html`: a standalone visual roadmap interface** (new file;
+  no `js/engine.js` change, no `DATA.version` bump, parity unaffected 20/0). A self-contained, vanilla-JS
+  single page (no build step, no dependencies — same static/GitHub-Pages ethos as the tools) that renders
+  both open work (from `docs/PACT_ROADMAP.md`) and shipped history (207 entries parsed from
+  `CHANGELOG.md`) in seven interchangeable views: **Board** (Now/Next/Later/Shipped columns), **Timeline**
+  (planned + shipped-per-day), **Category**, **Priority** swimlanes, a graphical radial **Map**
+  (mind-map clustering items around category hubs around a PACT center), a sortable **Table**, and a
+  **Dashboard** (delivery-cadence bar chart, by-category/status/priority breakdowns, at-a-glance stats).
+  A shared control bar (text search + status/category/priority filters) drives every view live; clicking
+  any item opens a detail dialog. Theme-aware (light/dark via `prefers-color-scheme` + a manual toggle),
+  responsive, all player-facing text run through `esc()`. The data is a point-in-time snapshot embedded in
+  the page; regenerate by re-parsing the two source docs when it drifts.
+
 - **2026-07-13 · refactor(campaign) — de-duplicate campaign-membership SQL checks**
   (`sql/migrations/2026-07-13-campaign-membership-helpers.sql` + mirrored into
   `sql/schema.sql`/`sql/rls-policies.sql`; no `js/engine.js` change, parity unchanged 20/0). Pure internal
