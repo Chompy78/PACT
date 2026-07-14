@@ -32,24 +32,6 @@ _(none currently — the last NOW item, the full engine module-bridge migration,
 
 ---
 
-## Feature: Advancement tracks + D&D 2024 level equivalency — TODO
-Branch feat/advancement-tracks. Store AP-per-level advancement tracks (slow/average/fast + custom) and a D&D 2024 equivalent level reference table; let DMs select or customise a track per campaign.
-
-```text
-Add advancement track data to js/engine.js DATA (or a separate js/advancement.js imported by the engine) as a display-only reference — never read by compute(). Each track (slow/average/fast) defines cumulative AP thresholds per level. Also add a D&D 2024 equivalent level mapping (PACT AP total → approximate D&D 2024 level) as a display reference only.
-
-In DM Console, add a campaign setting for advancement track: the DM can pick slow/average/fast or define a custom track (AP values per level). Store the selection in the campaign record in Supabase (DM-authoritative, RLS-protected).
-
-In Live Sheet (and optionally DM Console), display the character's current D&D 2024 equivalent level as a read-only label derived from total AP spent + the D&D equivalency table.
-
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-
-Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, exposed as `DATA.apByLevel`). Build advancement tracks on top of that single source — reuse `AP_BY_LEVEL` as the "average" baseline rather than duplicating the AP ladder here.
-```
-
-**Done when:** advancement tracks are stored in engine data; a DM can select or customise a track per campaign; the Live Sheet shows the D&D 2024 equivalent level label; parity still 20/0.
-
----
 
 ## Feature: In-app user feedback widget (Supabase-backed) — TODO
 Branch feat/feedback-widget. Add a small feedback form to all four player-facing pages — CharGen, Live Sheet, DM Console, and the Player's Guide — that saves free-text feedback to a new Supabase table, readable only via the Supabase dashboard (no in-app admin view in v1).
