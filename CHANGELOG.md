@@ -18,6 +18,22 @@
   clipboard-copy pattern (button-text feedback + `execCommand` fallback) is a different shape, not a
   duplicate, so it was left as-is. Verified in a real browser: all three tools resolve `esc`/`flash`/
   `_csCopy` as globals with correct escaping/behavior, no console errors introduced.
+- **2026-07-14 · fix(livesheet) — code-review follow-ups for the eco-line/Track-Level curve unification**
+  (`tools/PACT-Live-Char-Sheet.html`; no `js/engine.js`/`DATA.version`/`BUILD` change, parity 20/0).
+  From an independent multi-angle review of the same-day eco-line unification PR (#210), fixed 4 issues
+  the review confirmed: (1) `render()` was resolving the DM-tuned level curve up to 3x per call (the eco
+  line resolved it twice, the header a third time) via a `resolveRules()` path that can be an O(LOG)
+  backward scan, and `render()` fires continuously with no debounce while the time-travel slider is
+  dragged — `trackLevel()` now takes an optional pre-resolved curve, resolved once per render and reused
+  by all three call sites (verified 3→1 `resolveRules()` calls per render); (2) `_levelCurve()`'s
+  `+bc.l1||79`/`+bc.inc||24` silently discarded an explicit DM-tuned `0`, now honoured via `!=null` checks;
+  (3) a zero/negative DM-tuned `inc` broke `trackLevel()`'s monotonic-threshold assumption and could
+  return a near-top level for very little AP — `inc` is now floored to 1; (4) the eco line's "top level"
+  fallback used a bare truthy check on `nx`, which a DM-tuned curve could make legitimately `0` for a
+  non-top level — changed to `nx!=null`. Two other review findings (DM Console's roster still reading the
+  untuned fixed ladder; the same "AP vs threshold table → level" loop duplicated across 3 tool files) were
+  left as follow-up roadmap items rather than fixed here — both are cross-tool/architectural, not confined
+  to this file.
 
 - **2026-07-14 · fix(livesheet) — unify eco-line "Earned Lv" onto the same tuned curve as header
   Track-Level** (`tools/PACT-Live-Char-Sheet.html`; no `js/engine.js`/`DATA.version`/`BUILD` change,
