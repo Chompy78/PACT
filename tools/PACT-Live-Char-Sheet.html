@@ -151,7 +151,6 @@ table.led{width:100%;border-collapse:collapse;font-size:11.5px}.led th{backgroun
 #tray li{color:var(--bad)}
 .hint{color:var(--grey);font-style:italic;font-size:11px}
 .tt{width:100%}
-#flash{display:none;position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#7a0000;color:#fff;padding:8px 14px;border-radius:8px;font-weight:700;z-index:99}
 /* collapsible buy groups + search + greyed-with-reason buttons */
 #buysearch{width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--line);border-radius:7px;font:inherit;margin-bottom:8px}
 .bg h4{margin:8px 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--teal);cursor:pointer;user-select:none;border-bottom:1px solid var(--line);padding-bottom:2px}
@@ -322,6 +321,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 (function(){var RB='https://github.com/Chompy78/PACT/issues/new';function L(k,d){try{console.error('[PACT] '+k+':',d,'— report: '+RB);}catch(_){}}
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
+<script src="../js/ui-helpers.js"></script>
 <div id="apFloat" title="AP available (Player AP + DM-granted AP − spent) — updates live as you buy, undo, or gain awards"><b id="apFloatN">0</b><span>AP left</span></div>
 <div class="top"><h1>🧬 PACT — Live Character Sheet</h1><span class="v" id="verline">event-sourced · prices freeze at purchase</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
 <button class="btn g" onclick="undo()" title="Undo">↶ <span class="bl">Undo</span></button><button class="btn g" onclick="redo()" title="Redo">↷ <span class="bl">Redo</span></button>
@@ -356,7 +356,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 </div><div id="ledger"></div></div>
 </div>
 <div id="lmobar"><div id="lmobar-ap" title="Tap to jump to the buy panel" onclick="var s=document.getElementById('buysearch');if(s)s.scrollIntoView({behavior:'smooth'});"><b id="lmb">—</b> <span id="lms"></span></div><div id="lmobar-acts"><button onclick="undo()" title="Undo">↶</button><button onclick="redo()" title="Redo">↷</button></div></div>
-<div id="flash"></div>
 <script>
 
 function _mod(s){return Math.floor((s-10)/2);}
@@ -778,8 +777,6 @@ function render(){
   buildBuyPanel(b,r,Object.assign({},eco,{available:_apAvail}),head);
 }
 
-function flash(msg){let f=$('flash');f.textContent=msg;f.style.display='block';clearTimeout(flash._t);flash._t=setTimeout(()=>f.style.display='none',2600);}
-
 let buyQuery=''; const grpOpen={Progress:1,Abilities:1,'Ki, Sorcery & Attunement points':1}; let affordOnly=false; let hideUnavail=false; let buyCls='';
 function setBuyCls(c){buyCls=c||'';refreshBuy();}
 function setBuyQuery(v){buyQuery=(v||'').toLowerCase().trim();refreshBuy();}
@@ -803,7 +800,6 @@ function refreshBuy(){const b=foldBuild(null),eco=economy(null);const r=compute(
 function levelDelta(hd){return (DATA.levelAP[hd+1]||DATA.levelAP[hd]||0)-(DATA.levelAP[hd]||0);}
 function toggleTasha(){var b=foldBuild(null);var on=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);emit({type:"buy",cat:"tasharule",payload:{v:!on},cost:0,label:"DM house rule — Tasha abilities "+(!on?"allowed":"barred"),level:b.hd});}
 function awardToNext(){const b=foldBuild(null);const d=levelDelta(b.hd);if(d>0)award(d,'Level '+(b.hd+1)+' budget');else flash('Already at the top of the benchmark table.');}
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function buildBuyPanel(b,r,eco,head){
   const buyEl=$('buy'); if(!head){buyEl.innerHTML='<p class="hint">Viewing history — return to <b>live</b> to make purchases.</p>';return;}
   // a buyable button: greys out (with the reason) when not allowed; tap a greyed one to hear why
@@ -1251,12 +1247,6 @@ function buildPortraitPrompts(b){
   return {portrait: base+', head-and-shoulders character portrait, highly detailed digital painting, dramatic lighting, neutral background.',
           fullbody: base+', full-body character illustration showing the entire figure from head to toe, dynamic standing pose, full outfit and footwear visible, highly detailed digital painting, dramatic lighting, simple background.'};
 }
-function _csCopy(text){
-  try{if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text);return true;}}catch(e){}
-  try{var ta=document.createElement('textarea');ta.value=text;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';
-    document.body.appendChild(ta);ta.focus();ta.select();var okc=document.execCommand('copy');document.body.removeChild(ta);if(okc)return true;}catch(e){}
-  try{window.prompt('Copy this prompt (Ctrl/Cmd-C):',text);}catch(e){}
-  return false;}
 // reuse an existing #portraitview modal if present (char-gen has one), else create it (live sheet)
 function showPortraitModal(p){
   var ov=$('portraitview');
@@ -1302,7 +1292,6 @@ function _spellAC(inp){
   function cand(){var dl=inp._dlid&&document.getElementById(inp._dlid);return dl?[].slice.call(dl.querySelectorAll('option')).map(function(o){return o.value;}):[];}
   function close(){menu.style.display='none';active=-1;}
   function place(){var r=inp.getBoundingClientRect();menu.style.left=r.left+'px';menu.style.top=(r.bottom+2)+'px';menu.style.minWidth=Math.max(220,r.width)+'px';}
-  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
   function pick(v){inp.value=v;close();inp._sacPick=1;inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}));inp._sacPick=0;}
   function draw(){menu.innerHTML=items.length?items.map(function(f,i){return '<div class="spellac-i" data-i="'+i+'" style="padding:5px 10px;cursor:pointer;white-space:nowrap;'+(i===active?'background:var(--line,#e3ebf7)':'')+'">'+esc(f)+'</div>';}).join(''):'<div style="padding:5px 10px;color:var(--grey,#888)">no match</div>';}
   function filt(){if(inp.readOnly||inp._sacPick)return; var q=inp.value.trim().toLowerCase(); var all=cand(); items=(q?all.filter(function(x){return x.toLowerCase().indexOf(q)>=0;}):all).slice(0,80); active=items.length?0:-1; draw(); place(); menu.style.display='block';}
@@ -1543,8 +1532,6 @@ document.addEventListener('sync-ready', function () {
                                   // so a retry re-targets the same (already-locally-saved) clone instead
                                   // of minting a second one and leaving the first as an orphan; cleared
                                   // on success (same memoized-id pattern as currentCharId()/__charId)
-
-  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   // Persistent status badge (top toolbar, outside the ☁ Cloud dropdown) — surfaces sign-in
   // and campaign-rules-fetch state that was previously silent/internal-only. Display-only;

@@ -23,38 +23,6 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## Consolidate duplicated esc()/UI-helper functions into one shared file — TODO
-Branch fix/shared-ui-helpers-esc. `PACT-Live-Char-Sheet.html` alone defines `esc()` three separate times with three different escaping rules (line 800: escapes `&<"` but not `>`; line 1299: escapes only `&<`, no quotes at all; line 1541: escapes `&<>"`), plus its own separate `esc()` in CharGen and DM Console. None of the variants escape single quotes. They're correctly scoped to separate closures so there's no runtime collision, but which copy is in effect at any given render call depends on which closure you're in — real latent risk if a call site ever lands inside a single-quoted attribute. `flash()`, the clipboard-copy try/catch block, and the `pactTheme` localStorage setter are duplicated the same way across the three tools.
-
-```text
-1. Create a plain (non-module) `js/ui-helpers.js`, loaded via `<script src="../js/ui-helpers.js">` in all
-   three tools' `<head>`/early `<body>` (before the tool's own inline `<script>` blocks) so its functions
-   attach to global scope directly — matching how `esc()` is used today as a bare global function, no
-   module bridge needed.
-2. Canonical `esc(s)`: escape `& < > " '` (the current most-complete variant is
-   PACT-Live-Char-Sheet.html:1541, `&<>"` — add single-quote escaping on top of it). Also move `flash()`
-   and the clipboard-copy helper here.
-3. Delete the duplicate `esc()` definitions: PACT-Live-Char-Sheet.html:800, :1299, :1541;
-   PACT-CharGen-Webtool.html:2573; DM-Console.html:1284. Delete the duplicate `flash()`
-   (PACT-CharGen-Webtool.html:2377, PACT-Live-Char-Sheet.html:775) and `pactTheme` setter
-   (PACT-CharGen-Webtool.html:3628, PACT-Live-Char-Sheet.html:1275). Point all call sites at the shared
-   global versions.
-4. Before deleting, check whether any existing call site's output relies on the OLD (narrower) escaping
-   behavior in a way that would break rendering once the canonical version escapes more characters —
-   unlikely, but verify by eye at each replaced call site.
-5. Re-run testing/tests/engine-parity.html — unaffected (UI-only), should stay 20/0. Manually load each
-   tool and confirm character/roster names with special characters (`&`, `<`, `"`, `'`) still render
-   correctly.
-
-Display-only — do NOT bump DATA.version; just log in CHANGELOG. If the "why factor shared JS out of
-tool-local scope without a bundler" reasoning isn't obvious from the diff alone, log a DECISIONS.md note
-as D-GH-<date>-shared-ui-helpers.
-```
-
-**Done when:** one canonical `esc()`/`flash()`/clipboard-copy/theme-setter live in `js/ui-helpers.js` and are loaded by all three tools; no duplicate definitions remain in any tool's inline `<script>`; parity still 20/0.
-
----
-
 ## Wire testing/scripts/audit.py into CI — TODO
 Branch chore/wire-audit-py-into-ci. `audit.py`'s own docstring says its checks (SW cache integrity, manifest/PWA correctness, engine-symbol drift, and an `--rls` mode that live-proves RLS rejects unauthorized writes) should run "eventually in CI" — no workflow currently calls it, so a grant/RLS regression (a class DECISIONS.md notes this project has "been bitten twice by" already) or a broken SW cache list only gets caught if a human remembers to run it by hand.
 

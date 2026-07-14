@@ -4,6 +4,21 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-14 · fix(tools) — consolidate duplicated/inconsistent esc()/flash()/_csCopy() into
+  `js/ui-helpers.js`** (new plain-script file, loaded via `<script src>` in all three tools; no
+  `js/engine.js`/`DATA.version`/`BUILD` change, parity 20/0). `PACT-Live-Char-Sheet.html` alone defined
+  `esc()` three times with three different escaping rules (one dropped quote-escaping entirely, none
+  escaped single quotes); CharGen and DM Console each had their own separate copy too. `flash()` and the
+  3-tier `_csCopy()` fallback (Clipboard API → `execCommand` textarea → `window.prompt`) were duplicated
+  verbatim between CharGen and Live Sheet. Removed all local copies (including two nested shadows inside
+  the `_spellAC()` autocomplete widget, itself duplicated between CharGen and Live Sheet) in favor of one
+  canonical `esc()` that escapes `& < > " '`, and removed Live Sheet's now-redundant static `#flash` div.
+  Left each tool's `setTheme()` local — its `localStorage` line is one-line-duplicated but the surrounding
+  DOM-sync logic differs per tool, so a shared extraction wasn't worth the indirection. DM Console's own
+  clipboard-copy pattern (button-text feedback + `execCommand` fallback) is a different shape, not a
+  duplicate, so it was left as-is. Verified in a real browser: all three tools resolve `esc`/`flash`/
+  `_csCopy` as globals with correct escaping/behavior, no console errors introduced.
+
 - **2026-07-14 · fix(livesheet) — unify eco-line "Earned Lv" onto the same tuned curve as header
   Track-Level** (`tools/PACT-Live-Char-Sheet.html`; no `js/engine.js`/`DATA.version`/`BUILD` change,
   parity 20/0). The `#eco` block's "Lv" chip computed level-equivalence from `eco.earned` against the
