@@ -71,6 +71,46 @@ Note: the AP-by-level table is now externalized in `js/ap-by-level.js` (D-GH49, 
 
 ---
 
+## Feature: In-app user feedback widget (Supabase-backed) — TODO
+Branch feat/feedback-widget. Add a small feedback form to all four player-facing pages — CharGen, Live Sheet, DM Console, and the Player's Guide — that saves free-text feedback to a new Supabase table, readable only via the Supabase dashboard (no in-app admin view in v1).
+
+```text
+1. New Supabase table `feedback`: id uuid pk default gen_random_uuid(), user_id uuid references profiles(id)
+   on delete set null (nullable — anonymous/signed-out feedback is allowed), source text not null check
+   (source in ('chargen','livesheet','dmconsole','guide')), message text not null check (length(message)
+   between 1 and 2000), page_url text, created_at timestamptz not null default now(). New dated migration
+   in sql/migrations/, mirrored into sql/schema.sql.
+
+2. RLS: insert-only. Grant insert to both `anon` and `authenticated` (the guide and CharGen work
+   signed-out) with a policy that just enforces the check constraints above — no select policy for either
+   role. Feedback is read via the Supabase dashboard (service role), not through the app, so no admin
+   UI/read path is needed for v1.
+
+3. Add a small shared client helper (e.g. `js/feedback.js`) exporting `submitFeedback({source, message,
+   pageUrl})`, reusing the existing `js/supabase-client.js` singleton — usable from a `<script
+   type="module">` on any of the four pages.
+
+4. UI: a small floating "Feedback" button in the corner of each page opening a minimal textarea + submit,
+   with an inline success/error state. Feedback text is never rendered back into any page's DOM in v1 (no
+   admin view reads it), so `esc()` is not required now — but the moment any in-app view displays stored
+   feedback, that becomes mandatory per AGENTS.md's stored-XSS rule.
+
+5. Note: `docs/PACT-Players-Guide.html` currently has ZERO existing module/Supabase wiring (unlike the
+   three tools, which already import `supabase-client.js`) — it needs a fresh `<script type="module">`
+   added, not just a call into existing bridge code. It's also ~657 KB — search for the closing `</body>`
+   or an existing `<script>` tag rather than reading the file wholesale (see AGENTS.md).
+
+6. After applying the migration, run the Supabase advisor and skim recent logs (per the per-change
+   checklist — this touches SQL/RLS). Re-run testing/tests/engine-parity.html (unaffected — no
+   js/engine.js change, should stay 20/0).
+
+Display/process-only — does not touch js/engine.js or DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** all four pages have a working feedback button that inserts a row into the new `feedback` table (signed-in and signed-out); RLS allows insert-only for `anon`/`authenticated` with no select path; parity still 20/0.
+
+---
+
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 **Low-severity review findings:**
