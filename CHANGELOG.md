@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-13 · fix(campaign) — `join_campaign`/`redeem_player_invite` race surfaces friendly error, not raw DB error**
+  (`sql/schema.sql` + `sql/migrations/2026-07-13-campaign-join-race-friendly-error.sql`; no `js/engine.js`
+  change, parity unchanged 20/0). Both RPCs' character-insert had no `unique_violation` handler, unlike
+  `bind_character_to_campaign` (`D-GH-2026-07-13-campaign-bind-character`) — a race that beat either RPC's
+  `is_campaign_member()` pre-check hit `idx_characters_owner_campaign_unique` and surfaced a raw Postgres
+  "duplicate key value violates unique constraint" error instead of the existing friendly "You have already
+  joined this campaign" message. Wrapped each insert in the same `begin/exception when unique_violation`
+  pattern already proven in `bind_character_to_campaign`. Verified live: both functions now carry the
+  handler (`pg_proc` introspection); Supabase advisor shows no new finding class; `get_logs` shows only
+  pre-existing unrelated errors. Closes the roadmap follow-up filed alongside
+  `D-GH-2026-07-13-campaign-membership-helpers`. See `DECISIONS.md`
+  `D-GH-2026-07-13-campaign-join-race-friendly-error`.
 - **2026-07-13 · refactor(campaign) — de-duplicate campaign-membership SQL checks**
   (`sql/migrations/2026-07-13-campaign-membership-helpers.sql` + mirrored into
   `sql/schema.sql`/`sql/rls-policies.sql`; no `js/engine.js` change, parity unchanged 20/0). Pure internal
