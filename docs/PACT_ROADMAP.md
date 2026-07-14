@@ -23,12 +23,78 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-_(none currently — the last NOW item, the full engine module-bridge migration, graduated to
-`CHANGELOG.md` on 2026-07-10.)_
+## Consolidate duplicated esc()/UI-helper functions into one shared file — TODO
+Branch fix/shared-ui-helpers-esc. `PACT-Live-Char-Sheet.html` alone defines `esc()` three separate times with three different escaping rules (line 800: escapes `&<"` but not `>`; line 1299: escapes only `&<`, no quotes at all; line 1541: escapes `&<>"`), plus its own separate `esc()` in CharGen and DM Console. None of the variants escape single quotes. They're correctly scoped to separate closures so there's no runtime collision, but which copy is in effect at any given render call depends on which closure you're in — real latent risk if a call site ever lands inside a single-quoted attribute. `flash()`, the clipboard-copy try/catch block, and the `pactTheme` localStorage setter are duplicated the same way across the three tools.
+
+```text
+1. Create a plain (non-module) `js/ui-helpers.js`, loaded via `<script src="../js/ui-helpers.js">` in all
+   three tools' `<head>`/early `<body>` (before the tool's own inline `<script>` blocks) so its functions
+   attach to global scope directly — matching how `esc()` is used today as a bare global function, no
+   module bridge needed.
+2. Canonical `esc(s)`: escape `& < > " '` (the current most-complete variant is
+   PACT-Live-Char-Sheet.html:1541, `&<>"` — add single-quote escaping on top of it). Also move `flash()`
+   and the clipboard-copy helper here.
+3. Delete the duplicate `esc()` definitions: PACT-Live-Char-Sheet.html:800, :1299, :1541;
+   PACT-CharGen-Webtool.html:2573; DM-Console.html:1284. Delete the duplicate `flash()`
+   (PACT-CharGen-Webtool.html:2377, PACT-Live-Char-Sheet.html:775) and `pactTheme` setter
+   (PACT-CharGen-Webtool.html:3628, PACT-Live-Char-Sheet.html:1275). Point all call sites at the shared
+   global versions.
+4. Before deleting, check whether any existing call site's output relies on the OLD (narrower) escaping
+   behavior in a way that would break rendering once the canonical version escapes more characters —
+   unlikely, but verify by eye at each replaced call site.
+5. Re-run testing/tests/engine-parity.html — unaffected (UI-only), should stay 20/0. Manually load each
+   tool and confirm character/roster names with special characters (`&`, `<`, `"`, `'`) still render
+   correctly.
+
+Display-only — do NOT bump DATA.version; just log in CHANGELOG. If the "why factor shared JS out of
+tool-local scope without a bundler" reasoning isn't obvious from the diff alone, log a DECISIONS.md note
+as D-GH-<date>-shared-ui-helpers.
+```
+
+**Done when:** one canonical `esc()`/`flash()`/clipboard-copy/theme-setter live in `js/ui-helpers.js` and are loaded by all three tools; no duplicate definitions remain in any tool's inline `<script>`; parity still 20/0.
+
+---
+
+## Wire testing/scripts/audit.py into CI — TODO
+Branch chore/wire-audit-py-into-ci. `audit.py`'s own docstring says its checks (SW cache integrity, manifest/PWA correctness, engine-symbol drift, and an `--rls` mode that live-proves RLS rejects unauthorized writes) should run "eventually in CI" — no workflow currently calls it, so a grant/RLS regression (a class DECISIONS.md notes this project has "been bitten twice by" already) or a broken SW cache list only gets caught if a human remembers to run it by hand.
+
+```text
+1. Add a step/job to .github/workflows/engine-parity.yml (or a new workflow) that runs testing/scripts/
+   audit.py's default (non-`--rls`) checks on every push/PR — fail the build on any finding.
+2. The `--rls` live-proof mode needs real Supabase credentials against a test project. Decide: (a) wire it
+   into CI using a GitHub Actions secret for a dedicated test Supabase project, or (b) keep it manual-only
+   for now. Either way, make the decision explicit in testing/README.md and in a comment on the CI job —
+   the goal is that "not wired into CI" never again silently reads as "wired," which is how this gap went
+   unnoticed.
+3. No js/engine.js or DATA changes — parity gate itself is unaffected, should stay 20/0.
+```
+
+**Done when:** `audit.py`'s non-RLS checks run automatically in CI on every relevant PR and fail the build on findings; the `--rls` mode's CI status (wired with a test project, or intentionally manual) is explicitly documented in testing/README.md.
 
 ---
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
+
+## Parity gate: assert warning codes/text, not just counts — TODO
+Branch test/parity-warning-code-assertions. `testing/expected/expected-results.csv` currently asserts only `new_engine_warnings` as a **count** against each of the 20 fixtures, not which warnings actually fired — so a warning changing wording, firing for the wrong reason, or silently disappearing while another appears wouldn't fail the gate. This is the documented precondition REV-14 (splitting `compute()`'s ~371-line, 54-`W.push`-site body into named sub-pricers) is waiting on — this task is that precondition, not the split itself.
+
+```text
+1. Grep js/engine.js for its 54 `W.push(...)` call sites to enumerate the distinct warning
+   codes/labels compute() can emit.
+2. Extend testing/expected/expected-results.csv (or add a companion fixture file) to assert the actual
+   warning codes/text produced for each of the 20 existing fixtures, not just the count.
+3. Update testing/scripts/engine-parity-ci.mjs (and the browser test runner in
+   testing/tests/engine-parity.html) to compare warning content, failing on a mismatch.
+4. If several of the 54 warning sites aren't exercised by any existing fixture, note the coverage gap
+   (don't feel obligated to add new fixtures to close it in this same task — file that as a follow-up if
+   it's sizable).
+5. Do NOT attempt to split compute() in this task — that's REV-14, gated on this landing first.
+
+Test-only change — does not touch DATA.version or compute() output; parity must still be 20/0 against the
+current (unmodified) engine.
+```
+
+**Done when:** the parity gate fails if a fixture's warning codes/text change, even when the count stays the same; testing/tests/engine-parity.html still passes 20/0 against the current engine.
 
 ---
 
@@ -137,18 +203,47 @@ Branch feat/tools-home-nav-cleanup. Add a "← Home" link back to index.html in 
    players/DMs rely on without an equivalent path still available (e.g. move a rare action into an existing
    menu instead of deleting it outright).
 
-3. This is a UI-only change — do not touch js/engine.js, DATA, or compute() output.
+3. While in this UI, fix DM-Console.html's icon-only header/toolbar buttons (e.g. the `×` close buttons
+   around DM-Console.html:1189 and :1320) — it currently has zero `aria-label` attributes across ~30
+   buttons and relies only on `title=`, versus 12 in CharGen and 3 in Live Sheet. Add `aria-label` to every
+   icon-only button touched by this task's button audit (doesn't need to be a separate full accessibility
+   pass — just don't leave newly-consolidated/kept icon buttons unlabelled).
 
-4. Re-run testing/tests/engine-parity.html — should be unaffected, still 20/0.
+4. This is a UI-only change — do not touch js/engine.js, DATA, or compute() output.
+
+5. Re-run testing/tests/engine-parity.html — should be unaffected, still 20/0.
 
 Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 ```
 
-**Done when:** all three tools have a working link back to index.html from their header, each tool's header/toolbar has measurably fewer or better-consolidated buttons with no loss of reachable functionality, and parity still 20/0.
+**Done when:** all three tools have a working link back to index.html from their header, each tool's header/toolbar has measurably fewer or better-consolidated buttons with no loss of reachable functionality, DM Console's icon-only buttons touched by this task carry `aria-label`s, and parity still 20/0.
 
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
+
+## Service-worker caching: decide whether auth/sync/campaign/dm modules stay cache-first — TODO
+Branch chore/sw-network-first-security-modules. `service-worker.js`'s `NETWORK_FIRST_RE` currently covers only `.html`, the root, and `js/engine.js` — documented as network-first "so deployed fixes reach returning users immediately." `js/auth.js`, `js/supabase-client.js`, `js/sync.js`, `js/campaign.js`, `js/dm.js` are pre-cached and fall into the cache-first branch, so a client-side fix to one of them doesn't reach a returning offline-capable user until the SW updates *and* they reload twice.
+
+```text
+1. Review service-worker.js's NETWORK_FIRST_RE (~lines 9-26) and its stated rationale for singling out
+   js/engine.js.
+2. Decide: (a) widen the regex to include auth/sync/campaign/dm.js so client-side fixes to them propagate
+   as fast as engine.js fixes do, or (b) leave them cache-first — since RLS is server-authoritative, a
+   stale auth/sync client isn't itself a security hole — and just make that reasoning explicit instead of
+   leaving it an unstated inconsistency.
+3. If widening, weigh the added network dependency: these modules currently work fully offline via
+   cache-first; moving them to network-first trades that off against faster fix propagation.
+4. No engine.js/DATA involvement — parity unaffected, should stay 20/0.
+
+Low priority — not urgent, since RLS already enforces this server-side regardless of which caching
+strategy wins. Log the decision as D-GH-<date>-sw-network-first-security-modules either way, since "why
+engine.js is special-cased but these aren't" isn't obvious from the code alone.
+```
+
+**Done when:** either NETWORK_FIRST_RE is widened to cover auth/sync/campaign/dm.js, or a DECISIONS.md entry explicitly states why they're intentionally left cache-first; parity still 20/0.
+
+---
 
 ## Engine review cleanup: drawback buyoff IDs, signature guard, baseBuild dedupe, noLock scoping — TODO
 Branch chore/engine-review-cleanup. Four small, low-risk js/engine.js hardening/cleanup items surfaced by
