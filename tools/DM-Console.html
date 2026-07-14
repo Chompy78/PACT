@@ -477,6 +477,49 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
               </label>
               <div class="ruleblock">
+                <div class="lbl">📈 Level budget curve</div>
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                  <select id="ruleBudgetPreset" class="field" style="flex:0 0 140px">
+                    <option value="standard">Standard (79/+24)</option>
+                    <option value="generous">Generous (83/+28)</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  <label style="font-size:11px;color:var(--light)">L1 <input class="field" type="number" id="ruleBudgetL1" min="20" max="300" step="1" style="width:64px" value="79"></label>
+                  <label style="font-size:11px;color:var(--light)">+per lvl <input class="field" type="number" id="ruleBudgetInc" min="1" max="80" step="1" style="width:64px" value="24"></label>
+                  <span style="font-size:11px;color:var(--light)">L20 = <b id="ruleBudgetL20Preview">535</b> AP</span>
+                </div>
+                <div class="grantnote">Display only — tunes the “Track-Level” label a player sees on their sheet against AP spent. Does NOT change any purchase price.</div>
+              </div>
+              <div class="ruleblock">
+                <div class="lbl">⏱ Award pace (AP per session)</div>
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                  <select id="ruleAwardPacePreset" class="field" style="flex:0 0 120px">
+                    <option value="slow">Slow (5)</option>
+                    <option value="average" selected>Average (7)</option>
+                    <option value="fast">Fast (10)</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  <input class="field" type="number" id="ruleAwardPaceCustom" min="1" max="50" step="1" style="width:64px" value="7">
+                  <span style="font-size:11px;color:var(--light)">AP/session</span>
+                </div>
+                <div class="grantnote">A documented baseline only — AP is still granted ad-hoc via the “+ Award AP” action. Nothing auto-awards.</div>
+              </div>
+              <div class="ruleblock">
+                <div class="lbl">🎬 Starting tier (new-PC budget)</div>
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                  <select id="ruleStartingTierPreset" class="field" style="flex:0 0 150px">
+                    <option value="prelude">Prelude (0.7×)</option>
+                    <option value="standard" selected>Standard (1.0×)</option>
+                    <option value="veteran">Veteran (1.3×)</option>
+                    <option value="legendary">Legendary (1.6×)</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
+                  <span style="font-size:11px;color:var(--light)">AP</span>
+                </div>
+                <div class="grantnote">Pre-fills the “Starting budget” field when you generate a player invite (still editable per invite).</div>
+              </div>
+              <div class="ruleblock">
                 <div class="lbl">House-rule toggles</div>
                 <div id="ruleHouseRules"></div>
                 <div style="display:flex;gap:6px;margin-top:5px">
@@ -1294,10 +1337,51 @@ document.addEventListener('campaign-ready', function () {
     setRuleGridChecked('ruleBannedDrawbacks', r.bannedDrawbacks);
     setRuleGridChecked('ruleBannedArts', r.bannedArts);
     ruleMultiDisc.checked = r.multiDisciplineAllowed !== false;
+    // Advancement dials (feat/advancement-tracks) — display/config-only, per campaign.
+    var bc = r.levelBudgetCurve || {};
+    document.getElementById('ruleBudgetPreset').value = bc.preset || (bc.l1 != null ? 'custom' : 'standard');
+    document.getElementById('ruleBudgetL1').value  = bc.l1  != null ? bc.l1  : 79;
+    document.getElementById('ruleBudgetInc').value = bc.inc != null ? bc.inc : 24;
+    var ap = r.awardPace || {};
+    document.getElementById('ruleAwardPacePreset').value = ap.preset || 'average';
+    document.getElementById('ruleAwardPaceCustom').value = ap.apPerSession != null ? ap.apPerSession : 7;
+    var st = r.startingTier || {};
+    document.getElementById('ruleStartingTierPreset').value = st.preset || 'standard';
+    document.getElementById('ruleStartingTierAp').value = st.ap != null ? st.ap : 79;
+    _updateBudgetPreview();
     currentHouseRules = Object.assign({}, r.houseRules || {});
     renderHouseRules();
     ruleSaveStatus.textContent = '';
   }
+  // Advancement-dial helpers (feat/advancement-tracks): live L20 preview + preset↔field sync.
+  // DATA tables are read lazily inside each handler so a panel opened before engine-ready
+  // still wires up (falling back to the preset defaults until DATA arrives).
+  function _updateBudgetPreview(){
+    var l1  = parseInt(document.getElementById('ruleBudgetL1').value, 10)  || 79;
+    var inc = parseInt(document.getElementById('ruleBudgetInc').value, 10) || 24;
+    document.getElementById('ruleBudgetL20Preview').textContent = l1 + 19 * inc;
+  }
+  (function _wireAdvancementDials(){
+    var bp=document.getElementById('ruleBudgetPreset'), bl1=document.getElementById('ruleBudgetL1'), binc=document.getElementById('ruleBudgetInc');
+    var app=document.getElementById('ruleAwardPacePreset'), apc=document.getElementById('ruleAwardPaceCustom');
+    var stp=document.getElementById('ruleStartingTierPreset'), sta=document.getElementById('ruleStartingTierAp');
+    bp.addEventListener('change', function(){
+      var pz=(window.DATA&&DATA.levelBudgetCurves)||{standard:{l1:79,inc:24},generous:{l1:83,inc:28}};
+      var c=pz[this.value]; if(c){ bl1.value=c.l1; binc.value=c.inc; } _updateBudgetPreview();
+    });
+    bl1.addEventListener('input', function(){ bp.value='custom'; _updateBudgetPreview(); });
+    binc.addEventListener('input', function(){ bp.value='custom'; _updateBudgetPreview(); });
+    app.addEventListener('change', function(){
+      var m=((window.DATA&&DATA.awardPaces)||{slow:{apPerSession:5},average:{apPerSession:7},fast:{apPerSession:10}})[this.value];
+      if(m){ apc.value=m.apPerSession; }
+    });
+    apc.addEventListener('input', function(){ app.value='custom'; });
+    stp.addEventListener('change', function(){
+      var ratio=((window.DATA&&DATA.startingTierRatios)||{prelude:0.7,standard:1.0,veteran:1.3,legendary:1.6})[this.value];
+      if(ratio!=null){ var l1=parseInt(bl1.value,10)||79; sta.value=Math.round(l1*ratio); }
+    });
+    sta.addEventListener('input', function(){ stp.value='custom'; });
+  })();
   document.getElementById('ruleAddHouseRule').addEventListener('click', function(){
     var name = (ruleHouseRuleName.value||'').trim();
     if(!name) return;
@@ -1316,7 +1400,21 @@ document.addEventListener('campaign-ready', function () {
       bannedDrawbacks: getRuleGridChecked('ruleBannedDrawbacks'),
       bannedArts: getRuleGridChecked('ruleBannedArts'),
       multiDisciplineAllowed: ruleMultiDisc.checked,
-      houseRules: currentHouseRules
+      houseRules: currentHouseRules,
+      // Advancement dials (feat/advancement-tracks) — display/config-only.
+      levelBudgetCurve: {
+        preset: document.getElementById('ruleBudgetPreset').value || 'standard',
+        l1: parseInt(document.getElementById('ruleBudgetL1').value, 10) || 79,
+        inc: parseInt(document.getElementById('ruleBudgetInc').value, 10) || 24
+      },
+      awardPace: {
+        preset: document.getElementById('ruleAwardPacePreset').value || 'average',
+        apPerSession: parseInt(document.getElementById('ruleAwardPaceCustom').value, 10) || 7
+      },
+      startingTier: {
+        preset: document.getElementById('ruleStartingTierPreset').value || 'standard',
+        ap: parseInt(document.getElementById('ruleStartingTierAp').value, 10) || 79
+      }
     };
     ruleSaveStatus.textContent = 'Saving…';
     try {
@@ -1403,7 +1501,10 @@ document.addEventListener('campaign-ready', function () {
     inviteLinkOut.value = '';
     inviteStatus.textContent = '';
     inviteStartAp.value = '';
-    inviteStartBudget.value = '';
+    // Pre-fill the starting budget from the campaign's advancement starting-tier (feat/advancement-tracks).
+    // Visible and fully editable — the DM can clear or override it before generating each invite.
+    var _tierAp = camp.rules && camp.rules.startingTier && camp.rules.startingTier.ap;
+    inviteStartBudget.value = (_tierAp != null && _tierAp !== '') ? _tierAp : '';
     loadRulesIntoPanel(camp.rules);
     renderRuleCopyOptions();
     campSection.style.display = 'block';

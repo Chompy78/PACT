@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PACT — Roadmap Interface</title>
+<style>
+:root{
+  --bg:#f4efe4; --bg2:#efe7d6; --panel:#fbf8f1; --panel2:#f1ead9;
+  --ink:#2c2620; --ink2:#6b6153; --line:#ddd1bb; --line2:#e7ddc9;
+  --accent:#b5761f; --accent2:#8a5a15; --accentbg:#f6e8cf;
+  --now:#c0392b; --next:#b5761f; --later:#7a8a4f; --done:#5b8a72;
+  --high:#c0392b; --medium:#c8892a; --low:#7a8a4f;
+  --shadow:0 1px 2px rgba(60,45,20,.08),0 3px 12px rgba(60,45,20,.06);
+  --radius:12px;
+}
+:root{
+  --bg2:#efe7d6;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#17150f; --bg2:#100e09; --panel:#211d15; --panel2:#2a251b; --ink:#ece4d3;
+    --ink2:#a89c85; --line:#3a3327; --line2:#332d22; --accent:#e0a542; --accent2:#f0bd63;
+    --accentbg:#2f2716; --now:#e06a5c; --next:#e0a542; --later:#a7bd6f; --done:#79bda0;
+    --high:#e06a5c; --medium:#e0b45c; --low:#a7bd6f;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#17150f; --bg2:#100e09; --panel:#211d15; --panel2:#2a251b; --ink:#ece4d3;
+  --ink2:#a89c85; --line:#3a3327; --line2:#332d22; --accent:#e0a542; --accent2:#f0bd63;
+  --accentbg:#2f2716; --now:#e06a5c; --next:#e0a542; --later:#a7bd6f; --done:#79bda0;
+  --high:#e06a5c; --medium:#e0b45c; --low:#a7bd6f;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+}
+:root[data-theme="light"]{
+  --bg:#f4efe4; --bg2:#efe7d6; --panel:#fbf8f1; --panel2:#f1ead9; --ink:#2c2620;
+  --ink2:#6b6153; --line:#ddd1bb; --line2:#e7ddc9; --accent:#b5761f; --accent2:#8a5a15;
+  --accentbg:#f6e8cf; --now:#c0392b; --next:#b5761f; --later:#7a8a4f; --done:#5b8a72;
+  --high:#c0392b; --medium:#c8892a; --low:#7a8a4f;
+  --shadow:0 1px 2px rgba(60,45,20,.08),0 3px 12px rgba(60,45,20,.06);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:linear-gradient(180deg,var(--bg),var(--bg2));min-height:100vh;color:var(--ink);
+  font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent2)}
+.wrap{max-width:1240px;margin:0 auto;padding:18px 18px 80px}
+
+/* Header */
+header.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 2px 16px}
+.brand{display:flex;align-items:center;gap:12px;margin-right:auto}
+.crest{width:42px;height:42px;border-radius:11px;flex:0 0 auto;
+  background:radial-gradient(circle at 30% 25%,var(--accent),var(--accent2));
+  display:grid;place-items:center;color:#fff;font-weight:800;font-size:19px;
+  box-shadow:var(--shadow);font-family:Georgia,serif}
+.brand h1{font-size:19px;margin:0;font-weight:750;letter-spacing:.2px}
+.brand .sub{font-size:12.5px;color:var(--ink2);margin-top:1px}
+.iconbtn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;
+  width:38px;height:38px;cursor:pointer;font-size:16px;display:grid;place-items:center}
+.iconbtn:hover{border-color:var(--accent)}
+
+/* Stat strip */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:2px 0 18px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px;box-shadow:var(--shadow)}
+.stat .n{font-size:26px;font-weight:780;line-height:1;font-variant-numeric:tabular-nums}
+.stat .l{font-size:11.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink2);margin-top:6px}
+.stat.now .n{color:var(--now)} .stat.next .n{color:var(--next)}
+.stat.later .n{color:var(--later)} .stat.done .n{color:var(--done)}
+
+/* Controls */
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:11px 12px;box-shadow:var(--shadow);margin-bottom:16px;position:sticky;top:10px;z-index:20}
+.search{flex:1 1 200px;min-width:160px;display:flex;align-items:center;gap:8px;
+  background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 11px}
+.search input{border:0;background:transparent;color:var(--ink);font-size:14px;outline:none;width:100%}
+.search svg{flex:0 0 auto;opacity:.55}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--bg);color:var(--ink2);border-radius:999px;
+  padding:5px 12px;font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap;transition:.12s}
+.chip:hover{border-color:var(--accent)}
+.chip.on{background:var(--accentbg);border-color:var(--accent);color:var(--accent2);font-weight:650}
+select.sel{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:9px;
+  padding:7px 10px;font-size:13px;cursor:pointer}
+
+/* View tabs */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.tab{border:1px solid var(--line);background:var(--panel);color:var(--ink2);border-radius:10px;
+  padding:9px 15px;font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px}
+.tab:hover{border-color:var(--accent)}
+.tab.on{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:var(--shadow)}
+:root[data-theme="dark"] .tab.on,@media(prefers-color-scheme:dark){.tab.on{color:#17150f}}
+.tab .ic{font-size:15px}
+
+.count{color:var(--ink2);font-size:12.5px;margin:-6px 2px 14px}
+
+/* Cards */
+.card{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);
+  border-radius:10px;padding:11px 13px;box-shadow:var(--shadow);cursor:pointer;transition:.12s}
+.card:hover{transform:translateY(-1px);border-left-color:var(--accent)}
+.card.s-now{border-left-color:var(--now)} .card.s-next{border-left-color:var(--next)}
+.card.s-later{border-left-color:var(--later)} .card.s-done{border-left-color:var(--done)}
+.card .ct{font-weight:640;font-size:13.5px;line-height:1.35}
+.card .cmeta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.badge{font-size:10.5px;font-weight:640;padding:2px 8px;border-radius:999px;letter-spacing:.3px;
+  border:1px solid var(--line);color:var(--ink2);background:var(--bg)}
+.badge.cat{background:var(--accentbg);border-color:transparent;color:var(--accent2)}
+.badge.p-high{color:#fff;background:var(--high);border-color:transparent}
+.badge.p-medium{color:#fff;background:var(--medium);border-color:transparent}
+.badge.p-low{color:#fff;background:var(--low);border-color:transparent}
+:root[data-theme="dark"] .badge.p-high,:root[data-theme="dark"] .badge.p-medium,:root[data-theme="dark"] .badge.p-low{color:#17150f}
+@media(prefers-color-scheme:dark){.badge.p-high,.badge.p-medium,.badge.p-low{color:#17150f}}
+.badge.dt{font-variant-numeric:tabular-nums}
+.card .desc{font-size:12.5px;color:var(--ink2);margin-top:7px;display:none}
+.card.exp .desc{display:block}
+.card .branch{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--ink2)}
+
+/* Board */
+.board{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:start}
+@media(max-width:900px){.board{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.board{grid-template-columns:1fr}}
+.col{background:var(--panel2);border:1px solid var(--line2);border-radius:var(--radius);padding:11px;min-height:80px}
+.col h3{margin:2px 4px 11px;font-size:13px;display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.6px}
+.col h3 .dot{width:10px;height:10px;border-radius:50%}
+.col h3 .k{margin-left:auto;font-size:12px;color:var(--ink2);background:var(--bg);border:1px solid var(--line);
+  border-radius:999px;padding:1px 9px;letter-spacing:0}
+.col.c-now .dot{background:var(--now)} .col.c-next .dot{background:var(--next)}
+.col.c-later .dot{background:var(--later)} .col.c-done .dot{background:var(--done)}
+.col .stack{display:flex;flex-direction:column;gap:9px}
+.col .empty{color:var(--ink2);font-size:12.5px;font-style:italic;padding:6px 4px}
+.more{text-align:center;font-size:12.5px;color:var(--accent2);cursor:pointer;padding:8px;border:1px dashed var(--line);
+  border-radius:9px;margin-top:2px}
+.more:hover{border-color:var(--accent)}
+
+/* Timeline */
+.timeline{position:relative;padding-left:26px}
+.timeline:before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--line)}
+.tl-day{margin-bottom:20px;position:relative}
+.tl-day>.d{font-weight:720;font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:9px}
+.tl-day>.d:before{content:"";position:absolute;left:-26px;width:16px;height:16px;border-radius:50%;
+  background:var(--accent);border:3px solid var(--panel);box-shadow:0 0 0 1px var(--line)}
+.tl-day .k{font-size:11.5px;color:var(--ink2);font-weight:500}
+.tl-day .stack{display:flex;flex-direction:column;gap:8px}
+
+/* Category / Priority group sections */
+.groups{display:flex;flex-direction:column;gap:18px}
+.grp{background:var(--panel2);border:1px solid var(--line2);border-radius:var(--radius);padding:13px 14px}
+.grp>h3{margin:0 0 12px;font-size:14px;display:flex;align-items:center;gap:9px}
+.grp>h3 .k{margin-left:auto;font-size:12px;color:var(--ink2);background:var(--bg);border:1px solid var(--line);
+  border-radius:999px;padding:1px 9px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+
+/* Table */
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:640px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{background:var(--panel2);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink2);
+  cursor:pointer;position:sticky;top:0;white-space:nowrap}
+th:hover{color:var(--accent2)}
+tbody tr:hover{background:var(--panel2)}
+td .branch{font-family:ui-monospace,monospace;font-size:11px}
+
+/* Dashboard */
+.dash{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.dash{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow)}
+.panel h3{margin:0 0 14px;font-size:14px}
+.panel.full{grid-column:1/-1}
+.bar-row{display:grid;grid-template-columns:110px 1fr 42px;align-items:center;gap:10px;margin-bottom:9px;font-size:12.5px}
+.bar-track{background:var(--bg2);border-radius:6px;height:16px;overflow:hidden;border:1px solid var(--line2)}
+.bar-fill{height:100%;border-radius:6px 0 0 6px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.bar-row .v{text-align:right;color:var(--ink2);font-variant-numeric:tabular-nums}
+.spark{display:flex;align-items:flex-end;gap:3px;height:120px;padding-top:8px}
+.spark .b{flex:1;background:linear-gradient(180deg,var(--accent),var(--accent2));border-radius:3px 3px 0 0;min-height:2px;position:relative}
+.spark .b:hover:after{content:attr(data-t);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);
+  background:var(--ink);color:var(--bg);font-size:10.5px;padding:2px 6px;border-radius:5px;white-space:nowrap;margin-bottom:4px}
+.spark-x{display:flex;gap:3px;margin-top:6px}
+.spark-x span{flex:1;text-align:center;font-size:9px;color:var(--ink2);transform:rotate(0deg)}
+
+/* Map */
+.mapwrap{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.mapwrap svg{display:block;width:100%;height:auto;touch-action:none}
+.map-legend{display:flex;gap:14px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--line2);font-size:12px;color:var(--ink2)}
+.map-legend .li{display:flex;align-items:center;gap:6px}
+.map-legend .sw{width:12px;height:12px;border-radius:50%}
+
+/* Detail dialog */
+dialog.detail{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);
+  max-width:560px;width:92vw;padding:0;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog.detail::backdrop{background:rgba(20,15,5,.5)}
+.detail .dh{padding:16px 18px;border-bottom:1px solid var(--line2)}
+.detail .dh .ct{font-size:16px;font-weight:720;line-height:1.35}
+.detail .db{padding:16px 18px;font-size:13.5px;color:var(--ink)}
+.detail .db .row{margin-bottom:11px}
+.detail .db .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink2);margin-bottom:3px}
+.detail .df{padding:12px 18px;border-top:1px solid var(--line2);text-align:right}
+.detail .df button{border:1px solid var(--line);background:var(--accent);color:#fff;border-radius:9px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600}
+.hidden{display:none!important}
+footer{margin-top:34px;text-align:center;color:var(--ink2);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="crest">P</div>
+      <div>
+        <h1>PACT — Roadmap</h1>
+        <div class="sub">Open work &amp; shipped history · <span id="lastupd"></span></div>
+      </div>
+    </div>
+    <button class="iconbtn" id="themeBtn" title="Toggle light/dark">◐</button>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="controls">
+    <label class="search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="q" type="search" placeholder="Search titles, categories, branches…" autocomplete="off">
+    </label>
+    <div class="chips" id="statusChips">
+      <span class="chip on" data-status="all">All</span>
+      <span class="chip" data-status="open">Open</span>
+      <span class="chip" data-status="done">Shipped</span>
+    </div>
+    <select class="sel" id="catSel"></select>
+    <div class="chips" id="prioChips">
+      <span class="chip on" data-prio="all">Any priority</span>
+      <span class="chip" data-prio="high">High</span>
+      <span class="chip" data-prio="medium">Medium</span>
+      <span class="chip" data-prio="low">Low</span>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-view="board"><span class="ic">▦</span>Board</button>
+    <button class="tab" data-view="timeline"><span class="ic">◷</span>Timeline</button>
+    <button class="tab" data-view="category"><span class="ic">☰</span>Category</button>
+    <button class="tab" data-view="priority"><span class="ic">▲</span>Priority</button>
+    <button class="tab" data-view="map"><span class="ic">◈</span>Map</button>
+    <button class="tab" data-view="table"><span class="ic">▤</span>Table</button>
+    <button class="tab" data-view="dashboard"><span class="ic">◔</span>Dashboard</button>
+  </div>
+
+  <div class="count" id="count"></div>
+  <div id="view"></div>
+
+  <footer>Generated from <code>docs/PACT_ROADMAP.md</code> + <code>CHANGELOG.md</code> · static, vanilla JS, no build step.</footer>
+</div>
+
+<dialog class="detail" id="detail">
+  <div class="dh"><div class="ct" id="dTitle"></div></div>
+  <div class="db" id="dBody"></div>
+  <div class="df"><button id="dClose">Close</button></div>
+</dialog>
+
+<script>
+"use strict";
+const ITEMS = [{"status":"next","priority":"medium","category":"Fix","branch":"fix/campaign-join-race-friendly-error","title":"Race-losing join/redeem calls surface a raw DB error","desc":"join_campaign and redeem_player_invite's character-insert have no unique_violation handler; a race surfaces a raw Postgres duplicate-key error instead of the friendly “already joined” message. Wrap both INSERTs in the same begin/exception pattern bind_character_to_campaign already uses.","id":"o0","scope":"","date":""},{"status":"next","priority":"medium","category":"Feature","branch":"feat/advancement-tracks","title":"Advancement tracks + D&D 2024 level equivalency","desc":"Store AP-per-level advancement tracks (slow/average/fast + custom) and a D&D 2024 equivalent-level reference table; let DMs select or customise a track per campaign. Display-only — reuse js/ap-by-level.js as the “average” baseline.","id":"o1","scope":"","date":""},{"status":"next","priority":"medium","category":"Feature","branch":"feat/feedback-widget","title":"In-app user feedback widget (Supabase-backed)","desc":"A small floating feedback form on all four player-facing pages (CharGen, Live Sheet, DM Console, Player’s Guide) saving free-text to a new insert-only Supabase table, readable only via the dashboard in v1.","id":"o2","scope":"","date":""},{"status":"next","priority":"medium","category":"Test","branch":"test/advancement-tracks-e2e","title":"Advancement-tracks follow-up: end-to-end browser verification","desc":"Drive the advancement dials from feat/advancement-tracks through a real browser with Supabase auth + a live campaign the headless parity gate can’t exercise. Verify DM panel ↔ bound-player round-trip, persistence, invite pre-fill, Track-Level label.","id":"o3","scope":"","date":""},{"status":"next","priority":"medium","category":"Feature","branch":"feat/livesheet-eco-track-level","title":"Live Sheet economy-line: tuned-curve vs earned-AP pace readout","desc":"Decide + implement whether Live Sheet’s #eco economy line moves to the campaign’s tuned budget curve or stays an earned-AP pace readout, with an unambiguous label distinguishing it from the header Track-Level.","id":"o4","scope":"","date":""},{"status":"later","priority":"low","category":"Chore","branch":"chore/engine-review-cleanup","title":"Engine review cleanup (drawback IDs, signature guard, dedupe, noLock scoping)","desc":"Four small low-risk js/engine.js hardening items from the 2026-07-14 review: stable drawback-buyoff IDs, verifyPayload() cycle guard, baseBuild() duplicate-field removal, noLock scoping. Bundled as one low-risk batch.","id":"o5","scope":"","date":""},{"status":"later","priority":"low","category":"Refactor","branch":"","title":"REV-14 — extract DATA into engine-data.json; split compute()","desc":"Optional engine-targeted refactor. Only safe once REV-01 gives real assertions; dedicated PR, byte-identical output.","id":"o6","scope":"","date":""},{"status":"later","priority":"low","category":"Chore","branch":"","title":"Real icons — replace placeholder 192/512/180 PNGs","desc":"Replace the placeholder PWA icons with real artwork (needs your art).","id":"o7","scope":"","date":""},{"status":"later","priority":"low","category":"Feature","branch":"","title":"Landing-page follow-ups (theming, recent characters, iOS hint)","desc":"Extend theming to the guide and tools; “Continue / recent characters” on the landing page; iOS “Add to Home Screen” hint.","id":"o8","scope":"","date":""},{"status":"later","priority":"low","category":"Docs","branch":"","title":"Supporting reference tasks","desc":"Supabase project setup · Icon & asset list (192/512/180) · Offline UX spec · Future-features roadmap — run when needed.","id":"o9","scope":"","date":""},{"status":"later","priority":"low","category":"Chore","branch":"","title":"Improvements A1 / A3 / A6 / A7","desc":"Engine API contract (engine.d.ts), client error visibility (log to Supabase), tag releases to build version, Lighthouse 85→90 CI. Bases shipped 2026-07-13; remainders optional.","id":"o10","scope":"","date":""},{"status":"later","priority":"low","category":"Fix","branch":"fix/harden-search-path-pg-temp","title":"Harden search_path on SECURITY DEFINER functions against temp-table shadowing","desc":"Change every set search_path = public to public, pg_temp across all 11+ SECURITY DEFINER functions repo-wide; new dated migration; re-run parity + Supabase advisor.","id":"o11","scope":"","date":""},{"status":"later","priority":"low","category":"Refactor","branch":"","title":"General engine maintainability (compute() decomposition, MUT.patch rename)","desc":"compute() does normalization, pricing, validation and warnings in one ~350-line function; MUT.patch can write arbitrary build fields. Noted for whoever next does a larger engine refactor. No fix scheduled.","id":"o12","scope":"","date":""},{"id":"d0","title":"de-duplicate campaign-membership SQL checks","status":"done","priority":"done","category":"Refactor","scope":"campaign","branch":"","date":"2026-07-13","desc":""},{"id":"d1","title":"Campaign join/invite UI, Deliverable 2 (Path B): bind an existing character to a campaign","status":"done","priority":"done","category":"Feature","scope":"campaign","branch":"","date":"2026-07-13","desc":""},{"id":"d2","title":"`/code-review ultra` pass on the bind-character PR fixed a race and a stale-display bug before merge","status":"done","priority":"done","category":"Fix","scope":"campaign","branch":"","date":"2026-07-13","desc":""},{"id":"d3","title":"Campaign join/invite UI, Deliverable 1 (Path A): DM-issued single-use player invite tokens","status":"done","priority":"done","category":"Feature","scope":"campaign","branch":"","date":"2026-07-13","desc":""},{"id":"d4","title":"`/code-review ultra` pass on the invite-tokens PR fixed a race and a data-loss bug before merge","status":"done","priority":"done","category":"Fix","scope":"campaign","branch":"","date":"2026-07-13","desc":""},{"id":"d5","title":"`compute()`: `NaN` in a low-ability-score caster's known-spell over-cap surcharge (`DATA.version` v0.335 → v0.336)","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-13","desc":""},{"id":"d6","title":"`log-fuzz.mjs`: a pure-Node, LOG-direct fuzzer for `js/engine.js`","status":"done","priority":"done","category":"Test","scope":"","branch":"","date":"2026-07-13","desc":""},{"id":"d7","title":"CharGen: species-choosable size + lineage clobbered on Live Sheet → CharGen handoff","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-13","desc":""},{"id":"d8","title":"`random-manual-e2e.mjs`: a genuinely independent oracle, not just a self-check","status":"done","priority":"done","category":"Test","scope":"","branch":"","date":"2026-07-13","desc":""},{"id":"d9","title":"back up / restore all local data from the landing page (A5)","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-13","desc":""},{"id":"d10","title":"remove REV-13 dead grant maps","status":"done","priority":"done","category":"Refactor","scope":"engine","branch":"","date":"2026-07-13","desc":""},{"id":"d11","title":"low-risk hardening batch (B1/B4/B5/B3)","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-13","desc":""},{"id":"d12","title":"Live Sheet: carry campaign rules offline via a LOG snapshot + `resolveRules()` (part b of retire-pactrules)","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-13","desc":""},{"id":"d13","title":"retire the local PACTRULES \"#3\" code path (part a of the retire-pactrules task)","status":"done","priority":"done","category":"Refactor","scope":"","branch":"","date":"2026-07-13","desc":""},{"id":"d14","title":"orphaned-export sweep of `js/engine.js` (A9, find-and-report only)","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-13","desc":""},{"id":"d15","title":"DM Console: copy campaign rules from another campaign","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-13","desc":""},{"id":"d16","title":"Live Sheet: stop re-folding+re-computing for \"AP available\" in hot paths","status":"done","priority":"done","category":"Perf","scope":"","branch":"","date":"2026-07-13","desc":""},{"id":"d17","title":"four aggregate-review findings across both tools","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-12","desc":""},{"id":"d18","title":"collapse the `_dmApStatus`/`_rulesStatus` hand-mirror into one variable","status":"done","priority":"done","category":"Refactor","scope":"live-sheet","branch":"","date":"2026-07-12","desc":""},{"id":"d19","title":"AUD-1 follow-up: audit.py now catches BUILD mirror drift","status":"done","priority":"done","category":"Chore","scope":"testing","branch":"","date":"2026-07-12","desc":""},{"id":"d20","title":"REV-11: headless engine-parity gate now runs in CI","status":"done","priority":"done","category":"Chore","scope":"testing","branch":"","date":"2026-07-12","desc":""},{"id":"d21","title":"batch: REV-12 esc() hard invariant, rules-correctness review note, AI working defaults, pre-release audit trigger, stale parity-count fix; graduate REV-10 as already-resolved","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-12","desc":""},{"id":"d22","title":"CharGen and the Live Sheet now show one identical spendable-AP total, honoring DM AP + `ignore_player_ap`","status":"done","priority":"done","category":"Feature","scope":"ap-model","branch":"","date":"2026-07-12","desc":""},{"id":"d23","title":"document compute()'s two-pool AP model + anti-double-count invariant","status":"done","priority":"done","category":"Docs","scope":"engine","branch":"","date":"2026-07-12","desc":""},{"id":"d24","title":"add \"Fix depth\" communication convention","status":"done","priority":"done","category":"Docs","scope":"agents","branch":"","date":"2026-07-12","desc":""},{"id":"d25","title":"one kind token per ban call site; `RULE_BAN_FIELDS` accepts `draws` as a `drawbacks` alias","status":"done","priority":"done","category":"Refactor","scope":"rules","branch":"","date":"2026-07-12","desc":""},{"id":"d26","title":"banned drawbacks/arts are now hidden from the pickers (+ de-diverge Live Sheet's `cloudRuleBarred`)","status":"done","priority":"done","category":"Feature","scope":"rules","branch":"","date":"2026-07-12","desc":""},{"id":"d27","title":"campaign rules can now ban drawbacks and arts","status":"done","priority":"done","category":"Feature","scope":"rules","branch":"","date":"2026-07-12","desc":""},{"id":"d28","title":"add `playwright` + `supabase` CLI as devDependencies","status":"done","priority":"done","category":"Chore","scope":"testing","branch":"","date":"2026-07-11","desc":""},{"id":"d29","title":"database-level backstop: `characters.ap` can no longer be set on insert","status":"done","priority":"done","category":"Fix","scope":"sql","branch":"","date":"2026-07-11","desc":""},{"id":"d30","title":"clone a campaign character to a standalone character","status":"done","priority":"done","category":"Feature","scope":"livesheet","branch":"","date":"2026-07-11","desc":""},{"id":"d31","title":"fix stale/misleading comment on `PATCH_SLOTS.IDENTITY`","status":"done","priority":"done","category":"Docs","scope":"chargen","branch":"","date":"2026-07-11","desc":""},{"id":"d32","title":"retire sequential D-GH numbers for D-GH-\\<date\\>-\\<slug\\>","status":"done","priority":"done","category":"Docs","scope":"process","branch":"","date":"2026-07-11","desc":""},{"id":"d33","title":"externalize the AP-by-level ladder to `js/ap-by-level.js` (D-GH49)","status":"done","priority":"done","category":"Feature","scope":"engine","branch":"","date":"2026-07-11","desc":""},{"id":"d34","title":"remove unused `DATA.benchLevels` and `DATA.armourStandalone`","status":"done","priority":"done","category":"Chore","scope":"engine","branch":"","date":"2026-07-11","desc":""},{"id":"d35","title":"add session note for the AUD-1 health-check task (D-GH47)","status":"done","priority":"done","category":"Docs","scope":"sessions","branch":"","date":"2026-07-11","desc":""},{"id":"d36","title":"Feature B: save-file integrity (tamper-evidence)","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-11","desc":""},{"id":"d37","title":"add session note for the communication-conventions fix (D-GH46)","status":"done","priority":"done","category":"Docs","scope":"sessions","branch":"","date":"2026-07-11","desc":""},{"id":"d38","title":"communication conventions: recommend-with-reasoning + `AskUserQuestion` reliability","status":"done","priority":"done","category":"Docs","scope":"process","branch":"","date":"2026-07-11","desc":""},{"id":"d39","title":"AUD-1 audit.py: `/code-review high` fix-up, still on the same PR","status":"done","priority":"done","category":"Fix","scope":"testing","branch":"","date":"2026-07-11","desc":""},{"id":"d40","title":"AUD-1: static health-check script `testing/scripts/audit.py`","status":"done","priority":"done","category":"Feature","scope":"testing","branch":"","date":"2026-07-11","desc":""},{"id":"d41","title":"bring the \"simple batch\" session note up to date","status":"done","priority":"done","category":"Docs","scope":"sessions","branch":"","date":"2026-07-11","desc":""},{"id":"d42","title":"D-GH45 follow-up: durable ai-lessons-learned citation + verify its second stale claim","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-11","desc":""},{"id":"d43","title":"stop the cloud-campaign UI refetching/re-rendering on every hourly token refresh","status":"done","priority":"done","category":"Fix","scope":"chargen","branch":"","date":"2026-07-11","desc":""},{"id":"d44","title":"close the CharGen feature-autocomplete scroll-position task as stale, no code change","status":"done","priority":"done","category":"Docs","scope":"roadmap","branch":"","date":"2026-07-11","desc":""},{"id":"d45","title":"\"Level up\" buy-tile stays free and clickable past Hit Die 20","status":"done","priority":"done","category":"Fix","scope":"live-sheet","branch":"","date":"2026-07-11","desc":""},{"id":"d46","title":"add a pre-release manual QA checklist","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-11","desc":""},{"id":"d47","title":"CharGen campaign-rules awareness (sign-in + live filter)","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-11","desc":""},{"id":"d48","title":"lock down remaining Supabase function EXECUTE grants (anon)","status":"done","priority":"done","category":"Fix","scope":"sql","branch":"","date":"2026-07-10","desc":""},{"id":"d49","title":"cross-check DECISIONS.md/CHANGELOG.md/roadmap and fix what they disagreed on","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-10","desc":""},{"id":"d50","title":"fix the same stale `9 passed / 0 failed` parity count in `docs/HOW-TO-WORK.md`","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-10","desc":""},{"id":"d51","title":"remove stale duplicate \"Add Supabase advisor/log check\" entry","status":"done","priority":"done","category":"Docs","scope":"roadmap","branch":"","date":"2026-07-10","desc":""},{"id":"d52","title":"reintroduce D-GH5's mobile app-shell so header/overlay buttons stop sticking on scroll","status":"done","priority":"done","category":"Fix","scope":"live-sheet","branch":"","date":"2026-07-10","desc":""},{"id":"d53","title":"extend the character-gen e2e harness to cover DM Console's roster import","status":"done","priority":"done","category":"Test","scope":"e2e","branch":"","date":"2026-07-10","desc":""},{"id":"d54","title":"engine module-bridge migration complete across all three tools","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-10","desc":""},{"id":"d55","title":"unbounded AP inflation for any character with an active drawback, on every save/load/switch cycle (D-GH41, live-production bug)","status":"done","priority":"done","category":"Fix","scope":"chargen","branch":"","date":"2026-07-10","desc":""},{"id":"d56","title":"headless Playwright e2e for character gen + advancement (REV-11)","status":"done","priority":"done","category":"Test","scope":"ci","branch":"","date":"2026-07-10","desc":""},{"id":"d57","title":"one unified save/export file for both tools (D-GH40)","status":"done","priority":"done","category":"Refactor","scope":"save-format","branch":"","date":"2026-07-10","desc":""},{"id":"d58","title":"ability-score +/- steppers never reached the LOG (D-GH39, live-production bug)","status":"done","priority":"done","category":"Fix","scope":"chargen","branch":"","date":"2026-07-10","desc":""},{"id":"d59","title":"one-click switch between CharGen and Live Sheet on a shared `js/character-store.js` (D-GH38)","status":"done","priority":"done","category":"Feature","scope":"tools","branch":"","date":"2026-07-09","desc":""},{"id":"d60","title":"bridge foldBuild/activeEvents/economy to js/engine.js in Live Sheet + DM Console (D-GH37)","status":"done","priority":"done","category":"Refactor","scope":"tools","branch":"","date":"2026-07-09","desc":""},{"id":"d61","title":"bridge `MUT` to js/engine.js (D-GH36)","status":"done","priority":"done","category":"Fix","scope":"dm-console","branch":"","date":"2026-07-09","desc":""},{"id":"d62","title":"bump build v0.107 → v0.200; remove the v0 comparison snapshot","status":"done","priority":"done","category":"Chore","scope":"release","branch":"","date":"2026-07-09","desc":""},{"id":"d63","title":"Phase 2 Step 4, Chunk D: Undo/Redo UI + keyboard shortcuts (Step 4 COMPLETE)","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d64","title":"Phase 2 Step 4, Chunk C: event-log persistence `{schema,rules,name,budget,LOG,SEQ,id}`","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d65","title":"Phase 2 Step 4, Chunk B: applyBuild/boot history integration (+ latent randomize-aliasing fix)","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d66","title":"Phase 2 Step 4, Chunk A: snapshot-based undo/redo history core (no UI yet)","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d67","title":"Phase 2 Step 5, Chunk B: frame simplification + Step-4 back-compat reconcile (Step 5 COMPLETE)","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d68","title":"Phase 2 Step 5, Chunk A: name + budget are first-class LOG events (shims retired)","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d69","title":"export burst dropped `size` and `wornArmour` (CharGen → Live Sheet)","status":"done","priority":"done","category":"Fix","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d70","title":"DM house-rules bar handlers threw `ReferenceError: ck is not defined`","status":"done","priority":"done","category":"Fix","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d71","title":"merge `preview` into `feat/chargen-emit-migration` (parity 16/0 → 20/0)","status":"done","priority":"done","category":"Chore","scope":"merge","branch":"","date":"2026-07-09","desc":""},{"id":"d72","title":"Phase 2 Step 3, Chunk 6: THE FLIP — CharGen is now event-sourced (emit-migration COMPLETE)","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d73","title":"Phase 2 Step 3, Chunk 5: whole-build-replacement convergence (LOG synced after every load flow)","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d74","title":"Phase 2 Step 3, Chunk 4B: traditions/disciplines → one coalescing TRADITIONS patch","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d75","title":"Phase 2 Step 3, Chunk 4A: customProfs/freeSub wiring + patch-slot hardening + unlockclass fix","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d76","title":"Phase 2 Step 3, Chunk 3: Category C add-row lists + unlockedClasses wired to LOG","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d77","title":"Phase 2 Step 3, Chunk 2: Category B scalar/object fields wired to replacePatchSlot()","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d78","title":"Phase 2 Step 3, Chunk 1 follow-up: prevent duplicate LOG entries from DOM-side bypass unchecks","status":"done","priority":"done","category":"Fix","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d79","title":"Phase 2 Step 3, Chunk 1: Category A checkboxes + Category D grids wired to LOG","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d80","title":"Phase 2 Step 3, Chunk 0: LOG mutation API + shadow-diff scaffolding (no behavior change)","status":"done","priority":"done","category":"Feature","scope":"chargen","branch":"","date":"2026-07-09","desc":""},{"id":"d81","title":"post-D-GH34 code review cleanup pass","status":"done","priority":"done","category":"Refactor","scope":"engine,chargen,testing","branch":"","date":"2026-07-09","desc":""},{"id":"d82","title":"restore racial-trait pricing in Live Sheet & DM Console; wire noLock into CharGen's export (D-GH34)","status":"done","priority":"done","category":"Fix","scope":"engine","branch":"","date":"2026-07-08","desc":""},{"id":"d83","title":"import real js/engine.js MUT/foldBuild/activeEvents/economy/baseBuild; fixes a real multi-discipline import bug (D-GH33, Phase 2 step 2)","status":"done","priority":"done","category":"Fix","scope":"chargen","branch":"","date":"2026-07-08","desc":""},{"id":"d84","title":"automatic `creationLocked` now requires campaign binding (D-GH32, Phase 2 step 1)","status":"done","priority":"done","category":"Feature","scope":"engine","branch":"","date":"2026-07-08","desc":""},{"id":"d85","title":"freeze a CharGen v0 snapshot for Phase 2 side-by-side comparison","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-08","desc":""},{"id":"d86","title":"`creationLocked` event/threshold replaces the dead `b.inPlay` flag (D-GH31, Phase 1 of 3)","status":"done","priority":"done","category":"Feature","scope":"engine","branch":"","date":"2026-07-08","desc":""},{"id":"d87","title":"correct stale roadmap text around the engine module-bridge migration; graduate \"Task 6\"","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-08","desc":""},{"id":"d88","title":"fold the `feat/ap-model-reconcile` item into the roadmap","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-08","desc":""},{"id":"d89","title":"session note for the AP-display fix; revert a roadmap single-writer slip","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-08","desc":""},{"id":"d90","title":"\"AP left\" now reads the frozen ledger instead of a retroactive recompute","status":"done","priority":"done","category":"Fix","scope":"live-sheet","branch":"","date":"2026-07-08","desc":""},{"id":"d91","title":"add Supabase advisor/log check to the per-change checklist","status":"done","priority":"done","category":"Docs","scope":"agents","branch":"","date":"2026-07-09","desc":""},{"id":"d92","title":"add PR template with per-change checklist + review-cadence line","status":"done","priority":"done","category":"Docs","scope":"github","branch":"","date":"2026-07-09","desc":""},{"id":"d93","title":"expand engine-parity coverage past the 5 budget/empty/over-budget fixtures","status":"done","priority":"done","category":"Test","scope":"","branch":"","date":"2026-07-09","desc":""},{"id":"d94","title":"`/pick-task` and `/run-task` now suggest a Haiku/Sonnet/Opus engine tier per task","status":"done","priority":"done","category":"Chore","scope":"skills","branch":"","date":"2026-07-08","desc":""},{"id":"d95","title":"surface cloud/campaign status in CharGen + Live Sheet","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-08","desc":""},{"id":"d96","title":"fold three proven worktree gotchas into `/run-task`","status":"done","priority":"done","category":"Docs","scope":"skills","branch":"","date":"2026-07-08","desc":""},{"id":"d97","title":"fix the recurring D-GH decision-number collision (D-GH43, originally logged as D-GH30 — itself collided and was renumbered; see its addendum)","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-08","desc":""},{"id":"d98","title":"record the engine module-bridge safe-subset session","status":"done","priority":"done","category":"Docs","scope":"sessions","branch":"","date":"2026-07-05","desc":""},{"id":"d99","title":"record the BUILD-export/leaked-password/theme-artwork session","status":"done","priority":"done","category":"Docs","scope":"sessions","branch":"","date":"2026-07-05","desc":""},{"id":"d100","title":"dedicated per-theme homepage artwork for all 4 themes; swap the Player's Guide cover to webp","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-05","desc":""},{"id":"d101","title":"swap in real dark-theme homepage artwork; add a `source-assets/` originals archive","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-05","desc":""},{"id":"d102","title":"gate + tighten the `plan-for-review` skill for cold M365 Copilot review; add an AGENTS.md Active Priorities block","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-05","desc":""},{"id":"d103","title":"resolve a `D-GH25` collision on `preview`, plus a squash-merge duplicate line","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-05","desc":""},{"id":"d104","title":"theme-aware random homepage artwork","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d105","title":"retire the \"enable Supabase Auth leaked-password protection\" roadmap item","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d106","title":"session note + D-GH24 for the theme-selector fix's `<head>` trade-off","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d107","title":"`/pick-task` can batch several quick, non-overlapping tasks into one PR","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d108","title":"`/pick-task` ends with a clickable confirmation instead of copy-paste text","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d109","title":"reliable Save/Export on iOS Safari & PWA, plus a CharGen autosave safety net","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d110","title":"narrow `/pick-task` Step 1's fetch from four files to three","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d111","title":"theme selector reachable on mobile, no longer clips on desktop; add system dark-mode default","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d112","title":"add `BUILD` export to `js/engine.js`, wire `index.html` to read it live","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d113","title":"bridge `DATA`/`compute`/`baseBuild` onto `js/engine.js` in all three tools (safe subset of the engine module-bridge migration)","status":"done","priority":"done","category":"Feature","scope":"tools","branch":"","date":"2026-07-05","desc":""},{"id":"d114","title":"record the audit/checking roadmap-additions session","status":"done","priority":"done","category":"Docs","scope":"sessions","branch":"","date":"2026-07-04","desc":""},{"id":"d115","title":"add `.worktreeinclude`","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d116","title":"add YAML frontmatter to every `.claude/commands/*.md` skill","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d117","title":"split `/next-task` into `/pick-task` + `/run-task`","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d118","title":"`/run-task` adopts native Claude Code worktrees (`EnterWorktree`)","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d119","title":"`/pick-task` Step 1 delegates to an Explore subagent","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d120","title":"remove `/add-roadmap-task`'s \"test mode\"","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d121","title":"`/close-session` skips the test-gate check on docs-only sessions","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d122","title":"`/log-ai-lessons` Step 4 discloses the push-to-`main` consequence","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d123","title":"add `/cleanup-branches` skill","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d124","title":"resolve duplicate `D-GH19` reservation in `DECISIONS.md`","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-03","desc":""},{"id":"d125","title":"`/close-session`: loosen the session-note trigger from \"spanned multiple areas\" to \"anything not fully captured by a one-line CHANGELOG entry\"","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-03","desc":""},{"id":"d126","title":"record the `/plan-for-review` build, dogfood test, and rebase-time D-GH collision","status":"done","priority":"done","category":"Docs","scope":"sessions","branch":"","date":"2026-07-04","desc":""},{"id":"d127","title":"rebase `D-GH20` → `D-GH21` collision before merge, not after","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d128","title":"`/plan-for-review`: add Step 7, handling returned review feedback","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d129","title":"`/plan-for-review`: apply cross-AI review findings (workflow, filenames, scope, secrets)","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d130","title":"`/plan-for-review`: make Context inline-quoted, not file-referenced","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d131","title":"add `/plan-for-review` skill: draft a plan as a self-contained file for cross-AI review","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-04","desc":""},{"id":"d132","title":"add `/log-ai-lessons` skill: mine a session/file for cross-project lessons","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-03","desc":""},{"id":"d133","title":"SessionStart hook: stop trying to auto-clone `ai-lessons-learned`, nudge the agent instead","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-03","desc":""},{"id":"d134","title":"retest `ai-lessons-learned` clone: root cause was session GitHub scoping, not the PAT","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-03","desc":""},{"id":"d135","title":"SessionStart hook loads cross-project `ai-lessons-learned` notes in remote sessions","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-03","desc":""},{"id":"d136","title":"`/close-session`: add cross-project hints check","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-03","desc":""},{"id":"d137","title":"`/next-task`: make worktree paths OS-agnostic","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-03","desc":""},{"id":"d138","title":"`/close-session`: re-check existing session notes for staleness, not just presence","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d139","title":"Live Sheet unusably cramped on small mobile screens (~375-400px)","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d140","title":"PWA stale-version bug: users never got the \"new version ready\" reload prompt","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d141","title":"merge `/next-task` effort and model checks into one calibration step","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d142","title":"Live Sheet: Magically/Martially Bound showed a contradictory \"-2\" cost badge","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d143","title":"apply REV-07 CSPRNG invite-code migration + pin missing function `search_path`s (live Supabase)","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d144","title":"fix AGENTS.md's stale \"module bridge\" claim","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d145","title":"CharGen \"⇆ Live Sheet\" export crash on any species/racial trait","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d146","title":"Feature A: Live Sheet multi-tradition / multi-discipline spellcasting + Magically Bound","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d147","title":"ignore the `/close-session` reminder-hook state file","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d148","title":"REV-07: source invite codes from a CSPRNG","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d149","title":"drop legacy `award_xp`, lock down anon EXECUTE on `award_ap`","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d150","title":"DM campaign rules: live-filter banned masteries/boons in Live Sheet","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d151","title":"lower Live Sheet low-spend nudge threshold to 50 AP","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d152","title":"Live Sheet low-spend nudge toward CharGen","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d153","title":"CU-7: surface Save/Load/Live Sheet actions on mobile CharGen","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d154","title":"clarify `/next-task` effort and model checks","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d155","title":"DM campaign rules: configure and enforce on cloud push","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d156","title":"add `/close-session` command","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d157","title":"simplify `/next-task` command wording","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d158","title":"standardise CharGen toolbar spacing","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d159","title":"REV-06: offline delete no longer resurrects on reconnect","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d160","title":"REV-05: sync compares parsed instants, not raw timestamp strings","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d161","title":"CU-4: prune merged branches","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d162","title":"CU-6: rename `DM Console.html` → `DM-Console.html`","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d163","title":"CharGen → Live Sheet export silently failed to save on blocked storage","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d164","title":"CU-1: single-source agent docs","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d165","title":"REV-10: stop tracking `.claude/` JSON config files","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d166","title":"close stored-XSS gap in custom tools/instruments (CharGen + Live Sheet)","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-07-02","desc":""},{"id":"d167","title":"CU-3: tidy repo root and test files","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d168","title":"CU-2: sync DM Console build version to v0.107","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-07-01","desc":""},{"id":"d169","title":"REV-04: close campaign-join bypass in RLS","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-06-30","desc":""},{"id":"d170","title":"REV-03: service worker now uses network-first for `*.html` + `js/engine.js`","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-06-30","desc":""},{"id":"d171","title":"auth bar on menu: optional sign-in, no redirect gate","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d172","title":"REV-02: service worker now skips caching for cross-origin requests","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-06-30","desc":""},{"id":"d173","title":"REV-01: regression gate now asserts real values","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-06-30","desc":""},{"id":"d174","title":"CU-5: fix duplicate D-GH7 in DECISIONS.md","status":"done","priority":"done","category":"Docs","scope":"","branch":"","date":"2026-06-30","desc":""},{"id":"d175","title":"Task 5 hardening: SW pre-cache, offline login, update flow, maskable icon, preconnect","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-06-30","desc":""},{"id":"d176","title":"dual-source AP budget: `compute(b, opts)` and `rebuildStateFromEvents(base, events, opts)` now accept `{ dmAp, ignorePlayerAp }`","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-30","desc":""},{"id":"d177","title":"Live Sheet dual-source AP: cloud-loaded characters now blend DM-granted AP into the budget","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-30","desc":""},{"id":"d178","title":"Task 4 UI: campaign roster + cloud save in DM Console and Live Sheet","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-30","desc":""},{"id":"d179","title":"landing page redesign to match the Player's Guide","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-30","desc":""},{"id":"d180","title":"tools refreshed to the corrected v0.332 DATA","status":"done","priority":"done","category":"Data","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d181","title":"correct the v0.332 engine DATA (PR #23 shipped an incomplete build)","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d182","title":"engine rules data refresh, `DATA.version` v0.322 → v0.332","status":"done","priority":"done","category":"Data","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d183","title":"campaign-play backend: co-DMs, AP award ledger, ignore-player-AP","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d184","title":"Task 1 complete: SW registration added to `tools/*.html`","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d185","title":"Mobile CharGen header now stays pinned","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d186","title":"Version bump + header polish","status":"done","priority":"done","category":"Chore","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d187","title":"Task 1: PWA shell","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d188","title":"rename XP → AP across the cloud backend","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d189","title":"Task 4 (partial): campaigns + DM AP logic","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d190","title":"Task 3 (partial): cloud save + offline sync","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d191","title":"Task 2 (partial): standalone login screen","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d192","title":"Task 2 (partial): Supabase client + auth helpers","status":"done","priority":"done","category":"Feature","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d193","title":"CharGen: header fully redesigned with 4-row desktop layout (Row 1: name+AP+warn icon; Row 2: title+versions+timestamp; Row 3: all action buttons, wraps; Row 4: section nav) and 2-row mobile layout (Row 1: name+AP; Row 2: Random+Reset+section jump). New 768px breakpoint for header only; existing 600px breakpoint unchanged. `DATA.version` unchanged.","status":"done","priority":"done","category":"UI","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d194","title":"Both tools: \"Last edited\" timestamp now reads from document.lastModified (HTTP header set by GitHub Pages from the commit date) instead of a hardcoded string. UI-only; `DATA.version` unchanged.","status":"done","priority":"done","category":"UI","scope":"","branch":"","date":"2026-06-28","desc":""},{"id":"d195","title":"CharGen: AP indicator is now the sticky mini-header (#mtop): character name on left, \"X / Y AP\" pill on right. Removed #apFloat floating pill (not wanted in CharGen) and #chip (topbar duplicate). UI-only; `DATA.version` unchanged.","status":"done","priority":"done","category":"UI","scope":"","branch":"","date":"2026-06-28","desc":""},{"id":"d196","title":"CharGen: removed mobile bottom AP bar (#mobar); replaced with a floating pill (#apFloat, top-right) identical to the Live Sheet — shows remaining AP, flashes on change, turns red when over budget. UI-only; `DATA.version` unchanged.","status":"done","priority":"done","category":"UI","scope":"","branch":"","date":"2026-06-28","desc":""},{"id":"d197","title":"Live Sheet mobile improvements: header buttons become icon-only (text labels hidden), version/last-edited metadata hidden; DM toolbar scrolls horizontally; category headers get larger tap targets; bottom bar gets thumb-reachable Undo/Redo buttons alongside AP display. UI-only; `DATA.version` unchanged.","status":"done","priority":"done","category":"UI","scope":"","branch":"","date":"2026-06-28","desc":""},{"id":"d198","title":"Live Sheet buy panel — renamed 'Expertise' group to 'Skill expertise'. UI-only; `DATA.version` unchanged.","status":"done","priority":"done","category":"UI","scope":"","branch":"","date":"2026-06-28","desc":""},{"id":"d199","title":"Live Sheet buy panel — moved 'Tools & instruments' and 'Tool expertise' to sit directly after 'Expertise' (before 'Languages') in the Proficiencies group. UI-only; `DATA.version` unchanged.","status":"done","priority":"done","category":"UI","scope":"","branch":"","date":"2026-06-28","desc":""},{"id":"d200","title":"Live Sheet buy panel — boons and drawbacks now grouped by category (matching CharGen); boons show their effect description like drawbacks; AP moved inline next to the item name to save vertical space. UI-only; `DATA.version` unchanged.","status":"done","priority":"done","category":"UI","scope":"","branch":"","date":"2026-06-28","desc":""},{"id":"d201","title":"Live Sheet buy panel — moved weapon masteries from the 'Languages & masteries' group into 'Weapons & armour'; renamed the languages group to 'Languages'. UI-only; `DATA.version` unchanged.","status":"done","priority":"done","category":"UI","scope":"","branch":"","date":"2026-06-28","desc":""},{"id":"d202","title":"suppress zero-cost non-purchase entries in CharGen→Live Sheet exports","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d203","title":"make CharGen→Live Sheet export create a file again","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d204","title":"make CharGen→Live Sheet export emit native per-item events","status":"done","priority":"done","category":"Fix","scope":"","branch":"","date":"2026-06-29","desc":""},{"id":"d205","title":"apply PHB page numbers and drawback text updates to `js/engine.js`","status":"done","priority":"done","category":"Data","scope":"","branch":"","date":"2026-06-28","desc":""},{"id":"d206","title":"fill PHB page numbers + sync drawback text into `js/engine.js`","status":"done","priority":"done","category":"Data","scope":"","branch":"","date":"2026-06-28","desc":""}];
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const STATUS_META = {
+  now:{label:'Now',cls:'now'}, next:{label:'Next',cls:'next'},
+  later:{label:'Later',cls:'later'}, done:{label:'Shipped',cls:'done'}
+};
+const PRIO_ORDER = {high:0,medium:1,low:2,done:3};
+
+// ---- state ----
+let state = { view:'board', q:'', status:'all', cat:'all', prio:'all', expandDone:false };
+
+// ---- setup ----
+function init(){
+  // last updated = newest done date
+  const dates = ITEMS.filter(i=>i.date).map(i=>i.date).sort();
+  $('#lastupd').textContent = 'updated ' + (dates[dates.length-1]||'');
+  // category select
+  const cats = [...new Set(ITEMS.map(i=>i.category))].sort();
+  $('#catSel').innerHTML = '<option value="all">All categories</option>' +
+    cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  // theme
+  const saved = null; // localStorage may be unavailable in some embeds; default to OS
+  bindControls();
+  renderStats();
+  render();
+}
+
+function bindControls(){
+  $('#q').addEventListener('input',e=>{state.q=e.target.value.toLowerCase().trim();render();});
+  $('#statusChips').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;
+    state.status=c.dataset.status;setOn('#statusChips',c);render();});
+  $('#prioChips').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;
+    state.prio=c.dataset.prio;setOn('#prioChips',c);render();});
+  $('#catSel').addEventListener('change',e=>{state.cat=e.target.value;render();});
+  $('#tabs').addEventListener('click',e=>{const t=e.target.closest('.tab');if(!t)return;
+    state.view=t.dataset.view;[...$('#tabs').children].forEach(x=>x.classList.toggle('on',x===t));render();});
+  $('#themeBtn').addEventListener('click',toggleTheme);
+  $('#dClose').addEventListener('click',()=>$('#detail').close());
+  $('#detail').addEventListener('click',e=>{if(e.target.id==='detail')$('#detail').close();});
+}
+function setOn(sel,el){[...$(sel).children].forEach(x=>x.classList.toggle('on',x===el));}
+
+function toggleTheme(){
+  const cur = document.documentElement.getAttribute('data-theme');
+  const prefersDark = matchMedia('(prefers-color-scheme:dark)').matches;
+  const next = cur ? (cur==='dark'?'light':'dark') : (prefersDark?'light':'dark');
+  document.documentElement.setAttribute('data-theme',next);
+}
+
+// ---- filtering ----
+function filtered(){
+  return ITEMS.filter(i=>{
+    if(state.status==='open' && i.status==='done') return false;
+    if(state.status==='done' && i.status!=='done') return false;
+    if(state.cat!=='all' && i.category!==state.cat) return false;
+    if(state.prio!=='all' && i.priority!==state.prio) return false;
+    if(state.q){
+      const hay = (i.title+' '+i.category+' '+i.branch+' '+i.scope+' '+i.desc).toLowerCase();
+      if(!hay.includes(state.q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderStats(){
+  const c = k => ITEMS.filter(i=>i.status===k).length;
+  const cards = [
+    ['now','Now',c('now')],['next','Next',c('next')],['later','Later',c('later')],['done','Shipped',c('done')],
+    ['','Total',ITEMS.length]
+  ];
+  $('#stats').innerHTML = cards.map(([cls,l,n])=>
+    `<div class="stat ${cls}"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+}
+
+// ---- card ----
+function cardHTML(i){
+  const pr = i.priority!=='done' ? `<span class="badge p-${i.priority}">${i.priority}</span>` : '';
+  const dt = i.date ? `<span class="badge dt">${esc(i.date)}</span>` : '';
+  const br = i.branch ? `<span class="badge branch">${esc(i.branch)}</span>` : '';
+  return `<div class="card s-${STATUS_META[i.status].cls}" data-id="${i.id}">
+    <div class="ct">${esc(i.title)}</div>
+    <div class="cmeta"><span class="badge cat">${esc(i.category)}</span>${pr}${dt}</div>
+    ${i.desc?`<div class="desc">${esc(i.desc)}</div>`:''}
+    ${br?`<div class="cmeta">${br}</div>`:''}
+  </div>`;
+}
+
+function wireCards(root){
+  root.querySelectorAll('.card').forEach(el=>el.addEventListener('click',()=>{
+    openDetail(ITEMS.find(i=>i.id===el.dataset.id));
+  }));
+}
+
+function openDetail(i){
+  if(!i) return;
+  $('#dTitle').textContent = i.title;
+  const rows = [];
+  rows.push(['Status', STATUS_META[i.status].label]);
+  rows.push(['Category', i.category]);
+  if(i.priority!=='done') rows.push(['Priority', i.priority]);
+  if(i.date) rows.push(['Shipped', i.date]);
+  if(i.branch) rows.push(['Branch', i.branch]);
+  if(i.scope) rows.push(['Scope', i.scope]);
+  let html = rows.map(([l,v])=>`<div class="row"><div class="lbl">${l}</div>${esc(v)}</div>`).join('');
+  if(i.desc) html += `<div class="row"><div class="lbl">Details</div>${esc(i.desc)}</div>`;
+  $('#dBody').innerHTML = html;
+  $('#detail').showModal();
+}
+
+// ================= VIEWS =================
+function render(){
+  const data = filtered();
+  $('#count').textContent = `${data.length} item${data.length===1?'':'s'} shown` +
+    (state.q||state.cat!=='all'||state.prio!=='all'||state.status!=='all' ? ' (filtered)' : '');
+  const v = $('#view');
+  ({board:vBoard,timeline:vTimeline,category:vCategory,priority:vPriority,map:vMap,table:vTable,dashboard:vDashboard}[state.view])(v,data);
+  wireCards(v);
+}
+
+// ---- Board (by status) ----
+function vBoard(root,data){
+  const cols = [['now','Now'],['next','Next'],['later','Later'],['done','Shipped']];
+  const CAP = 40;
+  root.innerHTML = `<div class="board">` + cols.map(([k,label])=>{
+    let list = data.filter(i=>i.status===k);
+    if(k==='done'){ list = list.slice().sort((a,b)=>b.date.localeCompare(a.date)); }
+    const shown = (k==='done' && !state.expandDone) ? list.slice(0,CAP) : list;
+    const meta = STATUS_META[k];
+    const body = shown.length ? shown.map(cardHTML).join('')
+      : `<div class="empty">${k==='now'?'Nothing critical open — clear runway.':'Nothing here.'}</div>`;
+    const more = (k==='done' && list.length>CAP && !state.expandDone)
+      ? `<div class="more" data-more="1">+ ${list.length-CAP} more shipped…</div>` : '';
+    return `<div class="col c-${k}"><h3><span class="dot"></span>${label}<span class="k">${list.length}</span></h3>
+      <div class="stack">${body}${more}</div></div>`;
+  }).join('') + `</div>`;
+  const m = root.querySelector('[data-more]');
+  if(m) m.addEventListener('click',()=>{state.expandDone=true;render();});
+}
+
+// ---- Timeline (by time) ----
+function vTimeline(root,data){
+  const withDate = data.filter(i=>i.date).sort((a,b)=>b.date.localeCompare(a.date));
+  const planned = data.filter(i=>!i.date);
+  const byDay = {};
+  withDate.forEach(i=>{(byDay[i.date]=byDay[i.date]||[]).push(i);});
+  const days = Object.keys(byDay).sort((a,b)=>b.localeCompare(a));
+  let html = `<div class="timeline">`;
+  if(planned.length){
+    html += `<div class="tl-day"><div class="d">Planned / unscheduled <span class="k">${planned.length} open</span></div>
+      <div class="stack">${planned.map(cardHTML).join('')}</div></div>`;
+  }
+  html += days.map(d=>{
+    const list = byDay[d];
+    const dd = new Date(d+'T00:00:00');
+    const nice = dd.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+    return `<div class="tl-day"><div class="d">${nice} <span class="k">${esc(d)} · ${list.length} shipped</span></div>
+      <div class="stack">${list.map(cardHTML).join('')}</div></div>`;
+  }).join('');
+  html += `</div>`;
+  if(!withDate.length && !planned.length) html = emptyMsg();
+  root.innerHTML = html;
+}
+
+// ---- Category ----
+function vCategory(root,data){
+  const groups = {};
+  data.forEach(i=>{(groups[i.category]=groups[i.category]||[]).push(i);});
+  const keys = Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length);
+  root.innerHTML = keys.length ? `<div class="groups">` + keys.map(c=>{
+    const list = groups[c].slice().sort(sortItems);
+    return `<div class="grp"><h3><span class="badge cat">${esc(c)}</span><span class="k">${list.length}</span></h3>
+      <div class="grid">${list.map(cardHTML).join('')}</div></div>`;
+  }).join('') + `</div>` : emptyMsg();
+}
+
+// ---- Priority ----
+function vPriority(root,data){
+  const lanes = [['high','High priority'],['medium','Medium priority'],['low','Low priority'],['done','Completed']];
+  const groups = {high:[],medium:[],low:[],done:[]};
+  data.forEach(i=>groups[i.priority]?.push(i));
+  const parts = lanes.filter(([k])=>groups[k].length).map(([k,label])=>{
+    let list = groups[k];
+    if(k==='done') list = list.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,60);
+    else list = list.slice().sort(sortItems);
+    const badge = k==='done' ? `<span class="badge cat">Shipped</span>` : `<span class="badge p-${k}">${k}</span>`;
+    const note = (k==='done' && groups.done.length>60) ? ` <span style="font-weight:400;color:var(--ink2);font-size:12px">(latest 60 of ${groups.done.length})</span>`:'';
+    return `<div class="grp"><h3>${badge}${label}${note}<span class="k">${groups[k].length}</span></h3>
+      <div class="grid">${list.map(cardHTML).join('')}</div></div>`;
+  });
+  root.innerHTML = parts.length ? `<div class="groups">`+parts.join('')+`</div>` : emptyMsg();
+}
+
+// ---- Table ----
+let tblSort = {key:'date',dir:-1};
+function vTable(root,data){
+  const cols = [['title','Task'],['category','Category'],['status','Status'],['priority','Priority'],['date','Shipped'],['branch','Branch']];
+  const rows = data.slice().sort((a,b)=>{
+    let x=a[tblSort.key]||'', y=b[tblSort.key]||'';
+    if(tblSort.key==='priority'){x=PRIO_ORDER[a.priority];y=PRIO_ORDER[b.priority];}
+    return (x<y?-1:x>y?1:0)*tblSort.dir;
+  });
+  root.innerHTML = `<div class="tblwrap"><table><thead><tr>${
+    cols.map(([k,l])=>`<th data-k="${k}">${l}${tblSort.key===k?(tblSort.dir<0?' ▾':' ▴'):''}</th>`).join('')
+  }</tr></thead><tbody>${
+    rows.map(i=>`<tr class="card" data-id="${i.id}" style="cursor:pointer">
+      <td>${esc(i.title)}</td>
+      <td><span class="badge cat">${esc(i.category)}</span></td>
+      <td>${STATUS_META[i.status].label}</td>
+      <td>${i.priority==='done'?'—':`<span class="badge p-${i.priority}">${i.priority}</span>`}</td>
+      <td class="branch">${esc(i.date||'—')}</td>
+      <td class="branch">${esc(i.branch||'—')}</td>
+    </tr>`).join('')
+  }</tbody></table></div>`;
+  root.querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>{
+    const k=th.dataset.k;
+    if(tblSort.key===k) tblSort.dir*=-1; else {tblSort.key=k;tblSort.dir=1;}
+    render();
+  }));
+}
+
+// ---- Dashboard ----
+function vDashboard(root,data){
+  // by category
+  const catCount={}; data.forEach(i=>catCount[i.category]=(catCount[i.category]||0)+1);
+  const catKeys=Object.keys(catCount).sort((a,b)=>catCount[b]-catCount[a]);
+  const catMax=Math.max(1,...catKeys.map(k=>catCount[k]));
+  const catBars=catKeys.map(k=>`<div class="bar-row"><span>${esc(k)}</span>
+    <div class="bar-track"><div class="bar-fill" style="width:${catCount[k]/catMax*100}%"></div></div>
+    <span class="v">${catCount[k]}</span></div>`).join('');
+
+  // status breakdown
+  const stCount={now:0,next:0,later:0,done:0}; data.forEach(i=>stCount[i.status]++);
+  const stTot=data.length||1;
+  const stBars=[['now','Now'],['next','Next'],['later','Later'],['done','Shipped']].map(([k,l])=>{
+    const col=`var(--${k})`;
+    return `<div class="bar-row"><span>${l}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${stCount[k]/stTot*100}%;background:${col}"></div></div>
+      <span class="v">${stCount[k]}</span></div>`;}).join('');
+
+  // activity over time (done per day)
+  const byDay={}; data.filter(i=>i.date).forEach(i=>byDay[i.date]=(byDay[i.date]||0)+1);
+  const days=Object.keys(byDay).sort();
+  const dMax=Math.max(1,...days.map(d=>byDay[d]));
+  const bars=days.map(d=>`<div class="b" style="height:${byDay[d]/dMax*100}%" data-t="${esc(d)}: ${byDay[d]}"></div>`).join('');
+  const xlabels=days.map(d=>`<span>${d.slice(8)}</span>`).join('');
+  const spark = days.length
+    ? `<div class="spark">${bars}</div><div class="spark-x">${xlabels}</div>
+       <div style="font-size:11.5px;color:var(--ink2);margin-top:8px">Shipped items per day (${days[0]} → ${days[days.length-1]})</div>`
+    : `<div class="empty" style="color:var(--ink2)">No dated items in the current filter.</div>`;
+
+  // priority mix (open only)
+  const pr={high:0,medium:0,low:0}; data.filter(i=>i.status!=='done').forEach(i=>pr[i.priority]!==undefined&&pr[i.priority]++);
+  const prTot=(pr.high+pr.medium+pr.low)||1;
+  const prBars=[['high','High'],['medium','Medium'],['low','Low']].map(([k,l])=>
+    `<div class="bar-row"><span>${l}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pr[k]/prTot*100}%;background:var(--${k})"></div></div>
+      <span class="v">${pr[k]}</span></div>`).join('');
+
+  root.innerHTML = `<div class="dash">
+    <div class="panel full"><h3>Delivery cadence</h3>${spark}</div>
+    <div class="panel"><h3>By category</h3>${catBars||'<div class="empty">—</div>'}</div>
+    <div class="panel"><h3>Status breakdown</h3>${stBars}</div>
+    <div class="panel"><h3>Open work by priority</h3>${prTot>1||pr.high+pr.medium+pr.low>0?prBars:'<div class="empty" style="color:var(--ink2)">No open items in filter.</div>'}</div>
+    <div class="panel"><h3>At a glance</h3>
+      <div class="bar-row" style="grid-template-columns:1fr auto"><span>Shipped items</span><span class="v">${stCount.done}</span></div>
+      <div class="bar-row" style="grid-template-columns:1fr auto"><span>Open items</span><span class="v">${stCount.now+stCount.next+stCount.later}</span></div>
+      <div class="bar-row" style="grid-template-columns:1fr auto"><span>Active days</span><span class="v">${days.length}</span></div>
+      <div class="bar-row" style="grid-template-columns:1fr auto"><span>Categories</span><span class="v">${catKeys.length}</span></div>
+      <div class="bar-row" style="grid-template-columns:1fr auto"><span>Busiest day</span><span class="v">${days.length?days.reduce((a,b)=>byDay[b]>byDay[a]?b:a):'—'}</span></div>
+    </div>
+  </div>`;
+}
+
+// ---- Map (radial mind-map by category) ----
+function vMap(root,data){
+  const W=1000,H=680,cx=W/2,cy=H/2;
+  const groups={}; data.forEach(i=>{(groups[i.category]=groups[i.category]||[]).push(i);});
+  const cats=Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length);
+  const palette=['#b5761f','#c0392b','#5b8a72','#4a6fa5','#8e5aa5','#c8892a','#7a8a4f','#a5674a','#4a8a8a','#a54a6f'];
+  const catColor={}; cats.forEach((c,i)=>catColor[c]=palette[i%palette.length]);
+  const R1=150; // category ring radius
+  let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Roadmap map">`;
+  let nodes='', edges='';
+  const n=cats.length;
+  cats.forEach((c,ci)=>{
+    const ang=(ci/n)*Math.PI*2 - Math.PI/2;
+    const px=cx+Math.cos(ang)*R1, py=cy+Math.sin(ang)*R1;
+    edges+=`<line x1="${cx}" y1="${cy}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${catColor[c]}" stroke-width="2" opacity=".45"/>`;
+    // leaf items around the category node
+    const list=groups[c];
+    const openN=list.filter(i=>i.status!=='done').length;
+    const leafR=Math.min(78, 30+list.length*1.6);
+    const maxLeaf=Math.min(list.length,18);
+    list.slice(0,maxLeaf).forEach((it,li)=>{
+      const la=ang + (li-(maxLeaf-1)/2)*0.16;
+      const lr=R1+64+ (li%2)*20;
+      const lx=cx+Math.cos(la)*lr, ly=cy+Math.sin(la)*lr;
+      const open=it.status!=='done';
+      edges+=`<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${lx.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${catColor[c]}" stroke-width="1" opacity=".2"/>`;
+      nodes+=`<circle class="mnode" data-id="${it.id}" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="${open?6:4}"
+        fill="${open?catColor[c]:'var(--panel)'}" stroke="${catColor[c]}" stroke-width="${open?2:1.5}"
+        style="cursor:pointer"><title>${esc(it.title)}${open?' ['+it.status+']':' [shipped]'}</title></circle>`;
+    });
+    // category bubble
+    const rad=18+Math.min(20,list.length*0.5);
+    nodes+=`<g><circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${rad}" fill="${catColor[c]}" opacity=".16" stroke="${catColor[c]}" stroke-width="2"/>
+      <text x="${px.toFixed(1)}" y="${(py-2).toFixed(1)}" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ink)">${esc(c)}</text>
+      <text x="${px.toFixed(1)}" y="${(py+13).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--ink2)">${openN?openN+' open · ':''}${list.length}</text></g>`;
+  });
+  // center
+  nodes+=`<circle cx="${cx}" cy="${cy}" r="46" fill="var(--accent)" opacity=".18" stroke="var(--accent)" stroke-width="2.5"/>
+    <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="15" font-weight="800" fill="var(--ink)">PACT</text>
+    <text x="${cx}" y="${cy+13}" text-anchor="middle" font-size="10.5" fill="var(--ink2)">${data.length} items</text>`;
+  svg+=edges+nodes+`</svg>`;
+  root.innerHTML=`<div class="mapwrap">${svg}
+    <div class="map-legend">
+      <div class="li"><span class="sw" style="background:var(--ink);opacity:.7"></span>Filled = open · hollow = shipped</div>
+      ${cats.slice(0,10).map(c=>`<div class="li"><span class="sw" style="background:${catColor[c]}"></span>${esc(c)}</div>`).join('')}
+    </div></div>`;
+  root.querySelectorAll('.mnode').forEach(el=>el.addEventListener('click',()=>openDetail(ITEMS.find(i=>i.id===el.dataset.id))));
+}
+
+function sortItems(a,b){
+  const pa=PRIO_ORDER[a.priority], pb=PRIO_ORDER[b.priority];
+  if(pa!==pb) return pa-pb;
+  return (b.date||'').localeCompare(a.date||'');
+}
+function emptyMsg(){return `<div class="panel" style="text-align:center;color:var(--ink2)">No items match the current filters.</div>`;}
+
+init();
+</script>
+</body>
+</html>

@@ -230,9 +230,13 @@ begin
     raise exception 'You have already joined this campaign';
   end if;
 
-  insert into characters (owner_id, campaign_id, name)
-  values (auth.uid(), v_campaign.id, 'New Character')
-  returning id into v_char_id;
+  begin
+    insert into characters (owner_id, campaign_id, name)
+    values (auth.uid(), v_campaign.id, 'New Character')
+    returning id into v_char_id;
+  exception when unique_violation then
+    raise exception 'You have already joined this campaign';
+  end;
 
   return v_campaign.id;   -- caller can now read the campaign via RLS (member)
 end;
@@ -392,9 +396,13 @@ begin
     if v_name is null then v_name := 'New Character'; end if;
     if length(v_name) > 100 then v_name := left(v_name, 100); end if;
 
-    insert into characters (owner_id, campaign_id, name, kind, ap)
-      values (auth.uid(), v_invite.campaign_id, v_name, 'chargen', v_invite.starting_ap)
-      returning id into v_char_id;
+    begin
+      insert into characters (owner_id, campaign_id, name, kind, ap)
+        values (auth.uid(), v_invite.campaign_id, v_name, 'chargen', v_invite.starting_ap)
+        returning id into v_char_id;
+    exception when unique_violation then
+      raise exception 'You have already joined this campaign';
+    end;
 
     return query select v_char_id, v_invite.starting_ap, v_invite.starting_budget, v_invite.campaign_id, true;
     return;
