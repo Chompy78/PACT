@@ -4,6 +4,23 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-14 · feat — campaign advancement dials (budget curve · award pace · starting tier)**
+  (`js/advancement.js` new; `js/engine.js` import+`DATA` assignments; `tools/DM-Console.html`,
+  `tools/PACT-Live-Char-Sheet.html`; display/config-only, no `compute()` change, no `DATA.version` bump,
+  parity 20/0). New `js/advancement.js` holds three display-only reference tables surfaced on
+  `DATA.levelBudgetCurves` (Standard 79/+24 → L20 535, Generous 83/+28 → 615), `DATA.awardPaces`
+  (Slow 5 / Average 7 / Fast 10 AP/session), `DATA.startingTierRatios` (Prelude 0.7× … Legendary 1.6×) —
+  none read by `compute()` or `_replay()`. DM Console's Campaign Rules panel gained three controls (preset
+  + editable numbers, live L20 preview, preset↔field sync), persisted into the existing `campaigns.rules`
+  JSONB via `setCampaignRules` (no new column/RPC/RLS); the player-invite "Starting budget" field now
+  pre-fills from the campaign's starting tier (editable per invite). Live Sheet's header/overlay "≈ AP-Level"
+  chip (earned-AP vs the fixed default table) was **replaced** by "≈ Track-Level" (AP *spent* vs the
+  campaign's tuned budget curve, Standard fallback when unbound); the now-orphaned `apLevel()` helper was
+  removed from Live Sheet. Dropped from the original roadmap task: the "D&D 2024 equivalent" label (the
+  existing "Level N" already IS that per the guide's identity rule — a redundant chip); deferred: custom
+  per-level curve UI and the `DATA.level1AP` creation-lock coherence fix (a real mechanics change, its own
+  PR). Graduates the "Advancement tracks + D&D 2024 level equivalency" roadmap item. See `DECISIONS.md`
+  `D-GH-2026-07-14-advancement-tracks`.
 - **2026-07-13 · refactor(campaign) — de-duplicate campaign-membership SQL checks**
   (`sql/migrations/2026-07-13-campaign-membership-helpers.sql` + mirrored into
   `sql/schema.sql`/`sql/rls-policies.sql`; no `js/engine.js` change, parity unchanged 20/0). Pure internal
