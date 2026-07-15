@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-15 · chore(ci) — wire `testing/scripts/audit.py` into CI**
+  (new `.github/workflows/static-audit.yml`; `testing/README.md`; no `js/engine.js`/`DATA.version`/
+  `BUILD` change, parity 20/0). AUD-1's static health check (SW `PRE_CACHE` integrity, PWA icon/
+  manifest correctness, engine-symbol drift guard, build-version mirror sync) previously only ran
+  when a human remembered to invoke it by hand — now runs automatically on every PR touching the
+  files it covers and fails the build on any `FAIL` (warnings don't fail the run). Verified locally:
+  26 passed, 10 warnings (pre-existing oversized theme assets), 0 failed. The optional `--rls`
+  live-proof mode stays manual-only (needs a dedicated test Supabase project this repo doesn't have)
+  — documented explicitly in `testing/README.md` and the new workflow's header comment; see
+  `D-GH-2026-07-15-wire-audit-py-into-ci` in `DECISIONS.md`.
 - **2026-07-14 · fix(tools) — consolidate duplicated/inconsistent esc()/flash()/_csCopy() into
   `js/ui-helpers.js`** (new plain-script file, loaded via `<script src>` in all three tools; no
   `js/engine.js`/`DATA.version`/`BUILD` change, parity 20/0). `PACT-Live-Char-Sheet.html` alone defined
