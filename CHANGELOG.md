@@ -4,6 +4,23 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-15 · feat(feedback) — in-app user feedback widget (Supabase-backed)**
+  (new `js/feedback.js`, `sql/migrations/2026-07-15-feedback-widget.sql`; `sql/schema.sql`,
+  `sql/rls-policies.sql`, `service-worker.js`, all four player-facing HTML pages; no `js/engine.js`/
+  `DATA.version`/`BUILD` change, parity 20/0). A self-contained floating "Feedback" button + form on
+  CharGen, Live Sheet, DM Console, and the Player's Guide, inserting into a new insert-only `feedback`
+  table (read only via the Supabase dashboard — no in-app admin view in v1). The widget module depends
+  only on the shared Supabase client — no `engine-ready`/`ui-helpers.js` coupling — so it drops onto the
+  Player's Guide (which had zero prior JS/module wiring) with one `<script type="module">` tag.
+  Signed-out users submit anonymously; signed-in users are attributed unless they tick "submit
+  anonymously." Guardrails: DB-level `page` enum + message (1–2000) / contact (≤200) length checks, a
+  client-side ~60s cooldown, double-submit lock, and clear offline/failure UX. **First table to grant the
+  `anon` role a write** — verified safe (insert-only; no read/update/delete grant; policy uses only
+  `auth.uid()`, not the locked-down campaign helpers). Migration applied + verified on the live project:
+  anon/authenticated insert paths, user_id-spoof rejection, all constraint boundaries, RLS blocking
+  read/update/delete, idempotent re-run, and `get_advisors` (no new findings) all confirmed. Added
+  `js/feedback.js` to the service-worker precache (cache bumped `pact-v3`→`pact-v4`). See
+  `D-GH-2026-07-15-feedback-widget` in `DECISIONS.md` and `docs/plans/2026-07-15-feedback-widget.md`.
 - **2026-07-15 · chore(ci) — wire `testing/scripts/audit.py` into CI**
   (new `.github/workflows/static-audit.yml`; `testing/README.md`; no `js/engine.js`/`DATA.version`/
   `BUILD` change, parity 20/0). AUD-1's static health check (SW `PRE_CACHE` integrity, PWA icon/

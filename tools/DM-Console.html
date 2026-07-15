@@ -1646,5 +1646,11 @@ document.addEventListener('campaign-ready', function () {
     });
   }
 </script>
+<script type="module">
+  // In-app feedback widget (feat/feedback-widget). Self-contained; independent of
+  // engine-ready / campaign-ready — mounts immediately.
+  import { initFeedbackWidget } from '../js/feedback.js';
+  initFeedbackWidget('dmconsole');
+</script>
 </body>
 </html>

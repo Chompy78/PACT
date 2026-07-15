@@ -312,3 +312,34 @@ revoke execute on function public.find_campaign_by_invite_code(text) from public
 revoke execute on function public.handle_new_user() from public;
 revoke execute on function public.add_owner_as_dm() from public;
 revoke execute on function public.set_updated_at()  from public;
+
+-- ---------------------------------------------------------------------------
+-- feedback -- in-app user feedback (feat/feedback-widget). Insert-only for BOTH
+-- authenticated AND anon; NO select/update/delete grant to either role, so the
+-- Supabase dashboard (service role) is the only reader (no in-app admin view in
+-- v1). This is the FIRST table in this file to grant `anon` a write -- a
+-- deliberate, documented relaxation of the "anon holds no table grant here"
+-- invariant noted in the function-lockdown block above. It is safe because the
+-- insert policy below calls ONLY auth.uid() (a Supabase built-in, granted to anon
+-- by default), not any of the is_campaign_*/shares_campaign helpers whose anon
+-- EXECUTE was revoked above -- so no policy evaluation hits a "permission denied
+-- for function" for anon. See DECISIONS.md D-GH-2026-07-15-feedback-widget.
+-- ---------------------------------------------------------------------------
+alter table public.feedback enable row level security;
+
+-- Column-restricted insert: id and created_at are DB-defaulted and must never be
+-- client-supplied (mirrors the characters insert-grant pattern above). Granted to
+-- anon as well, since anonymous feedback is allowed.
+grant insert (user_id, page, message, contact) on public.feedback to authenticated, anon;
+
+drop policy if exists feedback_insert on public.feedback;
+create policy feedback_insert on public.feedback
+  for insert to authenticated, anon
+  -- A caller may tag a row with their OWN user_id or leave it null (anonymous);
+  -- they can never attribute feedback to someone else. For anon, auth.uid() is
+  -- null, so ONLY user_id = null passes. The length guard mirrors the column
+  -- CHECK so a bad insert is rejected at the policy layer too, not only the column.
+  with check (
+    char_length(message) between 1 and 2000
+    and (user_id is null or user_id = auth.uid())
+  );
