@@ -1829,4 +1829,10 @@ document.addEventListener('sync-ready', function () {
     });
   }
 </script>
+<script type="module">
+  // In-app feedback widget (feat/feedback-widget). Self-contained; independent of
+  // engine-ready / sync-ready — mounts immediately.
+  import { initFeedbackWidget } from '../js/feedback.js';
+  initFeedbackWidget('livesheet');
+</script>
 </body></html>
