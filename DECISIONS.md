@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-15-tools-home-nav-cleanup** — Added a consistent "← Home" header link to all three tools and `aria-label`s to the icon-only buttons, but removed **zero** toolbar buttons despite the roadmap task asking to "consolidate/reduce" — the audit found the desktop vs. mobile toolbars are responsive-exclusive (swapped by a media query, never both visible), not duplicated, so any removal would drop reachable functionality on one form factor
 - **D-GH-2026-07-15-feedback-widget** — In-app feedback widget backed by a new insert-only `feedback` Supabase table, the first table to grant the `anon` role a write; anonymous submission is allowed (PACT is sign-in-optional), made safe by insert-only/no-read grants, DB-level constraints, and a policy using only `auth.uid()` (not the lockdown-revoked campaign helpers); the widget is a self-contained module so the wiring-less Player's Guide integrates with one script tag
 - **D-GH-2026-07-15-wire-audit-py-into-ci** — `audit.py`'s default (non-`--rls`) checks now run automatically in a new `.github/workflows/static-audit.yml` on every PR touching the files they cover; the `--rls` live-proof mode stays intentionally manual-only, no dedicated test Supabase project exists to hold its credentials
 - **D-GH-2026-07-15-parity-warning-text-assertions** — Engine-parity gate now asserts each fixture's exact warning-text array via a new `testing/expected/expected-warnings.json` sidecar (not a new `expected-results.csv` column) — a real warning message contains a literal comma, which the harnesses' unquoted `line.split(',')` CSV parser can't handle safely; the 5-of-54-`W.push`-sites fixture-coverage gap this surfaced was left open, flagged as a roadmap follow-up
@@ -93,6 +94,27 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-15-tools-home-nav-cleanup · Home link added, no buttons removed (bars are responsive-exclusive)
+- **Context:** the roadmap task "Tools: back-to-Home navigation + toolbar button cleanup" asked for two
+  things — a "← Home" link in each of the three tools' headers, and to "audit/reduce cluttered toolbar
+  buttons"; its Done-when explicitly wanted "measurably fewer or better-consolidated buttons." Adding the
+  Home link is unambiguous; the button-reduction half needed an actual audit before cutting anything.
+- **Options:** (A) remove/merge some header/toolbar buttons to literally satisfy "fewer buttons";
+  (B) audit first and only remove what's genuinely redundant, per the task's own guardrail ("do not remove
+  functionality players/DMs rely on without an equivalent path still available").
+- **Decision:** B — added the Home link + `aria-label`s and removed **zero** buttons.
+- **Why:** the audit found each tool's apparent "desktop bar vs. mobile bar" duplication is actually
+  responsive-exclusive: the mobile bar (`#lmobar` / `.hd-mobnav` / `.mobile-action-bar`) is `display:none`
+  on desktop and the desktop toolbar is hidden on narrow widths, swapped by a media query — they are never
+  both on screen, so the "duplicate" undo/redo etc. are the *same* control at two breakpoints. DM Console's
+  three `.topactions` buttons (Table view / Skill Matrix / AP Ledger) are distinct views, not redundant
+  toggles. Removing any of these would drop reachable functionality on one form factor — exactly what the
+  task said not to do. The genuine, safe wins were the Home link (placed in each tool's *always-visible*
+  row — CharGen `.hd-row1`, Live Sheet `.top`, DM Console `.topbar` — so it survives on mobile) and
+  `aria-label`s on the icon-only buttons touched (DM Console had 0). Display-only; no `DATA.version` bump.
+- **Status:** In force. If a future "declutter" pass wants fewer *visible* controls, the lever is moving
+  rare actions into an existing menu (like Live Sheet's `⋯ More`), not deleting responsive duplicates.
 
 ## D-GH-2026-07-15-feedback-widget · insert-only feedback table, the first anon-write in the schema
 - **Context:** the roadmap asked for an in-app feedback widget on all four player-facing pages (CharGen,
