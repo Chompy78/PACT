@@ -2,10 +2,11 @@
 // PACT — headless engine-parity gate (REV-11).
 //
 // Node port of testing/tests/engine-parity.html's "Run tests (assert)" mode — same fixtures, same
-// expected-results.csv, same assertions (including the CG-003/CG-007 special-cases). Kept as a
-// deliberately faithful port rather than a rewrite: if the two ever disagree, that's a bug in one of
-// them, not an intentional difference. Runs in Node (js/engine.js is a clean ES module, no DOM deps),
-// so it can gate a PR without a browser or a headless-browser runner.
+// expected-results.csv + expected-warnings.json, same assertions (each fixture's exact warning-text
+// array is asserted, not just its count — see D-GH-2026-07-15-parity-warning-text-assertions). Kept
+// as a deliberately faithful port rather than a rewrite: if the two ever disagree, that's a bug in
+// one of them, not an intentional difference. Runs in Node (js/engine.js is a clean ES module, no DOM
+// deps), so it can gate a PR without a browser or a headless-browser runner.
 //
 // Usage: node testing/scripts/engine-parity-ci.mjs   (run from repo root or testing/)
 // Exit code 0 = all fixtures pass; 1 = any failure or load error.
@@ -18,6 +19,7 @@ import { DATA, compute, rebuildStateFromEvents } from '../../js/engine.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = path.resolve(__dirname, '../fixtures');
 const EXPECTED_CSV = path.resolve(__dirname, '../expected/expected-results.csv');
+const EXPECTED_WARNINGS_JSON = path.resolve(__dirname, '../expected/expected-warnings.json');
 
 async function loadJson(p) {
   return JSON.parse(await readFile(p, 'utf8'));
@@ -51,8 +53,8 @@ async function runAll() {
       const r = compute(build);
       rows.push({
         id, group: 'chargen', path: p,
-        total: r.total, warnings: r.warnings.length, remaining: r.remaining,
-        firstWarning: r.warnings[0] ?? '', ok: r.remaining >= 0, error: null,
+        total: r.total, warnings: r.warnings.length, warningsArr: r.warnings, remaining: r.remaining,
+        ok: r.remaining >= 0, error: null,
       });
     } catch (e) {
       rows.push({ id, group: 'chargen', path: p, error: e.message });
@@ -65,8 +67,8 @@ async function runAll() {
       const r = rebuildStateFromEvents(liveSheet, []);
       rows.push({
         id, group: 'live-sheet', path: p,
-        total: r.total, warnings: r.warnings.length, remaining: r.remaining,
-        firstWarning: r.warnings[0] ?? '', ok: r.ok, eventsApplied: r.eventsApplied, error: null,
+        total: r.total, warnings: r.warnings.length, warningsArr: r.warnings, remaining: r.remaining,
+        ok: r.ok, eventsApplied: r.eventsApplied, error: null,
       });
     } catch (e) {
       rows.push({ id, group: 'live-sheet', path: p, error: e.message });
@@ -80,8 +82,8 @@ async function runAll() {
       const r = rebuildStateFromEvents(baseSnapshot, fixture.events);
       rows.push({
         id, group: 'event-sourcing', path: p,
-        total: r.total, warnings: r.warnings.length, remaining: r.remaining,
-        firstWarning: r.warnings[0] ?? '', ok: r.ok, eventsApplied: r.eventsApplied, error: null,
+        total: r.total, warnings: r.warnings.length, warningsArr: r.warnings, remaining: r.remaining,
+        ok: r.ok, eventsApplied: r.eventsApplied, error: null,
       });
     } catch (e) {
       rows.push({ id, group: 'event-sourcing', path: p, error: e.message });
@@ -111,7 +113,16 @@ async function loadExpected() {
   return map;
 }
 
-function assertRow(row, expected) {
+// testing/expected/expected-warnings.json — exact per-fixture warning text arrays. Kept as a JSON
+// sidecar rather than a new expected-results.csv column: at least one real warning (LS-001's
+// Ki-focus message) contains a literal comma, which the CSV loader above's naive `line.split(',')`
+// (no quoting support — see the semicolons already used in the `notes` column for the same reason)
+// cannot handle safely. See D-GH-2026-07-15-parity-warning-text-assertions in DECISIONS.md.
+async function loadExpectedWarnings() {
+  return JSON.parse(await readFile(EXPECTED_WARNINGS_JSON, 'utf8'));
+}
+
+function assertRow(row, expected, expectedWarnings) {
   if (row.error) return { ...row, pass: false, failures: [`load error: ${row.error}`] };
 
   const exp = expected[row.id];
@@ -126,15 +137,23 @@ function assertRow(row, expected) {
   const expWarn = Number(exp.warnings);
   if (row.warnings !== expWarn) failures.push(`warnings count: got ${row.warnings}, expected ${expWarn}`);
 
+  const expWarnTexts = expectedWarnings[row.id];
+  if (!expWarnTexts) {
+    failures.push(`no expected warning-text entry in expected-warnings.json for ${row.id}`);
+  } else if (JSON.stringify(row.warningsArr) !== JSON.stringify(expWarnTexts)) {
+    failures.push(`warning text mismatch: got ${JSON.stringify(row.warningsArr)}, expected ${JSON.stringify(expWarnTexts)}`);
+  }
+
   // Same fixture-specific assertions as the browser test (testing/tests/engine-parity.html) — kept
   // in lockstep deliberately; if these ever need to diverge, that's a sign the html test needs updating too.
+  // (The old hardcoded first-warning-text checks these two used to carry are now subsumed by the
+  // exact warning-text-array assertion above; only the remaining-sign assertions, which aren't about
+  // warning content, are still fixture-specific.)
   if (row.id === 'CG-003') {
     if (row.remaining >= 0) failures.push(`remaining should be < 0, got ${row.remaining}`);
-    if (!row.firstWarning.startsWith('OVER BUDGET')) failures.push(`first warning should start with "OVER BUDGET", got: "${row.firstWarning}"`);
   }
   if (row.id === 'CG-007') {
     if (row.remaining < 0) failures.push(`remaining should be >= 0, got ${row.remaining}`);
-    if (row.firstWarning !== 'Expertise in Athletics needs the skill bought first') failures.push(`first warning mismatch, got: "${row.firstWarning}"`);
   }
   if (row.eventsApplied !== undefined) {
     if (!row.ok) failures.push('ok should be true');
@@ -148,8 +167,8 @@ function assertRow(row, expected) {
 }
 
 async function main() {
-  const [actuals, expected] = await Promise.all([runAll(), loadExpected()]);
-  const results = actuals.map(row => assertRow(row, expected));
+  const [actuals, expected, expectedWarnings] = await Promise.all([runAll(), loadExpected(), loadExpectedWarnings()]);
+  const results = actuals.map(row => assertRow(row, expected, expectedWarnings));
   const passed = results.filter(r => r.pass).length;
   const failed = results.filter(r => !r.pass).length;
 
