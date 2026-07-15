@@ -4,6 +4,13 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-15 · chore(tooling) — `/plan-for-review` skill: reviewer self-ID, MD-file review output, and
+  one-block copy-paste hand-off** (`.claude/commands/plan-for-review.md` only; no app/code change). The
+  generated reviewer instructions now ask any reviewer to declare its model + settings first (kept generic,
+  no assumed tool) and to return its review as a `.md` file named `<topic>-review-<model>.md`; Step 5 now
+  emits the plan as a single **four-backtick** copy-paste block (four so the plan's own three-backtick
+  sub-blocks don't close it early — the thing that made plans hard to copy); Step 7 + the Review-outcome
+  stub now record which models reviewed, sharpening the agree/disagree weighting.
 - **2026-07-15 · feat(feedback) — in-app user feedback widget (Supabase-backed)**
   (new `js/feedback.js`, `sql/migrations/2026-07-15-feedback-widget.sql`; `sql/schema.sql`,
   `sql/rls-policies.sql`, `service-worker.js`, all four player-facing HTML pages; no `js/engine.js`/
