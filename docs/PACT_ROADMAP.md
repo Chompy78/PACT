@@ -270,6 +270,41 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 
 ---
 
+## Rename docs/PACT_ROADMAP.md + DECISIONS.md to a new naming convention — TODO
+Branch docs/rename-roadmap-decisions-files. Rename the two core process files per a naming convention the user will specify at implementation time, then sweep every reference across the repo so no skill or doc points at a stale path.
+
+```text
+1. BLOCKED on the user supplying the exact target filenames for docs/PACT_ROADMAP.md and DECISIONS.md
+   before any renaming starts — do not guess. Confirm both names explicitly at the start of this task.
+
+2. High blast radius — both files are hard-referenced by name (not just linked) in:
+   - AGENTS.md itself (roadmap bucket rules, "Multiple sessions" single-writer note, D-GH numbering
+     section, per-change checklist)
+   - Every skill in .claude/commands/: add-roadmap-task.md, pick-task.md, run-task.md, close-session.md,
+     plan-for-review.md, cleanup-branches.md, log-ai-lessons.md — several read/write PACT_ROADMAP.md or
+     DECISIONS.md as their literal file target, not just mention them
+   - docs/SKILLS.md, docs/HOW-TO-WORK.md, CHANGELOG.md, docs/roadmap.html's footer, docs/sessions/*.md
+   Grep the whole repo for both exact filenames before touching anything, and treat the count as the
+   real scope of this task, not just two `git mv` calls.
+
+3. Given the risk of a missed reference silently breaking a skill's read/write path (e.g.
+   /pick-task or /add-roadmap-task pointing at a file that no longer exists), do this as a cold
+   plan review first (/plan-for-review) rather than a live edit sweep — per AGENTS.md's own trigger for
+   "a wrong approach would cost more than one implementation cycle to undo."
+
+4. Use `git mv` (not delete+recreate) so history is preserved, then update every reference found in step 2
+   to the new path/name in the same PR — no file should end up referencing the old name except historical
+   CHANGELOG.md/docs/sessions/ entries (records of what happened at the time, not live links).
+
+5. Docs/process-only — no js/engine.js, DATA, or compute() involvement; parity gate itself is unaffected.
+   Log the rename itself as D-GH-<date>-rename-roadmap-decisions-files in the (renamed) decision log,
+   since "why these got renamed" won't be obvious from the diff alone.
+```
+
+**Done when:** docs/PACT_ROADMAP.md and DECISIONS.md exist under their new agreed names with history preserved via `git mv`; every skill/doc reference across the repo points at the new paths (verified by a repo-wide grep for the old names returning only historical CHANGELOG/session-log mentions); testing/tests/engine-parity.html still 20/0.
+
+---
+
 **Low-severity review findings:**
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
   named sub-pricers. Only safe once REV-01 gives real assertions; dedicated PR, byte-identical output.
