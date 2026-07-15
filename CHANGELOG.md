@@ -13,7 +13,11 @@
   undo/redo (`↶`/`↷`) in Live Sheet's `#lmobar` and CharGen's `.hd-mobnav`. Button-clutter audit found the
   desktop/mobile toolbars are responsive-exclusive (swapped by media query), not duplicated, and the DM
   Console view toggles are distinct functions — so no buttons were removed (would have dropped reachable
-  functionality); the cleanup is the Home link + labels.
+  functionality); the cleanup is the Home link + labels. Also gave Live Sheet's fixed `#apFloat` "AP left"
+  badge `pointer-events:none` — the Home link reflowed the `.top` header so "Open in CharGen" landed under
+  that always-on overlay, which was intercepting the click (caught by the browser e2e job); the badge is a
+  read-only readout with no handlers, so click-through is the correct fix and also removes the latent
+  overlap hazard for any future header control.
 - **2026-07-15 · chore(tooling) — `/plan-for-review` skill: reviewer self-ID, MD-file review output, and
   one-block copy-paste hand-off** (`.claude/commands/plan-for-review.md` only; no app/code change). The
   generated reviewer instructions now ask any reviewer to declare its model + settings first (kept generic,
