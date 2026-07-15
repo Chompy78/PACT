@@ -29,6 +29,9 @@
   for untuned/unbound characters, DM Console now falls back to that same Standard curve too — so an
   unbound character's displayed roster level can shift versus the old ladder, by design, to match Live
   Sheet. See `DECISIONS.md` (`D-GH-2026-07-15-dm-console-roster-tuned-curve`).
+- **2026-07-15 · docs(sessions) — session note: two-task run (tools Home-nav #222, DM Console roster
+  tuned-curve #223), incl. the #222 e2e regression (`#apFloat` intercepts a reflowed header button) and
+  the recurring `EnterWorktree`-bases-on-`main` trap** (`docs/sessions/2026-07-15-nav-cleanup-and-roster-tuned-curve.md`).
 - **2026-07-15 · chore(tooling) — `/plan-for-review` skill: reviewer self-ID, MD-file review output, and
   one-block copy-paste hand-off** (`.claude/commands/plan-for-review.md` only; no app/code change). The
   generated reviewer instructions now ask any reviewer to declare its model + settings first (kept generic,
