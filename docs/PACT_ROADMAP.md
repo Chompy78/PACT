@@ -27,30 +27,6 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## Parity gate: assert warning codes/text, not just counts — TODO
-Branch test/parity-warning-code-assertions. `testing/expected/expected-results.csv` currently asserts only `new_engine_warnings` as a **count** against each of the 20 fixtures, not which warnings actually fired — so a warning changing wording, firing for the wrong reason, or silently disappearing while another appears wouldn't fail the gate. This is the documented precondition REV-14 (splitting `compute()`'s ~371-line, 54-`W.push`-site body into named sub-pricers) is waiting on — this task is that precondition, not the split itself.
-
-```text
-1. Grep js/engine.js for its 54 `W.push(...)` call sites to enumerate the distinct warning
-   codes/labels compute() can emit.
-2. Extend testing/expected/expected-results.csv (or add a companion fixture file) to assert the actual
-   warning codes/text produced for each of the 20 existing fixtures, not just the count.
-3. Update testing/scripts/engine-parity-ci.mjs (and the browser test runner in
-   testing/tests/engine-parity.html) to compare warning content, failing on a mismatch.
-4. If several of the 54 warning sites aren't exercised by any existing fixture, note the coverage gap
-   (don't feel obligated to add new fixtures to close it in this same task — file that as a follow-up if
-   it's sizable).
-5. Do NOT attempt to split compute() in this task — that's REV-14, gated on this landing first.
-
-Test-only change — does not touch DATA.version or compute() output; parity must still be 20/0 against the
-current (unmodified) engine.
-```
-
-**Done when:** the parity gate fails if a fixture's warning codes/text change, even when the count stays the same; testing/tests/engine-parity.html still passes 20/0 against the current engine.
-
----
-
-
 ## Feature: In-app user feedback widget (Supabase-backed) — TODO
 Branch feat/feedback-widget. Add a small feedback form to all four player-facing pages — CharGen, Live Sheet, DM Console, and the Player's Guide — that saves free-text feedback to a new Supabase table, readable only via the Supabase dashboard (no in-app admin view in v1).
 

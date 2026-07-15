@@ -14,6 +14,23 @@
   live-proof mode stays manual-only (needs a dedicated test Supabase project this repo doesn't have)
   — documented explicitly in `testing/README.md` and the new workflow's header comment; see
   `D-GH-2026-07-15-wire-audit-py-into-ci` in `DECISIONS.md`.
+- **2026-07-15 · test(engine) — parity gate now asserts exact warning text, not just a count**
+  (new `testing/expected/expected-warnings.json`; `testing/scripts/engine-parity-ci.mjs`;
+  `testing/tests/engine-parity.html`; `testing/README.md`; no `js/engine.js`/`DATA.version`/`BUILD`
+  change, parity 20/0). `expected-results.csv`'s `new_engine_warnings` previously asserted only a
+  **count** per fixture — a warning changing wording, firing for the wrong reason, or silently
+  disappearing while another appeared wouldn't fail the gate. Each of the 20 fixtures' exact
+  warning-text array is now asserted (order-sensitive deep equality); verified the check actually
+  catches a mismatch by temporarily corrupting one expected entry (confirmed FAIL), then restored it.
+  Removed the now-redundant CG-003/CG-007 hardcoded first-warning-text checks (subsumed by the general
+  array check) while keeping their still-independent `remaining`-sign assertions. New data lives in a
+  JSON sidecar rather than a new CSV column — one real warning (LS-001's Ki-focus message) contains a
+  literal comma, which the harnesses' naive `line.split(',')` CSV parser can't handle safely; see
+  `D-GH-2026-07-15-parity-warning-text-assertions` in `DECISIONS.md`. This is the documented
+  precondition REV-14 (splitting `compute()`'s `W.push`-site body) was waiting on — the split itself is
+  still a separate, not-yet-started task. Coverage note: only 5 of the engine's 54 `W.push` sites (plus
+  the separate over-budget `W.unshift`) are exercised by the current 20 fixtures — a real but pre-existing
+  gap, flagged as a roadmap follow-up rather than closed in this test-only change.
 - **2026-07-14 · fix(tools) — consolidate duplicated/inconsistent esc()/flash()/_csCopy() into
   `js/ui-helpers.js`** (new plain-script file, loaded via `<script src>` in all three tools; no
   `js/engine.js`/`DATA.version`/`BUILD` change, parity 20/0). `PACT-Live-Char-Sheet.html` alone defined

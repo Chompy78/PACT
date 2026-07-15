@@ -87,8 +87,8 @@
             id, group: "chargen", path,
             total: r.total,
             warnings: r.warnings.length,
+            warningsArr: r.warnings,
             remaining: r.remaining,
-            firstWarning: r.warnings[0] ?? "",
             ok: r.remaining >= 0,
             error: null
           });
@@ -106,8 +106,8 @@
             id, group: "live-sheet", path,
             total: r.total,
             warnings: r.warnings.length,
+            warningsArr: r.warnings,
             remaining: r.remaining,
-            firstWarning: r.warnings[0] ?? "",
             ok: r.ok,
             eventsApplied: r.eventsApplied,
             error: null
@@ -126,8 +126,8 @@
             id, group: "event-sourcing", path,
             total: r.total,
             warnings: r.warnings.length,
+            warningsArr: r.warnings,
             remaining: r.remaining,
-            firstWarning: r.warnings[0] ?? "",
             ok: r.ok,
             eventsApplied: r.eventsApplied,
             error: null
@@ -164,6 +164,17 @@
       return map;
     }
 
+    // ── load expected-warnings.json ────────────────────────────────────────────
+    // A JSON sidecar, not a new expected-results.csv column: at least one real warning
+    // (LS-001's Ki-focus message) contains a literal comma, which loadExpected()'s naive
+    // `line.split(",")` (no quoting support) can't handle safely. See
+    // D-GH-2026-07-15-parity-warning-text-assertions in DECISIONS.md.
+    async function loadExpectedWarnings() {
+      const r = await fetch("../expected/expected-warnings.json", { cache: "no-store" });
+      if (!r.ok) throw new Error("Could not load expected-warnings.json");
+      return r.json();
+    }
+
     // ── CAPTURE MODE ─────────────────────────────────────────────────────────
     document.getElementById("captureBtn").addEventListener("click", async () => {
       banner.innerHTML = "";
@@ -177,11 +188,16 @@
           return `${row.id},${row.group},${row.path},,${row.total},,${row.warnings},,${row.ok},${evApplied},true,`;
         });
         const csv = [csvHeader, ...csvRows].join("\n");
+        const warningsJson = {};
+        for (const row of rows) warningsJson[row.id] = row.error ? [] : row.warningsArr;
         output.textContent =
           "── Copy the block below into testing/expected/expected-results.csv after you\n" +
           "── have confirmed the numbers against the PHB / player guide.\n\n" +
-          csv;
-        banner.innerHTML = `<div class="warn">Review the numbers above, confirm them, then paste into <code>expected-results.csv</code> and click "Run tests (assert)".</div>`;
+          csv +
+          "\n\n── Copy the block below into testing/expected/expected-warnings.json after you\n" +
+          "── have confirmed the warning text against the PHB / player guide.\n\n" +
+          JSON.stringify(warningsJson, null, 2);
+        banner.innerHTML = `<div class="warn">Review the numbers above, confirm them, then paste into <code>expected-results.csv</code> and <code>expected-warnings.json</code>, then click "Run tests (assert)".</div>`;
       } catch (e) {
         output.textContent = "Capture failed: " + e.message;
       }
@@ -192,7 +208,7 @@
       banner.innerHTML = "";
       output.textContent = "Running…";
       try {
-        const [actuals, expected] = await Promise.all([runAll(), loadExpected()]);
+        const [actuals, expected, expectedWarnings] = await Promise.all([runAll(), loadExpected(), loadExpectedWarnings()]);
 
         const results = actuals.map(row => {
           if (row.error) return { ...row, pass: false, failures: [`load error: ${row.error}`] };
@@ -211,24 +227,25 @@
           if (row.warnings !== expWarn)
             failures.push(`warnings count: got ${row.warnings}, expected ${expWarn}`);
 
-          // CG-003: must be over-budget with the right warning text
+          // Exact warning-text array, not just a count (D-GH-2026-07-15-parity-warning-text-assertions)
+          const expWarnTexts = expectedWarnings[row.id];
+          if (!expWarnTexts) {
+            failures.push(`no expected warning-text entry in expected-warnings.json for ${row.id}`);
+          } else if (JSON.stringify(row.warningsArr) !== JSON.stringify(expWarnTexts)) {
+            failures.push(`warning text mismatch: got ${JSON.stringify(row.warningsArr)}, expected ${JSON.stringify(expWarnTexts)}`);
+          }
+
+          // CG-003: must be over-budget (warning text itself is covered by the exact-array check above)
           if (row.id === "CG-003") {
             if (row.remaining >= 0)
               failures.push(`remaining should be < 0, got ${row.remaining}`);
-            if (!row.firstWarning.startsWith("OVER BUDGET"))
-              failures.push(`first warning should start with "OVER BUDGET", got: "${row.firstWarning}"`);
           }
 
-          // CG-007: prereq-gate rejection — must stay valid (gates only warn, they
-          // don't block the purchase) and lead with the expertise-without-skill gate.
-          // (This fixture arrived via PR #136 as CG-004; renumbered to CG-007 in the emit-migration
-          //  merge to avoid an ID collision with the emit-migration's own CG-004 — so this hardcoded
-          //  assertion was repointed from CG-004 to CG-007 to stay on the same fixture.)
+          // CG-007: prereq-gate rejection — must stay valid (gates only warn, they don't block the
+          // purchase). Warning text/order is covered by the exact-array check above.
           if (row.id === "CG-007") {
             if (row.remaining < 0)
               failures.push(`remaining should be >= 0, got ${row.remaining}`);
-            if (row.firstWarning !== "Expertise in Athletics needs the skill bought first")
-              failures.push(`first warning mismatch, got: "${row.firstWarning}"`);
           }
 
           // LS-001 / EV-001: assert ok + eventsApplied
@@ -255,8 +272,8 @@
             id: r.id,
             group: r.group,
             pass: r.pass,
-            actual: { total: r.total, warnings: r.warnings, ok: r.ok, remaining: r.remaining,
-                      eventsApplied: r.eventsApplied },
+            actual: { total: r.total, warnings: r.warnings, warningsArr: r.warningsArr, ok: r.ok,
+                      remaining: r.remaining, eventsApplied: r.eventsApplied },
             failures: r.failures
           }))
         };
