@@ -552,8 +552,33 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 function _mod(s){return Math.floor((s-10)/2);}
 function _abilName(a){return a;}
 // compute() is bridged from js/engine.js (engine-ready module, D-GH26).
-// the character's AP-equivalent level: the highest level whose budget-table value is <= ap (0 = below level 1)
-function apLevel(ap){var lv=0;for(var L=1;L<=20;L++){if((DATA.levelAP[L]||1e9)<=(+ap||0))lv=L;}return lv;}
+// The character's AP-equivalent level, read from the DM-tuned level-budget curve carried in
+// this character's own LOG (offline campaign-rules snapshot) — mirrors Live Sheet's
+// _levelCurve()/trackLevel() so the roster level agrees with what the player's Live Sheet shows,
+// tuned or not. Falls back to the Standard preset when unbound/untuned, exactly as Live Sheet
+// does; the fixed DATA.levelAP ladder is no longer read for level DISPLAY here
+// (fix/dm-console-roster-tuned-curve — see D-GH-2026-07-15-dm-console-roster-tuned-curve).
+function _latestLogSnapshotRules(){
+  for(var i=LOG.length-1;i>=0;i--){ var e=LOG[i]; if(e&&e.type==='rulesSnapshot') return e.campRules||null; }
+  return null;
+}
+function _levelCurve(){
+  var r=_latestLogSnapshotRules()||{};
+  var std=(DATA.levelBudgetCurves&&DATA.levelBudgetCurves.standard)||{l1:79,inc:24};
+  var bc=(r.levelBudgetCurve&&r.levelBudgetCurve.l1!=null)?r.levelBudgetCurve:std;
+  var l1=(bc.l1!=null&&isFinite(+bc.l1))?+bc.l1:79;
+  // inc floored at 1 so thresholds stay strictly increasing — a 0/negative DM value would
+  // otherwise re-satisfy the "<=" scan and return a near-top level for very little AP
+  // (see D-GH-2026-07-14-livesheet-eco-track-level review followups).
+  var inc=(bc.inc!=null&&isFinite(+bc.inc))?Math.max(1,+bc.inc):24;
+  return {l1:l1,inc:inc};
+}
+// highest level L whose per-level threshold (l1 + inc*(L-1)) is <= ap (0 = below level 1)
+function trackLevel(ap,curve){
+  var c=curve||_levelCurve(),lv=0;
+  for(var L=1;L<=20;L++){ if(c.l1+c.inc*(L-1)<=(+ap||0)) lv=L; }
+  return lv;
+}
 
 
 const ABILS=["STR","DEX","CON","INT","WIS","CHA"];
@@ -604,7 +629,7 @@ function dmAnalyze(exported){
     species: b.species, species2: b.species2, lineage: b.lineage||'',
     originClass: b.originClass, originClass2: b.originClass2,
     unlockedClasses: (b.unlockedClasses||[]).slice(),
-    hd: b.hd, tier: r.tier, apLevel: (typeof apLevel==='function'?apLevel(eco.earned):null),
+    hd: b.hd, tier: r.tier, apLevel: trackLevel(eco.earned),
     hp: r.hp, ac: r.ac, prof: r.prof, saveDC: r.hasDC?r.saveDC:null, spellAtk: r.hasDC?r.spellAtk:null,
     castAb: r.hasDC?r.castAb:null, speed: r.speed, init: r.init, size: r.size,
     mods: r.mods, conMod: r.conMod, goldGp: r.goldGp,

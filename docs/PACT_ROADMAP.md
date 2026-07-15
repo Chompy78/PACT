@@ -49,27 +49,6 @@ practical. Display-only feature — no DATA.version/compute() involvement; parit
 
 ---
 
-## DM Console roster: migrate apLevel() off the fixed ladder onto the tuned levelBudgetCurve — TODO
-Branch fix/dm-console-roster-tuned-curve. DM Console's campaign roster (tools/DM-Console.html:552 apLevel(), used at line 603) still computes each character's displayed level from the fixed DATA.levelAP ladder, even though DM Console is the one tool where a DM configures the per-campaign levelBudgetCurve.
-
-```text
-Surfaced by an independent /code-review of PR #210/#211 (D-GH-2026-07-14-livesheet-eco-track-level /
-D-GH-2026-07-14-livesheet-eco-track-level-review-followups): those PRs unified Live Sheet's header
-Track-Level and eco-line Earned-Lv onto the DM-tunable levelBudgetCurve, but DM Console's roster was out of
-scope for both (single-file tasks). A DM who tunes their campaign's curve away from Standard sees their own
-roster (fixed ladder) disagree with what that same character's Live Sheet correctly shows.
-
-Decide and implement: migrate DM Console's roster apLevel(eco.earned) call to use Live Sheet's
-_levelCurve()/trackLevel() pair (would need extracting them to a shared location, since they currently live
-only in tools/PACT-Live-Char-Sheet.html), or a DM-Console-local equivalent reading DATA.levelBudgetCurves via
-the same resolveRules()-style path. Display-only — do NOT bump DATA.version; log in CHANGELOG, and in
-DECISIONS.md if the shared-vs-local approach involves a non-obvious trade-off.
-```
-
-**Done when:** DM Console's roster level display reads the campaign's tuned `levelBudgetCurve` (not the fixed `DATA.levelAP` ladder) when one is configured, consistent with Live Sheet; parity still 20/0.
-
----
-
 ## Consolidate the 4 duplicated "AP vs threshold table → level" lookups across tools — TODO
 Branch chore/unify-level-lookup-helper. The same loop shape (find highest level L whose per-level threshold <= a value) now exists independently in tools/PACT-Live-Char-Sheet.html (_levelCurve()/trackLevel(), reading the DM-tunable levelBudgetCurve), tools/DM-Console.html:552 (apLevel(), fixed DATA.levelAP ladder), and tools/PACT-CharGen-Webtool.html:880 (apLevel(), same fixed ladder) — none in js/engine.js.
 

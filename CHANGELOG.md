@@ -18,6 +18,17 @@
   that always-on overlay, which was intercepting the click (caught by the browser e2e job); the badge is a
   read-only readout with no handlers, so click-through is the correct fix and also removes the latent
   overlap hazard for any future header control.
+- **2026-07-15 · fix(dm-console) — roster level reads the tuned `levelBudgetCurve`, not the fixed
+  `DATA.levelAP` ladder** (`tools/DM-Console.html` only; display-only, no engine/`DATA.version` change).
+  The roster's per-character level (card "Level N", detail "AP-level") now resolves the DM-tuned
+  level-budget curve carried in each character's own LOG (`rulesSnapshot` event), via a DM-Console-local
+  `_latestLogSnapshotRules()`/`_levelCurve()`/`trackLevel()` trio that mirrors Live Sheet's — so the
+  roster agrees with what that character's Live Sheet shows, tuned or not. The fixed `DATA.levelAP` ladder
+  is no longer read for level *display* here (the old `apLevel()` function was removed). **Behavior note:**
+  because Live Sheet already retired the fixed ladder in favour of the Standard preset (`{l1:79,inc:24}`)
+  for untuned/unbound characters, DM Console now falls back to that same Standard curve too — so an
+  unbound character's displayed roster level can shift versus the old ladder, by design, to match Live
+  Sheet. See `DECISIONS.md` (`D-GH-2026-07-15-dm-console-roster-tuned-curve`).
 - **2026-07-15 · chore(tooling) — `/plan-for-review` skill: reviewer self-ID, MD-file review output, and
   one-block copy-paste hand-off** (`.claude/commands/plan-for-review.md` only; no app/code change). The
   generated reviewer instructions now ask any reviewer to declare its model + settings first (kept generic,
