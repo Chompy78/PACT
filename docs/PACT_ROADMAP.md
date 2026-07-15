@@ -23,12 +23,46 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-_(none currently — the last NOW item, the full engine module-bridge migration, graduated to
-`CHANGELOG.md` on 2026-07-10.)_
+## Wire testing/scripts/audit.py into CI — TODO
+Branch chore/wire-audit-py-into-ci. `audit.py`'s own docstring says its checks (SW cache integrity, manifest/PWA correctness, engine-symbol drift, and an `--rls` mode that live-proves RLS rejects unauthorized writes) should run "eventually in CI" — no workflow currently calls it, so a grant/RLS regression (a class DECISIONS.md notes this project has "been bitten twice by" already) or a broken SW cache list only gets caught if a human remembers to run it by hand.
+
+```text
+1. Add a step/job to .github/workflows/engine-parity.yml (or a new workflow) that runs testing/scripts/
+   audit.py's default (non-`--rls`) checks on every push/PR — fail the build on any finding.
+2. The `--rls` live-proof mode needs real Supabase credentials against a test project. Decide: (a) wire it
+   into CI using a GitHub Actions secret for a dedicated test Supabase project, or (b) keep it manual-only
+   for now. Either way, make the decision explicit in testing/README.md and in a comment on the CI job —
+   the goal is that "not wired into CI" never again silently reads as "wired," which is how this gap went
+   unnoticed.
+3. No js/engine.js or DATA changes — parity gate itself is unaffected, should stay 20/0.
+```
+
+**Done when:** `audit.py`'s non-RLS checks run automatically in CI on every relevant PR and fail the build on findings; the `--rls` mode's CI status (wired with a test project, or intentionally manual) is explicitly documented in testing/README.md.
 
 ---
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
+
+## Parity gate: assert warning codes/text, not just counts — TODO
+Branch test/parity-warning-code-assertions. `testing/expected/expected-results.csv` currently asserts only `new_engine_warnings` as a **count** against each of the 20 fixtures, not which warnings actually fired — so a warning changing wording, firing for the wrong reason, or silently disappearing while another appears wouldn't fail the gate. This is the documented precondition REV-14 (splitting `compute()`'s ~371-line, 54-`W.push`-site body into named sub-pricers) is waiting on — this task is that precondition, not the split itself.
+
+```text
+1. Grep js/engine.js for its 54 `W.push(...)` call sites to enumerate the distinct warning
+   codes/labels compute() can emit.
+2. Extend testing/expected/expected-results.csv (or add a companion fixture file) to assert the actual
+   warning codes/text produced for each of the 20 existing fixtures, not just the count.
+3. Update testing/scripts/engine-parity-ci.mjs (and the browser test runner in
+   testing/tests/engine-parity.html) to compare warning content, failing on a mismatch.
+4. If several of the 54 warning sites aren't exercised by any existing fixture, note the coverage gap
+   (don't feel obligated to add new fixtures to close it in this same task — file that as a follow-up if
+   it's sizable).
+5. Do NOT attempt to split compute() in this task — that's REV-14, gated on this landing first.
+
+Test-only change — does not touch DATA.version or compute() output; parity must still be 20/0 against the
+current (unmodified) engine.
+```
+
+**Done when:** the parity gate fails if a fixture's warning codes/text change, even when the count stays the same; testing/tests/engine-parity.html still passes 20/0 against the current engine.
 
 ---
 
@@ -95,30 +129,105 @@ practical. Display-only feature — no DATA.version/compute() involvement; parit
 
 ---
 
-## Live Sheet economy-line: tuned-curve vs earned-AP pace readout — TODO
-Branch feat/livesheet-eco-track-level. Decide and implement whether Live Sheet's `#eco` economy line should move to the campaign's tuned budget curve or stay an earned-AP pace readout.
+## Tools: back-to-Home navigation + toolbar button cleanup — TODO
+Branch feat/tools-home-nav-cleanup. Add a "← Home" link back to index.html in each tool's header (tools/PACT-CharGen-Webtool.html, tools/PACT-Live-Char-Sheet.html, tools/DM-Console.html), and audit/reduce each tool's header/toolbar button clutter in the same PR.
 
 ```text
-Follows feat/advancement-tracks (PR #206). That PR replaced the header "≈ AP-Level" chip (earned AP vs the
-fixed default DATA.levelAP table) with "≈ Track-Level" (AP spent vs the campaign's tuned levelBudgetCurve),
-but deliberately LEFT the separate #eco economy line (tools/PACT-Live-Char-Sheet.html, the
-$('eco').innerHTML block) showing "Lv L · X AP to reach equivalent of Lv L+1" computed from eco.earned
-against DATA.levelAP — a distinct earning-pace widget.
+1. Add a small "← Home" (or house-icon) link/button in each tool's header, pointing to `../index.html`
+   (tools/ is one level below the repo root), styled consistently with each tool's existing masthead/header
+   controls. Keep it unobtrusive — this is UI-only, no engine/rules involvement.
 
-Decide: (a) leave it as an earned-AP pace readout (it answers a different question than Track-Level),
-(b) move it onto the tuned budget curve for consistency with the header, or (c) show both, clearly
-labelled. Then implement the choice, making the label unambiguous about which metric it is so it doesn't
-read as a third competing "level" number.
+2. Audit each tool's header/toolbar for redundant or cluttered buttons and consolidate/remove where
+   appropriate:
+   - DM-Console.html `.topactions` (~line 351): "▦ Table view" / "📊 Skill Matrix" / "📒 AP Ledger" plus the
+     `.tbtoolbar` "⚙ Columns ▾" button — check for overlap/redundant toggles.
+   - PACT-Live-Char-Sheet.html `.bar`/`#lmobar` (~lines 339, 358): "🛠 DM tools ▾", undo/redo, and the mobile
+     action bar — check for duplicated controls between desktop and mobile bars.
+   - PACT-CharGen-Webtool.html — audit its own header/toolbar area for the same pattern.
+   Only remove/merge buttons that are genuinely redundant or rarely used; do not remove functionality
+   players/DMs rely on without an equivalent path still available (e.g. move a rare action into an existing
+   menu instead of deleting it outright).
 
-Display-only — do NOT bump DATA.version; just log in CHANGELOG. If the reasoning is non-obvious, log a
-DECISIONS.md note as D-GH-<date>-livesheet-eco-track-level.
+3. While in this UI, fix DM-Console.html's icon-only header/toolbar buttons (e.g. the `×` close buttons
+   around DM-Console.html:1189 and :1320) — it currently has zero `aria-label` attributes across ~30
+   buttons and relies only on `title=`, versus 12 in CharGen and 3 in Live Sheet. Add `aria-label` to every
+   icon-only button touched by this task's button audit (doesn't need to be a separate full accessibility
+   pass — just don't leave newly-consolidated/kept icon buttons unlabelled).
+
+4. This is a UI-only change — do not touch js/engine.js, DATA, or compute() output.
+
+5. Re-run testing/tests/engine-parity.html — should be unaffected, still 20/0.
+
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
 ```
 
-**Done when:** the `#eco` economy line's level readout is either intentionally kept as an earned-AP pace metric or moved to the tuned curve, with an unambiguous label distinguishing it from the header Track-Level; parity still 20/0.
+**Done when:** all three tools have a working link back to index.html from their header, each tool's header/toolbar has measurably fewer or better-consolidated buttons with no loss of reachable functionality, DM Console's icon-only buttons touched by this task carry `aria-label`s, and parity still 20/0.
+
+---
+
+## DM Console roster: migrate apLevel() off the fixed ladder onto the tuned levelBudgetCurve — TODO
+Branch fix/dm-console-roster-tuned-curve. DM Console's campaign roster (tools/DM-Console.html:552 apLevel(), used at line 603) still computes each character's displayed level from the fixed DATA.levelAP ladder, even though DM Console is the one tool where a DM configures the per-campaign levelBudgetCurve.
+
+```text
+Surfaced by an independent /code-review of PR #210/#211 (D-GH-2026-07-14-livesheet-eco-track-level /
+D-GH-2026-07-14-livesheet-eco-track-level-review-followups): those PRs unified Live Sheet's header
+Track-Level and eco-line Earned-Lv onto the DM-tunable levelBudgetCurve, but DM Console's roster was out of
+scope for both (single-file tasks). A DM who tunes their campaign's curve away from Standard sees their own
+roster (fixed ladder) disagree with what that same character's Live Sheet correctly shows.
+
+Decide and implement: migrate DM Console's roster apLevel(eco.earned) call to use Live Sheet's
+_levelCurve()/trackLevel() pair (would need extracting them to a shared location, since they currently live
+only in tools/PACT-Live-Char-Sheet.html), or a DM-Console-local equivalent reading DATA.levelBudgetCurves via
+the same resolveRules()-style path. Display-only — do NOT bump DATA.version; log in CHANGELOG, and in
+DECISIONS.md if the shared-vs-local approach involves a non-obvious trade-off.
+```
+
+**Done when:** DM Console's roster level display reads the campaign's tuned `levelBudgetCurve` (not the fixed `DATA.levelAP` ladder) when one is configured, consistent with Live Sheet; parity still 20/0.
+
+---
+
+## Consolidate the 4 duplicated "AP vs threshold table → level" lookups across tools — TODO
+Branch chore/unify-level-lookup-helper. The same loop shape (find highest level L whose per-level threshold <= a value) now exists independently in tools/PACT-Live-Char-Sheet.html (_levelCurve()/trackLevel(), reading the DM-tunable levelBudgetCurve), tools/DM-Console.html:552 (apLevel(), fixed DATA.levelAP ladder), and tools/PACT-CharGen-Webtool.html:880 (apLevel(), same fixed ladder) — none in js/engine.js.
+
+```text
+Surfaced by an independent /code-review of PR #210/#211 as pre-existing debt, not previously tracked by any
+roadmap item.
+
+Decide: should a shared helper live in js/engine.js (display-only, so arguably not "rules logic" under
+AGENTS.md's rule, but a reasonable case either way), or a new small shared js/ module, parameterized by
+threshold source (fixed ladder vs. tuned curve)? Then migrate all 3-4 call sites onto it. Note CharGen's
+apLevel() usages may be a legitimately distinct concept (fixed creation-budget tiering, not campaign-tunable
+advancement pace) — confirm before merging that call site into the same helper as the other two.
+```
+
+**Done when:** the level-lookup loop exists in exactly one place (shared helper), all prior call sites migrated with no behavior change for the fixed-ladder cases; parity still 20/0.
 
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
+
+## Service-worker caching: decide whether auth/sync/campaign/dm modules stay cache-first — TODO
+Branch chore/sw-network-first-security-modules. `service-worker.js`'s `NETWORK_FIRST_RE` currently covers only `.html`, the root, and `js/engine.js` — documented as network-first "so deployed fixes reach returning users immediately." `js/auth.js`, `js/supabase-client.js`, `js/sync.js`, `js/campaign.js`, `js/dm.js` are pre-cached and fall into the cache-first branch, so a client-side fix to one of them doesn't reach a returning offline-capable user until the SW updates *and* they reload twice.
+
+```text
+1. Review service-worker.js's NETWORK_FIRST_RE (~lines 9-26) and its stated rationale for singling out
+   js/engine.js.
+2. Decide: (a) widen the regex to include auth/sync/campaign/dm.js so client-side fixes to them propagate
+   as fast as engine.js fixes do, or (b) leave them cache-first — since RLS is server-authoritative, a
+   stale auth/sync client isn't itself a security hole — and just make that reasoning explicit instead of
+   leaving it an unstated inconsistency.
+3. If widening, weigh the added network dependency: these modules currently work fully offline via
+   cache-first; moving them to network-first trades that off against faster fix propagation.
+4. No engine.js/DATA involvement — parity unaffected, should stay 20/0.
+
+Low priority — not urgent, since RLS already enforces this server-side regardless of which caching
+strategy wins. Log the decision as D-GH-<date>-sw-network-first-security-modules either way, since "why
+engine.js is special-cased but these aren't" isn't obvious from the code alone.
+```
+
+**Done when:** either NETWORK_FIRST_RE is widened to cover auth/sync/campaign/dm.js, or a DECISIONS.md entry explicitly states why they're intentionally left cache-first; parity still 20/0.
+
+---
 
 ## Engine review cleanup: drawback buyoff IDs, signature guard, baseBuild dedupe, noLock scoping — TODO
 Branch chore/engine-review-cleanup. Four small, low-risk js/engine.js hardening/cleanup items surfaced by

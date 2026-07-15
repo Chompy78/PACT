@@ -151,7 +151,6 @@ table.led{width:100%;border-collapse:collapse;font-size:11.5px}.led th{backgroun
 #tray li{color:var(--bad)}
 .hint{color:var(--grey);font-style:italic;font-size:11px}
 .tt{width:100%}
-#flash{display:none;position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#7a0000;color:#fff;padding:8px 14px;border-radius:8px;font-weight:700;z-index:99}
 /* collapsible buy groups + search + greyed-with-reason buttons */
 #buysearch{width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--line);border-radius:7px;font:inherit;margin-bottom:8px}
 .bg h4{margin:8px 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--teal);cursor:pointer;user-select:none;border-bottom:1px solid var(--line);padding-bottom:2px}
@@ -322,6 +321,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 (function(){var RB='https://github.com/Chompy78/PACT/issues/new';function L(k,d){try{console.error('[PACT] '+k+':',d,'— report: '+RB);}catch(_){}}
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
+<script src="../js/ui-helpers.js"></script>
 <div id="apFloat" title="AP available (Player AP + DM-granted AP − spent) — updates live as you buy, undo, or gain awards"><b id="apFloatN">0</b><span>AP left</span></div>
 <div class="top"><h1>🧬 PACT — Live Character Sheet</h1><span class="v" id="verline">event-sourced · prices freeze at purchase</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
 <button class="btn g" onclick="undo()" title="Undo">↶ <span class="bl">Undo</span></button><button class="btn g" onclick="redo()" title="Redo">↷ <span class="bl">Redo</span></button>
@@ -356,7 +356,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 </div><div id="ledger"></div></div>
 </div>
 <div id="lmobar"><div id="lmobar-ap" title="Tap to jump to the buy panel" onclick="var s=document.getElementById('buysearch');if(s)s.scrollIntoView({behavior:'smooth'});"><b id="lmb">—</b> <span id="lms"></span></div><div id="lmobar-acts"><button onclick="undo()" title="Undo">↶</button><button onclick="redo()" title="Redo">↷</button></div></div>
-<div id="flash"></div>
 <script>
 
 function _mod(s){return Math.floor((s-10)/2);}
@@ -388,14 +387,26 @@ function eligibleSpells(b,ti,di){
 // campaign's tuned level-budget curve (feat/advancement-tracks). Display-only — never
 // affects pricing. Reads the DM-tuned curve via resolveRules() (live cloud rules or the
 // offline LOG snapshot); falls back to the Standard preset when unbound/untuned or when
-// a stale cached engine lacks DATA.levelBudgetCurves. Replaces the old earned-AP apLevel()
-// chip in the header/overlay (its only two callers) — see DECISIONS D-GH-2026-07-14-advancement-tracks.
-function trackLevel(spent){
+// a stale cached engine lacks DATA.levelBudgetCurves. Originally replaced the old earned-AP
+// apLevel() chip (fixed DATA.levelAP ladder) in the header/overlay; the #eco line's "Earned
+// Lv" readout was later migrated onto this same curve too, called with eco.earned instead of
+// eco.spent, so the two readouts can only differ by spent-vs-earned — never by which curve is
+// in effect (see D-GH-2026-07-14-livesheet-eco-track-level).
+function _levelCurve(){
   var r=resolveRules()||{};
   var std=(DATA.levelBudgetCurves&&DATA.levelBudgetCurves.standard)||{l1:79,inc:24};
   var bc=(r.levelBudgetCurve&&r.levelBudgetCurve.l1!=null)?r.levelBudgetCurve:std;
-  var l1=+bc.l1||79,inc=+bc.inc||24,lv=0;
-  for(var L=1;L<=20;L++){ if(l1+inc*(L-1)<=(+spent||0)) lv=L; }
+  var l1=(bc.l1!=null&&isFinite(+bc.l1))?+bc.l1:79;
+  // inc floored at 1: trackLevel()'s scan assumes thresholds are strictly increasing in L —
+  // a zero/negative inc (typo or DM misconfiguration; DM Console's field only has a cosmetic
+  // min="1") would make later levels satisfy the "<=" check again and return a near-top level
+  // for very little AP (see D-GH-2026-07-14-livesheet-eco-track-level review followups).
+  var inc=(bc.inc!=null&&isFinite(+bc.inc))?Math.max(1,+bc.inc):24;
+  return {l1:l1,inc:inc};
+}
+function trackLevel(spent,curve){
+  var c=curve||_levelCurve(),lv=0;
+  for(var L=1;L<=20;L++){ if(c.l1+c.inc*(L-1)<=(+spent||0)) lv=L; }
   return lv;
 }
 
@@ -698,16 +709,21 @@ function render(){
   const b=foldBuild(idx); const eco=economy(idx); const _dmO=_dmOpts(),_dmAp=_dmO.dmAp,_ignPlr=_dmO.ignorePlayerAp; const r=compute(b,_dmO); const m=r.mods;
   const _apAvail=_apRemaining(r.spendable,eco.spent), _apOver=_apAvail<0;
   _apNudgeBanner(eco.spent);
+  // Resolved once per render and threaded into every trackLevel() call below — trackLevel()
+  // itself would happily re-resolve on its own, but resolveRules() can fall through to an
+  // O(LOG length) scan (see D-GH-2026-07-14-livesheet-eco-track-level review followups), and
+  // render() fires on every buy/undo/redo and continuously while the time-travel slider drags.
+  const _lvlCurve = _levelCurve();
   // --- top economy ---
   const committed = LOG.filter(e=>e.type==='buy'&&e.cat!=='drawback').reduce((s,e)=>s+e.cost,0);
   // Reprice on the CREATION basis (inPlay:false) so an imported creation character shows no phantom drift.
   // In-play purchases stay frozen at their higher price, so they correctly read as locked > reprice (a kept premium).
   const reprice = compute(Object.assign({},b,{inPlay:false})).total;
-  $('eco').innerHTML=(function(){var ap=eco.earned||0,L=0;for(var k=1;k<=20;k++){if((DATA.levelAP[k]||1e9)<=ap)L=k;else break;}var nx=DATA.levelAP[L+1];var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):(_dmAp?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b>Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx?(' · <span class="ed">'+(nx-ap)+' AP to reach equivalent of Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>';})();
+  $('eco').innerHTML=(function(){var ap=eco.earned||0;var _c=_lvlCurve;var L=trackLevel(ap,_c);var nx=(L<20)?(_c.l1+_c.inc*L):null;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):(_dmAp?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b title="Pace based on AP earned so far (including any not yet spent), against the same level-budget curve as the header\'s ≈ Track-Level. This differs from Track-Level whenever you\'re holding unspent AP — Track-Level reflects only AP actually spent.">Earned Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx!=null?(' · <span class="ed">'+(nx-ap)+' AP to reach Earned Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>';})();
   {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent / '+eco.earned+' earned'+(_dmAp?' · '+_dmAp+' from DM':'');}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
   const ABCOL={STR:'#E03C28',DEX:'#4CAF50',CON:'#E8872B',INT:'#3F6FD8',WIS:'#00ACC1',CHA:'#9C27B0'};
-  let sh='<div class="shname">'+esc(b.name||'Unnamed Hero')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent)+' · Prof +'+r.prof+'</div>';
+  let sh='<div class="shname">'+esc(b.name||'Unnamed Hero')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
   const _abGov={STR:'Melee attack & damage · Athletics · carrying & grappling',DEX:'AC (light/medium) · finesse & ranged attacks · Initiative · Acrobatics, Stealth',CON:'Hit Points · concentration · Constitution saves',INT:'Arcana, History, Investigation, Nature, Religion · Wizard-style casting',WIS:'Perception, Insight, Medicine, Survival · Cleric/Druid/Ranger casting',CHA:'Persuasion, Deception, Intimidation, Performance · Bard/Sorcerer/Warlock/Paladin casting'};
   sh+='<div class="abrow">'+ABILS.map(a=>'<div class="abx itip" title="'+esc(a+' '+((r.effScore&&r.effScore[a])||b.stats[a])+' ('+sgn(m[a])+') — governs '+(_abGov[a]||''))+'"><b style="color:'+ABCOL[a]+'">'+a+'</b><span>'+((r.effScore&&r.effScore[a])||b.stats[a])+'</span><i>'+sgn(m[a])+'</i></div>').join('')+'</div>';
   const _hpRed=(b.drawbacks||[]).includes('Frail')||(b.drawbacks||[]).includes('Glass Frame');
@@ -772,8 +788,6 @@ function render(){
   buildBuyPanel(b,r,Object.assign({},eco,{available:_apAvail}),head);
 }
 
-function flash(msg){let f=$('flash');f.textContent=msg;f.style.display='block';clearTimeout(flash._t);flash._t=setTimeout(()=>f.style.display='none',2600);}
-
 let buyQuery=''; const grpOpen={Progress:1,Abilities:1,'Ki, Sorcery & Attunement points':1}; let affordOnly=false; let hideUnavail=false; let buyCls='';
 function setBuyCls(c){buyCls=c||'';refreshBuy();}
 function setBuyQuery(v){buyQuery=(v||'').toLowerCase().trim();refreshBuy();}
@@ -797,7 +811,6 @@ function refreshBuy(){const b=foldBuild(null),eco=economy(null);const r=compute(
 function levelDelta(hd){return (DATA.levelAP[hd+1]||DATA.levelAP[hd]||0)-(DATA.levelAP[hd]||0);}
 function toggleTasha(){var b=foldBuild(null);var on=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);emit({type:"buy",cat:"tasharule",payload:{v:!on},cost:0,label:"DM house rule — Tasha abilities "+(!on?"allowed":"barred"),level:b.hd});}
 function awardToNext(){const b=foldBuild(null);const d=levelDelta(b.hd);if(d>0)award(d,'Level '+(b.hd+1)+' budget');else flash('Already at the top of the benchmark table.');}
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function buildBuyPanel(b,r,eco,head){
   const buyEl=$('buy'); if(!head){buyEl.innerHTML='<p class="hint">Viewing history — return to <b>live</b> to make purchases.</p>';return;}
   // a buyable button: greys out (with the reason) when not allowed; tap a greyed one to hear why
@@ -1245,12 +1258,6 @@ function buildPortraitPrompts(b){
   return {portrait: base+', head-and-shoulders character portrait, highly detailed digital painting, dramatic lighting, neutral background.',
           fullbody: base+', full-body character illustration showing the entire figure from head to toe, dynamic standing pose, full outfit and footwear visible, highly detailed digital painting, dramatic lighting, simple background.'};
 }
-function _csCopy(text){
-  try{if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text);return true;}}catch(e){}
-  try{var ta=document.createElement('textarea');ta.value=text;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';
-    document.body.appendChild(ta);ta.focus();ta.select();var okc=document.execCommand('copy');document.body.removeChild(ta);if(okc)return true;}catch(e){}
-  try{window.prompt('Copy this prompt (Ctrl/Cmd-C):',text);}catch(e){}
-  return false;}
 // reuse an existing #portraitview modal if present (char-gen has one), else create it (live sheet)
 function showPortraitModal(p){
   var ov=$('portraitview');
@@ -1296,7 +1303,6 @@ function _spellAC(inp){
   function cand(){var dl=inp._dlid&&document.getElementById(inp._dlid);return dl?[].slice.call(dl.querySelectorAll('option')).map(function(o){return o.value;}):[];}
   function close(){menu.style.display='none';active=-1;}
   function place(){var r=inp.getBoundingClientRect();menu.style.left=r.left+'px';menu.style.top=(r.bottom+2)+'px';menu.style.minWidth=Math.max(220,r.width)+'px';}
-  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
   function pick(v){inp.value=v;close();inp._sacPick=1;inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}));inp._sacPick=0;}
   function draw(){menu.innerHTML=items.length?items.map(function(f,i){return '<div class="spellac-i" data-i="'+i+'" style="padding:5px 10px;cursor:pointer;white-space:nowrap;'+(i===active?'background:var(--line,#e3ebf7)':'')+'">'+esc(f)+'</div>';}).join(''):'<div style="padding:5px 10px;color:var(--grey,#888)">no match</div>';}
   function filt(){if(inp.readOnly||inp._sacPick)return; var q=inp.value.trim().toLowerCase(); var all=cand(); items=(q?all.filter(function(x){return x.toLowerCase().indexOf(q)>=0;}):all).slice(0,80); active=items.length?0:-1; draw(); place(); menu.style.display='block';}
@@ -1537,8 +1543,6 @@ document.addEventListener('sync-ready', function () {
                                   // so a retry re-targets the same (already-locally-saved) clone instead
                                   // of minting a second one and leaving the first as an orphan; cleared
                                   // on success (same memoized-id pattern as currentCharId()/__charId)
-
-  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   // Persistent status badge (top toolbar, outside the ☁ Cloud dropdown) — surfaces sign-in
   // and campaign-rules-fetch state that was previously silent/internal-only. Display-only;

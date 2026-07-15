@@ -9,6 +9,9 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-14-shared-ui-helpers** — `esc()`/`flash()`/`_csCopy()` consolidated into a new plain-script `js/ui-helpers.js` shared by all three tools (fixing three inconsistent `esc()` copies in Live Sheet alone, none of which escaped single quotes); `setTheme()`'s one-line `localStorage` call was deliberately left tool-local since the surrounding DOM-sync logic isn't actually shared
+- **D-GH-2026-07-14-livesheet-eco-track-level-review-followups** — Fixed 4 correctness/efficiency issues an independent multi-angle review found in the same-day eco-line/Track-Level unification (curve resolved 3x per render, explicit-`0` and negative-`inc` DM curve values mishandled, a truthy-check mislabel); deferred 2 cross-tool/architectural findings (DM Console's untuned roster, 3x duplicated level-lookup loop) to the roadmap instead of fixing inline
+- **D-GH-2026-07-14-livesheet-eco-track-level** — Live Sheet's `#eco` line "Lv" chip (earned AP vs the fixed `DATA.levelAP` ladder) unified onto the same tuned `levelBudgetCurve` as the header's `≈ Track-Level` chip, called with `eco.earned` instead of `eco.spent`, relabelled "Earned Lv" — the two readouts can now only differ by spent-vs-earned, never by which curve is in effect
 - **D-GH-2026-07-13-campaign-join-race-friendly-error** — `join_campaign`/`redeem_player_invite`'s character-insert now converts a `unique_violation` race into the same friendly "already joined" message `bind_character_to_campaign` already uses, instead of a raw Postgres error
 - **D-GH-2026-07-14-advancement-tracks** — Campaign advancement as three display-only per-campaign dials (level budget curve / award pace / starting tier) stored in `campaigns.rules`; dropped the D&D-equivalent chip as redundant with the existing `Level N`; replaced (not added to) Live Sheet's earned-AP `apLevel` chip with a spent-AP tuned-curve `trackLevel`; left `js/ap-by-level.js` untouched (pace curve ≠ budget curve)
 - **D-GH-2026-07-13-campaign-membership-helpers** — De-duplicate campaign-membership SQL checks: one new ungranted helper for the invite_code lookup, reuse the pre-existing `is_campaign_member()` for the membership check rather than adding a second near-duplicate function (a self-review catch)
@@ -87,6 +90,118 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-14-shared-ui-helpers · esc()/flash()/_csCopy() consolidated into one shared js/ui-helpers.js
+- **Context:** a code-audit recommendation (from a broader project review) flagged that
+  `PACT-Live-Char-Sheet.html` alone defined `esc()` three separate times, each with different escaping
+  coverage — one dropped `>` entirely, another dropped quote-escaping entirely, and none escaped single
+  quotes. CharGen and DM Console each had their own separate `esc()` copy too. `flash()` (a toast helper)
+  and `_csCopy()` (a 3-tier clipboard-copy fallback: Clipboard API → `execCommand` textarea →
+  `window.prompt`) were duplicated verbatim between CharGen and Live Sheet, including two further nested
+  `esc()` shadows inside `_spellAC()`, an autocomplete widget itself copy-pasted between the two tools.
+  Each copy was correctly scoped to its own closure (no runtime shadowing bug), but which escaping
+  behavior was in effect for any given render call depended on which closure the call site happened to be
+  in — a latent risk if a call site ever interpolated into a single-quoted HTML attribute.
+- **Options:** (a) leave the duplicates in place and just patch each one's quote-escaping individually;
+  (b) consolidate into one canonical `esc()`/`flash()`/`_csCopy()` in a new shared, plain (non-module)
+  `js/ui-helpers.js`, loaded via `<script src>` before each tool's own inline script; (c) go further and
+  also fold the `pactTheme` `localStorage` setter (duplicated one-liner inside each tool's `setTheme()`)
+  into the same shared file.
+- **Decision:** (b). Also investigated (c) but rejected it once the actual code was inspected: each tool's
+  `setTheme()` does more than set `localStorage` — CharGen's also syncs two `<select>` elements
+  (`#themesel`/`#themeselMobile`) that don't exist in the other tools, so `setTheme()` itself isn't a true
+  duplicate, only one internal line of it is. Extracting that single line into a shared helper would trade
+  one duplicated line for an indirection that still needs a tool-specific wrapper around it — not worth it.
+  DM Console's clipboard-copy pattern (button-text feedback + `execCommand` fallback, no `flash()`
+  dependency) was also left alone — inspection showed it's a genuinely different shape from
+  CharGen/Live Sheet's `_csCopy()`, not a third duplicate of it.
+- **Why:** `esc()` in particular is a security-relevant helper per `AGENTS.md`'s stored-XSS invariant
+  (REV-12) — having three silently-different implementations of "the thing that keeps cloud data safe to
+  render" is the kind of inconsistency that's easy to introduce a real gap into later (e.g. a new call site
+  copy-pasted from the *wrong* nearby `esc()`). Consolidating to one canonical version, loaded once, removes
+  that ambiguity structurally rather than by convention. Scoping the change to esc/flash/_csCopy (not
+  forcing setTheme's one line into the same file) kept the diff honest about what's actually duplicated
+  versus what only looks similar at a glance.
+- **Status:** Shipped. `js/ui-helpers.js` added; local duplicates removed from all three tools.
+  `testing/scripts/engine-parity-ci.mjs` unaffected (20/0 — UI-only, no `js/engine.js`/`DATA.version`
+  change). Verified in a real headless-Chromium pass: all three tools resolve `esc`/`flash`/`_csCopy` as
+  globals, `esc()` correctly escapes `& < > " '`, `flash()` renders the expected toast, no new console
+  errors.
+## D-GH-2026-07-14-livesheet-eco-track-level-review-followups · Fix 4 review findings inline, defer 2 cross-tool findings to the roadmap
+- **Context:** an independent `/code-review` (8 finder angles + 1-vote verification per candidate) run
+  against the merged `D-GH-2026-07-14-livesheet-eco-track-level` PR (#210) surfaced 6 findings that
+  survived verification (1 CONFIRMED, 5 PLAUSIBLE). Two other candidates (a naming-ambiguity concern and
+  an `awardToNext()` "inconsistency") were REFUTED — both turned out to be intentional, already-documented
+  design choices and were dropped.
+- **Options:** (a) fix all 6 findings in this follow-up; (b) fix only the findings confined to
+  `tools/PACT-Live-Char-Sheet.html` with an unambiguous correct fix, and defer the rest; (c) fix nothing,
+  just log all 6 as roadmap items.
+- **Decision:** (b). Fixed inline:
+  1. **Triple curve resolution per render** — the eco line called `_levelCurve()` directly and again via
+     `trackLevel(ap)`; the header added a third independent call. `resolveRules()` can fall through to an
+     O(LOG length) backward scan, and `render()` fires on every buy/undo/redo and continuously (no
+     debounce) while the time-travel slider drags. `trackLevel(spent, curve)` now accepts an optional
+     pre-resolved curve; `render()` resolves `_levelCurve()` once and threads it into every call site.
+     Verified 3→1 `resolveRules()` calls per `render()` via a browser console instrumentation check.
+  2. **Explicit `0` discarded** — `_levelCurve()`'s `+bc.l1||79`/`+bc.inc||24` treated a DM-configured `0`
+     as "unset" and silently substituted the default. Changed to `!=null` checks so an explicit `0` for
+     `l1` is honoured (an `inc` of `0` still floors to `1` — see next item, `0` isn't a valid increment
+     either way).
+  3. **Zero/negative `inc` breaks monotonicity** — `trackLevel()`'s unbroken scan assumes each level's
+     threshold is `>=` the previous one; a DM-tuned `inc<=0` (reachable — DM Console's `min="1"` on the
+     field is a cosmetic HTML attribute, never enforced, since the save handler is a button click, not a
+     form submit) makes the scan return a near-top level for very little AP. `inc` is now floored to `1`.
+  4. **`nx` truthy-check mislabel** — the "top level" fallback used a bare `nx?` check; the old fixed-ladder
+     `nx` was always a large positive number or `undefined`, so this worked, but the new DM-tunable-curve
+     `nx` can legitimately be `0` for a non-top level. Changed to `nx!=null`.
+  Deferred to the roadmap (not fixed here): DM Console's roster `apLevel()` still reads the untuned fixed
+  ladder even though DM Console is where the tuned curve is configured (a real, confirmed inconsistency,
+  but it's a different file with its own scope/design question — should DM Console's roster migrate to
+  `trackLevel`/`_levelCurve`, and would that need its own review); and the observation that the same
+  "highest level whose per-level threshold `<=` amount" loop now exists in 4 places across 3 tool files,
+  none in `js/engine.js` — a real architectural cleanup, but bigger than a follow-up fix and needs its own
+  scoping decision (single shared helper vs. per-tool, and whether `js/engine.js` is the right home for
+  arguably-display-only logic).
+- **Why:** the 4 fixed findings are each a small, mechanical, unambiguous correction confined to the same
+  file the original PR touched — low risk, no design judgment required, and each was independently
+  verified against the actual code before being applied. The 2 deferred findings are different in kind:
+  fixing them means touching a second tool file and making a design call (does DM Console's roster
+  concept need to match Live Sheet's, and where should shared level-lookup logic live) — exactly the kind
+  of decision that shouldn't be bundled into a "quick fix" follow-up without its own consideration.
+- **Status:** Shipped. `testing/scripts/engine-parity-ci.mjs` unaffected (20/0 — no `js/engine.js` or
+  `compute()` change, display-only). All 4 fixes manually verified in a local browser preview: negative
+  `inc` (`-8`) correctly floors to `1` (confirmed via `_levelCurve()`/`trackLevel()` called directly with a
+  monkey-patched `resolveRules()`); explicit `l1:0` is now honoured instead of falling back to `79`;
+  `nx=0` under a synthetic curve no longer renders "top level" (`nx!=null` vs. the old bare-truthy check);
+  `resolveRules()` call count during one `render()` measured 1 (down from 3) via instrumented override.
+
+## D-GH-2026-07-14-livesheet-eco-track-level · Live Sheet `#eco` line unified onto the header's tuned Track-Level curve
+- **Context:** roadmap follow-up from `D-GH-2026-07-14-advancement-tracks` (PR #206). That change replaced
+  the header's earned-AP `apLevel` chip with a spent-AP `trackLevel` chip read against the campaign's
+  DM-tuned `levelBudgetCurve`, but deliberately left Live Sheet's separate `#eco` economy line
+  (`tools/PACT-Live-Char-Sheet.html`, the `$('eco').innerHTML` block) computing its own "Lv L" from
+  `eco.earned` against the fixed default `DATA.levelAP` ladder — a leftover of the pre-#206 mechanism. The
+  two chips could show different numbers for the same character purely because they read different curves,
+  not because "earned" and "spent" genuinely diverged.
+- **Options:** (a) keep the `#eco` line as a pure earned-AP pace readout (it answers a different question
+  than Track-Level — "how close am I to unlocking the next level's budget", independent of the campaign's
+  tuning), but relabel it so it can't be mistaken for the header's number; (b) move it onto the tuned curve
+  for full consistency with the header; (c) show both, clearly labelled.
+- **Decision:** effectively (c), but with the curve mismatch fixed as part of it — extracted a shared
+  `_levelCurve()` helper out of `trackLevel(spent)`, and had the `#eco` line call `trackLevel(eco.earned)`
+  instead of its own inline fixed-ladder loop. Relabelled "Lv" → "Earned Lv" with a tooltip explaining the
+  distinction from Track-Level.
+- **Why:** keeping both readouts (earned pace vs spent Track-Level) is genuinely useful — a player who's
+  been awarded AP but hasn't spent it yet wants to see that they're "ahead" on the pace metric even before
+  spending. But the two readouts must draw from the *same* curve so they only ever disagree for the
+  legitimate reason (spent vs earned), never because one silently ignores the campaign's DM tuning while
+  the other honours it. Plain relabelling alone (option a) would have fixed the confusing label but left the
+  latent curve-mismatch bug in place for any DM who tunes `levelBudgetCurve`.
+- **Status:** Shipped. `testing/scripts/engine-parity-ci.mjs` unaffected (20/0 — no `js/engine.js` or
+  `compute()` change, display-only). Manually verified in a local browser preview: fresh character with 50
+  AP earned/0 spent showed "Earned Lv 0 · 29 AP to reach Earned Lv 1" (79-50=29, standard curve) alongside
+  header "≈ Track-Level 0"; confirmed `trackLevel(79)===1` and `trackLevel(103)===2` via console against
+  the loaded `{l1:79,inc:24}` standard curve.
 
 ## D-GH-2026-07-13-campaign-join-race-friendly-error · `join_campaign`/`redeem_player_invite` race surfaces friendly error, not raw DB error
 - **Context:** filed as a roadmap follow-up from `D-GH-2026-07-13-campaign-membership-helpers`'s own
