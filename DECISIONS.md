@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-15-wire-audit-py-into-ci** — `audit.py`'s default (non-`--rls`) checks now run automatically in a new `.github/workflows/static-audit.yml` on every PR touching the files they cover; the `--rls` live-proof mode stays intentionally manual-only, no dedicated test Supabase project exists to hold its credentials
 - **D-GH-2026-07-14-shared-ui-helpers** — `esc()`/`flash()`/`_csCopy()` consolidated into a new plain-script `js/ui-helpers.js` shared by all three tools (fixing three inconsistent `esc()` copies in Live Sheet alone, none of which escaped single quotes); `setTheme()`'s one-line `localStorage` call was deliberately left tool-local since the surrounding DOM-sync logic isn't actually shared
 - **D-GH-2026-07-14-livesheet-eco-track-level-review-followups** — Fixed 4 correctness/efficiency issues an independent multi-angle review found in the same-day eco-line/Track-Level unification (curve resolved 3x per render, explicit-`0` and negative-`inc` DM curve values mishandled, a truthy-check mislabel); deferred 2 cross-tool/architectural findings (DM Console's untuned roster, 3x duplicated level-lookup loop) to the roadmap instead of fixing inline
 - **D-GH-2026-07-14-livesheet-eco-track-level** — Live Sheet's `#eco` line "Lv" chip (earned AP vs the fixed `DATA.levelAP` ladder) unified onto the same tuned `levelBudgetCurve` as the header's `≈ Track-Level` chip, called with `eco.earned` instead of `eco.spent`, relabelled "Earned Lv" — the two readouts can now only differ by spent-vs-earned, never by which curve is in effect
@@ -90,6 +91,32 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-15-wire-audit-py-into-ci · audit.py's default checks wired into CI; --rls stays manual
+- **Context:** `testing/scripts/audit.py`'s own docstring said its checks (SW cache integrity,
+  manifest/PWA correctness, engine-symbol drift guard, build-version mirror sync, and an `--rls`
+  mode that live-proves Supabase RLS rejects unauthorized writes) should run "eventually in CI" — no
+  workflow called it, so a regression only got caught if a human remembered to run it by hand.
+  `DECISIONS.md` already notes this project has "been bitten twice by" grant/RLS drift that internal
+  guards masked, making the RLS-adjacent half of this gap the higher-stakes one.
+- **Options:** (a) add a step to the existing `engine-parity.yml` workflow; (b) a new dedicated
+  workflow file; for the `--rls` mode specifically: (c1) wire it into CI using a GitHub Actions secret
+  against a dedicated test Supabase project, or (c2) keep it manual-only and document that choice
+  explicitly so "not wired into CI" can't again silently read as "wired."
+- **Decision:** (b) a new `.github/workflows/static-audit.yml`, path-filtered to the files
+  `audit.py`'s checks actually cover (service worker, manifest, icons, assets, the three tools,
+  `js/engine.js`) rather than piggybacking on `engine-parity.yml`'s narrower engine/testing-only path
+  filter. For `--rls`: (c2) — kept manual-only, documented in both `testing/README.md` and the new
+  workflow's header comment.
+- **Why:** `engine-parity.yml`'s path filter is deliberately scoped to `js/engine.js` +
+  `testing/**` — folding audit.py's much broader file surface into it would either over-trigger that
+  workflow on unrelated changes or under-trigger the audit on the SW/manifest/icon changes it exists
+  to catch; a separate workflow keeps both path filters honest. The `--rls` proof needs a live
+  Supabase project's real credentials as a GitHub Actions secret — standing one up (or confirming an
+  existing test project is safe to point CI at) is a decision with its own security surface, not
+  something to default into as a side effect of a CI-wiring chore. Manual-only, loudly documented, is
+  the choice that can't silently regress into "nobody remembers this is manual."
+- **Status:** in force. Revisit if/when a dedicated test Supabase project + secret exists.
 
 ## D-GH-2026-07-14-shared-ui-helpers · esc()/flash()/_csCopy() consolidated into one shared js/ui-helpers.js
 - **Context:** a code-audit recommendation (from a broader project review) flagged that

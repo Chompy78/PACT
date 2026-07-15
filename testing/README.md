@@ -2,6 +2,18 @@
 
 ## Test harnesses
 
+- **`scripts/audit.py`** (AUD-1) — dependency-free static health check (Python stdlib only, runs in
+  seconds): service-worker `PRE_CACHE` integrity, PWA icon/manifest correctness, the engine-symbol
+  drift guard, and build-version mirror sync. **The default (non-`--rls`) checks run automatically in
+  CI** on every PR touching the files they cover (see `.github/workflows/static-audit.yml`) and fail
+  the build on any `FAIL` (warnings don't fail the run). Run locally: `python3 testing/scripts/audit.py`.
+  The optional **`--rls` live-proof mode** (confirms Supabase RLS rejects a player writing
+  `characters.ap` or binding to a campaign they haven't joined) is **intentionally NOT wired into
+  CI** — it needs real credentials against a dedicated test Supabase project, which this repo doesn't
+  have set up. It stays manual-only for now; run it by hand with the env vars `check_rls()` expects
+  (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `PACT_PLAYER_JWT`, `PACT_TEST_CHARACTER_ID`,
+  `PACT_FOREIGN_CAMPAIGN_ID`) set: `python3 testing/scripts/audit.py --rls`. See
+  `D-GH-2026-07-15-wire-audit-py-into-ci` in `DECISIONS.md` for the reasoning.
 - **`tests/engine-parity.html`** — regression gate for `js/engine.js`. Run in a browser; expect **20 passed / 0 failed** (check `testing/expected/expected-results.csv`'s row count — don't assume a fixed number). See `docs/HOW-TO-WORK.md` for instructions.
 - **`scripts/engine-parity-ci.mjs`** (**REV-11**) — headless Node port of `tests/engine-parity.html`: same
   fixtures, same `expected-results.csv`, same assertions, no browser needed. Runs automatically in CI (see

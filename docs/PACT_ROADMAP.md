@@ -23,22 +23,6 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## Wire testing/scripts/audit.py into CI — TODO
-Branch chore/wire-audit-py-into-ci. `audit.py`'s own docstring says its checks (SW cache integrity, manifest/PWA correctness, engine-symbol drift, and an `--rls` mode that live-proves RLS rejects unauthorized writes) should run "eventually in CI" — no workflow currently calls it, so a grant/RLS regression (a class DECISIONS.md notes this project has "been bitten twice by" already) or a broken SW cache list only gets caught if a human remembers to run it by hand.
-
-```text
-1. Add a step/job to .github/workflows/engine-parity.yml (or a new workflow) that runs testing/scripts/
-   audit.py's default (non-`--rls`) checks on every push/PR — fail the build on any finding.
-2. The `--rls` live-proof mode needs real Supabase credentials against a test project. Decide: (a) wire it
-   into CI using a GitHub Actions secret for a dedicated test Supabase project, or (b) keep it manual-only
-   for now. Either way, make the decision explicit in testing/README.md and in a comment on the CI job —
-   the goal is that "not wired into CI" never again silently reads as "wired," which is how this gap went
-   unnoticed.
-3. No js/engine.js or DATA changes — parity gate itself is unaffected, should stay 20/0.
-```
-
-**Done when:** `audit.py`'s non-RLS checks run automatically in CI on every relevant PR and fail the build on findings; the `--rls` mode's CI status (wired with a test project, or intentionally manual) is explicitly documented in testing/README.md.
-
 ---
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
