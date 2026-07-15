@@ -1,0 +1,49 @@
+name: Static health audit
+
+# Wires AUD-1's static health check (testing/scripts/audit.py) into CI
+# (D-GH-2026-07-15-wire-audit-py-into-ci). Runs the default (non-`--rls`) checks — service-worker
+# PRE_CACHE integrity, PWA icon/manifest correctness, engine-symbol drift guard, build-version
+# mirror sync, oversized media assets (warning only) — on every relevant PR. Python stdlib only,
+# no install step, finishes in seconds; fails the build on any FAIL (warnings don't fail the run).
+#
+# The `--rls` live-proof mode (confirms Supabase RLS rejects a player writing characters.ap or
+# binding to an unjoined campaign) is deliberately NOT wired into CI: it needs real credentials
+# against a dedicated test Supabase project, which this repo doesn't have. Kept manual-only for
+# now — see testing/README.md and DECISIONS.md's D-GH-2026-07-15-wire-audit-py-into-ci entry.
+# Revisit if/when a dedicated test Supabase project + GitHub Actions secret exists.
+
+on:
+  pull_request:
+    paths:
+      - "service-worker.js"
+      - "manifest.json"
+      - "404.html"
+      - "index.html"
+      - "login.html"
+      - "icons/**"
+      - "assets/**"
+      - "tools/PACT-CharGen-Webtool.html"
+      - "tools/PACT-Live-Char-Sheet.html"
+      - "tools/DM-Console.html"
+      - "js/engine.js"
+      - "testing/scripts/audit.py"
+      - ".github/workflows/static-audit.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: static-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run the static health audit (non-RLS checks)
+        run: python3 testing/scripts/audit.py

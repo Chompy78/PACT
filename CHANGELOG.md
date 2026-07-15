@@ -4,6 +4,50 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-15 · feat(feedback) — in-app user feedback widget (Supabase-backed)**
+  (new `js/feedback.js`, `sql/migrations/2026-07-15-feedback-widget.sql`; `sql/schema.sql`,
+  `sql/rls-policies.sql`, `service-worker.js`, all four player-facing HTML pages; no `js/engine.js`/
+  `DATA.version`/`BUILD` change, parity 20/0). A self-contained floating "Feedback" button + form on
+  CharGen, Live Sheet, DM Console, and the Player's Guide, inserting into a new insert-only `feedback`
+  table (read only via the Supabase dashboard — no in-app admin view in v1). The widget module depends
+  only on the shared Supabase client — no `engine-ready`/`ui-helpers.js` coupling — so it drops onto the
+  Player's Guide (which had zero prior JS/module wiring) with one `<script type="module">` tag.
+  Signed-out users submit anonymously; signed-in users are attributed unless they tick "submit
+  anonymously." Guardrails: DB-level `page` enum + message (1–2000) / contact (≤200) length checks, a
+  client-side ~60s cooldown, double-submit lock, and clear offline/failure UX. **First table to grant the
+  `anon` role a write** — verified safe (insert-only; no read/update/delete grant; policy uses only
+  `auth.uid()`, not the locked-down campaign helpers). Migration applied + verified on the live project:
+  anon/authenticated insert paths, user_id-spoof rejection, all constraint boundaries, RLS blocking
+  read/update/delete, idempotent re-run, and `get_advisors` (no new findings) all confirmed. Added
+  `js/feedback.js` to the service-worker precache (cache bumped `pact-v3`→`pact-v4`). See
+  `D-GH-2026-07-15-feedback-widget` in `DECISIONS.md` and `docs/plans/2026-07-15-feedback-widget.md`.
+- **2026-07-15 · chore(ci) — wire `testing/scripts/audit.py` into CI**
+  (new `.github/workflows/static-audit.yml`; `testing/README.md`; no `js/engine.js`/`DATA.version`/
+  `BUILD` change, parity 20/0). AUD-1's static health check (SW `PRE_CACHE` integrity, PWA icon/
+  manifest correctness, engine-symbol drift guard, build-version mirror sync) previously only ran
+  when a human remembered to invoke it by hand — now runs automatically on every PR touching the
+  files it covers and fails the build on any `FAIL` (warnings don't fail the run). Verified locally:
+  26 passed, 10 warnings (pre-existing oversized theme assets), 0 failed. The optional `--rls`
+  live-proof mode stays manual-only (needs a dedicated test Supabase project this repo doesn't have)
+  — documented explicitly in `testing/README.md` and the new workflow's header comment; see
+  `D-GH-2026-07-15-wire-audit-py-into-ci` in `DECISIONS.md`.
+- **2026-07-15 · test(engine) — parity gate now asserts exact warning text, not just a count**
+  (new `testing/expected/expected-warnings.json`; `testing/scripts/engine-parity-ci.mjs`;
+  `testing/tests/engine-parity.html`; `testing/README.md`; no `js/engine.js`/`DATA.version`/`BUILD`
+  change, parity 20/0). `expected-results.csv`'s `new_engine_warnings` previously asserted only a
+  **count** per fixture — a warning changing wording, firing for the wrong reason, or silently
+  disappearing while another appeared wouldn't fail the gate. Each of the 20 fixtures' exact
+  warning-text array is now asserted (order-sensitive deep equality); verified the check actually
+  catches a mismatch by temporarily corrupting one expected entry (confirmed FAIL), then restored it.
+  Removed the now-redundant CG-003/CG-007 hardcoded first-warning-text checks (subsumed by the general
+  array check) while keeping their still-independent `remaining`-sign assertions. New data lives in a
+  JSON sidecar rather than a new CSV column — one real warning (LS-001's Ki-focus message) contains a
+  literal comma, which the harnesses' naive `line.split(',')` CSV parser can't handle safely; see
+  `D-GH-2026-07-15-parity-warning-text-assertions` in `DECISIONS.md`. This is the documented
+  precondition REV-14 (splitting `compute()`'s `W.push`-site body) was waiting on — the split itself is
+  still a separate, not-yet-started task. Coverage note: only 5 of the engine's 54 `W.push` sites (plus
+  the separate over-budget `W.unshift`) are exercised by the current 20 fixtures — a real but pre-existing
+  gap, flagged as a roadmap follow-up rather than closed in this test-only change.
 - **2026-07-14 · fix(tools) — consolidate duplicated/inconsistent esc()/flash()/_csCopy() into
   `js/ui-helpers.js`** (new plain-script file, loaded via `<script src>` in all three tools; no
   `js/engine.js`/`DATA.version`/`BUILD` change, parity 20/0). `PACT-Live-Char-Sheet.html` alone defined

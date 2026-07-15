@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pact-v3';
+const CACHE_NAME = 'pact-v4';
 
 const PRE_CACHE = [
   '/PACT/',
@@ -11,6 +11,7 @@ const PRE_CACHE = [
   '/PACT/js/sync.js',
   '/PACT/js/campaign.js',
   '/PACT/js/dm.js',
+  '/PACT/js/feedback.js',
   '/PACT/manifest.json',
   '/PACT/tools/PACT-CharGen-Webtool.html',
   '/PACT/tools/PACT-Live-Char-Sheet.html',

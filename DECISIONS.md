@@ -9,6 +9,9 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-15-feedback-widget** — In-app feedback widget backed by a new insert-only `feedback` Supabase table, the first table to grant the `anon` role a write; anonymous submission is allowed (PACT is sign-in-optional), made safe by insert-only/no-read grants, DB-level constraints, and a policy using only `auth.uid()` (not the lockdown-revoked campaign helpers); the widget is a self-contained module so the wiring-less Player's Guide integrates with one script tag
+- **D-GH-2026-07-15-wire-audit-py-into-ci** — `audit.py`'s default (non-`--rls`) checks now run automatically in a new `.github/workflows/static-audit.yml` on every PR touching the files they cover; the `--rls` live-proof mode stays intentionally manual-only, no dedicated test Supabase project exists to hold its credentials
+- **D-GH-2026-07-15-parity-warning-text-assertions** — Engine-parity gate now asserts each fixture's exact warning-text array via a new `testing/expected/expected-warnings.json` sidecar (not a new `expected-results.csv` column) — a real warning message contains a literal comma, which the harnesses' unquoted `line.split(',')` CSV parser can't handle safely; the 5-of-54-`W.push`-sites fixture-coverage gap this surfaced was left open, flagged as a roadmap follow-up
 - **D-GH-2026-07-14-shared-ui-helpers** — `esc()`/`flash()`/`_csCopy()` consolidated into a new plain-script `js/ui-helpers.js` shared by all three tools (fixing three inconsistent `esc()` copies in Live Sheet alone, none of which escaped single quotes); `setTheme()`'s one-line `localStorage` call was deliberately left tool-local since the surrounding DOM-sync logic isn't actually shared
 - **D-GH-2026-07-14-livesheet-eco-track-level-review-followups** — Fixed 4 correctness/efficiency issues an independent multi-angle review found in the same-day eco-line/Track-Level unification (curve resolved 3x per render, explicit-`0` and negative-`inc` DM curve values mishandled, a truthy-check mislabel); deferred 2 cross-tool/architectural findings (DM Console's untuned roster, 3x duplicated level-lookup loop) to the roadmap instead of fixing inline
 - **D-GH-2026-07-14-livesheet-eco-track-level** — Live Sheet's `#eco` line "Lv" chip (earned AP vs the fixed `DATA.levelAP` ladder) unified onto the same tuned `levelBudgetCurve` as the header's `≈ Track-Level` chip, called with `eco.earned` instead of `eco.spent`, relabelled "Earned Lv" — the two readouts can now only differ by spent-vs-earned, never by which curve is in effect
@@ -90,6 +93,96 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-15-feedback-widget · insert-only feedback table, the first anon-write in the schema
+- **Context:** the roadmap asked for an in-app feedback widget on all four player-facing pages (CharGen,
+  Live Sheet, DM Console, Player's Guide), saving free-text feedback to Supabase, dashboard-read-only in
+  v1. Two non-obvious decisions fell out of it, both surfaced by a cold cross-review of
+  `docs/plans/2026-07-15-feedback-widget.md`.
+- **Options / Decisions:**
+  1. **Anonymous vs. sign-in-required submission.** PACT is "fully usable offline, sign-in optional," so
+     requiring an account to give feedback would exclude most users. **Decision: allow anonymous
+     submission** — `feedback` becomes the *first* table in the schema to grant the `anon` role a write.
+     Made safe by: insert-only (no select/update/delete grant to any client role — the dashboard/service
+     role is the only reader); an insert policy that lets a caller tag a row only with their own
+     `user_id` or null (`user_id is null or user_id = auth.uid()`), so no one can attribute feedback to
+     another user; DB-level `page` enum + message (1–2000) / contact (≤200) length CHECKs; and a
+     client-side ~60s cooldown. Crucially, the policy calls only `auth.uid()` (a Supabase built-in
+     granted to `anon`), **not** any of the `is_campaign_*`/`shares_campaign` helpers whose `anon`
+     EXECUTE was revoked in `rls-policies.sql` — so it doesn't violate the invariant in that file's
+     function-lockdown block (which assumed anon held no table grant). Verified on the live project: anon
+     insert(null) allowed, anon/auth spoofed-user_id rejected, all constraint boundaries enforced,
+     read/update/delete denied to both roles, idempotent re-run clean, `get_advisors` shows no new
+     findings. The `REFERENCES/TRIGGER/TRUNCATE` privileges `anon` holds on `feedback` are a Supabase
+     project-wide default (identical on `characters`/`campaigns`/`ap_awards`) and unreachable via the
+     PostgREST API — not a regression introduced here.
+  2. **Widget coupling.** The Player's Guide (~657 KB) has zero existing JS/module/Supabase wiring, unlike
+     the three tools. **Decision: make `js/feedback.js` fully self-contained** — it injects its own
+     button/form/styles and depends only on the shared Supabase client, with no tie to `engine-ready` or
+     `js/ui-helpers.js`. So all four pages integrate identically via one `<script type="module">` tag,
+     and the Guide doesn't need to bootstrap any of the tools' module infrastructure.
+- **Why:** the anon-write boundary is the real risk, so it's guarded structurally (grants + policy +
+  constraints) rather than by convention, and confirmed by direct role-impersonation tests on the live
+  DB before shipping. Self-containment keeps the blast radius of the Guide integration to a single tag
+  and avoids dragging a large static reference page into the app-shell module graph.
+- **Status:** in force. Deferred (out of scope for v1, noted in the plan): real server-side rate limiting,
+  an in-app admin read view, and a data-retention policy. Signed-in attribution is opt-out via a "submit
+  anonymously" checkbox.
+
+## D-GH-2026-07-15-wire-audit-py-into-ci · audit.py's default checks wired into CI; --rls stays manual
+- **Context:** `testing/scripts/audit.py`'s own docstring said its checks (SW cache integrity,
+  manifest/PWA correctness, engine-symbol drift guard, build-version mirror sync, and an `--rls`
+  mode that live-proves Supabase RLS rejects unauthorized writes) should run "eventually in CI" — no
+  workflow called it, so a regression only got caught if a human remembered to run it by hand.
+  `DECISIONS.md` already notes this project has "been bitten twice by" grant/RLS drift that internal
+  guards masked, making the RLS-adjacent half of this gap the higher-stakes one.
+- **Options:** (a) add a step to the existing `engine-parity.yml` workflow; (b) a new dedicated
+  workflow file; for the `--rls` mode specifically: (c1) wire it into CI using a GitHub Actions secret
+  against a dedicated test Supabase project, or (c2) keep it manual-only and document that choice
+  explicitly so "not wired into CI" can't again silently read as "wired."
+- **Decision:** (b) a new `.github/workflows/static-audit.yml`, path-filtered to the files
+  `audit.py`'s checks actually cover (service worker, manifest, icons, assets, the three tools,
+  `js/engine.js`) rather than piggybacking on `engine-parity.yml`'s narrower engine/testing-only path
+  filter. For `--rls`: (c2) — kept manual-only, documented in both `testing/README.md` and the new
+  workflow's header comment.
+- **Why:** `engine-parity.yml`'s path filter is deliberately scoped to `js/engine.js` +
+  `testing/**` — folding audit.py's much broader file surface into it would either over-trigger that
+  workflow on unrelated changes or under-trigger the audit on the SW/manifest/icon changes it exists
+  to catch; a separate workflow keeps both path filters honest. The `--rls` proof needs a live
+  Supabase project's real credentials as a GitHub Actions secret — standing one up (or confirming an
+  existing test project is safe to point CI at) is a decision with its own security surface, not
+  something to default into as a side effect of a CI-wiring chore. Manual-only, loudly documented, is
+  the choice that can't silently regress into "nobody remembers this is manual."
+- **Status:** in force. Revisit if/when a dedicated test Supabase project + secret exists.
+## D-GH-2026-07-15-parity-warning-text-assertions · exact warning-text assertions via a JSON sidecar, not a new CSV column
+- **Context:** `testing/expected/expected-results.csv` asserted only `new_engine_warnings` as a
+  **count** per fixture, not which warnings actually fired — so a warning changing wording, firing for
+  the wrong reason, or silently disappearing while another appeared wouldn't fail the gate. This was
+  the documented precondition REV-14 (splitting `compute()`'s ~371-line, 54-`W.push`-site body into
+  named sub-pricers) was waiting on.
+- **Options:** (a) add a new `expected-results.csv` column holding each fixture's warning text (joined
+  by some in-cell delimiter); (b) a new JSON sidecar file (`expected-warnings.json`) mapping test ID to
+  its exact warning-text array, loaded alongside the CSV by both harnesses.
+- **Decision:** (b). While enumerating the actual warning text every fixture produces (to build the
+  expected data), discovered LS-001's Ki-focus warning — `"You have 2 Ki / Focus points but no
+  Ki-using ability yet — buy a Ki feature, or refund the points if you won't use them."` — contains a
+  literal comma. Both harnesses' CSV loader uses an unquoted `line.split(',')` (the existing `notes`
+  column already works around this by using semicolons instead of commas, precisely because the parser
+  has no quoting support) — embedding warning text with a real comma into a column that isn't the last
+  one would silently misalign every subsequent column. A JSON sidecar sidesteps the problem entirely
+  with no parser rewrite.
+- **Why:** Extending the naive CSV parser to support quoted fields (real CSV semantics) would fix (a)
+  too, but that's a larger, riskier change to test infrastructure that's worked by convention for a
+  while — not worth it for one new assertion when a sidecar file does the job with zero parser risk.
+  Removed the CG-003/CG-007 hardcoded first-warning-text checks in both harnesses since the general
+  exact-array assertion now subsumes them; kept their independent `remaining`-sign assertions (not
+  about warning content). Verified the new assertion actually catches a mismatch (not just a no-op) by
+  temporarily corrupting one expected entry and confirming a FAIL, then restoring it. Enumerating every
+  fixture's actual warnings also surfaced that only 5 of the engine's 54 `W.push` sites (plus the
+  separate over-budget `W.unshift`) are ever exercised by the current 20 fixtures — a real coverage
+  gap, but per the roadmap task's own instruction not to feel obligated to close it in this same
+  test-only change; left as a roadmap follow-up instead.
+- **Status:** in force.
 
 ## D-GH-2026-07-14-shared-ui-helpers · esc()/flash()/_csCopy() consolidated into one shared js/ui-helpers.js
 - **Context:** a code-audit recommendation (from a broader project review) flagged that

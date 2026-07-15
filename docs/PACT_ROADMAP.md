@@ -23,89 +23,9 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## Wire testing/scripts/audit.py into CI — TODO
-Branch chore/wire-audit-py-into-ci. `audit.py`'s own docstring says its checks (SW cache integrity, manifest/PWA correctness, engine-symbol drift, and an `--rls` mode that live-proves RLS rejects unauthorized writes) should run "eventually in CI" — no workflow currently calls it, so a grant/RLS regression (a class DECISIONS.md notes this project has "been bitten twice by" already) or a broken SW cache list only gets caught if a human remembers to run it by hand.
-
-```text
-1. Add a step/job to .github/workflows/engine-parity.yml (or a new workflow) that runs testing/scripts/
-   audit.py's default (non-`--rls`) checks on every push/PR — fail the build on any finding.
-2. The `--rls` live-proof mode needs real Supabase credentials against a test project. Decide: (a) wire it
-   into CI using a GitHub Actions secret for a dedicated test Supabase project, or (b) keep it manual-only
-   for now. Either way, make the decision explicit in testing/README.md and in a comment on the CI job —
-   the goal is that "not wired into CI" never again silently reads as "wired," which is how this gap went
-   unnoticed.
-3. No js/engine.js or DATA changes — parity gate itself is unaffected, should stay 20/0.
-```
-
-**Done when:** `audit.py`'s non-RLS checks run automatically in CI on every relevant PR and fail the build on findings; the `--rls` mode's CI status (wired with a test project, or intentionally manual) is explicitly documented in testing/README.md.
-
 ---
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
-
-## Parity gate: assert warning codes/text, not just counts — TODO
-Branch test/parity-warning-code-assertions. `testing/expected/expected-results.csv` currently asserts only `new_engine_warnings` as a **count** against each of the 20 fixtures, not which warnings actually fired — so a warning changing wording, firing for the wrong reason, or silently disappearing while another appears wouldn't fail the gate. This is the documented precondition REV-14 (splitting `compute()`'s ~371-line, 54-`W.push`-site body into named sub-pricers) is waiting on — this task is that precondition, not the split itself.
-
-```text
-1. Grep js/engine.js for its 54 `W.push(...)` call sites to enumerate the distinct warning
-   codes/labels compute() can emit.
-2. Extend testing/expected/expected-results.csv (or add a companion fixture file) to assert the actual
-   warning codes/text produced for each of the 20 existing fixtures, not just the count.
-3. Update testing/scripts/engine-parity-ci.mjs (and the browser test runner in
-   testing/tests/engine-parity.html) to compare warning content, failing on a mismatch.
-4. If several of the 54 warning sites aren't exercised by any existing fixture, note the coverage gap
-   (don't feel obligated to add new fixtures to close it in this same task — file that as a follow-up if
-   it's sizable).
-5. Do NOT attempt to split compute() in this task — that's REV-14, gated on this landing first.
-
-Test-only change — does not touch DATA.version or compute() output; parity must still be 20/0 against the
-current (unmodified) engine.
-```
-
-**Done when:** the parity gate fails if a fixture's warning codes/text change, even when the count stays the same; testing/tests/engine-parity.html still passes 20/0 against the current engine.
-
----
-
-
-## Feature: In-app user feedback widget (Supabase-backed) — TODO
-Branch feat/feedback-widget. Add a small feedback form to all four player-facing pages — CharGen, Live Sheet, DM Console, and the Player's Guide — that saves free-text feedback to a new Supabase table, readable only via the Supabase dashboard (no in-app admin view in v1).
-
-```text
-1. New Supabase table `feedback`: id uuid pk default gen_random_uuid(), user_id uuid references profiles(id)
-   on delete set null (nullable — anonymous/signed-out feedback is allowed), source text not null check
-   (source in ('chargen','livesheet','dmconsole','guide')), message text not null check (length(message)
-   between 1 and 2000), page_url text, created_at timestamptz not null default now(). New dated migration
-   in sql/migrations/, mirrored into sql/schema.sql.
-
-2. RLS: insert-only. Grant insert to both `anon` and `authenticated` (the guide and CharGen work
-   signed-out) with a policy that just enforces the check constraints above — no select policy for either
-   role. Feedback is read via the Supabase dashboard (service role), not through the app, so no admin
-   UI/read path is needed for v1.
-
-3. Add a small shared client helper (e.g. `js/feedback.js`) exporting `submitFeedback({source, message,
-   pageUrl})`, reusing the existing `js/supabase-client.js` singleton — usable from a `<script
-   type="module">` on any of the four pages.
-
-4. UI: a small floating "Feedback" button in the corner of each page opening a minimal textarea + submit,
-   with an inline success/error state. Feedback text is never rendered back into any page's DOM in v1 (no
-   admin view reads it), so `esc()` is not required now — but the moment any in-app view displays stored
-   feedback, that becomes mandatory per AGENTS.md's stored-XSS rule.
-
-5. Note: `docs/PACT-Players-Guide.html` currently has ZERO existing module/Supabase wiring (unlike the
-   three tools, which already import `supabase-client.js`) — it needs a fresh `<script type="module">`
-   added, not just a call into existing bridge code. It's also ~657 KB — search for the closing `</body>`
-   or an existing `<script>` tag rather than reading the file wholesale (see AGENTS.md).
-
-6. After applying the migration, run the Supabase advisor and skim recent logs (per the per-change
-   checklist — this touches SQL/RLS). Re-run testing/tests/engine-parity.html (unaffected — no
-   js/engine.js change, should stay 20/0).
-
-Display/process-only — does not touch js/engine.js or DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** all four pages have a working feedback button that inserts a row into the new `feedback` table (signed-in and signed-out); RLS allows insert-only for `anon`/`authenticated` with no select path; parity still 20/0.
-
----
 
 ## Advancement-tracks follow-up: end-to-end browser verification — TODO
 Branch test/advancement-tracks-e2e. Drive the advancement dials shipped in `feat/advancement-tracks` (PR #206) through a real browser with an AI/browser-automation tool, since they need Supabase auth + a live campaign the headless parity gate can't exercise.

@@ -474,3 +474,25 @@ begin
   return v_campaign.id;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- feedback — free-text in-app user feedback (feat/feedback-widget).
+-- Insert-only from the client, by BOTH signed-in and anonymous users; readable
+-- ONLY via the Supabase dashboard (service role) — there is no in-app admin view
+-- in v1. user_id is nullable: null for an anonymous submission, or when a
+-- signed-in user deliberately opts out of attribution. page is constrained to
+-- the four surfaces the widget ships on; message/contact are length-capped so a
+-- free-text field can't be used to bloat storage. The RLS grant/policy live in
+-- rls-policies.sql (this is the first table there to grant `anon` a write — see
+-- that file's feedback block and DECISIONS.md D-GH-2026-07-15-feedback-widget for
+-- why that's safe). Full design: docs/plans/2026-07-15-feedback-widget.md.
+-- ---------------------------------------------------------------------------
+create table if not exists public.feedback (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid references public.profiles(id) on delete set null,   -- null = anonymous
+  page       text not null check (page in ('chargen','livesheet','dmconsole','guide')),
+  message    text not null check (char_length(message) between 1 and 2000),
+  contact    text check (char_length(contact) <= 200),   -- optional; user-supplied
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_feedback_created on public.feedback(created_at);

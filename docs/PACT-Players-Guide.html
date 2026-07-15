@@ -1168,4 +1168,11 @@ No slots — buy any when prereq met. See §14.</td><td style="background:#FBF5E
  toTop&&toTop.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
  update();
 })();
-</script></body></html>
+</script>
+<script type="module">
+  // In-app feedback widget (feat/feedback-widget). This page has no other module
+  // wiring; the widget is fully self-contained, so this one tag is all it needs.
+  import { initFeedbackWidget } from '../js/feedback.js';
+  initFeedbackWidget('guide');
+</script>
+</body></html>
