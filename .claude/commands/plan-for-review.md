@@ -133,6 +133,12 @@ not part of what makes the plan itself complete.>
 ---
 
 ## Reviewer instructions
+**Before anything else, state which AI model and settings you are** — e.g. "GPT-5 (default)", "Claude
+Opus 4.x (extended thinking)", "Gemini 2.x Pro", or "human reviewer" — as the very first line of your
+response. Whatever model or tool is reading this, identify yourself and any relevant mode/effort setting:
+the author uses this to weight your findings and to tell multiple reviewers apart. (This instruction is
+deliberately generic — it does not assume any particular tool.)
+
 You are reviewing this plan **cold, with no access to the codebase** — only the text above. You are a
 general reasoner, not a code analyzer: judge the plan's **logic, clarity, scope, and risk — not code
 correctness you cannot verify.** If the plan relies on knowledge you don't have, that itself is a finding.
@@ -149,9 +155,17 @@ Write your findings as a plain list (gaps found, suggested improvements, verdict
 yourself unless asked. **If a section is genuinely solid, say so briefly rather than inventing concerns** —
 false findings cost the implementer a wasted cycle.
 
+**Deliver your review as a Markdown (`.md`) file** so the author can save it directly. Lead the file with
+your model/settings line from above, then the findings. **Name the file relevantly and include your own
+model name** — pattern `<plan-topic>-review-<your-model>.md` (e.g. `feedback-widget-review-gpt5.md`,
+`feedback-widget-review-gemini-pro.md`). If you genuinely can't emit a file, instead give the whole review
+as one copy-pasteable Markdown code block, still led by the model line and still naming what the file
+would be called.
+
 ---
 
 ## Review outcome (fill in after the review + implementation — not part of the cold review)
+- Reviewers (models): <which models/tools reviewed, from each review's self-ID line — e.g. GPT-5, Claude Opus, Gemini Pro>
 - Reviewer findings: <N> → accept <A> / reject <R> / defer+convert <C>
 - Materially changed the plan? <yes/no — one line on what changed>
 - Without the review, what would have happened: <one line — a real risk caught, or "nothing, plan was fine">
@@ -162,6 +176,17 @@ false findings cost the implementer a wasted cycle.
 Show the drafted file content to the user and ask for approval before writing it to disk — same
 convention as this repo's other drafting skills (`/log-ai-lessons`, `/add-roadmap-task`). If they want
 changes, revise and show again. Do not proceed until approved.
+
+**Present the plan as one clean copy-paste block**, because its whole purpose is to be dumped into another
+AI tool. Emit the entire plan (everything from `# Plan:` through the end of the `## Reviewer instructions`
+section — the Review-outcome stub can be omitted from the pasted copy since it's for later) inside a single
+fenced code block whose fence is **four backticks, not the usual three**. Four is required: the plan body
+itself contains three-backtick code blocks (the `## Proposed approach` examples, etc.), and a three-backtick
+outer wrapper would be closed early by the first inner one — mid-plan — which is exactly what makes the
+block painful to copy. A four-backtick fence is not closed by the inner three-backtick blocks, so the whole
+plan stays selectable as one unit. Once written to disk in Step 6, the saved `.md` file is the equivalent
+"download / save" copy for anyone who'd rather grab the file than copy from chat — so the user always has
+both a copy-paste path and a file path.
 
 ## Step 6 — write the file
 
@@ -188,6 +213,12 @@ loosely, not rigidly:
   asked twice). Don't assume a single paste is the whole picture: after the first one arrives, ask
   "any other review responses to add before I go through this, or is that everything?" and wait for an
   explicit answer before triaging. If more come in, ask again the same way until the user says that's all.
+- **Capture each review's declared model.** Step 4's reviewer instructions ask every reviewer to open with
+  its model + settings, so record which model produced which review as you read them (it may also be in the
+  review's filename). This sharpens the agree/disagree analysis below — two *different* models agreeing is a
+  stronger signal than the same model asked twice, and two near-identical reviews may just be one model run
+  twice rather than independent confirmation — and it feeds the "Reviewers (models)" line in the Review
+  outcome stub.
 - Once you have everything, **triage, don't blindly apply**:
   - If multiple responses came in, note where they agree vs. disagree — agreement across independent
     reviewers is a stronger signal than a single opinion; disagreement is itself a finding worth surfacing,
@@ -202,9 +233,10 @@ loosely, not rigidly:
 - **Categorise each finding** as one of: accept / reject / defer / →test / →doc-note / →roadmap item — and
   treat every finding as a hypothesis to verify against the actual code, not an instruction (a cold reviewer
   with no repo access will sometimes be wrong precisely *because* it couldn't see the code).
-- If the plan file was written to disk, fill in its **"Review outcome"** stub (findings count, whether the
-  review materially changed the plan, what it caught). This is the only tracking we keep — a few one-line
-  entries across plans tell you whether the review loop is earning its keep or is theatre.
+- If the plan file was written to disk, fill in its **"Review outcome"** stub (which models reviewed,
+  findings count, whether the review materially changed the plan, what it caught). This is the only tracking
+  we keep — a few one-line entries across plans tell you whether the review loop is earning its keep or is
+  theatre.
 
 ---
 
