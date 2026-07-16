@@ -27,26 +27,6 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## Advancement-tracks follow-up: end-to-end browser verification — TODO
-Branch test/advancement-tracks-e2e. Drive the advancement dials shipped in `feat/advancement-tracks` (PR #206) through a real browser with an AI/browser-automation tool, since they need Supabase auth + a live campaign the headless parity gate can't exercise.
-
-```text
-Depends on PR #206 (feat/advancement-tracks) being merged first. Using a browser-automation/AI tool
-(signed in to a test Supabase account with a live campaign):
-1. DM Console → Campaign Rules: confirm the three new controls (Level budget curve, Award pace, Starting
-   tier) render, the L20 preview updates live, and preset<->field sync works (picking Generous sets
-   83/+28; editing a number flips the preset to Custom).
-2. Save rules -> reload -> confirm all three persist in campaigns.rules.
-3. Change Starting tier -> confirm the player-invite "Starting budget" field pre-fills and stays editable.
-4. As a player bound to that campaign, open Live Sheet -> confirm the header shows "≈ Track-Level N"
-   derived from AP spent against the campaign's tuned curve; an unbound character falls back to Standard.
-5. Check the browser console for errors at each step.
-Fold the reproducible parts into the existing e2e harness (testing/scripts, character-gen-e2e.yml) if
-practical. Display-only feature — no DATA.version/compute() involvement; parity still 20/0.
-```
-
-**Done when:** the DM-panel↔bound-player advancement-dials round-trip is verified working in a real browser (save/load/persist, invite pre-fill, Track-Level label), with any bugs found either fixed or filed.
-
 ---
 
 ## Fix broken campaign/invite creation — gen_random_bytes search-path bug — TODO
