@@ -4,6 +4,21 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · test(advancement) — real-browser e2e verification of the advancement dials (PR #206)**.
+  Drove a real signed-in DM and a real signed-in player through the full round-trip (Playwright, real
+  Supabase auth/DB, no stubbing): DM Console's three Campaign Rules controls render and live-preview
+  correctly, preset↔field sync works, saved rules persist in `campaigns.rules` across reload, the
+  player-invite "Starting budget" field pre-fills from Starting tier and stays editable, and a
+  campaign-bound character's Live Sheet header shows a tuned "≈ Track-Level N" that genuinely diverges
+  from an unbound character's Standard-curve label at the same AP spend. Fixed a real bug found along the
+  way: `tools/DM-Console.html`'s `onAuthChange` callback bound `session` to the event string instead of
+  the session object (same bug already fixed in Live Sheet/CharGen), crashing `updateAuth()` on every
+  auth-state change. Filed, not fixed here (bigger blast radius than this task's scope): `campaigns` and
+  `campaign_invites` cannot currently be created anywhere in the deployed app because
+  `gen_random_bytes()` isn't schema-qualified/on the `search_path` in `sql/schema.sql`'s `SECURITY
+  DEFINER` functions — moot today only because no tool UI calls `createCampaign()` yet either. See
+  `DECISIONS.md` D-GH-2026-07-16-advancement-tracks-e2e.
+
 - **2026-07-16 · feat(docs) — add `docs/dev-status.html`, a live-fetch glance dashboard (signed-in only)**.
   Quick-glance human-status page: open Now/Next tasks + last 7 decisions + last 7 changelog entries, fetched
   live from `TASK_BOARD.md`/`CHANGELOG.md`/`DECISIONS.md` (never stale) and light-parsed — no Markdown
