@@ -12,6 +12,21 @@ function esc(s) {
     .replace(/'/g, '&#39;');
 }
 
+/* Shared level-lookup scan: the highest level L in 1..20 whose per-level threshold
+   (thresholdAt(L)) is <= value; 0 = below level 1. The threshold SOURCE is passed in, so the
+   one scan serves both the fixed creation-budget ladder (CharGen's apLevel, thresholdAt = the
+   DATA.levelAP entry) and the DM-tunable advancement curve (Live Sheet + DM Console's trackLevel,
+   thresholdAt = l1 + inc*(L-1)). The tools keep their own thin apLevel()/trackLevel() wrappers and
+   their own curve resolution — only this loop is shared (chore/unify-level-lookup-helper).
+   thresholdAt MUST be non-decreasing in L: the "<=" scan takes the LAST satisfying L, so a
+   decreasing source would return a spuriously high level — the tuned-curve callers floor inc at 1
+   for exactly this reason. */
+function levelForThreshold(value, thresholdAt) {
+  var lv = 0, v = (+value || 0);
+  for (var L = 1; L <= 20; L++) { if (thresholdAt(L) <= v) lv = L; }
+  return lv;
+}
+
 function flash(msg) {
   let f = document.getElementById('flashmsg');
   if (!f) {

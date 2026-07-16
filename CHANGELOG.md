@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · chore(tools) — unify the duplicated "AP-vs-threshold → level" scan into one shared
+  `levelForThreshold()` helper** (`js/ui-helpers.js` + `tools/PACT-CharGen-Webtool.html`,
+  `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`; no engine/`DATA.version` change). The
+  identical "highest level L whose per-level threshold ≤ value" loop lived in three places (CharGen's
+  fixed-ladder `apLevel`, Live Sheet's + DM Console's tuned-curve `trackLevel`). Extracted the loop once
+  into `levelForThreshold(value, thresholdAt)` in the existing shared `js/ui-helpers.js` (per the
+  D-GH-2026-07-14 shared-helpers precedent — not `js/engine.js`, keeping its API untouched); each tool's
+  `apLevel`/`trackLevel` is now a thin wrapper passing its own threshold source (fixed `DATA.levelAP`
+  ladder vs. `l1+inc*(L-1)` curve), so call sites and behaviour are unchanged. CharGen's fixed-ladder
+  concept stays distinct — only the scan is shared, not the threshold. Verified: 147/147 old-vs-new
+  equivalence across edge cases, browser-confirmed in all three tools, parity 20/0. See
+  `DECISIONS.md` (`D-GH-2026-07-16-unify-level-lookup-helper`).
 - **2026-07-15 · feat(tools) — "← Home" nav link in all three tools + icon-only-button `aria-label`s**
   (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`; UI-only,
   no engine/rules/`DATA.version` change). Each tool's header now carries a consistent, unobtrusive
