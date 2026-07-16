@@ -49,6 +49,38 @@ practical. Display-only feature — no DATA.version/compute() involvement; parit
 
 ---
 
+## Fix broken campaign/invite creation — gen_random_bytes search-path bug — TODO
+Branch fix/campaign-invite-search-path. sql/schema.sql's gen_invite_code() and create_player_invite()
+call gen_random_bytes() outside their search_path, so campaign and player-invite creation are currently
+broken everywhere in the deployed app.
+
+```text
+sql/schema.sql's gen_invite_code() and create_player_invite() (both SECURITY DEFINER, search_path=public)
+call bare gen_random_bytes(...), which lives in the extensions schema, not public. Confirmed via SQL
+against the live project that zero campaign rows exist anywhere — campaign creation and player-invite
+creation are currently broken everywhere in the deployed app. Not an active incident today only because
+no tools/*.html or login.html UI currently calls createCampaign() (verified by grep), so nothing
+user-facing silently fails yet — but this blocks ever wiring up that UI until fixed.
+
+1. Fix: schema-qualify the calls (extensions.gen_random_bytes(...)) or add extensions to both functions'
+   search_path, via a new sql/migrations/ entry applied against the live project.
+2. Verify end-to-end against the live project: campaign creation and player-invite creation both succeed
+   for real (not just that the function compiles).
+3. While in this area, note whether the repo-wide SECURITY DEFINER search_path hardening pass mentioned
+   elsewhere in DECISIONS.md should be folded in or stays a separate follow-up — don't silently expand
+   scope, just flag the call either way.
+4. SQL-only change — no engine.js/DATA involvement, parity unaffected.
+
+Found and filed (not fixed) during test/advancement-tracks-e2e (PR #233) — see DECISIONS.md
+D-GH-2026-07-16-advancement-tracks-e2e for how it was discovered. Log this fix's own decision as
+D-GH-<date>-campaign-invite-search-path if the search_path scoping choice (item 3) isn't obvious from
+the diff alone.
+```
+
+**Done when:** gen_random_bytes calls are schema-qualified/on the search_path in both functions, campaign creation and player-invite creation work end-to-end against the live project, and testing/tests/engine-parity.html is still 20/0.
+
+---
+
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 ## Service-worker caching: decide whether auth/sync/campaign/dm modules stay cache-first — TODO
