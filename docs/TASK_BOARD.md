@@ -27,25 +27,37 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## Advancement-tracks follow-up: end-to-end browser verification — TODO
-Branch test/advancement-tracks-e2e. Drive the advancement dials shipped in `feat/advancement-tracks` (PR #206) through a real browser with an AI/browser-automation tool, since they need Supabase auth + a live campaign the headless parity gate can't exercise.
+---
+
+## Fix broken campaign/invite creation — gen_random_bytes search-path bug — TODO
+Branch fix/campaign-invite-search-path. sql/schema.sql's gen_invite_code() and create_player_invite()
+call gen_random_bytes() outside their search_path, so campaign and player-invite creation are currently
+broken everywhere in the deployed app.
 
 ```text
-Depends on PR #206 (feat/advancement-tracks) being merged first. Using a browser-automation/AI tool
-(signed in to a test Supabase account with a live campaign):
-1. DM Console → Campaign Rules: confirm the three new controls (Level budget curve, Award pace, Starting
-   tier) render, the L20 preview updates live, and preset<->field sync works (picking Generous sets
-   83/+28; editing a number flips the preset to Custom).
-2. Save rules -> reload -> confirm all three persist in campaigns.rules.
-3. Change Starting tier -> confirm the player-invite "Starting budget" field pre-fills and stays editable.
-4. As a player bound to that campaign, open Live Sheet -> confirm the header shows "≈ Track-Level N"
-   derived from AP spent against the campaign's tuned curve; an unbound character falls back to Standard.
-5. Check the browser console for errors at each step.
-Fold the reproducible parts into the existing e2e harness (testing/scripts, character-gen-e2e.yml) if
-practical. Display-only feature — no DATA.version/compute() involvement; parity still 20/0.
+sql/schema.sql's gen_invite_code() and create_player_invite() (both SECURITY DEFINER, search_path=public)
+call bare gen_random_bytes(...), which lives in the extensions schema, not public. Confirmed via SQL
+against the live project that zero campaign rows exist anywhere — campaign creation and player-invite
+creation are currently broken everywhere in the deployed app. Not an active incident today only because
+no tools/*.html or login.html UI currently calls createCampaign() (verified by grep), so nothing
+user-facing silently fails yet — but this blocks ever wiring up that UI until fixed.
+
+1. Fix: schema-qualify the calls (extensions.gen_random_bytes(...)) or add extensions to both functions'
+   search_path, via a new sql/migrations/ entry applied against the live project.
+2. Verify end-to-end against the live project: campaign creation and player-invite creation both succeed
+   for real (not just that the function compiles).
+3. While in this area, note whether the repo-wide SECURITY DEFINER search_path hardening pass mentioned
+   elsewhere in DECISIONS.md should be folded in or stays a separate follow-up — don't silently expand
+   scope, just flag the call either way.
+4. SQL-only change — no engine.js/DATA involvement, parity unaffected.
+
+Found and filed (not fixed) during test/advancement-tracks-e2e (PR #233) — see DECISIONS.md
+D-GH-2026-07-16-advancement-tracks-e2e for how it was discovered. Log this fix's own decision as
+D-GH-<date>-campaign-invite-search-path if the search_path scoping choice (item 3) isn't obvious from
+the diff alone.
 ```
 
-**Done when:** the DM-panel↔bound-player advancement-dials round-trip is verified working in a real browser (save/load/persist, invite pre-fill, Track-Level label), with any bugs found either fixed or filed.
+**Done when:** gen_random_bytes calls are schema-qualified/on the search_path in both functions, campaign creation and player-invite creation work end-to-end against the live project, and testing/tests/engine-parity.html is still 20/0.
 
 ---
 
@@ -115,38 +127,41 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 
 ---
 
-## Rename docs/TASK_BOARD.md + DECISIONS.md to a new naming convention — TODO
-Branch docs/rename-roadmap-decisions-files. Rename the two core process files per a naming convention the user will specify at implementation time, then sweep every reference across the repo so no skill or doc points at a stale path.
+## Shared onAuthChange(event, session) wrapper — stop the recurring argument-order bug — TODO
+Branch refactor/shared-auth-change-helper. Factor the hand-copied onAuthChange(event, session) closure
+each tool writes independently into one shared helper, since the same argument-order bug has now been
+found and fixed 3 separate times at different call sites.
 
 ```text
-1. BLOCKED on the user supplying the exact target filenames for docs/TASK_BOARD.md and DECISIONS.md
-   before any renaming starts — do not guess. Confirm both names explicitly at the start of this task.
+js/auth.js's onAuthChange(cb) calls cb(event, session) — session is the 2nd argument, not the 1st. Every
+call site across the three tools re-derives this by hand with its own inline function(event, session){...}
+closure: tools/PACT-Live-Char-Sheet.html:1576, tools/PACT-CharGen-Webtool.html:573/746/848, and
+tools/DM-Console.html:~1657 (fixed in PR #233 after the exact same bug — binding session to the event
+string instead — was already independently found and fixed in Live Sheet and CharGen at earlier points).
+Nothing structurally prevents a 5th recurrence: no shared wrapper, no lint rule, no JSDoc enforcement
+beyond a comment at each existing site.
 
-2. High blast radius — both files are hard-referenced by name (not just linked) in:
-   - AGENTS.md itself (roadmap bucket rules, "Multiple sessions" single-writer note, D-GH numbering
-     section, per-change checklist)
-   - Every skill in .claude/commands/: add-roadmap-task.md, pick-task.md, run-task.md, close-session.md,
-     plan-for-review.md, cleanup-branches.md, log-ai-lessons.md — several read/write TASK_BOARD.md or
-     DECISIONS.md as their literal file target, not just mention them
-   - docs/SKILLS.md, docs/HOW-TO-WORK.md, CHANGELOG.md, docs/roadmap.html's footer, docs/sessions/*.md
-   Grep the whole repo for both exact filenames before touching anything, and treat the count as the
-   real scope of this task, not just two `git mv` calls.
+1. Add a shared helper to js/auth.js (or js/ui-helpers.js, matching where esc()/flash()/_csCopy() already
+   live per D-GH-2026-07-14-shared-ui-helpers) — e.g. onSessionChange(cb) that wraps onAuthChange and
+   calls cb(session) directly, so callers can't get the argument order wrong. Keep onAuthChange(cb) itself
+   exported unchanged for any call site that genuinely needs the raw event string (e.g. Live Sheet's
+   SIGNED_OUT-specific reset, CharGen's sign-in-transition invite redemption) — those can layer their own
+   event-based logic on top of the same underlying subscription, or the new helper can optionally forward
+   event too (design call, not prescribed here).
+2. Migrate all 5 existing call sites (Live Sheet, CharGen x3, DM Console) to the shared helper. Each site's
+   existing sign-in-transition/wasSignedIn-style guards should carry over unchanged in behavior — this is a
+   refactor, not a behavior change.
+3. Verify each tool's own auth-driven UI still updates correctly on sign-in, sign-out, and (if testable)
+   a token-refresh event, since this is display/UI wiring that engine-parity.html doesn't cover.
+4. Display/UI-only — no engine.js/DATA involvement, parity stays 20/0.
 
-3. Given the risk of a missed reference silently breaking a skill's read/write path (e.g.
-   /pick-task or /add-roadmap-task pointing at a file that no longer exists), do this as a cold
-   plan review first (/plan-for-review) rather than a live edit sweep — per AGENTS.md's own trigger for
-   "a wrong approach would cost more than one implementation cycle to undo."
-
-4. Use `git mv` (not delete+recreate) so history is preserved, then update every reference found in step 2
-   to the new path/name in the same PR — no file should end up referencing the old name except historical
-   CHANGELOG.md/docs/sessions/ entries (records of what happened at the time, not live links).
-
-5. Docs/process-only — no js/engine.js, DATA, or compute() involvement; parity gate itself is unaffected.
-   Log the rename itself as D-GH-<date>-rename-roadmap-decisions-files in the (renamed) decision log,
-   since "why these got renamed" won't be obvious from the diff alone.
+Found via /code-review on PR #233 (test/advancement-tracks-e2e) — see DECISIONS.md
+D-GH-2026-07-16-advancement-tracks-e2e for the fix history this consolidates. Log this task's own decision
+as D-GH-<date>-shared-auth-change-helper if the design choice in step 1 (wrap vs. replace onAuthChange)
+isn't obvious from the diff alone.
 ```
 
-**Done when:** docs/TASK_BOARD.md and DECISIONS.md exist under their new agreed names with history preserved via `git mv`; every skill/doc reference across the repo points at the new paths (verified by a repo-wide grep for the old names returning only historical CHANGELOG/session-log mentions); testing/tests/engine-parity.html still 20/0.
+**Done when:** one shared helper exists for the (event, session)-unwrapping pattern, all 5 existing call sites use it instead of their own hand-copied closure, each tool's sign-in/sign-out UI still behaves identically, and testing/tests/engine-parity.html is still 20/0.
 
 ---
 

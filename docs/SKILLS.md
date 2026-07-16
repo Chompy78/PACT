@@ -20,7 +20,7 @@ Most work follows this spine. Skills slot in at each step; not every step needs 
 
 | Step | What happens | Skill |
 |---|---|---|
-| 1. Capture | Park a new idea/bug/change in the roadmap, house format | `/add-roadmap-task` |
+| 1. Capture | Park a new idea/bug/change in the roadmap, house format | `/add-task` |
 | 2. Pick | Fetch live roadmap, choose the next task, pre-flight it (no edits yet) | `/pick-task` |
 | 3. **Gate** | Decide: work alone, or plan-review first? (see rule below) | — |
 | 3a. (Big/risky only) | Draft a self-contained plan → paste to M365 Copilot → triage critique | `/plan-for-review` |
@@ -64,7 +64,7 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 
 ## Skill reference
 
-- **`/add-roadmap-task`** — Formats a feature/change/bug into PACT's house task format and adds it to
+- **`/add-task`** — Formats a feature/change/bug into PACT's house task format and adds it to
   `docs/TASK_BOARD.md`. Use it to capture work without derailing what you're doing. (The roadmap has a
   single writer; this is the sanctioned way to add.)
 
