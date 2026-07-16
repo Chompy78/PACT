@@ -153,7 +153,10 @@ footer code{background:var(--panel2);border:1px solid var(--line2);border-radius
 function stripMd(s){
   // plain-text-ify: drop bold/italic/code markers; collapse whitespace. Text is rendered via
   // textContent (never innerHTML), so this is cosmetic, not a security boundary.
-  return s.replace(/\*\*/g,'').replace(/`/g,'').replace(/\s+/g,' ').trim();
+  // drop ** bold and ` code markers, unescape backslash-escaped punctuation (\< \> \[ \] \( \) \_ \~),
+  // then collapse whitespace. Single-* italics are intentionally left alone: stripping them would
+  // mangle the globs these docs use (for-copilot/*.txt, docs/sessions/*).
+  return s.replace(/\*\*/g,'').replace(/`/g,'').replace(/\\([<>[\]()_~])/g,'$1').replace(/\s+/g,' ').trim();
 }
 function li(cls, builder){ var el = document.createElement('li'); if(cls) el.className = cls; builder(el); return el; }
 function fill(id, items, emptyMsg){
@@ -165,9 +168,11 @@ async function load(path){ var r = await fetch(path, {cache:'no-store'}); if(!r.
 
 // --- parsers ---
 function parseTasks(md){
-  var lines = md.split('\n'), band = null, out = {now:[], next:[], later:[]};
+  var lines = md.split('\n'), band = null, fence = false, out = {now:[], next:[], later:[]};
   var bandRe = /^#\s+(?:🔴|🟡|⚪)\s+(NOW|NEXT|LATER)\b/;
   for(var i=0;i<lines.length;i++){
+    if(/^```/.test(lines[i])){ fence = !fence; continue; } // skip fenced task bodies (may contain # lines)
+    if(fence) continue;
     var m = lines[i].match(bandRe);
     if(m){ band = m[1].toLowerCase(); continue; }
     if(/^#\s/.test(lines[i]) && !bandRe.test(lines[i])){ band = null; continue; } // left the bands (e.g. Conventions)
@@ -178,10 +183,15 @@ function parseTasks(md){
   return out;
 }
 function parseChangelog(md, n){
-  var out = [], re = /^- \*\*(.+?)\*\*/;
-  md.split('\n').forEach(function(l){
-    var m = l.match(re); if(m && out.length < n) out.push(stripMd(m[1]));
-  });
+  var out = [];
+  // Entries start at a line-leading "- **"; the bold title often WRAPS across lines, so split on
+  // entry boundaries and match the title with a newline-spanning non-greedy group (stripMd collapses
+  // the wrapped whitespace). A per-line regex would silently drop every wrapped entry.
+  var entries = md.split(/\n(?=- \*\*)/);
+  for(var i=0; i<entries.length && out.length<n; i++){
+    var m = entries[i].match(/^- \*\*([\s\S]+?)\*\*/);
+    if(m) out.push(stripMd(m[1]));
+  }
   return out;
 }
 function parseDecisions(md, n){
