@@ -12,7 +12,12 @@
   installed (`navigator.standalone === true` or `display-mode: standalone`). Dismissible; remembers
   dismissal in `localStorage` so it doesn't nag every visit. Verified in a real (spoofed-UA) browser:
   shows for iOS-not-installed, stays hidden for already-installed and non-iOS, dismiss removes it and
-  persists across reload, no console errors in any case. See `DECISIONS.md`
+  persists across reload, no console errors in any case. `/code-review` caught a real collision:
+  `.ios-hint` and the pre-existing service-worker `.update-bar` are both `position:fixed;bottom:0`, so
+  an update detected mid-session would render on top of and hide the install hint — fixed by having
+  the update bar remove any visible `.ios-hint` when it appears (an update takes precedence; the hint
+  simply re-evaluates and can reappear after the reload). Verified live (simulated the exact update-bar
+  creation code path against a page with `.ios-hint` already showing). See `DECISIONS.md`
   D-GH-2026-07-16-ios-install-hint.
 
 - **2026-07-16 · chore(ci) — static check: SECURITY DEFINER functions must set search_path with pg_temp**.

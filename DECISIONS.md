@@ -134,6 +134,15 @@
   `navigator.standalone` at all), dismiss removes it immediately and the dismissal survives a page
   reload, zero console/page errors in every case. `testing/tests/engine-parity.html` unaffected, still
   20/0 (no `js/engine.js`/`DATA` involvement — display-only).
+- **Also found (by `/code-review`, fixed same-PR):** `.ios-hint` and the pre-existing service-worker
+  `.update-bar` are both `position:fixed;bottom:0` at the same `z-index`, so both showing in one
+  session would visually overlap (the later-appended one hides the earlier one). Fixed by having the
+  update-bar's creation code remove any currently-visible `.ios-hint` — an update takes precedence,
+  and the hint's own IIFE re-runs on the resulting reload, reappearing if still eligible and not
+  dismissed. Verified live by simulating the exact update-bar creation code path against a page with
+  `.ios-hint` already showing. A CSS-duplication finding (the two bars' near-identical fixed-bottom-bar
+  layout rules aren't shared via a base class) was left as-is — cosmetic, and fixing it would mean
+  touching the pre-existing `.update-bar` too, beyond this task's scope.
 - **Status:** Active.
 
 ## D-GH-2026-07-16-audit-search-path-pg-temp-check · a static check + a dormant CI trigger gap

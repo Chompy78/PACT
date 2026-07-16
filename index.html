@@ -606,6 +606,10 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               bar.className = 'update-bar';
               bar.innerHTML = '<span>A new version of PACT is ready.</span><button type="button">Reload</button>';
               bar.querySelector('button').onclick = function () { sw.postMessage('skipWaiting'); location.reload(); };
+              // Both bars are position:fixed/bottom:0 — an update always takes precedence over the
+              // iOS install hint, which will simply re-run and reappear (if still eligible) after reload.
+              var iosHint = document.querySelector('.ios-hint');
+              if (iosHint) iosHint.remove();
               document.body.appendChild(bar);
             }
           });
