@@ -31,27 +31,6 @@ to `CHANGELOG.md`.
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
-## Service-worker caching: decide whether auth/sync/campaign/dm modules stay cache-first — TODO
-Branch chore/sw-network-first-security-modules. `service-worker.js`'s `NETWORK_FIRST_RE` currently covers only `.html`, the root, and `js/engine.js` — documented as network-first "so deployed fixes reach returning users immediately." `js/auth.js`, `js/supabase-client.js`, `js/sync.js`, `js/campaign.js`, `js/dm.js` are pre-cached and fall into the cache-first branch, so a client-side fix to one of them doesn't reach a returning offline-capable user until the SW updates *and* they reload twice.
-
-```text
-1. Review service-worker.js's NETWORK_FIRST_RE (~lines 9-26) and its stated rationale for singling out
-   js/engine.js.
-2. Decide: (a) widen the regex to include auth/sync/campaign/dm.js so client-side fixes to them propagate
-   as fast as engine.js fixes do, or (b) leave them cache-first — since RLS is server-authoritative, a
-   stale auth/sync client isn't itself a security hole — and just make that reasoning explicit instead of
-   leaving it an unstated inconsistency.
-3. If widening, weigh the added network dependency: these modules currently work fully offline via
-   cache-first; moving them to network-first trades that off against faster fix propagation.
-4. No engine.js/DATA involvement — parity unaffected, should stay 20/0.
-
-Low priority — not urgent, since RLS already enforces this server-side regardless of which caching
-strategy wins. Log the decision as D-GH-<date>-sw-network-first-security-modules either way, since "why
-engine.js is special-cased but these aren't" isn't obvious from the code alone.
-```
-
-**Done when:** either NETWORK_FIRST_RE is widened to cover auth/sync/campaign/dm.js, or a DECISIONS.md entry explicitly states why they're intentionally left cache-first; parity still 20/0.
-
 ---
 
 ## Engine review cleanup: drawback buyoff IDs, signature guard, baseBuild dedupe, noLock scoping — TODO

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pact-v4';
+const CACHE_NAME = 'pact-v5';
 
 const PRE_CACHE = [
   '/PACT/',
@@ -22,9 +22,12 @@ const PRE_CACHE = [
   '/PACT/icons/apple-touch-icon.png',
 ];
 
-// Network-first: HTML pages + engine.js so deployed fixes reach returning users immediately.
-// Everything else (icons, supporting JS) stays cache-first for speed.
-const NETWORK_FIRST_RE = /\.html$|\/PACT\/$|\/js\/engine\.js$/;
+// Network-first: HTML pages, engine.js, and the auth/sync/campaign/dm client modules, so deployed
+// fixes reach returning users immediately (see D-GH-2026-07-16-sw-network-first-security-modules —
+// this fetch handler already falls back to the cached copy on failure, so widening this list costs
+// nothing in offline capability, only speeds up fix propagation for online users).
+// Everything else (icons, character-store.js, feedback.js) stays cache-first for speed.
+const NETWORK_FIRST_RE = /\.html$|\/PACT\/$|\/js\/(engine|auth|supabase-client|sync|campaign|dm)\.js$/;
 
 self.addEventListener('install', e => {
   e.waitUntil(

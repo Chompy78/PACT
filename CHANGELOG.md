@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · chore(sw) — widen network-first to cover auth/sync/campaign/dm client modules**.
+  `service-worker.js`'s `NETWORK_FIRST_RE` covered only `*.html`/`/PACT/`/`js/engine.js`; `js/auth.js`,
+  `js/supabase-client.js`, `js/sync.js`, `js/campaign.js`, `js/dm.js` were cache-first, so a client-side
+  fix to any of them didn't reach a returning offline-capable user until the SW updated *and* they
+  reloaded twice. Widened the regex to include these 5 modules — the network-first fetch handler already
+  falls back to the cached copy on failure, so this costs nothing in offline capability, only speeds up
+  fix propagation (the exact class of bug DM Console's `onAuthChange` fix earlier today would otherwise
+  be slow to reach). `CACHE_NAME` bumped `pact-v4`→`pact-v5` per this repo's convention. See `DECISIONS.md`
+  D-GH-2026-07-16-sw-network-first-security-modules.
+
 - **2026-07-16 · fix(sql) — schema-qualify `gen_random_bytes()` calls, fixing campaign/invite creation**.
   `gen_invite_code()` and `create_player_invite()` called bare `gen_random_bytes(...)`, but pgcrypto's
   `gen_random_bytes` lives in the `extensions` schema on this project, not `public` (which their
