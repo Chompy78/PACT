@@ -50,7 +50,7 @@ declare
   raw  bytea;
 begin
   loop
-    raw := gen_random_bytes(6);
+    raw := extensions.gen_random_bytes(6);
     code := '';
     for i in 0..5 loop
       code := code || substr(alphabet, 1 + (get_byte(raw, i) % 36), 1);
@@ -358,7 +358,7 @@ begin
   end if;
 
   loop
-    v_token := encode(gen_random_bytes(16), 'hex');
+    v_token := encode(extensions.gen_random_bytes(16), 'hex');
     exit when not exists (select 1 from campaign_invites where token = v_token);
   end loop;
 

@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · fix(sql) — schema-qualify `gen_random_bytes()` calls, fixing campaign/invite creation**.
+  `gen_invite_code()` and `create_player_invite()` called bare `gen_random_bytes(...)`, but pgcrypto's
+  `gen_random_bytes` lives in the `extensions` schema on this project, not `public` (which their
+  `search_path` was pinned to) — so campaign creation and player-invite creation were broken everywhere
+  in the deployed app (zero campaign rows existed anywhere). Fixed by schema-qualifying the calls
+  (`extensions.gen_random_bytes(...)`) rather than widening `search_path`, to avoid broadening what these
+  `SECURITY DEFINER` functions can implicitly resolve. Verified live: a real `INSERT INTO campaigns`
+  (the app's actual code path) now succeeds via `gen_invite_code()`'s column default, and
+  `extensions.gen_random_bytes(16)` — the exact expression `create_player_invite()` uses — resolves
+  correctly. See `DECISIONS.md` D-GH-2026-07-16-campaign-invite-search-path.
+
 - **2026-07-16 · fix(dm-console) — guard `updateAuth()` against reloading the roster on every auth event**.
   The `onAuthChange` argument-order fix earlier in this PR removed a crash that was accidentally masking
   `updateAuth()` calling `loadCampaigns()`→`loadRoster()` unconditionally on every truthy-session auth

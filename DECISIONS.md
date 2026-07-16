@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-campaign-invite-search-path** — Fixed the `gen_random_bytes` search-path bug filed by the advancement-tracks e2e task: schema-qualified the calls (`extensions.gen_random_bytes(...)`) rather than widening `gen_invite_code()`/`create_player_invite()`'s `search_path` to include `extensions`, so these `SECURITY DEFINER` functions don't implicitly resolve anything beyond `public`; verified live via a real `INSERT INTO campaigns` and a direct call to the exact `extensions.gen_random_bytes(16)` expression `create_player_invite()` uses
 - **D-GH-2026-07-16-advancement-tracks-e2e** — Real-browser e2e verification of PR #206's advancement dials against the live (pre-launch) Supabase project; fixed DM Console's `onAuthChange` argument-order bug found along the way; filed (not fixed) a `gen_random_bytes` search-path bug that blocks campaign creation entirely, since fixing it is a bigger blast-radius call than this task's scope
 - **D-GH-2026-07-16-dev-status-page** — Added `docs/dev-status.html`, a lightweight glance dashboard (open Now/Next tasks + last 7 decisions + last 7 changelog entries) distinct from the fuller `roadmap.html`. Chose **runtime fetch** of `TASK_BOARD.md`/`CHANGELOG.md`/`DECISIONS.md` (never stale, zero regeneration) over `roadmap.html`'s baked-in snapshot — a glance page's whole value is being current, and light line-parsing needs no MD library; graceful fallback message when opened via `file://` (fetch blocked). All fetched text renders via `textContent`, never `innerHTML`, honouring the repo's escaping invariant. **Gated to signed-in users** (players or DMs — the app has no distinct account role, so "has a session" is the check): the index.html card is hidden until sign-in, and the page itself fails closed to a sign-in prompt without a session — but this is a **UX/visibility gate, not a security boundary**, since the three docs are public files on GitHub Pages. Verified headless (Playwright): correct counts (Now 0/Next 1/Later 3), signed-out gate hides the dashboard, parsers regression-free
 - **D-GH-2026-07-16-close-session-auto-log** — Expanded `/close-session` from report-only to a skill that *writes* the session's `CHANGELOG`/`DECISIONS`/session-note and graduates finished tasks, then *proposes* a ready commit (still never stages, commits, pushes, or deletes). Two deliberate design calls: (a) the repo's single-writer rule beats the reconciliation doc's "log new open tasks onto the board" — the skill only *removes* finished items from `TASK_BOARD.md`; newly-discovered tasks are output in house format for the human; (b) propose-don't-stage — in a shared checkout, running `git add` risks sweeping in another session's changes, so the skill prints a ready `git add <named files>` + `git commit` block and keeps `git add`/`commit`/`push` disallowed
@@ -100,6 +101,31 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-campaign-invite-search-path · schema-qualify, don't widen search_path
+- **Context:** `D-GH-2026-07-16-advancement-tracks-e2e` found that `gen_invite_code()` and
+  `create_player_invite()` (both pinned to `search_path = public`) call bare `gen_random_bytes(...)`,
+  which lives in the `extensions` schema on this project — so campaign creation and player-invite
+  creation were broken everywhere in the deployed app (zero campaign rows existed).
+- **Options:** (1) widen both functions' `search_path` to `public, extensions`. (2) schema-qualify the
+  two call sites (`extensions.gen_random_bytes(...)`), leaving `search_path` at `public`.
+- **Decision:** option 2. Changed both call sites to `extensions.gen_random_bytes(...)`; `search_path`
+  stays `set search_path = public` on both functions.
+- **Why:** these are `SECURITY DEFINER` functions — widening their `search_path` means every future
+  unqualified identifier they reference could implicitly resolve against `extensions` too, which is
+  exactly the class of ambiguity the separate `pg_temp` search_path hardening task (see the LATER-bucket
+  item on `docs/TASK_BOARD.md`) is working to make explicit repo-wide, not looser. A single schema
+  qualification at the two actual call sites fixes the bug with zero change to what these functions can
+  implicitly resolve.
+- **Verification:** applied as migration `2026-07-16-fix-gen-random-bytes-search-path.sql` against the
+  live project. A real `INSERT INTO campaigns` (the app's actual code path, not a direct function call)
+  succeeded via `gen_invite_code()`'s column default, generating both `invite_code` and `dm_invite_code`;
+  the throwaway row was deleted immediately after. `extensions.gen_random_bytes(16)` — the exact
+  expression `create_player_invite()` uses — was confirmed to resolve directly. `create_player_invite()`
+  itself wasn't re-invoked through its full DM-authenticated path (that requires faking `auth.uid()`
+  inside the SQL session, disproportionate for this fix's scope) — its fix is the identical one-line
+  schema qualification already proven correct for `gen_invite_code()`.
+- **Status:** Active.
 
 ## D-GH-2026-07-16-advancement-tracks-e2e · real-browser verification, one real bug fixed, one filed not fixed
 - **Context:** PR #206 (`feat/advancement-tracks`) shipped three DM-tunable campaign advancement dials but
