@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-agents-workflow-reconcile** — Reconciled this repo's agent-workflow files against the cross-project AI-workflow standard: renamed `PACT_ROADMAP.md`→`TASK_BOARD.md` (file+pointers only, not a "roadmap" rebrand), and added three tool-agnostic discipline rules + a Microsoft 365 Copilot section to `AGENTS.md`. Most of the standard was already met here (canonical `AGENTS.md`, `DECISIONS.md` Context→Options→Decision→Why→Status, `docs/sessions/`, NOW/NEXT/LATER bands, a git-aware close-session) — only the genuinely-missing pieces were adopted; the standard's Dropbox-specific archive/retention rules were deliberately excluded (git already solves that)
 - **D-GH-2026-07-16-unify-level-lookup-helper** — Extracted the triplicated "highest level whose threshold ≤ value" scan into one `levelForThreshold(value, thresholdAt)` in `js/ui-helpers.js` (the settled shared-helpers home per D-GH-2026-07-14, **not** `js/engine.js` — keeps the engine API untouched and the scan is display-only, not rules); each tool keeps its thin `apLevel`/`trackLevel` wrapper passing its own threshold source, so CharGen's fixed-ladder concept stays distinct from the tools' tuned advancement curve (only the loop is shared, not the threshold) and `_levelCurve()` curve-resolution stays tool-local (out of scope); verified behaviour-identical (147/147 old-vs-new + browser-confirmed)
 - **D-GH-2026-07-15-tools-home-nav-cleanup** — Added a consistent "← Home" header link to all three tools and `aria-label`s to the icon-only buttons, but removed **zero** toolbar buttons despite the roadmap task asking to "consolidate/reduce" — the audit found the desktop vs. mobile toolbars are responsive-exclusive (swapped by a media query, never both visible), not duplicated, so any removal would drop reachable functionality on one form factor
 - **D-GH-2026-07-15-dm-console-roster-tuned-curve** — DM Console's roster level now resolves the DM-tuned `levelBudgetCurve` from each character's own offline LOG `rulesSnapshot` (a DM-Console-local `_levelCurve()`/`trackLevel()` mirroring Live Sheet's, not a shared engine helper), retiring the fixed `DATA.levelAP` ladder for level *display*; chose full Live-Sheet parity (fall back to the Standard preset when untuned, so unbound characters' displayed level can shift vs the old ladder) over only-when-a-curve-is-configured, because the latter would still disagree with Live Sheet for untuned characters — the exact bug this fixes
@@ -96,6 +97,39 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-agents-workflow-reconcile · align file names/rules with the cross-project standard, keep what's already better
+- **Context:** the human's cross-project AI-workflow standard (used across several repos, and originally
+  seeded *from* this repo's own `AGENTS.md`) had drifted ahead with real improvements this repo never got
+  back. A reconciliation doc asked us to bring PACT's file names/shapes in line while preserving what PACT
+  already does better. Auditing the repo showed most of the standard was already met here: canonical
+  `AGENTS.md` with `CLAUDE.md`/copilot stubs, `DECISIONS.md` in Context→Options→Decision→Why→Status form
+  with a collision-proof `D-GH-<date>-<slug>` scheme, `docs/sessions/`, `CHANGELOG.md` newest-first, the
+  roadmap's 🔴🟡🟢 NOW/NEXT/LATER bands + `Done when`, and a git-aware `/close-session`.
+- **Options:** (1) apply the reconciliation doc literally — rename, add every section, build `for-copilot`
+  mirrors + a refresh script, expand close-session, add a status page. (2) Compute the delta and adopt only
+  the genuinely-missing pieces, skipping churn and Dropbox-only rules that don't apply to a git repo.
+- **Decision:** option 2. In this change: renamed `docs/PACT_ROADMAP.md`→`docs/TASK_BOARD.md` (file +
+  live pointers only — historical records left naming it as it was called then; the `roadmap.html` page and
+  `/add-roadmap-task` command keep the "roadmap" name — see the separate rename commit), and added to
+  `AGENTS.md` a **Working discipline** section (files/artifact win over chat; `git status`/`git diff` before
+  a structural edit; edit-don't-regenerate; verify-before-writing-an-absence-claim) plus a **Microsoft 365
+  Copilot** section (the `for-copilot/*.txt` mirrors, state-last-updated-before-trusting, and the
+  ask-for-a-patch-not-a-full-file default). Also fixed a stale parity count (`5`→`20`) in the copilot stub
+  and git-ignored `for-copilot/`.
+- **Why:** the standard's value is the *rules*, not re-doing structure this repo already has. The two
+  incident-driven rules earn their place: "ask for a patch, not a full file" prevents a real failure where
+  M365 Copilot regenerated a governance file from its narrowed chat context and silently dropped everything
+  outside the immediate conversation; "verify absence claims" prevents an unverified "no tool exists for X"
+  ossifying into a rule no one re-tests. The Dropbox-specific archive/retention and re-fetch rules were
+  excluded on purpose — git's version history, diffing, and in-place edits already cover that ground, so
+  importing them would add process for no benefit.
+- **Consequence:** the `for-copilot/*.txt` mirrors are generated by an external local script on the human's
+  machine and are git-ignored; that script's `PACT_ROADMAP.md` input path must be updated to `TASK_BOARD.md`
+  by hand, or the task-board mirror silently stops updating.
+- **See also:** the `TASK_BOARD.md` rename commit; `AGENTS.md` "Working discipline" + "Working with
+  Microsoft 365 Copilot" sections.
+- **Status:** Active.
 
 ## D-GH-2026-07-16-unify-level-lookup-helper · one shared scan in ui-helpers.js, threshold source passed in
 - **Context:** the same "highest level L in 1..20 whose per-level threshold ≤ value" loop existed in three

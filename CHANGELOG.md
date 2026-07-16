@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · docs(agents) — reconcile agent-workflow rules with the cross-project standard**. Added an
+  `AGENTS.md` **Working discipline** section (files/shipped-artifact win over chat; `git status`/`git diff`
+  before a structural edit; edit-don't-regenerate; verify-before-writing-an-absence-claim) and a **Microsoft
+  365 Copilot** section (the git-ignored `for-copilot/*.txt` mirrors, state-last-updated-before-trusting,
+  ask-for-a-patch-not-a-full-file default). Fixed a stale parity count (`5`→`20`) in
+  `.github/copilot-instructions.md` and git-ignored `for-copilot/`. See `DECISIONS.md`
+  D-GH-2026-07-16-agents-workflow-reconcile. Docs/config only — no engine or `DATA.version` change.
+
 - **2026-07-16 · refactor(docs) — renamed `docs/PACT_ROADMAP.md` → `docs/TASK_BOARD.md`, content
   unchanged** (aligns the filename with the cross-project AI-workflow standard; the open-task list, its
   🔴🟡🟢 bands, and `Done when` format are identical). Updated every live pointer — `docs/roadmap.html`
