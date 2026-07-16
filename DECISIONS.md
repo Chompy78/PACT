@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-sw-network-first-security-modules** — Widened `service-worker.js`'s `NETWORK_FIRST_RE` to cover `js/auth.js`/`js/supabase-client.js`/`js/sync.js`/`js/campaign.js`/`js/dm.js` (previously cache-first, same as `js/engine.js` used to be pre-REV-03) — the fetch handler's network-first path already falls back to cache offline, so this costs zero offline capability and only speeds up client-fix propagation; `CACHE_NAME` bumped `pact-v4`→`pact-v5`
 - **D-GH-2026-07-16-campaign-invite-search-path** — Fixed the `gen_random_bytes` search-path bug filed by the advancement-tracks e2e task: schema-qualified the calls (`extensions.gen_random_bytes(...)`) rather than widening `gen_invite_code()`/`create_player_invite()`'s `search_path` to include `extensions`, so these `SECURITY DEFINER` functions don't implicitly resolve anything beyond `public`; verified live via a real `INSERT INTO campaigns` and a direct call to the exact `extensions.gen_random_bytes(16)` expression `create_player_invite()` uses
 - **D-GH-2026-07-16-advancement-tracks-e2e** — Real-browser e2e verification of PR #206's advancement dials against the live (pre-launch) Supabase project; fixed DM Console's `onAuthChange` argument-order bug found along the way; filed (not fixed) a `gen_random_bytes` search-path bug that blocks campaign creation entirely, since fixing it is a bigger blast-radius call than this task's scope
 - **D-GH-2026-07-16-dev-status-page** — Added `docs/dev-status.html`, a lightweight glance dashboard (open Now/Next tasks + last 7 decisions + last 7 changelog entries) distinct from the fuller `roadmap.html`. Chose **runtime fetch** of `TASK_BOARD.md`/`CHANGELOG.md`/`DECISIONS.md` (never stale, zero regeneration) over `roadmap.html`'s baked-in snapshot — a glance page's whole value is being current, and light line-parsing needs no MD library; graceful fallback message when opened via `file://` (fetch blocked). All fetched text renders via `textContent`, never `innerHTML`, honouring the repo's escaping invariant. **Gated to signed-in users** (players or DMs — the app has no distinct account role, so "has a session" is the check): the index.html card is hidden until sign-in, and the page itself fails closed to a sign-in prompt without a session — but this is a **UX/visibility gate, not a security boundary**, since the three docs are public files on GitHub Pages. Verified headless (Playwright): correct counts (Now 0/Next 1/Later 3), signed-out gate hides the dashboard, parsers regression-free
@@ -101,6 +102,25 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-sw-network-first-security-modules · widen network-first, no offline cost
+- **Context:** `service-worker.js`'s `NETWORK_FIRST_RE` covered only `*.html`, `/PACT/`, and
+  `js/engine.js` (REV-03) "so deployed fixes reach returning users immediately." `js/auth.js`,
+  `js/supabase-client.js`, `js/sync.js`, `js/campaign.js`, `js/dm.js` were pre-cached and fell into the
+  cache-first branch, so a client-side fix to one of them didn't reach a returning offline-capable user
+  until the SW updated *and* they reloaded twice — the exact class of bug DM Console's `onAuthChange`
+  fix (this same session) would otherwise have been slow to reach real users.
+- **Options:** (a) widen `NETWORK_FIRST_RE` to include these 5 modules. (b) leave them cache-first and
+  document why — RLS is server-authoritative, so a stale auth/sync client isn't itself a security hole.
+- **Decision:** (a). Widened the regex; `CACHE_NAME` bumped `pact-v4`→`pact-v5` (this repo's standing
+  convention for any `service-worker.js` caching-behavior or precache-list change, so `activate` purges
+  the old cache immediately rather than waiting for these specific entries to naturally expire).
+- **Why:** read `service-worker.js`'s fetch handler before deciding — its network-first path already
+  does `.catch(() => caches.match(...))`, falling back to the cached copy when offline. Widening the list
+  costs **zero** offline capability; it only changes online users from "stale until double-reload" to
+  "immediate," identical to what `engine.js` already gets. Option (b)'s stated rationale (RLS is
+  server-authoritative) is true but irrelevant to the actual tradeoff here, which turned out to be free.
+- **Status:** Active.
 
 ## D-GH-2026-07-16-campaign-invite-search-path · schema-qualify, don't widen search_path
 - **Context:** `D-GH-2026-07-16-advancement-tracks-e2e` found that `gen_invite_code()` and
