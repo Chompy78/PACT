@@ -49,24 +49,6 @@ practical. Display-only feature — no DATA.version/compute() involvement; parit
 
 ---
 
-## Consolidate the 4 duplicated "AP vs threshold table → level" lookups across tools — TODO
-Branch chore/unify-level-lookup-helper. The same loop shape (find highest level L whose per-level threshold <= a value) now exists independently in tools/PACT-Live-Char-Sheet.html (_levelCurve()/trackLevel(), reading the DM-tunable levelBudgetCurve), tools/DM-Console.html:552 (apLevel(), fixed DATA.levelAP ladder), and tools/PACT-CharGen-Webtool.html:880 (apLevel(), same fixed ladder) — none in js/engine.js.
-
-```text
-Surfaced by an independent /code-review of PR #210/#211 as pre-existing debt, not previously tracked by any
-roadmap item.
-
-Decide: should a shared helper live in js/engine.js (display-only, so arguably not "rules logic" under
-AGENTS.md's rule, but a reasonable case either way), or a new small shared js/ module, parameterized by
-threshold source (fixed ladder vs. tuned curve)? Then migrate all 3-4 call sites onto it. Note CharGen's
-apLevel() usages may be a legitimately distinct concept (fixed creation-budget tiering, not campaign-tunable
-advancement pace) — confirm before merging that call site into the same helper as the other two.
-```
-
-**Done when:** the level-lookup loop exists in exactly one place (shared helper), all prior call sites migrated with no behavior change for the fixed-ladder cases; parity still 20/0.
-
----
-
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
 
 ## Service-worker caching: decide whether auth/sync/campaign/dm modules stay cache-first — TODO

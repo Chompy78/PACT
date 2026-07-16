@@ -407,9 +407,10 @@ function _levelCurve(){
   return {l1:l1,inc:inc};
 }
 function trackLevel(spent,curve){
-  var c=curve||_levelCurve(),lv=0;
-  for(var L=1;L<=20;L++){ if(c.l1+c.inc*(L-1)<=(+spent||0)) lv=L; }
-  return lv;
+  var c=curve||_levelCurve();
+  // scan shared via levelForThreshold() in js/ui-helpers.js (chore/unify-level-lookup-helper);
+  // this call site's threshold source is the tuned advancement curve (l1 + inc*(L-1)).
+  return levelForThreshold(spent,function(L){ return c.l1+c.inc*(L-1); });
 }
 
 

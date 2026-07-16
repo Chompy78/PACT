@@ -574,10 +574,11 @@ function _levelCurve(){
   return {l1:l1,inc:inc};
 }
 // highest level L whose per-level threshold (l1 + inc*(L-1)) is <= ap (0 = below level 1)
+// scan shared via levelForThreshold() in js/ui-helpers.js (chore/unify-level-lookup-helper);
+// this call site's threshold source is the tuned advancement curve.
 function trackLevel(ap,curve){
-  var c=curve||_levelCurve(),lv=0;
-  for(var L=1;L<=20;L++){ if(c.l1+c.inc*(L-1)<=(+ap||0)) lv=L; }
-  return lv;
+  var c=curve||_levelCurve();
+  return levelForThreshold(ap,function(L){ return c.l1+c.inc*(L-1); });
 }
 
 

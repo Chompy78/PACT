@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-unify-level-lookup-helper** — Extracted the triplicated "highest level whose threshold ≤ value" scan into one `levelForThreshold(value, thresholdAt)` in `js/ui-helpers.js` (the settled shared-helpers home per D-GH-2026-07-14, **not** `js/engine.js` — keeps the engine API untouched and the scan is display-only, not rules); each tool keeps its thin `apLevel`/`trackLevel` wrapper passing its own threshold source, so CharGen's fixed-ladder concept stays distinct from the tools' tuned advancement curve (only the loop is shared, not the threshold) and `_levelCurve()` curve-resolution stays tool-local (out of scope); verified behaviour-identical (147/147 old-vs-new + browser-confirmed)
 - **D-GH-2026-07-15-tools-home-nav-cleanup** — Added a consistent "← Home" header link to all three tools and `aria-label`s to the icon-only buttons, but removed **zero** toolbar buttons despite the roadmap task asking to "consolidate/reduce" — the audit found the desktop vs. mobile toolbars are responsive-exclusive (swapped by a media query, never both visible), not duplicated, so any removal would drop reachable functionality on one form factor
 - **D-GH-2026-07-15-dm-console-roster-tuned-curve** — DM Console's roster level now resolves the DM-tuned `levelBudgetCurve` from each character's own offline LOG `rulesSnapshot` (a DM-Console-local `_levelCurve()`/`trackLevel()` mirroring Live Sheet's, not a shared engine helper), retiring the fixed `DATA.levelAP` ladder for level *display*; chose full Live-Sheet parity (fall back to the Standard preset when untuned, so unbound characters' displayed level can shift vs the old ladder) over only-when-a-curve-is-configured, because the latter would still disagree with Live Sheet for untuned characters — the exact bug this fixes
 - **D-GH-2026-07-15-feedback-widget** — In-app feedback widget backed by a new insert-only `feedback` Supabase table, the first table to grant the `anon` role a write; anonymous submission is allowed (PACT is sign-in-optional), made safe by insert-only/no-read grants, DB-level constraints, and a policy using only `auth.uid()` (not the lockdown-revoked campaign helpers); the widget is a self-contained module so the wiring-less Player's Guide integrates with one script tag
@@ -95,6 +96,34 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-unify-level-lookup-helper · one shared scan in ui-helpers.js, threshold source passed in
+- **Context:** the same "highest level L in 1..20 whose per-level threshold ≤ value" loop existed in three
+  places — CharGen's `apLevel` (fixed `DATA.levelAP` ladder), and Live Sheet's + DM Console's `trackLevel`
+  (tuned `l1+inc*(L-1)` curve; DM Console's added in D-GH-2026-07-15-dm-console-roster-tuned-curve, which
+  deliberately left the extraction to *this* task). The roadmap said "4"; post-that-fix the live count is 3.
+- **Options — where the shared scan lives:** (A) `js/engine.js`, exported + bridged; (B) a new small `js/`
+  module; (C) the existing `js/ui-helpers.js` shared plain-script. **Options — CharGen:** (1) fold its
+  fixed-ladder `apLevel` into the same shared thing; (2) keep it wholly separate.
+- **Decision:** C + 1-at-the-loop-only. Added `levelForThreshold(value, thresholdAt)` to `js/ui-helpers.js`;
+  each tool's `apLevel`/`trackLevel` became a thin wrapper passing its own `thresholdAt` (CharGen → the
+  `DATA.levelAP` entry; Live Sheet/DM Console → `l1+inc*(L-1)`). Names/signatures/call sites unchanged;
+  `_levelCurve()` curve-resolution left tool-local.
+- **Why:** (C over A) D-GH-2026-07-14-shared-ui-helpers already established `ui-helpers.js` as the home for
+  cross-tool *pure* helpers, and the scan is display-only — AGENTS.md says touch `js/engine.js` only when a
+  task targets the engine, so keeping its API fixed is the lower-risk, precedent-matching choice; the scan
+  also has no engine dependency (the threshold source is injected). (C over B) a whole new module for one
+  4-line function is more bridge/wiring surface than reusing the script all three tools already load.
+  (1-at-loop-only) CharGen's fixed-ladder tiering is a *legitimately different concept* from the tunable
+  advancement curve (the task flagged this) — sharing the *loop* doesn't conflate them, because the
+  concept-specific part (which threshold) stays at each call site. `_levelCurve()` differs per tool by how
+  it *resolves* the curve (Live Sheet `resolveRules()` vs DM Console LOG snapshot) — merging that would drag
+  in auth/campaign resolution, out of scope; only the scan was duplicated identically, so only it moved.
+- **Verification:** 147/147 old-vs-new equivalence in Node across edge cases (negatives, 0, NaN, null,
+  strings, boundaries) for the fixed ladder and 6 tuned curves incl. `inc=1`; browser-confirmed the shared
+  global resolves and returns correct levels in all three tools (CharGen over http with real bridged
+  `DATA`, 0 mismatches / 0 page errors); parity 20/0. Display-only — no `DATA.version` bump.
+- **Status:** In force.
 
 ## D-GH-2026-07-15-tools-home-nav-cleanup · Home link added, no buttons removed (bars are responsive-exclusive)
 - **Context:** the roadmap task "Tools: back-to-Home navigation + toolbar button cleanup" asked for two

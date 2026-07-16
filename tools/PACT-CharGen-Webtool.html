@@ -879,8 +879,11 @@ function eligibleSpells(b,ti,di){
  return {cls:cls,prepared:prepared,maxLv:maxLv,rank:rank,hd:hd,byLevel:byLevel};
 }
 // compute() is bridged from js/engine.js (engine-ready module, D-GH26).
-// the character's AP-equivalent level: the highest level whose budget-table value is <= ap (0 = below level 1)
-function apLevel(ap){var lv=0;for(var L=1;L<=20;L++){if((DATA.levelAP[L]||1e9)<=(+ap||0))lv=L;}return lv;}
+// the character's AP-equivalent level: the highest fixed creation-budget ladder value <= ap (0 = below
+// level 1). Scan shared via levelForThreshold() in js/ui-helpers.js (chore/unify-level-lookup-helper);
+// the fixed DATA.levelAP ladder is this call site's threshold source (distinct from the tools' tuned
+// advancement curve — a legitimately different concept, kept separate on purpose).
+function apLevel(ap){return levelForThreshold(ap,function(L){return DATA.levelAP[L]||1e9;});}
 
 // AP-source display (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): the four states a
 // character's spendable AP can be in, matching the Live Sheet's DM-AP chip. window._dmApStatus is set by
