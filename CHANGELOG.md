@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · feat(docs) — add `docs/dev-status.html`, a live-fetch glance dashboard**. Quick-glance
+  human-status page: open Now/Next tasks + last 7 decisions + last 7 changelog entries, fetched live from
+  `TASK_BOARD.md`/`CHANGELOG.md`/`DECISIONS.md` (never stale) and light-parsed — no Markdown library, no
+  build step. Reuses `roadmap.html`'s palette (light + dark); distinct from and links to the fuller
+  `roadmap.html`. Fetched text renders via `textContent` (escaping invariant); graceful `file://` fallback.
+  Verified headless (Playwright): correct counts, 0 console errors, both themes. See `DECISIONS.md`
+  D-GH-2026-07-16-dev-status-page.
+
 - **2026-07-16 · feat(tooling) — `/close-session` now logs docs + proposes a commit (was report-only)**. The
   skill writes the session's `CHANGELOG`/`DECISIONS`/session-note and graduates finished tasks out of
   `TASK_BOARD.md`, then prints a ready-to-run `git add`/`git commit` block — it still never stages, commits,

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PACT — Dev Status</title>
+<style>
+:root{
+  --bg:#f4efe4; --bg2:#efe7d6; --panel:#fbf8f1; --panel2:#f1ead9;
+  --ink:#2c2620; --ink2:#6b6153; --line:#ddd1bb; --line2:#e7ddc9;
+  --accent:#b5761f; --accent2:#8a5a15; --accentbg:#f6e8cf;
+  --now:#c0392b; --next:#b5761f; --later:#7a8a4f; --done:#5b8a72;
+  --shadow:0 1px 2px rgba(60,45,20,.08),0 3px 12px rgba(60,45,20,.06);
+  --radius:12px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#17150f; --bg2:#100e09; --panel:#211d15; --panel2:#2a251b; --ink:#ece4d3;
+    --ink2:#a89c85; --line:#3a3327; --line2:#332d22; --accent:#e0a542; --accent2:#f0bd63;
+    --accentbg:#2f2716; --now:#e06a5c; --next:#e0a542; --later:#a7bd6f; --done:#79bda0;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#17150f; --bg2:#100e09; --panel:#211d15; --panel2:#2a251b; --ink:#ece4d3;
+  --ink2:#a89c85; --line:#3a3327; --line2:#332d22; --accent:#e0a542; --accent2:#f0bd63;
+  --accentbg:#2f2716; --now:#e06a5c; --next:#e0a542; --later:#a7bd6f; --done:#79bda0;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+}
+:root[data-theme="light"]{
+  --bg:#f4efe4; --bg2:#efe7d6; --panel:#fbf8f1; --panel2:#f1ead9; --ink:#2c2620;
+  --ink2:#6b6153; --line:#ddd1bb; --line2:#e7ddc9; --accent:#b5761f; --accent2:#8a5a15;
+  --accentbg:#f6e8cf; --now:#c0392b; --next:#b5761f; --later:#7a8a4f; --done:#5b8a72;
+  --shadow:0 1px 2px rgba(60,45,20,.08),0 3px 12px rgba(60,45,20,.06);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:linear-gradient(180deg,var(--bg),var(--bg2));min-height:100vh;color:var(--ink);
+  font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent2)}
+.wrap{max-width:1100px;margin:0 auto;padding:18px 18px 80px}
+
+header.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 2px 16px}
+.brand{display:flex;align-items:center;gap:12px;margin-right:auto}
+.crest{width:42px;height:42px;border-radius:11px;flex:0 0 auto;
+  background:radial-gradient(circle at 30% 25%,var(--accent),var(--accent2));
+  display:grid;place-items:center;color:#fff;font-weight:800;font-size:19px;
+  box-shadow:var(--shadow);font-family:Georgia,serif}
+.brand h1{font-size:19px;margin:0;font-weight:750;letter-spacing:.2px}
+.brand .sub{font-size:12.5px;color:var(--ink2);margin-top:1px}
+.navlink{font-size:13px;text-decoration:none;border:1px solid var(--line);background:var(--panel);
+  color:var(--ink);border-radius:10px;padding:8px 12px}
+.navlink:hover{border-color:var(--accent)}
+.iconbtn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;
+  width:38px;height:38px;cursor:pointer;font-size:16px;display:grid;place-items:center}
+.iconbtn:hover{border-color:var(--accent)}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:2px 0 18px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px;box-shadow:var(--shadow)}
+.stat .n{font-size:26px;font-weight:780;line-height:1;font-variant-numeric:tabular-nums}
+.stat .l{font-size:11.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink2);margin-top:6px}
+.stat.now .n{color:var(--now)} .stat.next .n{color:var(--next)} .stat.later .n{color:var(--later)}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:720px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px 18px;min-width:0}
+.card h2{font-size:14px;margin:0 0 12px;letter-spacing:.3px;display:flex;align-items:center;gap:8px}
+.card h2 .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.dot.now{background:var(--now)} .dot.next{background:var(--next)} .dot.dec{background:var(--accent)} .dot.chg{background:var(--done)}
+.card.span{grid-column:1/-1}
+ul.list{list-style:none;margin:0;padding:0}
+ul.list li{padding:8px 0;border-top:1px solid var(--line2);font-size:13.5px;line-height:1.45;overflow-wrap:anywhere}
+ul.list li:first-child{border-top:0}
+.band-label{display:inline-block;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;
+  font-weight:700;padding:1px 7px;border-radius:20px;margin-right:7px;vertical-align:1px}
+.band-label.now{color:var(--now);background:color-mix(in srgb,var(--now) 15%,transparent)}
+.band-label.next{color:var(--next);background:color-mix(in srgb,var(--next) 15%,transparent)}
+.meta{font-size:12px;color:var(--ink2)}
+.tag{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--accent2)}
+.empty{color:var(--ink2);font-style:italic;font-size:13px}
+.err{background:var(--accentbg);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px;font-size:13.5px;color:var(--ink);margin-bottom:16px}
+footer{margin-top:26px;font-size:12px;color:var(--ink2);line-height:1.6}
+footer code{background:var(--panel2);border:1px solid var(--line2);border-radius:5px;padding:1px 5px;font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="crest">P</div>
+      <div>
+        <h1>PACT — Dev Status</h1>
+        <div class="sub">live glance · task board + recent decisions + recent changes</div>
+      </div>
+    </div>
+    <a class="navlink" href="../index.html">← Home</a>
+    <a class="navlink" href="roadmap.html">Full roadmap ↗</a>
+    <button class="iconbtn" id="themeBtn" title="Toggle light/dark" aria-label="Toggle light/dark theme">◐</button>
+  </header>
+
+  <div id="errbox"></div>
+
+  <div class="stats" id="stats">
+    <div class="stat now"><div class="n" id="nNow">–</div><div class="l">🔴 Now — open</div></div>
+    <div class="stat next"><div class="n" id="nNext">–</div><div class="l">🟡 Next — open</div></div>
+    <div class="stat later"><div class="n" id="nLater">–</div><div class="l">⚪ Later — ideas</div></div>
+    <div class="stat"><div class="n" id="nLast" style="font-size:16px;padding-top:5px">–</div><div class="l">Last change</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card span">
+      <h2><span class="dot now"></span>Open tasks — Now &amp; Next</h2>
+      <ul class="list" id="tasks"><li class="empty">Loading…</li></ul>
+    </div>
+    <div class="card">
+      <h2><span class="dot dec"></span>Recent decisions</h2>
+      <ul class="list" id="decisions"><li class="empty">Loading…</li></ul>
+    </div>
+    <div class="card">
+      <h2><span class="dot chg"></span>Recent changes</h2>
+      <ul class="list" id="changes"><li class="empty">Loading…</li></ul>
+    </div>
+  </div>
+
+  <footer>
+    Live view — fetches <code>docs/TASK_BOARD.md</code>, <code>CHANGELOG.md</code>, and
+    <code>DECISIONS.md</code> at load, so it never goes stale (unlike the baked-in
+    <a href="roadmap.html">roadmap.html</a>, which is the fuller Board/Timeline/Dashboard interface).
+    Open it via the served site (GitHub Pages or a local server) — a raw <code>file://</code> open can't
+    fetch the docs.
+  </footer>
+</div>
+
+<script>
+// --- theme toggle (self-contained; mirrors the tools' data-theme convention) ---
+(function(){
+  try{ var t = localStorage.getItem('pact-theme'); if(t) document.documentElement.setAttribute('data-theme', t); }catch(e){}
+  document.getElementById('themeBtn').addEventListener('click', function(){
+    var cur = document.documentElement.getAttribute('data-theme');
+    if(!cur) cur = matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+    var nxt = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', nxt);
+    try{ localStorage.setItem('pact-theme', nxt); }catch(e){}
+  });
+})();
+
+// --- helpers ---
+function stripMd(s){
+  // plain-text-ify: drop bold/italic/code markers; collapse whitespace. Text is rendered via
+  // textContent (never innerHTML), so this is cosmetic, not a security boundary.
+  return s.replace(/\*\*/g,'').replace(/`/g,'').replace(/\s+/g,' ').trim();
+}
+function li(cls, builder){ var el = document.createElement('li'); if(cls) el.className = cls; builder(el); return el; }
+function fill(id, items, emptyMsg){
+  var ul = document.getElementById(id); ul.textContent = '';
+  if(!items.length){ ul.appendChild(li('empty', function(e){ e.textContent = emptyMsg; })); return; }
+  items.forEach(function(it){ ul.appendChild(it); });
+}
+async function load(path){ var r = await fetch(path, {cache:'no-store'}); if(!r.ok) throw new Error(path+' → '+r.status); return r.text(); }
+
+// --- parsers ---
+function parseTasks(md){
+  var lines = md.split('\n'), band = null, out = {now:[], next:[], later:[]};
+  var bandRe = /^#\s+(?:🔴|🟡|⚪)\s+(NOW|NEXT|LATER)\b/;
+  for(var i=0;i<lines.length;i++){
+    var m = lines[i].match(bandRe);
+    if(m){ band = m[1].toLowerCase(); continue; }
+    if(/^#\s/.test(lines[i]) && !bandRe.test(lines[i])){ band = null; continue; } // left the bands (e.g. Conventions)
+    if(band && /^##\s+/.test(lines[i])){
+      out[band].push(stripMd(lines[i].replace(/^##\s+/,'').replace(/\s+—\s+TODO\s*$/,'')));
+    }
+  }
+  return out;
+}
+function parseChangelog(md, n){
+  var out = [], re = /^- \*\*(.+?)\*\*/;
+  md.split('\n').forEach(function(l){
+    var m = l.match(re); if(m && out.length < n) out.push(stripMd(m[1]));
+  });
+  return out;
+}
+function parseDecisions(md, n){
+  // index bullets only — the "- **D-…** — summary" lines above the first "## D-" full entry
+  var lines = md.split('\n'), out = [];
+  for(var i=0;i<lines.length;i++){
+    if(/^##\s+D-/.test(lines[i])) break;              // reached the full entries
+    var m = lines[i].match(/^- \*\*(D-[^*]+)\*\*\s+—\s+(.+)$/);
+    if(m && out.length < n){ out.push({id: m[1].trim(), sum: stripMd(m[2])}); }
+  }
+  return out;
+}
+
+// --- render ---
+function renderTasks(t){
+  document.getElementById('nNow').textContent = t.now.length;
+  document.getElementById('nNext').textContent = t.next.length;
+  document.getElementById('nLater').textContent = t.later.length;
+  var items = [];
+  t.now.forEach(function(title){ items.push(li('', function(e){
+    var b=document.createElement('span'); b.className='band-label now'; b.textContent='Now'; e.appendChild(b);
+    e.appendChild(document.createTextNode(title));
+  })); });
+  t.next.forEach(function(title){ items.push(li('', function(e){
+    var b=document.createElement('span'); b.className='band-label next'; b.textContent='Next'; e.appendChild(b);
+    e.appendChild(document.createTextNode(title));
+  })); });
+  fill('tasks', items, 'No open Now/Next tasks — the board is clear.');
+}
+function renderChanges(entries){
+  var first = entries[0] || '';
+  var dm = first.match(/^(\d{4}-\d{2}-\d{2})/);
+  document.getElementById('nLast').textContent = dm ? dm[1] : '–';
+  fill('changes', entries.map(function(txt){ return li('', function(e){ e.textContent = txt; }); }),
+    'No changelog entries found.');
+}
+function renderDecisions(list){
+  fill('decisions', list.map(function(d){ return li('', function(e){
+    var t=document.createElement('span'); t.className='tag'; t.textContent=d.id; e.appendChild(t);
+    e.appendChild(document.createElement('br'));
+    var s=document.createElement('span'); s.textContent=d.sum; e.appendChild(s);
+  }); }), 'No decisions found.');
+}
+function showError(msg){
+  document.getElementById('errbox').innerHTML = '';
+  var box=document.createElement('div'); box.className='err';
+  box.textContent = msg;
+  document.getElementById('errbox').appendChild(box);
+}
+
+(async function(){
+  try{
+    var results = await Promise.allSettled([ load('TASK_BOARD.md'), load('../DECISIONS.md'), load('../CHANGELOG.md') ]);
+    var failed = [];
+    if(results[0].status==='fulfilled') renderTasks(parseTasks(results[0].value));
+    else { failed.push('TASK_BOARD.md'); fill('tasks', [], 'Could not load TASK_BOARD.md.'); }
+    if(results[1].status==='fulfilled') renderDecisions(parseDecisions(results[1].value, 7));
+    else { failed.push('DECISIONS.md'); fill('decisions', [], 'Could not load DECISIONS.md.'); }
+    if(results[2].status==='fulfilled') renderChanges(parseChangelog(results[2].value, 7));
+    else { failed.push('CHANGELOG.md'); fill('changes', [], 'Could not load CHANGELOG.md.'); }
+    if(failed.length) showError('Could not fetch: ' + failed.join(', ') +
+      '. If you opened this file directly (file://), serve it via GitHub Pages or a local server instead.');
+  }catch(e){
+    showError('Failed to load status docs (' + e.message + '). Serve this page over http(s), not file://.');
+  }
+})();
+</script>
+</body>
+</html>
