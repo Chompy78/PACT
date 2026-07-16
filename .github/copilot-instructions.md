@@ -13,7 +13,7 @@ Hosted on GitHub Pages at https://chompy78.github.io/PACT/ (served from the `mai
 - Keep the three `tools/*.html` working and their UI unchanged unless the task says to change it.
 - Vanilla JS only. No frameworks, bundlers, TypeScript, or npm dependencies.
 - GitHub Pages only — no server-side code. Service-worker scope and manifest `start_url` must be `/PACT/`.
-- Regression gate: after any change, `testing/tests/engine-parity.html` must report **5 passed / 0 failed**.
+- Regression gate: after any change, `testing/tests/engine-parity.html` must report **20 passed / 0 failed**.
 - Log as you go: update `CHANGELOG.md` (what), `DECISIONS.md` (why), and graduate finished items out of
   `docs/TASK_BOARD.md` into `CHANGELOG.md`.
 - `docs/TASK_BOARD.md` has a single writer — don't append to it directly; output new items for the
