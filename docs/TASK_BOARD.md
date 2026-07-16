@@ -122,7 +122,6 @@ isn't obvious from the diff alone.
 **Landing-page follow-ups** (deferred from the redesign):
 - Extend theming to the guide and tools (index-only today).
 - "Continue / recent characters" on the landing page (needs the tools' save format).
-- iOS "Add to Home Screen" hint (no `beforeinstallprompt` on iOS Safari).
 
 **Supporting reference tasks** (run when needed):
 - Supabase project setup · Icon & asset list (192/512/180) · Offline UX spec · Future-features roadmap.

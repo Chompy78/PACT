@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · feat(index) — dismissible "Add to Home Screen" hint for iOS Safari**.
+  `beforeinstallprompt` never fires on iOS Safari, so the existing "Install app" button (Chromium/
+  Android/desktop only) never appeared there and iOS visitors had no install path at all. Added a
+  `.ios-hint` bottom bar shown only via a genuine feature-detect (`'standalone' in navigator` — a
+  nonstandard property only iOS Safari defines, not UA-sniffing per H-015), hidden again if already
+  installed (`navigator.standalone === true` or `display-mode: standalone`). Dismissible; remembers
+  dismissal in `localStorage` so it doesn't nag every visit. Verified in a real (spoofed-UA) browser:
+  shows for iOS-not-installed, stays hidden for already-installed and non-iOS, dismiss removes it and
+  persists across reload, no console errors in any case. See `DECISIONS.md`
+  D-GH-2026-07-16-ios-install-hint.
+
 - **2026-07-16 · chore(ci) — static check: SECURITY DEFINER functions must set search_path with pg_temp**.
   Adds `check_sql_security_definer_search_path()` to `testing/scripts/audit.py`, making yesterday's
   retroactive `pg_temp` hardening (D-GH-2026-07-16-harden-search-path-pg-temp) durable — a future
