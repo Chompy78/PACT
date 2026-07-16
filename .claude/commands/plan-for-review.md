@@ -46,7 +46,7 @@ Look in `docs/plans/` for a prior plan that overlaps this one (same feature/area
 
 ## Step 3 — do the actual planning
 
-Research whatever the plan touches (read the relevant files; check `AGENTS.md` / `docs/PACT_ROADMAP.md` /
+Research whatever the plan touches (read the relevant files; check `AGENTS.md` / `docs/TASK_BOARD.md` /
 `DECISIONS.md` for constraints that apply) and work out a real plan, not a placeholder. Think through:
 - the concrete goal, and how you'd know it's done
 - the proposed approach, broken into ordered steps, naming concrete files/functions/symbols where you

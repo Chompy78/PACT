@@ -19,7 +19,7 @@
   drift from `js/engine.js` even though both now go through the same bridge (D-GH36/D-GH37),
   because the drift risk here is envelope-shape, not computation. DM Console's cloud/campaign
   features (sign-in, award AP, campaign rules) are NOT exercised — they need a live Supabase
-  session/roster, not just the CDN stub — see docs/PACT_ROADMAP.md for that as future work.
+  session/roster, not just the CDN stub — see docs/TASK_BOARD.md for that as future work.
 
   ---- The oracle (why this can catch more than "the DOM agrees with itself") ----
   Every tool bridges the SAME js/engine.js onto `window`, so a naive check like "the displayed

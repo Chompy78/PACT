@@ -8,17 +8,17 @@ On GitHub Pages at https://chompy78.github.io/PACT/ (served from the `main` bran
 is staging and promotes into `main`).
 
 ## Active Priorities
-<!-- Lets an agent start from current focus WITHOUT reading docs/PACT_ROADMAP.md; cached, so ~free after
+<!-- Lets an agent start from current focus WITHOUT reading docs/TASK_BOARD.md; cached, so ~free after
      turn one. Keep it short, refresh when focus shifts, prune when stale (stale is worse than empty). The
      roadmap stays the single writer of the full task list — this is a pointer to it, not a second copy. -->
 
 - **Current focus:** the 🔴 NOW section is currently empty — the last NOW item, the full engine
   module-bridge migration across all three tools, graduated to `CHANGELOG.md` on 2026-07-10. See
-  `docs/PACT_ROADMAP.md` 🟡 NEXT for open work. (The Live Sheet `undo()` correctness bug closed as
+  `docs/TASK_BOARD.md` 🟡 NEXT for open work. (The Live Sheet `undo()` correctness bug closed as
   D-GH30: `undo()` itself was already correct; the real defect was a display divergence, fixed
   display-only. The deferred long-term question — whether `js/engine.js` should grow a
   frozen-ledger-aware remaining-AP export — is now a NEXT item, `feat/ap-model-reconcile`, in
-  `docs/PACT_ROADMAP.md`.)
+  `docs/TASK_BOARD.md`.)
 - **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); CharGen's still-local
   `MUT` inside its import-fold path (`_lsImportFold`/`buildToLiveLog` — see Architecture below; the rest of
   `DATA`/`compute`/`baseBuild`/`MUT`/`activeEvents`/`economy`/`foldBuild` are live imports in all three
@@ -190,11 +190,11 @@ Before finishing a task / opening a PR, update what applies (newest on top):
 - **`CHANGELOG.md`** — *what* changed, one line.
 - **`DECISIONS.md`** — *why*, on any architectural/process choice (Context → Options → Decision → Why → Status).
 - **`docs/sessions/<date>-<topic>.md`** — the discussion, when it's worth keeping.
-- **Graduate:** when a `docs/PACT_ROADMAP.md` task is DONE, MOVE it into `CHANGELOG.md` in the same change —
+- **Graduate:** when a `docs/TASK_BOARD.md` task is DONE, MOVE it into `CHANGELOG.md` in the same change —
   the roadmap holds only open work.
 
 ## Multiple sessions
-More than one agent may be active. **`docs/PACT_ROADMAP.md` has a single writer** — don't append to it.
+More than one agent may be active. **`docs/TASK_BOARD.md` has a single writer** — don't append to it.
 If you have new roadmap items, output them in **this exact format** for the human to fold in, then carry on:
 
 **`D-GH-<date>-<slug>` numbering (see D-GH49).** The old sequential `D-GH<N>` scheme is retired — it
@@ -238,7 +238,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task`
   root — `manifest.json`, `service-worker.js`, `404.html`; `sql/` — `schema.sql`, `rls-policies.sql`, `migrations/`.
 - **Testing:** run `testing/tests/engine-parity.html` (expect **20/0**); fixtures in `testing/fixtures/`,
   expected output in `testing/expected/` (see `testing/README.md`).
-- **Docs:** `docs/PACT_ROADMAP.md` (open work) · `docs/HOW-TO-WORK.md` (app/test mechanics) ·
+- **Docs:** `docs/TASK_BOARD.md` (open work) · `docs/HOW-TO-WORK.md` (app/test mechanics) ·
   `docs/SKILLS.md` (skills + workflow, human-readable) · `docs/sessions/` ·
   `docs/history/` (archived, non-authoritative).
 - **Data rule:** the DB stores only raw character data (`characters.stats`) — the engine derives the rest

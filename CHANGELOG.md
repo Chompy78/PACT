@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · refactor(docs) — renamed `docs/PACT_ROADMAP.md` → `docs/TASK_BOARD.md`, content
+  unchanged** (aligns the filename with the cross-project AI-workflow standard; the open-task list, its
+  🔴🟡🟢 bands, and `Done when` format are identical). Updated every live pointer — `docs/roadmap.html`
+  footer label, `AGENTS.md`, `.github/copilot-instructions.md`, `.github/pull_request_template.md`,
+  `docs/HOW-TO-WORK.md`, `docs/SKILLS.md`, all five `.claude/commands/*.md`, and the forward-pointer
+  comment in `testing/scripts/random-manual-e2e.mjs`. Historical records (`DECISIONS.md`, past changelog
+  lines, `docs/sessions/*`, `docs/plans/*`) intentionally left naming the file as it was called then, so
+  the trail stays traceable. `roadmap.html` (the visual page), the `/add-roadmap-task` command, and other
+  "roadmap" wording are unchanged — file rename only, not a concept rebrand.
+
 - **2026-07-16 · chore(tools) — unify the duplicated "AP-vs-threshold → level" scan into one shared
   `levelForThreshold()` helper** (`js/ui-helpers.js` + `tools/PACT-CharGen-Webtool.html`,
   `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`; no engine/`DATA.version` change). The

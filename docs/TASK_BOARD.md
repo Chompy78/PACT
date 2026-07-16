@@ -1,4 +1,4 @@
-# PACT — Roadmap
+# PACT — Task Board
 
 > Written for agentic assistants (VS Code Copilot & Claude Code). With `AGENTS.md` committed, you don't
 > repeat project context — **paste one task at a time**, review the diff, accept. Each task ends with a
@@ -10,7 +10,7 @@
 > 3. One task per branch. The open git branch is the "in flight" signal.
 >
 > **`REV-NN` items** come from the 2026-06-29 code review. Full evidence, code, and acceptance criteria
-> live in **`docs/PACT-Code-Review-2026-06-29.md`** — commit that file alongside this roadmap so the
+> live in **`docs/PACT-Code-Review-2026-06-29.md`** — commit that file alongside this task board so the
 > pointers resolve. Findings are filed by severity: HIGH → Now, MEDIUM → Next, LOW → Later.
 
 Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page redesign, PHB data,
@@ -115,18 +115,18 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 
 ---
 
-## Rename docs/PACT_ROADMAP.md + DECISIONS.md to a new naming convention — TODO
+## Rename docs/TASK_BOARD.md + DECISIONS.md to a new naming convention — TODO
 Branch docs/rename-roadmap-decisions-files. Rename the two core process files per a naming convention the user will specify at implementation time, then sweep every reference across the repo so no skill or doc points at a stale path.
 
 ```text
-1. BLOCKED on the user supplying the exact target filenames for docs/PACT_ROADMAP.md and DECISIONS.md
+1. BLOCKED on the user supplying the exact target filenames for docs/TASK_BOARD.md and DECISIONS.md
    before any renaming starts — do not guess. Confirm both names explicitly at the start of this task.
 
 2. High blast radius — both files are hard-referenced by name (not just linked) in:
    - AGENTS.md itself (roadmap bucket rules, "Multiple sessions" single-writer note, D-GH numbering
      section, per-change checklist)
    - Every skill in .claude/commands/: add-roadmap-task.md, pick-task.md, run-task.md, close-session.md,
-     plan-for-review.md, cleanup-branches.md, log-ai-lessons.md — several read/write PACT_ROADMAP.md or
+     plan-for-review.md, cleanup-branches.md, log-ai-lessons.md — several read/write TASK_BOARD.md or
      DECISIONS.md as their literal file target, not just mention them
    - docs/SKILLS.md, docs/HOW-TO-WORK.md, CHANGELOG.md, docs/roadmap.html's footer, docs/sessions/*.md
    Grep the whole repo for both exact filenames before touching anything, and treat the count as the
@@ -146,7 +146,7 @@ Branch docs/rename-roadmap-decisions-files. Rename the two core process files pe
    since "why these got renamed" won't be obvious from the diff alone.
 ```
 
-**Done when:** docs/PACT_ROADMAP.md and DECISIONS.md exist under their new agreed names with history preserved via `git mv`; every skill/doc reference across the repo points at the new paths (verified by a repo-wide grep for the old names returning only historical CHANGELOG/session-log mentions); testing/tests/engine-parity.html still 20/0.
+**Done when:** docs/TASK_BOARD.md and DECISIONS.md exist under their new agreed names with history preserved via `git mv`; every skill/doc reference across the repo points at the new paths (verified by a repo-wide grep for the old names returning only historical CHANGELOG/session-log mentions); testing/tests/engine-parity.html still 20/0.
 
 ---
 

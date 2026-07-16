@@ -65,7 +65,7 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 ## Skill reference
 
 - **`/add-roadmap-task`** — Formats a feature/change/bug into PACT's house task format and adds it to
-  `docs/PACT_ROADMAP.md`. Use it to capture work without derailing what you're doing. (The roadmap has a
+  `docs/TASK_BOARD.md`. Use it to capture work without derailing what you're doing. (The roadmap has a
   single writer; this is the sanctioned way to add.)
 
 - **`/pick-task`** — Fetches live roadmap state, picks the next task, and pre-flights it (reads what's
@@ -99,5 +99,5 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 - **`AGENTS.md`** — the standing instructions Claude reads every session (architecture, hard rules, the
   Agent-guidance rubric that says *when* to reach for cold review, and the current Active Priorities).
 - **`docs/HOW-TO-WORK.md`** — how to run/preview the app, the parity gate, fixtures, the per-task loop.
-- **`docs/PACT_ROADMAP.md`** — the open task list. · **`CHANGELOG.md`** / **`DECISIONS.md`** — what / why.
+- **`docs/TASK_BOARD.md`** — the open task list. · **`CHANGELOG.md`** / **`DECISIONS.md`** — what / why.
 - The individual `.claude/commands/*.md` files — the exact steps each skill executes.

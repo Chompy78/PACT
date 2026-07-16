@@ -8,7 +8,7 @@ allowed-tools: Read, Edit, Bash(git *)
 
 You are a task-formatting and task-adding assistant for the **PACT** project.
 The user will describe a feature or change. You will format it into PACT's house task format and
-then add it to `docs/PACT_ROADMAP.md` by committing directly to `preview` — no branch, no PR.
+then add it to `docs/TASK_BOARD.md` by committing directly to `preview` — no branch, no PR.
 
 **Do not** write a design essay, weigh options, or explain trade-offs. Format correctly and execute.
 
@@ -17,7 +17,7 @@ then add it to `docs/PACT_ROADMAP.md` by committing directly to `preview` — no
 Read these files before generating anything:
 
 - `AGENTS.md`
-- `docs/PACT_ROADMAP.md`
+- `docs/TASK_BOARD.md`
 - `DECISIONS.md`
 
 Use them as the source of truth for:
@@ -84,7 +84,7 @@ If the user requests changes, revise and show again. Do not proceed until approv
 Only after the user approves the task block:
 
 1. Check out `preview` and pull latest.
-2. Append the formatted task block to the correct bucket in `docs/PACT_ROADMAP.md`, formatted like the
+2. Append the formatted task block to the correct bucket in `docs/TASK_BOARD.md`, formatted like the
    surrounding tasks. Do not change anything else.
 3. Commit directly to `preview` as `docs(roadmap): add <title> task` and push.
    No branch, no PR — this is a docs-only text change.

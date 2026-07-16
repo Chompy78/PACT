@@ -34,12 +34,12 @@ sessions may have their own worktrees and branches in flight; don't touch those.
   a rebase, a merge). Check its content, not just its presence, every time this step runs.
 
 **2. Roadmap graduation**
-If a `docs/PACT_ROADMAP.md` task was completed this session, confirm it was actually moved into
+If a `docs/TASK_BOARD.md` task was completed this session, confirm it was actually moved into
 `CHANGELOG.md` in the same change, not just left checked off or forgotten in the roadmap.
 
 **3. Test gate**
 First check whether this session's changes are docs-only: `git status` and classify every touched path.
-If everything touched is under `docs/`, or is `CHANGELOG.md`, `DECISIONS.md`, or `PACT_ROADMAP.md`, skip
+If everything touched is under `docs/`, or is `CHANGELOG.md`, `DECISIONS.md`, or `TASK_BOARD.md`, skip
 the check and report: "3. Test gate — skipped, this session was docs-only." Otherwise, confirm
 `testing/tests/engine-parity.html` was run this session and passed the *current* baseline (read
 `testing/expected/expected-results.csv` — don't assume a fixed pass count). If you can't confirm it was
