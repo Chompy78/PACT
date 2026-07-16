@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · fix(dm-console) — guard `updateAuth()` against reloading the roster on every auth event**.
+  The `onAuthChange` argument-order fix earlier in this PR removed a crash that was accidentally masking
+  `updateAuth()` calling `loadCampaigns()`→`loadRoster()` unconditionally on every truthy-session auth
+  event, including hourly `TOKEN_REFRESHED` — wiping the roster table's HTML (and any in-progress
+  award-amount/note input a DM was mid-typing) for no reason. Added the same `wasSignedIn`/`nowSignedIn`
+  sign-in-transition guard `tools/PACT-CharGen-Webtool.html`'s `updateAuth` already uses, so the roster
+  only reloads on an actual sign-in, not on token housekeeping. Found by `/code-review` on this PR.
+
 - **2026-07-16 · test(advancement) — real-browser e2e verification of the advancement dials (PR #206)**.
   Drove a real signed-in DM and a real signed-in player through the full round-trip (Playwright, real
   Supabase auth/DB, no stubbing): DM Console's three Campaign Rules controls render and live-preview

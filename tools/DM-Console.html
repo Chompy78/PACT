@@ -1310,6 +1310,7 @@ document.addEventListener('campaign-ready', function () {
   var currentCampaigns = [];
   var currentCampId = null;
   var currentHouseRules = {};
+  var _dmWasSignedIn = false;
 
   // ---- Campaign Rules panel (D-GH14) ----
   var _D = (typeof DATA !== 'undefined') ? DATA : {};
@@ -1484,13 +1485,21 @@ document.addEventListener('campaign-ready', function () {
   });
 
   function updateAuth(session){
+    var wasSignedIn = _dmWasSignedIn;
+    var nowSignedIn = !!session;
+    _dmWasSignedIn = nowSignedIn;
     if(session){
       campWho.textContent = session.user.email;
       campSignInBtn.textContent = 'Sign out';
       campSignInBtn.href = '#';
       campSignInBtn.onclick = function(e){ e.preventDefault(); };
       campControls.style.display = '';
-      loadCampaigns();
+      // Supabase fires onAuthChange for every session event, incl. hourly TOKEN_REFRESHED — only
+      // reload the roster on an actual sign-in transition (matches the guard tools/PACT-CharGen-
+      // Webtool.html's updateAuth already uses for the same reason). Without this, a token refresh
+      // mid-session would re-run loadCampaigns()->loadRoster(), wiping the roster table's HTML
+      // (including any in-progress award-amount/note inputs a DM is mid-typing into) for no reason.
+      if(!wasSignedIn) loadCampaigns();
     } else {
       campWho.textContent = 'Not signed in';
       campSignInBtn.textContent = 'Sign in';

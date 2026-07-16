@@ -135,6 +135,13 @@
      `createCampaign()` either (verified by grep). A live-DB migration to a schema-qualified call is a
      bigger blast-radius decision than this browser-verification task should make unilaterally, so it's
      left as a roadmap item instead of a same-PR fix.
+  3. **Fixed (found by `/code-review`, addressed same-PR)** — finding 1's fix removed the crash that had
+     been accidentally preventing `updateAuth()` from ever reaching `loadCampaigns()` more than once, which
+     exposed a second, latent bug: `updateAuth()` called `loadCampaigns()`→`loadRoster()` unconditionally on
+     *every* truthy-session auth event, including hourly `TOKEN_REFRESHED`, wiping the roster table's HTML
+     (and any in-progress award-amount/note input a DM was mid-typing) for no reason. Added the same
+     `wasSignedIn`/`nowSignedIn` sign-in-transition guard `tools/PACT-CharGen-Webtool.html`'s `updateAuth`
+     already uses for this exact reason.
 - **Verification:** all 5 checklist steps passed (controls render + live L20 preview + preset↔field sync;
   save→reload persistence confirmed via direct SQL; Starting-tier→invite Starting-budget prefill, editable;
   a campaign-bound character and an unbound character landed at the identical AP-spend and showed
