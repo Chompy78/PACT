@@ -147,6 +147,44 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 
 ---
 
+## Shared onAuthChange(event, session) wrapper — stop the recurring argument-order bug — TODO
+Branch refactor/shared-auth-change-helper. Factor the hand-copied onAuthChange(event, session) closure
+each tool writes independently into one shared helper, since the same argument-order bug has now been
+found and fixed 3 separate times at different call sites.
+
+```text
+js/auth.js's onAuthChange(cb) calls cb(event, session) — session is the 2nd argument, not the 1st. Every
+call site across the three tools re-derives this by hand with its own inline function(event, session){...}
+closure: tools/PACT-Live-Char-Sheet.html:1576, tools/PACT-CharGen-Webtool.html:573/746/848, and
+tools/DM-Console.html:~1657 (fixed in PR #233 after the exact same bug — binding session to the event
+string instead — was already independently found and fixed in Live Sheet and CharGen at earlier points).
+Nothing structurally prevents a 5th recurrence: no shared wrapper, no lint rule, no JSDoc enforcement
+beyond a comment at each existing site.
+
+1. Add a shared helper to js/auth.js (or js/ui-helpers.js, matching where esc()/flash()/_csCopy() already
+   live per D-GH-2026-07-14-shared-ui-helpers) — e.g. onSessionChange(cb) that wraps onAuthChange and
+   calls cb(session) directly, so callers can't get the argument order wrong. Keep onAuthChange(cb) itself
+   exported unchanged for any call site that genuinely needs the raw event string (e.g. Live Sheet's
+   SIGNED_OUT-specific reset, CharGen's sign-in-transition invite redemption) — those can layer their own
+   event-based logic on top of the same underlying subscription, or the new helper can optionally forward
+   event too (design call, not prescribed here).
+2. Migrate all 5 existing call sites (Live Sheet, CharGen x3, DM Console) to the shared helper. Each site's
+   existing sign-in-transition/wasSignedIn-style guards should carry over unchanged in behavior — this is a
+   refactor, not a behavior change.
+3. Verify each tool's own auth-driven UI still updates correctly on sign-in, sign-out, and (if testable)
+   a token-refresh event, since this is display/UI wiring that engine-parity.html doesn't cover.
+4. Display/UI-only — no engine.js/DATA involvement, parity stays 20/0.
+
+Found via /code-review on PR #233 (test/advancement-tracks-e2e) — see DECISIONS.md
+D-GH-2026-07-16-advancement-tracks-e2e for the fix history this consolidates. Log this task's own decision
+as D-GH-<date>-shared-auth-change-helper if the design choice in step 1 (wrap vs. replace onAuthChange)
+isn't obvious from the diff alone.
+```
+
+**Done when:** one shared helper exists for the (event, session)-unwrapping pattern, all 5 existing call sites use it instead of their own hand-copied closure, each tool's sign-in/sign-out UI still behaves identically, and testing/tests/engine-parity.html is still 20/0.
+
+---
+
 **Low-severity review findings:**
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
   named sub-pricers. Only safe once REV-01 gives real assertions; dedicated PR, byte-identical output.
