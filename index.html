@@ -249,6 +249,7 @@
     }
     a.card:hover { border-color:var(--card-hover); }
     a.card:active { transform:translateY(1px); }
+    a.card[hidden] { display:none; }
     .card-icon { flex:0 0 auto; color:var(--accent); margin-top:1px; }
     .card-icon svg { width:22px; height:22px; display:block; }
     .card-text { min-width:0; }
@@ -311,6 +312,8 @@
       btn.textContent = 'Signed in as ' + (name || session.user?.email || 'you') + ' · Log out';
       btn.hidden = false;
       btn.onclick = async () => { await m.logout(); location.reload(); };
+      const devCard = document.getElementById('devStatusCard');
+      if (devCard) devCard.hidden = false; // signed-in-only: surface the Dev Status glance page
     }).catch(() => {});
   </script>
 </head>
@@ -412,6 +415,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
           <div class="card-text">
             <div class="t">Roadmap</div>
             <div class="d">Open work and shipped history &mdash; board, timeline, map, and more.</div>
+          </div>
+        </a>
+        <a class="card" href="docs/dev-status.html" id="devStatusCard" hidden>
+          <span class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="M8 15l3-4 3 3 4-6"></path></svg>
+          </span>
+          <div class="card-text">
+            <div class="t">Dev Status</div>
+            <div class="d">Live glance &mdash; open tasks, recent decisions, recent changes. Signed-in view.</div>
           </div>
         </a>
       </div>

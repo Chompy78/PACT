@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PACT — Dev Status</title>
 <style>
+/* Palette mirrored from docs/roadmap.html — keep the two in sync. The repo has no shared stylesheet
+   (vanilla JS, no build step); every page inlines its own CSS, so this duplication is the house pattern. */
 :root{
   --bg:#f4efe4; --bg2:#efe7d6; --panel:#fbf8f1; --panel2:#f1ead9;
   --ink:#2c2620; --ink2:#6b6153; --line:#ddd1bb; --line2:#e7ddc9;
@@ -105,6 +107,11 @@ footer code{background:var(--panel2);border:1px solid var(--line2);border-radius
 
   <div id="errbox"></div>
 
+  <div class="err" id="authGate" hidden>
+    This page is for signed-in players and DMs. <a href="../login.html">Sign in</a> to view the dev status,
+    or head <a href="../index.html">home</a>.
+  </div>
+
   <div class="stats" id="stats">
     <div class="stat now"><div class="n" id="nNow">–</div><div class="l">🔴 Now — open</div></div>
     <div class="stat next"><div class="n" id="nNext">–</div><div class="l">🟡 Next — open</div></div>
@@ -151,11 +158,10 @@ footer code{background:var(--panel2);border:1px solid var(--line2);border-radius
 
 // --- helpers ---
 function stripMd(s){
-  // plain-text-ify: drop bold/italic/code markers; collapse whitespace. Text is rendered via
-  // textContent (never innerHTML), so this is cosmetic, not a security boundary.
-  // drop ** bold and ` code markers, unescape backslash-escaped punctuation (\< \> \[ \] \( \) \_ \~),
-  // then collapse whitespace. Single-* italics are intentionally left alone: stripping them would
-  // mangle the globs these docs use (for-copilot/*.txt, docs/sessions/*).
+  // Cosmetic plain-text-ify (output always goes through textContent, never innerHTML, so this is not a
+  // security boundary): drop ** bold and ` code markers, unescape backslash-escaped punctuation
+  // (\< \> \[ \] \( \) \_ \~), then collapse whitespace. Single-* italics are intentionally LEFT as-is —
+  // stripping them would mangle the globs these docs use (for-copilot/*.txt, docs/sessions/*).
   return s.replace(/\*\*/g,'').replace(/`/g,'').replace(/\\([<>[\]()_~])/g,'$1').replace(/\s+/g,' ').trim();
 }
 function li(cls, builder){ var el = document.createElement('li'); if(cls) el.className = cls; builder(el); return el; }
@@ -171,11 +177,13 @@ function parseTasks(md){
   var lines = md.split('\n'), band = null, fence = false, out = {now:[], next:[], later:[]};
   var bandRe = /^#\s+(?:🔴|🟡|⚪)\s+(NOW|NEXT|LATER)\b/;
   for(var i=0;i<lines.length;i++){
-    if(/^```/.test(lines[i])){ fence = !fence; continue; } // skip fenced task bodies (may contain # lines)
-    if(fence) continue;
+    // A band header (emoji-prefixed, effectively impossible inside a real code fence) always wins and
+    // resets fence state — so an unclosed ``` fence in one band can't swallow the next band's header.
     var m = lines[i].match(bandRe);
-    if(m){ band = m[1].toLowerCase(); continue; }
-    if(/^#\s/.test(lines[i]) && !bandRe.test(lines[i])){ band = null; continue; } // left the bands (e.g. Conventions)
+    if(m){ band = m[1].toLowerCase(); fence = false; continue; }
+    if(/^```/.test(lines[i])){ fence = !fence; continue; } // toggle fenced task bodies (may contain # lines)
+    if(fence) continue;                                    // ...and skip their contents
+    if(/^#\s/.test(lines[i])){ band = null; continue; }    // any other H1 (e.g. Conventions) ends the bands
     if(band && /^##\s+/.test(lines[i])){
       out[band].push(stripMd(lines[i].replace(/^##\s+/,'').replace(/\s+—\s+TODO\s*$/,'')));
     }
@@ -197,10 +205,10 @@ function parseChangelog(md, n){
 function parseDecisions(md, n){
   // index bullets only — the "- **D-…** — summary" lines above the first "## D-" full entry
   var lines = md.split('\n'), out = [];
-  for(var i=0;i<lines.length;i++){
+  for(var i=0;i<lines.length && out.length<n;i++){
     if(/^##\s+D-/.test(lines[i])) break;              // reached the full entries
     var m = lines[i].match(/^- \*\*(D-[^*]+)\*\*\s+—\s+(.+)$/);
-    if(m && out.length < n){ out.push({id: m[1].trim(), sum: stripMd(m[2])}); }
+    if(m){ out.push({id: m[1].trim(), sum: stripMd(m[2])}); }
   }
   return out;
 }
@@ -242,7 +250,8 @@ function showError(msg){
   document.getElementById('errbox').appendChild(box);
 }
 
-(async function(){
+// Bootstrap is NOT auto-run — the auth-gate module below calls it only for signed-in users.
+window.__bootDevStatus = async function(){
   try{
     var results = await Promise.allSettled([ load('TASK_BOARD.md'), load('../DECISIONS.md'), load('../CHANGELOG.md') ]);
     var failed = [];
@@ -257,7 +266,27 @@ function showError(msg){
   }catch(e){
     showError('Failed to load status docs (' + e.message + '). Serve this page over http(s), not file://.');
   }
-})();
+};
+</script>
+<script type="module">
+// Visibility gate: render the dashboard only for signed-in users (players or DMs — the app has no
+// distinct account role, so "has a session" is the check). NOTE: this is a UX gate, not a security
+// boundary — TASK_BOARD.md/CHANGELOG.md/DECISIONS.md are public files on GitHub Pages, so the data is
+// readable by anyone regardless. Fail closed (show the sign-in gate) if auth can't be determined.
+function showAuthGate(){
+  var stats = document.getElementById('stats');
+  var grid = document.querySelector('.grid');
+  if(stats) stats.style.display = 'none';
+  if(grid) grid.style.display = 'none';
+  var g = document.getElementById('authGate');
+  if(g) g.hidden = false;
+}
+import('../js/auth.js').then(async function(m){
+  var session = null;
+  try{ session = await m.currentSession(); }catch(e){}
+  if(session && window.__bootDevStatus) window.__bootDevStatus();
+  else showAuthGate();
+}).catch(function(){ showAuthGate(); });
 </script>
 </body>
 </html>
