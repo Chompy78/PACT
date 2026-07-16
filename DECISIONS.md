@@ -9,6 +9,8 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-harden-search-path-pg-temp** — Hardened all 16 `SECURITY DEFINER` functions in `sql/schema.sql`/`sql/rls-policies.sql` from `search_path = public` to `search_path = public, pg_temp`, closing the classic temp-table-shadowing gap repo-wide via `ALTER FUNCTION` (not a body redeclaration, avoiding schema.sql-vs-migration drift); low real-world exploitability today (no raw-SQL/DDL path for PostgREST clients) but closing it consistently is cheap and was flagged as worth doing rather than leaving piecemeal
+
 - **D-GH-2026-07-16-sw-network-first-security-modules** — Widened `service-worker.js`'s `NETWORK_FIRST_RE` to cover `js/auth.js`/`js/supabase-client.js`/`js/sync.js`/`js/campaign.js`/`js/dm.js` (previously cache-first, same as `js/engine.js` used to be pre-REV-03) — the fetch handler's network-first path already falls back to cache offline, so this costs zero offline capability and only speeds up client-fix propagation; `CACHE_NAME` bumped `pact-v4`→`pact-v5`
 - **D-GH-2026-07-16-campaign-invite-search-path** — Fixed the `gen_random_bytes` search-path bug filed by the advancement-tracks e2e task: schema-qualified the calls (`extensions.gen_random_bytes(...)`) rather than widening `gen_invite_code()`/`create_player_invite()`'s `search_path` to include `extensions`, so these `SECURITY DEFINER` functions don't implicitly resolve anything beyond `public`; verified live via a real `INSERT INTO campaigns` and a direct call to the exact `extensions.gen_random_bytes(16)` expression `create_player_invite()` uses
 - **D-GH-2026-07-16-advancement-tracks-e2e** — Real-browser e2e verification of PR #206's advancement dials against the live (pre-launch) Supabase project; fixed DM Console's `onAuthChange` argument-order bug found along the way; filed (not fixed) a `gen_random_bytes` search-path bug that blocks campaign creation entirely, since fixing it is a bigger blast-radius call than this task's scope
@@ -102,6 +104,33 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-harden-search-path-pg-temp · pg_temp on all 16 SECURITY DEFINER functions
+- **Context:** every `SECURITY DEFINER` function in `sql/schema.sql`/`sql/rls-policies.sql` sets
+  `search_path = public` without also listing `pg_temp` — the classic gap that lets an unprivileged
+  caller create a same-named session-local temp table/function that resolves ahead of the intended
+  `public` one inside a `SECURITY DEFINER` context, a real privilege-escalation vector in general.
+- **Options:** (1) fix piecemeal, only when touching a given function for other reasons. (2) fix all 16
+  in one repo-wide pass now.
+- **Decision:** (2). Changed all 16 instances from `search_path = public` to `search_path = public,
+  pg_temp` — 11 in `sql/schema.sql`, 5 in `sql/rls-policies.sql`. Applied live via `ALTER FUNCTION ...
+  SET search_path = public, pg_temp` for each (not a full `create or replace function` body
+  redeclaration) specifically to avoid the schema.sql-vs-migration drift risk `/code-review` just found
+  and fixed in `D-GH-2026-07-16-campaign-invite-search-path` — `ALTER FUNCTION` only touches the
+  `proconfig` search_path, leaving each function's actual body (and any independent drift risk in it)
+  untouched.
+- **Why:** a partial fix across only some functions would be worse than no fix — it creates the false
+  impression the class of bug is closed repo-wide when it isn't, and the next engineer copying an
+  as-yet-unfixed function as a template would propagate the gap. Low real-world exploitability today
+  (Supabase/PostgREST clients have no raw-SQL/DDL path to create a temp table ahead of an RPC call), but
+  closing all 16 consistently is a single cheap pass, not something to defer function-by-function.
+- **Verification:** applied as migration `2026-07-16-harden-search-path-pg-temp.sql` against the live
+  project. Queried `pg_proc.proconfig` for all 16 `SECURITY DEFINER` functions in `public` — all show
+  `search_path=public, pg_temp`. Re-ran `gen_invite_code()` and `is_campaign_dm()` (a representative
+  plpgsql and a representative sql-language function) to confirm they still resolve correctly. Re-ran the
+  Supabase security advisor — identical warning set to before (all pre-existing/already-accepted), no new
+  findings. `testing/tests/engine-parity.html` (headless) still 20/0.
+- **Status:** Active.
 
 ## D-GH-2026-07-16-sw-network-first-security-modules · widen network-first, no offline cost
 - **Context:** `service-worker.js`'s `NETWORK_FIRST_RE` covered only `*.html`, `/PACT/`, and

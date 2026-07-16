@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · fix(sql) — harden `search_path` on all 16 `SECURITY DEFINER` functions with `pg_temp`**.
+  Every `SECURITY DEFINER` function in `sql/schema.sql`/`sql/rls-policies.sql` set `search_path = public`
+  without also listing `pg_temp`, leaving the classic session-local-temp-table-shadowing gap open
+  repo-wide (low real-world exploitability today — Supabase/PostgREST clients have no raw-SQL/DDL path —
+  but worth closing consistently rather than piecemeal). Changed all 16 to
+  `search_path = public, pg_temp` via `ALTER FUNCTION` (not a full body redeclaration, to avoid the
+  schema.sql-vs-migration drift risk found earlier today). Applied live and verified: all 16 functions'
+  `proconfig` now shows the new value, `gen_invite_code()`/`is_campaign_dm()` still resolve correctly,
+  Supabase security advisor unchanged (same pre-existing/accepted warnings, no new findings), parity
+  20/0. See `DECISIONS.md` D-GH-2026-07-16-harden-search-path-pg-temp.
+
 - **2026-07-16 · chore(sw) — widen network-first to cover auth/sync/campaign/dm client modules**.
   `service-worker.js`'s `NETWORK_FIRST_RE` covered only `*.html`/`/PACT/`/`js/engine.js`; `js/auth.js`,
   `js/supabase-client.js`, `js/sync.js`, `js/campaign.js`, `js/dm.js` were cache-first, so a client-side
