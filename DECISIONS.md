@@ -9,6 +9,8 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-audit-search-path-pg-temp-check** — Added a `testing/scripts/audit.py` check enforcing `pg_temp` in every SECURITY DEFINER function's search_path, making D-GH-2026-07-16-harden-search-path-pg-temp's retroactive fix durable against future regressions; also fixed `static-audit.yml`'s trigger `paths:` to include `sql/schema.sql`/`sql/rls-policies.sql`, which it never had — the whole audit workflow, not just this new check, would otherwise never run on a PR touching either SQL file
+
 - **D-GH-2026-07-16-harden-search-path-pg-temp** — Hardened all 16 `SECURITY DEFINER` functions in `sql/schema.sql`/`sql/rls-policies.sql` from `search_path = public` to `search_path = public, pg_temp`, closing the classic temp-table-shadowing gap repo-wide via `ALTER FUNCTION` (not a body redeclaration, avoiding schema.sql-vs-migration drift); low real-world exploitability today (no raw-SQL/DDL path for PostgREST clients) but closing it consistently is cheap and was flagged as worth doing rather than leaving piecemeal
 
 - **D-GH-2026-07-16-sw-network-first-security-modules** — Widened `service-worker.js`'s `NETWORK_FIRST_RE` to cover `js/auth.js`/`js/supabase-client.js`/`js/sync.js`/`js/campaign.js`/`js/dm.js` (previously cache-first, same as `js/engine.js` used to be pre-REV-03) — the fetch handler's network-first path already falls back to cache offline, so this costs zero offline capability and only speeds up client-fix propagation; `CACHE_NAME` bumped `pact-v4`→`pact-v5`
@@ -104,6 +106,30 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-audit-search-path-pg-temp-check · a static check + a dormant CI trigger gap
+- **Context:** `/code-review` on the `pg_temp` hardening PR flagged that the fix was purely retroactive
+  — nothing in CI would catch a future `SECURITY DEFINER` function missing `pg_temp`.
+- **Options:** (1) a new, separate CI workflow/script just for this one check. (2) add a check function
+  to the existing `testing/scripts/audit.py` (AUD-1's general static health check, already wired into
+  `static-audit.yml`).
+- **Decision:** (2). One new function, `check_sql_security_definer_search_path()`, added alongside
+  `audit.py`'s existing checks and called from `main()`.
+- **Why:** `audit.py` is already the repo's one place for "is the system still healthy?" static checks,
+  stdlib-only, seconds to run, already CI-wired — a second parallel script/workflow for one more grep-
+  shaped check would just duplicate that infrastructure.
+- **A real gap found along the way:** `static-audit.yml`'s trigger `paths:` list never included
+  `sql/schema.sql` or `sql/rls-policies.sql` — meaning the entire static-audit workflow (not just this
+  new check) has never actually run on any PR that only touches SQL files, including both of today's
+  earlier `sql/` PRs in this session. Fixed by adding both files to the trigger list.
+- **A false-positive caught before landing:** the check's first draft matched `"security definer"`
+  anywhere in a line, which also matched `-- ... SECURITY DEFINER ...` doc comments (e.g.
+  `sql/rls-policies.sql`'s section-header comments), producing 9 false FAILs with no real function
+  behind them. Fixed by skipping lines starting with `--` before the substring check.
+- **Verification:** ran clean (27 passed / 0 failed) against current state; reverted one function's
+  `pg_temp` clause to confirm the check actually fails (`sql/schema.sql:88 — search_path = public
+  (missing pg_temp)`), then restored it and re-confirmed clean.
+- **Status:** Active.
 
 ## D-GH-2026-07-16-harden-search-path-pg-temp · pg_temp on all 16 SECURITY DEFINER functions
 - **Context:** every `SECURITY DEFINER` function in `sql/schema.sql`/`sql/rls-policies.sql` sets
