@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-dev-status-page** — Added `docs/dev-status.html`, a lightweight glance dashboard (open Now/Next tasks + last 7 decisions + last 7 changelog entries) distinct from the fuller `roadmap.html`. Chose **runtime fetch** of `TASK_BOARD.md`/`CHANGELOG.md`/`DECISIONS.md` (never stale, zero regeneration) over `roadmap.html`'s baked-in snapshot — a glance page's whole value is being current, and light line-parsing needs no MD library; graceful fallback message when opened via `file://` (fetch blocked). All fetched text renders via `textContent`, never `innerHTML`, honouring the repo's escaping invariant. **Gated to signed-in users** (players or DMs — the app has no distinct account role, so "has a session" is the check): the index.html card is hidden until sign-in, and the page itself fails closed to a sign-in prompt without a session — but this is a **UX/visibility gate, not a security boundary**, since the three docs are public files on GitHub Pages. Verified headless (Playwright): correct counts (Now 0/Next 1/Later 3), signed-out gate hides the dashboard, parsers regression-free
 - **D-GH-2026-07-16-close-session-auto-log** — Expanded `/close-session` from report-only to a skill that *writes* the session's `CHANGELOG`/`DECISIONS`/session-note and graduates finished tasks, then *proposes* a ready commit (still never stages, commits, pushes, or deletes). Two deliberate design calls: (a) the repo's single-writer rule beats the reconciliation doc's "log new open tasks onto the board" — the skill only *removes* finished items from `TASK_BOARD.md`; newly-discovered tasks are output in house format for the human; (b) propose-don't-stage — in a shared checkout, running `git add` risks sweeping in another session's changes, so the skill prints a ready `git add <named files>` + `git commit` block and keeps `git add`/`commit`/`push` disallowed
 - **D-GH-2026-07-16-agents-workflow-reconcile** — Reconciled this repo's agent-workflow files against the cross-project AI-workflow standard: renamed `PACT_ROADMAP.md`→`TASK_BOARD.md` (file+pointers only, not a "roadmap" rebrand), and added three tool-agnostic discipline rules + a Microsoft 365 Copilot section to `AGENTS.md`. Most of the standard was already met here (canonical `AGENTS.md`, `DECISIONS.md` Context→Options→Decision→Why→Status, `docs/sessions/`, NOW/NEXT/LATER bands, a git-aware close-session) — only the genuinely-missing pieces were adopted; the standard's Dropbox-specific archive/retention rules were deliberately excluded (git already solves that)
 - **D-GH-2026-07-16-unify-level-lookup-helper** — Extracted the triplicated "highest level whose threshold ≤ value" scan into one `levelForThreshold(value, thresholdAt)` in `js/ui-helpers.js` (the settled shared-helpers home per D-GH-2026-07-14, **not** `js/engine.js` — keeps the engine API untouched and the scan is display-only, not rules); each tool keeps its thin `apLevel`/`trackLevel` wrapper passing its own threshold source, so CharGen's fixed-ladder concept stays distinct from the tools' tuned advancement curve (only the loop is shared, not the threshold) and `_levelCurve()` curve-resolution stays tool-local (out of scope); verified behaviour-identical (147/147 old-vs-new + browser-confirmed)
@@ -98,6 +99,39 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-dev-status-page · a live-fetch glance dashboard, distinct from the baked-in roadmap.html
+- **Context:** the reconciliation asked for a quick-glance human-status page (current tasks + recent
+  decisions + recent changes). `docs/roadmap.html` already renders the fuller Board/Timeline/Dashboard
+  views, but from a **baked-in** `const ITEMS` snapshot that must be hand-regenerated when it drifts.
+- **Options:** (1) skip it — `roadmap.html` is close enough. (2) A second baked-in snapshot page (same
+  regeneration burden). (3) A lightweight page that **fetches** the source docs at load and light-parses
+  them.
+- **Decision:** option 3 — `docs/dev-status.html`: fetches `TASK_BOARD.md` (same dir), `../CHANGELOG.md`,
+  `../DECISIONS.md`; parses band headers + `##` task titles, the top-N `- **…**` changelog bullets, and the
+  top-N `- **D-…**` index bullets; renders a stat strip + three cards. Reuses `roadmap.html`'s exact
+  CSS-variable palette (light + dark). Distinct from `roadmap.html`, not a replacement — it links to it.
+- **Why:** a glance page's entire value is being *current*; a baked-in snapshot defeats that and adds a
+  regeneration chore. Line-parsing three well-structured docs needs no Markdown library (keeps the
+  vanilla-JS/no-build rule). The only cost is that `file://` opens can't fetch — handled with a clear
+  fallback message pointing at the served site. Divergence from `roadmap.html`'s baked-in approach is
+  deliberate and documented here so a future agent doesn't "fix" the inconsistency by mistake.
+- **Consequence:** all fetched text is rendered via `textContent` (never `innerHTML`), satisfying the
+  repo's hard escaping invariant even though the sources are trusted repo docs. If the docs' heading
+  conventions change (band emoji, `— TODO` suffix, index-bullet shape), the parser's regexes need updating.
+- **Access:** gated to signed-in users. `index.html`'s existing auth module unhides a "Dev Status" card
+  only when `currentSession()` returns a session; the page itself imports `../js/auth.js`, runs its
+  bootstrap only for a signed-in user, and **fails closed** to a "sign in" prompt otherwise (including when
+  the Supabase client can't load, e.g. offline). This is deliberately a **visibility/UX gate, not a
+  security control** — `TASK_BOARD.md`/`CHANGELOG.md`/`DECISIONS.md` are public on GitHub Pages, so the raw
+  data is readable by anyone with the URL regardless. There is no per-account "player vs DM" role in this
+  app (DM-ness is per-campaign), so "any signed-in user" is the honest scope, covering both.
+- **Verification:** headless Playwright render against a local static server — stat counts matched the
+  source (Now 0 / Next 1 / Later 3), 7 decisions + 7 changelog entries populated, signed-out state shows
+  the gate with the dashboard hidden, and a direct bootstrap call confirmed the parsers still render
+  correctly after the fence-reorder/early-break cleanup.
+- **See also:** D-GH-2026-07-16-agents-workflow-reconcile; `docs/roadmap.html` (the fuller, baked-in view).
+- **Status:** Active.
 
 ## D-GH-2026-07-16-close-session-auto-log · close-session writes docs + proposes a commit, but never stages/commits
 - **Context:** the cross-project AI-workflow standard's `close-session` step actively logs decisions/changes
