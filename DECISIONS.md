@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-close-session-auto-log** — Expanded `/close-session` from report-only to a skill that *writes* the session's `CHANGELOG`/`DECISIONS`/session-note and graduates finished tasks, then *proposes* a ready commit (still never stages, commits, pushes, or deletes). Two deliberate design calls: (a) the repo's single-writer rule beats the reconciliation doc's "log new open tasks onto the board" — the skill only *removes* finished items from `TASK_BOARD.md`; newly-discovered tasks are output in house format for the human; (b) propose-don't-stage — in a shared checkout, running `git add` risks sweeping in another session's changes, so the skill prints a ready `git add <named files>` + `git commit` block and keeps `git add`/`commit`/`push` disallowed
 - **D-GH-2026-07-16-agents-workflow-reconcile** — Reconciled this repo's agent-workflow files against the cross-project AI-workflow standard: renamed `PACT_ROADMAP.md`→`TASK_BOARD.md` (file+pointers only, not a "roadmap" rebrand), and added three tool-agnostic discipline rules + a Microsoft 365 Copilot section to `AGENTS.md`. Most of the standard was already met here (canonical `AGENTS.md`, `DECISIONS.md` Context→Options→Decision→Why→Status, `docs/sessions/`, NOW/NEXT/LATER bands, a git-aware close-session) — only the genuinely-missing pieces were adopted; the standard's Dropbox-specific archive/retention rules were deliberately excluded (git already solves that)
 - **D-GH-2026-07-16-unify-level-lookup-helper** — Extracted the triplicated "highest level whose threshold ≤ value" scan into one `levelForThreshold(value, thresholdAt)` in `js/ui-helpers.js` (the settled shared-helpers home per D-GH-2026-07-14, **not** `js/engine.js` — keeps the engine API untouched and the scan is display-only, not rules); each tool keeps its thin `apLevel`/`trackLevel` wrapper passing its own threshold source, so CharGen's fixed-ladder concept stays distinct from the tools' tuned advancement curve (only the loop is shared, not the threshold) and `_levelCurve()` curve-resolution stays tool-local (out of scope); verified behaviour-identical (147/147 old-vs-new + browser-confirmed)
 - **D-GH-2026-07-15-tools-home-nav-cleanup** — Added a consistent "← Home" header link to all three tools and `aria-label`s to the icon-only buttons, but removed **zero** toolbar buttons despite the roadmap task asking to "consolidate/reduce" — the audit found the desktop vs. mobile toolbars are responsive-exclusive (swapped by a media query, never both visible), not duplicated, so any removal would drop reachable functionality on one form factor
@@ -97,6 +98,35 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-close-session-auto-log · close-session writes docs + proposes a commit, but never stages/commits
+- **Context:** the cross-project AI-workflow standard's `close-session` step actively logs decisions/changes
+  and proposes (but doesn't run) a commit. This repo's `/close-session` was **report-only** — it inspected
+  the tree and told the human what to write/commit, editing nothing. The reconciliation asked to bring it up
+  to the standard's "log + propose-commit" behaviour.
+- **Options:** (1) keep it report-only (safe, but the human re-does the logging the skill already worked
+  out). (2) Let it write the docs itself and *also* stage + commit. (3) Let it write the docs itself, but
+  only *propose* a ready commit — never stage or commit.
+- **Decision:** option 3, plus a carve-out on task-board writes. The skill now writes `CHANGELOG.md`, a
+  `DECISIONS.md` entry when warranted, and a `docs/sessions/` note when its criteria fire, and **graduates**
+  (removes) finished items from `TASK_BOARD.md`. It then prints a ready-to-run `git add <named files>` +
+  `git commit` block and stops. `git add`, `git commit`, and `git push` stay in the skill's
+  `disallowed-tools`.
+- **Why:** two failure modes drove the shape. (a) **Single-writer rule beats the doc.** The standard says
+  "log new open tasks onto the board," but `AGENTS.md` makes `TASK_BOARD.md` single-writer to stop
+  concurrent sessions racing on it — so the skill may only *remove* finished items; new tasks it discovered
+  are output in the house `## <title> — TODO` format for the human to fold in. (b) **Propose, don't stage.**
+  This repo is explicitly multi-session/shared-checkout aware; a skill running `git add` could sweep in
+  another session's in-flight changes, and a skill running `git commit` removes the human's read-the-diff
+  gate. Printing the exact command keeps both the index and the commit boundary under human control while
+  still delivering the standard's "propose a commit" value.
+- **Consequence:** `docs/SKILLS.md`'s two "report-only" descriptions of `/close-session` were updated to
+  match; the skill's frontmatter `description` and `allowed`/`disallowed-tools` changed (gains `Edit`,
+  `Write`, `git diff`; keeps `git add`/`commit`/`push`/`merge`/`rebase`/`reset`/branch-delete/worktree
+  disallowed).
+- **See also:** D-GH-2026-07-16-agents-workflow-reconcile (the same reconciliation pass); `AGENTS.md`
+  *Multiple sessions* (the single-writer rule).
+- **Status:** Active.
 
 ## D-GH-2026-07-16-agents-workflow-reconcile · align file names/rules with the cross-project standard, keep what's already better
 - **Context:** the human's cross-project AI-workflow standard (used across several repos, and originally

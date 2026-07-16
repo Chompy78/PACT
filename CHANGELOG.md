@@ -4,6 +4,13 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · feat(tooling) — `/close-session` now logs docs + proposes a commit (was report-only)**. The
+  skill writes the session's `CHANGELOG`/`DECISIONS`/session-note and graduates finished tasks out of
+  `TASK_BOARD.md`, then prints a ready-to-run `git add`/`git commit` block — it still never stages, commits,
+  pushes, merges, or deletes (those stay `disallowed-tools`). Keeps the single-writer rule: it only removes
+  finished tasks, never appends new ones. Updated `docs/SKILLS.md`'s descriptions to match. See `DECISIONS.md`
+  D-GH-2026-07-16-close-session-auto-log. Tooling/docs only — no engine or `DATA.version` change.
+
 - **2026-07-16 · docs(agents) — reconcile agent-workflow rules with the cross-project standard**. Added an
   `AGENTS.md` **Working discipline** section (files/shipped-artifact win over chat; `git status`/`git diff`
   before a structural edit; edit-don't-regenerate; verify-before-writing-an-absence-claim) and a **Microsoft

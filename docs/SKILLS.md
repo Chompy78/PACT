@@ -26,7 +26,7 @@ Most work follows this spine. Skills slot in at each step; not every step needs 
 | 3a. (Big/risky only) | Draft a self-contained plan → paste to M365 Copilot → triage critique | `/plan-for-review` |
 | 4. Do the work | Worktree, edit, run the parity gate, self-review, log, commit, PR | `/run-task` |
 | 5. Review the diff | Adversarial pass over the change before merge | `/code-review` |
-| 6. Wrap up | Report-only check: docs, tests, tree, worktrees, sync | `/close-session` |
+| 6. Wrap up | Writes the session's docs, graduates finished tasks, proposes a ready commit | `/close-session` |
 | (Housekeeping) | Prune merged branches/worktrees; mine the session for reusable lessons | `/cleanup-branches`, `/log-ai-lessons` |
 
 **The gate rule (step 3):**
@@ -83,8 +83,10 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 - **`/code-review`** — Reviews the current diff for correctness bugs and cleanups before merge.
   `/code-review ultra` runs a deeper multi-agent cloud review (billed; you trigger it, not the agent).
 
-- **`/close-session`** — A **report-only** wrap-up check: are docs updated, tests passing, working tree
-  clean, worktrees tidied, everything synced? It tells you what's outstanding; it doesn't change anything.
+- **`/close-session`** — Wrap-up that **writes** the session's `CHANGELOG`/`DECISIONS`/session-note,
+  graduates finished tasks out of `TASK_BOARD.md`, verifies tests/tree/worktrees/sync, then **proposes a
+  ready-to-run commit** for you to review. It never stages, commits, pushes, merges, or deletes — every
+  side-effect past the doc-writes waits for your explicit go.
 
 - **`/cleanup-branches`** — Scans for merged/orphaned branches and worktrees and deletes only what you
   approve. Housekeeping between tasks.
