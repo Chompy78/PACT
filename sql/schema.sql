@@ -25,6 +25,10 @@
 -- Extensions
 -- ---------------------------------------------------------------------------
 create extension if not exists pgcrypto;   -- gen_random_uuid()
+-- Assumes pgcrypto lands in the `extensions` schema (Supabase's default placement for
+-- pre-provisioned projects, not guaranteed by this statement alone) -- see the
+-- extensions.gen_random_bytes(...) call sites below and D-GH-2026-07-16-campaign-invite-search-path.
+-- Supabase-only backend per AGENTS.md, so this is an accepted environment assumption, not a gap to fix.
 
 -- ---------------------------------------------------------------------------
 -- updated_at helper
@@ -43,14 +47,14 @@ $$;
 -- is a plain PRNG not fit for anything that acts as a shared secret (REV-07).
 -- ---------------------------------------------------------------------------
 create or replace function public.gen_invite_code()
-returns text language plpgsql as $$
+returns text language plpgsql set search_path = public as $$
 declare
   alphabet constant text := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   code text;
   raw  bytea;
 begin
   loop
-    raw := gen_random_bytes(6);
+    raw := extensions.gen_random_bytes(6);
     code := '';
     for i in 0..5 loop
       code := code || substr(alphabet, 1 + (get_byte(raw, i) % 36), 1);
@@ -81,7 +85,7 @@ create trigger trg_profiles_updated_at
 
 -- Auto-create a profile when a new auth user signs up.
 create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer set search_path = public as $$
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   insert into public.profiles (id, display_name)
   values (new.id, new.raw_user_meta_data->>'display_name')
@@ -134,7 +138,7 @@ create table if not exists public.campaign_dms (
 create index if not exists idx_campaign_dms_dm on public.campaign_dms(dm_id);
 
 create or replace function public.add_owner_as_dm()
-returns trigger language plpgsql security definer set search_path = public as $$
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   insert into public.campaign_dms (campaign_id, dm_id, added_by)
   values (new.id, new.dm_id, new.dm_id)
@@ -215,7 +219,7 @@ $$;
 -- even within one campaign). Campaigns have no player cap.
 -- ---------------------------------------------------------------------------
 create or replace function public.join_campaign(p_code text)
-returns uuid language plpgsql security definer set search_path = public as $$
+returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_campaign campaigns%rowtype;
   v_char_id  uuid;
@@ -246,7 +250,7 @@ $$;
 -- join_as_dm(code) — become a co-DM via the campaign's DM invite code.
 -- ---------------------------------------------------------------------------
 create or replace function public.join_as_dm(p_code text)
-returns uuid language plpgsql security definer set search_path = public as $$
+returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_campaign campaigns%rowtype;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
@@ -264,7 +268,7 @@ $$;
 -- removed. is_campaign_owner() is defined in rls-policies.sql.
 -- ---------------------------------------------------------------------------
 create or replace function public.promote_to_dm(p_campaign uuid, p_profile uuid)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if not is_campaign_owner(p_campaign) then
     raise exception 'Only the campaign owner can add co-DMs';
@@ -276,7 +280,7 @@ end;
 $$;
 
 create or replace function public.remove_dm(p_campaign uuid, p_profile uuid)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if not is_campaign_owner(p_campaign) then
     raise exception 'Only the campaign owner can remove co-DMs';
@@ -293,7 +297,7 @@ $$;
 -- old code. is_campaign_dm() is defined in rls-policies.sql.
 -- ---------------------------------------------------------------------------
 create or replace function public.regenerate_invite_code(p_campaign uuid)
-returns text language plpgsql security definer set search_path = public as $$
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_code text;
 begin
   if not is_campaign_dm(p_campaign) then
@@ -306,7 +310,7 @@ end;
 $$;
 
 create or replace function public.regenerate_dm_invite_code(p_campaign uuid)
-returns text language plpgsql security definer set search_path = public as $$
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_code text;
 begin
   if not is_campaign_dm(p_campaign) then
@@ -344,7 +348,7 @@ create or replace function public.create_player_invite(
   p_starting_ap     integer default 0,
   p_starting_budget integer default 0
 )
-returns text language plpgsql security definer set search_path = public as $$
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_token  text;
   v_ap     integer := coalesce(p_starting_ap, 0);
@@ -358,7 +362,7 @@ begin
   end if;
 
   loop
-    v_token := encode(gen_random_bytes(16), 'hex');
+    v_token := encode(extensions.gen_random_bytes(16), 'hex');
     exit when not exists (select 1 from campaign_invites where token = v_token);
   end loop;
 
@@ -372,7 +376,7 @@ $$;
 drop function if exists public.redeem_player_invite(text, text);   -- return shape changed (added campaign_id/is_new); CREATE OR REPLACE can't alter a return type
 create or replace function public.redeem_player_invite(p_token text, p_name text default null)
 returns table(character_id uuid, starting_ap integer, starting_budget integer, campaign_id uuid, is_new boolean)
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_invite  campaign_invites%rowtype;
   v_char_id uuid;
@@ -438,7 +442,7 @@ create unique index if not exists idx_characters_owner_campaign_unique
 -- same-campaign is an idempotent no-op; a different campaign is rejected.
 -- ---------------------------------------------------------------------------
 create or replace function public.bind_character_to_campaign(p_character_id uuid, p_code text)
-returns uuid language plpgsql security definer set search_path = public as $$
+returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_campaign campaigns%rowtype;
   v_char     characters%rowtype;

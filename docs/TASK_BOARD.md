@@ -29,60 +29,7 @@ to `CHANGELOG.md`.
 
 ---
 
-## Fix broken campaign/invite creation — gen_random_bytes search-path bug — TODO
-Branch fix/campaign-invite-search-path. sql/schema.sql's gen_invite_code() and create_player_invite()
-call gen_random_bytes() outside their search_path, so campaign and player-invite creation are currently
-broken everywhere in the deployed app.
-
-```text
-sql/schema.sql's gen_invite_code() and create_player_invite() (both SECURITY DEFINER, search_path=public)
-call bare gen_random_bytes(...), which lives in the extensions schema, not public. Confirmed via SQL
-against the live project that zero campaign rows exist anywhere — campaign creation and player-invite
-creation are currently broken everywhere in the deployed app. Not an active incident today only because
-no tools/*.html or login.html UI currently calls createCampaign() (verified by grep), so nothing
-user-facing silently fails yet — but this blocks ever wiring up that UI until fixed.
-
-1. Fix: schema-qualify the calls (extensions.gen_random_bytes(...)) or add extensions to both functions'
-   search_path, via a new sql/migrations/ entry applied against the live project.
-2. Verify end-to-end against the live project: campaign creation and player-invite creation both succeed
-   for real (not just that the function compiles).
-3. While in this area, note whether the repo-wide SECURITY DEFINER search_path hardening pass mentioned
-   elsewhere in DECISIONS.md should be folded in or stays a separate follow-up — don't silently expand
-   scope, just flag the call either way.
-4. SQL-only change — no engine.js/DATA involvement, parity unaffected.
-
-Found and filed (not fixed) during test/advancement-tracks-e2e (PR #233) — see DECISIONS.md
-D-GH-2026-07-16-advancement-tracks-e2e for how it was discovered. Log this fix's own decision as
-D-GH-<date>-campaign-invite-search-path if the search_path scoping choice (item 3) isn't obvious from
-the diff alone.
-```
-
-**Done when:** gen_random_bytes calls are schema-qualified/on the search_path in both functions, campaign creation and player-invite creation work end-to-end against the live project, and testing/tests/engine-parity.html is still 20/0.
-
----
-
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
-
-## Service-worker caching: decide whether auth/sync/campaign/dm modules stay cache-first — TODO
-Branch chore/sw-network-first-security-modules. `service-worker.js`'s `NETWORK_FIRST_RE` currently covers only `.html`, the root, and `js/engine.js` — documented as network-first "so deployed fixes reach returning users immediately." `js/auth.js`, `js/supabase-client.js`, `js/sync.js`, `js/campaign.js`, `js/dm.js` are pre-cached and fall into the cache-first branch, so a client-side fix to one of them doesn't reach a returning offline-capable user until the SW updates *and* they reload twice.
-
-```text
-1. Review service-worker.js's NETWORK_FIRST_RE (~lines 9-26) and its stated rationale for singling out
-   js/engine.js.
-2. Decide: (a) widen the regex to include auth/sync/campaign/dm.js so client-side fixes to them propagate
-   as fast as engine.js fixes do, or (b) leave them cache-first — since RLS is server-authoritative, a
-   stale auth/sync client isn't itself a security hole — and just make that reasoning explicit instead of
-   leaving it an unstated inconsistency.
-3. If widening, weigh the added network dependency: these modules currently work fully offline via
-   cache-first; moving them to network-first trades that off against faster fix propagation.
-4. No engine.js/DATA involvement — parity unaffected, should stay 20/0.
-
-Low priority — not urgent, since RLS already enforces this server-side regardless of which caching
-strategy wins. Log the decision as D-GH-<date>-sw-network-first-security-modules either way, since "why
-engine.js is special-cased but these aren't" isn't obvious from the code alone.
-```
-
-**Done when:** either NETWORK_FIRST_RE is widened to cover auth/sync/campaign/dm.js, or a DECISIONS.md entry explicitly states why they're intentionally left cache-first; parity still 20/0.
 
 ---
 
@@ -175,7 +122,6 @@ isn't obvious from the diff alone.
 **Landing-page follow-ups** (deferred from the redesign):
 - Extend theming to the guide and tools (index-only today).
 - "Continue / recent characters" on the landing page (needs the tools' save format).
-- iOS "Add to Home Screen" hint (no `beforeinstallprompt` on iOS Safari).
 
 **Supporting reference tasks** (run when needed):
 - Supabase project setup · Icon & asset list (192/512/180) · Offline UX spec · Future-features roadmap.
@@ -190,18 +136,11 @@ isn't obvious from the diff alone.
 - **A6 — Tag releases to the build version.** `git tag v0.x` (matching `BUILD`) + a GitHub Release per
   ship, for a labelled rollback point. *Then (lighter alternative):* tags only, no notes — *caveat:* less
   context on what each release shipped.
-- **A7 — Lighthouse 85 → 90.** Add a Lighthouse CI GitHub Action to auto-catch perf regressions. *Then
-  (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for the real score gain —
-  *caveats:* a big engine change; do it only after REV-01 makes the gate real.
-- **Harden `search_path` on SECURITY DEFINER functions against temp-table shadowing.** Every SECURITY
-  DEFINER function in `sql/schema.sql`/`sql/rls-policies.sql` (11+ instances, pre-existing) sets
-  `search_path = public` without also listing `pg_temp`, which doesn't fully close the classic
-  session-local-temp-table-shadowing pitfall. Low real-world exploitability today (Supabase/PostgREST
-  clients have no raw-SQL/DDL path), but worth closing repo-wide rather than piecemeal — a partial fix
-  across only some functions would be worse than no fix. Change every `set search_path = public` to
-  `set search_path = public, pg_temp` consistently; new dated migration; re-run
-  `testing/tests/engine-parity.html` (20/0) and the Supabase advisor. Found during `/code-review` on
-  PR #203. Branch `fix/harden-search-path-pg-temp`.
+- **A7 — Lighthouse 85 → 90.** *(base shipped 2026-07-16)* Lighthouse CI now runs on every PR
+  touching `index.html`/assets (D-GH-2026-07-16-lighthouse-ci), gated on a measured baseline
+  (perf 100, a11y 98-100, best-practices 96, seo 100), so regressions auto-catch going forward.
+  *Remaining (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for a further
+  score gain — *caveat:* a big engine change; do it only after REV-01 makes the gate real.
 - **General engine maintainability (from the 2026-07-14 review).** `compute()` does normalization,
   pricing, validation, and warning-generation all in one ~350-line function — biggest source of risk when
   editing it. `MUT.patch` (`Object.assign(b, p.patch)`) can write arbitrary build fields and is named like

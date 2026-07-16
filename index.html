@@ -21,7 +21,8 @@
       • Requires HTTPS plus a registered service worker (present: /PACT/service-worker.js).
       • `beforeinstallprompt` is NOT supported on iOS Safari, so the button never
         appears there — iOS users install via Share → "Add to Home Screen". A
-        manual iOS hint could be added here if desired.
+        dismissible manual hint for this (`.ios-hint` bar, install script section
+        near the bottom) covers that case — see D-GH-2026-07-16-ios-install-hint.
       • If the button never appears, the manifest/icons probably fail the browser's
         installability criteria — fix those rather than the button code.
     ============================================================================
@@ -288,6 +289,20 @@
       border:none; padding:.4rem 1rem; border-radius:6px; cursor:pointer; font-weight:700;
     }
 
+    /* ---- iOS "Add to Home Screen" hint (no beforeinstallprompt on iOS Safari) ---- */
+    .ios-hint {
+      position:fixed; bottom:0; left:0; right:0; z-index:999;
+      background:var(--page); border-top:2px solid var(--accent);
+      padding:.75rem 1.25rem; display:flex; justify-content:space-between;
+      align-items:center; gap:1rem; font-size:.85rem; color:var(--ink);
+      font-family:Georgia,serif;
+    }
+    .ios-hint button {
+      font-family:inherit; background:transparent; color:var(--muted);
+      border:1px solid var(--rule); padding:.35rem .8rem; border-radius:6px;
+      cursor:pointer; font-size:.8rem; flex:0 0 auto; white-space:nowrap;
+    }
+
     @media (max-width:560px) {
       .cards { grid-template-columns:1fr; }
       h1 { font-size:2.1rem; }
@@ -549,6 +564,26 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       window.addEventListener('appinstalled', function () { deferred = null; btn.hidden = true; });
     })();
 
+    /* ---- iOS "Add to Home Screen" hint (no beforeinstallprompt on iOS Safari — see the NOTE
+       FOR MAINTAINERS comment in <head>). navigator.standalone is a genuine feature-detect (a
+       nonstandard property only iOS Safari defines), not UA-sniffing. Dismissible; remembers
+       dismissal in localStorage so it doesn't nag on every visit. ---- */
+    (function () {
+      if (!('standalone' in navigator)) return;                              // not iOS Safari
+      if (navigator.standalone === true) return;                             // already installed
+      if (window.matchMedia('(display-mode: standalone)').matches) return;   // installed (belt & braces)
+      var DISMISS_KEY = 'pact-ios-install-hint-dismissed';
+      try { if (localStorage.getItem(DISMISS_KEY) === '1') return; } catch (e) {}
+      var bar = document.createElement('div');
+      bar.className = 'ios-hint';
+      bar.innerHTML = '<span>Install PACT: tap Share, then &ldquo;Add to Home Screen&rdquo;.</span><button type="button">Dismiss</button>';
+      bar.querySelector('button').onclick = function () {
+        bar.remove();
+        try { localStorage.setItem(DISMISS_KEY, '1'); } catch (e) {}
+      };
+      document.body.appendChild(bar);
+    })();
+
     /* ---- Offline indicator ---- */
     (function () {
       var badge = document.querySelector('.offline-badge');
@@ -571,6 +606,10 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               bar.className = 'update-bar';
               bar.innerHTML = '<span>A new version of PACT is ready.</span><button type="button">Reload</button>';
               bar.querySelector('button').onclick = function () { sw.postMessage('skipWaiting'); location.reload(); };
+              // Both bars are position:fixed/bottom:0 — an update always takes precedence over the
+              // iOS install hint, which will simply re-run and reappear (if still eligible) after reload.
+              var iosHint = document.querySelector('.ios-hint');
+              if (iosHint) iosHint.remove();
               document.body.appendChild(bar);
             }
           });

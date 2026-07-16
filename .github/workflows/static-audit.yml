@@ -3,8 +3,9 @@ name: Static health audit
 # Wires AUD-1's static health check (testing/scripts/audit.py) into CI
 # (D-GH-2026-07-15-wire-audit-py-into-ci). Runs the default (non-`--rls`) checks — service-worker
 # PRE_CACHE integrity, PWA icon/manifest correctness, engine-symbol drift guard, build-version
-# mirror sync, oversized media assets (warning only) — on every relevant PR. Python stdlib only,
-# no install step, finishes in seconds; fails the build on any FAIL (warnings don't fail the run).
+# mirror sync, SECURITY DEFINER search_path/pg_temp hardening, oversized media assets (warning
+# only) — on every relevant PR. Python stdlib only, no install step, finishes in seconds; fails
+# the build on any FAIL (warnings don't fail the run).
 #
 # The `--rls` live-proof mode (confirms Supabase RLS rejects a player writing characters.ap or
 # binding to an unjoined campaign) is deliberately NOT wired into CI: it needs real credentials
@@ -26,6 +27,8 @@ on:
       - "tools/PACT-Live-Char-Sheet.html"
       - "tools/DM-Console.html"
       - "js/engine.js"
+      - "sql/schema.sql"
+      - "sql/rls-policies.sql"
       - "testing/scripts/audit.py"
       - ".github/workflows/static-audit.yml"
   workflow_dispatch:

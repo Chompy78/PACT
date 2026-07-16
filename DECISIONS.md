@@ -9,6 +9,16 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-lighthouse-ci** — Added `.github/workflows/lighthouse-ci.yml` (Lighthouse CI, `treosh/lighthouse-ci-action`) against `index.html`, serving it locally via `actions/checkout`'s default path (already ending in a dir named after the repo) rather than needing a symlink; thresholds in `lighthouserc.json` set from a real measured baseline (2026-07-16: perf 100, a11y 98-100, best-practices 96, seo 100) with an 0.85 floor for headroom against Lighthouse's normal run-to-run variance, not an arbitrary target; performance/accessibility error (block), best-practices/seo warn (advisory) — the harder "85→90" score-improvement work (engine splitting/lazy-loading) stays deferred, this is just the regression-catching mechanism
+
+- **D-GH-2026-07-16-ios-install-hint** — Added a dismissible `.ios-hint` bar to `index.html` for iOS Safari (which never fires `beforeinstallprompt`, so the existing install button never appears there); gated on `'standalone' in navigator` (a genuine feature-detect, not UA-sniffing) and hidden when already installed; dismissal remembered in `localStorage` so it doesn't nag every visit; verified in a real spoofed-UA browser across all three states (not-installed, already-installed, non-iOS)
+
+- **D-GH-2026-07-16-audit-search-path-pg-temp-check** — Added a `testing/scripts/audit.py` check enforcing `pg_temp` in every SECURITY DEFINER function's search_path, making D-GH-2026-07-16-harden-search-path-pg-temp's retroactive fix durable against future regressions; also fixed `static-audit.yml`'s trigger `paths:` to include `sql/schema.sql`/`sql/rls-policies.sql`, which it never had — the whole audit workflow, not just this new check, would otherwise never run on a PR touching either SQL file
+
+- **D-GH-2026-07-16-harden-search-path-pg-temp** — Hardened all 16 `SECURITY DEFINER` functions in `sql/schema.sql`/`sql/rls-policies.sql` from `search_path = public` to `search_path = public, pg_temp`, closing the classic temp-table-shadowing gap repo-wide via `ALTER FUNCTION` (not a body redeclaration, avoiding schema.sql-vs-migration drift); low real-world exploitability today (no raw-SQL/DDL path for PostgREST clients) but closing it consistently is cheap and was flagged as worth doing rather than leaving piecemeal
+
+- **D-GH-2026-07-16-sw-network-first-security-modules** — Widened `service-worker.js`'s `NETWORK_FIRST_RE` to cover `js/auth.js`/`js/supabase-client.js`/`js/sync.js`/`js/campaign.js`/`js/dm.js` (previously cache-first, same as `js/engine.js` used to be pre-REV-03) — the fetch handler's network-first path already falls back to cache offline, so this costs zero offline capability and only speeds up client-fix propagation; `CACHE_NAME` bumped `pact-v4`→`pact-v5`
+- **D-GH-2026-07-16-campaign-invite-search-path** — Fixed the `gen_random_bytes` search-path bug filed by the advancement-tracks e2e task: schema-qualified the calls (`extensions.gen_random_bytes(...)`) rather than widening `gen_invite_code()`/`create_player_invite()`'s `search_path` to include `extensions`, so these `SECURITY DEFINER` functions don't implicitly resolve anything beyond `public`; verified live via a real `INSERT INTO campaigns` and a direct call to the exact `extensions.gen_random_bytes(16)` expression `create_player_invite()` uses
 - **D-GH-2026-07-16-advancement-tracks-e2e** — Real-browser e2e verification of PR #206's advancement dials against the live (pre-launch) Supabase project; fixed DM Console's `onAuthChange` argument-order bug found along the way; filed (not fixed) a `gen_random_bytes` search-path bug that blocks campaign creation entirely, since fixing it is a bigger blast-radius call than this task's scope
 - **D-GH-2026-07-16-dev-status-page** — Added `docs/dev-status.html`, a lightweight glance dashboard (open Now/Next tasks + last 7 decisions + last 7 changelog entries) distinct from the fuller `roadmap.html`. Chose **runtime fetch** of `TASK_BOARD.md`/`CHANGELOG.md`/`DECISIONS.md` (never stale, zero regeneration) over `roadmap.html`'s baked-in snapshot — a glance page's whole value is being current, and light line-parsing needs no MD library; graceful fallback message when opened via `file://` (fetch blocked). All fetched text renders via `textContent`, never `innerHTML`, honouring the repo's escaping invariant. **Gated to signed-in users** (players or DMs — the app has no distinct account role, so "has a session" is the check): the index.html card is hidden until sign-in, and the page itself fails closed to a sign-in prompt without a session — but this is a **UX/visibility gate, not a security boundary**, since the three docs are public files on GitHub Pages. Verified headless (Playwright): correct counts (Now 0/Next 1/Later 3), signed-out gate hides the dashboard, parsers regression-free
 - **D-GH-2026-07-16-close-session-auto-log** — Expanded `/close-session` from report-only to a skill that *writes* the session's `CHANGELOG`/`DECISIONS`/session-note and graduates finished tasks, then *proposes* a ready commit (still never stages, commits, pushes, or deletes). Two deliberate design calls: (a) the repo's single-writer rule beats the reconciliation doc's "log new open tasks onto the board" — the skill only *removes* finished items from `TASK_BOARD.md`; newly-discovered tasks are output in house format for the human; (b) propose-don't-stage — in a shared checkout, running `git add` risks sweeping in another session's changes, so the skill prints a ready `git add <named files>` + `git commit` block and keeps `git add`/`commit`/`push` disallowed
@@ -100,6 +110,180 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-lighthouse-ci · measured baseline, not an arbitrary target
+- **Context:** `docs/TASK_BOARD.md`'s "A7" backlog note recommends "Add a Lighthouse CI GitHub
+  Action to auto-catch perf regressions," with the harder "85→90 via engine splitting/lazy-loading"
+  explicitly flagged as a separate, riskier, lower-priority follow-up.
+- **Options:** (1) `treosh/lighthouse-ci-action` with hand-picked/guessed thresholds. (2) same
+  action, but measure the actual current score first and set thresholds with headroom below it.
+  (3) collect-only (report/artifact, no failing assertions) until a baseline naturally emerges from
+  a few runs.
+- **Decision:** (2). Ran `npx lighthouse`/`@lhci/cli` against a locally-served copy of `index.html`
+  (desktop preset) to get real numbers before writing any threshold: performance 100, accessibility
+  98-100 (fluctuates slightly run-to-run), best-practices 96, seo 100. Set every category's
+  `minScore` to 0.85 in `lighthouserc.json` — `error` (blocks the build) for performance and
+  accessibility, `warn` (advisory only) for best-practices and seo.
+- **Why:** a guessed threshold is either too loose (catches nothing) or too tight (flaky/false-
+  positive blocks from Lighthouse's inherent run-to-run variance, observed firsthand: accessibility
+  moved between 0.98 and 1.0 across otherwise-identical runs). Measuring first and leaving ~10-15
+  points of headroom below today's near-perfect scores catches a real regression (a large blocking
+  script, a broken alt-text sweep) without blocking on normal noise. `error` only on the two
+  categories a landing page most directly controls user-facing quality with (perf, a11y); `warn` on
+  best-practices/seo keeps the gate from blocking a PR over something more subjective/less critical.
+- **A serving trick, not a symlink:** `testing/scripts/random-manual-e2e.mjs`'s local-dev harness
+  needs a `PACT`-named symlink because a workstation checkout's directory name is arbitrary. In
+  GitHub Actions, `actions/checkout`'s default path is always `.../work/<repo>/<repo>` — so the
+  checkout's parent directory already contains a subdirectory literally named `PACT`. Serving that
+  parent directly (`python3 -m http.server 8080 --directory ..`) reproduces the app's `/PACT/` URL
+  prefix (required for the manifest scope/service-worker registration to behave correctly) with zero
+  extra setup, a CI-only shortcut not available to the local-dev harness.
+- **Verification:** ran the full pipeline locally end-to-end (`@lhci/cli collect` + `assert` against
+  the real served page and the real `lighthouserc.json`): passes cleanly with today's scores; a
+  deliberately-impossible forced threshold correctly failed with exit code 1 and a readable
+  per-category pass/fail report, confirming the gate mechanism itself (not just the collection step)
+  actually works.
+- **Status:** Active.
+
+## D-GH-2026-07-16-ios-install-hint · feature-detect, not UA-sniff; dismissible, not persistent nag
+- **Context:** `beforeinstallprompt` (Chromium/Android/desktop) never fires on iOS Safari, so the
+  existing "Install app" button never appears there — iOS visitors had no in-app install path at all,
+  only "figure out Share → Add to Home Screen yourself." The `<head>` maintainer comment already
+  flagged this as a known gap: "a manual iOS hint could be added here if desired."
+- **Options:** (1) UA-sniff for "iPhone|iPad|iPod" in `navigator.userAgent`. (2) feature-detect
+  `'standalone' in navigator` (a nonstandard property only iOS Safari's WebKit defines). (3) skip it,
+  leave the gap.
+- **Decision:** (2), plus a dismiss button that persists to `localStorage` (key
+  `pact-ios-install-hint-dismissed`, matching the existing `pact*`-prefix convention the backup/restore
+  script already scans for).
+- **Why:** UA strings are spoofable and drift (iPadOS increasingly reports as desktop Safari depending
+  on the "Request Desktop Website" setting) — `ai-lessons-learned` H-015 already generalized this
+  exact lesson from a different PACT feature (the Save/Export share-sheet flow): feature-detect a real
+  API/property, don't UA-sniff iOS. `navigator.standalone`'s mere *existence* (not its value) is the
+  iOS-Safari-specific signal; its value additionally tells us whether the app is already installed, so
+  one check does both jobs. A one-time dismiss (not "show every visit") avoids nagging a user who's
+  already seen and ignored it, mirroring the existing service-worker `.update-bar`'s one-shot-per-event
+  pattern rather than the always-visible `.offline-badge`.
+- **Verification:** real (non-mocked-JS-logic) browser test via Playwright with a spoofed iOS Safari
+  user-agent and an injected `navigator.standalone`: hint shows when not installed, stays hidden when
+  `navigator.standalone === true` (already installed) and on a plain desktop Chrome context (no
+  `navigator.standalone` at all), dismiss removes it immediately and the dismissal survives a page
+  reload, zero console/page errors in every case. `testing/tests/engine-parity.html` unaffected, still
+  20/0 (no `js/engine.js`/`DATA` involvement — display-only).
+- **Also found (by `/code-review`, fixed same-PR):** `.ios-hint` and the pre-existing service-worker
+  `.update-bar` are both `position:fixed;bottom:0` at the same `z-index`, so both showing in one
+  session would visually overlap (the later-appended one hides the earlier one). Fixed by having the
+  update-bar's creation code remove any currently-visible `.ios-hint` — an update takes precedence,
+  and the hint's own IIFE re-runs on the resulting reload, reappearing if still eligible and not
+  dismissed. Verified live by simulating the exact update-bar creation code path against a page with
+  `.ios-hint` already showing. A CSS-duplication finding (the two bars' near-identical fixed-bottom-bar
+  layout rules aren't shared via a base class) was left as-is — cosmetic, and fixing it would mean
+  touching the pre-existing `.update-bar` too, beyond this task's scope.
+- **Status:** Active.
+
+## D-GH-2026-07-16-audit-search-path-pg-temp-check · a static check + a dormant CI trigger gap
+- **Context:** `/code-review` on the `pg_temp` hardening PR flagged that the fix was purely retroactive
+  — nothing in CI would catch a future `SECURITY DEFINER` function missing `pg_temp`.
+- **Options:** (1) a new, separate CI workflow/script just for this one check. (2) add a check function
+  to the existing `testing/scripts/audit.py` (AUD-1's general static health check, already wired into
+  `static-audit.yml`).
+- **Decision:** (2). One new function, `check_sql_security_definer_search_path()`, added alongside
+  `audit.py`'s existing checks and called from `main()`.
+- **Why:** `audit.py` is already the repo's one place for "is the system still healthy?" static checks,
+  stdlib-only, seconds to run, already CI-wired — a second parallel script/workflow for one more grep-
+  shaped check would just duplicate that infrastructure.
+- **A real gap found along the way:** `static-audit.yml`'s trigger `paths:` list never included
+  `sql/schema.sql` or `sql/rls-policies.sql` — meaning the entire static-audit workflow (not just this
+  new check) has never actually run on any PR that only touches SQL files, including both of today's
+  earlier `sql/` PRs in this session. Fixed by adding both files to the trigger list.
+- **A false-positive caught before landing:** the check's first draft matched `"security definer"`
+  anywhere in a line, which also matched `-- ... SECURITY DEFINER ...` doc comments (e.g.
+  `sql/rls-policies.sql`'s section-header comments), producing 9 false FAILs with no real function
+  behind them. Fixed by skipping lines starting with `--` before the substring check.
+- **Verification:** ran clean (27 passed / 0 failed) against current state; reverted one function's
+  `pg_temp` clause to confirm the check actually fails (`sql/schema.sql:88 — search_path = public
+  (missing pg_temp)`), then restored it and re-confirmed clean.
+- **Status:** Active.
+
+## D-GH-2026-07-16-harden-search-path-pg-temp · pg_temp on all 16 SECURITY DEFINER functions
+- **Context:** every `SECURITY DEFINER` function in `sql/schema.sql`/`sql/rls-policies.sql` sets
+  `search_path = public` without also listing `pg_temp` — the classic gap that lets an unprivileged
+  caller create a same-named session-local temp table/function that resolves ahead of the intended
+  `public` one inside a `SECURITY DEFINER` context, a real privilege-escalation vector in general.
+- **Options:** (1) fix piecemeal, only when touching a given function for other reasons. (2) fix all 16
+  in one repo-wide pass now.
+- **Decision:** (2). Changed all 16 instances from `search_path = public` to `search_path = public,
+  pg_temp` — 11 in `sql/schema.sql`, 5 in `sql/rls-policies.sql`. Applied live via `ALTER FUNCTION ...
+  SET search_path = public, pg_temp` for each (not a full `create or replace function` body
+  redeclaration) specifically to avoid the schema.sql-vs-migration drift risk `/code-review` just found
+  and fixed in `D-GH-2026-07-16-campaign-invite-search-path` — `ALTER FUNCTION` only touches the
+  `proconfig` search_path, leaving each function's actual body (and any independent drift risk in it)
+  untouched.
+- **Why:** a partial fix across only some functions would be worse than no fix — it creates the false
+  impression the class of bug is closed repo-wide when it isn't, and the next engineer copying an
+  as-yet-unfixed function as a template would propagate the gap. Low real-world exploitability today
+  (Supabase/PostgREST clients have no raw-SQL/DDL path to create a temp table ahead of an RPC call), but
+  closing all 16 consistently is a single cheap pass, not something to defer function-by-function.
+- **Verification:** applied as migration `2026-07-16-harden-search-path-pg-temp.sql` against the live
+  project. Queried `pg_proc.proconfig` for all 16 `SECURITY DEFINER` functions in `public` — all show
+  `search_path=public, pg_temp`. Re-ran `gen_invite_code()` and `is_campaign_dm()` (a representative
+  plpgsql and a representative sql-language function) to confirm they still resolve correctly. Re-ran the
+  Supabase security advisor — identical warning set to before (all pre-existing/already-accepted), no new
+  findings. `testing/tests/engine-parity.html` (headless) still 20/0.
+- **Status:** Active.
+
+## D-GH-2026-07-16-sw-network-first-security-modules · widen network-first, no offline cost
+- **Context:** `service-worker.js`'s `NETWORK_FIRST_RE` covered only `*.html`, `/PACT/`, and
+  `js/engine.js` (REV-03) "so deployed fixes reach returning users immediately." `js/auth.js`,
+  `js/supabase-client.js`, `js/sync.js`, `js/campaign.js`, `js/dm.js` were pre-cached and fell into the
+  cache-first branch, so a client-side fix to one of them didn't reach a returning offline-capable user
+  until the SW updated *and* they reloaded twice — the exact class of bug DM Console's `onAuthChange`
+  fix (this same session) would otherwise have been slow to reach real users.
+- **Options:** (a) widen `NETWORK_FIRST_RE` to include these 5 modules. (b) leave them cache-first and
+  document why — RLS is server-authoritative, so a stale auth/sync client isn't itself a security hole.
+- **Decision:** (a). Widened the regex; `CACHE_NAME` bumped `pact-v4`→`pact-v5` (this repo's standing
+  convention for any `service-worker.js` caching-behavior or precache-list change, so `activate` purges
+  the old cache immediately rather than waiting for these specific entries to naturally expire).
+- **Why:** read `service-worker.js`'s fetch handler before deciding — its network-first path already
+  does `.catch(() => caches.match(...))`, falling back to the cached copy when offline. Widening the list
+  costs **zero** offline capability; it only changes online users from "stale until double-reload" to
+  "immediate," identical to what `engine.js` already gets. Option (b)'s stated rationale (RLS is
+  server-authoritative) is true but irrelevant to the actual tradeoff here, which turned out to be free.
+- **Status:** Active.
+
+## D-GH-2026-07-16-campaign-invite-search-path · schema-qualify, don't widen search_path
+- **Context:** `D-GH-2026-07-16-advancement-tracks-e2e` found that `gen_invite_code()` and
+  `create_player_invite()` (both pinned to `search_path = public`) call bare `gen_random_bytes(...)`,
+  which lives in the `extensions` schema on this project — so campaign creation and player-invite
+  creation were broken everywhere in the deployed app (zero campaign rows existed).
+- **Options:** (1) widen both functions' `search_path` to `public, extensions`. (2) schema-qualify the
+  two call sites (`extensions.gen_random_bytes(...)`), leaving `search_path` at `public`.
+- **Decision:** option 2. Changed both call sites to `extensions.gen_random_bytes(...)`; `search_path`
+  stays `set search_path = public` on both functions.
+- **Why:** these are `SECURITY DEFINER` functions — widening their `search_path` means every future
+  unqualified identifier they reference could implicitly resolve against `extensions` too, which is
+  exactly the class of ambiguity the separate `pg_temp` search_path hardening task (see the LATER-bucket
+  item on `docs/TASK_BOARD.md`) is working to make explicit repo-wide, not looser. A single schema
+  qualification at the two actual call sites fixes the bug with zero change to what these functions can
+  implicitly resolve.
+- **Verification:** applied as migration `2026-07-16-fix-gen-random-bytes-search-path.sql` against the
+  live project. A real `INSERT INTO campaigns` (the app's actual code path, not a direct function call)
+  succeeded via `gen_invite_code()`'s column default, generating both `invite_code` and `dm_invite_code`;
+  the throwaway row was deleted immediately after. `extensions.gen_random_bytes(16)` — the exact
+  expression `create_player_invite()` uses — was confirmed to resolve directly. `create_player_invite()`
+  itself wasn't re-invoked through its full DM-authenticated path (that requires faking `auth.uid()`
+  inside the SQL session, disproportionate for this fix's scope) — its fix is the identical one-line
+  schema qualification already proven correct for `gen_invite_code()`.
+- **Also found (by `/code-review ultra`, fixed same-PR):** `sql/schema.sql`'s `gen_invite_code()` was
+  missing `set search_path = public` even though the live database already had it — untracked drift
+  predating this PR (the migration that introduced the CSPRNG version, `2026-07-02-rev07-csprng-invite-
+  codes.sql`, also has no `search_path` clause, so the live DB's clause was added by some change never
+  reflected back into `schema.sql`). Synced `schema.sql` to match reality.
+- **Accepted assumption:** the fix assumes pgcrypto (and `gen_random_bytes`) lands in the `extensions`
+  schema, true for Supabase-provisioned projects (this repo's only backend, per `AGENTS.md`) but not
+  guaranteed by `create extension if not exists pgcrypto;` alone on an arbitrary Postgres instance — noted
+  inline in `sql/schema.sql`, not treated as a gap to fix given the Supabase-only constraint.
+- **Status:** Active.
 
 ## D-GH-2026-07-16-advancement-tracks-e2e · real-browser verification, one real bug fixed, one filed not fixed
 - **Context:** PR #206 (`feat/advancement-tracks`) shipped three DM-tunable campaign advancement dials but

@@ -1,0 +1,64 @@
+name: Lighthouse CI
+
+# Runs Lighthouse (desktop preset) against the landing page (index.html) on every PR touching it
+# or its assets, to auto-catch performance/accessibility/best-practices/SEO regressions before
+# they ship (docs/TASK_BOARD.md's A7 "recommended action" -- the "then" tier, splitting/lazy-
+# loading the engine for the last few points, stays deferred until REV-01 makes the parity gate
+# real). Baseline measured 2026-07-16 (desktop preset, via `npx lighthouse` against a local
+# static server): performance 100, accessibility 98, best-practices 96, seo 100. Thresholds in
+# lighthouserc.json are set with headroom below that baseline (0.85), not an arbitrary target --
+# performance/accessibility are hard gates (error), best-practices/seo are advisory (warn), since
+# a regression severe enough to drop 11-15 points below today's near-perfect score is worth
+# blocking on, while smaller drift shouldn't block a PR outright.
+#
+# Static site, no build step -- served locally via python's http.server rather than deployed
+# GitHub Pages, so this runs identically on a PR from any branch, not just what's live on main.
+
+on:
+  pull_request:
+    paths:
+      - "index.html"
+      - "service-worker.js"
+      - "manifest.json"
+      - "js/**"
+      - "assets/**"
+      - "icons/**"
+      - "lighthouserc.json"
+      - ".github/workflows/lighthouse-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: lighthouse-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # actions/checkout's default path already ends in a directory named after the repo
+      # (.../work/PACT/PACT), so serving its PARENT reproduces the /PACT/ URL prefix the app's
+      # manifest scope/start_url and service-worker registration expect, with no symlink needed.
+      - name: Serve the app at /PACT/ (matches manifest scope/start_url)
+        run: |
+          nohup python3 -m http.server 8080 --directory .. > /tmp/http-server.log 2>&1 &
+          ready=false
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8080/PACT/index.html > /dev/null && { ready=true; break; }
+            sleep 0.5
+          done
+          if [ "$ready" != true ]; then
+            echo "::error::local static server never became ready within 10s"
+            cat /tmp/http-server.log
+            exit 1
+          fi
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          urls: http://localhost:8080/PACT/index.html
+          configPath: ./lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true

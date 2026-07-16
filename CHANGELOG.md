@@ -4,6 +4,85 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · ci(lighthouse) — add Lighthouse CI to auto-catch landing-page regressions**.
+  New `.github/workflows/lighthouse-ci.yml` runs Lighthouse (desktop preset, via
+  `treosh/lighthouse-ci-action`) against `index.html` on PRs touching it or its assets — served
+  locally (no deploy needed) by exploiting `actions/checkout`'s default path already ending in a
+  directory named after the repo, so serving its parent reproduces the `/PACT/` URL prefix the
+  manifest/service-worker expect, no symlink needed. Thresholds in the new `lighthouserc.json` are
+  set from a real measured baseline (2026-07-16, desktop: performance 100, accessibility 98-100
+  across runs, best-practices 96, seo 100), not an arbitrary target — 0.85 floor gives headroom for
+  Lighthouse's normal run-to-run variance while still catching a real regression;
+  performance/accessibility gate the build (error), best-practices/seo are advisory (warn).
+  Achieving the higher "Lighthouse 85→90" target via engine splitting/lazy-loading stays deferred
+  (bigger, riskier change, only after REV-01 matures) — this PR is just the auto-catch mechanism.
+  Verified end-to-end locally (`@lhci/cli` against a real served copy): passes cleanly today, and a
+  forced-impossible threshold correctly fails with exit code 1 and a readable per-category report.
+  `/code-review` caught a real gap: the local-server readiness poll never failed if the server
+  didn't come up in time, so a broken server would silently fall through to an opaque Lighthouse
+  connection error instead of a clear message — fixed to `exit 1` with the server's own log on
+  timeout. Verified both the success and forced-failure paths directly.
+
+- **2026-07-16 · feat(index) — dismissible "Add to Home Screen" hint for iOS Safari**.
+  `beforeinstallprompt` never fires on iOS Safari, so the existing "Install app" button (Chromium/
+  Android/desktop only) never appeared there and iOS visitors had no install path at all. Added a
+  `.ios-hint` bottom bar shown only via a genuine feature-detect (`'standalone' in navigator` — a
+  nonstandard property only iOS Safari defines, not UA-sniffing per H-015), hidden again if already
+  installed (`navigator.standalone === true` or `display-mode: standalone`). Dismissible; remembers
+  dismissal in `localStorage` so it doesn't nag every visit. Verified in a real (spoofed-UA) browser:
+  shows for iOS-not-installed, stays hidden for already-installed and non-iOS, dismiss removes it and
+  persists across reload, no console errors in any case. `/code-review` caught a real collision:
+  `.ios-hint` and the pre-existing service-worker `.update-bar` are both `position:fixed;bottom:0`, so
+  an update detected mid-session would render on top of and hide the install hint — fixed by having
+  the update bar remove any visible `.ios-hint` when it appears (an update takes precedence; the hint
+  simply re-evaluates and can reappear after the reload). Verified live (simulated the exact update-bar
+  creation code path against a page with `.ios-hint` already showing). See `DECISIONS.md`
+  D-GH-2026-07-16-ios-install-hint.
+
+- **2026-07-16 · chore(ci) — static check: SECURITY DEFINER functions must set search_path with pg_temp**.
+  Adds `check_sql_security_definer_search_path()` to `testing/scripts/audit.py`, making yesterday's
+  retroactive `pg_temp` hardening (D-GH-2026-07-16-harden-search-path-pg-temp) durable — a future
+  `SECURITY DEFINER` function written without copying an existing one would previously reopen the gap
+  with nothing to catch it. Scans `sql/schema.sql`/`sql/rls-policies.sql` for `security definer` function
+  declarations (comment lines excluded, fixed after an initial false-positive run against `-- ... SECURITY
+  DEFINER ...` doc comments) and fails if `search_path` is missing `pg_temp` or missing entirely. Wired
+  into `.github/workflows/static-audit.yml`'s trigger paths (which didn't previously include either SQL
+  file, so this check — and the whole audit — would never have run on a PR touching them). Verified: passes
+  clean against current state (27/0), and correctly fails when a `pg_temp` clause is reverted (tested by
+  simulating and then restoring the regression).
+
+- **2026-07-16 · fix(sql) — harden `search_path` on all 16 `SECURITY DEFINER` functions with `pg_temp`**.
+  Every `SECURITY DEFINER` function in `sql/schema.sql`/`sql/rls-policies.sql` set `search_path = public`
+  without also listing `pg_temp`, leaving the classic session-local-temp-table-shadowing gap open
+  repo-wide (low real-world exploitability today — Supabase/PostgREST clients have no raw-SQL/DDL path —
+  but worth closing consistently rather than piecemeal). Changed all 16 to
+  `search_path = public, pg_temp` via `ALTER FUNCTION` (not a full body redeclaration, to avoid the
+  schema.sql-vs-migration drift risk found earlier today). Applied live and verified: all 16 functions'
+  `proconfig` now shows the new value, `gen_invite_code()`/`is_campaign_dm()` still resolve correctly,
+  Supabase security advisor unchanged (same pre-existing/accepted warnings, no new findings), parity
+  20/0. See `DECISIONS.md` D-GH-2026-07-16-harden-search-path-pg-temp.
+
+- **2026-07-16 · chore(sw) — widen network-first to cover auth/sync/campaign/dm client modules**.
+  `service-worker.js`'s `NETWORK_FIRST_RE` covered only `*.html`/`/PACT/`/`js/engine.js`; `js/auth.js`,
+  `js/supabase-client.js`, `js/sync.js`, `js/campaign.js`, `js/dm.js` were cache-first, so a client-side
+  fix to any of them didn't reach a returning offline-capable user until the SW updated *and* they
+  reloaded twice. Widened the regex to include these 5 modules — the network-first fetch handler already
+  falls back to the cached copy on failure, so this costs nothing in offline capability, only speeds up
+  fix propagation (the exact class of bug DM Console's `onAuthChange` fix earlier today would otherwise
+  be slow to reach). `CACHE_NAME` bumped `pact-v4`→`pact-v5` per this repo's convention. See `DECISIONS.md`
+  D-GH-2026-07-16-sw-network-first-security-modules.
+
+- **2026-07-16 · fix(sql) — schema-qualify `gen_random_bytes()` calls, fixing campaign/invite creation**.
+  `gen_invite_code()` and `create_player_invite()` called bare `gen_random_bytes(...)`, but pgcrypto's
+  `gen_random_bytes` lives in the `extensions` schema on this project, not `public` (which their
+  `search_path` was pinned to) — so campaign creation and player-invite creation were broken everywhere
+  in the deployed app (zero campaign rows existed anywhere). Fixed by schema-qualifying the calls
+  (`extensions.gen_random_bytes(...)`) rather than widening `search_path`, to avoid broadening what these
+  `SECURITY DEFINER` functions can implicitly resolve. Verified live: a real `INSERT INTO campaigns`
+  (the app's actual code path) now succeeds via `gen_invite_code()`'s column default, and
+  `extensions.gen_random_bytes(16)` — the exact expression `create_player_invite()` uses — resolves
+  correctly. See `DECISIONS.md` D-GH-2026-07-16-campaign-invite-search-path.
+
 - **2026-07-16 · fix(dm-console) — guard `updateAuth()` against reloading the roster on every auth event**.
   The `onAuthChange` argument-order fix earlier in this PR removed a crash that was accidentally masking
   `updateAuth()` calling `loadCampaigns()`→`loadRoster()` unconditionally on every truthy-session auth
