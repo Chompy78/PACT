@@ -9,6 +9,8 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-lighthouse-ci** — Added `.github/workflows/lighthouse-ci.yml` (Lighthouse CI, `treosh/lighthouse-ci-action`) against `index.html`, serving it locally via `actions/checkout`'s default path (already ending in a dir named after the repo) rather than needing a symlink; thresholds in `lighthouserc.json` set from a real measured baseline (2026-07-16: perf 100, a11y 98-100, best-practices 96, seo 100) with an 0.85 floor for headroom against Lighthouse's normal run-to-run variance, not an arbitrary target; performance/accessibility error (block), best-practices/seo warn (advisory) — the harder "85→90" score-improvement work (engine splitting/lazy-loading) stays deferred, this is just the regression-catching mechanism
+
 - **D-GH-2026-07-16-ios-install-hint** — Added a dismissible `.ios-hint` bar to `index.html` for iOS Safari (which never fires `beforeinstallprompt`, so the existing install button never appears there); gated on `'standalone' in navigator` (a genuine feature-detect, not UA-sniffing) and hidden when already installed; dismissal remembered in `localStorage` so it doesn't nag every visit; verified in a real spoofed-UA browser across all three states (not-installed, already-installed, non-iOS)
 
 - **D-GH-2026-07-16-audit-search-path-pg-temp-check** — Added a `testing/scripts/audit.py` check enforcing `pg_temp` in every SECURITY DEFINER function's search_path, making D-GH-2026-07-16-harden-search-path-pg-temp's retroactive fix durable against future regressions; also fixed `static-audit.yml`'s trigger `paths:` to include `sql/schema.sql`/`sql/rls-policies.sql`, which it never had — the whole audit workflow, not just this new check, would otherwise never run on a PR touching either SQL file
@@ -108,6 +110,40 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-lighthouse-ci · measured baseline, not an arbitrary target
+- **Context:** `docs/TASK_BOARD.md`'s "A7" backlog note recommends "Add a Lighthouse CI GitHub
+  Action to auto-catch perf regressions," with the harder "85→90 via engine splitting/lazy-loading"
+  explicitly flagged as a separate, riskier, lower-priority follow-up.
+- **Options:** (1) `treosh/lighthouse-ci-action` with hand-picked/guessed thresholds. (2) same
+  action, but measure the actual current score first and set thresholds with headroom below it.
+  (3) collect-only (report/artifact, no failing assertions) until a baseline naturally emerges from
+  a few runs.
+- **Decision:** (2). Ran `npx lighthouse`/`@lhci/cli` against a locally-served copy of `index.html`
+  (desktop preset) to get real numbers before writing any threshold: performance 100, accessibility
+  98-100 (fluctuates slightly run-to-run), best-practices 96, seo 100. Set every category's
+  `minScore` to 0.85 in `lighthouserc.json` — `error` (blocks the build) for performance and
+  accessibility, `warn` (advisory only) for best-practices and seo.
+- **Why:** a guessed threshold is either too loose (catches nothing) or too tight (flaky/false-
+  positive blocks from Lighthouse's inherent run-to-run variance, observed firsthand: accessibility
+  moved between 0.98 and 1.0 across otherwise-identical runs). Measuring first and leaving ~10-15
+  points of headroom below today's near-perfect scores catches a real regression (a large blocking
+  script, a broken alt-text sweep) without blocking on normal noise. `error` only on the two
+  categories a landing page most directly controls user-facing quality with (perf, a11y); `warn` on
+  best-practices/seo keeps the gate from blocking a PR over something more subjective/less critical.
+- **A serving trick, not a symlink:** `testing/scripts/random-manual-e2e.mjs`'s local-dev harness
+  needs a `PACT`-named symlink because a workstation checkout's directory name is arbitrary. In
+  GitHub Actions, `actions/checkout`'s default path is always `.../work/<repo>/<repo>` — so the
+  checkout's parent directory already contains a subdirectory literally named `PACT`. Serving that
+  parent directly (`python3 -m http.server 8080 --directory ..`) reproduces the app's `/PACT/` URL
+  prefix (required for the manifest scope/service-worker registration to behave correctly) with zero
+  extra setup, a CI-only shortcut not available to the local-dev harness.
+- **Verification:** ran the full pipeline locally end-to-end (`@lhci/cli collect` + `assert` against
+  the real served page and the real `lighthouserc.json`): passes cleanly with today's scores; a
+  deliberately-impossible forced threshold correctly failed with exit code 1 and a readable
+  per-category pass/fail report, confirming the gate mechanism itself (not just the collection step)
+  actually works.
+- **Status:** Active.
 
 ## D-GH-2026-07-16-ios-install-hint · feature-detect, not UA-sniff; dismissible, not persistent nag
 - **Context:** `beforeinstallprompt` (Chromium/Android/desktop) never fires on iOS Safari, so the

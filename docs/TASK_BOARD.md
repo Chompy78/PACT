@@ -136,9 +136,11 @@ isn't obvious from the diff alone.
 - **A6 — Tag releases to the build version.** `git tag v0.x` (matching `BUILD`) + a GitHub Release per
   ship, for a labelled rollback point. *Then (lighter alternative):* tags only, no notes — *caveat:* less
   context on what each release shipped.
-- **A7 — Lighthouse 85 → 90.** Add a Lighthouse CI GitHub Action to auto-catch perf regressions. *Then
-  (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for the real score gain —
-  *caveats:* a big engine change; do it only after REV-01 makes the gate real.
+- **A7 — Lighthouse 85 → 90.** *(base shipped 2026-07-16)* Lighthouse CI now runs on every PR
+  touching `index.html`/assets (D-GH-2026-07-16-lighthouse-ci), gated on a measured baseline
+  (perf 100, a11y 98-100, best-practices 96, seo 100), so regressions auto-catch going forward.
+  *Remaining (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for a further
+  score gain — *caveat:* a big engine change; do it only after REV-01 makes the gate real.
 - **General engine maintainability (from the 2026-07-14 review).** `compute()` does normalization,
   pricing, validation, and warning-generation all in one ~350-line function — biggest source of risk when
   editing it. `MUT.patch` (`Object.assign(b, p.patch)`) can write arbitrary build fields and is named like
