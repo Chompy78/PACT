@@ -49,42 +49,6 @@ practical. Display-only feature — no DATA.version/compute() involvement; parit
 
 ---
 
-## Tools: back-to-Home navigation + toolbar button cleanup — TODO
-Branch feat/tools-home-nav-cleanup. Add a "← Home" link back to index.html in each tool's header (tools/PACT-CharGen-Webtool.html, tools/PACT-Live-Char-Sheet.html, tools/DM-Console.html), and audit/reduce each tool's header/toolbar button clutter in the same PR.
-
-```text
-1. Add a small "← Home" (or house-icon) link/button in each tool's header, pointing to `../index.html`
-   (tools/ is one level below the repo root), styled consistently with each tool's existing masthead/header
-   controls. Keep it unobtrusive — this is UI-only, no engine/rules involvement.
-
-2. Audit each tool's header/toolbar for redundant or cluttered buttons and consolidate/remove where
-   appropriate:
-   - DM-Console.html `.topactions` (~line 351): "▦ Table view" / "📊 Skill Matrix" / "📒 AP Ledger" plus the
-     `.tbtoolbar` "⚙ Columns ▾" button — check for overlap/redundant toggles.
-   - PACT-Live-Char-Sheet.html `.bar`/`#lmobar` (~lines 339, 358): "🛠 DM tools ▾", undo/redo, and the mobile
-     action bar — check for duplicated controls between desktop and mobile bars.
-   - PACT-CharGen-Webtool.html — audit its own header/toolbar area for the same pattern.
-   Only remove/merge buttons that are genuinely redundant or rarely used; do not remove functionality
-   players/DMs rely on without an equivalent path still available (e.g. move a rare action into an existing
-   menu instead of deleting it outright).
-
-3. While in this UI, fix DM-Console.html's icon-only header/toolbar buttons (e.g. the `×` close buttons
-   around DM-Console.html:1189 and :1320) — it currently has zero `aria-label` attributes across ~30
-   buttons and relies only on `title=`, versus 12 in CharGen and 3 in Live Sheet. Add `aria-label` to every
-   icon-only button touched by this task's button audit (doesn't need to be a separate full accessibility
-   pass — just don't leave newly-consolidated/kept icon buttons unlabelled).
-
-4. This is a UI-only change — do not touch js/engine.js, DATA, or compute() output.
-
-5. Re-run testing/tests/engine-parity.html — should be unaffected, still 20/0.
-
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** all three tools have a working link back to index.html from their header, each tool's header/toolbar has measurably fewer or better-consolidated buttons with no loss of reachable functionality, DM Console's icon-only buttons touched by this task carry `aria-label`s, and parity still 20/0.
-
----
-
 ## DM Console roster: migrate apLevel() off the fixed ladder onto the tuned levelBudgetCurve — TODO
 Branch fix/dm-console-roster-tuned-curve. DM Console's campaign roster (tools/DM-Console.html:552 apLevel(), used at line 603) still computes each character's displayed level from the fixed DATA.levelAP ladder, even though DM Console is the one tool where a DM configures the per-campaign levelBudgetCurve.
 

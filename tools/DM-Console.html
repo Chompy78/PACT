@@ -198,6 +198,8 @@
   .topactions{margin-top:10px;}
   .topbtn{appearance:none;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
   .topbtn:hover{background:rgba(255,255,255,.26);}
+  .homelink{display:inline-flex;align-items:center;gap:4px;color:#fff;text-decoration:none;font-size:13px;font-weight:700;padding:3px 9px;border:1px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.12);white-space:nowrap;flex-shrink:0}
+  .homelink:hover{background:rgba(255,255,255,.26)}
   #viewToggle{min-width:7.6em;text-align:center;}
   .cardactions{margin-top:9px;}
   .detail-actions{margin:2px 0 10px;}
@@ -346,6 +348,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <header class="topbar">
+  <a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a>
   <h1><span class="dot"></span>PACT — DM Console</h1>
   <div class="summary" id="summary">No characters imported yet.</div>
   <div class="lastedited">Last edited 2026-06-28 23:10</div>
@@ -931,7 +934,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return '' +
     '<div class="card" data-id="'+esc(r.id)+'">' +
       '<div class="chead">' +
-        '<button type="button" class="rmcard" title="Remove from console" data-rm="'+esc(r.id)+'">×</button>' +
+        '<button type="button" class="rmcard" title="Remove from console" aria-label="Remove from console" data-rm="'+esc(r.id)+'">×</button>' +
         '<div class="cname">'+esc(s.name)+warnIcon+tamperBadge(s)+'</div>' +
         '<div class="csub">'+esc(speciesDisp(s))+' · '+esc(fmtClass(s))+
             ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span></div>' +
@@ -1187,7 +1190,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return h+'</div>';
   }
   function ensureOv(){ if($('ov')) return; var d=document.createElement('div'); d.className='ov'; d.id='ov';
-    d.innerHTML='<div class="ov-card"><button type="button" class="ov-x" id="ovX" title="Close">✕</button><div class="ov-body" id="ovBody"></div></div>';
+    d.innerHTML='<div class="ov-card"><button type="button" class="ov-x" id="ovX" title="Close" aria-label="Close">✕</button><div class="ov-body" id="ovBody"></div></div>';
     document.body.appendChild(d); }
   function openOv(html){ ensureOv(); $('ovBody').innerHTML=html; $('ov').classList.add('on'); }
   function closeOv(){ var ov=$('ov'); if(ov) ov.classList.remove('on'); }
@@ -1316,7 +1319,7 @@ document.addEventListener('campaign-ready', function () {
     ruleHouseRules.innerHTML = names.map(function(name){
       return '<span class="hrchip"><label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer">'+
         '<input type="checkbox" data-hr="'+esc(name)+'" '+(currentHouseRules[name]?'checked':'')+'>'+esc(name)+'</label>'+
-        '<button type="button" data-hrdel="'+esc(name)+'" title="Remove">×</button></span>';
+        '<button type="button" data-hrdel="'+esc(name)+'" title="Remove" aria-label="Remove '+esc(name)+'">×</button></span>';
     }).join('') || '<span style="font-size:11px;color:var(--light);opacity:.7">No house rules yet.</span>';
     ruleHouseRules.querySelectorAll('input[data-hr]').forEach(function(cb){
       cb.addEventListener('change', function(){ currentHouseRules[cb.dataset.hr] = cb.checked; });
