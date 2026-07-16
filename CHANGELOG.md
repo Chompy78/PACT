@@ -4,6 +4,41 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · feat(docs) — add `docs/dev-status.html`, a live-fetch glance dashboard (signed-in only)**.
+  Quick-glance human-status page: open Now/Next tasks + last 7 decisions + last 7 changelog entries, fetched
+  live from `TASK_BOARD.md`/`CHANGELOG.md`/`DECISIONS.md` (never stale) and light-parsed — no Markdown
+  library, no build step. Reuses `roadmap.html`'s palette (light + dark); distinct from and links to the
+  fuller `roadmap.html`. **Gated to signed-in users** — `index.html` shows a "Dev Status" card only when
+  signed in, and the page fails closed to a sign-in prompt without a session (a UX gate, not a security
+  boundary: the docs are public on GitHub Pages). Fetched text renders via `textContent` (escaping
+  invariant); graceful `file://` fallback. Verified headless (Playwright). See `DECISIONS.md`
+  D-GH-2026-07-16-dev-status-page.
+
+- **2026-07-16 · feat(tooling) — `/close-session` now logs docs + proposes a commit (was report-only)**. The
+  skill writes the session's `CHANGELOG`/`DECISIONS`/session-note and graduates finished tasks out of
+  `TASK_BOARD.md`, then prints a ready-to-run `git add`/`git commit` block — it still never stages, commits,
+  pushes, merges, or deletes (those stay `disallowed-tools`). Keeps the single-writer rule: it only removes
+  finished tasks, never appends new ones. Updated `docs/SKILLS.md`'s descriptions to match. See `DECISIONS.md`
+  D-GH-2026-07-16-close-session-auto-log. Tooling/docs only — no engine or `DATA.version` change.
+
+- **2026-07-16 · docs(agents) — reconcile agent-workflow rules with the cross-project standard**. Added an
+  `AGENTS.md` **Working discipline** section (files/shipped-artifact win over chat; `git status`/`git diff`
+  before a structural edit; edit-don't-regenerate; verify-before-writing-an-absence-claim) and a **Microsoft
+  365 Copilot** section (the git-ignored `for-copilot/*.txt` mirrors, state-last-updated-before-trusting,
+  ask-for-a-patch-not-a-full-file default). Fixed a stale parity count (`5`→`20`) in
+  `.github/copilot-instructions.md` and git-ignored `for-copilot/`. See `DECISIONS.md`
+  D-GH-2026-07-16-agents-workflow-reconcile. Docs/config only — no engine or `DATA.version` change.
+
+- **2026-07-16 · refactor(docs) — renamed `docs/PACT_ROADMAP.md` → `docs/TASK_BOARD.md`, content
+  unchanged** (aligns the filename with the cross-project AI-workflow standard; the open-task list, its
+  🔴🟡🟢 bands, and `Done when` format are identical). Updated every live pointer — `docs/roadmap.html`
+  footer label, `AGENTS.md`, `.github/copilot-instructions.md`, `.github/pull_request_template.md`,
+  `docs/HOW-TO-WORK.md`, `docs/SKILLS.md`, all five `.claude/commands/*.md`, and the forward-pointer
+  comment in `testing/scripts/random-manual-e2e.mjs`. Historical records (`DECISIONS.md`, past changelog
+  lines, `docs/sessions/*`, `docs/plans/*`) intentionally left naming the file as it was called then, so
+  the trail stays traceable. `roadmap.html` (the visual page), the `/add-roadmap-task` command, and other
+  "roadmap" wording are unchanged — file rename only, not a concept rebrand.
+
 - **2026-07-16 · chore(tools) — unify the duplicated "AP-vs-threshold → level" scan into one shared
   `levelForThreshold()` helper** (`js/ui-helpers.js` + `tools/PACT-CharGen-Webtool.html`,
   `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`; no engine/`DATA.version` change). The
