@@ -33,7 +33,7 @@ chore is gone.
 
 | Path | What |
 |---|---|
-| `docs/PACT_ROADMAP.md` | the task list (paste one at a time) |
+| `docs/TASK_BOARD.md` | the task list (paste one at a time) |
 | `docs/HOW-TO-WORK.md` | this guide (app/test mechanics) |
 | `docs/SKILLS.md` | the skills (`/pick-task`, `/run-task`, …) + workflow, human-readable |
 | `docs/VERSION-SYNC.md` | how the build version is kept consistent across the tools |
@@ -117,7 +117,7 @@ The skills automate most of this — **`/pick-task` then `/run-task`** is the no
 M365 Copilot for a cold review before implementing. The underlying mechanics `/run-task` performs, if you
 ever do it by hand:
 1. **Branch:** `git checkout -b feat/<short-slug>` (one task per branch; use `type/slug` — `feat/`, `fix/`, `docs/`).
-2. **Paste one task** from `docs/PACT_ROADMAP.md`. No need to re-describe the architecture — `AGENTS.md` is the standing context.
+2. **Paste one task** from `docs/TASK_BOARD.md`. No need to re-describe the architecture — `AGENTS.md` is the standing context.
 3. **Review the diff** the agent proposes; accept or push back (`/code-review` for an adversarial pass).
 4. **Verify:** run the gate (browser page, or the headless Node check above) → expect **20 passed / 0 failed**.
 5. **Log it:** confirm `CHANGELOG.md` is updated (+ `DECISIONS.md` / a `docs/sessions/` note if it applies);
@@ -136,7 +136,7 @@ the automated gate (`engine-parity.html`) only covers `compute()`, not the UI wi
 
 ## Start of each session
 Claude Code reads `AGENTS.md` (via `CLAUDE.md`'s `@AGENTS.md` import) automatically, so you don't re-explain
-the project. A good opener: `Run /pick-task` — or paste **one** task from `docs/PACT_ROADMAP.md` directly.
+the project. A good opener: `Run /pick-task` — or paste **one** task from `docs/TASK_BOARD.md` directly.
 For big/risky work, ask for a plan first (`/plan-for-review`) and route it through M365 Copilot before
 building.
 
@@ -169,7 +169,7 @@ rules text — code review alone won't catch that; only a check against the sour
 - Default to Sonnet at standard effort for spec-driven execution (a roadmap task with a clear "Done when").
   Reach for Opus / higher effort only when the task is genuinely ambiguous or architectural — a design
   trade-off with no single obviously-correct answer, not just "this file is long."
-- One task per fresh session/branch (see the Conventions in `docs/PACT_ROADMAP.md`) — don't let a session
+- One task per fresh session/branch (see the Conventions in `docs/TASK_BOARD.md`) — don't let a session
   accrete unrelated work; if a second task surfaces mid-session, finish or park the first, then branch fresh.
 - Read large files once, purposefully (grep for the symbol, don't re-read `js/engine.js` wholesale on every
   turn) — see "Don't read large files wholesale" in `AGENTS.md`.
@@ -186,7 +186,7 @@ Fan out N agents, one per lens:
   2. Security/RLS: run testing/scripts/audit.py --rls plus a manual read of sql/rls-policies.sql for
      any new table/column touched this release.
   3. Usability: click through the pre-release manual QA checklist above end-to-end, in a real browser.
-  4. Docs-consistency: confirm CHANGELOG.md/DECISIONS.md/docs/PACT_ROADMAP.md agree with what actually
+  4. Docs-consistency: confirm CHANGELOG.md/DECISIONS.md/docs/TASK_BOARD.md agree with what actually
      shipped (no graduated-but-still-listed items, no undocumented decisions).
 Synthesize findings into one report before deciding to ship.
 ```

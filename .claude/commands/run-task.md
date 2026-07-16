@@ -75,7 +75,7 @@ paths silently write wherever they point, worktree or not.
 
 For each task slug, in order: be efficient (read each file once, search instead of reading whole files
 when you can, one clean edit pass), and only touch `js/engine.js` if that specific task is about the
-game engine. Add a line to `CHANGELOG.md` and remove the task's entry from `docs/PACT_ROADMAP.md` in the
+game engine. Add a line to `CHANGELOG.md` and remove the task's entry from `docs/TASK_BOARD.md` in the
 **same commit** as that task's edit — don't defer either to a later combined commit, since each task
 must stay independently traceable even though several share a branch. Add a `DECISIONS.md` note too if
 that task's change involved a non-obvious reason behind a choice you made. Commit each task separately

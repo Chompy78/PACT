@@ -22,7 +22,7 @@ own context stays clean: give it these three paths and ask it to pull them strai
 ```
 git fetch origin
 git show origin/preview:AGENTS.md
-git show origin/preview:docs/PACT_ROADMAP.md
+git show origin/preview:docs/TASK_BOARD.md
 git show origin/preview:testing/expected/expected-results.csv
 ```
 
