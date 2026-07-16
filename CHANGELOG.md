@@ -18,6 +18,10 @@
   (bigger, riskier change, only after REV-01 matures) — this PR is just the auto-catch mechanism.
   Verified end-to-end locally (`@lhci/cli` against a real served copy): passes cleanly today, and a
   forced-impossible threshold correctly fails with exit code 1 and a readable per-category report.
+  `/code-review` caught a real gap: the local-server readiness poll never failed if the server
+  didn't come up in time, so a broken server would silently fall through to an opaque Lighthouse
+  connection error instead of a clear message — fixed to `exit 1` with the server's own log on
+  timeout. Verified both the success and forced-failure paths directly.
 
 - **2026-07-16 · feat(index) — dismissible "Add to Home Screen" hint for iOS Safari**.
   `beforeinstallprompt` never fires on iOS Safari, so the existing "Install app" button (Chromium/

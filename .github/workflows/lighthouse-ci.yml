@@ -44,10 +44,16 @@ jobs:
       - name: Serve the app at /PACT/ (matches manifest scope/start_url)
         run: |
           nohup python3 -m http.server 8080 --directory .. > /tmp/http-server.log 2>&1 &
+          ready=false
           for i in $(seq 1 20); do
-            curl -sf http://localhost:8080/PACT/index.html > /dev/null && break
+            curl -sf http://localhost:8080/PACT/index.html > /dev/null && { ready=true; break; }
             sleep 0.5
           done
+          if [ "$ready" != true ]; then
+            echo "::error::local static server never became ready within 10s"
+            cat /tmp/http-server.log
+            exit 1
+          fi
 
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v11
