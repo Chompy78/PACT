@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · chore(ci) — static check: SECURITY DEFINER functions must set search_path with pg_temp**.
+  Adds `check_sql_security_definer_search_path()` to `testing/scripts/audit.py`, making yesterday's
+  retroactive `pg_temp` hardening (D-GH-2026-07-16-harden-search-path-pg-temp) durable — a future
+  `SECURITY DEFINER` function written without copying an existing one would previously reopen the gap
+  with nothing to catch it. Scans `sql/schema.sql`/`sql/rls-policies.sql` for `security definer` function
+  declarations (comment lines excluded, fixed after an initial false-positive run against `-- ... SECURITY
+  DEFINER ...` doc comments) and fails if `search_path` is missing `pg_temp` or missing entirely. Wired
+  into `.github/workflows/static-audit.yml`'s trigger paths (which didn't previously include either SQL
+  file, so this check — and the whole audit — would never have run on a PR touching them). Verified: passes
+  clean against current state (27/0), and correctly fails when a `pg_temp` clause is reverted (tested by
+  simulating and then restoring the regression).
+
 - **2026-07-16 · fix(sql) — harden `search_path` on all 16 `SECURITY DEFINER` functions with `pg_temp`**.
   Every `SECURITY DEFINER` function in `sql/schema.sql`/`sql/rls-policies.sql` set `search_path = public`
   without also listing `pg_temp`, leaving the classic session-local-temp-table-shadowing gap open

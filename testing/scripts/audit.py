@@ -27,6 +27,9 @@ What it checks (file-based, offline):
     <title>/header label, Live Sheet's line-1 comment, and DM Console's TOOL_VERSION
     (see docs/VERSION-SYNC.md; DATA.version needs no separate check — CharGen imports
     DATA live from js/engine.js as of D-GH26, so there's no embedded copy left to drift)
+  * every SECURITY DEFINER function in sql/schema.sql / sql/rls-policies.sql sets
+    search_path with pg_temp included, so a future function can't silently reopen the
+    temp-table-shadowing gap D-GH-2026-07-16-harden-search-path-pg-temp closed
 
 Optional (with --rls): as a non-DM player, confirm the Supabase REST API REJECTS both
 (a) a write to characters.ap (the DM-only column) and (b) setting campaign_id to a
@@ -395,6 +398,43 @@ def check_build_version_sync(rep):
             rep.fail("%s %s = %s, expected %s (js/engine.js BUILD)" % (name, label, found, build))
 
 
+def check_sql_security_definer_search_path(rep):
+    rep.group("SQL: SECURITY DEFINER search_path hardening")
+    # Every SECURITY DEFINER function's `set search_path` clause must include `pg_temp`, closing
+    # the classic session-local-temp-table-shadowing gap (see D-GH-2026-07-16-harden-search-path-
+    # pg-temp — this check makes that fix durable against a future function that omits it).
+    # All current instances are single-line ("... security definer [stable] set search_path = ...
+    # as $$"), so a per-line regex is sufficient; a genuinely multi-line signature would just not
+    # match SECURITY_DEFINER_RE and silently skip the check for that function, so this is a
+    # best-effort net, not a full SQL parser.
+    sql_files = ["sql/schema.sql", "sql/rls-policies.sql"]
+    found_any = False
+    bad = []
+    for rel in sql_files:
+        path = REPO / rel
+        if not path.is_file():
+            continue
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if line.lstrip().startswith("--") or "security definer" not in line.lower():
+                continue
+            found_any = True
+            m = re.search(r"search_path\s*=\s*([^\s]+(?:\s*,\s*[^\s]+)*?)\s+as\s", line, re.IGNORECASE)
+            if not m:
+                bad.append("%s:%d — SECURITY DEFINER function has no `search_path` clause at all" % (rel, lineno))
+                continue
+            schemas = [s.strip().rstrip(',') for s in m.group(1).split(",")]
+            if "pg_temp" not in schemas:
+                bad.append("%s:%d — search_path = %s (missing pg_temp)" % (rel, lineno, m.group(1)))
+    if not found_any:
+        rep.warn("no SECURITY DEFINER functions found in %s (check may be stale)" % ", ".join(sql_files))
+        return
+    if bad:
+        for msg in bad:
+            rep.fail(msg)
+    else:
+        rep.ok("every SECURITY DEFINER function's search_path includes pg_temp")
+
+
 def check_large_assets(rep):
     rep.group("large media assets (warning only)")
     # source-assets/ holds pre-optimization originals by design — never flag them.
@@ -501,6 +541,7 @@ def main(argv=None):
     check_sw_install_no_skipwaiting(rep)
     check_engine_bridge(rep)
     check_build_version_sync(rep)
+    check_sql_security_definer_search_path(rep)
     check_large_assets(rep)
     if args.rls:
         check_rls(rep)

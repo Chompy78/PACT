@@ -112,33 +112,6 @@ isn't obvious from the diff alone.
 
 ---
 
-## Static check: new SECURITY DEFINER functions must set search_path with pg_temp — TODO
-Branch chore/audit-search-path-pg-temp-check. All 16 existing SECURITY DEFINER functions were hardened to
-`search_path = public, pg_temp` (D-GH-2026-07-16-harden-search-path-pg-temp), but nothing in CI catches a
-NEW function that omits it.
-
-```text
-Nothing in .github/workflows/ or testing/scripts/audit.py checks for this, so the fix is purely
-retroactive: a future SECURITY DEFINER function written from scratch (not copied from an existing,
-now-fixed one) could silently reopen the session-local-temp-table-shadowing gap this task's sibling just
-closed.
-
-1. Add a check to testing/scripts/audit.py (the existing static-audit script wired into CI per
-   D-GH-2026-07-15-wire-audit-py-into-ci) that greps sql/schema.sql and sql/rls-policies.sql for
-   `security definer` function definitions and flags any whose `search_path` clause doesn't include
-   `pg_temp`.
-2. Wire it into the existing static-audit CI workflow (.github/workflows/static-audit.yml) — no new
-   workflow file needed if audit.py's existing checks already run there.
-3. No engine.js/DATA involvement — parity unaffected, should stay 20/0.
-
-Found via /code-review on PR #238 (fix/harden-search-path-pg-temp) — see DECISIONS.md
-D-GH-2026-07-16-harden-search-path-pg-temp for the retroactive fix this makes durable.
-```
-
-**Done when:** audit.py flags a SECURITY DEFINER function missing `pg_temp` in its search_path, the check runs in CI on PRs touching sql/, and testing/tests/engine-parity.html is still 20/0.
-
----
-
 **Low-severity review findings:**
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
   named sub-pricers. Only safe once REV-01 gives real assertions; dedicated PR, byte-identical output.
