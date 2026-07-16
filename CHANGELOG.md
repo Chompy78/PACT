@@ -4,6 +4,34 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-15 · feat(tools) — "← Home" nav link in all three tools + icon-only-button `aria-label`s**
+  (`tools/PACT-CharGen-Webtool.html`, `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`; UI-only,
+  no engine/rules/`DATA.version` change). Each tool's header now carries a consistent, unobtrusive
+  `.homelink` ("← Home" → `../index.html`), placed in the always-visible row so it survives on mobile
+  (CharGen `.hd-row1`, Live Sheet `.top`, DM Console `.topbar`). Added `aria-label`s to the icon-only
+  buttons touched: DM Console's three `×`/`✕` remove/close buttons (was 0 aria-labels), plus the mobile
+  undo/redo (`↶`/`↷`) in Live Sheet's `#lmobar` and CharGen's `.hd-mobnav`. Button-clutter audit found the
+  desktop/mobile toolbars are responsive-exclusive (swapped by media query), not duplicated, and the DM
+  Console view toggles are distinct functions — so no buttons were removed (would have dropped reachable
+  functionality); the cleanup is the Home link + labels. Also gave Live Sheet's fixed `#apFloat` "AP left"
+  badge `pointer-events:none` — the Home link reflowed the `.top` header so "Open in CharGen" landed under
+  that always-on overlay, which was intercepting the click (caught by the browser e2e job); the badge is a
+  read-only readout with no handlers, so click-through is the correct fix and also removes the latent
+  overlap hazard for any future header control.
+- **2026-07-15 · fix(dm-console) — roster level reads the tuned `levelBudgetCurve`, not the fixed
+  `DATA.levelAP` ladder** (`tools/DM-Console.html` only; display-only, no engine/`DATA.version` change).
+  The roster's per-character level (card "Level N", detail "AP-level") now resolves the DM-tuned
+  level-budget curve carried in each character's own LOG (`rulesSnapshot` event), via a DM-Console-local
+  `_latestLogSnapshotRules()`/`_levelCurve()`/`trackLevel()` trio that mirrors Live Sheet's — so the
+  roster agrees with what that character's Live Sheet shows, tuned or not. The fixed `DATA.levelAP` ladder
+  is no longer read for level *display* here (the old `apLevel()` function was removed). **Behavior note:**
+  because Live Sheet already retired the fixed ladder in favour of the Standard preset (`{l1:79,inc:24}`)
+  for untuned/unbound characters, DM Console now falls back to that same Standard curve too — so an
+  unbound character's displayed roster level can shift versus the old ladder, by design, to match Live
+  Sheet. See `DECISIONS.md` (`D-GH-2026-07-15-dm-console-roster-tuned-curve`).
+- **2026-07-15 · docs(sessions) — session note: two-task run (tools Home-nav #222, DM Console roster
+  tuned-curve #223), incl. the #222 e2e regression (`#apFloat` intercepts a reflowed header button) and
+  the recurring `EnterWorktree`-bases-on-`main` trap** (`docs/sessions/2026-07-15-nav-cleanup-and-roster-tuned-curve.md`).
 - **2026-07-15 · chore(tooling) — `/plan-for-review` skill: reviewer self-ID, MD-file review output, and
   one-block copy-paste hand-off** (`.claude/commands/plan-for-review.md` only; no app/code change). The
   generated reviewer instructions now ask any reviewer to declare its model + settings first (kept generic,
