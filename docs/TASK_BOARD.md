@@ -140,15 +140,6 @@ isn't obvious from the diff alone.
 - **A7 — Lighthouse 85 → 90.** Add a Lighthouse CI GitHub Action to auto-catch perf regressions. *Then
   (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for the real score gain —
   *caveats:* a big engine change; do it only after REV-01 makes the gate real.
-- **Harden `search_path` on SECURITY DEFINER functions against temp-table shadowing.** Every SECURITY
-  DEFINER function in `sql/schema.sql`/`sql/rls-policies.sql` (11+ instances, pre-existing) sets
-  `search_path = public` without also listing `pg_temp`, which doesn't fully close the classic
-  session-local-temp-table-shadowing pitfall. Low real-world exploitability today (Supabase/PostgREST
-  clients have no raw-SQL/DDL path), but worth closing repo-wide rather than piecemeal — a partial fix
-  across only some functions would be worse than no fix. Change every `set search_path = public` to
-  `set search_path = public, pg_temp` consistently; new dated migration; re-run
-  `testing/tests/engine-parity.html` (20/0) and the Supabase advisor. Found during `/code-review` on
-  PR #203. Branch `fix/harden-search-path-pg-temp`.
 - **General engine maintainability (from the 2026-07-14 review).** `compute()` does normalization,
   pricing, validation, and warning-generation all in one ~350-line function — biggest source of risk when
   editing it. `MUT.patch` (`Object.assign(b, p.patch)`) can write arbitrary build fields and is named like

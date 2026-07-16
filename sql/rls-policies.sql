@@ -18,7 +18,7 @@
 -- ---------------------------------------------------------------------------
 -- DM = membership in campaign_dms (owner is auto-added; co-DMs join/promoted).
 create or replace function public.is_campaign_dm(p_campaign uuid)
-returns boolean language sql security definer stable set search_path = public as $$
+returns boolean language sql security definer stable set search_path = public, pg_temp as $$
   select exists (
     select 1 from campaign_dms where campaign_id = p_campaign and dm_id = auth.uid()
   );
@@ -26,12 +26,12 @@ $$;
 
 -- Owner = the campaigns.dm_id (creator). Owner-only actions: manage co-DMs, delete.
 create or replace function public.is_campaign_owner(p_campaign uuid)
-returns boolean language sql security definer stable set search_path = public as $$
+returns boolean language sql security definer stable set search_path = public, pg_temp as $$
   select exists (select 1 from campaigns where id = p_campaign and dm_id = auth.uid());
 $$;
 
 create or replace function public.is_campaign_member(p_campaign uuid)
-returns boolean language sql security definer stable set search_path = public as $$
+returns boolean language sql security definer stable set search_path = public, pg_temp as $$
   select exists (
     select 1 from characters where campaign_id = p_campaign and owner_id = auth.uid()
   );
@@ -39,7 +39,7 @@ $$;
 
 -- True if auth.uid() and p_other share any campaign (either as DM or player).
 create or replace function public.shares_campaign(p_other uuid)
-returns boolean language sql security definer stable set search_path = public as $$
+returns boolean language sql security definer stable set search_path = public, pg_temp as $$
   select exists (
     -- I DM a campaign p_other plays in
     select 1 from campaign_dms d join characters ch on ch.campaign_id = d.campaign_id
@@ -193,7 +193,7 @@ grant insert (id, owner_id, name, kind, stats) on public.characters to authentic
 -- ---------------------------------------------------------------------------
 drop function if exists public.award_ap(uuid, integer);
 create or replace function public.award_ap(p_character uuid, p_amount integer, p_note text default null)
-returns integer language plpgsql security definer set search_path = public as $$
+returns integer language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_campaign uuid;
   v_ap       integer;
