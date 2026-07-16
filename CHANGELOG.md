@@ -4,6 +4,25 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · ci(lighthouse) — add Lighthouse CI to auto-catch landing-page regressions**.
+  New `.github/workflows/lighthouse-ci.yml` runs Lighthouse (desktop preset, via
+  `treosh/lighthouse-ci-action`) against `index.html` on PRs touching it or its assets — served
+  locally (no deploy needed) by exploiting `actions/checkout`'s default path already ending in a
+  directory named after the repo, so serving its parent reproduces the `/PACT/` URL prefix the
+  manifest/service-worker expect, no symlink needed. Thresholds in the new `lighthouserc.json` are
+  set from a real measured baseline (2026-07-16, desktop: performance 100, accessibility 98-100
+  across runs, best-practices 96, seo 100), not an arbitrary target — 0.85 floor gives headroom for
+  Lighthouse's normal run-to-run variance while still catching a real regression;
+  performance/accessibility gate the build (error), best-practices/seo are advisory (warn).
+  Achieving the higher "Lighthouse 85→90" target via engine splitting/lazy-loading stays deferred
+  (bigger, riskier change, only after REV-01 matures) — this PR is just the auto-catch mechanism.
+  Verified end-to-end locally (`@lhci/cli` against a real served copy): passes cleanly today, and a
+  forced-impossible threshold correctly fails with exit code 1 and a readable per-category report.
+  `/code-review` caught a real gap: the local-server readiness poll never failed if the server
+  didn't come up in time, so a broken server would silently fall through to an opaque Lighthouse
+  connection error instead of a clear message — fixed to `exit 1` with the server's own log on
+  timeout. Verified both the success and forced-failure paths directly.
+
 - **2026-07-16 · feat(index) — dismissible "Add to Home Screen" hint for iOS Safari**.
   `beforeinstallprompt` never fires on iOS Safari, so the existing "Install app" button (Chromium/
   Android/desktop only) never appeared there and iOS visitors had no install path at all. Added a
