@@ -25,6 +25,10 @@
 -- Extensions
 -- ---------------------------------------------------------------------------
 create extension if not exists pgcrypto;   -- gen_random_uuid()
+-- Assumes pgcrypto lands in the `extensions` schema (Supabase's default placement for
+-- pre-provisioned projects, not guaranteed by this statement alone) -- see the
+-- extensions.gen_random_bytes(...) call sites below and D-GH-2026-07-16-campaign-invite-search-path.
+-- Supabase-only backend per AGENTS.md, so this is an accepted environment assumption, not a gap to fix.
 
 -- ---------------------------------------------------------------------------
 -- updated_at helper
