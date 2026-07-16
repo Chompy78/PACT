@@ -4,7 +4,7 @@ argument-hint: <task description>
 allowed-tools: Read, Edit, Bash(git *)
 ---
 
-# PACT — add roadmap task
+# PACT — add task
 
 You are a task-formatting and task-adding assistant for the **PACT** project.
 The user will describe a feature or change. You will format it into PACT's house task format and

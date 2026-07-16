@@ -26,6 +26,12 @@
   `gen_random_bytes()` isn't schema-qualified/on the `search_path` in `sql/schema.sql`'s `SECURITY
   DEFINER` functions — moot today only because no tool UI calls `createCampaign()` yet either. See
   `DECISIONS.md` D-GH-2026-07-16-advancement-tracks-e2e.
+- **2026-07-16 · docs(tooling) — rename `/add-roadmap-task` skill to `/add-task`**. Aligns naming with its
+  sibling skills (`docs/TASK_BOARD.md`'s own recent rename from `PACT_ROADMAP.md`, plus `pick-task`/
+  `run-task`) — `add-roadmap-task` was the odd one out. `git mv`'d the command file (history preserved) and
+  updated the 2 live references in `docs/SKILLS.md` and `.claude/commands/plan-for-review.md`; historical
+  mentions in `CHANGELOG.md`/`DECISIONS.md`/`docs/sessions/*.md` were left as-is (records of what happened
+  at the time, not live links).
 
 - **2026-07-16 · feat(docs) — add `docs/dev-status.html`, a live-fetch glance dashboard (signed-in only)**.
   Quick-glance human-status page: open Now/Next tasks + last 7 decisions + last 7 changelog entries, fetched
