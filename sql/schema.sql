@@ -25,6 +25,10 @@
 -- Extensions
 -- ---------------------------------------------------------------------------
 create extension if not exists pgcrypto;   -- gen_random_uuid()
+-- Assumes pgcrypto lands in the `extensions` schema (Supabase's default placement for
+-- pre-provisioned projects, not guaranteed by this statement alone) -- see the
+-- extensions.gen_random_bytes(...) call sites below and D-GH-2026-07-16-campaign-invite-search-path.
+-- Supabase-only backend per AGENTS.md, so this is an accepted environment assumption, not a gap to fix.
 
 -- ---------------------------------------------------------------------------
 -- updated_at helper
@@ -43,14 +47,14 @@ $$;
 -- is a plain PRNG not fit for anything that acts as a shared secret (REV-07).
 -- ---------------------------------------------------------------------------
 create or replace function public.gen_invite_code()
-returns text language plpgsql as $$
+returns text language plpgsql set search_path = public as $$
 declare
   alphabet constant text := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   code text;
   raw  bytea;
 begin
   loop
-    raw := gen_random_bytes(6);
+    raw := extensions.gen_random_bytes(6);
     code := '';
     for i in 0..5 loop
       code := code || substr(alphabet, 1 + (get_byte(raw, i) % 36), 1);
@@ -358,7 +362,7 @@ begin
   end if;
 
   loop
-    v_token := encode(gen_random_bytes(16), 'hex');
+    v_token := encode(extensions.gen_random_bytes(16), 'hex');
     exit when not exists (select 1 from campaign_invites where token = v_token);
   end loop;
 
