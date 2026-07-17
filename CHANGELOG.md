@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-17 · fix(tooling) — 15 findings from a `/code-review ultra` pass on `/sweep-tasks`/
+  `/add-task` fixed**: worktree-leak on park paths, TaskList entries left stuck `in_progress`, no
+  cap-backfill on drop/park, undefined bumped-to-high review tier, undefined PR-number capture,
+  unvalidated `$ARGUMENTS` batch-size parsing, unguarded direct pushes to `preview`, a diff-size-check/
+  add-task-example contradiction, a missing cross-tool-migration Ambiguity callout, plus stale-doc
+  fixes in `docs/TASK_BOARD.md` and `AGENTS.md` — see `DECISIONS.md`
+  D-GH-2026-07-17-sweep-tasks-review-fixes for the full list.
+
 - **2026-07-16 · feat(tooling) — `/sweep-tasks` v2: three-factor Risk scoring + circuit breaker,
   diff-size check, risk-scaled review, sweep log**. Reworked Risk from a single holistic call into
   three named factors (ambiguity, damage scale, damage likelihood, each low/medium/high), worst-of
