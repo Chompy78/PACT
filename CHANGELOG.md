@@ -4,6 +4,11 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-17 · docs(tooling) — synced `docs/SKILLS.md` with the sweep-tasks/add-task changes it had
+  missed**: the Ambiguity-High cross-tool-migration rule, `/sweep-tasks`' cap-backfill and stricter
+  `$ARGUMENTS` parsing, and a corrected `/code-review ultra` description (it can silently fall back to
+  a local max-effort pass, not always a billed cloud review).
+
 - **2026-07-17 · refactor(auth) — shared `onSessionChange(session)` helper for `js/auth.js`,
   migrated 4 of 5 call sites**: adds `onSessionChange`, a one-argument wrapper around
   `onAuthChange(event, session)` that structurally rules out the argument-order bug — CharGen's 3

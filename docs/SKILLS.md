@@ -67,10 +67,13 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 
 - **`/add-task`** — Formats a feature/change/bug into PACT's house task format and adds it to
   `docs/TASK_BOARD.md`. Use it to capture work without derailing what you're doing. (The roadmap has a
-  single writer; this is the sanctioned way to add.) Every task gets an **Effort** tag
-  (`low`/`medium`/`high`, informational) and a **Risk** tag — scored from three named factors
-  (ambiguity, damage scale, damage likelihood), worst-of combined — that `/sweep-tasks` uses as its
-  sole safety gate.
+  single writer — `/add-task` and `/sweep-tasks` are the only two things allowed to commit to it
+  directly; everything else outputs the formatted task for you to fold in.) Every task gets an
+  **Effort** tag (`low`/`medium`/`high`, informational) and a **Risk** tag — scored from three named
+  factors (ambiguity, damage scale, damage likelihood), worst-of combined — that `/sweep-tasks` uses as
+  its sole safety gate. Any cross-tool or architectural-migration task is always rated high on
+  ambiguity (and so lands at `Risk: high`), even when a specific existing pattern exists to copy —
+  don't round that down just because the copy step itself looks mechanical.
 
 - **`/pick-task`** — Fetches live roadmap state, picks the next task, and pre-flights it (reads what's
   needed, flags whether a specialist agent or higher effort would help). **Read-only — no editing, no
@@ -84,8 +87,11 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
   `preview`), edits, runs the engine-parity gate, self-reviews, updates the logs, and opens a PR. Step 2 of
   the work pattern. (Requires Claude Code v2.1.50+.)
 
-- **`/code-review`** — Reviews the current diff for correctness bugs and cleanups before merge.
-  `/code-review ultra` runs a deeper multi-agent cloud review (billed; you trigger it, not the agent).
+- **`/code-review`** — Reviews the current diff for correctness bugs and cleanups before merge, at a
+  tier you name (`low`/`medium`/`high`/`ultra`) or that `/sweep-tasks` picks for you based on a task's
+  Risk. `/code-review ultra` normally runs a deeper multi-agent cloud review, but silently falls back to
+  a local max-effort pass if cloud review isn't available in the current environment (e.g. this remote
+  session) — check the skill's own output for which one actually ran.
 
 - **`/close-session`** — Wrap-up that **writes** the session's `CHANGELOG`/`DECISIONS`/session-note,
   graduates finished tasks out of `TASK_BOARD.md`, verifies tests/tree/worktrees/sync, then **proposes a
@@ -105,9 +111,11 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
   parity-gate) verification before merging. Adds any newly-surfaced task it discovers to the board in
   `/add-task`'s format (skipping that skill's normal approval-wait, since this skill is unattended by
   design) and folds it into the same run if it also clears the bar. Asks once, up front, how many
-  tasks to attempt; everything after that runs hands-off. Logs every run — attempted, not just
-  shipped — to `docs/sweep-log.md`. Never promotes `preview` → `main` — that stays a separate,
-  explicit call.
+  tasks to attempt (a bare number — free text with a number embedded in it, like a version reference,
+  doesn't count); if a queued task gets dropped or parked partway through, the next eligible task
+  backfills that slot so the run still aims for the number you asked for, not fewer. Everything after
+  that first prompt runs hands-off. Logs every run — attempted, not just shipped — to
+  `docs/sweep-log.md`. Never promotes `preview` → `main` — that stays a separate, explicit call.
 
 - **`/log-ai-lessons`** — Mines a session/file for *generalizable* AI-coding lessons (not project-specific
   fixes) and drafts entries for the cross-project `ai-lessons-learned` log.
