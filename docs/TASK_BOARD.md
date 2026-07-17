@@ -27,6 +27,55 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## Port the AGENTS.md/skills scaffold to another repo — TODO
+Branch docs/port-agents-scaffold-skill. Generalize this session's manual copy-and-adapt work (porting
+AGENTS.md + .claude/commands/ + hooks to chompy78/petdetective and chompy78/homelife — see
+docs/sessions/2026-07-17-port-agents-scaffold-to-petdetective-homelife.md) into a repeatable PACT skill,
+so a future "bring this workflow to repo X" request doesn't redo the analysis from scratch.
+**Effort:** high · **Risk:** high — ambiguity is high (how prescriptive vs. flexible the skill should be —
+auto-detect target conventions vs. always ask, how much to generalize vs. leave as human judgment — is a
+genuine design call with no single obviously-right answer, the same way this session had to improvise two
+different adaptations for two differently-shaped repos); damage scale is low (only touches
+.claude/commands/ in whichever repo it's run against, and per this session's established practice should
+always draft-then-show-for-approval before writing to a foreign repo, so a bad output is caught before
+landing); damage likelihood is medium (nothing automated gates a skill's own prompt content — a flawed
+skill design only surfaces the next time someone actually runs it against a real target repo) — worst-of
+lands at high on ambiguity alone, so never eligible for /sweep-tasks; recommend `/plan-for-review` before
+implementation given the design-call nature.
+
+```text
+1. Read this session's session note (docs/sessions/2026-07-17-port-agents-scaffold-to-petdetective-homelife.md)
+   and the two target repos' actual results (chompy78/petdetective's docs/agent-scaffold branch/PR #4,
+   chompy78/homelife's commit ede0496) as the worked examples to generalize from.
+
+2. Design a new skill, e.g. `.claude/commands/port-agents-scaffold.md`, that:
+   - Takes a target repo as its argument.
+   - Reads the target's actual current state first — does it already have AGENTS.md/CHANGELOG.md/
+     DECISIONS.md/a task board? Does it have a test suite/CI? What's its branch model (single branch vs.
+     branch-per-task, main vs. some other default)?
+   - Branches its own behavior on what it finds: a blank-slate target gets the full scaffold built fresh
+     (per the petdetective pattern); a target with existing mature governance docs gets only the missing
+     pieces added, with small additive notes in the existing docs rather than any rewrite (per the
+     homelife pattern).
+   - **Explicitly handles the main-only case:** if the target's own stated or observed convention is
+     commit-and-push-straight-to-main (no feature-branch workflow), the ported pick-task/run-task/
+     sweep-tasks/cleanup-branches skills must drop all worktree/branch/PR machinery and work directly
+     against that branch instead — never introduce branches/PRs into a repo whose established convention
+     is branch-less, even for consistency with PACT's own model.
+   - Always drafts the adapted files and shows them (or a summary) for approval before writing/committing/
+     pushing anything to the target repo — same draft-before-write discipline `/add-task`,
+     `/log-ai-lessons`, and `/plan-for-review` already use.
+   - Pauses before pushing to the target repo if that repo has no PR gate (a direct push to its main
+     branch may trigger an immediate live deploy, as it did for homelife) — flag this explicitly rather
+     than pushing straight through.
+
+3. Update `docs/SKILLS.md` to document the new skill alongside the existing eight.
+```
+
+**Done when:** the new skill exists, is documented in `docs/SKILLS.md`, and has been dry-run (or actually
+run) against at least one real target repo of each shape (a blank-slate repo and a repo with existing,
+possibly-conflicting governance docs) with correct behavior in both cases.
+
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
