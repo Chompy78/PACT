@@ -9,6 +9,8 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-sweep-tasks-risk-model-v2** — Reworked `/sweep-tasks`' safety gate: Risk is now three named factors (ambiguity, damage scale, damage likelihood) worst-of combined, `Risk: high` is an absolute veto but `Risk: medium` is now eligible (previously only `low` was), and Effort no longer gates eligibility at all — it's ordering/sizing information only, since a genuinely risky task was always going to score high via the Ambiguity factor anyway, making Effort a redundant, less-precise proxy for the same thing. Added a consecutive-failure circuit breaker, a diff-size sanity check, Risk-scaled (not just file-path-scaled) review tiers with mandatory live verification above `Risk: low`, and a `docs/sweep-log.md` recording every attempted run
+
 - **D-GH-2026-07-16-sweep-tasks-skill** — Added `/sweep-tasks`, the unattended-loop version of pick→run→review→merge over roadmap tasks tagged `Effort: low|medium` + `Risk: low`; classification is structured metadata set by `/add-task` (not re-derived per sweep run), batch size is asked once per invocation rather than fixed or uncapped, mid-run task discoveries execute immediately if they qualify rather than deferring, and merge-as-you-go is a fixed default with no per-run prompt — four explicit human calls made when the skill was designed, not defaults I picked unilaterally
 
 - **D-GH-2026-07-16-lighthouse-ci** — Added `.github/workflows/lighthouse-ci.yml` (Lighthouse CI, `treosh/lighthouse-ci-action`) against `index.html`, serving it locally via `actions/checkout`'s default path (already ending in a dir named after the repo) rather than needing a symlink; thresholds in `lighthouserc.json` set from a real measured baseline (2026-07-16: perf 100, a11y 98-100, best-practices 96, seo 100) with an 0.85 floor for headroom against Lighthouse's normal run-to-run variance, not an arbitrary target; performance/accessibility error (block), best-practices/seo warn (advisory) — the harder "85→90" score-improvement work (engine splitting/lazy-loading) stays deferred, this is just the regression-catching mechanism
@@ -112,6 +114,49 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-sweep-tasks-risk-model-v2 · risk ≠ uncertainty, and Effort was a redundant proxy
+- **Context:** immediately after `D-GH-2026-07-16-sweep-tasks-skill` shipped, discussion surfaced
+  that "Risk" as originally defined silently conflated two different things — blast radius if
+  something goes wrong, and how ambiguous/uncertain the task itself is — under one label, with no
+  way to tell which one excluded a given task. Separately, the user wanted the policy loosened from
+  "only `Risk: low`" to "`Risk: low` or `medium`, `high` always vetoed."
+- **Options for the conflation:** (1) split into two separate tags, `Risk` and `Uncertainty`,
+  both required low for eligibility. (2) keep one `Risk` tag, but define it explicitly as derived
+  from named sub-factors (ambiguity being one of them) with a stated combination rule, so the "why"
+  clause can name which factor drove the rating without needing a second top-level tag.
+- **Decision:** (2) — three factors (**ambiguity**: likelihood the implementation itself diverges
+  from correct; **damage scale**: blast radius/reversibility if it does; **damage likelihood**: how
+  likely the damage is to surface given a wrong implementation), each rated low/medium/high,
+  combined by **worst-of** (the highest-rated factor sets the overall Risk).
+- **Why:** a real risk-assessment model is likelihood × impact; ambiguity is the primary driver of
+  likelihood (a clearer task is less likely to be implemented wrong), so folding it in as a named
+  factor rather than a separate top-level tag keeps `/sweep-tasks`' filter to one field while still
+  preserving *why* — the diagnostic value a merged single field would otherwise lose. Two separate
+  tags were rejected as unnecessary complexity once the single tag's definition became precise enough
+  to carry the same information via its factor breakdown.
+- **The Effort/Risk decoupling:** once Risk properly captured ambiguity, `Effort: high`'s old
+  criteria ("genuine architectural judgment," "a design call with real trade-offs") turned out to be
+  duplicating exactly what the Ambiguity factor already measures — a task that's high-effort in the
+  risky sense will score `Risk: high` via Ambiguity anyway. Effort was demoted from a gate to pure
+  ordering/sizing information; Risk alone is now the sole safety gate, with `high` an absolute veto
+  and `medium` newly eligible (previously excluded).
+- **Consequence:** `/add-task`'s Risk section rewritten around the three factors; `/sweep-tasks`'
+  Step 2 filter changed from "Effort ≤ medium AND Risk = low" to "Risk ≤ medium" (Effort unfiltered,
+  used only for the low-first ordering tiebreak and for review-tier sizing); the 2 tasks already
+  tagged on the board were re-scored under the fuller model (see `CHANGELOG.md`) — one moved to
+  `high` (previously under-weighted as `medium`), one moved to `medium` (previously over-confidently
+  tagged `low`, since "manually verifiable" isn't the same as "automatically gated").
+- **Also added this same pass** (separately motivated, not part of the risk-model rework itself): a
+  consecutive-failure circuit breaker (halts the sweep after 2 failures in a row rather than grinding
+  through what's likely a systemic problem, not a per-task fluke), a diff-size sanity check (flags,
+  doesn't auto-park, a task whose real diff outgrew its Effort tag — a cheap second opinion on the
+  classification once the real diff exists), Risk-scaled review tiers with mandatory live
+  verification above `Risk: low` (the file-path-only heuristic for review scrutiny missed anything
+  risky that didn't happen to touch `js/engine.js`/`sql/`), and `docs/sweep-log.md` (a durable record
+  of every *attempted* run, since `CHANGELOG.md` only ever shows what shipped — a pattern of repeated
+  parks on one kind of task would otherwise leave no trace to notice and retune the criteria against).
+- **Status:** Active.
 
 ## D-GH-2026-07-16-sweep-tasks-skill · four human calls, not four defaults picked unilaterally
 - **Context:** this session manually ran a 6-task low-effort/low-risk batch (pick → worktree → edit

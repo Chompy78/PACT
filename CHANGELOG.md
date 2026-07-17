@@ -4,6 +4,25 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · feat(tooling) — `/sweep-tasks` v2: three-factor Risk scoring + circuit breaker,
+  diff-size check, risk-scaled review, sweep log**. Reworked Risk from a single holistic call into
+  three named factors (ambiguity, damage scale, damage likelihood, each low/medium/high), worst-of
+  combined — `Risk: high` is now an absolute veto with no exception, but `Risk: medium` is eligible
+  (previously only `Risk: low` was). Effort no longer gates eligibility at all — it's used for queue
+  ordering (low-effort-first tiebreak within each priority tier) and review-tier sizing, not
+  filtering. Four new safety/observability additions to `/sweep-tasks`: (1) a consecutive-failure
+  circuit breaker that halts the whole sweep after 2 failures in a row rather than grinding through a
+  systemic problem; (2) a diff-size sanity check that flags (not auto-parks) a task whose real diff
+  outgrew its Effort tag; (3) review tier now scales with the Risk tag itself (not just a
+  js/engine.js/sql/ file-path proxy), plus a required live-verification step for anything above
+  `Risk: low`; (4) a new `docs/sweep-log.md`, appended every run, recording what was *attempted* —
+  not just what shipped, which `CHANGELOG.md` alone can't show. Re-scored the 2 tasks already tagged
+  on the board under the fuller model: the engine-review cleanup batch moved from `medium` to `Risk:
+  high` (item 4's ambiguity was under-weighted in the first pass — still never eligible either way),
+  the shared `onAuthChange` wrapper moved from `low` to `Risk: medium` (no automated gate for
+  auth-UI regressions — still eligible, now correctly flagged as needing live verification). See
+  `DECISIONS.md` D-GH-2026-07-16-sweep-tasks-risk-model-v2.
+
 - **2026-07-16 · feat(tooling) — add `/sweep-tasks`, the unattended batch version of pick→run→review→merge**.
   New `.claude/commands/sweep-tasks.md` loops over every roadmap task tagged `Effort: low|medium` **and**
   `Risk: low`, running each through `/run-task` → `/code-review` → merge with no per-task confirmation

@@ -37,9 +37,11 @@ to `CHANGELOG.md`.
 Branch chore/engine-review-cleanup. Four small, low-risk js/engine.js hardening/cleanup items surfaced by
 the 2026-07-14 engine.js review (see session discussion); bundled as one low-risk batch per AGENTS.md's
 "quick" bundling allowance — each item still gets its own commit and CHANGELOG line.
-**Effort:** medium · **Risk:** medium — touches js/engine.js directly (item 1 also touches CharGen's
-separate hand-copied import-fold path) and item 4 may change compute() output/DATA.version; not eligible
-for /sweep-tasks regardless of how contained the individual items look.
+**Effort:** medium · **Risk:** high — ambiguity is high on item 4 (noLock scoping is explicitly framed
+as a real design call between a structural fix and a rename-only, with possible compute()/DATA.version
+impact); damage scale is also high (touches js/engine.js directly, item 1 also touches CharGen's
+separate hand-copied import-fold path); worst-of across the bundled 4 items lands the whole task at
+high regardless of how contained items 2-3 are alone — never eligible for /sweep-tasks.
 
 ```text
 1. Drawback buyoff matches by label, not a stable ID. `activeEvents()`/`_replay()` key `boughtOff` off
@@ -81,9 +83,11 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 Branch refactor/shared-auth-change-helper. Factor the hand-copied onAuthChange(event, session) closure
 each tool writes independently into one shared helper, since the same argument-order bug has now been
 found and fixed 3 separate times at different call sites.
-**Effort:** medium · **Risk:** low — mechanical refactor across 3 UI-only tool files (js/auth.js or
-js/ui-helpers.js + 5 call sites), no js/engine.js/DATA involvement, each site's existing behavior is
-independently manually verifiable pre/post.
+**Effort:** medium · **Risk:** medium — ambiguity and damage scale are both low (mechanical refactor
+across 3 UI-only tool files, js/auth.js or js/ui-helpers.js + 5 call sites, no js/engine.js/DATA
+involvement, trivially revertible); damage likelihood is medium (no automated gate for auth-UI
+regressions, only manual verification) — worst-of lands the task at medium; still eligible for
+/sweep-tasks, but requires the live-verification step (Step 4.5) since it's above Risk: low.
 
 ```text
 js/auth.js's onAuthChange(cb) calls cb(event, session) — session is the 2nd argument, not the 1st. Every
