@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-17 · refactor(engine) — REV-14a: extracted the `DATA` rules dataset out of `js/engine.js`
+  into its own `js/engine-data.js` module**: `engine.js` shrinks from ~189 KB (dominated by one 189 KB
+  `DATA` literal line) to ~65 KB and now imports + re-exports `DATA` unchanged, so every tool/importer
+  sees the identical surface — matching the existing `ap-by-level.js`/`advancement.js` externalization
+  pattern. Byte-identical output verified: the moved literal is character-identical **and** deep-equal to
+  the original, `engine-parity` (incl. warnings) reports **20/0**, and all 14 named exports are unchanged.
+  `service-worker.js` updated (cache `pact-v5`→`pact-v6`, `engine-data.js` precached + network-first) so
+  the rules dataset keeps `engine.js`'s immediate-fix-propagation semantics instead of going stale on a
+  cache-first copy (see `DECISIONS.md`). No rules change — `DATA.version`/`BUILD` unchanged. Follow-up
+  **REV-14b** (split `compute()` into named sub-pricers) stays open; a cold-reviewed plan for the whole of
+  REV-14 lives at `docs/plans/2026-07-17-engine-breakup-rev14.md`.
+
 - **2026-07-17 · docs(roadmap) — scored `docs/TASK_BOARD.md`'s remaining untagged items with
   Effort/Risk tags**: REV-14, real icons, both landing-page follow-ups, A1/A3/A7's remaining scope, and
   the `MUT.patch` rename/restriction idea now carry the three-factor Risk breakdown, so they're visible

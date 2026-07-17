@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-17-engine-data-extract** — REV-14a extracted the `DATA` rules dataset from `js/engine.js` into a new `js/engine-data.js` **`.js` module** (not `.json`), re-exported unchanged; chose `.js` over the task's originally-specified `.json` because a JSON module is frozen in some engines and the three tools' bridges mutate `DATA.racialFx`/`masteryFx`/`drawbackFx` onto it (a frozen import would throw `TypeError`), because `.js` avoids the iOS-Safari import-attributes question entirely, and because it matches the repo's existing `ap-by-level.js`/`advancement.js` precedent; also made `engine-data.js` network-first + precached in the service worker so a rules edit (which used to live in the network-first `engine.js`) still reaches returning users immediately rather than sticking on a stale cache-first copy — a decision informed by a 4-model cold-review round on `docs/plans/2026-07-17-engine-breakup-rev14.md`
 - **D-GH-2026-07-17-worktree-base-check-exact-equality** — `run-task.md`'s worktree-base-verification check switched from an ancestry check to an exact-equality check, because *any* ancestry-based check (the documented `--is-ancestor`, and an undocumented "sharper" `merge-base`-equals-target variant used ad hoc this session) gives a false positive for one worktree-turn right after every `preview`→`main` promotion — caught when a `docs/SKILLS.md` sync PR's rebase tried to replay 196 ancient commits back to PR #95, revealing the worktree was silently based on `origin/main`, not `origin/preview`, despite the ad hoc check passing
 - **D-GH-2026-07-17-shared-auth-change-helper** — Added `onSessionChange(cb)` to `js/auth.js`, a one-argument wrapper around `onAuthChange(event, session)` that structurally rules out the argument-order bug fixed 3 separate times at different call sites; migrated CharGen's 3 call sites and DM Console's 1 to it, but kept Live Sheet's single call site on the raw `onAuthChange` since it genuinely needs the event string for its `SIGNED_OUT` branch — the task's own step 1 explicitly permitted this, even though the "Done when" line's "all 5 call sites use it" reads more strictly; judged wrap-don't-replace correct because forcing Live Sheet through the session-only wrapper would mean either threading `event` back in as an optional 2nd argument (defeating the whole point of a can't-get-it-wrong single-argument signature) or subscribing twice, and the argument-order bug this task exists to prevent has only ever hit session-only call sites in practice, not the one site that legitimately needs the event
 - **D-GH-2026-07-17-sweep-tasks-review-fixes** — Fixed 15 findings from a `/code-review ultra` pass on the merged `/sweep-tasks`/`/add-task` skill files: worktrees now stay (`ExitWorktree(action:"keep")`) on park paths instead of leaking, dropped/parked queue slots get backfilled from the eligible list to hold the requested batch size, `TaskList` entries always reach an explicit terminal state (never left stuck `in_progress`), `$ARGUMENTS` batch-size parsing requires a bare integer (not any digit substring in free text), Step 5's newly-discovered tasks now route through Step 3's pre-flight branch check and get the same fetch/rebase-before-push care as feature branches, the diff-size-bumped-to-high case now maps to the `ultra` review tier instead of being undefined, the diff-size check no longer penalizes the exact "mechanical batch across many call sites" pattern `/add-task`'s own Effort:medium examples endorse, Ambiguity's High tier now names cross-tool/architectural migrations explicitly (closing the gap left when Effort stopped gating eligibility), and both `docs/TASK_BOARD.md`'s stale "Step 4.5" reference and `AGENTS.md`'s undocumented single-writer carve-out were corrected
@@ -117,6 +118,38 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-17-engine-data-extract · move DATA to a .js module, keep its network-first propagation
+- **Context:** `js/engine.js` was ~189 KB, almost entirely one physical line: `export const DATA = {…}`,
+  the full rules dataset. REV-14 (a long-standing untagged roadmap note, unblocked once REV-01 made the
+  parity gate assert real values on 2026-06-30) called for extracting `DATA` into its own file and, later,
+  splitting `compute()` into named sub-pricers. A self-contained plan was drafted and sent for a **4-model
+  cold review** (Claude Opus 4.7, Kimi, GPT-5.5, + one ambiguous-provenance reviewer); see
+  `docs/plans/2026-07-17-engine-breakup-rev14.md`. This entry covers **REV-14a** (the `DATA` extraction)
+  only; REV-14b (`compute()` decomposition) remains open.
+- **Options (file format for the extracted dataset):**
+  1. `js/engine-data.json`, imported with `import … with { type: 'json' }` — matches the task's literal
+     wording.
+  2. `js/engine-data.js` as `export const DATA = {…}`, imported + re-exported by `engine.js`.
+  3. `fetch('engine-data.json')` at runtime.
+- **Decision:** (2), a `.js` module. `engine.js` now does `import { DATA } from './engine-data.js'; export
+  { DATA };` — every importer and the three tools' `window` bridges see a byte-identical `DATA` surface.
+  Additionally, `service-worker.js` was updated: `engine-data.js` is precached and added to the
+  network-first regex (cache bumped `pact-v5`→`pact-v6`).
+- **Why:** all four cold reviewers independently recommended flipping `.json`→`.js`, and Kimi supplied the
+  decisive concrete mechanism — **JSON modules are frozen in some engines**, so the tools' bridges doing
+  `DATA.racialFx = {…}` (a display-only mutation `compute()` never reads) would throw `TypeError`. `.js`
+  also sidesteps the iOS-Safari import-attributes support question and the JSON-representability
+  assumption, and it matches the repo's own existing precedent (`ap-by-level.js`, `advancement.js` are
+  already externalized `.js` data modules). The service-worker change preserves a property that would
+  otherwise silently regress: editing `DATA` used to mean editing `engine.js`, which is **network-first**
+  precisely so rules fixes reach returning users immediately; leaving `engine-data.js` on the default
+  cache-first path would have made rules updates go stale until cache eviction. Option 3 was rejected
+  because `DATA` is consumed **synchronously** by both `compute()` and the bridges — going async would
+  ripple through every caller and the `engine-ready` timing for no benefit.
+- **Status:** Active. Verified byte-identical (raw string + deep-equal), `engine-parity` 20/0 including
+  warnings, all 14 named exports unchanged, `DATA` still mutable (not frozen) via a live Node check,
+  `DATA.version`/`BUILD` unbumped (no rules change).
 
 ## D-GH-2026-07-17-worktree-base-check-exact-equality · ancestry checks can't detect a post-promotion mis-base
 - **Context:** entering a fresh worktree for a `docs/SKILLS.md` sync task, right after promoting
