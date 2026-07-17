@@ -4,6 +4,68 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-17 · refactor(auth) — shared `onSessionChange(session)` helper for `js/auth.js`,
+  migrated 4 of 5 call sites**: adds `onSessionChange`, a one-argument wrapper around
+  `onAuthChange(event, session)` that structurally rules out the argument-order bug — CharGen's 3
+  call sites and DM Console's 1 (both previously bitten by it) now use it. Live Sheet's single call
+  site (also previously bitten) keeps the raw, order-dependent `onAuthChange` since it genuinely
+  needs the event string for its `SIGNED_OUT` branch — that site is **not** structurally protected by
+  this change, only documented against (see `DECISIONS.md`). Display/UI-only, no `js/engine.js`/
+  `DATA` involvement, parity still 20/0.
+
+- **2026-07-17 · fix(tooling) — 15 findings from a `/code-review ultra` pass on `/sweep-tasks`/
+  `/add-task` fixed**: worktree-leak on park paths, TaskList entries left stuck `in_progress`, no
+  cap-backfill on drop/park, undefined bumped-to-high review tier, undefined PR-number capture,
+  unvalidated `$ARGUMENTS` batch-size parsing, unguarded direct pushes to `preview`, a diff-size-check/
+  add-task-example contradiction, a missing cross-tool-migration Ambiguity callout, plus stale-doc
+  fixes in `docs/TASK_BOARD.md` and `AGENTS.md` — see `DECISIONS.md`
+  D-GH-2026-07-17-sweep-tasks-review-fixes for the full list.
+
+- **2026-07-16 · feat(tooling) — `/sweep-tasks` v2: three-factor Risk scoring + circuit breaker,
+  diff-size check, risk-scaled review, sweep log**. Reworked Risk from a single holistic call into
+  three named factors (ambiguity, damage scale, damage likelihood, each low/medium/high), worst-of
+  combined — `Risk: high` is now an absolute veto with no exception, but `Risk: medium` is eligible
+  (previously only `Risk: low` was). Effort no longer gates eligibility at all — it's used for queue
+  ordering (low-effort-first tiebreak within each priority tier) and review-tier sizing, not
+  filtering. Four new safety/observability additions to `/sweep-tasks`: (1) a consecutive-failure
+  circuit breaker that halts the whole sweep after 2 failures in a row rather than grinding through a
+  systemic problem; (2) a diff-size sanity check that flags (not auto-parks) a task whose real diff
+  outgrew its Effort tag; (3) review tier now scales with the Risk tag itself (not just a
+  js/engine.js/sql/ file-path proxy), plus a required live-verification step for anything above
+  `Risk: low`; (4) a new `docs/sweep-log.md`, appended every run, recording what was *attempted* —
+  not just what shipped, which `CHANGELOG.md` alone can't show. Re-scored the 2 tasks already tagged
+  on the board under the fuller model: the engine-review cleanup batch moved from `medium` to `Risk:
+  high` (item 4's ambiguity was under-weighted in the first pass — still never eligible either way),
+  the shared `onAuthChange` wrapper moved from `low` to `Risk: medium` (no automated gate for
+  auth-UI regressions — still eligible, now correctly flagged as needing live verification).
+  `/code-review` caught 2 real bugs in the new step ordering before merge: the review-fix re-entry
+  section had picked up a stray, misapplied worktree-base check that would have run `git reset
+  --hard origin/preview` *after* a fix was already committed — discarding it — and the live/real
+  verification requirement was sequenced before the code-review fix step, so a task that needed a
+  fix would have its Risk-tier verification checked against the pre-fix code, not what actually
+  merges. Both fixed: the stray check removed (redundant — the existing reset-to-origin/<branch>
+  step already covers it), and live verification moved to run last, against the final code. See
+  `DECISIONS.md` D-GH-2026-07-16-sweep-tasks-risk-model-v2.
+
+- **2026-07-16 · feat(tooling) — add `/sweep-tasks`, the unattended batch version of pick→run→review→merge**.
+  New `.claude/commands/sweep-tasks.md` loops over every roadmap task tagged `Effort: low|medium` **and**
+  `Risk: low`, running each through `/run-task` → `/code-review` → merge with no per-task confirmation
+  (merge-as-you-go is a fixed default, not a per-run prompt). Any newly-surfaced task discovered mid-sweep
+  gets added to the board in `/add-task`'s format — deliberately skipping that skill's normal
+  clarify/approval-wait steps, since this skill is unattended by design — and folds into the same run if
+  it also clears the bar. Asks once, up front, how many tasks to attempt; nothing else is interactive.
+  Never promotes `preview`→`main`. `/add-task` gained matching `**Effort:**`/`**Risk:**` classification
+  criteria (with worked examples) so the two skills stay in sync on what counts as safe to run unattended.
+  Retrofitted the 2 currently-open roadmap tasks with tags as a first real testbed: the engine-review
+  cleanup batch is `medium`/`medium` (touches `js/engine.js`, not eligible), the shared `onAuthChange`
+  wrapper is `medium`/`low` (mechanical UI-only refactor, eligible). `/code-review` caught 4 real gaps
+  in the skill's own procedural instructions before it ever ran: the review-fix re-entry sequence had
+  no fallback for a stale local branch already holding the target name (hit twice in today's manual
+  session), the fix-loop's rebase had no defined behavior on a real conflict (unlike `/run-task`'s own
+  "stop and flag" rule), the frontmatter advertised a `[difficulty/topic filter]` argument Step 2 never
+  implemented, and "merge once checks pass" referenced a CI check nothing in the skill ever queried.
+  All four fixed before merge. See `DECISIONS.md` D-GH-2026-07-16-sweep-tasks-skill.
+
 - **2026-07-16 · ci(lighthouse) — add Lighthouse CI to auto-catch landing-page regressions**.
   New `.github/workflows/lighthouse-ci.yml` runs Lighthouse (desktop preset, via
   `treosh/lighthouse-ci-action`) against `index.html` on PRs touching it or its assets — served

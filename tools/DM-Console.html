@@ -1264,12 +1264,12 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 </script>
 
 <script type="module">
-  import { currentSession, onAuthChange } from '../js/auth.js';
+  import { currentSession, onSessionChange } from '../js/auth.js';
   import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite } from '../js/campaign.js';
   import { getRoster, awardAp, getAwardHistory } from '../js/dm.js';
   import { DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   import { verifyCharacterEnvelope } from '../js/character-store.js';   // tamper-evidence read-side (D-GH48)
-  window._campBridge = { currentSession, onAuthChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, createPlayerInvite };
+  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, createPlayerInvite };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy };
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   // Engine module bridge (D-GH26, extended D-GH36/D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
@@ -1658,12 +1658,11 @@ document.addEventListener('campaign-ready', function () {
     });
   }
 
-  // auth.js's onAuthChange calls cb(event, session) -- session is the 2nd arg, not the 1st (same fix
-  // already applied in PACT-Live-Char-Sheet.html/PACT-CharGen-Webtool.html; this call site bound
-  // _session to the event STRING instead, so updateAuth() crashed on session.user.email on every
-  // auth state change -- SIGNED_IN, INITIAL_SESSION, TOKEN_REFRESHED, etc. -- found while driving a
-  // real signed-in DM through Campaign Rules for feat/advancement-tracks e2e verification).
-  B.onAuthChange(function(event,session){ updateAuth(session); });
+  // onSessionChange (js/auth.js) takes only session, structurally ruling out the argument-order
+  // bug this call site used to have (bound _session to the event STRING instead, crashing
+  // updateAuth() on session.user.email -- found while driving a real signed-in DM through
+  // Campaign Rules for feat/advancement-tracks e2e verification).
+  B.onSessionChange(function(session){ updateAuth(session); });
   B.currentSession().then(function(session){ updateAuth(session); });
 });
 </script>

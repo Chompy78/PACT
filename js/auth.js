@@ -81,6 +81,19 @@ export function onAuthChange(cb) {
   return () => data.subscription.unsubscribe();
 }
 
+/**
+ * Subscribe to auth changes when only the session (not the event string) is needed — the common
+ * case, and the one every argument-order bug so far has hit (a caller binding `session` to
+ * `onAuthChange`'s 1st argument, which is actually `event`). Structurally can't get the order
+ * wrong: there's only one argument. Callers that genuinely need the raw event string (e.g. an
+ * explicit `SIGNED_OUT` branch) should use `onAuthChange` directly instead.
+ * @param {(session: object|null) => void} cb
+ * @returns {() => void} unsubscribe
+ */
+export function onSessionChange(cb) {
+  return onAuthChange((_event, session) => cb(session));
+}
+
 /** Fetch the signed-in user's profile row (id, display_name). */
 export async function myProfile() {
   const user = await currentUser();

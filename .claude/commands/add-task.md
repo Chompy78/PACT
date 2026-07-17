@@ -49,6 +49,7 @@ Format the task using this house format exactly:
 ```
 ## <Short title> — TODO
 Branch <type/short-slug>. <one-line of what + where>.
+**Effort:** low|medium|high · **Risk:** low|medium|high — <one clause: why this rating>
 
 ```text
 <paste-ready steps for the implementing agent>
@@ -56,6 +57,70 @@ Branch <type/short-slug>. <one-line of what + where>.
 
 **Done when:** <one objective, checkable condition>
 ```
+
+### Effort / Risk tags — classify every task, every time
+
+These two tags exist so `/sweep-tasks` can pick eligible work by filtering, not by re-reading and
+re-judging every task's prose on every run. Get the rating right — a wrong "low" Risk tag means
+`/sweep-tasks` will attempt something it shouldn't; a wrong "high" tag just means a genuinely easy
+task sits on the board longer than it needed to. When genuinely unsure between two ratings, round
+up (the more cautious one) rather than down.
+
+**Effort — low:** docs-only edit, a config/manifest tweak, a single-file CSS/copy/UI fix, an
+isolated bug fix with an obvious root cause, a static-analysis/CI-check addition, a small SQL
+migration with a clearly-identified fix (schema-qualify a call, widen one clause).
+**Effort — medium:** touches 2-4 files with straightforward (non-architectural) changes; a
+well-scoped mechanical batch across many call sites (e.g. the same one-line hardening applied to
+every `SECURITY DEFINER` function); adding a new CI workflow; a small new UI feature with
+already-clear scope (e.g. a dismissible hint gated on an existing, well-understood API).
+**Effort — high:** anything needing genuine architectural judgment, a cross-tool/module-bridge
+migration, or a design call with real trade-offs.
+
+Effort does **not** gate `/sweep-tasks` eligibility on its own — it's informational (used for
+ordering within a sweep run and for review-tier sizing), not a filter. **Risk is the only safety
+gate.**
+
+### Risk — three named factors, worst-of combination
+
+Don't rate Risk as one holistic gut call. Rate three separate factors, each `low`/`medium`/`high`,
+then take the **worst (highest) of the three** as the overall Risk rating. This mirrors standard
+risk-assessment practice (risk ≈ likelihood × impact) split into named parts so the "why" clause can
+say *which* factor actually drove the rating, not just assert a conclusion.
+
+**1. Ambiguity — how likely is the *implementation* to diverge from "correct"?**
+- *Low:* one obviously-right way to do it, and success is objectively checkable (parity gate,
+  `audit.py`, a real-browser check, or an existing pattern to copy exactly).
+- *Medium:* a few reasonable approaches exist; picking one is a fine, low-stakes call — doesn't need
+  a human sign-off, just a decision.
+- *High:* no clear "right" — a genuine trade-off only a human should decide. This always includes any
+  cross-tool/module-bridge migration or other architectural change, even when a specific pattern
+  exists to copy (see AGENTS.md's Architecture section for why upstream drift makes this genuinely
+  ambiguous) — don't round this down to Medium just because the copy step looks mechanical.
+
+**2. Damage scale — if it *does* go wrong, how bad and how hard to undo?**
+- *Low:* a `git revert` fully undoes it; one file/tool; no data or security implication.
+- *Medium:* reversible but with real cost — spans multiple files/tools, or needs a follow-up
+  fix/migration to fully undo — but still contained (no security boundary, no live user data, no
+  rules/`compute()` correctness).
+- *High:* touches a security/trust boundary, live user data, or `js/engine.js`'s `compute()`/
+  `_replay()`/`DATA.version` — costly or impossible to cleanly undo.
+
+**3. Damage likelihood — given a wrong implementation, how likely is the damage to actually surface?**
+- *Low:* an existing automated gate (parity, `audit.py`, CI) would catch a wrong implementation
+  before it reaches anyone.
+- *Medium:* would likely surface in normal review/manual testing, but nothing automated gates it.
+- *High:* nothing catches it automatically, and there's live-user exposure — pure reliance on
+  someone noticing.
+
+**Combination:** `Risk = high` if any factor is `high`. Else `Risk = medium` if any factor is
+`medium`. Else `Risk = low` (all three factors low). Name the driving factor(s) in the task's
+one-clause "why" — e.g. *"Risk: medium — damage likelihood is medium (no automated gate for
+auth-UI regressions), ambiguity and damage scale are both low."*
+
+`/sweep-tasks` accepts `Risk: low` or `Risk: medium` — **`Risk: high` is an absolute veto, no
+exception, regardless of how low Effort is.** If Step 1 finds an older task on the board with no
+Effort/Risk line at all (added before this convention existed), leave it untagged — don't
+retroactively guess at one as a side effect of adding a different, unrelated task.
 
 ### PACT rules to bake in (only where they apply)
 

@@ -1571,8 +1571,8 @@ document.addEventListener('sync-ready', function () {
     }
   }
 
-  // auth.js's onAuthChange calls cb(event, session) — session is the 2nd arg, not the 1st (matches
-  // CharGen's campaign-ready listener; this one previously bound _session to the event STRING instead).
+  // Uses onAuthChange (not the shared onSessionChange helper) because this site genuinely needs
+  // the raw event string for the SIGNED_OUT branch below — see js/auth.js's onSessionChange doc.
   A.onAuthChange(function(event,session){ _session = session; renderCloudStatusBadge(); if(event==='SIGNED_OUT'){ _lsResetCloudApState(); if(typeof window.render==='function') window.render(); } });
   A.currentSession().then(function(s){ _session = s; renderCloudStatusBadge(); refreshCloudCampaignRules(); });
 

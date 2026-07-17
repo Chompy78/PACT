@@ -9,6 +9,12 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-17-shared-auth-change-helper** — Added `onSessionChange(cb)` to `js/auth.js`, a one-argument wrapper around `onAuthChange(event, session)` that structurally rules out the argument-order bug fixed 3 separate times at different call sites; migrated CharGen's 3 call sites and DM Console's 1 to it, but kept Live Sheet's single call site on the raw `onAuthChange` since it genuinely needs the event string for its `SIGNED_OUT` branch — the task's own step 1 explicitly permitted this, even though the "Done when" line's "all 5 call sites use it" reads more strictly; judged wrap-don't-replace correct because forcing Live Sheet through the session-only wrapper would mean either threading `event` back in as an optional 2nd argument (defeating the whole point of a can't-get-it-wrong single-argument signature) or subscribing twice, and the argument-order bug this task exists to prevent has only ever hit session-only call sites in practice, not the one site that legitimately needs the event
+- **D-GH-2026-07-17-sweep-tasks-review-fixes** — Fixed 15 findings from a `/code-review ultra` pass on the merged `/sweep-tasks`/`/add-task` skill files: worktrees now stay (`ExitWorktree(action:"keep")`) on park paths instead of leaking, dropped/parked queue slots get backfilled from the eligible list to hold the requested batch size, `TaskList` entries always reach an explicit terminal state (never left stuck `in_progress`), `$ARGUMENTS` batch-size parsing requires a bare integer (not any digit substring in free text), Step 5's newly-discovered tasks now route through Step 3's pre-flight branch check and get the same fetch/rebase-before-push care as feature branches, the diff-size-bumped-to-high case now maps to the `ultra` review tier instead of being undefined, the diff-size check no longer penalizes the exact "mechanical batch across many call sites" pattern `/add-task`'s own Effort:medium examples endorse, Ambiguity's High tier now names cross-tool/architectural migrations explicitly (closing the gap left when Effort stopped gating eligibility), and both `docs/TASK_BOARD.md`'s stale "Step 4.5" reference and `AGENTS.md`'s undocumented single-writer carve-out were corrected
+- **D-GH-2026-07-16-sweep-tasks-risk-model-v2** — Reworked `/sweep-tasks`' safety gate: Risk is now three named factors (ambiguity, damage scale, damage likelihood) worst-of combined, `Risk: high` is an absolute veto but `Risk: medium` is now eligible (previously only `low` was), and Effort no longer gates eligibility at all — it's ordering/sizing information only, since a genuinely risky task was always going to score high via the Ambiguity factor anyway, making Effort a redundant, less-precise proxy for the same thing. Added a consecutive-failure circuit breaker, a diff-size sanity check, Risk-scaled (not just file-path-scaled) review tiers with mandatory live verification above `Risk: low`, and a `docs/sweep-log.md` recording every attempted run
+
+- **D-GH-2026-07-16-sweep-tasks-skill** — Added `/sweep-tasks`, the unattended-loop version of pick→run→review→merge over roadmap tasks tagged `Effort: low|medium` + `Risk: low`; classification is structured metadata set by `/add-task` (not re-derived per sweep run), batch size is asked once per invocation rather than fixed or uncapped, mid-run task discoveries execute immediately if they qualify rather than deferring, and merge-as-you-go is a fixed default with no per-run prompt — four explicit human calls made when the skill was designed, not defaults I picked unilaterally
+
 - **D-GH-2026-07-16-lighthouse-ci** — Added `.github/workflows/lighthouse-ci.yml` (Lighthouse CI, `treosh/lighthouse-ci-action`) against `index.html`, serving it locally via `actions/checkout`'s default path (already ending in a dir named after the repo) rather than needing a symlink; thresholds in `lighthouserc.json` set from a real measured baseline (2026-07-16: perf 100, a11y 98-100, best-practices 96, seo 100) with an 0.85 floor for headroom against Lighthouse's normal run-to-run variance, not an arbitrary target; performance/accessibility error (block), best-practices/seo warn (advisory) — the harder "85→90" score-improvement work (engine splitting/lazy-loading) stays deferred, this is just the regression-catching mechanism
 
 - **D-GH-2026-07-16-ios-install-hint** — Added a dismissible `.ios-hint` bar to `index.html` for iOS Safari (which never fires `beforeinstallprompt`, so the existing install button never appears there); gated on `'standalone' in navigator` (a genuine feature-detect, not UA-sniffing) and hidden when already installed; dismissal remembered in `localStorage` so it doesn't nag every visit; verified in a real spoofed-UA browser across all three states (not-installed, already-installed, non-iOS)
@@ -110,6 +116,170 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-17-sweep-tasks-review-fixes · closing the gaps a max-effort review found in the shipped skill
+- **Context:** ran `/code-review ultra` (this environment's max-effort local fallback) against the full
+  merged diff of `D-GH-2026-07-16-sweep-tasks-skill` + `D-GH-2026-07-16-sweep-tasks-risk-model-v2`
+  (i.e. `origin/main...origin/preview`) — the first adversarial pass over `/sweep-tasks`/`/add-task`
+  since either landed. Four finder agents (3 initial + 1 gap-sweep) surfaced 16 candidate findings;
+  15 survived dedup/verification and are fixed here (1 — unvalidated magic-number thresholds for the
+  circuit breaker and diff-size bands — was cut to stay under the review's 15-item cap as the least
+  severe of the set; left as a known minor gap, not tracked as a separate task).
+- **Decision:** fix all 15 inline rather than filing them back to the roadmap, since the affected files
+  are prompt files a future agent executes literally — an undefined step or a resource leak in them is
+  load-bearing the next time `/sweep-tasks` runs, not cosmetic.
+- **What changed (grouped):**
+  - *Resource/state leaks:* park paths in Step 4 item 5 now call `ExitWorktree(action:"keep")` instead
+    of leaking a worktree/branch silently; `TaskList` entries always reach an explicit terminal state
+    (`completed` with a `MERGED:`/`PARKED:`/`DROPPED:` reason) instead of a parked task staying stuck
+    at `in_progress` forever.
+  - *Queue/cap correctness:* dropped or parked queue slots now backfill from the remaining eligible
+    list so the number of tasks actually attempted stays near the requested cap instead of silently
+    shrinking; Step 5's newly-discovered tasks now route through Step 3's pre-flight branch-existence
+    check before being trusted as available.
+  - *Undefined cases now defined:* a `Risk: medium` task bumped a tier by the diff-size check now maps
+    explicitly to the `ultra` review tier (previously undefined); how `/run-task`'s PR number reaches
+    `/code-review <tier> PR #<n>` is now stated (read from its final output, or `list_pull_requests` as
+    a fallback); `$ARGUMENTS` batch-size parsing now requires a bare positive integer, not any digit
+    substring in free-form text (previously a stray version number like "v0.107" would silently become
+    the cap); Step 5/Step 7's direct pushes to `preview` now fetch/rebase first and retry once on a
+    non-fast-forward rejection, matching the care already given to feature-branch rebases.
+  - *Spec self-consistency:* the diff-size check no longer flags the exact "mechanical batch across
+    many call sites" pattern `/add-task`'s own Effort:medium examples endorse (judges diff *shape*, not
+    just file count); Ambiguity's High tier now names cross-tool/architectural migrations explicitly,
+    closing the gap left when Effort stopped gating eligibility (a "copy this pattern exactly" task
+    could otherwise dodge the high-ambiguity rating it deserves); `AGENTS.md`'s single-writer rule for
+    `docs/TASK_BOARD.md` now documents the `/add-task`/`/sweep-tasks` direct-commit carve-out instead of
+    leaving readers of that file to discover the exception only by reading `sweep-tasks.md` itself.
+  - *Doc/wording bugs:* `docs/TASK_BOARD.md`'s stale "Step 4.5" reference corrected to "Step 4 item 6";
+    Step 7's "same convention `/add-task`'s Step 4 and Step 5" corrected (add-task.md has no Step 5 —
+    it meant this skill's own Step 5); the stale-branch-deletion fallback now names the actual branch
+    (`worktree-<slug>`) instead of describing it only by role.
+- **Why:** these are exactly the class of bug a prompt file hides well — a future agent following the
+  doc literally has no way to notice a missing `ExitWorktree` call or an undefined tier mapping until
+  it's already mid-sweep with no human watching, which is the whole point of the skill.
+- **Found and fixed by `/code-review high` on the PR itself (self-referential — the fix pass got the
+  same review treatment as any other PR):** the fix pass introduced 9 new gaps of its own, all fixed
+  in the same PR before merge. Two stand out as genuinely notable: (1) the new backfill-on-drop/park
+  paragraph pulled a replacement candidate into the queue without routing it back through the
+  pre-flight branch-existence check — the exact race this same PR explicitly fixed for Step 5's
+  newly-discovered tasks, just left open on the parallel backfill path; also left undefined how a
+  backfill interacts with a circuit-breaker trip landing on the same failure (now: check the breaker
+  first, only backfill if the sweep is continuing). (2) The stray-branch-name fix named the wrong
+  branch — `worktree-<slug>` — when `run-task.md`'s actual `EnterWorktree` convention substitutes `+`
+  for `/` in the full `type/short-slug` (`worktree-<type+short-slug>`), which the fix would have
+  gotten right by construction if it had been checked against `run-task.md` directly instead of
+  written from memory of the convention. Also fixed: a merge-outcome path that didn't restate the new
+  `MERGED:`-prefix convention; a PR-number-capture instruction that cited `/run-task`'s wrong step
+  (Step 8, cleanup, instead of Step 7, where the PR is actually opened) and undercounted its own
+  consumers; AGENTS.md's new carve-out hardcoding step numbers — the identical drift-prone pattern
+  this same PR had just fixed once already in `docs/TASK_BOARD.md`'s stale "Step 4.5"; Step 5/Step 7's
+  near-duplicate fetch/rebase/retry prose (Step 7 now points at Step 5's procedure instead of
+  restating it); a bumped-to-`ultra` review-tier instruction that buried the actual rule after its own
+  justification; and the mechanical-batch diff-size exception not accounting for the case where the
+  uniform pattern itself spans multiple UI tools (now treated as a second, independent flag on top of
+  the Ambiguity-High tag, defense-in-depth against an upstream mis-classification).
+- **Status:** Active.
+
+## D-GH-2026-07-16-sweep-tasks-risk-model-v2 · risk ≠ uncertainty, and Effort was a redundant proxy
+- **Context:** immediately after `D-GH-2026-07-16-sweep-tasks-skill` shipped, discussion surfaced
+  that "Risk" as originally defined silently conflated two different things — blast radius if
+  something goes wrong, and how ambiguous/uncertain the task itself is — under one label, with no
+  way to tell which one excluded a given task. Separately, the user wanted the policy loosened from
+  "only `Risk: low`" to "`Risk: low` or `medium`, `high` always vetoed."
+- **Options for the conflation:** (1) split into two separate tags, `Risk` and `Uncertainty`,
+  both required low for eligibility. (2) keep one `Risk` tag, but define it explicitly as derived
+  from named sub-factors (ambiguity being one of them) with a stated combination rule, so the "why"
+  clause can name which factor drove the rating without needing a second top-level tag.
+- **Decision:** (2) — three factors (**ambiguity**: likelihood the implementation itself diverges
+  from correct; **damage scale**: blast radius/reversibility if it does; **damage likelihood**: how
+  likely the damage is to surface given a wrong implementation), each rated low/medium/high,
+  combined by **worst-of** (the highest-rated factor sets the overall Risk).
+- **Why:** a real risk-assessment model is likelihood × impact; ambiguity is the primary driver of
+  likelihood (a clearer task is less likely to be implemented wrong), so folding it in as a named
+  factor rather than a separate top-level tag keeps `/sweep-tasks`' filter to one field while still
+  preserving *why* — the diagnostic value a merged single field would otherwise lose. Two separate
+  tags were rejected as unnecessary complexity once the single tag's definition became precise enough
+  to carry the same information via its factor breakdown.
+- **The Effort/Risk decoupling:** once Risk properly captured ambiguity, `Effort: high`'s old
+  criteria ("genuine architectural judgment," "a design call with real trade-offs") turned out to be
+  duplicating exactly what the Ambiguity factor already measures — a task that's high-effort in the
+  risky sense will score `Risk: high` via Ambiguity anyway. Effort was demoted from a gate to pure
+  ordering/sizing information; Risk alone is now the sole safety gate, with `high` an absolute veto
+  and `medium` newly eligible (previously excluded).
+- **Consequence:** `/add-task`'s Risk section rewritten around the three factors; `/sweep-tasks`'
+  Step 2 filter changed from "Effort ≤ medium AND Risk = low" to "Risk ≤ medium" (Effort unfiltered,
+  used only for the low-first ordering tiebreak and for review-tier sizing); the 2 tasks already
+  tagged on the board were re-scored under the fuller model (see `CHANGELOG.md`) — one moved to
+  `high` (previously under-weighted as `medium`), one moved to `medium` (previously over-confidently
+  tagged `low`, since "manually verifiable" isn't the same as "automatically gated").
+- **Also added this same pass** (separately motivated, not part of the risk-model rework itself): a
+  consecutive-failure circuit breaker (halts the sweep after 2 failures in a row rather than grinding
+  through what's likely a systemic problem, not a per-task fluke), a diff-size sanity check (flags,
+  doesn't auto-park, a task whose real diff outgrew its Effort tag — a cheap second opinion on the
+  classification once the real diff exists), Risk-scaled review tiers with mandatory live
+  verification above `Risk: low` (the file-path-only heuristic for review scrutiny missed anything
+  risky that didn't happen to touch `js/engine.js`/`sql/`), and `docs/sweep-log.md` (a durable record
+  of every *attempted* run, since `CHANGELOG.md` only ever shows what shipped — a pattern of repeated
+  parks on one kind of task would otherwise leave no trace to notice and retune the criteria against).
+- **Found and fixed by `/code-review` before merge:** two real bugs in Step 4's new ordering. (1)
+  The review-fix re-entry section had picked up a worktree-base check misapplied from this session's
+  own earlier gotcha — placed *after* "apply the fix ... commit," it would have run `git reset --hard
+  origin/preview` at a point where doing so discards the fix commit just made, and the check doesn't
+  even apply there: it protects against `EnterWorktree`'s *implicit* base resolution, not an explicit
+  `git rebase <ref>` command, which can't silently target the wrong branch. Removed — the existing
+  `git reset --hard origin/<type/short-slug>` step immediately after `EnterWorktree` already fully
+  overwrites whatever base it silently picked, so nothing was actually left to protect against at
+  that later point. (2) The live/real-verification requirement was sequenced *before* the
+  code-review-fix step, so a task needing a fix would have its `Risk`-tier verification checked
+  against the pre-fix code, satisfying the requirement on paper without covering what actually
+  merges. Reordered to run last, against the final code.
+- **Status:** Active.
+
+## D-GH-2026-07-16-sweep-tasks-skill · four human calls, not four defaults picked unilaterally
+- **Context:** this session manually ran a 6-task low-effort/low-risk batch (pick → worktree → edit
+  → test → `/code-review` → fix → merge, repeated) end to end, including handling a task that
+  surfaced mid-batch (the `pg_temp` static-check follow-up). The user asked for this to become a
+  repeatable skill: find every low/medium-effort, low-risk TODO and just do it, adding any newly
+  found tasks to the board along the way, no per-task confirmation needed.
+- **Options considered and decided by the user directly** (asked via `AskUserQuestion`, not decided
+  unilaterally — each is a genuine judgment call about how much autonomy/structure to bake in):
+  1. **Effort/Risk classification** — structured tags set by `/add-task` (chosen) vs. `/sweep-tasks`
+     re-inferring effort/risk from each task's prose on every run. Structured tags mean
+     classification happens once, is auditable in the task text itself, and doesn't drift between
+     runs or re-litigate a judgment call on unchanged text.
+  2. **Batch size** — asked once per invocation (chosen) vs. a fixed recommended default vs. no cap
+     (drain the whole board). Draining the whole board risked an unbounded, unpredictable
+     token/time cost in one command; the user preferred to set the size themselves each time rather
+     than trust either a baked-in number or no limit at all.
+  3. **Mid-run discoveries** — execute immediately within the same run if they qualify (chosen,
+     matching what actually happened today with the `pg_temp` follow-up) vs. always deferring new
+     discoveries to a future invocation.
+  4. **Merge autonomy** — bake in "merge as you go" as a fixed default with zero per-run prompt
+     (chosen) vs. asking once per run (which is what actually happened in today's manual session,
+     since the user hadn't pre-committed to it). For the *skill*, the user chose to settle this
+     permanently rather than re-ask every invocation.
+- **Why this is logged, not just coded:** a future agent reading `sweep-tasks.md` cold could
+  reasonably wonder why it doesn't ask about merge autonomy (today's actual session did), or why
+  effort/risk aren't computed at sweep-time — these were explicit trade-offs the user weighed, not
+  omissions or a simplification the agent chose on its own.
+- **Consequence:** `/add-task`'s house format gained a required `**Effort:** ... **Risk:** ...` tag
+  line (with worked classification criteria, kept in sync between the two skill files); a task with
+  no tag line, or any rating above `Effort: medium`/`Risk: low`, is never eligible for `/sweep-tasks`
+  regardless of how the task's prose reads. The 2 tasks open on `docs/TASK_BOARD.md` at the time were
+  retrofitted with tags as the first real testbed (see `CHANGELOG.md`).
+- **A worktree gotcha found while building this PR, not by the skill itself:** the worktree this PR
+  was built in came out silently based on `main` instead of `preview` — `main` had just absorbed
+  `preview` via the same-day promotion (PR #242), so `git merge-base --is-ancestor origin/preview
+  HEAD` (the exact check `AGENTS.md`/`ai-lessons-learned` H-028 already recommend) reported `OK`
+  without a reset, because `origin/preview`'s tip genuinely *is* an ancestor of `main`'s tip once
+  `main` has merged it — just not because the worktree was based on `preview` directly. Caught before
+  push by the rebase attempting to replay ~195 ancient commits instead of one; fixed by resetting to
+  `origin/preview`'s real tip and cherry-picking just this PR's own commit back on. The existing
+  ancestor-check guidance is technically correct but has a blind spot the moment `main` has recently
+  merged `preview` — worth a sharper check (`git merge-base HEAD origin/preview` should equal
+  `origin/preview`'s own SHA exactly, not merely be reachable from it) if this recurs.
+- **Status:** Active.
 
 ## D-GH-2026-07-16-lighthouse-ci · measured baseline, not an arbitrary target
 - **Context:** `docs/TASK_BOARD.md`'s "A7" backlog note recommends "Add a Lighthouse CI GitHub

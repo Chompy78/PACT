@@ -28,6 +28,7 @@ Most work follows this spine. Skills slot in at each step; not every step needs 
 | 5. Review the diff | Adversarial pass over the change before merge | `/code-review` |
 | 6. Wrap up | Writes the session's docs, graduates finished tasks, proposes a ready commit | `/close-session` |
 | (Housekeeping) | Prune merged branches/worktrees; mine the session for reusable lessons | `/cleanup-branches`, `/log-ai-lessons` |
+| (Unattended batch) | Runs steps 2-5 in a loop over every task tagged Risk: low/medium (never high), no per-task confirmation, merging as it goes | `/sweep-tasks` |
 
 **The gate rule (step 3):**
 
@@ -66,7 +67,10 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 
 - **`/add-task`** — Formats a feature/change/bug into PACT's house task format and adds it to
   `docs/TASK_BOARD.md`. Use it to capture work without derailing what you're doing. (The roadmap has a
-  single writer; this is the sanctioned way to add.)
+  single writer; this is the sanctioned way to add.) Every task gets an **Effort** tag
+  (`low`/`medium`/`high`, informational) and a **Risk** tag — scored from three named factors
+  (ambiguity, damage scale, damage likelihood), worst-of combined — that `/sweep-tasks` uses as its
+  sole safety gate.
 
 - **`/pick-task`** — Fetches live roadmap state, picks the next task, and pre-flights it (reads what's
   needed, flags whether a specialist agent or higher effort would help). **Read-only — no editing, no
@@ -91,6 +95,20 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 - **`/cleanup-branches`** — Scans for merged/orphaned branches and worktrees and deletes only what you
   approve. Housekeeping between tasks.
 
+- **`/sweep-tasks`** — The unattended version of steps 2-5: loops over every roadmap task tagged
+  `Risk: low` or `Risk: medium` (`Risk: high` is an absolute veto, no exception, regardless of
+  Effort — Effort doesn't gate eligibility at all, only ordering/review-tier sizing), running each
+  through `/run-task` → `/code-review` (tier scaled to Risk, not just file path) → merge with no
+  per-task confirmation. A diff-size sanity check flags tasks whose real diff outgrew their tag; a
+  consecutive-failure circuit breaker halts the whole sweep after 2 failures in a row rather than
+  grinding through a systemic problem; anything above `Risk: low` requires real (not just
+  parity-gate) verification before merging. Adds any newly-surfaced task it discovers to the board in
+  `/add-task`'s format (skipping that skill's normal approval-wait, since this skill is unattended by
+  design) and folds it into the same run if it also clears the bar. Asks once, up front, how many
+  tasks to attempt; everything after that runs hands-off. Logs every run — attempted, not just
+  shipped — to `docs/sweep-log.md`. Never promotes `preview` → `main` — that stays a separate,
+  explicit call.
+
 - **`/log-ai-lessons`** — Mines a session/file for *generalizable* AI-coding lessons (not project-specific
   fixes) and drafts entries for the cross-project `ai-lessons-learned` log.
 
@@ -102,4 +120,5 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
   Agent-guidance rubric that says *when* to reach for cold review, and the current Active Priorities).
 - **`docs/HOW-TO-WORK.md`** — how to run/preview the app, the parity gate, fixtures, the per-task loop.
 - **`docs/TASK_BOARD.md`** — the open task list. · **`CHANGELOG.md`** / **`DECISIONS.md`** — what / why.
+- **`docs/sweep-log.md`** — what `/sweep-tasks` attempted each run, not just what shipped.
 - The individual `.claude/commands/*.md` files — the exact steps each skill executes.
