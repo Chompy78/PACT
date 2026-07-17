@@ -12,7 +12,10 @@
   the original, `engine-parity` (incl. warnings) reports **20/0**, and all 14 named exports are unchanged.
   `service-worker.js` updated (cache `pact-v5`→`pact-v6`, `engine-data.js` precached + network-first) so
   the rules dataset keeps `engine.js`'s immediate-fix-propagation semantics instead of going stale on a
-  cache-first copy (see `DECISIONS.md`). No rules change — `DATA.version`/`BUILD` unchanged. Follow-up
+  cache-first copy (see `DECISIONS.md`). No rules change — `DATA.version` unchanged (still v0.336); `BUILD`
+  bumped **v0.200 → v0.201** (non-trivial structural build) and mirrored across the three tools per
+  `docs/VERSION-SYNC.md`. Real-browser boot check (Chromium, all three tools): `engine-ready` fires, the
+  bridges' `DATA` mutation succeeds (confirming `.js` is not frozen), and `compute()` runs clean. Follow-up
   **REV-14b** (split `compute()` into named sub-pricers) stays open; a cold-reviewed plan for the whole of
   REV-14 lives at `docs/plans/2026-07-17-engine-breakup-rev14.md`.
 
