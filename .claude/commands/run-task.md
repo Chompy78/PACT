@@ -38,13 +38,23 @@ For a batch of multiple slugs, there is no single natural branch name — derive
 would run long (more than ~50 chars), shorten to `<type>/batch-<first-short-slug>-plus<N-1>`.
 
 **Verify the worktree actually based off `preview` before touching anything.** `EnterWorktree` can
-silently base a new worktree on a stale branch snapshot even when it looks fine — this has recurred more
-than once in this repo. Right after the call, confirm:
+silently base a new worktree on a stale branch snapshot even when it looks fine — this has recurred
+repeatedly in this repo. Right after the call, before making any edits, confirm HEAD is **exactly**
+`origin/preview`'s tip — not merely an ancestor-relationship check:
 ```
-git merge-base --is-ancestor origin/preview HEAD && echo "based on preview — OK"
+[ "$(git rev-parse HEAD)" = "$(git rev-parse origin/preview)" ] && echo "based on preview — OK"
 ```
-If that fails, don't start editing: `git stash -u` (only if something's already there) → `git reset --hard
-origin/preview` → `git stash pop`, then re-verify before proceeding.
+**Use this exact-equality check, not an ancestry check** (`git merge-base --is-ancestor origin/preview
+HEAD`, or `git merge-base HEAD origin/preview` compared against `origin/preview`'s SHA). Both ancestry
+forms give a **false positive** any time `main`'s tip has `preview`'s tip as an ancestor — which is
+always true right after a `preview`→`main` promotion merge, since that merge commit's whole point is
+"`main` now contains everything `preview` had." A worktree wrongly based on `origin/main` in that
+window still passes an ancestry check (because `origin/preview` genuinely is reachable from `HEAD` —
+just via `main`, not directly), while failing the exact-equality check immediately, which is what
+actually matters: right after a fresh `EnterWorktree` call with zero edits made, HEAD must be
+*identical* to whatever it branched from, not merely "preview is somewhere in its history." If the
+exact-equality check fails, don't start editing: `git stash -u` (only if something's already there) →
+`git reset --hard origin/preview` → `git stash pop`, then re-verify before proceeding.
 
 **This does not produce the branch name you'd expect — verify before moving on.** `EnterWorktree`
 sanitizes `/` out of `name`: passing `feat/short-slug` creates the worktree at

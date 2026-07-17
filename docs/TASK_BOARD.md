@@ -82,39 +82,75 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 **Low-severity review findings:**
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
   named sub-pricers. Only safe once REV-01 gives real assertions; dedicated PR, byte-identical output.
+  **Effort:** high · **Risk:** high — damage scale is high (edits `compute()` directly, the engine's
+  single source of pricing truth) and damage likelihood is medium (the parity gate exists but has a
+  known fixture-coverage gap on some warning-text paths, per REV-01's own follow-up note) — worst-of
+  lands at high regardless of the decomposition's own ambiguity being only medium.
 
 **Polish & hardening** (from the Task 5 audit session):
 - **Real icons** — replace the placeholder 192/512/180 PNGs with real artwork (needs your art).
+  **Effort:** low · **Risk:** low — a static-asset swap, one obviously-right way to do it, instantly and
+  visually verifiable, no code/logic touched. (Blocked on human-supplied artwork, not on classification.)
 
 **Landing-page follow-ups** (deferred from the redesign):
-- Extend theming to the guide and tools (index-only today).
-- "Continue / recent characters" on the landing page (needs the tools' save format).
+- Extend theming to the guide and tools (index-only today). **Effort:** medium · **Risk:** medium —
+  ambiguity is medium (a few reasonable ways to extend an existing CSS pattern across a large guide
+  file plus three tools); damage scale is low (CSS-only, trivially revertible, no data/security
+  implication); damage likelihood is medium (no automated visual-regression gate — would surface in
+  manual review, not automatically).
+- "Continue / recent characters" on the landing page (needs the tools' save format). **Effort:** high ·
+  **Risk:** medium — ambiguity is medium (a genuinely new feature, but scoped to `index.html` reading
+  existing storage, not a cross-tool architecture change); damage scale is low (new opt-in UI, doesn't
+  touch `js/engine.js` or the tools, easily revertible); damage likelihood is medium (no automated
+  coverage for this UI — manual testing only).
 
-**Supporting reference tasks** (run when needed):
+**Supporting reference tasks** (run when needed, intentionally untagged — too undefined in scope to
+rate Effort/Risk meaningfully until one is actually picked up and scoped):
 - Supabase project setup · Icon & asset list (192/512/180) · Offline UX spec · Future-features roadmap.
 
 **Improvements** (recommended action first; the *then* line is a lower-priority upgrade with its caveat):
 - **A1 — Engine API contract.** *(base shipped 2026-07-13)* Full JSDoc contract now sits atop `js/engine.js`.
   *Remaining (optional):* a dev-only `engine.d.ts` for IDE autocomplete — *caveat:* a new format to maintain;
-  can read as "TypeScript creeping in."
+  can read as "TypeScript creeping in." **Effort:** medium · **Risk:** medium — ambiguity is medium (a
+  real but low-stakes call: auto-generate vs. hand-maintain, and whether to add it at all given the
+  caveat above); damage scale is low (dev-tooling only, no runtime impact); damage likelihood is low (a
+  wrong `.d.ts` only misleads an IDE, immediately visible to whoever hits it).
 - **A3 — Client error visibility.** *(base shipped 2026-07-13)* Global `error`/`unhandledrejection` surface +
   Report-issue link now on all pages. *Remaining (lower priority):* log errors to a Supabase table once
-  sign-in is the default — *caveats:* extra write traffic + a privacy note to document.
+  sign-in is the default — *caveats:* extra write traffic + a privacy note to document. **Effort:**
+  medium · **Risk:** high — ambiguity is medium (schema/sampling/PII-scrubbing decisions, but bounded);
+  damage scale is high (a new live-data table + RLS policy is a security/trust-boundary change, the
+  same class as the feedback-widget's anon-write table decision, D-GH-2026-07-15-feedback-widget);
+  damage likelihood is medium (the per-change checklist's Supabase-advisor check is a real gate, but a
+  manual one, not CI-enforced) — worst-of driven by damage scale.
 - **A6 — Tag releases to the build version.** `git tag v0.x` (matching `BUILD`) + a GitHub Release per
   ship, for a labelled rollback point. *Then (lighter alternative):* tags only, no notes — *caveat:* less
-  context on what each release shipped.
+  context on what each release shipped. *(base shipped 2026-07-17 — v0.107 tagged with a GitHub Release;
+  not yet marked done/graduated here — flag for a human to confirm and move to CHANGELOG.md.)*
 - **A7 — Lighthouse 85 → 90.** *(base shipped 2026-07-16)* Lighthouse CI now runs on every PR
   touching `index.html`/assets (D-GH-2026-07-16-lighthouse-ci), gated on a measured baseline
   (perf 100, a11y 98-100, best-practices 96, seo 100), so regressions auto-catch going forward.
   *Remaining (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for a further
-  score gain — *caveat:* a big engine change; do it only after REV-01 makes the gate real.
+  score gain — *caveat:* a big engine change; do it only after REV-01 makes the gate real. **Effort:**
+  high · **Risk:** high — ambiguity is high (an architectural engine-loading change with real
+  trade-offs, no single obviously-right split); damage scale is high (touches `js/engine.js` directly);
+  damage likelihood is medium (the parity gate runs in Node, so an async-loading-order bug specific to
+  the browser might not be caught by it) — worst-of high, driven by ambiguity and damage scale both.
 - **General engine maintainability (from the 2026-07-14 review).** `compute()` does normalization,
   pricing, validation, and warning-generation all in one ~350-line function — biggest source of risk when
-  editing it. `MUT.patch` (`Object.assign(b, p.patch)`) can write arbitrary build fields and is named like
+  editing it (see REV-14 above for its own Effort/Risk — this is the same underlying work, not a second
+  task). `MUT.patch` (`Object.assign(b, p.patch)`) can write arbitrary build fields and is named like
   an ordinary mutator despite being import-only — consider renaming (e.g. `importPatch`) and/or
-  restricting its allowed fields. No fix scheduled; noted for whoever next does a larger engine refactor.
+  restricting its allowed fields. **Effort:** medium · **Risk:** high — ambiguity is medium (rename-only
+  vs. rename-plus-field-restriction is a low-stakes call once the import contract is understood); damage
+  scale is high (touches `js/engine.js`'s public `MUT` export, which CharGen's separate hand-copied
+  import-fold path also depends on per AGENTS.md's high-risk-files note); damage likelihood is medium
+  (the parity gate covers the bridged `MUT` usage in all three tools, but CharGen's import-fold closure
+  is a separate hand-copied path the bridged fixtures don't fully exercise) — worst-of driven by damage
+  scale. No fix scheduled; noted for whoever next does a larger engine refactor.
 **Code-review follow-ups (from `feat/campaign-ap-model`)** — low-severity cleanup flagged by
-`/code-review`, not fixed in that PR (low risk / negligible impact either way):
+`/code-review`, not fixed in that PR (low risk / negligible impact either way); heading currently empty,
+nothing to tag:
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.

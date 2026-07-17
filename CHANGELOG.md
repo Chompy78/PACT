@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-17 · docs(roadmap) — scored `docs/TASK_BOARD.md`'s remaining untagged items with
+  Effort/Risk tags**: REV-14, real icons, both landing-page follow-ups, A1/A3/A7's remaining scope, and
+  the `MUT.patch` rename/restriction idea now carry the three-factor Risk breakdown, so they're visible
+  to `/sweep-tasks` (most land at `Risk: high` — architectural/engine-touching or new live-data-table
+  work — with real icons the one `Risk: low` exception, blocked only on art). The vague "Supporting
+  reference tasks" bullets were deliberately left untagged — not scoped enough to rate. Also flagged
+  (not fixed): A6's release-tagging work already shipped (v0.107) but was never marked done here.
+
+- **2026-07-17 · fix(tooling) — `run-task.md`'s worktree-base check replaced with exact-equality, not
+  ancestry**: the documented `git merge-base --is-ancestor origin/preview HEAD` check (and an
+  undocumented "sharper" ancestry variant used ad hoc this session) both give a false positive right
+  after a `preview`→`main` promotion — a worktree wrongly based on `origin/main` still passes, since
+  `origin/preview` is reachable from `main`'s tip via the promotion merge. Replaced with
+  `[ "$(git rev-parse HEAD)" = "$(git rev-parse origin/preview)" ]`, which can't be fooled the same way.
+  See `DECISIONS.md` D-GH-2026-07-17-worktree-base-check-exact-equality.
+
 - **2026-07-17 · docs(tooling) — synced `docs/SKILLS.md` with the sweep-tasks/add-task changes it had
   missed**: the Ambiguity-High cross-tool-migration rule, `/sweep-tasks`' cap-backfill and stricter
   `$ARGUMENTS` parsing, and a corrected `/code-review ultra` description (it can silently fall back to

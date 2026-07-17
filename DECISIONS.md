@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-17-worktree-base-check-exact-equality** — `run-task.md`'s worktree-base-verification check switched from an ancestry check to an exact-equality check, because *any* ancestry-based check (the documented `--is-ancestor`, and an undocumented "sharper" `merge-base`-equals-target variant used ad hoc this session) gives a false positive for one worktree-turn right after every `preview`→`main` promotion — caught when a `docs/SKILLS.md` sync PR's rebase tried to replay 196 ancient commits back to PR #95, revealing the worktree was silently based on `origin/main`, not `origin/preview`, despite the ad hoc check passing
 - **D-GH-2026-07-17-shared-auth-change-helper** — Added `onSessionChange(cb)` to `js/auth.js`, a one-argument wrapper around `onAuthChange(event, session)` that structurally rules out the argument-order bug fixed 3 separate times at different call sites; migrated CharGen's 3 call sites and DM Console's 1 to it, but kept Live Sheet's single call site on the raw `onAuthChange` since it genuinely needs the event string for its `SIGNED_OUT` branch — the task's own step 1 explicitly permitted this, even though the "Done when" line's "all 5 call sites use it" reads more strictly; judged wrap-don't-replace correct because forcing Live Sheet through the session-only wrapper would mean either threading `event` back in as an optional 2nd argument (defeating the whole point of a can't-get-it-wrong single-argument signature) or subscribing twice, and the argument-order bug this task exists to prevent has only ever hit session-only call sites in practice, not the one site that legitimately needs the event
 - **D-GH-2026-07-17-sweep-tasks-review-fixes** — Fixed 15 findings from a `/code-review ultra` pass on the merged `/sweep-tasks`/`/add-task` skill files: worktrees now stay (`ExitWorktree(action:"keep")`) on park paths instead of leaking, dropped/parked queue slots get backfilled from the eligible list to hold the requested batch size, `TaskList` entries always reach an explicit terminal state (never left stuck `in_progress`), `$ARGUMENTS` batch-size parsing requires a bare integer (not any digit substring in free text), Step 5's newly-discovered tasks now route through Step 3's pre-flight branch check and get the same fetch/rebase-before-push care as feature branches, the diff-size-bumped-to-high case now maps to the `ultra` review tier instead of being undefined, the diff-size check no longer penalizes the exact "mechanical batch across many call sites" pattern `/add-task`'s own Effort:medium examples endorse, Ambiguity's High tier now names cross-tool/architectural migrations explicitly (closing the gap left when Effort stopped gating eligibility), and both `docs/TASK_BOARD.md`'s stale "Step 4.5" reference and `AGENTS.md`'s undocumented single-writer carve-out were corrected
 - **D-GH-2026-07-16-sweep-tasks-risk-model-v2** — Reworked `/sweep-tasks`' safety gate: Risk is now three named factors (ambiguity, damage scale, damage likelihood) worst-of combined, `Risk: high` is an absolute veto but `Risk: medium` is now eligible (previously only `low` was), and Effort no longer gates eligibility at all — it's ordering/sizing information only, since a genuinely risky task was always going to score high via the Ambiguity factor anyway, making Effort a redundant, less-precise proxy for the same thing. Added a consecutive-failure circuit breaker, a diff-size sanity check, Risk-scaled (not just file-path-scaled) review tiers with mandatory live verification above `Risk: low`, and a `docs/sweep-log.md` recording every attempted run
@@ -116,6 +117,38 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-17-worktree-base-check-exact-equality · ancestry checks can't detect a post-promotion mis-base
+- **Context:** entering a fresh worktree for a `docs/SKILLS.md` sync task, right after promoting
+  `preview` → `main` (PR #248) earlier the same session. The worktree-base check appeared to pass, work
+  proceeded, and the subsequent `git rebase origin/preview` tried to replay **196 commits**, including
+  a `Merge pull request #95` from far back in the repo's history — the unmistakable signature of a
+  worktree based on the wrong branch.
+- **Options:**
+  1. Keep the ancestry check (`git merge-base --is-ancestor origin/preview HEAD`, as documented in
+     `run-task.md`, or the tighter `git merge-base HEAD origin/preview` compared against
+     `origin/preview`'s own SHA, which this session had been using ad hoc after catching this class of
+     bug twice earlier) and just re-run it more carefully.
+  2. Switch to an exact-equality check: `git rev-parse HEAD` must literally equal `git rev-parse
+     origin/preview`.
+- **Decision:** (2). Neither ancestry form is actually safe. The moment `preview` is promoted into
+  `main` via a merge commit, `origin/preview`'s tip becomes an ancestor of `origin/main`'s tip **by
+  construction** — that's the entire point of the merge. So if `EnterWorktree` silently bases a new
+  worktree on `origin/main` instead of `origin/preview` (its documented, recurring failure mode —
+  `worktree.baseRef: 'fresh'` branches from the repo's *GitHub default branch*, and this repo's default
+  is `preview`, but the resolution has been observed to pick `main` before), an ancestry check against
+  `origin/preview` still reports "yes, reachable" — truthfully, but uselessly, since reachable-via-main
+  is not the same as based-on-preview. Exact equality has no such gap: right after a fresh
+  `EnterWorktree` call with zero edits made, HEAD **must** be bit-identical to whatever ref it branched
+  from, full stop — there's no valid state where it's merely "related to" the intended base.
+- **Why:** this was found because the failure mode recurred a *third* time in one session, twice caught
+  by the (already-insufficient) ad hoc ancestry check and once slipping past it entirely — the pattern
+  of "the documented fix works, but only detects the failure mode it was written for, not related
+  failure modes with the same root cause" is exactly what an exact-equality check closes, since it
+  doesn't reason about *why* HEAD might be wrong, only *whether* it matches.
+- **Status:** Active — `run-task.md` Step 4 updated; `sweep-tasks.md`'s worktree re-entry flow was
+  checked and needs no equivalent fix, since it unconditionally `git reset --hard`s onto the target
+  feature branch immediately after `EnterWorktree` regardless of what any check would report.
 
 ## D-GH-2026-07-17-sweep-tasks-review-fixes · closing the gaps a max-effort review found in the shipped skill
 - **Context:** ran `/code-review ultra` (this environment's max-effort local fallback) against the full
