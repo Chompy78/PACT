@@ -49,6 +49,7 @@ Format the task using this house format exactly:
 ```
 ## <Short title> — TODO
 Branch <type/short-slug>. <one-line of what + where>.
+**Effort:** low|medium|high · **Risk:** low|medium|high — <one clause: why this rating>
 
 ```text
 <paste-ready steps for the implementing agent>
@@ -56,6 +57,38 @@ Branch <type/short-slug>. <one-line of what + where>.
 
 **Done when:** <one objective, checkable condition>
 ```
+
+### Effort / Risk tags — classify every task, every time
+
+These two tags exist so `/sweep-tasks` can pick eligible work by filtering, not by re-reading and
+re-judging every task's prose on every run. Get the rating right — a wrong "low/low" tag means
+`/sweep-tasks` will attempt something it shouldn't; a wrong "high" tag just means a genuinely easy
+task sits on the board longer than it needed to. When genuinely unsure between two ratings, round
+up (the more cautious one) rather than down.
+
+**Effort — low:** docs-only edit, a config/manifest tweak, a single-file CSS/copy/UI fix, an
+isolated bug fix with an obvious root cause, a static-analysis/CI-check addition, a small SQL
+migration with a clearly-identified fix (schema-qualify a call, widen one clause).
+**Effort — medium:** touches 2-4 files with straightforward (non-architectural) changes; a
+well-scoped mechanical batch across many call sites (e.g. the same one-line hardening applied to
+every `SECURITY DEFINER` function); adding a new CI workflow; a small new UI feature with
+already-clear scope (e.g. a dismissible hint gated on an existing, well-understood API).
+**Effort — high:** anything needing genuine architectural judgment, a cross-tool/module-bridge
+migration, or a design call with real trade-offs — these are never `low`/`medium`, full stop.
+
+**Risk — low:** reversible, has an objective test to confirm correctness (parity gate, `audit.py`,
+a real-browser check), doesn't open a new trust-boundary/security surface (mechanically extending
+an *existing*, already-reviewed pattern — e.g. the same `search_path` hardening already applied
+elsewhere — is fine; inventing a new one is not), doesn't touch `js/engine.js`'s `compute()`/
+`_replay()` rules logic even if it touches other parts of that file.
+**Risk — medium/high:** touches a security/trust boundary in a genuinely new way, changes
+`DATA.version`/`compute()` output, involves an ambiguous design choice, or is the kind of thing
+where a wrong approach costs more than one implementation cycle to undo.
+
+`/sweep-tasks` only ever picks a task tagged `Risk: low` — effort can be `low` or `medium`, but
+risk never gets swept above `low`, no matter how easy the effort looks. If Step 1 finds an older
+task on the board with no Effort/Risk line at all (added before this convention existed), leave it
+untagged — don't retroactively guess at one as a side effect of adding a different, unrelated task.
 
 ### PACT rules to bake in (only where they apply)
 

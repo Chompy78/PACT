@@ -28,6 +28,7 @@ Most work follows this spine. Skills slot in at each step; not every step needs 
 | 5. Review the diff | Adversarial pass over the change before merge | `/code-review` |
 | 6. Wrap up | Writes the session's docs, graduates finished tasks, proposes a ready commit | `/close-session` |
 | (Housekeeping) | Prune merged branches/worktrees; mine the session for reusable lessons | `/cleanup-branches`, `/log-ai-lessons` |
+| (Unattended batch) | Runs steps 2-5 in a loop over every task tagged low-effort/low-risk, no per-task confirmation, merging as it goes | `/sweep-tasks` |
 
 **The gate rule (step 3):**
 
@@ -66,7 +67,9 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 
 - **`/add-task`** — Formats a feature/change/bug into PACT's house task format and adds it to
   `docs/TASK_BOARD.md`. Use it to capture work without derailing what you're doing. (The roadmap has a
-  single writer; this is the sanctioned way to add.)
+  single writer; this is the sanctioned way to add.) Every task gets an **Effort**/**Risk** tag
+  (`low`/`medium`/`high`) — the classification `/sweep-tasks` filters on to pick what it's safe to run
+  unattended.
 
 - **`/pick-task`** — Fetches live roadmap state, picks the next task, and pre-flights it (reads what's
   needed, flags whether a specialist agent or higher effort would help). **Read-only — no editing, no
@@ -90,6 +93,15 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 
 - **`/cleanup-branches`** — Scans for merged/orphaned branches and worktrees and deletes only what you
   approve. Housekeeping between tasks.
+
+- **`/sweep-tasks`** — The unattended version of steps 2-5: loops over every roadmap task tagged
+  `Effort: low|medium` **and** `Risk: low` (never anything above `Risk: low`, no matter how easy the
+  effort looks), running each through `/run-task` → `/code-review` → merge with no per-task
+  confirmation. Adds any newly-surfaced task it discovers to the board in `/add-task`'s format
+  (skipping that skill's normal approval-wait, since this skill is unattended by design) and folds
+  it into the same run if it also clears the bar. Asks once, up front, how many tasks to attempt;
+  everything after that runs hands-off. Never promotes `preview` → `main` — that stays a separate,
+  explicit call.
 
 - **`/log-ai-lessons`** — Mines a session/file for *generalizable* AI-coding lessons (not project-specific
   fixes) and drafts entries for the cross-project `ai-lessons-learned` log.

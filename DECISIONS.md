@@ -9,6 +9,8 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-16-sweep-tasks-skill** — Added `/sweep-tasks`, the unattended-loop version of pick→run→review→merge over roadmap tasks tagged `Effort: low|medium` + `Risk: low`; classification is structured metadata set by `/add-task` (not re-derived per sweep run), batch size is asked once per invocation rather than fixed or uncapped, mid-run task discoveries execute immediately if they qualify rather than deferring, and merge-as-you-go is a fixed default with no per-run prompt — four explicit human calls made when the skill was designed, not defaults I picked unilaterally
+
 - **D-GH-2026-07-16-lighthouse-ci** — Added `.github/workflows/lighthouse-ci.yml` (Lighthouse CI, `treosh/lighthouse-ci-action`) against `index.html`, serving it locally via `actions/checkout`'s default path (already ending in a dir named after the repo) rather than needing a symlink; thresholds in `lighthouserc.json` set from a real measured baseline (2026-07-16: perf 100, a11y 98-100, best-practices 96, seo 100) with an 0.85 floor for headroom against Lighthouse's normal run-to-run variance, not an arbitrary target; performance/accessibility error (block), best-practices/seo warn (advisory) — the harder "85→90" score-improvement work (engine splitting/lazy-loading) stays deferred, this is just the regression-catching mechanism
 
 - **D-GH-2026-07-16-ios-install-hint** — Added a dismissible `.ios-hint` bar to `index.html` for iOS Safari (which never fires `beforeinstallprompt`, so the existing install button never appears there); gated on `'standalone' in navigator` (a genuine feature-detect, not UA-sniffing) and hidden when already installed; dismissal remembered in `localStorage` so it doesn't nag every visit; verified in a real spoofed-UA browser across all three states (not-installed, already-installed, non-iOS)
@@ -110,6 +112,40 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-16-sweep-tasks-skill · four human calls, not four defaults picked unilaterally
+- **Context:** this session manually ran a 6-task low-effort/low-risk batch (pick → worktree → edit
+  → test → `/code-review` → fix → merge, repeated) end to end, including handling a task that
+  surfaced mid-batch (the `pg_temp` static-check follow-up). The user asked for this to become a
+  repeatable skill: find every low/medium-effort, low-risk TODO and just do it, adding any newly
+  found tasks to the board along the way, no per-task confirmation needed.
+- **Options considered and decided by the user directly** (asked via `AskUserQuestion`, not decided
+  unilaterally — each is a genuine judgment call about how much autonomy/structure to bake in):
+  1. **Effort/Risk classification** — structured tags set by `/add-task` (chosen) vs. `/sweep-tasks`
+     re-inferring effort/risk from each task's prose on every run. Structured tags mean
+     classification happens once, is auditable in the task text itself, and doesn't drift between
+     runs or re-litigate a judgment call on unchanged text.
+  2. **Batch size** — asked once per invocation (chosen) vs. a fixed recommended default vs. no cap
+     (drain the whole board). Draining the whole board risked an unbounded, unpredictable
+     token/time cost in one command; the user preferred to set the size themselves each time rather
+     than trust either a baked-in number or no limit at all.
+  3. **Mid-run discoveries** — execute immediately within the same run if they qualify (chosen,
+     matching what actually happened today with the `pg_temp` follow-up) vs. always deferring new
+     discoveries to a future invocation.
+  4. **Merge autonomy** — bake in "merge as you go" as a fixed default with zero per-run prompt
+     (chosen) vs. asking once per run (which is what actually happened in today's manual session,
+     since the user hadn't pre-committed to it). For the *skill*, the user chose to settle this
+     permanently rather than re-ask every invocation.
+- **Why this is logged, not just coded:** a future agent reading `sweep-tasks.md` cold could
+  reasonably wonder why it doesn't ask about merge autonomy (today's actual session did), or why
+  effort/risk aren't computed at sweep-time — these were explicit trade-offs the user weighed, not
+  omissions or a simplification the agent chose on its own.
+- **Consequence:** `/add-task`'s house format gained a required `**Effort:** ... **Risk:** ...` tag
+  line (with worked classification criteria, kept in sync between the two skill files); a task with
+  no tag line, or any rating above `Effort: medium`/`Risk: low`, is never eligible for `/sweep-tasks`
+  regardless of how the task's prose reads. The 2 tasks open on `docs/TASK_BOARD.md` at the time were
+  retrofitted with tags as the first real testbed (see `CHANGELOG.md`).
+- **Status:** Active.
 
 ## D-GH-2026-07-16-lighthouse-ci · measured baseline, not an arbitrary target
 - **Context:** `docs/TASK_BOARD.md`'s "A7" backlog note recommends "Add a Lighthouse CI GitHub

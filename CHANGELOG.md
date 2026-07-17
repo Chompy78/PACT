@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-16 · feat(tooling) — add `/sweep-tasks`, the unattended batch version of pick→run→review→merge**.
+  New `.claude/commands/sweep-tasks.md` loops over every roadmap task tagged `Effort: low|medium` **and**
+  `Risk: low`, running each through `/run-task` → `/code-review` → merge with no per-task confirmation
+  (merge-as-you-go is a fixed default, not a per-run prompt). Any newly-surfaced task discovered mid-sweep
+  gets added to the board in `/add-task`'s format — deliberately skipping that skill's normal
+  clarify/approval-wait steps, since this skill is unattended by design — and folds into the same run if
+  it also clears the bar. Asks once, up front, how many tasks to attempt; nothing else is interactive.
+  Never promotes `preview`→`main`. `/add-task` gained matching `**Effort:**`/`**Risk:**` classification
+  criteria (with worked examples) so the two skills stay in sync on what counts as safe to run unattended.
+  Retrofitted the 2 currently-open roadmap tasks with tags as a first real testbed: the engine-review
+  cleanup batch is `medium`/`medium` (touches `js/engine.js`, not eligible), the shared `onAuthChange`
+  wrapper is `medium`/`low` (mechanical UI-only refactor, eligible). See `DECISIONS.md`
+  D-GH-2026-07-16-sweep-tasks-skill.
+
 - **2026-07-16 · ci(lighthouse) — add Lighthouse CI to auto-catch landing-page regressions**.
   New `.github/workflows/lighthouse-ci.yml` runs Lighthouse (desktop preset, via
   `treosh/lighthouse-ci-action`) against `index.html` on PRs touching it or its assets — served
