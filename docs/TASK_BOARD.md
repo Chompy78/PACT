@@ -87,7 +87,7 @@ found and fixed 3 separate times at different call sites.
 across 3 UI-only tool files, js/auth.js or js/ui-helpers.js + 5 call sites, no js/engine.js/DATA
 involvement, trivially revertible); damage likelihood is medium (no automated gate for auth-UI
 regressions, only manual verification) — worst-of lands the task at medium; still eligible for
-/sweep-tasks, but requires the live-verification step (Step 4.5) since it's above Risk: low.
+/sweep-tasks, but requires the live-verification step (`/sweep-tasks` Step 4 item 6) since it's above Risk: low.
 
 ```text
 js/auth.js's onAuthChange(cb) calls cb(event, session) — session is the 2nd argument, not the 1st. Every

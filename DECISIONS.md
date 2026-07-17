@@ -9,6 +9,7 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-17-sweep-tasks-review-fixes** — Fixed 15 findings from a `/code-review ultra` pass on the merged `/sweep-tasks`/`/add-task` skill files: worktrees now stay (`ExitWorktree(action:"keep")`) on park paths instead of leaking, dropped/parked queue slots get backfilled from the eligible list to hold the requested batch size, `TaskList` entries always reach an explicit terminal state (never left stuck `in_progress`), `$ARGUMENTS` batch-size parsing requires a bare integer (not any digit substring in free text), Step 5's newly-discovered tasks now route through Step 3's pre-flight branch check and get the same fetch/rebase-before-push care as feature branches, the diff-size-bumped-to-high case now maps to the `ultra` review tier instead of being undefined, the diff-size check no longer penalizes the exact "mechanical batch across many call sites" pattern `/add-task`'s own Effort:medium examples endorse, Ambiguity's High tier now names cross-tool/architectural migrations explicitly (closing the gap left when Effort stopped gating eligibility), and both `docs/TASK_BOARD.md`'s stale "Step 4.5" reference and `AGENTS.md`'s undocumented single-writer carve-out were corrected
 - **D-GH-2026-07-16-sweep-tasks-risk-model-v2** — Reworked `/sweep-tasks`' safety gate: Risk is now three named factors (ambiguity, damage scale, damage likelihood) worst-of combined, `Risk: high` is an absolute veto but `Risk: medium` is now eligible (previously only `low` was), and Effort no longer gates eligibility at all — it's ordering/sizing information only, since a genuinely risky task was always going to score high via the Ambiguity factor anyway, making Effort a redundant, less-precise proxy for the same thing. Added a consecutive-failure circuit breaker, a diff-size sanity check, Risk-scaled (not just file-path-scaled) review tiers with mandatory live verification above `Risk: low`, and a `docs/sweep-log.md` recording every attempted run
 
 - **D-GH-2026-07-16-sweep-tasks-skill** — Added `/sweep-tasks`, the unattended-loop version of pick→run→review→merge over roadmap tasks tagged `Effort: low|medium` + `Risk: low`; classification is structured metadata set by `/add-task` (not re-derived per sweep run), batch size is asked once per invocation rather than fixed or uncapped, mid-run task discoveries execute immediately if they qualify rather than deferring, and merge-as-you-go is a fixed default with no per-run prompt — four explicit human calls made when the skill was designed, not defaults I picked unilaterally
@@ -114,6 +115,49 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-17-sweep-tasks-review-fixes · closing the gaps a max-effort review found in the shipped skill
+- **Context:** ran `/code-review ultra` (this environment's max-effort local fallback) against the full
+  merged diff of `D-GH-2026-07-16-sweep-tasks-skill` + `D-GH-2026-07-16-sweep-tasks-risk-model-v2`
+  (i.e. `origin/main...origin/preview`) — the first adversarial pass over `/sweep-tasks`/`/add-task`
+  since either landed. Four finder agents (3 initial + 1 gap-sweep) surfaced 16 candidate findings;
+  15 survived dedup/verification and are fixed here (1 — unvalidated magic-number thresholds for the
+  circuit breaker and diff-size bands — was cut to stay under the review's 15-item cap as the least
+  severe of the set; left as a known minor gap, not tracked as a separate task).
+- **Decision:** fix all 15 inline rather than filing them back to the roadmap, since the affected files
+  are prompt files a future agent executes literally — an undefined step or a resource leak in them is
+  load-bearing the next time `/sweep-tasks` runs, not cosmetic.
+- **What changed (grouped):**
+  - *Resource/state leaks:* park paths in Step 4 item 5 now call `ExitWorktree(action:"keep")` instead
+    of leaking a worktree/branch silently; `TaskList` entries always reach an explicit terminal state
+    (`completed` with a `MERGED:`/`PARKED:`/`DROPPED:` reason) instead of a parked task staying stuck
+    at `in_progress` forever.
+  - *Queue/cap correctness:* dropped or parked queue slots now backfill from the remaining eligible
+    list so the number of tasks actually attempted stays near the requested cap instead of silently
+    shrinking; Step 5's newly-discovered tasks now route through Step 3's pre-flight branch-existence
+    check before being trusted as available.
+  - *Undefined cases now defined:* a `Risk: medium` task bumped a tier by the diff-size check now maps
+    explicitly to the `ultra` review tier (previously undefined); how `/run-task`'s PR number reaches
+    `/code-review <tier> PR #<n>` is now stated (read from its final output, or `list_pull_requests` as
+    a fallback); `$ARGUMENTS` batch-size parsing now requires a bare positive integer, not any digit
+    substring in free-form text (previously a stray version number like "v0.107" would silently become
+    the cap); Step 5/Step 7's direct pushes to `preview` now fetch/rebase first and retry once on a
+    non-fast-forward rejection, matching the care already given to feature-branch rebases.
+  - *Spec self-consistency:* the diff-size check no longer flags the exact "mechanical batch across
+    many call sites" pattern `/add-task`'s own Effort:medium examples endorse (judges diff *shape*, not
+    just file count); Ambiguity's High tier now names cross-tool/architectural migrations explicitly,
+    closing the gap left when Effort stopped gating eligibility (a "copy this pattern exactly" task
+    could otherwise dodge the high-ambiguity rating it deserves); `AGENTS.md`'s single-writer rule for
+    `docs/TASK_BOARD.md` now documents the `/add-task`/`/sweep-tasks` direct-commit carve-out instead of
+    leaving readers of that file to discover the exception only by reading `sweep-tasks.md` itself.
+  - *Doc/wording bugs:* `docs/TASK_BOARD.md`'s stale "Step 4.5" reference corrected to "Step 4 item 6";
+    Step 7's "same convention `/add-task`'s Step 4 and Step 5" corrected (add-task.md has no Step 5 —
+    it meant this skill's own Step 5); the stale-branch-deletion fallback now names the actual branch
+    (`worktree-<slug>`) instead of describing it only by role.
+- **Why:** these are exactly the class of bug a prompt file hides well — a future agent following the
+  doc literally has no way to notice a missing `ExitWorktree` call or an undefined tier mapping until
+  it's already mid-sweep with no human watching, which is the whole point of the skill.
+- **Status:** Active.
 
 ## D-GH-2026-07-16-sweep-tasks-risk-model-v2 · risk ≠ uncertainty, and Effort was a redundant proxy
 - **Context:** immediately after `D-GH-2026-07-16-sweep-tasks-skill` shipped, discussion surfaced

@@ -57,10 +57,13 @@ priority tier, Effort ascending (`low` before `medium` before `high`) as a tiebr
 completed tasks into a fixed batch-size cap and keeps one large task from eating a whole run's budget
 before smaller ones get a turn.
 
-**Batch size:** if `$ARGUMENTS` includes a number, use it as the cap. If not, ask once via
-`AskUserQuestion` — "How many tasks should this sweep attempt?" with a recommended default around
-5-8 and an option for a custom number — before doing anything else. This is the only prompt this
-skill makes to the user; everything after this point runs unattended.
+**Batch size:** use `$ARGUMENTS` as the cap only if, after trimming whitespace, it is a **bare
+positive integer and nothing else** (e.g. `6`). Any other shape — free-form text that happens to
+contain a digit (a version number, a PR reference), multiple numbers, zero, or a negative number —
+does **not** count as "includes a number"; treat it the same as no number given. If not, ask once
+via `AskUserQuestion` — "How many tasks should this sweep attempt?" with a recommended default
+around 5-8 and an option for a custom number — before doing anything else. This is the only prompt
+this skill makes to the user; everything after this point runs unattended.
 
 If zero tasks are eligible, report that plainly (list what's on the board and why each is excluded —
 untagged, or `Risk: high`) and stop. Don't lower the bar to manufacture work.
@@ -80,11 +83,23 @@ early just because one candidate was taken. Report which candidates got skipped 
 unavailable, not that anything went wrong.
 
 Use `TaskCreate` to log the surviving queue (one task per roadmap item) so progress is visible and
-survives a context compaction mid-sweep; mark each `in_progress` when you start it, `completed` when
-its PR merges (or leave it and note the park/drop reason if it doesn't). **If resuming an
-interrupted sweep** (context compaction, session restart mid-run), check `TaskList` first — pick up
-the existing queue's state rather than re-picking and potentially re-attempting an already-merged
-task from scratch.
+survives a context compaction mid-sweep; mark each `in_progress` when you start it. On any
+**terminal** outcome — merged, parked, or dropped — mark it `completed` regardless of which one
+happened, and record the actual outcome and reason in the task's own note/description (e.g. prefix
+it `MERGED:`, `PARKED:`, or `DROPPED:`). Never leave a resolved task sitting at `in_progress` — that
+status must mean "still being worked," full stop, so a resumed sweep can tell a genuinely-interrupted
+task apart from one that was already resolved before the interruption. **If resuming an interrupted
+sweep** (context compaction, session restart mid-run), check `TaskList` first — pick up the existing
+queue's state rather than re-picking and potentially re-attempting an already-resolved task from
+scratch.
+
+**Backfilling drops/parks:** the queue built above has exactly `cap` candidates, but a pre-flight
+drop (this step) or a mid-run park/drop (Step 4) removes one without necessarily tripping the
+circuit breaker. When that happens, pull the next eligible candidate (in the same priority/Effort
+order from Step 2) from the full eligible list and add it to the queue with `TaskCreate`, so the
+number of tasks actually *attempted* stays at or near `cap` rather than silently shrinking. Do this
+before moving to the next queue slot, not after the whole queue drains. Note in Step 6 whenever a
+backfill happened and which task it replaced.
 
 ## Step 4 — execute each task in the queue, in order
 
@@ -105,21 +120,33 @@ For each surviving candidate:
    itself determines mid-work that the task is bigger than it looked (its own Step 5 escape hatch),
    let it drop the task and leave the roadmap entry alone — record that outcome, count it toward the
    circuit breaker, and move on to the next queued task. Don't attempt to force it through yourself.
+   **Capturing the PR number `<n>`** (needed by items 2 and 4 below): `/run-task`'s own final step
+   states the PR it opened, including its number/URL — read that from its output. If it isn't
+   clearly stated there, call `list_pull_requests` filtered to head branch `<type/short-slug>` and
+   take the number from that instead of guessing.
 
 2. **Diff-size sanity check.** Call `pull_request_read` (method `get_files`) on the PR `/run-task`
    just opened. Compare the actual changed-file count against what the task's `Effort` tag implies
-   (`low` → expect ~1-2 files; `medium` → expect ~2-5; `high` has no fixed expectation). If the real
-   diff is notably larger than the tag implied, or touches `js/engine.js`/`sql/` when the task's own
-   text never mentioned either, that's a signal the classification may have been wrong — **don't
-   auto-park** (the work is done and may be fine), but treat it as if the task's Risk were one tier
-   worse than tagged for the purposes of step 3 below, and say so explicitly in the final report so
-   the classification can be corrected for next time.
+   (`low` → expect ~1-2 files; `medium` → expect ~2-5; `high` has no fixed expectation). **Exception:**
+   a uniform, one-line change repeated identically across many call sites — the "mechanical batch"
+   pattern `/add-task`'s own Effort:medium examples call out (e.g. the same hardening line applied to
+   every `SECURITY DEFINER` function) — is expected to touch more files than the band without
+   signaling misclassification; judge the diff's *shape* (is every hunk the same one-line pattern?),
+   not just its file count, before flagging. If the real diff is notably larger *and* shaped
+   differently than the tag implied, or touches `js/engine.js`/`sql/` when the task's own text never
+   mentioned either, that's a signal the classification may have been wrong — **don't auto-park** (the
+   work is done and may be fine), but treat it as if the task's Risk were one tier worse than tagged
+   for the purposes of step 3 below, and say so explicitly in the final report so the classification
+   can be corrected for next time.
 
 3. **Determine the review tier from Risk, not file path** (bumped one tier if step 2 flagged a
-   size mismatch): `Risk: low` → `/code-review low`. `Risk: medium` → `/code-review medium`. Any PR
-   that touches `js/engine.js` or `sql/` gets at least the higher-scrutiny tier (`ultra`, or this
-   environment's max-effort fallback) regardless of its Risk tag — that's a hard rule from `AGENTS.md`
-   independent of this skill's own scoring, not a suggestion this step can downgrade.
+   size mismatch): `Risk: low` → `/code-review low`. `Risk: medium` → `/code-review medium`. A
+   `Risk: medium` task bumped a tier by step 2 has no higher named tier to bump *to* under this
+   skill's two-tier scale — treat that case the same as the hard override below: use the
+   higher-scrutiny `ultra` tier (or this environment's max-effort fallback). Any PR that touches
+   `js/engine.js` or `sql/` gets at least that same higher-scrutiny tier regardless of its Risk tag —
+   that's a hard rule from `AGENTS.md` independent of this skill's own scoring, not a suggestion this
+   step can downgrade.
 
 4. **Run `/code-review <tier> PR #<n>`** via the `Skill` tool against the PR `/run-task` just opened.
 
@@ -134,19 +161,25 @@ For each surviving candidate:
    git reset --hard origin/<type/short-slug>
    git branch -m <type/short-slug>
    ```
-   **If that last rename fails ("a branch named ... already exists"):** a stale local branch from an
-   earlier worktree/session already holds that name — this happened twice in the session this skill
-   was built from. Don't fight it: `git checkout <type/short-slug>` directly instead (skip the
-   rename), and if the stray branch that was occupying the worktree's auto-generated name is now
-   pointless, `git branch -D` it once you're safely checked out on the real branch.
+   **If that last rename fails ("a branch named ... already exists"):** the stray local branch is
+   `EnterWorktree`'s own auto-generated `worktree-<slug>` name from an earlier worktree/session (see
+   `run-task.md`) — this happened twice in the session this skill was built from. Don't fight it:
+   `git checkout <type/short-slug>` directly instead (skip the rename), and once you're safely
+   checked out on the real branch, `git branch -D worktree-<slug>` (using that same auto-generated
+   name) if it's now pointless.
 
    Apply the fix, re-run the parity gate (and `audit.py` if the change is code, not docs), commit,
    `git fetch origin preview && git rebase origin/preview`.
 
    **If the rebase reports a non-trivial conflict, don't resolve it silently** — same rule
-   `/run-task`'s own Step 6 already follows. Abort the rebase (`git rebase --abort`), park this task
-   (leave its roadmap entry alone, don't merge its PR), count it toward the circuit breaker, note the
-   conflict in the final report for a human to resolve, and move on to the next queued task.
+   `/run-task`'s own Step 6 already follows (this mirrors that file's rebase-conflict-abort rule
+   directly; if that rule ever changes, check this reference too). Abort the rebase
+   (`git rebase --abort`), park this task (leave its roadmap entry alone, don't merge its PR), count
+   it toward the circuit breaker, note the conflict in the final report for a human to resolve, then
+   `ExitWorktree(action: "keep")` — **do not remove it**, so the human resolving the conflict has the
+   actual conflicted state to look at instead of having to reconstruct it; name the worktree's path
+   in the final report so it's a visible, tracked leftover rather than a silent one — and move on to
+   the next queued task.
 
    Otherwise, re-verify, `git push` (use `--force-with-lease` if the rebase replayed commits — check
    `git rev-parse HEAD` against `origin/<branch>` first, same caution `/run-task`/`/cleanup-branches`
@@ -155,9 +188,11 @@ For each surviving candidate:
 
    **If a finding needs a genuine redesign, not a small fix — park it, don't force it.** Note the
    finding in the sweep's final report as something for a human to look at; still merge the rest of
-   the PR if the finding isn't a real correctness bug (a cleanup/altitude finding can wait), or park
-   the whole task (leave the roadmap entry alone, don't merge, count toward the circuit breaker) if
-   it is.
+   the PR if the finding isn't a real correctness bug (a cleanup/altitude finding can wait) — in that
+   case `ExitWorktree(action: "remove", discard_changes: true)` as usual once merged. If it is a real
+   bug, park the whole task (leave the roadmap entry alone, don't merge, count toward the circuit
+   breaker) and `ExitWorktree(action: "keep")` for the same reason as the conflict case above — a
+   human needs the actual state, not a torn-down worktree, to pick the redesign up.
 
 6. **Live/real-verification requirement for anything above `Risk: low`** — done last, against
    whatever actually ends up merging (after any step-5 fix), not before. A task tagged `Risk: medium`
@@ -191,13 +226,18 @@ file's criteria), and commit it directly to `preview` the way `/add-task`'s own 
 **skip that skill's Step 2 (clarifying questions) and Step 3 (wait for human approval)**: this skill
 runs unattended by design, so the add-and-classify step must not block on a prompt. This is a
 deliberate, documented divergence from `/add-task`'s normal interactive flow, not an oversight —
-don't "fix" it back to asking.
+don't "fix" it back to asking. Before committing, `git fetch origin preview && git rebase
+origin/preview` first (same care Step 4 item 5 gives feature branches) — if the push is rejected as
+non-fast-forward, re-fetch/rebase and retry once; if it still fails, note in the final report that
+this new task's roadmap entry didn't land, rather than losing it silently.
 
-If the newly-added task itself clears the same `Risk: low`/`medium` bar, fold it into *this run's*
-queue (append it, respecting the batch-size cap from Step 2, ordered the same way) rather than
-waiting for a future invocation to pick it up — this is what actually happened with PR #239 today.
-If it doesn't clear the bar, it just sits on the board for a human or a future `/pick-task` to
-handle normally.
+If the newly-added task itself clears the same `Risk: low`/`medium` bar, run it through Step 3's
+pre-flight branch-existence check exactly like any other queued candidate before trusting it as
+available (a concurrent session could have independently claimed the same auto-derived slug), then
+fold it into *this run's* queue (append it, respecting the batch-size cap from Step 2, ordered the
+same way) rather than waiting for a future invocation to pick it up — this is what actually happened
+with PR #239 today. If it doesn't clear the bar, it just sits on the board for a human or a future
+`/pick-task` to handle normally.
 
 ## Step 6 — final report
 
@@ -215,12 +255,15 @@ attached, surface it clearly enough that a human can pick it up without re-deriv
 Append one entry to `docs/sweep-log.md` (create it, following the header/format convention of
 `CHANGELOG.md`/`DECISIONS.md` — newest on top, if it doesn't exist yet) summarizing this run: date,
 batch size requested, tasks attempted with outcomes, whether the circuit breaker triggered, and any
-diff-size-mismatch flags — condensed from Step 6's report, not a duplicate of it. Commit this
-directly to `preview` (docs-only, same convention `/add-task`'s Step 4 and Step 5 above use) as
-`docs(sweep-log): record sweep run <date>`. This is a durable record of what was *attempted*, not
-just what shipped — `CHANGELOG.md` only ever shows successful merges, so a pattern of repeated
-parks/drops on a particular kind of task (a signal the classification criteria need retuning) would
-otherwise leave no trace anywhere.
+diff-size-mismatch flags — condensed from Step 6's report, not a duplicate of it. `git fetch origin
+preview && git rebase origin/preview` first, then commit directly to `preview` (docs-only, same
+direct-commit convention this skill's own Step 5 above uses, mirroring `/add-task`'s Step 4) as
+`docs(sweep-log): record sweep run <date>`. If the push is rejected as non-fast-forward, re-fetch/
+rebase and retry once; if it still fails, surface that in your final reply to the user so the run
+record isn't silently lost. This is a durable record of what was *attempted*, not just what shipped
+— `CHANGELOG.md` only ever shows successful merges, so a pattern of repeated parks/drops on a
+particular kind of task (a signal the classification criteria need retuning) would otherwise leave
+no trace anywhere.
 
 ---
 

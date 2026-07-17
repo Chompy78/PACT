@@ -92,7 +92,10 @@ say *which* factor actually drove the rating, not just assert a conclusion.
   `audit.py`, a real-browser check, or an existing pattern to copy exactly).
 - *Medium:* a few reasonable approaches exist; picking one is a fine, low-stakes call — doesn't need
   a human sign-off, just a decision.
-- *High:* no clear "right" — a genuine trade-off only a human should decide.
+- *High:* no clear "right" — a genuine trade-off only a human should decide. This always includes any
+  cross-tool/module-bridge migration or other architectural change, even when a specific pattern
+  exists to copy — whether that pattern still fits after upstream drift is itself the trade-off, so
+  don't round this down to Medium just because the copy step looks mechanical.
 
 **2. Damage scale — if it *does* go wrong, how bad and how hard to undo?**
 - *Low:* a `git revert` fully undoes it; one file/tool; no data or security implication.
