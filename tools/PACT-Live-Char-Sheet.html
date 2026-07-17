@@ -1500,13 +1500,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
 
 <script type="module">
   import { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
-  import { currentSession, onAuthChange, onSessionChange } from '../js/auth.js';
+  import { currentSession, onAuthChange } from '../js/auth.js';
   import { listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { getAwardHistory } from '../js/dm.js';
   import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48)
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync };
-  window._authBridge = { currentSession, onAuthChange, onSessionChange };
+  window._authBridge = { currentSession, onAuthChange };
   window._campaignBridge = { listMyCampaigns, getCampaign };
   window._dmBridge = { getAwardHistory };
   window._engineBridge = { validate };

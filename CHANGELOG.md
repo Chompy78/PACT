@@ -6,10 +6,11 @@
 
 - **2026-07-17 · refactor(auth) — shared `onSessionChange(session)` helper for `js/auth.js`,
   migrated 4 of 5 call sites**: adds `onSessionChange`, a one-argument wrapper around
-  `onAuthChange(event, session)` that structurally rules out the argument-order bug found and fixed
-  3 separate times at different call sites (Live Sheet, CharGen, DM Console). CharGen's 3 call sites
-  and DM Console's 1 now use it; Live Sheet's single call site keeps the raw `onAuthChange` since it
-  genuinely needs the event string for its `SIGNED_OUT` branch. Display/UI-only, no `js/engine.js`/
+  `onAuthChange(event, session)` that structurally rules out the argument-order bug — CharGen's 3
+  call sites and DM Console's 1 (both previously bitten by it) now use it. Live Sheet's single call
+  site (also previously bitten) keeps the raw, order-dependent `onAuthChange` since it genuinely
+  needs the event string for its `SIGNED_OUT` branch — that site is **not** structurally protected by
+  this change, only documented against (see `DECISIONS.md`). Display/UI-only, no `js/engine.js`/
   `DATA` involvement, parity still 20/0.
 
 - **2026-07-17 · fix(tooling) — 15 findings from a `/code-review ultra` pass on `/sweep-tasks`/
