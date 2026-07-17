@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-17 · fix(chargen) — synced CharGen's hardcoded rules-version display to the real
+  `DATA.version`**: CharGen showed "Rules v0.332" (title + `.hd-pactver` header label + two doc comments)
+  while the engine's canonical `DATA.version` had advanced to **v0.336** — a pre-existing display drift.
+  Updated all four spots to v0.336. CharGen is the only tool that hardcodes this (Live Sheet and DM Console
+  already read `DATA.version` live at `engine-ready`, so they can't drift); the misleading comment claiming
+  the label "tracks DATA.version" was corrected to say it's hardcoded, and a follow-up to make CharGen
+  live-read it too was noted. Display-only — no rules/`compute()` change, `DATA.version` untouched.
+
 - **2026-07-17 · refactor(engine) — REV-14a: extracted the `DATA` rules dataset out of `js/engine.js`
   into its own `js/engine-data.js` module**: `engine.js` shrinks from ~189 KB (dominated by one 189 KB
   `DATA` literal line) to ~65 KB and now imports + re-exports `DATA` unchanged, so every tool/importer
