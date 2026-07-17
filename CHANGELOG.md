@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-17 · refactor(auth) — shared `onSessionChange(session)` helper for `js/auth.js`,
+  migrated 4 of 5 call sites**: adds `onSessionChange`, a one-argument wrapper around
+  `onAuthChange(event, session)` that structurally rules out the argument-order bug — CharGen's 3
+  call sites and DM Console's 1 (both previously bitten by it) now use it. Live Sheet's single call
+  site (also previously bitten) keeps the raw, order-dependent `onAuthChange` since it genuinely
+  needs the event string for its `SIGNED_OUT` branch — that site is **not** structurally protected by
+  this change, only documented against (see `DECISIONS.md`). Display/UI-only, no `js/engine.js`/
+  `DATA` involvement, parity still 20/0.
+
 - **2026-07-17 · fix(tooling) — 15 findings from a `/code-review ultra` pass on `/sweep-tasks`/
   `/add-task` fixed**: worktree-leak on park paths, TaskList entries left stuck `in_progress`, no
   cap-backfill on drop/park, undefined bumped-to-high review tier, undefined PR-number capture,

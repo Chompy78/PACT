@@ -488,13 +488,13 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // CharGen must stay fully usable with no network at all (see the local-only badge in the header),
   // so this failure must never take engine-ready down with it; keeping it a separate <script
   // type="module"> means a dead CDN only loses the cloud-campaign UI, not the character builder.
-  import { currentSession, onAuthChange } from '../js/auth.js';
+  import { currentSession, onSessionChange } from '../js/auth.js';
   import { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, PENDING_INVITE_KEY } from '../js/campaign.js';
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
   import { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
-  window._authBridge = { currentSession, onAuthChange };
+  window._authBridge = { currentSession, onSessionChange };
   window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync };
@@ -570,7 +570,7 @@ document.addEventListener('campaign-ready', function () {
   }
 
   selEl.addEventListener('change', function () { applySelection(selEl.value); });
-  A.onAuthChange(function (event, session) { updateAuth(session); });   // auth.js's onAuthChange calls cb(event, session) — session is the 2nd arg, not the 1st
+  A.onSessionChange(function (session) { updateAuth(session); });
   A.currentSession().then(function (session) { updateAuth(session); });
 });
 </script>
@@ -743,7 +743,7 @@ document.addEventListener('sync-ready', function () {
     if (typeof flash === 'function') flash('☁ Loaded: ' + label);
   }
 
-  A.onAuthChange(function (event, session) { _session = session; });
+  A.onSessionChange(function (session) { _session = session; });
   A.currentSession().then(function (session) { _session = session; });
 });
 </script>
@@ -845,7 +845,7 @@ document.addEventListener('sync-ready', function () {
     }
   }
 
-  A.onAuthChange(function(event, session){
+  A.onSessionChange(function(session){
     var nowSignedIn = !!session;
     if(nowSignedIn && !_wasSignedIn) tryRedeem(session);
     _wasSignedIn = nowSignedIn;
