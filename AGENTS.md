@@ -232,11 +232,11 @@ More than one agent may be active. **`docs/TASK_BOARD.md` has a single writer** 
 If you have new roadmap items, output them in **this exact format** for the human to fold in, then carry on:
 
 **Carve-out: `/add-task` and `/sweep-tasks`.** These two skills are the sole exception to the
-single-writer rule above — `/add-task`'s Step 4 and `/sweep-tasks`' Step 5 (new tasks discovered
-mid-sweep) commit directly to `docs/TASK_BOARD.md` on `preview`, no human fold-in step, by design.
-`/sweep-tasks`' Step 7 similarly commits directly to `docs/sweep-log.md`. No other skill or agent
-should commit to `docs/TASK_BOARD.md` directly — the format-and-output-for-a-human pattern below
-still applies everywhere else.
+single-writer rule above — both commit directly to `docs/TASK_BOARD.md` on `preview`, no human
+fold-in step, by design (see each skill's own file for exactly which step — don't hardcode step
+numbers here, they've already drifted once). `/sweep-tasks` similarly commits directly to
+`docs/sweep-log.md`. No other skill or agent should commit to `docs/TASK_BOARD.md` directly — the
+format-and-output-for-a-human pattern below still applies everywhere else.
 
 **`D-GH-<date>-<slug>` numbering (see D-GH49).** The old sequential `D-GH<N>` scheme is retired — it
 collided repeatedly (see the "Addendum" notes throughout `DECISIONS.md` for the full trail, at least

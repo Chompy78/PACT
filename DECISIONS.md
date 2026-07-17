@@ -157,6 +157,27 @@
 - **Why:** these are exactly the class of bug a prompt file hides well — a future agent following the
   doc literally has no way to notice a missing `ExitWorktree` call or an undefined tier mapping until
   it's already mid-sweep with no human watching, which is the whole point of the skill.
+- **Found and fixed by `/code-review high` on the PR itself (self-referential — the fix pass got the
+  same review treatment as any other PR):** the fix pass introduced 9 new gaps of its own, all fixed
+  in the same PR before merge. Two stand out as genuinely notable: (1) the new backfill-on-drop/park
+  paragraph pulled a replacement candidate into the queue without routing it back through the
+  pre-flight branch-existence check — the exact race this same PR explicitly fixed for Step 5's
+  newly-discovered tasks, just left open on the parallel backfill path; also left undefined how a
+  backfill interacts with a circuit-breaker trip landing on the same failure (now: check the breaker
+  first, only backfill if the sweep is continuing). (2) The stray-branch-name fix named the wrong
+  branch — `worktree-<slug>` — when `run-task.md`'s actual `EnterWorktree` convention substitutes `+`
+  for `/` in the full `type/short-slug` (`worktree-<type+short-slug>`), which the fix would have
+  gotten right by construction if it had been checked against `run-task.md` directly instead of
+  written from memory of the convention. Also fixed: a merge-outcome path that didn't restate the new
+  `MERGED:`-prefix convention; a PR-number-capture instruction that cited `/run-task`'s wrong step
+  (Step 8, cleanup, instead of Step 7, where the PR is actually opened) and undercounted its own
+  consumers; AGENTS.md's new carve-out hardcoding step numbers — the identical drift-prone pattern
+  this same PR had just fixed once already in `docs/TASK_BOARD.md`'s stale "Step 4.5"; Step 5/Step 7's
+  near-duplicate fetch/rebase/retry prose (Step 7 now points at Step 5's procedure instead of
+  restating it); a bumped-to-`ultra` review-tier instruction that buried the actual rule after its own
+  justification; and the mechanical-batch diff-size exception not accounting for the case where the
+  uniform pattern itself spans multiple UI tools (now treated as a second, independent flag on top of
+  the Ambiguity-High tag, defense-in-depth against an upstream mis-classification).
 - **Status:** Active.
 
 ## D-GH-2026-07-16-sweep-tasks-risk-model-v2 · risk ≠ uncertainty, and Effort was a redundant proxy

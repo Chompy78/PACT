@@ -95,11 +95,15 @@ scratch.
 
 **Backfilling drops/parks:** the queue built above has exactly `cap` candidates, but a pre-flight
 drop (this step) or a mid-run park/drop (Step 4) removes one without necessarily tripping the
-circuit breaker. When that happens, pull the next eligible candidate (in the same priority/Effort
-order from Step 2) from the full eligible list and add it to the queue with `TaskCreate`, so the
-number of tasks actually *attempted* stays at or near `cap` rather than silently shrinking. Do this
-before moving to the next queue slot, not after the whole queue drains. Note in Step 6 whenever a
-backfill happened and which task it replaced.
+circuit breaker. **First check the circuit breaker:** if this failure just brought the consecutive-
+failure counter to 2, stop the sweep per Step 4's rule instead of backfilling — don't pull in a
+replacement just to immediately halt on it. Otherwise, pull the next eligible candidate (in the same
+priority/Effort order from Step 2) from the full eligible list, run it through this same pre-flight
+branch-existence check before trusting it as available (exactly like every other candidate — a
+backfilled slot is not exempt), and add it to the queue with `TaskCreate`, so the number of tasks
+actually *attempted* stays at or near `cap` rather than silently shrinking. Do this before moving to
+the next queue slot, not after the whole queue drains. Note in Step 6 whenever a backfill happened
+and which task it replaced.
 
 ## Step 4 — execute each task in the queue, in order
 
@@ -120,10 +124,12 @@ For each surviving candidate:
    itself determines mid-work that the task is bigger than it looked (its own Step 5 escape hatch),
    let it drop the task and leave the roadmap entry alone — record that outcome, count it toward the
    circuit breaker, and move on to the next queued task. Don't attempt to force it through yourself.
-   **Capturing the PR number `<n>`** (needed by items 2 and 4 below): `/run-task`'s own final step
-   states the PR it opened, including its number/URL — read that from its output. If it isn't
+   **Capturing the PR number `<n>`** (needed by items 2, 4, and 7 below): `/run-task`'s own Step 7
+   ("push and open the pull request") states the PR it opened, including its number/URL — read that
+   from its output, not Step 8 (worktree cleanup), which says nothing about the PR. If it isn't
    clearly stated there, call `list_pull_requests` filtered to head branch `<type/short-slug>` and
-   take the number from that instead of guessing.
+   take the number from that instead of guessing. Reuse this same captured `<n>` for every later item
+   in this list — don't re-derive it.
 
 2. **Diff-size sanity check.** Call `pull_request_read` (method `get_files`) on the PR `/run-task`
    just opened. Compare the actual changed-file count against what the task's `Effort` tag implies
@@ -132,7 +138,12 @@ For each surviving candidate:
    pattern `/add-task`'s own Effort:medium examples call out (e.g. the same hardening line applied to
    every `SECURITY DEFINER` function) — is expected to touch more files than the band without
    signaling misclassification; judge the diff's *shape* (is every hunk the same one-line pattern?),
-   not just its file count, before flagging. If the real diff is notably larger *and* shaped
+   not just its file count, before flagging. **This exception does not apply if the repeated pattern
+   spans more than one of the three UI tools** (`tools/PACT-CharGen-Webtool.html`,
+   `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`) — that shape is the cross-tool-migration
+   case `/add-task`'s Ambiguity-High tier already treats as never-low-ambiguity, so still flag it as a
+   second, independent check in case the task was mis-tagged upstream. If the real diff is notably
+   larger *and* shaped
    differently than the tag implied, or touches `js/engine.js`/`sql/` when the task's own text never
    mentioned either, that's a signal the classification may have been wrong — **don't auto-park** (the
    work is done and may be fine), but treat it as if the task's Risk were one tier worse than tagged
@@ -140,13 +151,12 @@ For each surviving candidate:
    can be corrected for next time.
 
 3. **Determine the review tier from Risk, not file path** (bumped one tier if step 2 flagged a
-   size mismatch): `Risk: low` → `/code-review low`. `Risk: medium` → `/code-review medium`. A
-   `Risk: medium` task bumped a tier by step 2 has no higher named tier to bump *to* under this
-   skill's two-tier scale — treat that case the same as the hard override below: use the
-   higher-scrutiny `ultra` tier (or this environment's max-effort fallback). Any PR that touches
-   `js/engine.js` or `sql/` gets at least that same higher-scrutiny tier regardless of its Risk tag —
-   that's a hard rule from `AGENTS.md` independent of this skill's own scoring, not a suggestion this
-   step can downgrade.
+   size mismatch): `Risk: low` → `/code-review low`. `Risk: medium` → `/code-review medium`. **A
+   `Risk: medium` task bumped a tier by step 2 uses `ultra`** (or this environment's max-effort
+   fallback) — this skill's two-tier scale has no higher named tier to bump *to*, so treat that case
+   the same as the hard override below. Any PR that touches `js/engine.js` or `sql/` gets at least
+   that same higher-scrutiny tier regardless of its Risk tag — that's a hard rule from `AGENTS.md`
+   independent of this skill's own scoring, not a suggestion this step can downgrade.
 
 4. **Run `/code-review <tier> PR #<n>`** via the `Skill` tool against the PR `/run-task` just opened.
 
@@ -162,11 +172,12 @@ For each surviving candidate:
    git branch -m <type/short-slug>
    ```
    **If that last rename fails ("a branch named ... already exists"):** the stray local branch is
-   `EnterWorktree`'s own auto-generated `worktree-<slug>` name from an earlier worktree/session (see
-   `run-task.md`) — this happened twice in the session this skill was built from. Don't fight it:
-   `git checkout <type/short-slug>` directly instead (skip the rename), and once you're safely
-   checked out on the real branch, `git branch -D worktree-<slug>` (using that same auto-generated
-   name) if it's now pointless.
+   `EnterWorktree`'s own auto-generated name from an earlier worktree/session — per `run-task.md`
+   Step 4, that's `worktree-<type/short-slug with "/" replaced by "+">` (e.g. `feat/short-slug` →
+   `worktree-feat+short-slug`), not the bare short-slug — this happened twice in the session this
+   skill was built from. Don't fight it: `git checkout <type/short-slug>` directly instead (skip the
+   rename), and once you're safely checked out on the real branch, `git branch -D
+   worktree-<type+short-slug>` (using that exact `+`-substituted name) if it's now pointless.
 
    Apply the fix, re-run the parity gate (and `audit.py` if the change is code, not docs), commit,
    `git fetch origin preview && git rebase origin/preview`.
@@ -213,8 +224,8 @@ For each surviving candidate:
    re-push, or park — and count toward the circuit breaker). If there are no checks configured for
    this PR at all (common in this repo today — several existing workflows only trigger on specific
    file paths), that's not a blocker, just nothing to wait on. Once clear, merge
-   (`merge_pull_request`, method `merge`), mark the `TaskCreate` entry `completed`, and reset the
-   consecutive-failure counter to 0.
+   (`merge_pull_request`, method `merge`), mark the `TaskCreate` entry `completed` with a `MERGED:`
+   prefix per Step 3's outcome-recording convention, and reset the consecutive-failure counter to 0.
 
 ## Step 5 — new tasks discovered mid-sweep
 
@@ -255,12 +266,12 @@ attached, surface it clearly enough that a human can pick it up without re-deriv
 Append one entry to `docs/sweep-log.md` (create it, following the header/format convention of
 `CHANGELOG.md`/`DECISIONS.md` — newest on top, if it doesn't exist yet) summarizing this run: date,
 batch size requested, tasks attempted with outcomes, whether the circuit breaker triggered, and any
-diff-size-mismatch flags — condensed from Step 6's report, not a duplicate of it. `git fetch origin
-preview && git rebase origin/preview` first, then commit directly to `preview` (docs-only, same
-direct-commit convention this skill's own Step 5 above uses, mirroring `/add-task`'s Step 4) as
-`docs(sweep-log): record sweep run <date>`. If the push is rejected as non-fast-forward, re-fetch/
-rebase and retry once; if it still fails, surface that in your final reply to the user so the run
-record isn't silently lost. This is a durable record of what was *attempted*, not just what shipped
+diff-size-mismatch flags — condensed from Step 6's report, not a duplicate of it. Commit it directly
+to `preview` using the exact same fetch/rebase-first, retry-once-on-non-fast-forward procedure Step 5
+above uses (don't restate it here — follow it) as `docs(sweep-log): record sweep run <date>`. If it
+still fails after the retry, surface that in your final reply to the user (Step 6's report has
+already been delivered by this point in the run, so it can't carry this failure) so the run record
+isn't silently lost. This is a durable record of what was *attempted*, not just what shipped
 — `CHANGELOG.md` only ever shows successful merges, so a pattern of repeated parks/drops on a
 particular kind of task (a signal the classification criteria need retuning) would otherwise leave
 no trace anywhere.
