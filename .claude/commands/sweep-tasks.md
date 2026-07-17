@@ -123,19 +123,11 @@ For each surviving candidate:
 
 4. **Run `/code-review <tier> PR #<n>`** via the `Skill` tool against the PR `/run-task` just opened.
 
-5. **Live/real-verification requirement for anything above `Risk: low`.** A task tagged `Risk:
-   medium` or flagged up to it by step 2 must have some form of real verification beyond the parity
-   gate before merging — a real-browser check for UI, a direct query against the live DB for a SQL
-   change, or equivalent for whatever the task actually touches (match the method to the task, the
-   way today's `gen_random_bytes` fix was verified with a real `INSERT INTO campaigns` and the iOS
-   hint was verified with a spoofed-UA Playwright run). If `/run-task` didn't already do this as part
-   of its own work, do it yourself before moving to the merge step. If no practical live-verification
-   method exists for this particular task, say so explicitly in the final report rather than silently
-   skipping the requirement.
-
-6. **If real (CONFIRMED, or a genuinely load-bearing PLAUSIBLE) code-review findings survive:**
+5. **If real (CONFIRMED, or a genuinely load-bearing PLAUSIBLE) code-review findings survive:**
    re-enter that branch to fix them — `/run-task`'s own Step 8 already tore the worktree down, so
-   this is a fresh entry, not a continuation:
+   this is a fresh entry, not a continuation. `/run-task`'s own Step 4 already verifies a fresh
+   worktree's base correctly, and the `reset --hard origin/<type/short-slug>` below fully overwrites
+   whatever base `EnterWorktree` silently picked — nothing further to check on that front here:
    ```
    EnterWorktree(name: "<type/short-slug>")
    git fetch origin <type/short-slug>
@@ -149,12 +141,7 @@ For each surviving candidate:
    pointless, `git branch -D` it once you're safely checked out on the real branch.
 
    Apply the fix, re-run the parity gate (and `audit.py` if the change is code, not docs), commit,
-   `git fetch origin preview && git rebase origin/preview`. **Before rebasing, verify the worktree
-   is genuinely based on `preview`, not merely descended from it** — `git merge-base HEAD
-   origin/preview` should equal `origin/preview`'s own SHA exactly. The looser `git merge-base
-   --is-ancestor origin/preview HEAD` check can pass even when the worktree is actually based on
-   `main`, if `main` has recently absorbed `preview` via a promotion — this happened while building
-   this very skill. If the sharper check fails, `git reset --hard origin/preview` before proceeding.
+   `git fetch origin preview && git rebase origin/preview`.
 
    **If the rebase reports a non-trivial conflict, don't resolve it silently** — same rule
    `/run-task`'s own Step 6 already follows. Abort the rebase (`git rebase --abort`), park this task
@@ -171,6 +158,18 @@ For each surviving candidate:
    the PR if the finding isn't a real correctness bug (a cleanup/altitude finding can wait), or park
    the whole task (leave the roadmap entry alone, don't merge, count toward the circuit breaker) if
    it is.
+
+6. **Live/real-verification requirement for anything above `Risk: low`** — done last, against
+   whatever actually ends up merging (after any step-5 fix), not before. A task tagged `Risk: medium`
+   or flagged up to it by step 2 must have some form of real verification beyond the parity gate
+   before merging — a real-browser check for UI, a direct query against the live DB for a SQL change,
+   or equivalent for whatever the task actually touches (match the method to the task, the way
+   today's `gen_random_bytes` fix was verified with a real `INSERT INTO campaigns` and the iOS hint
+   was verified with a spoofed-UA Playwright run). If `/run-task` already did this as part of its own
+   work *and* step 5 made no fix that would invalidate it, that's sufficient — otherwise do it
+   yourself now, against the final code, before moving to the merge step. If no practical
+   live-verification method exists for this particular task, say so explicitly in the final report
+   rather than silently skipping the requirement.
 
 7. **Check CI status, then merge.** Call `pull_request_read` (method `get_status`, or
    `get_check_runs` for per-workflow detail) on the PR. If any check is still running, poll briefly

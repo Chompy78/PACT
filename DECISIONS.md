@@ -156,6 +156,18 @@
   risky that didn't happen to touch `js/engine.js`/`sql/`), and `docs/sweep-log.md` (a durable record
   of every *attempted* run, since `CHANGELOG.md` only ever shows what shipped — a pattern of repeated
   parks on one kind of task would otherwise leave no trace to notice and retune the criteria against).
+- **Found and fixed by `/code-review` before merge:** two real bugs in Step 4's new ordering. (1)
+  The review-fix re-entry section had picked up a worktree-base check misapplied from this session's
+  own earlier gotcha — placed *after* "apply the fix ... commit," it would have run `git reset --hard
+  origin/preview` at a point where doing so discards the fix commit just made, and the check doesn't
+  even apply there: it protects against `EnterWorktree`'s *implicit* base resolution, not an explicit
+  `git rebase <ref>` command, which can't silently target the wrong branch. Removed — the existing
+  `git reset --hard origin/<type/short-slug>` step immediately after `EnterWorktree` already fully
+  overwrites whatever base it silently picked, so nothing was actually left to protect against at
+  that later point. (2) The live/real-verification requirement was sequenced *before* the
+  code-review-fix step, so a task needing a fix would have its `Risk`-tier verification checked
+  against the pre-fix code, satisfying the requirement on paper without covering what actually
+  merges. Reordered to run last, against the final code.
 - **Status:** Active.
 
 ## D-GH-2026-07-16-sweep-tasks-skill · four human calls, not four defaults picked unilaterally

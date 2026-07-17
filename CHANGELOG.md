@@ -20,7 +20,14 @@
   on the board under the fuller model: the engine-review cleanup batch moved from `medium` to `Risk:
   high` (item 4's ambiguity was under-weighted in the first pass — still never eligible either way),
   the shared `onAuthChange` wrapper moved from `low` to `Risk: medium` (no automated gate for
-  auth-UI regressions — still eligible, now correctly flagged as needing live verification). See
+  auth-UI regressions — still eligible, now correctly flagged as needing live verification).
+  `/code-review` caught 2 real bugs in the new step ordering before merge: the review-fix re-entry
+  section had picked up a stray, misapplied worktree-base check that would have run `git reset
+  --hard origin/preview` *after* a fix was already committed — discarding it — and the live/real
+  verification requirement was sequenced before the code-review fix step, so a task that needed a
+  fix would have its Risk-tier verification checked against the pre-fix code, not what actually
+  merges. Both fixed: the stray check removed (redundant — the existing reset-to-origin/<branch>
+  step already covers it), and live verification moved to run last, against the final code. See
   `DECISIONS.md` D-GH-2026-07-16-sweep-tasks-risk-model-v2.
 
 - **2026-07-16 · feat(tooling) — add `/sweep-tasks`, the unattended batch version of pick→run→review→merge**.
