@@ -145,6 +145,17 @@
   no tag line, or any rating above `Effort: medium`/`Risk: low`, is never eligible for `/sweep-tasks`
   regardless of how the task's prose reads. The 2 tasks open on `docs/TASK_BOARD.md` at the time were
   retrofitted with tags as the first real testbed (see `CHANGELOG.md`).
+- **A worktree gotcha found while building this PR, not by the skill itself:** the worktree this PR
+  was built in came out silently based on `main` instead of `preview` — `main` had just absorbed
+  `preview` via the same-day promotion (PR #242), so `git merge-base --is-ancestor origin/preview
+  HEAD` (the exact check `AGENTS.md`/`ai-lessons-learned` H-028 already recommend) reported `OK`
+  without a reset, because `origin/preview`'s tip genuinely *is* an ancestor of `main`'s tip once
+  `main` has merged it — just not because the worktree was based on `preview` directly. Caught before
+  push by the rebase attempting to replay ~195 ancient commits instead of one; fixed by resetting to
+  `origin/preview`'s real tip and cherry-picking just this PR's own commit back on. The existing
+  ancestor-check guidance is technically correct but has a blind spot the moment `main` has recently
+  merged `preview` — worth a sharper check (`git merge-base HEAD origin/preview` should equal
+  `origin/preview`'s own SHA exactly, not merely be reachable from it) if this recurs.
 - **Status:** Active.
 
 ## D-GH-2026-07-16-lighthouse-ci · measured baseline, not an arbitrary target

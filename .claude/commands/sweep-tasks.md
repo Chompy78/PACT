@@ -1,6 +1,6 @@
 ---
 description: Autonomously work through every low-effort/low-risk TODO on the roadmap — pick, execute, review, merge, repeat — adding any newly-surfaced tasks to the board along the way
-argument-hint: [batch size, e.g. 6] [difficulty/topic filter]
+argument-hint: [batch size, e.g. 6]
 ---
 
 # PACT — sweep the roadmap's quick, safe work
@@ -100,20 +100,38 @@ For each surviving candidate:
    git reset --hard origin/<type/short-slug>
    git branch -m <type/short-slug>
    ```
+   **If that last rename fails ("a branch named ... already exists"):** a stale local branch from an
+   earlier worktree/session already holds that name — this happened twice in the session this skill
+   was built from. Don't fight it: `git checkout <type/short-slug>` directly instead (skip the
+   rename), and if the stray branch that was occupying the worktree's auto-generated name is now
+   pointless, `git branch -D` it once you're safely checked out on the real branch.
+
    Apply the fix, re-run the parity gate (and `audit.py` if the change is code, not docs), commit,
-   `git fetch origin preview && git rebase origin/preview`, re-verify, `git push` (use
-   `--force-with-lease` if the rebase replayed commits — check `git rev-parse HEAD` against
-   `origin/<branch>` first, same caution `/run-task`/`/cleanup-branches` already use elsewhere).
-   Then `ExitWorktree(action: "remove", discard_changes: true)` once you've confirmed the tip is
-   pushed and reflected in the PR.
+   `git fetch origin preview && git rebase origin/preview`.
+
+   **If that rebase reports a non-trivial conflict, don't resolve it silently** — same rule
+   `/run-task`'s own Step 6 already follows. Abort the rebase (`git rebase --abort`), park this task
+   (leave its roadmap entry alone, don't merge its PR), note the conflict in the final report for a
+   human to resolve, and move on to the next queued task.
+
+   Otherwise, re-verify, `git push` (use `--force-with-lease` if the rebase replayed commits — check
+   `git rev-parse HEAD` against `origin/<branch>` first, same caution `/run-task`/`/cleanup-branches`
+   already use elsewhere). Then `ExitWorktree(action: "remove", discard_changes: true)` once you've
+   confirmed the tip is pushed and reflected in the PR.
 
    **If a finding needs a genuine redesign, not a small fix — park it, don't force it.** Note the
    finding in the sweep's final report as something for a human to look at; still merge the rest of
    the PR if the finding isn't a real correctness bug (a cleanup/altitude finding can wait), or park
    the whole task (leave the roadmap entry alone, don't merge) if it is.
 
-5. **Merge the PR** (`merge_pull_request`, method `merge`) once its checks pass and any real findings
-   are resolved. Mark the `TaskCreate` entry `completed`.
+5. **Check CI status, then merge.** Call `pull_request_read` (method `get_status`, or
+   `get_check_runs` for per-workflow detail) on the PR. If any check is still running, poll briefly
+   (this repo's CI finishes in seconds to low minutes — not worth a long wait loop) before deciding;
+   if a check has genuinely failed, treat that the same as a real code-review finding (fix and
+   re-push, or park). If there are no checks configured for this PR at all (common in this repo today
+   — several existing workflows only trigger on specific file paths), that's not a blocker, just
+   nothing to wait on. Once clear, merge (`merge_pull_request`, method `merge`) and mark the
+   `TaskCreate` entry `completed`.
 
 ## Step 5 — new tasks discovered mid-sweep
 

@@ -15,8 +15,13 @@
   criteria (with worked examples) so the two skills stay in sync on what counts as safe to run unattended.
   Retrofitted the 2 currently-open roadmap tasks with tags as a first real testbed: the engine-review
   cleanup batch is `medium`/`medium` (touches `js/engine.js`, not eligible), the shared `onAuthChange`
-  wrapper is `medium`/`low` (mechanical UI-only refactor, eligible). See `DECISIONS.md`
-  D-GH-2026-07-16-sweep-tasks-skill.
+  wrapper is `medium`/`low` (mechanical UI-only refactor, eligible). `/code-review` caught 4 real gaps
+  in the skill's own procedural instructions before it ever ran: the review-fix re-entry sequence had
+  no fallback for a stale local branch already holding the target name (hit twice in today's manual
+  session), the fix-loop's rebase had no defined behavior on a real conflict (unlike `/run-task`'s own
+  "stop and flag" rule), the frontmatter advertised a `[difficulty/topic filter]` argument Step 2 never
+  implemented, and "merge once checks pass" referenced a CI check nothing in the skill ever queried.
+  All four fixed before merge. See `DECISIONS.md` D-GH-2026-07-16-sweep-tasks-skill.
 
 - **2026-07-16 · ci(lighthouse) — add Lighthouse CI to auto-catch landing-page regressions**.
   New `.github/workflows/lighthouse-ci.yml` runs Lighthouse (desktop preset, via
