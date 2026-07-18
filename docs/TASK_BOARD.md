@@ -76,9 +76,79 @@ implementation given the design-call nature.
 run) against at least one real target repo of each shape (a blank-slate repo and a repo with existing,
 possibly-conflicting governance docs) with correct behavior in both cases.
 
+## REV-14b — split js/engine.js's compute() into named sub-pricers — TODO
+Branch refactor/rev-14b-compute-subpricers. Second half of REV-14 (REV-14a — the DATA extraction — shipped
+in PR #251); decompose compute()'s single ~370-line body (~lines 76–446) into named `_price*` helpers. Full
+plan already drafted at docs/plans/2026-07-17-engine-breakup-rev14.md.
+**Effort:** high · **Risk:** high — ambiguity is high (decomposing a stateful pricing algorithm while
+guaranteeing byte-identical output is a genuine architectural call); damage scale is high (edits compute()
+directly — the engine's single source of truth); damage likelihood is medium (the parity gate catches
+numeric/ledger drift, but REV-01's known warning-text fixture-coverage gap means some W.push branches are
+unverified) — worst-of lands at high, never eligible for /sweep-tasks.
+
+```text
+1. Pre-flight (no code change): produce a data-flow map of which compute() locals each commented section
+   reads vs writes (total, L, W, mod, effScore, the add() closure, any first-occurrence/suppression state),
+   and confirm the exact line span of the _raceTraitLocked creation-lock logic so extraction-by-comment-
+   boundary can't split it.
+2. Extract each commented section into a named _price* helper taking ONE SHARED MUTABLE CONTEXT
+   ({total, L, W, mod, effScore, add, …}) and mutating it exactly as the inline code did — NOT return-and-
+   merge (which forces hidden inter-section dependencies to be made explicit and is where silent drift
+   creeps in). Preserve L (ledger) and W (warnings) push order exactly.
+3. Extract one section per commit; run engine-parity after each so any regression is bisectable. compute()
+   ends as setup + a fixed ordered sequence of _price* calls + return assembly, same signature/return shape.
+4. Verify byte-identical output: hash the full compute() return (totals + ledger L + warnings W) for every
+   fixture before vs after; list any W.push branch no fixture reaches. This is a BEHAVIOUR-PRESERVING engine
+   change — do NOT bump DATA.version (output must be identical); just log in CHANGELOG.
+```
+
+**Done when:** compute() is a dispatcher over named `_price*` helpers (shared-context design), unchanged
+signature/return shape; full-payload output identical across all fixtures; engine-parity still 20/0.
+
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
+
+---
+
+## Make CharGen live-read its rules version — TODO
+Branch fix/chargen-live-rules-version. CharGen hardcodes its "PACT rules · vX" display (the `.hd-pactver`
+header label + `<title>`), so it drifts on every DATA.version bump (drifted v0.332→v0.336 and was
+hand-synced in PR #251); make it read DATA.version live like the other two tools.
+**Effort:** low · **Risk:** low — ambiguity is low (exact pattern to copy from DM-Console.html:
+`RULES=(window.DATA&&window.DATA.version)` at engine-ready); damage scale is low (one tool, display-only,
+git-revert); damage likelihood is low (visible in a real-browser boot check) — all three factors low.
+
+```text
+1. Give CharGen's `.hd-pactver` span an id (e.g. id="cgPactVer").
+2. In CharGen's engine-ready handler, set that span's textContent from window.DATA.version (mirror DM
+   Console's live read), and set the <title>'s "Rules vX" segment the same way.
+3. Remove the hardcoded rules-version number from the span and <title> (the line-1 comment + the
+   versioning-note prose can stay). Removes the last hardcoded rules-version mirror in any tool.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** CharGen shows the live DATA.version with no hardcoded rules number remaining in its span or
+`<title>`; all three tools boot; engine-parity still 20/0.
+
+---
+
+## Refresh stale version parentheticals in AGENTS.md — TODO
+Branch docs/agents-version-refresh. AGENTS.md's Versioning section states BUILD "currently v0.107" (real:
+v0.201 in js/engine.js) and rules "currently v0.332" (real: v0.336 in js/engine-data.js); update both
+parentheticals to match reality.
+**Effort:** low · **Risk:** low — docs-only, one obviously-right change, fully git-revertable; all three
+risk factors low.
+
+```text
+1. In AGENTS.md's "Versioning — TWO separate numbers" section, update the BUILD "currently v0.107"
+   parenthetical to the current BUILD in js/engine.js (v0.201 as of PR #251), and the DATA.version
+   "currently v0.332" parenthetical to the current value in js/engine-data.js (v0.336).
+2. Docs-only; no DATA.version bump, no code change.
+```
+
+**Done when:** AGENTS.md's BUILD and DATA.version "currently" parentheticals match the live values in
+js/engine.js and js/engine-data.js.
 
 ---
 
