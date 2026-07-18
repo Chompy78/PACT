@@ -4,6 +4,12 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-18 · feat(tools) — CharGen and Live Sheet now show the anvil/hammer PACT favicon**: moved
+  `assets/PACT_favicon.png` → `assets/icons/PACT_favicon.png` and added `<link rel="icon"
+  type="image/png" href="../assets/icons/PACT_favicon.png">` to the two non-DM tools' `<head>` (right after
+  the manifest link). DM Console deliberately left unchanged. Verified in a real browser: both tabs load the
+  favicon (200) and DM Console has no icon link. Asset/display-only — no `DATA.version` or `BUILD` change.
+
 - **2026-07-17 · fix(chargen) — synced CharGen's hardcoded rules-version display to the real
   `DATA.version`**: CharGen showed "Rules v0.332" (title + `.hd-pactver` header label + two doc comments)
   while the engine's canonical `DATA.version` had advanced to **v0.336** — a pre-existing display drift.
