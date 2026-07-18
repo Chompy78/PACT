@@ -257,6 +257,33 @@
     .card .t { font-weight:700; font-size:1.05rem; color:var(--head); }
     .card .d { color:var(--muted); font-size:.9rem; margin-top:.25em; }
 
+    /* ---- "Continue where you left off": recent characters + autosave timeline ---- */
+    .continue-group[hidden] { display:none; }
+    .card .meta { color:var(--muted); font-size:.82rem; margin-top:.3em; }
+    .recent-saves { margin-top:14px; border:1px solid var(--card-border); border-radius:8px; background:var(--card-bg); }
+    .recent-saves[hidden] { display:none; }
+    .recent-saves summary {
+      cursor:pointer; padding:.6em 1rem; font-size:.9rem; color:var(--head); font-weight:700;
+      list-style:none; display:flex; align-items:center; gap:.5em;
+    }
+    .recent-saves summary::-webkit-details-marker { display:none; }
+    .recent-saves summary::before {
+      content:"\25B8"; color:var(--accent); font-size:.9em; transition:transform .15s;
+    }
+    .recent-saves[open] summary::before { transform:rotate(90deg); }
+    .recent-save-list { padding:0 .5rem .5rem; display:flex; flex-direction:column; gap:2px; }
+    a.recent-save-row {
+      display:flex; justify-content:space-between; gap:12px; align-items:baseline;
+      text-decoration:none; color:inherit; padding:.5em .7em; border-radius:6px;
+      transition:background .12s;
+    }
+    a.recent-save-row:hover { background:var(--hero-bg); }
+    .recent-save-row .rs-name {
+      font-weight:600; color:var(--head); min-width:0;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .recent-save-row .rs-meta { color:var(--muted); font-size:.8rem; flex:0 0 auto; }
+
     footer {
       color:var(--muted); font-size:.8rem; margin-top:30px;
       border-top:1px solid var(--rule); padding-top:14px;
@@ -368,6 +395,17 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
         </div>
       </div>
     </header>
+
+    <!-- "Continue where you left off": populated + revealed by the recent-characters module near the
+         bottom of <body>. Hidden by default, so first-time visitors (no saved characters) never see it. -->
+    <section class="tools-group continue-group" id="continueSection" aria-label="Continue where you left off" hidden>
+      <h2 class="section-head">Continue where you left off</h2>
+      <div class="cards" id="recentCards"></div>
+      <details class="recent-saves" id="recentSaves" hidden>
+        <summary id="recentSavesSummary">Recent autosaves</summary>
+        <div class="recent-save-list" id="recentSaveList"></div>
+      </details>
+    </section>
 
     <a class="guide-hero" href="docs/PACT-Players-Guide.html">
       <img class="cover" src="assets/pact-cover.webp" decoding="async" alt="PACT Player&rsquo;s Guide cover">
@@ -671,6 +709,113 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
         });
       }
     })();
+  </script>
+
+  <script type="module">
+    /* "Continue where you left off" (feat/continue-recent-chars): read the shared recent-characters store
+       and render resume cards (last 3 distinct characters) plus a collapsible recovery timeline (last 10
+       autosaves). Every card/row resumes through the SAME one-shot handoff baton the tools already consume
+       on ?handoff= — no new tool code, no engine call. Silent-fail throughout: any error just leaves the
+       section hidden, so this can never break the landing page. character-store.js is already the source of
+       the recent store; importing it also loads js/engine.js, but that module is imported on this page
+       already (for the BUILD label), so this adds no new heavy dependency. */
+    import('./js/character-store.js').then((m) => {
+      const section = document.getElementById('continueSection');
+      const cardsEl = document.getElementById('recentCards');
+      if (!section || !cardsEl || typeof m.readRecent !== 'function') return;
+      let recent;
+      try { recent = m.readRecent(); } catch (e) { return; }
+      const chars = (recent && recent.chars) || [];
+      const saves = (recent && recent.saves) || [];
+      if (!chars.length && !saves.length) return;   // nothing to continue → stay hidden (newcomers unaffected)
+
+      const TOOL = {
+        chargen:   { url: 'tools/PACT-CharGen-Webtool.html', label: 'Character Generator' },
+        livesheet: { url: 'tools/PACT-Live-Char-Sheet.html', label: 'Live Character Sheet' },
+      };
+      const toolOf = (t) => TOOL[t] || TOOL.chargen;   // default to CharGen for an unknown/legacy tool tag
+
+      function relTime(ts) {
+        if (!ts) return '';
+        const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+        if (s < 60) return 'just now';
+        const mn = Math.round(s / 60); if (mn < 60) return mn + ' min ago';
+        const h = Math.round(mn / 60); if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago');
+        const d = Math.round(h / 24); if (d < 30) return d + (d === 1 ? ' day ago' : ' days ago');
+        const mo = Math.round(d / 30); return mo + (mo === 1 ? ' month ago' : ' months ago');
+      }
+
+      // Point `a.href` at the right tool, staging a FRESH one-shot handoff baton for this character. Called
+      // at interaction time (pointerdown) so the 2-min-TTL baton is always current when navigation fires,
+      // and so middle-click / cmd-click open a new tab carrying a valid baton. A plain tool URL is the safe
+      // fallback if staging fails — the tool then just restores its own current autosave slot.
+      function stage(a, entry) {
+        const tool = toolOf(entry.tool);
+        try {
+          const uid = m.writeHandoff({ source: 'landing', LOG: entry.LOG, SEQ: entry.SEQ, rules: entry.rules, id: entry.id });
+          a.href = uid ? (tool.url + '?handoff=' + encodeURIComponent(uid)) : tool.url;
+        } catch (e) { a.href = tool.url; }
+      }
+      function wireNav(a, entry) {
+        const tool = toolOf(entry.tool);
+        a.href = tool.url;                                          // safe default before any interaction
+        a.addEventListener('pointerdown', () => stage(a, entry));  // fresh baton for mouse (left/middle/modified)
+        a.addEventListener('click', (e) => {                       // keyboard activation fires click with detail 0
+          if (e.detail !== 0) return;                              // detail>0 == mouse; pointerdown already staged
+          e.preventDefault();
+          try {
+            const uid = m.writeHandoff({ source: 'landing', LOG: entry.LOG, SEQ: entry.SEQ, rules: entry.rules, id: entry.id });
+            location.href = uid ? (tool.url + '?handoff=' + encodeURIComponent(uid)) : tool.url;
+          } catch (err) { location.href = tool.url; }
+        });
+      }
+
+      // Static, non-user SVG markup (safe for innerHTML — the only user value anywhere here is the character
+      // name, which is always set via textContent).
+      const iconSvg = (tool) => tool === 'livesheet'
+        ? '<svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><path d="M14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><path d="M9.5 9h2M9.5 12h6M9.5 15h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path></svg>'
+        : '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"></rect><circle cx="9" cy="9" r="1.3" fill="currentColor"></circle><circle cx="15" cy="9" r="1.3" fill="currentColor"></circle><circle cx="9" cy="15" r="1.3" fill="currentColor"></circle><circle cx="15" cy="15" r="1.3" fill="currentColor"></circle><circle cx="12" cy="12" r="1.3" fill="currentColor"></circle></svg>';
+
+      // --- resume cards: the last distinct characters, latest state ---
+      chars.forEach((entry) => {
+        const a = document.createElement('a');
+        a.className = 'card';
+        const icon = document.createElement('span');
+        icon.className = 'card-icon'; icon.setAttribute('aria-hidden', 'true');
+        icon.innerHTML = iconSvg(entry.tool);
+        const txt = document.createElement('div'); txt.className = 'card-text';
+        const t = document.createElement('div'); t.className = 't';
+        t.textContent = entry.name || 'Unnamed character';       // textContent → XSS-safe
+        const meta = document.createElement('div'); meta.className = 'meta';
+        meta.textContent = [toolOf(entry.tool).label, relTime(entry.ts)].filter(Boolean).join(' · ');
+        txt.appendChild(t); txt.appendChild(meta);
+        a.appendChild(icon); a.appendChild(txt);
+        wireNav(a, entry);
+        cardsEl.appendChild(a);
+      });
+
+      // --- recovery timeline: the last autosaves (only worth showing when there's more than one) ---
+      const savesEl = document.getElementById('recentSaves');
+      const listEl = document.getElementById('recentSaveList');
+      if (savesEl && listEl && saves.length > 1) {
+        const sum = document.getElementById('recentSavesSummary');
+        if (sum) sum.textContent = 'Recent autosaves (' + saves.length + ')';
+        saves.forEach((entry) => {
+          const a = document.createElement('a');
+          a.className = 'recent-save-row';
+          const nm = document.createElement('span'); nm.className = 'rs-name';
+          nm.textContent = entry.name || 'Unnamed character';    // textContent → XSS-safe
+          const meta = document.createElement('span'); meta.className = 'rs-meta';
+          meta.textContent = [toolOf(entry.tool).label, relTime(entry.ts)].filter(Boolean).join(' · ');
+          a.appendChild(nm); a.appendChild(meta);
+          wireNav(a, entry);
+          listEl.appendChild(a);
+        });
+        savesEl.hidden = false;
+      }
+
+      section.hidden = false;
+    }).catch(() => {});
   </script>
 </body>
 </html>

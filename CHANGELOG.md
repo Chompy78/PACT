@@ -9,6 +9,15 @@
   type="image/png" href="../assets/icons/PACT_favicon.png">` to the two non-DM tools' `<head>` (right after
   the manifest link). DM Console deliberately left unchanged. Verified in a real browser: both tabs load the
   favicon (200) and DM Console has no icon link. Asset/display-only — no `DATA.version` or `BUILD` change.
+- **2026-07-18 · feat(landing) — "Continue where you left off" recent-characters section**: `index.html`
+  now shows resume cards for your last 3 distinct characters plus a collapsible timeline of the last 10
+  autosaves, each resuming into the right tool via the existing `?handoff=` baton. Backed by a new shared
+  versioned-autosave store in `js/character-store.js` (`recordAutosave`/`readRecent`, key `pactRecentV1`):
+  both tools now additively feed it from their autosave (never touching their own restore slot, fully
+  guarded). Capture uses time **and** difference — identical snapshots are skipped, rapid same-character
+  edits coalesce, and a new snapshot is cut only on a ≥2-min gap, a tool switch, or a ≥5-event jump — so a
+  keystroke burst can't fill it with duplicates. Character names render via `textContent` (XSS-safe). BUILD
+  v0.201→v0.202; engine untouched (parity 20/0). See `DECISIONS.md` D-GH-2026-07-18-continue-recent-chars.
 
 - **2026-07-17 · fix(chargen) — synced CharGen's hardcoded rules-version display to the real
   `DATA.version`**: CharGen showed "Rules v0.332" (title + `.hd-pactver` header label + two doc comments)
