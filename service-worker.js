@@ -1,10 +1,11 @@
-const CACHE_NAME = 'pact-v5';
+const CACHE_NAME = 'pact-v6';
 
 const PRE_CACHE = [
   '/PACT/',
   '/PACT/index.html',
   '/PACT/login.html',
   '/PACT/js/engine.js',
+  '/PACT/js/engine-data.js',
   '/PACT/js/character-store.js',
   '/PACT/js/supabase-client.js',
   '/PACT/js/auth.js',
@@ -22,12 +23,15 @@ const PRE_CACHE = [
   '/PACT/icons/apple-touch-icon.png',
 ];
 
-// Network-first: HTML pages, engine.js, and the auth/sync/campaign/dm client modules, so deployed
-// fixes reach returning users immediately (see D-GH-2026-07-16-sw-network-first-security-modules —
-// this fetch handler already falls back to the cached copy on failure, so widening this list costs
-// nothing in offline capability, only speeds up fix propagation for online users).
+// Network-first: HTML pages, engine.js + engine-data.js (the rules dataset — REV-14a moved it out of
+// engine.js, and it must keep engine.js's immediate-propagation semantics so a rules fix reaches
+// returning users right away rather than sticking on a stale cached copy), and the auth/sync/campaign/dm
+// client modules, so deployed fixes reach returning users immediately (see
+// D-GH-2026-07-16-sw-network-first-security-modules — this fetch handler already falls back to the cached
+// copy on failure, so widening this list costs nothing in offline capability, only speeds up fix
+// propagation for online users).
 // Everything else (icons, character-store.js, feedback.js) stays cache-first for speed.
-const NETWORK_FIRST_RE = /\.html$|\/PACT\/$|\/js\/(engine|auth|supabase-client|sync|campaign|dm)\.js$/;
+const NETWORK_FIRST_RE = /\.html$|\/PACT\/$|\/js\/(engine|engine-data|auth|supabase-client|sync|campaign|dm)\.js$/;
 
 self.addEventListener('install', e => {
   e.waitUntil(

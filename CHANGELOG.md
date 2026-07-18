@@ -4,6 +4,50 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-17 · fix(chargen) — synced CharGen's hardcoded rules-version display to the real
+  `DATA.version`**: CharGen showed "Rules v0.332" (title + `.hd-pactver` header label + two doc comments)
+  while the engine's canonical `DATA.version` had advanced to **v0.336** — a pre-existing display drift.
+  Updated all four spots to v0.336. CharGen is the only tool that hardcodes this (Live Sheet and DM Console
+  already read `DATA.version` live at `engine-ready`, so they can't drift); the misleading comment claiming
+  the label "tracks DATA.version" was corrected to say it's hardcoded, and a follow-up to make CharGen
+  live-read it too was noted. Display-only — no rules/`compute()` change, `DATA.version` untouched.
+
+- **2026-07-17 · refactor(engine) — REV-14a: extracted the `DATA` rules dataset out of `js/engine.js`
+  into its own `js/engine-data.js` module**: `engine.js` shrinks from ~189 KB (dominated by one 189 KB
+  `DATA` literal line) to ~65 KB and now imports + re-exports `DATA` unchanged, so every tool/importer
+  sees the identical surface — matching the existing `ap-by-level.js`/`advancement.js` externalization
+  pattern. Byte-identical output verified: the moved literal is character-identical **and** deep-equal to
+  the original, `engine-parity` (incl. warnings) reports **20/0**, and all 14 named exports are unchanged.
+  `service-worker.js` updated (cache `pact-v5`→`pact-v6`, `engine-data.js` precached + network-first) so
+  the rules dataset keeps `engine.js`'s immediate-fix-propagation semantics instead of going stale on a
+  cache-first copy (see `DECISIONS.md`). No rules change — `DATA.version` unchanged (still v0.336); `BUILD`
+  bumped **v0.200 → v0.201** (non-trivial structural build) and mirrored across the three tools per
+  `docs/VERSION-SYNC.md`. Real-browser boot check (Chromium, all three tools): `engine-ready` fires, the
+  bridges' `DATA` mutation succeeds (confirming `.js` is not frozen), and `compute()` runs clean. Follow-up
+  **REV-14b** (split `compute()` into named sub-pricers) stays open; a cold-reviewed plan for the whole of
+  REV-14 lives at `docs/plans/2026-07-17-engine-breakup-rev14.md`.
+
+- **2026-07-17 · docs(roadmap) — scored `docs/TASK_BOARD.md`'s remaining untagged items with
+  Effort/Risk tags**: REV-14, real icons, both landing-page follow-ups, A1/A3/A7's remaining scope, and
+  the `MUT.patch` rename/restriction idea now carry the three-factor Risk breakdown, so they're visible
+  to `/sweep-tasks` (most land at `Risk: high` — architectural/engine-touching or new live-data-table
+  work — with real icons the one `Risk: low` exception, blocked only on art). The vague "Supporting
+  reference tasks" bullets were deliberately left untagged — not scoped enough to rate. Also flagged
+  (not fixed): A6's release-tagging work already shipped (v0.107) but was never marked done here.
+
+- **2026-07-17 · fix(tooling) — `run-task.md`'s worktree-base check replaced with exact-equality, not
+  ancestry**: the documented `git merge-base --is-ancestor origin/preview HEAD` check (and an
+  undocumented "sharper" ancestry variant used ad hoc this session) both give a false positive right
+  after a `preview`→`main` promotion — a worktree wrongly based on `origin/main` still passes, since
+  `origin/preview` is reachable from `main`'s tip via the promotion merge. Replaced with
+  `[ "$(git rev-parse HEAD)" = "$(git rev-parse origin/preview)" ]`, which can't be fooled the same way.
+  See `DECISIONS.md` D-GH-2026-07-17-worktree-base-check-exact-equality.
+
+- **2026-07-17 · docs(tooling) — synced `docs/SKILLS.md` with the sweep-tasks/add-task changes it had
+  missed**: the Ambiguity-High cross-tool-migration rule, `/sweep-tasks`' cap-backfill and stricter
+  `$ARGUMENTS` parsing, and a corrected `/code-review ultra` description (it can silently fall back to
+  a local max-effort pass, not always a billed cloud review).
+
 - **2026-07-17 · refactor(auth) — shared `onSessionChange(session)` helper for `js/auth.js`,
   migrated 4 of 5 call sites**: adds `onSessionChange`, a one-argument wrapper around
   `onAuthChange(event, session)` that structurally rules out the argument-order bug — CharGen's 3

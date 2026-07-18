@@ -27,9 +27,128 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## Port the AGENTS.md/skills scaffold to another repo — TODO
+Branch docs/port-agents-scaffold-skill. Generalize this session's manual copy-and-adapt work (porting
+AGENTS.md + .claude/commands/ + hooks to chompy78/petdetective and chompy78/homelife — see
+docs/sessions/2026-07-17-port-agents-scaffold-to-petdetective-homelife.md) into a repeatable PACT skill,
+so a future "bring this workflow to repo X" request doesn't redo the analysis from scratch.
+**Effort:** high · **Risk:** high — ambiguity is high (how prescriptive vs. flexible the skill should be —
+auto-detect target conventions vs. always ask, how much to generalize vs. leave as human judgment — is a
+genuine design call with no single obviously-right answer, the same way this session had to improvise two
+different adaptations for two differently-shaped repos); damage scale is low (only touches
+.claude/commands/ in whichever repo it's run against, and per this session's established practice should
+always draft-then-show-for-approval before writing to a foreign repo, so a bad output is caught before
+landing); damage likelihood is medium (nothing automated gates a skill's own prompt content — a flawed
+skill design only surfaces the next time someone actually runs it against a real target repo) — worst-of
+lands at high on ambiguity alone, so never eligible for /sweep-tasks; recommend `/plan-for-review` before
+implementation given the design-call nature.
+
+```text
+1. Read this session's session note (docs/sessions/2026-07-17-port-agents-scaffold-to-petdetective-homelife.md)
+   and the two target repos' actual results (chompy78/petdetective's docs/agent-scaffold branch/PR #4,
+   chompy78/homelife's commit ede0496) as the worked examples to generalize from.
+
+2. Design a new skill, e.g. `.claude/commands/port-agents-scaffold.md`, that:
+   - Takes a target repo as its argument.
+   - Reads the target's actual current state first — does it already have AGENTS.md/CHANGELOG.md/
+     DECISIONS.md/a task board? Does it have a test suite/CI? What's its branch model (single branch vs.
+     branch-per-task, main vs. some other default)?
+   - Branches its own behavior on what it finds: a blank-slate target gets the full scaffold built fresh
+     (per the petdetective pattern); a target with existing mature governance docs gets only the missing
+     pieces added, with small additive notes in the existing docs rather than any rewrite (per the
+     homelife pattern).
+   - **Explicitly handles the main-only case:** if the target's own stated or observed convention is
+     commit-and-push-straight-to-main (no feature-branch workflow), the ported pick-task/run-task/
+     sweep-tasks/cleanup-branches skills must drop all worktree/branch/PR machinery and work directly
+     against that branch instead — never introduce branches/PRs into a repo whose established convention
+     is branch-less, even for consistency with PACT's own model.
+   - Always drafts the adapted files and shows them (or a summary) for approval before writing/committing/
+     pushing anything to the target repo — same draft-before-write discipline `/add-task`,
+     `/log-ai-lessons`, and `/plan-for-review` already use.
+   - Pauses before pushing to the target repo if that repo has no PR gate (a direct push to its main
+     branch may trigger an immediate live deploy, as it did for homelife) — flag this explicitly rather
+     than pushing straight through.
+
+3. Update `docs/SKILLS.md` to document the new skill alongside the existing eight.
+```
+
+**Done when:** the new skill exists, is documented in `docs/SKILLS.md`, and has been dry-run (or actually
+run) against at least one real target repo of each shape (a blank-slate repo and a repo with existing,
+possibly-conflicting governance docs) with correct behavior in both cases.
+
+## REV-14b — split js/engine.js's compute() into named sub-pricers — TODO
+Branch refactor/rev-14b-compute-subpricers. Second half of REV-14 (REV-14a — the DATA extraction — shipped
+in PR #251); decompose compute()'s single ~370-line body (~lines 76–446) into named `_price*` helpers. Full
+plan already drafted at docs/plans/2026-07-17-engine-breakup-rev14.md.
+**Effort:** high · **Risk:** high — ambiguity is high (decomposing a stateful pricing algorithm while
+guaranteeing byte-identical output is a genuine architectural call); damage scale is high (edits compute()
+directly — the engine's single source of truth); damage likelihood is medium (the parity gate catches
+numeric/ledger drift, but REV-01's known warning-text fixture-coverage gap means some W.push branches are
+unverified) — worst-of lands at high, never eligible for /sweep-tasks.
+
+```text
+1. Pre-flight (no code change): produce a data-flow map of which compute() locals each commented section
+   reads vs writes (total, L, W, mod, effScore, the add() closure, any first-occurrence/suppression state),
+   and confirm the exact line span of the _raceTraitLocked creation-lock logic so extraction-by-comment-
+   boundary can't split it.
+2. Extract each commented section into a named _price* helper taking ONE SHARED MUTABLE CONTEXT
+   ({total, L, W, mod, effScore, add, …}) and mutating it exactly as the inline code did — NOT return-and-
+   merge (which forces hidden inter-section dependencies to be made explicit and is where silent drift
+   creeps in). Preserve L (ledger) and W (warnings) push order exactly.
+3. Extract one section per commit; run engine-parity after each so any regression is bisectable. compute()
+   ends as setup + a fixed ordered sequence of _price* calls + return assembly, same signature/return shape.
+4. Verify byte-identical output: hash the full compute() return (totals + ledger L + warnings W) for every
+   fixture before vs after; list any W.push branch no fixture reaches. This is a BEHAVIOUR-PRESERVING engine
+   change — do NOT bump DATA.version (output must be identical); just log in CHANGELOG.
+```
+
+**Done when:** compute() is a dispatcher over named `_price*` helpers (shared-context design), unchanged
+signature/return shape; full-payload output identical across all fixtures; engine-parity still 20/0.
+
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
+
+---
+
+## Make CharGen live-read its rules version — TODO
+Branch fix/chargen-live-rules-version. CharGen hardcodes its "PACT rules · vX" display (the `.hd-pactver`
+header label + `<title>`), so it drifts on every DATA.version bump (drifted v0.332→v0.336 and was
+hand-synced in PR #251); make it read DATA.version live like the other two tools.
+**Effort:** low · **Risk:** low — ambiguity is low (exact pattern to copy from DM-Console.html:
+`RULES=(window.DATA&&window.DATA.version)` at engine-ready); damage scale is low (one tool, display-only,
+git-revert); damage likelihood is low (visible in a real-browser boot check) — all three factors low.
+
+```text
+1. Give CharGen's `.hd-pactver` span an id (e.g. id="cgPactVer").
+2. In CharGen's engine-ready handler, set that span's textContent from window.DATA.version (mirror DM
+   Console's live read), and set the <title>'s "Rules vX" segment the same way.
+3. Remove the hardcoded rules-version number from the span and <title> (the line-1 comment + the
+   versioning-note prose can stay). Removes the last hardcoded rules-version mirror in any tool.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** CharGen shows the live DATA.version with no hardcoded rules number remaining in its span or
+`<title>`; all three tools boot; engine-parity still 20/0.
+
+---
+
+## Refresh stale version parentheticals in AGENTS.md — TODO
+Branch docs/agents-version-refresh. AGENTS.md's Versioning section states BUILD "currently v0.107" (real:
+v0.201 in js/engine.js) and rules "currently v0.332" (real: v0.336 in js/engine-data.js); update both
+parentheticals to match reality.
+**Effort:** low · **Risk:** low — docs-only, one obviously-right change, fully git-revertable; all three
+risk factors low.
+
+```text
+1. In AGENTS.md's "Versioning — TWO separate numbers" section, update the BUILD "currently v0.107"
+   parenthetical to the current BUILD in js/engine.js (v0.201 as of PR #251), and the DATA.version
+   "currently v0.332" parenthetical to the current value in js/engine-data.js (v0.336).
+2. Docs-only; no DATA.version bump, no code change.
+```
+
+**Done when:** AGENTS.md's BUILD and DATA.version "currently" parentheticals match the live values in
+js/engine.js and js/engine-data.js.
 
 ---
 
@@ -82,39 +201,75 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 **Low-severity review findings:**
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
   named sub-pricers. Only safe once REV-01 gives real assertions; dedicated PR, byte-identical output.
+  **Effort:** high · **Risk:** high — damage scale is high (edits `compute()` directly, the engine's
+  single source of pricing truth) and damage likelihood is medium (the parity gate exists but has a
+  known fixture-coverage gap on some warning-text paths, per REV-01's own follow-up note) — worst-of
+  lands at high regardless of the decomposition's own ambiguity being only medium.
 
 **Polish & hardening** (from the Task 5 audit session):
 - **Real icons** — replace the placeholder 192/512/180 PNGs with real artwork (needs your art).
+  **Effort:** low · **Risk:** low — a static-asset swap, one obviously-right way to do it, instantly and
+  visually verifiable, no code/logic touched. (Blocked on human-supplied artwork, not on classification.)
 
 **Landing-page follow-ups** (deferred from the redesign):
-- Extend theming to the guide and tools (index-only today).
-- "Continue / recent characters" on the landing page (needs the tools' save format).
+- Extend theming to the guide and tools (index-only today). **Effort:** medium · **Risk:** medium —
+  ambiguity is medium (a few reasonable ways to extend an existing CSS pattern across a large guide
+  file plus three tools); damage scale is low (CSS-only, trivially revertible, no data/security
+  implication); damage likelihood is medium (no automated visual-regression gate — would surface in
+  manual review, not automatically).
+- "Continue / recent characters" on the landing page (needs the tools' save format). **Effort:** high ·
+  **Risk:** medium — ambiguity is medium (a genuinely new feature, but scoped to `index.html` reading
+  existing storage, not a cross-tool architecture change); damage scale is low (new opt-in UI, doesn't
+  touch `js/engine.js` or the tools, easily revertible); damage likelihood is medium (no automated
+  coverage for this UI — manual testing only).
 
-**Supporting reference tasks** (run when needed):
+**Supporting reference tasks** (run when needed, intentionally untagged — too undefined in scope to
+rate Effort/Risk meaningfully until one is actually picked up and scoped):
 - Supabase project setup · Icon & asset list (192/512/180) · Offline UX spec · Future-features roadmap.
 
 **Improvements** (recommended action first; the *then* line is a lower-priority upgrade with its caveat):
 - **A1 — Engine API contract.** *(base shipped 2026-07-13)* Full JSDoc contract now sits atop `js/engine.js`.
   *Remaining (optional):* a dev-only `engine.d.ts` for IDE autocomplete — *caveat:* a new format to maintain;
-  can read as "TypeScript creeping in."
+  can read as "TypeScript creeping in." **Effort:** medium · **Risk:** medium — ambiguity is medium (a
+  real but low-stakes call: auto-generate vs. hand-maintain, and whether to add it at all given the
+  caveat above); damage scale is low (dev-tooling only, no runtime impact); damage likelihood is low (a
+  wrong `.d.ts` only misleads an IDE, immediately visible to whoever hits it).
 - **A3 — Client error visibility.** *(base shipped 2026-07-13)* Global `error`/`unhandledrejection` surface +
   Report-issue link now on all pages. *Remaining (lower priority):* log errors to a Supabase table once
-  sign-in is the default — *caveats:* extra write traffic + a privacy note to document.
+  sign-in is the default — *caveats:* extra write traffic + a privacy note to document. **Effort:**
+  medium · **Risk:** high — ambiguity is medium (schema/sampling/PII-scrubbing decisions, but bounded);
+  damage scale is high (a new live-data table + RLS policy is a security/trust-boundary change, the
+  same class as the feedback-widget's anon-write table decision, D-GH-2026-07-15-feedback-widget);
+  damage likelihood is medium (the per-change checklist's Supabase-advisor check is a real gate, but a
+  manual one, not CI-enforced) — worst-of driven by damage scale.
 - **A6 — Tag releases to the build version.** `git tag v0.x` (matching `BUILD`) + a GitHub Release per
   ship, for a labelled rollback point. *Then (lighter alternative):* tags only, no notes — *caveat:* less
-  context on what each release shipped.
+  context on what each release shipped. *(base shipped 2026-07-17 — v0.107 tagged with a GitHub Release;
+  not yet marked done/graduated here — flag for a human to confirm and move to CHANGELOG.md.)*
 - **A7 — Lighthouse 85 → 90.** *(base shipped 2026-07-16)* Lighthouse CI now runs on every PR
   touching `index.html`/assets (D-GH-2026-07-16-lighthouse-ci), gated on a measured baseline
   (perf 100, a11y 98-100, best-practices 96, seo 100), so regressions auto-catch going forward.
   *Remaining (lower priority, higher risk):* split/lazy-load the engine (= REV-14) for a further
-  score gain — *caveat:* a big engine change; do it only after REV-01 makes the gate real.
+  score gain — *caveat:* a big engine change; do it only after REV-01 makes the gate real. **Effort:**
+  high · **Risk:** high — ambiguity is high (an architectural engine-loading change with real
+  trade-offs, no single obviously-right split); damage scale is high (touches `js/engine.js` directly);
+  damage likelihood is medium (the parity gate runs in Node, so an async-loading-order bug specific to
+  the browser might not be caught by it) — worst-of high, driven by ambiguity and damage scale both.
 - **General engine maintainability (from the 2026-07-14 review).** `compute()` does normalization,
   pricing, validation, and warning-generation all in one ~350-line function — biggest source of risk when
-  editing it. `MUT.patch` (`Object.assign(b, p.patch)`) can write arbitrary build fields and is named like
+  editing it (see REV-14 above for its own Effort/Risk — this is the same underlying work, not a second
+  task). `MUT.patch` (`Object.assign(b, p.patch)`) can write arbitrary build fields and is named like
   an ordinary mutator despite being import-only — consider renaming (e.g. `importPatch`) and/or
-  restricting its allowed fields. No fix scheduled; noted for whoever next does a larger engine refactor.
+  restricting its allowed fields. **Effort:** medium · **Risk:** high — ambiguity is medium (rename-only
+  vs. rename-plus-field-restriction is a low-stakes call once the import contract is understood); damage
+  scale is high (touches `js/engine.js`'s public `MUT` export, which CharGen's separate hand-copied
+  import-fold path also depends on per AGENTS.md's high-risk-files note); damage likelihood is medium
+  (the parity gate covers the bridged `MUT` usage in all three tools, but CharGen's import-fold closure
+  is a separate hand-copied path the bridged fixtures don't fully exercise) — worst-of driven by damage
+  scale. No fix scheduled; noted for whoever next does a larger engine refactor.
 **Code-review follow-ups (from `feat/campaign-ap-model`)** — low-severity cleanup flagged by
-`/code-review`, not fixed in that PR (low risk / negligible impact either way):
+`/code-review`, not fixed in that PR (low risk / negligible impact either way); heading currently empty,
+nothing to tag:
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
