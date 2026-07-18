@@ -6,6 +6,19 @@
 <link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PACT — DM Console</title>
+<script>
+  /* Theme support: save preference to localStorage, apply before first paint */
+  (function () {
+    try {
+      var t = localStorage.getItem('pact-dm-theme');
+      if (t && ['dark'].indexOf(t) !== -1) {
+        document.documentElement.setAttribute('data-theme', t);
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    } catch (e) {}
+  })();
+</script>
 <style>
   :root{
     --navy:#1F3864; --navy2:#16294a; --blue:#2E5496; --blue-lt:#3f6bbf;
@@ -14,6 +27,14 @@
     --good:#1f8a4c; --good-bg:#e4f5ea; --zero:#7a869b; --zero-bg:#eef1f6;
     --bad:#c0392b; --bad-bg:#fbe7e4; --warn:#b8860b; --warn-bg:#fbf2d8;
     --shadow:0 1px 3px rgba(20,40,80,.12),0 6px 18px rgba(20,40,80,.08);
+  }
+  [data-theme="dark"] {
+    --navy:#0f1729; --navy2:#0a0e17; --blue:#1a3a5c; --blue-lt:#2851a3;
+    --light:#475569; --paper:#0f172a; --card:#1e293b;
+    --ink:#e2e8f0; --muted:#94a3b8; --line:#334155;
+    --good:#22c55e; --good-bg:#1e3a1f; --zero:#64748b; --zero-bg:#0f1729;
+    --bad:#ef4444; --bad-bg:#1f0f0f; --warn:#eab308; --warn-bg:#1f1701;
+    --shadow:0 1px 3px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.3);
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}

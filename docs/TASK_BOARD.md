@@ -204,13 +204,6 @@ real browser at both normal and the 420px breakpoint; no engine/DATA.version imp
   **Effort:** low · **Risk:** low — a static-asset swap, one obviously-right way to do it, instantly and
   visually verifiable, no code/logic touched. (Blocked on human-supplied artwork, not on classification.)
 
-**Landing-page follow-ups** (deferred from the redesign):
-- Extend theming to the guide and tools (index-only today). **Effort:** medium · **Risk:** medium —
-  ambiguity is medium (a few reasonable ways to extend an existing CSS pattern across a large guide
-  file plus three tools); damage scale is low (CSS-only, trivially revertible, no data/security
-  implication); damage likelihood is medium (no automated visual-regression gate — would surface in
-  manual review, not automatically).
-
 **Supporting reference tasks** (run when needed, intentionally untagged — too undefined in scope to
 rate Effort/Risk meaningfully until one is actually picked up and scoped):
 - Supabase project setup · Icon & asset list (192/512/180) · Offline UX spec · Future-features roadmap.

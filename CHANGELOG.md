@@ -62,6 +62,11 @@
   and v0.332. Updated both to match the live values at merge time (real: v0.202 per js/engine.js — 
   bumped again since this PR was first opened, caught during its pre-merge rebase — and v0.336 per 
   js/engine-data.js). Docs-only — no code or rules change.
+- **2026-07-18 · feat(theming) — extended localStorage-based theme switching to guide and DM Console**: 
+  PACT-Players-Guide.html now supports the same 4-theme system as index.html (parchment/midnight/dragonfire/contrast) 
+  with localStorage persistence. DM Console gained dark-mode support with system preference fallback, maintaining 
+  its modern design language. CharGen and Live Sheet already had theme switching. Theming pattern now consistent 
+  across all public-facing UIs.
 
 - **2026-07-17 · fix(chargen) — synced CharGen's hardcoded rules-version display to the real
   `DATA.version`**: CharGen showed "Rules v0.332" (title + `.hd-pactver` header label + two doc comments)
