@@ -111,28 +111,6 @@ signature/return shape; full-payload output identical across all fixtures; engin
 
 ---
 
-## Make CharGen live-read its rules version — TODO
-Branch fix/chargen-live-rules-version. CharGen hardcodes its "PACT rules · vX" display (the `.hd-pactver`
-header label + `<title>`), so it drifts on every DATA.version bump (drifted v0.332→v0.336 and was
-hand-synced in PR #251); make it read DATA.version live like the other two tools.
-**Effort:** low · **Risk:** low — ambiguity is low (exact pattern to copy from DM-Console.html:
-`RULES=(window.DATA&&window.DATA.version)` at engine-ready); damage scale is low (one tool, display-only,
-git-revert); damage likelihood is low (visible in a real-browser boot check) — all three factors low.
-
-```text
-1. Give CharGen's `.hd-pactver` span an id (e.g. id="cgPactVer").
-2. In CharGen's engine-ready handler, set that span's textContent from window.DATA.version (mirror DM
-   Console's live read), and set the <title>'s "Rules vX" segment the same way.
-3. Remove the hardcoded rules-version number from the span and <title> (the line-1 comment + the
-   versioning-note prose can stay). Removes the last hardcoded rules-version mirror in any tool.
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** CharGen shows the live DATA.version with no hardcoded rules number remaining in its span or
-`<title>`; all three tools boot; engine-parity still 20/0.
-
----
-
 ## Refresh stale version parentheticals in AGENTS.md — TODO
 Branch docs/agents-version-refresh. AGENTS.md's Versioning section states BUILD "currently v0.107" (real:
 v0.201 in js/engine.js) and rules "currently v0.332" (real: v0.336 in js/engine-data.js); update both

@@ -50,6 +50,13 @@
   edits coalesce, and a new snapshot is cut only on a ≥2-min gap, a tool switch, or a ≥5-event jump — so a
   keystroke burst can't fill it with duplicates. Character names render via `textContent` (XSS-safe). BUILD
   v0.201→v0.202; engine untouched (parity 20/0). See `DECISIONS.md` D-GH-2026-07-18-continue-recent-chars.
+- **2026-07-18 · fix(chargen) — made CharGen's rules-version display read live from `DATA.version`**: 
+  CharGen's header shows "PACT rules · vX" in both a `.hd-pactver` span and the `<title>` tag, but both 
+  were hardcoded to v0.336 instead of reading `window.DATA.version` at `engine-ready` like Live Sheet 
+  and DM Console already do. Added `id="cgPactver"` to the span and an event listener that updates both 
+  the span text and the page title with the live version. Display-only — no rules/`compute()` change, 
+  `DATA.version` unchanged. Mirrors the now-documented follow-up to the prior v0.332→v0.336 display-drift fix.
+
 
 - **2026-07-17 · fix(chargen) — synced CharGen's hardcoded rules-version display to the real
   `DATA.version`**: CharGen showed "Rules v0.332" (title + `.hd-pactver` header label + two doc comments)
