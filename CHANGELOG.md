@@ -57,6 +57,11 @@
   the span text and the page title with the live version. Display-only — no rules/`compute()` change, 
   `DATA.version` unchanged. Mirrors the now-documented follow-up to the prior v0.332→v0.336 display-drift fix.
 
+- **2026-07-18 · docs(agents) — refreshed stale version parentheticals in AGENTS.md**: The Versioning 
+  section's "currently" notes for BUILD and DATA.version had drifted since PR #251: listed v0.107 
+  and v0.332. Updated both to match the live values at merge time (real: v0.202 per js/engine.js — 
+  bumped again since this PR was first opened, caught during its pre-merge rebase — and v0.336 per 
+  js/engine-data.js). Docs-only — no code or rules change.
 
 - **2026-07-17 · fix(chargen) — synced CharGen's hardcoded rules-version display to the real
   `DATA.version`**: CharGen showed "Rules v0.332" (title + `.hd-pactver` header label + two doc comments)

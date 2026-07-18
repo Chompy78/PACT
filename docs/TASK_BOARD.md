@@ -111,25 +111,6 @@ signature/return shape; full-payload output identical across all fixtures; engin
 
 ---
 
-## Refresh stale version parentheticals in AGENTS.md — TODO
-Branch docs/agents-version-refresh. AGENTS.md's Versioning section states BUILD "currently v0.107" (real:
-v0.201 in js/engine.js) and rules "currently v0.332" (real: v0.336 in js/engine-data.js); update both
-parentheticals to match reality.
-**Effort:** low · **Risk:** low — docs-only, one obviously-right change, fully git-revertable; all three
-risk factors low.
-
-```text
-1. In AGENTS.md's "Versioning — TWO separate numbers" section, update the BUILD "currently v0.107"
-   parenthetical to the current BUILD in js/engine.js (v0.201 as of PR #251), and the DATA.version
-   "currently v0.332" parenthetical to the current value in js/engine-data.js (v0.336).
-2. Docs-only; no DATA.version bump, no code change.
-```
-
-**Done when:** AGENTS.md's BUILD and DATA.version "currently" parentheticals match the live values in
-js/engine.js and js/engine-data.js.
-
----
-
 ## Engine review cleanup: drawback buyoff IDs, signature guard, baseBuild dedupe, noLock scoping — TODO
 Branch chore/engine-review-cleanup. Four small, low-risk js/engine.js hardening/cleanup items surfaced by
 the 2026-07-14 engine.js review (see session discussion); bundled as one low-risk batch per AGENTS.md's
