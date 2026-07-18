@@ -226,7 +226,7 @@ export function recordAutosave(entry) {
     if (identical) return;   // newest ring slot already holds this exact state → nothing to do
 
     // --- saves ring (recovery timeline): time + difference decide coalesce vs. new slot ---
-    const sameContext  = !!prev && prev.id === snap.id && prev.tool === snap.tool;
+    const sameContext  = !!prev && _charKeyOf(prev) === _charKeyOf(snap) && prev.tool === snap.tool;   // key on _charKeyOf (id, else name) so two id-less characters don't collide
     const withinWindow = !!prev && (snap.ts - prev.ts) >= 0 && (snap.ts - prev.ts) < RECENT_COALESCE_MS;
     const bigChange    = !prev || Math.abs(snap.logLen - prev.logLen) >= RECENT_BIG_DELTA;
     if (sameContext && withinWindow && !bigChange) {

@@ -723,17 +723,25 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       const section = document.getElementById('continueSection');
       const cardsEl = document.getElementById('recentCards');
       if (!section || !cardsEl || typeof m.readRecent !== 'function') return;
+      // Clear any orphan handoff batons left by a prior visit (interaction-time staging can leave a key
+      // if a press didn't lead to navigation). The tools sweep on boot; the landing page didn't, so stale
+      // full-LOG payloads could accumulate here between tool visits.
+      try { if (typeof m.sweepExpiredHandoffs === 'function') m.sweepExpiredHandoffs(); } catch (e) {}
+
       let recent;
       try { recent = m.readRecent(); } catch (e) { return; }
-      const chars = (recent && recent.chars) || [];
-      const saves = (recent && recent.saves) || [];
-      if (!chars.length && !saves.length) return;   // nothing to continue → stay hidden (newcomers unaffected)
-
       const TOOL = {
         chargen:   { url: 'tools/PACT-CharGen-Webtool.html', label: 'Character Generator' },
         livesheet: { url: 'tools/PACT-Live-Char-Sheet.html', label: 'Live Character Sheet' },
       };
-      const toolOf = (t) => TOOL[t] || TOOL.chargen;   // default to CharGen for an unknown/legacy tool tag
+      // Only render entries whose tool we recognise — a corrupted/legacy tag must not be silently routed
+      // to the wrong tool (which could hand a Live Sheet LOG to CharGen). toolOf can then trust its lookup.
+      const known = (e) => e && (e.tool === 'chargen' || e.tool === 'livesheet');
+      const chars = ((recent && recent.chars) || []).filter(known);
+      const saves = ((recent && recent.saves) || []).filter(known);
+      if (!chars.length && !saves.length) return;   // nothing to continue → stay hidden (newcomers unaffected)
+
+      const toolOf = (t) => TOOL[t] || TOOL.chargen;   // entries are pre-filtered to known tools; fallback is defensive only
 
       function relTime(ts) {
         if (!ts) return '';
@@ -745,36 +753,35 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
         const mo = Math.round(d / 30); return mo + (mo === 1 ? ' month ago' : ' months ago');
       }
 
-      // Point `a.href` at the right tool, staging a FRESH one-shot handoff baton for this character. Called
-      // at interaction time (pointerdown) so the 2-min-TTL baton is always current when navigation fires,
-      // and so middle-click / cmd-click open a new tab carrying a valid baton. A plain tool URL is the safe
-      // fallback if staging fails — the tool then just restores its own current autosave slot.
-      function stage(a, entry) {
+      // Stage a FRESH one-shot handoff baton for `entry` and return the tool URL that carries it. A plain
+      // tool URL is the safe fallback if staging fails — the tool then just restores its own current slot.
+      function handoffUrl(entry) {
         const tool = toolOf(entry.tool);
         try {
           const uid = m.writeHandoff({ source: 'landing', LOG: entry.LOG, SEQ: entry.SEQ, rules: entry.rules, id: entry.id });
-          a.href = uid ? (tool.url + '?handoff=' + encodeURIComponent(uid)) : tool.url;
-        } catch (e) { a.href = tool.url; }
+          return uid ? (tool.url + '?handoff=' + encodeURIComponent(uid)) : tool.url;
+        } catch (e) { return tool.url; }
       }
       function wireNav(a, entry) {
-        const tool = toolOf(entry.tool);
-        a.href = tool.url;                                          // safe default before any interaction
-        a.addEventListener('pointerdown', () => stage(a, entry));  // fresh baton for mouse (left/middle/modified)
+        a.href = toolOf(entry.tool).url;                           // safe default before any interaction
+        // Stage at interaction time so the 2-min-TTL baton is fresh when navigation fires, and middle-click /
+        // cmd-click open a new tab carrying a valid baton. Gate to the navigating buttons (0=left, 1=middle)
+        // so a right-click (context menu) doesn't stage an orphan baton that will never be consumed.
+        a.addEventListener('pointerdown', (e) => { if (e.button <= 1) a.href = handoffUrl(entry); });
         a.addEventListener('click', (e) => {                       // keyboard activation fires click with detail 0
           if (e.detail !== 0) return;                              // detail>0 == mouse; pointerdown already staged
           e.preventDefault();
-          try {
-            const uid = m.writeHandoff({ source: 'landing', LOG: entry.LOG, SEQ: entry.SEQ, rules: entry.rules, id: entry.id });
-            location.href = uid ? (tool.url + '?handoff=' + encodeURIComponent(uid)) : tool.url;
-          } catch (err) { location.href = tool.url; }
+          location.href = handoffUrl(entry);
         });
       }
 
-      // Static, non-user SVG markup (safe for innerHTML — the only user value anywhere here is the character
-      // name, which is always set via textContent).
-      const iconSvg = (tool) => tool === 'livesheet'
-        ? '<svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><path d="M14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><path d="M9.5 9h2M9.5 12h6M9.5 15h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path></svg>'
-        : '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"></rect><circle cx="9" cy="9" r="1.3" fill="currentColor"></circle><circle cx="15" cy="9" r="1.3" fill="currentColor"></circle><circle cx="9" cy="15" r="1.3" fill="currentColor"></circle><circle cx="15" cy="15" r="1.3" fill="currentColor"></circle><circle cx="12" cy="12" r="1.3" fill="currentColor"></circle></svg>';
+      // Reuse the tool's own card icon rather than duplicating its SVG: clone the .card-icon markup from the
+      // matching tool card already on this page, so the icon art lives in exactly one place. Static markup
+      // (no user value), returned '' if the source card isn't found (graceful — just no icon).
+      const iconSvg = (tool) => {
+        const src = document.querySelector('a.card[href="' + toolOf(tool).url + '"] .card-icon');
+        return src ? src.innerHTML : '';
+      };
 
       // --- resume cards: the last distinct characters, latest state ---
       chars.forEach((entry) => {
