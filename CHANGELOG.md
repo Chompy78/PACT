@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-19 · fix(feedback) — inlined the "submit anonymously" checkbox with its contact note**:
+  `js/feedback.js`'s checkbox (shown only to signed-in users) previously rendered as its own row below
+  the "Optional — only if you'd like a reply..." note; both now share one flex row
+  (`.pact-fb-note-row`), checkbox first. Verified in a real browser (Playwright/Chromium, isolated
+  harness with a stubbed Supabase client) at both a normal width and the 420px mobile breakpoint, in
+  both the signed-out (checkbox absent) and signed-in (checkbox inline) states. Display-only, no
+  `DATA.version`/engine impact; parity still 20/0. While verifying, found a separate pre-existing bug
+  (the signed-out checkbox isn't actually hidden due to a CSS specificity collision) — filed as its own
+  roadmap task rather than folded into this fix, since it predates this change and isn't scoped to it.
+
 - **2026-07-19 · fix(pwa) — closed the last two PWA-completeness gaps: manifest + apple-touch-icon on
   every HTML entry point**: `login.html` and `docs/PACT-Players-Guide.html` gained `<link rel="manifest">`
   (previously only `index.html` and the three tools declared it); all five non-`index.html` entry points

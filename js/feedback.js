@@ -89,6 +89,12 @@ export function initFeedbackWidget(page) {
   const anonText = document.createElement('span');
   anonWrap.append(anonBox, anonText);
 
+  // Same row as contactNote: the checkbox (when shown) sits in front of the
+  // note text instead of on its own line below it.
+  const contactRow = document.createElement('div');
+  contactRow.className = 'pact-fb-note-row';
+  contactRow.append(anonWrap, contactNote);
+
   const status = document.createElement('div');
   status.className = 'pact-fb-status';
   status.setAttribute('role', 'status');
@@ -106,7 +112,7 @@ export function initFeedbackWidget(page) {
   send.textContent = 'Send';
   actions.append(cancel, send);
 
-  panel.append(title, msg, contact, contactNote, anonWrap, status, actions);
+  panel.append(title, msg, contact, contactRow, status, actions);
   document.body.append(btn, panel);
 
   // ---- Identity: signed-in users can opt out of attribution ---------------
@@ -245,9 +251,10 @@ function injectStyles() {
   padding:8px;font:inherit;margin-bottom:6px}
 .pact-fb-panel textarea{resize:vertical;min-height:80px}
 .pact-fb-panel textarea:focus,.pact-fb-panel input[type=text]:focus{outline:none;border-color:#6366f1}
-.pact-fb-note{font-size:12px;color:#9ca3af;margin-bottom:8px}
-.pact-fb-anon{display:flex;align-items:center;gap:8px;font-size:13px;color:#d1d5db;margin-bottom:8px;cursor:pointer}
-.pact-fb-anon-box{width:16px;height:16px}
+.pact-fb-note-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.pact-fb-note{font-size:12px;color:#9ca3af}
+.pact-fb-anon{display:flex;align-items:center;gap:8px;font-size:13px;color:#d1d5db;cursor:pointer}
+.pact-fb-anon-box{width:16px;height:16px;flex:none}
 .pact-fb-status{min-height:18px;font-size:13px;margin-bottom:8px}
 .pact-fb-ok{color:#6ee7b7}
 .pact-fb-err{color:#fca5a5}

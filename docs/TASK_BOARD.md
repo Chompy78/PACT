@@ -157,40 +157,6 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 
 ---
 
-## Inline the feedback widget's "submit anonymously" checkbox with its note text — TODO
-Branch fix/feedback-anon-checkbox-inline. In js/feedback.js, the "Submit anonymously" checkbox
-(anonWrap/anonBox, shown only to signed-in users) currently renders as its own block-level row below
-the contactNote helper text ("Optional — only if you'd like a reply. Don't include sensitive info.").
-Move the checkbox onto the same line, in front of that note text, instead of below it.
-**Effort:** low · **Risk:** low — ambiguity is low (single obviously-right layout: merge the two rows
-into one flex row, checkbox first, exactly what was asked); damage scale is low (one file, CSS/DOM-only,
-git-revert, no data/security implication); damage likelihood is low (a floating widget with only two
-states — hidden for signed-out, visible for signed-in — both trivially checkable in a real-browser check
-before shipping).
-
-```text
-1. In js/feedback.js, combine `contactNote` and `anonWrap` into a single flex row instead of two
-   separate block elements: wrap the checkbox (`anonBox`) and its label text (`anonText`) so they sit
-   in front of the contactNote text, on one line — reuse `.pact-fb-anon`'s existing
-   `display:flex;align-items:center;gap:8px` styling as the row's layout, rather than inventing a new one.
-2. Update the `panel.append(title, msg, contact, contactNote, anonWrap, status, actions)` call and any
-   DOM restructuring needed so the merged row keeps `anonWrap`'s existing `hidden = true` default
-   (signed-out users still see no checkbox — the row should still just show the note text alone in
-   that case).
-3. Adjust `.pact-fb-note` / `.pact-fb-anon` margins in the injected `<style>` block so vertical spacing
-   stays even now that they're one row instead of two.
-4. Manually verify in a real browser: signed-out (no checkbox, note text alone, unchanged from today)
-   and signed-in (checkbox inline, in front of the note text, same line) — on both a normal-width and
-   the existing 420px mobile breakpoint.
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** the "submit anonymously" checkbox renders inline, in front of the contact note text, on
-one line, when visible (signed-in); the signed-out (hidden-checkbox) state is unchanged; verified in a
-real browser at both normal and the 420px breakpoint; no engine/DATA.version impact.
-
----
-
 **Low-severity review findings:**
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
   named sub-pricers. Only safe once REV-01 gives real assertions; dedicated PR, byte-identical output.
