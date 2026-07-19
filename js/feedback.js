@@ -253,7 +253,7 @@ function injectStyles() {
 .pact-fb-panel textarea:focus,.pact-fb-panel input[type=text]:focus{outline:none;border-color:#6366f1}
 .pact-fb-note-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .pact-fb-note{font-size:12px;color:#9ca3af}
-.pact-fb-anon{display:flex;align-items:center;gap:8px;font-size:13px;color:#d1d5db;cursor:pointer}
+.pact-fb-anon:not([hidden]){display:flex;align-items:center;gap:8px;font-size:13px;color:#d1d5db;cursor:pointer}
 .pact-fb-anon-box{width:16px;height:16px;flex:none}
 .pact-fb-status{min-height:18px;font-size:13px;margin-bottom:8px}
 .pact-fb-ok{color:#6ee7b7}
