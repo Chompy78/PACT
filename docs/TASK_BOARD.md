@@ -105,6 +105,29 @@ unverified) — worst-of lands at high, never eligible for /sweep-code-tasks.
 **Done when:** compute() is a dispatcher over named `_price*` helpers (shared-context design), unchanged
 signature/return shape; full-payload output identical across all fixtures; engine-parity still 20/0.
 
+## Harden close-code-session's session-note write against implicit pausing — TODO
+Branch docs/close-code-session-note-no-pause. Part 1's session-note step already says "write one if any
+of these are true" (no stated confirmation gate — that's Part 3, the commit) but doesn't explicitly rule
+out an agent presenting its criteria evaluation as a question and waiting for a reply before writing.
+Add one explicit sentence closing that gap.
+**Effort:** low · **Risk:** medium — ambiguity is low (one clear wording addition, easily checkable by
+re-reading the result) and damage scale is low (single skill file, git-revertable, no data/security
+implication), but damage likelihood is medium (no automated check verifies an agent parses a skill's own
+instructions correctly — a wrong wording would only surface on the next /close-code-session run).
+
+```text
+1. In .claude/commands/close-code-session.md, in Part 1, item 3 (the docs/sessions/<date>-<topic>.md
+   step), add a sentence directly after "write one if any of these are true, otherwise skip it and say
+   so:" making explicit: once the criteria are evaluated, write the file immediately — do not phrase the
+   evaluation as a question, and do not pause for a reply before writing. (Item 3 already instructs
+   writing directly, same as items 1-2 (CHANGELOG.md/DECISIONS.md); this closes the gap where an agent
+   might treat "here's my reasoning" as an implicit request for permission.)
+2. Docs-only; no code/rules change.
+```
+
+**Done when:** close-code-session.md's Part 1 item 3 explicitly states the write happens immediately upon
+meeting its criteria, with no pause for a reply.
+
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
