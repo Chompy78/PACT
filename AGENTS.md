@@ -209,12 +209,12 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   there and how the optimized-vs-source split works.
 
 ## Versioning — TWO separate numbers (don't conflate or over-bump)
-- **Build version** (`BUILD`, currently `v0.107`) — the cosmetic web-tool/build number. The single source
+- **Build version** (`BUILD`, currently `v0.202`) — the cosmetic web-tool/build number. The single source
   of truth is `export const BUILD` in `js/engine.js`; the three tools must **mirror** it and stay
   consistent — CharGen (line-1 comment, `<title>`, header `.sub` label), Live Sheet (line-1 comment),
   DM Console (`TOOL_VERSION`). `index.html` reads `BUILD` live, so **never hand-edit its version.** Full
   bump procedure: `docs/VERSION-SYNC.md`.
-- **Rules version** (`DATA.version`, currently `v0.332`) — the rules dataset. Bump ONLY when mechanics
+- **Rules version** (`DATA.version`, currently `v0.336`) — the rules dataset. Bump ONLY when mechanics
   change (ladders, prices, gates, `compute()` output). The display-only maps `masteryFx`, `drawbackFx`,
   `racialFx` and `page` fields are never read by `compute()` — editing them is a docs change, so don't
   bump it; just log it in `CHANGELOG.md`.
