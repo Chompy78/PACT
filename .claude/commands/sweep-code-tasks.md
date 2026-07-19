@@ -5,19 +5,19 @@ argument-hint: [batch size, e.g. 6]
 
 # PACT — sweep the roadmap's quick, safe work
 
-This is the unattended version of `/pick-task` → `/run-task` → `/code-review` → merge, run in a
+This is the unattended version of `/pick-code-task` → `/run-code-task` → `/code-review` → merge, run in a
 loop over every eligible task instead of one at a time with a human confirming each step. It exists
 for exactly one shape of request: *"go do the safe stuff without asking me each time."* If the
 board has nothing tagged eligible (see Step 2), say so plainly and stop — this is a legitimate
 outcome, not a failure to route around.
 
-**Requires `/add-task`'s Effort/Risk tags** (see that file's "Effort / Risk tags" and "Risk — three
+**Requires `/add-code-task`'s Effort/Risk tags** (see that file's "Effort / Risk tags" and "Risk — three
 named factors" sections — this skill and that one must stay in sync on the classification criteria).
 A task with no Effort/Risk line, or `Risk: high`, is **never** eligible, no matter how low Effort
 is — Risk is the only safety gate, and `high` is an absolute veto with no exception. Effort doesn't
 filter eligibility at all; it's used for queue ordering and review-tier sizing (Step 2, Step 4). This
 skill does not re-derive judgment about a task's safety from its prose; it only trusts the explicit
-tags `/add-task` (or this skill's own Step 5, for newly-discovered tasks) already assigned.
+tags `/add-code-task` (or this skill's own Step 5, for newly-discovered tasks) already assigned.
 
 **Merge-as-you-go is the fixed behavior of this skill** — every PR it opens gets merged once its own
 checks pass, with no per-run prompt (that's a settled default, not something to re-ask each
@@ -26,7 +26,7 @@ initiated action every time, same as any other PR workflow in this repo.
 
 ## Step 1 — get live state
 
-Delegate to an `Explore`-type subagent (`Agent` tool), same reasoning as `/pick-task` Step 1 — keep
+Delegate to an `Explore`-type subagent (`Agent` tool), same reasoning as `/pick-code-task` Step 1 — keep
 this session's own context clean and avoid trusting whatever's sitting in the shared checkout right
 now. Have it run:
 
@@ -49,10 +49,10 @@ regardless of Effort.** Effort is not filtered (a `high`-effort task with `Risk:
 still eligible), but does affect ordering below.
 
 Untagged tasks are excluded — don't infer a rating for them, don't ask the user to supply one
-inline, just skip them (they're for a human, or a future `/add-task` pass, to tag). List them in the
+inline, just skip them (they're for a human, or a future `/add-code-task` pass, to tag). List them in the
 final report (Step 6) rather than silently dropping them from view.
 
-**Order:** priority first (NOW → NEXT → LATER, same as `/pick-task`'s default), then within the same
+**Order:** priority first (NOW → NEXT → LATER, same as `/pick-code-task`'s default), then within the same
 priority tier, Effort ascending (`low` before `medium` before `high`) as a tiebreak — this fits more
 completed tasks into a fixed batch-size cap and keeps one large task from eating a whole run's budget
 before smaller ones get a turn.
@@ -107,7 +107,7 @@ and which task it replaced.
 
 ## Step 4 — execute each task in the queue, in order
 
-Track a **consecutive-failure counter**, starting at 0. A "failure" for this purpose is: `/run-task`
+Track a **consecutive-failure counter**, starting at 0. A "failure" for this purpose is: `/run-code-task`
 dropping a task as bigger-than-expected, an unresolvable rebase conflict, a code-review finding that
 required parking rather than fixing, or a failed CI check that couldn't be fixed and re-pushed.
 Reset the counter to 0 on every successful merge. **If the counter reaches 2, stop the sweep
@@ -119,29 +119,29 @@ directly observable — that's for the human to look at.
 
 For each surviving candidate:
 
-1. **Invoke `/run-task <type/short-slug>`** (single-slug form) via the `Skill` tool. This handles
-   the worktree, the edit, the parity/audit gate, the rebase, and opening the PR. If `/run-task`
+1. **Invoke `/run-code-task <type/short-slug>`** (single-slug form) via the `Skill` tool. This handles
+   the worktree, the edit, the parity/audit gate, the rebase, and opening the PR. If `/run-code-task`
    itself determines mid-work that the task is bigger than it looked (its own Step 5 escape hatch),
    let it drop the task and leave the roadmap entry alone — record that outcome, count it toward the
    circuit breaker, and move on to the next queued task. Don't attempt to force it through yourself.
-   **Capturing the PR number `<n>`** (needed by items 2, 4, and 7 below): `/run-task`'s own Step 7
+   **Capturing the PR number `<n>`** (needed by items 2, 4, and 7 below): `/run-code-task`'s own Step 7
    ("push and open the pull request") states the PR it opened, including its number/URL — read that
    from its output, not Step 8 (worktree cleanup), which says nothing about the PR. If it isn't
    clearly stated there, call `list_pull_requests` filtered to head branch `<type/short-slug>` and
    take the number from that instead of guessing. Reuse this same captured `<n>` for every later item
    in this list — don't re-derive it.
 
-2. **Diff-size sanity check.** Call `pull_request_read` (method `get_files`) on the PR `/run-task`
+2. **Diff-size sanity check.** Call `pull_request_read` (method `get_files`) on the PR `/run-code-task`
    just opened. Compare the actual changed-file count against what the task's `Effort` tag implies
    (`low` → expect ~1-2 files; `medium` → expect ~2-5; `high` has no fixed expectation). **Exception:**
    a uniform, one-line change repeated identically across many call sites — the "mechanical batch"
-   pattern `/add-task`'s own Effort:medium examples call out (e.g. the same hardening line applied to
+   pattern `/add-code-task`'s own Effort:medium examples call out (e.g. the same hardening line applied to
    every `SECURITY DEFINER` function) — is expected to touch more files than the band without
    signaling misclassification; judge the diff's *shape* (is every hunk the same one-line pattern?),
    not just its file count, before flagging. **This exception does not apply if the repeated pattern
    spans more than one of the three UI tools** (`tools/PACT-CharGen-Webtool.html`,
    `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`) — that shape is the cross-tool-migration
-   case `/add-task`'s Ambiguity-High tier already treats as never-low-ambiguity, so still flag it as a
+   case `/add-code-task`'s Ambiguity-High tier already treats as never-low-ambiguity, so still flag it as a
    second, independent check in case the task was mis-tagged upstream. If the real diff is notably
    larger *and* shaped
    differently than the tag implied, or touches `js/engine.js`/`sql/` when the task's own text never
@@ -158,11 +158,11 @@ For each surviving candidate:
    that same higher-scrutiny tier regardless of its Risk tag — that's a hard rule from `AGENTS.md`
    independent of this skill's own scoring, not a suggestion this step can downgrade.
 
-4. **Run `/code-review <tier> PR #<n>`** via the `Skill` tool against the PR `/run-task` just opened.
+4. **Run `/code-review <tier> PR #<n>`** via the `Skill` tool against the PR `/run-code-task` just opened.
 
 5. **If real (CONFIRMED, or a genuinely load-bearing PLAUSIBLE) code-review findings survive:**
-   re-enter that branch to fix them — `/run-task`'s own Step 8 already tore the worktree down, so
-   this is a fresh entry, not a continuation. `/run-task`'s own Step 4 already verifies a fresh
+   re-enter that branch to fix them — `/run-code-task`'s own Step 8 already tore the worktree down, so
+   this is a fresh entry, not a continuation. `/run-code-task`'s own Step 4 already verifies a fresh
    worktree's base correctly, and the `reset --hard origin/<type/short-slug>` below fully overwrites
    whatever base `EnterWorktree` silently picked — nothing further to check on that front here:
    ```
@@ -172,7 +172,7 @@ For each surviving candidate:
    git branch -m <type/short-slug>
    ```
    **If that last rename fails ("a branch named ... already exists"):** the stray local branch is
-   `EnterWorktree`'s own auto-generated name from an earlier worktree/session — per `run-task.md`
+   `EnterWorktree`'s own auto-generated name from an earlier worktree/session — per `run-code-task.md`
    Step 4, that's `worktree-<type/short-slug with "/" replaced by "+">` (e.g. `feat/short-slug` →
    `worktree-feat+short-slug`), not the bare short-slug — this happened twice in the session this
    skill was built from. Don't fight it: `git checkout <type/short-slug>` directly instead (skip the
@@ -183,7 +183,7 @@ For each surviving candidate:
    `git fetch origin preview && git rebase origin/preview`.
 
    **If the rebase reports a non-trivial conflict, don't resolve it silently** — same rule
-   `/run-task`'s own Step 6 already follows (this mirrors that file's rebase-conflict-abort rule
+   `/run-code-task`'s own Step 6 already follows (this mirrors that file's rebase-conflict-abort rule
    directly; if that rule ever changes, check this reference too). Abort the rebase
    (`git rebase --abort`), park this task (leave its roadmap entry alone, don't merge its PR), count
    it toward the circuit breaker, note the conflict in the final report for a human to resolve, then
@@ -193,7 +193,7 @@ For each surviving candidate:
    the next queued task.
 
    Otherwise, re-verify, `git push` (use `--force-with-lease` if the rebase replayed commits — check
-   `git rev-parse HEAD` against `origin/<branch>` first, same caution `/run-task`/`/cleanup-branches`
+   `git rev-parse HEAD` against `origin/<branch>` first, same caution `/run-code-task`/`/cleanup-code-branches`
    already use elsewhere). Then `ExitWorktree(action: "remove", discard_changes: true)` once you've
    confirmed the tip is pushed and reflected in the PR.
 
@@ -211,7 +211,7 @@ For each surviving candidate:
    before merging — a real-browser check for UI, a direct query against the live DB for a SQL change,
    or equivalent for whatever the task actually touches (match the method to the task, the way
    today's `gen_random_bytes` fix was verified with a real `INSERT INTO campaigns` and the iOS hint
-   was verified with a spoofed-UA Playwright run). If `/run-task` already did this as part of its own
+   was verified with a spoofed-UA Playwright run). If `/run-code-task` already did this as part of its own
    work *and* step 5 made no fix that would invalidate it, that's sufficient — otherwise do it
    yourself now, against the final code, before moving to the merge step. If no practical
    live-verification method exists for this particular task, say so explicitly in the final report
@@ -231,12 +231,12 @@ For each surviving candidate:
 
 If executing a task (or reviewing it) surfaces a genuinely new, separate piece of work — same as
 `D-GH-2026-07-16-audit-search-path-pg-temp-check` spinning out of the `pg_temp` hardening PR earlier
-this session — format it in `/add-task`'s exact house format, **including the Effort/Risk tag line,
+this session — format it in `/add-code-task`'s exact house format, **including the Effort/Risk tag line,
 with the three-factor Risk breakdown named in the "why" clause** (classify it yourself using that
-file's criteria), and commit it directly to `preview` the way `/add-task`'s own Step 4 does — but
+file's criteria), and commit it directly to `preview` the way `/add-code-task`'s own Step 4 does — but
 **skip that skill's Step 2 (clarifying questions) and Step 3 (wait for human approval)**: this skill
 runs unattended by design, so the add-and-classify step must not block on a prompt. This is a
-deliberate, documented divergence from `/add-task`'s normal interactive flow, not an oversight —
+deliberate, documented divergence from `/add-code-task`'s normal interactive flow, not an oversight —
 don't "fix" it back to asking. Before committing, `git fetch origin preview && git rebase
 origin/preview` first (same care Step 4 item 5 gives feature branches) — if the push is rejected as
 non-fast-forward, re-fetch/rebase and retry once; if it still fails, note in the final report that
@@ -248,7 +248,7 @@ available (a concurrent session could have independently claimed the same auto-d
 fold it into *this run's* queue (append it, respecting the batch-size cap from Step 2, ordered the
 same way) rather than waiting for a future invocation to pick it up — this is what actually happened
 with PR #239 today. If it doesn't clear the bar, it just sits on the board for a human or a future
-`/pick-task` to handle normally.
+`/pick-code-task` to handle normally.
 
 ## Step 6 — final report
 

@@ -174,7 +174,7 @@ would be called.
 ## Step 5 — show it before writing anything
 
 Show the drafted file content to the user and ask for approval before writing it to disk — same
-convention as this repo's other drafting skills (`/log-ai-lessons`, `/add-task`). If they want
+convention as this repo's other drafting skills (`/log-code-lesson`, `/add-code-task`). If they want
 changes, revise and show again. Do not proceed until approved.
 
 **Present the plan as one clean copy-paste block**, because its whole purpose is to be dumped into another
@@ -200,7 +200,7 @@ Once approved:
 Then, as a **separate** question, ask whether they also want it committed — this is a handoff artifact
 for another AI/reviewer, so it's fine to leave it as a local, uncommitted file if they're just going to
 paste it elsewhere. If they do want it committed, commit it directly (docs-only, no code/rules change)
-and ask which branch (default `preview`, matching `/add-task`'s convention, unless told
+and ask which branch (default `preview`, matching `/add-code-task`'s convention, unless told
 otherwise). Pushing is a further, equally separate ask — don't assume commit implies push.
 
 ## Step 7 — handle returned review feedback

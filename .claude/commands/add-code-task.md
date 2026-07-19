@@ -60,9 +60,9 @@ Branch <type/short-slug>. <one-line of what + where>.
 
 ### Effort / Risk tags — classify every task, every time
 
-These two tags exist so `/sweep-tasks` can pick eligible work by filtering, not by re-reading and
+These two tags exist so `/sweep-code-tasks` can pick eligible work by filtering, not by re-reading and
 re-judging every task's prose on every run. Get the rating right — a wrong "low" Risk tag means
-`/sweep-tasks` will attempt something it shouldn't; a wrong "high" tag just means a genuinely easy
+`/sweep-code-tasks` will attempt something it shouldn't; a wrong "high" tag just means a genuinely easy
 task sits on the board longer than it needed to. When genuinely unsure between two ratings, round
 up (the more cautious one) rather than down.
 
@@ -76,7 +76,7 @@ already-clear scope (e.g. a dismissible hint gated on an existing, well-understo
 **Effort — high:** anything needing genuine architectural judgment, a cross-tool/module-bridge
 migration, or a design call with real trade-offs.
 
-Effort does **not** gate `/sweep-tasks` eligibility on its own — it's informational (used for
+Effort does **not** gate `/sweep-code-tasks` eligibility on its own — it's informational (used for
 ordering within a sweep run and for review-tier sizing), not a filter. **Risk is the only safety
 gate.**
 
@@ -117,7 +117,7 @@ say *which* factor actually drove the rating, not just assert a conclusion.
 one-clause "why" — e.g. *"Risk: medium — damage likelihood is medium (no automated gate for
 auth-UI regressions), ambiguity and damage scale are both low."*
 
-`/sweep-tasks` accepts `Risk: low` or `Risk: medium` — **`Risk: high` is an absolute veto, no
+`/sweep-code-tasks` accepts `Risk: low` or `Risk: medium` — **`Risk: high` is an absolute veto, no
 exception, regardless of how low Effort is.** If Step 1 finds an older task on the board with no
 Effort/Risk line at all (added before this convention existed), leave it untagged — don't
 retroactively guess at one as a side effect of adding a different, unrelated task.

@@ -7,7 +7,7 @@ testing/node_modules/
 .claude/*.json
 .claude/.fpp-reminder-state
 
-# Native Claude Code worktrees (created by /run-task via EnterWorktree) — local scratch, not shared.
+# Native Claude Code worktrees (created by /run-code-task via EnterWorktree) — local scratch, not shared.
 .claude/worktrees/
 
 # Python bytecode (testing/scripts/audit.py — stdlib health check, AUD-1)

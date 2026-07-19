@@ -40,7 +40,7 @@ different adaptations for two differently-shaped repos); damage scale is low (on
 always draft-then-show-for-approval before writing to a foreign repo, so a bad output is caught before
 landing); damage likelihood is medium (nothing automated gates a skill's own prompt content — a flawed
 skill design only surfaces the next time someone actually runs it against a real target repo) — worst-of
-lands at high on ambiguity alone, so never eligible for /sweep-tasks; recommend `/plan-for-review` before
+lands at high on ambiguity alone, so never eligible for /sweep-code-tasks; recommend `/make-code-cold-plan-review` before
 implementation given the design-call nature.
 
 ```text
@@ -58,13 +58,13 @@ implementation given the design-call nature.
      pieces added, with small additive notes in the existing docs rather than any rewrite (per the
      homelife pattern).
    - **Explicitly handles the main-only case:** if the target's own stated or observed convention is
-     commit-and-push-straight-to-main (no feature-branch workflow), the ported pick-task/run-task/
-     sweep-tasks/cleanup-branches skills must drop all worktree/branch/PR machinery and work directly
+     commit-and-push-straight-to-main (no feature-branch workflow), the ported pick-code-task/run-code-task/
+     sweep-code-tasks/cleanup-code-branches skills must drop all worktree/branch/PR machinery and work directly
      against that branch instead — never introduce branches/PRs into a repo whose established convention
      is branch-less, even for consistency with PACT's own model.
    - Always drafts the adapted files and shows them (or a summary) for approval before writing/committing/
-     pushing anything to the target repo — same draft-before-write discipline `/add-task`,
-     `/log-ai-lessons`, and `/plan-for-review` already use.
+     pushing anything to the target repo — same draft-before-write discipline `/add-code-task`,
+     `/log-code-lesson`, and `/make-code-cold-plan-review` already use.
    - Pauses before pushing to the target repo if that repo has no PR gate (a direct push to its main
      branch may trigger an immediate live deploy, as it did for homelife) — flag this explicitly rather
      than pushing straight through.
@@ -84,7 +84,7 @@ plan already drafted at docs/plans/2026-07-17-engine-breakup-rev14.md.
 guaranteeing byte-identical output is a genuine architectural call); damage scale is high (edits compute()
 directly — the engine's single source of truth); damage likelihood is medium (the parity gate catches
 numeric/ledger drift, but REV-01's known warning-text fixture-coverage gap means some W.push branches are
-unverified) — worst-of lands at high, never eligible for /sweep-tasks.
+unverified) — worst-of lands at high, never eligible for /sweep-code-tasks.
 
 ```text
 1. Pre-flight (no code change): produce a data-flow map of which compute() locals each commented section
@@ -160,7 +160,7 @@ the 2026-07-14 engine.js review (see session discussion); bundled as one low-ris
 as a real design call between a structural fix and a rename-only, with possible compute()/DATA.version
 impact); damage scale is also high (touches js/engine.js directly, item 1 also touches CharGen's
 separate hand-copied import-fold path); worst-of across the bundled 4 items lands the whole task at
-high regardless of how contained items 2-3 are alone — never eligible for /sweep-tasks.
+high regardless of how contained items 2-3 are alone — never eligible for /sweep-code-tasks.
 
 ```text
 1. Drawback buyoff matches by label, not a stable ID. `activeEvents()`/`_replay()` key `boughtOff` off

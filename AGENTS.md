@@ -27,7 +27,7 @@ is staging and promotes into `main`).
   displays "AP left" for an event-sourced character must use the frozen ledger, not a retroactive
   recompute.
 - **Preferred task shape:** one task per branch (`type/short-slug`), small focused PRs into `preview`; use
-  `/pick-task` → `/run-task`; for big/risky work draft a plan for cold review first (see Agent guidance below).
+  `/pick-code-task` → `/run-code-task`; for big/risky work draft a plan for cold review first (see Agent guidance below).
 - **Avoid:** re-implementing rules logic anywhere but `engine.js`; patching `undo()` with tool-local state
   instead of LOG replay; bumping `DATA.version` for display-only changes; reading large files wholesale.
 - **Verification expectations:** `testing/tests/engine-parity.html` → **20/0**; if `compute()` output changed,
@@ -63,7 +63,7 @@ effort — and why — using this quick rubric:
 - **Plan agent** — the task touches multiple files with architectural implications or involves a meaningful design trade-off.
 - **code-reviewer / `/code-review ultra`** — independent adversarial review of a diff before merging.
 - **Higher effort (`high`/`max`)** — verification, judge panels, or deep audits where correctness matters more than speed.
-- **Cold plan review (`/plan-for-review`)** — for a big/risky change (multi-file, engine/rules, tool-parity,
+- **Cold plan review (`/make-code-cold-plan-review`)** — for a big/risky change (multi-file, engine/rules, tool-parity,
   ambiguous scope, or where a missing test/criterion would cause rework), draft a *self-contained* plan for an
   external cold reviewer (e.g. M365 Copilot) **before** implementing. **Trigger:** only when a wrong approach
   would cost more than one implementation cycle to undo — skip it for trivial/single-file/mechanical work. The
@@ -108,7 +108,7 @@ user didn't ask "what are my options."
   was received ("You picked: X — doing that now") before invoking anything downstream. This makes a
   misread selection visible immediately instead of discovered after the fact.
 
-### Recommending a follow-up action (e.g. `/close-session`'s action list)
+### Recommending a follow-up action (e.g. `/close-code-session`'s action list)
 When a skill or report ends with a list of possible follow-up actions, tag each one **Recommended** or
 **Not recommended — <reason>**. Default to recommending: withhold only when the action is destructive or
 hard to reverse (force-push, deleting a branch with unmerged commits, discarding uncommitted work), is a
@@ -231,10 +231,10 @@ Before finishing a task / opening a PR, update what applies (newest on top):
 More than one agent may be active. **`docs/TASK_BOARD.md` has a single writer** — don't append to it.
 If you have new roadmap items, output them in **this exact format** for the human to fold in, then carry on:
 
-**Carve-out: `/add-task` and `/sweep-tasks`.** These two skills are the sole exception to the
+**Carve-out: `/add-code-task` and `/sweep-code-tasks`.** These two skills are the sole exception to the
 single-writer rule above — both commit directly to `docs/TASK_BOARD.md` on `preview`, no human
 fold-in step, by design (see each skill's own file for exactly which step — don't hardcode step
-numbers here, they've already drifted once). `/sweep-tasks` similarly commits directly to
+numbers here, they've already drifted once). `/sweep-code-tasks` similarly commits directly to
 `docs/sweep-log.md`. No other skill or agent should commit to `docs/TASK_BOARD.md` directly — the
 format-and-output-for-a-human pattern below still applies everywhere else.
 
@@ -260,17 +260,17 @@ exact same slug is reused on the exact same date — e.g. a same-day redo — ap
 ````
 
 One task per branch (the open branch is the "in flight" signal) — except a small, explicitly-approved
-**batch** of low-risk tasks (docs-only, config, single-tool CSS/UI — the same class `/pick-task`'s
-"quick" filter identifies), which `/pick-task` may offer to bundle into one branch/PR for token
+**batch** of low-risk tasks (docs-only, config, single-tool CSS/UI — the same class `/pick-code-task`'s
+"quick" filter identifies), which `/pick-code-task` may offer to bundle into one branch/PR for token
 efficiency. Each bundled task still gets its own commit and its own `CHANGELOG.md`/roadmap-graduation
 line; only the branch/PR/rebase/test-run machinery is shared.
 
-**Worktrees.** `/pick-task` + `/run-task` are the two-step workflow for a roadmap task: `/pick-task`
-fetches live state and pre-flights a task with no editing; `/run-task <type/short-slug>` does the actual
+**Worktrees.** `/pick-code-task` + `/run-code-task` are the two-step workflow for a roadmap task: `/pick-code-task`
+fetches live state and pre-flights a task with no editing; `/run-code-task <type/short-slug>` does the actual
 work, isolated in a native Claude Code worktree (`EnterWorktree`, landing under `.claude/worktrees/`,
 gitignored — see D-GH22). Worktrees branch from `preview`, which is this repo's actual GitHub default
-branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-task` renames the branch with
-`git branch -m` right after creating it — see `run-task.md` Step 4 for the verified caveats.
+branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-code-task` renames the branch with
+`git branch -m` right after creating it — see `run-code-task.md` Step 4 for the verified caveats.
 
 ## File & data map
 - **App:** `index.html` (menu) · `login.html` (auth) · `js/engine.js` · `tools/*.html` ·

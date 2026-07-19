@@ -12,7 +12,7 @@ this session is currently on, even if it looks orphaned.
 
 ## Step 1 — scan
 
-Run the same three commands `/close-session` item 6 uses:
+Run the same three commands `/close-code-session` item 6 uses:
 ```
 git worktree list
 git branch -vv
@@ -30,7 +30,7 @@ Classify each local branch/worktree as:
 
 Show a table of every cleanup candidate (merged + orphaned only — skip "active elsewhere" and "this
 session's" entirely) with its classification and exactly what would be run to clean it up. Lettered list
-(`D1`, `D2`, ...), matching `/close-session`'s idiom.
+(`D1`, `D2`, ...), matching `/close-code-session`'s idiom.
 
 ## Step 3 — ask
 
