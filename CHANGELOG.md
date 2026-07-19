@@ -4,6 +4,12 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-19 · chore(release): bump BUILD to v0.203**: mirrored across all three tools per
+  `docs/VERSION-SYNC.md` (CharGen's line-1 comment, `<title>`, header `.sub` label, and its
+  JS-side title-template string; Live Sheet's line-1 comment; DM Console's `TOOL_VERSION`).
+  Cosmetic build-number bump only — `DATA.version` unchanged, parity still 20/0. Tagged
+  `v0.203` with a GitHub Release.
+
 - **2026-07-19 · fix(feedback) — fixed CSS specificity collision hiding the anon checkbox
   incorrectly**: `js/feedback.js`'s `.pact-fb-anon{display:flex}` rule had the same
   specificity/origin as the browser's built-in `[hidden]{display:none}` rule and won by source order,
