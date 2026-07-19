@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-19 · fix(feedback) — inlined the "submit anonymously" checkbox with its contact note**:
+  `js/feedback.js`'s checkbox (shown only to signed-in users) previously rendered as its own row below
+  the "Optional — only if you'd like a reply..." note; both now share one flex row
+  (`.pact-fb-note-row`), checkbox first. Verified in a real browser (Playwright/Chromium, isolated
+  harness with a stubbed Supabase client) at both a normal width and the 420px mobile breakpoint, in
+  both the signed-out (checkbox absent) and signed-in (checkbox inline) states. Display-only, no
+  `DATA.version`/engine impact; parity still 20/0. While verifying, found a separate pre-existing bug
+  (the signed-out checkbox isn't actually hidden due to a CSS specificity collision) — filed as its own
+  roadmap task rather than folded into this fix, since it predates this change and isn't scoped to it.
+
 - **2026-07-19 · fix(pwa) — closed the last two PWA-completeness gaps: manifest + apple-touch-icon on
   every HTML entry point**: `login.html` and `docs/PACT-Players-Guide.html` gained `<link rel="manifest">`
   (previously only `index.html` and the three tools declared it); all five non-`index.html` entry points
@@ -50,6 +60,23 @@
   edits coalesce, and a new snapshot is cut only on a ≥2-min gap, a tool switch, or a ≥5-event jump — so a
   keystroke burst can't fill it with duplicates. Character names render via `textContent` (XSS-safe). BUILD
   v0.201→v0.202; engine untouched (parity 20/0). See `DECISIONS.md` D-GH-2026-07-18-continue-recent-chars.
+- **2026-07-18 · fix(chargen) — made CharGen's rules-version display read live from `DATA.version`**: 
+  CharGen's header shows "PACT rules · vX" in both a `.hd-pactver` span and the `<title>` tag, but both 
+  were hardcoded to v0.336 instead of reading `window.DATA.version` at `engine-ready` like Live Sheet 
+  and DM Console already do. Added `id="cgPactver"` to the span and an event listener that updates both 
+  the span text and the page title with the live version. Display-only — no rules/`compute()` change, 
+  `DATA.version` unchanged. Mirrors the now-documented follow-up to the prior v0.332→v0.336 display-drift fix.
+
+- **2026-07-18 · docs(agents) — refreshed stale version parentheticals in AGENTS.md**: The Versioning 
+  section's "currently" notes for BUILD and DATA.version had drifted since PR #251: listed v0.107 
+  and v0.332. Updated both to match the live values at merge time (real: v0.202 per js/engine.js — 
+  bumped again since this PR was first opened, caught during its pre-merge rebase — and v0.336 per 
+  js/engine-data.js). Docs-only — no code or rules change.
+- **2026-07-18 · feat(theming) — extended localStorage-based theme switching to guide and DM Console**: 
+  PACT-Players-Guide.html now supports the same 4-theme system as index.html (parchment/midnight/dragonfire/contrast) 
+  with localStorage persistence. DM Console gained dark-mode support with system preference fallback, maintaining 
+  its modern design language. CharGen and Live Sheet already had theme switching. Theming pattern now consistent 
+  across all public-facing UIs.
 
 - **2026-07-17 · fix(chargen) — synced CharGen's hardcoded rules-version display to the real
   `DATA.version`**: CharGen showed "Rules v0.332" (title + `.hd-pactver` header label + two doc comments)

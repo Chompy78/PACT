@@ -111,47 +111,6 @@ signature/return shape; full-payload output identical across all fixtures; engin
 
 ---
 
-## Make CharGen live-read its rules version — TODO
-Branch fix/chargen-live-rules-version. CharGen hardcodes its "PACT rules · vX" display (the `.hd-pactver`
-header label + `<title>`), so it drifts on every DATA.version bump (drifted v0.332→v0.336 and was
-hand-synced in PR #251); make it read DATA.version live like the other two tools.
-**Effort:** low · **Risk:** low — ambiguity is low (exact pattern to copy from DM-Console.html:
-`RULES=(window.DATA&&window.DATA.version)` at engine-ready); damage scale is low (one tool, display-only,
-git-revert); damage likelihood is low (visible in a real-browser boot check) — all three factors low.
-
-```text
-1. Give CharGen's `.hd-pactver` span an id (e.g. id="cgPactVer").
-2. In CharGen's engine-ready handler, set that span's textContent from window.DATA.version (mirror DM
-   Console's live read), and set the <title>'s "Rules vX" segment the same way.
-3. Remove the hardcoded rules-version number from the span and <title> (the line-1 comment + the
-   versioning-note prose can stay). Removes the last hardcoded rules-version mirror in any tool.
-Display-only — do NOT bump DATA.version; just log in CHANGELOG.
-```
-
-**Done when:** CharGen shows the live DATA.version with no hardcoded rules number remaining in its span or
-`<title>`; all three tools boot; engine-parity still 20/0.
-
----
-
-## Refresh stale version parentheticals in AGENTS.md — TODO
-Branch docs/agents-version-refresh. AGENTS.md's Versioning section states BUILD "currently v0.107" (real:
-v0.201 in js/engine.js) and rules "currently v0.332" (real: v0.336 in js/engine-data.js); update both
-parentheticals to match reality.
-**Effort:** low · **Risk:** low — docs-only, one obviously-right change, fully git-revertable; all three
-risk factors low.
-
-```text
-1. In AGENTS.md's "Versioning — TWO separate numbers" section, update the BUILD "currently v0.107"
-   parenthetical to the current BUILD in js/engine.js (v0.201 as of PR #251), and the DATA.version
-   "currently v0.332" parenthetical to the current value in js/engine-data.js (v0.336).
-2. Docs-only; no DATA.version bump, no code change.
-```
-
-**Done when:** AGENTS.md's BUILD and DATA.version "currently" parentheticals match the live values in
-js/engine.js and js/engine-data.js.
-
----
-
 ## Engine review cleanup: drawback buyoff IDs, signature guard, baseBuild dedupe, noLock scoping — TODO
 Branch chore/engine-review-cleanup. Four small, low-risk js/engine.js hardening/cleanup items surfaced by
 the 2026-07-14 engine.js review (see session discussion); bundled as one low-risk batch per AGENTS.md's
@@ -198,6 +157,36 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 
 ---
 
+## Feedback widget's "hidden" anon checkbox stays visible due to a CSS specificity collision — TODO
+Branch fix/feedback-anon-hidden-specificity. Surfaced while implementing
+fix/feedback-anon-checkbox-inline (2026-07-19, PR #267): js/feedback.js's `.pact-fb-anon{display:flex;...}`
+rule has the same CSS specificity/origin as the browser's built-in `[hidden]{display:none}` rule, and
+wins because it's declared later in the injected stylesheet — so `anonWrap.hidden = true` (the
+signed-out default; a signed-out user should never see this checkbox at all) does NOT actually hide
+the row. Confirmed via an isolated real-browser check (Playwright/Chromium against the unmodified
+file straight from `origin/preview`, stubbing only the Supabase import) that this bug already exists
+on `preview` today, independent of the checkbox-inline change — it was just far less noticeable
+stacked below the note in its old placement than it is inline in front of it.
+**Effort:** low · **Risk:** low — ambiguity is low (a single obviously-right CSS specificity fix, e.g.
+scoping the rule to `.pact-fb-anon:not([hidden])` so the browser's own `[hidden]` rule wins again);
+damage scale is low (one file, CSS-only, git-revert, no data/security implication); damage likelihood
+is low (trivially checkable in a real-browser signed-out check, exactly how this was found).
+
+```text
+1. In js/feedback.js, fix the CSS specificity collision between `.pact-fb-anon{display:flex}` and the
+   browser's default `[hidden]{display:none}` rule so `anonWrap.hidden = true` actually hides the row
+   again — e.g. change the selector to `.pact-fb-anon:not([hidden])` (simplest fix; keeps every other
+   rule/behavior unchanged).
+2. Manually verify in a real browser: signed-out shows no checkbox/empty box at all (note text alone);
+   signed-in still shows a visible, working checkbox, same as before this fix.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** `anonWrap.hidden = true` (signed-out) renders no checkbox at all; signed-in still shows
+a working checkbox; `testing/tests/engine-parity.html` still 20/0 (unaffected, CSS-only change).
+
+---
+
 **Low-severity review findings:**
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
   named sub-pricers. Only safe once REV-01 gives real assertions; dedicated PR, byte-identical output.
@@ -210,13 +199,6 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 - **Real icons** — replace the placeholder 192/512/180 PNGs with real artwork (needs your art).
   **Effort:** low · **Risk:** low — a static-asset swap, one obviously-right way to do it, instantly and
   visually verifiable, no code/logic touched. (Blocked on human-supplied artwork, not on classification.)
-
-**Landing-page follow-ups** (deferred from the redesign):
-- Extend theming to the guide and tools (index-only today). **Effort:** medium · **Risk:** medium —
-  ambiguity is medium (a few reasonable ways to extend an existing CSS pattern across a large guide
-  file plus three tools); damage scale is low (CSS-only, trivially revertible, no data/security
-  implication); damage likelihood is medium (no automated visual-regression gate — would surface in
-  manual review, not automatically).
 
 **Supporting reference tasks** (run when needed, intentionally untagged — too undefined in scope to
 rate Effort/Risk meaningfully until one is actually picked up and scoped):
