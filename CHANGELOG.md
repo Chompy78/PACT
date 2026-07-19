@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-19 · fix(pwa) — bumped service-worker cache + widened network-first coverage + wired the
+  missing apple-touch-icon**: `CACHE_NAME` `pact-v6`→`pact-v7`, forcing already-installed/returning users
+  to pick up `js/character-store.js` (cache-first; holds this session's Continue-feature `recordAutosave`,
+  which was otherwise stuck stale for them indefinitely). Also widened `NETWORK_FIRST_RE` to cover
+  `js/ui-helpers.js` (holds `esc()`, the shared XSS-escaping helper all three tools call), `js/ap-by-level.js`,
+  and `js/advancement.js` — same "costs nothing, only speeds up fix propagation" reasoning as
+  D-GH-2026-07-16-sw-network-first-security-modules, applied to three files that were added since and never
+  covered; added all three to `PRE_CACHE` too, matching every other network-first file. Separately, added a
+  `<link rel="apple-touch-icon">` to `index.html` — the correctly-sized asset (`/icons/apple-touch-icon.png`)
+  already existed and was in `manifest.json`, but no page actually referenced it via the explicit tag iOS
+  Safari's "Add to Home Screen" relies on most reliably. Engine untouched, parity 20/0.
+
 - **2026-07-19 · chore(commands) — renamed all 8 Claude Code custom commands to carry `-code-`**: `add-task`→
   `add-code-task`, `cleanup-branches`→`cleanup-code-branches`, `close-session`→`close-code-session`,
   `log-ai-lessons`→`log-code-lesson`, `pick-task`→`pick-code-task`, `plan-for-review`→
