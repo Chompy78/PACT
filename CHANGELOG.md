@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-19 · fix(pwa) — closed the last two PWA-completeness gaps: manifest + apple-touch-icon on
+  every HTML entry point**: `login.html` and `docs/PACT-Players-Guide.html` gained `<link rel="manifest">`
+  (previously only `index.html` and the three tools declared it); all five non-`index.html` entry points
+  (`login.html`, the Player's Guide, and all three tools) gained `<link rel="apple-touch-icon"
+  href="/PACT/icons/apple-touch-icon.png">`, matching the tag `index.html` got in the previous PWA fix —
+  DM Console included, since the browser-tab-favicon exclusion it got in an earlier change was never
+  reasoned to extend to the home-screen icon. Every new link uses the absolute `/PACT/...` path, matching
+  `manifest.json`'s own convention (the existing tool favicon links use a relative path — a pre-existing
+  inconsistency, left as-is). HTML well-formedness verified (all 5 files parse cleanly); no `js/engine.js`
+  change, parity 20/0.
+
 - **2026-07-19 · fix(pwa) — bumped service-worker cache + widened network-first coverage + wired the
   missing apple-touch-icon**: `CACHE_NAME` `pact-v6`→`pact-v7`, forcing already-installed/returning users
   to pick up `js/character-store.js` (cache-first; holds this session's Continue-feature `recordAutosave`,
