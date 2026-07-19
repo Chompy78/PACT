@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pact-v6';
+const CACHE_NAME = 'pact-v7';
 
 const PRE_CACHE = [
   '/PACT/',
@@ -13,6 +13,9 @@ const PRE_CACHE = [
   '/PACT/js/campaign.js',
   '/PACT/js/dm.js',
   '/PACT/js/feedback.js',
+  '/PACT/js/ui-helpers.js',
+  '/PACT/js/ap-by-level.js',
+  '/PACT/js/advancement.js',
   '/PACT/manifest.json',
   '/PACT/tools/PACT-CharGen-Webtool.html',
   '/PACT/tools/PACT-Live-Char-Sheet.html',
@@ -25,13 +28,17 @@ const PRE_CACHE = [
 
 // Network-first: HTML pages, engine.js + engine-data.js (the rules dataset — REV-14a moved it out of
 // engine.js, and it must keep engine.js's immediate-propagation semantics so a rules fix reaches
-// returning users right away rather than sticking on a stale cached copy), and the auth/sync/campaign/dm
-// client modules, so deployed fixes reach returning users immediately (see
+// returning users right away rather than sticking on a stale cached copy), the auth/sync/campaign/dm
+// client modules, and ui-helpers.js/ap-by-level.js/advancement.js — added 2026-07-19, same reasoning as
+// the modules above: ui-helpers.js holds esc(), the shared XSS-escaping helper all three tools call, so
+// a fix there needs to reach returning users immediately, not sit stale until the next CACHE_NAME bump;
+// ap-by-level.js/advancement.js are the pricing-curve data these tools price against, same propagation
+// need. So deployed fixes reach returning users immediately (see
 // D-GH-2026-07-16-sw-network-first-security-modules — this fetch handler already falls back to the cached
 // copy on failure, so widening this list costs nothing in offline capability, only speeds up fix
 // propagation for online users).
 // Everything else (icons, character-store.js, feedback.js) stays cache-first for speed.
-const NETWORK_FIRST_RE = /\.html$|\/PACT\/$|\/js\/(engine|engine-data|auth|supabase-client|sync|campaign|dm)\.js$/;
+const NETWORK_FIRST_RE = /\.html$|\/PACT\/$|\/js\/(engine|engine-data|auth|supabase-client|sync|campaign|dm|ui-helpers|ap-by-level|advancement)\.js$/;
 
 self.addEventListener('install', e => {
   e.waitUntil(
