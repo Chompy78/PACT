@@ -6,6 +6,11 @@
   <title>PACT Tools</title>
   <meta name="description" content="PACT Tools — the Player's Guide and character-building tools for PACT, a points-buy advancement system for the 2024 edition of Dungeons &amp; Dragons.">
   <link rel="manifest" href="/PACT/manifest.json">
+  <!-- iOS "Add to Home Screen" reads this directly rather than relying solely on the manifest's icons
+       array — iOS Safari's manifest-icon support has historically been unreliable, and Apple's own
+       guidance still recommends this explicit tag. The asset already existed (manifest.json's 180x180
+       entry, /icons/apple-touch-icon.png) but was never actually wired into any page. -->
+  <link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://esm.sh">
   <link rel="preconnect" href="https://piuprrrnaotrtxucrtsb.supabase.co">
 

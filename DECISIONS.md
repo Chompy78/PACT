@@ -9,6 +9,18 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-19-pwa-cache-bump** — Bumped `service-worker.js`'s `CACHE_NAME` `pact-v6`→`pact-v7` because
+  `js/character-store.js` (cache-first) had just gained `recordAutosave`/`readRecent` for the Continue
+  feature, and without a bump, already-installed/returning users would silently keep the old file
+  indefinitely — the same class of gap `D-GH-2026-07-16-sw-network-first-security-modules` fixed for the
+  auth/sync/campaign/dm modules. Also widened `NETWORK_FIRST_RE` to cover `js/ui-helpers.js` (the shared
+  `esc()` XSS-escaping helper), `js/ap-by-level.js`, and `js/advancement.js` — three files added since that
+  prior decision and never brought under its policy — applying the exact same "costs nothing offline, only
+  speeds up fix propagation" reasoning rather than re-litigating it; added all three to `PRE_CACHE` too, for
+  consistency with every other network-first entry. Separately, wired a `<link rel="apple-touch-icon">` into
+  `index.html` — the correctly-sized asset and its `manifest.json` entry already existed, but no page
+  actually referenced it via the tag iOS Safari's "Add to Home Screen" relies on most reliably; found while
+  auditing PWA completeness, not something this session broke. `js/engine.js` untouched, parity 20/0
 - **D-GH-2026-07-18-continue-recent-chars** — Added the landing page's "Continue where you left off" section, backed by a new shared versioned-autosave store (`recordAutosave`/`readRecent` in `js/character-store.js`, key `pactRecentV1`). Expanded scope past the roadmap's "index.html-only, reads existing storage" framing because the only universally-populated local source is each tool's *single* overwrite autosave slot (≈1 character/tool); the real multi-character store (`js/sync.js`) only fills on a signed-in "☁ Save to cloud". So both tools now *additionally* feed a shared store keeping **two lists** — the last 3 *distinct* characters (resume cards) and a rolling ring of the last 10 autosave *snapshots* (a recovery timeline) — chosen over the user's first "5 versions per character name" idea. The ring's capture policy uses **both time and difference** (skip-if-identical; coalesce rapid same-character edits inside a 2-min window into the newest slot; cut a new slot only on ≥2-min gap, a character/tool switch, or a ≥5-event jump) so a keystroke burst can't fill it with near-duplicates. Navigation reuses the existing one-shot `?handoff=` baton (staged at pointer/keyboard interaction time so it's fresh and middle-click-safe), so **no tool code changed** beyond the one additive autosave call each; the writer is fully guarded so it can never break a real autosave, and all names render via `textContent` (XSS-safe). BUILD bumped v0.201→v0.202; engine untouched (parity 20/0)
 - **D-GH-2026-07-17-engine-data-extract** — REV-14a extracted the `DATA` rules dataset from `js/engine.js` into a new `js/engine-data.js` **`.js` module** (not `.json`), re-exported unchanged; chose `.js` over the task's originally-specified `.json` because a JSON module is frozen in some engines and the three tools' bridges mutate `DATA.racialFx`/`masteryFx`/`drawbackFx` onto it (a frozen import would throw `TypeError`), because `.js` avoids the iOS-Safari import-attributes question entirely, and because it matches the repo's existing `ap-by-level.js`/`advancement.js` precedent; also made `engine-data.js` network-first + precached in the service worker so a rules edit (which used to live in the network-first `engine.js`) still reaches returning users immediately rather than sticking on a stale cache-first copy — a decision informed by a 4-model cold-review round on `docs/plans/2026-07-17-engine-breakup-rev14.md`
 - **D-GH-2026-07-17-worktree-base-check-exact-equality** — `run-task.md`'s worktree-base-verification check switched from an ancestry check to an exact-equality check, because *any* ancestry-based check (the documented `--is-ancestor`, and an undocumented "sharper" `merge-base`-equals-target variant used ad hoc this session) gives a false positive for one worktree-turn right after every `preview`→`main` promotion — caught when a `docs/SKILLS.md` sync PR's rebase tried to replay 196 ancient commits back to PR #95, revealing the worktree was silently based on `origin/main`, not `origin/preview`, despite the ad hoc check passing
@@ -119,6 +131,44 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-19-pwa-cache-bump · propagate the Continue feature to already-installed PWA users, plus a PWA-completeness audit
+
+- **Context:** promoting `preview`→`main` for the Continue-recent-chars feature (D-GH-2026-07-18) raised
+  the question of whether merging alone was enough to actually reach users. Tracing `service-worker.js`'s
+  caching strategy found `js/character-store.js` — the file `recordAutosave`/`readRecent` was added to —
+  is deliberately **cache-first**, and `service-worker.js` itself wasn't touched by that PR, so browsers
+  wouldn't even detect a new SW version to install. A returning/already-installed user would silently keep
+  the pre-Continue-feature `character-store.js` indefinitely; only first-time or cache-cleared visitors
+  would get it. Asked to check "do we have this for all the other things" prompted a broader PWA audit
+  (`manifest.json`, every `js/*.js` file's cache policy, icon wiring) rather than fixing only the one file.
+- **Options (cache staleness):** (a) bump `CACHE_NAME` so `activate` purges the old cache and `install`
+  re-fetches `PRE_CACHE` fresh. (b) leave it — the fix reaches users eventually as their cache naturally
+  churns. (c) move `character-store.js` to network-first permanently.
+- **Options (the audit's other findings, once made):** widen `NETWORK_FIRST_RE` to also cover
+  `js/ui-helpers.js`/`ap-by-level.js`/`advancement.js` (found uncovered by *either* precache *or*
+  network-first — same staleness risk class, pre-existing, not introduced by this session) vs. leave them
+  cache-first and accept the risk. Wire up the unused `apple-touch-icon.png` asset via an explicit
+  `<link>` tag vs. leave iOS relying solely on the manifest's icon entry.
+- **Decision:** (a) for this release — `pact-v6`→`pact-v7`. For the audit findings: widened
+  `NETWORK_FIRST_RE` to include `ui-helpers.js`/`ap-by-level.js`/`advancement.js` and added all three to
+  `PRE_CACHE`; added `<link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png">` to
+  `index.html`. Left as explicitly-flagged-not-fixed: `login.html`/`docs/PACT-Players-Guide.html` don't
+  declare `<link rel="manifest">` (low-impact — `start_url` is `index.html`, the true installable entry
+  point), and the apple-touch-icon tag was added only to `index.html`, not the individual tool pages.
+- **Why:** (a) over (c) — `D-GH-2026-07-16-sw-network-first-security-modules` already established that
+  `character-store.js` staying cache-first is a deliberate choice ("for speed"), so this is a one-time
+  propagation problem, not a reason to reverse that choice; a `CACHE_NAME` bump is this repo's own standing
+  convention for exactly this situation. Widening `NETWORK_FIRST_RE` for the three newly-found files
+  applies the *prior* decision's own reasoning rather than re-deciding it — `ui-helpers.js` holds `esc()`,
+  arguably more security-relevant than the auth/sync modules that decision already covers, so leaving it
+  cache-first was the harder position to defend once found. The apple-touch-icon gap was worth a fix, not
+  just a note, because the asset and manifest entry already existed with obvious intent — wiring up an
+  existing 5-line asset is lower-risk than leaving a half-finished feature in place. The two left-flagged
+  items were judged genuinely lower-stakes (an edge case for bookmarked non-entry pages) and kept out of
+  scope rather than silently expanding this fix further.
+- **Status:** Active. Verified: regex unit-tested against all `PRE_CACHE`/`NETWORK_FIRST_RE` file paths
+  (10/10), `apple-touch-icon.png` path confirmed to exist at the referenced location, parity 20/0.
 
 ## D-GH-2026-07-18-continue-recent-chars · a landing "Continue" list, backed by a versioned autosave store
 
