@@ -23,6 +23,9 @@
   `DATA.version`/engine impact; parity still 20/0. While verifying, found a separate pre-existing bug
   (the signed-out checkbox isn't actually hidden due to a CSS specificity collision) — filed as its own
   roadmap task rather than folded into this fix, since it predates this change and isn't scoped to it.
+- **2026-07-19 · chore(release) — graduated A6 (tag releases to build version)**: confirmed done —
+  `v0.107` was tagged with a GitHub Release on 2026-07-17; no further action needed, so the task-board
+  entry (which had flagged itself for human confirmation) is removed.
 
 - **2026-07-19 · fix(pwa) — closed the last two PWA-completeness gaps: manifest + apple-touch-icon on
   every HTML entry point**: `login.html` and `docs/PACT-Players-Guide.html` gained `<link rel="manifest">`
