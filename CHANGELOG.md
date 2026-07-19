@@ -7,8 +7,14 @@
 - **2026-07-19 · chore(release): bump BUILD to v0.203**: mirrored across all three tools per
   `docs/VERSION-SYNC.md` (CharGen's line-1 comment, `<title>`, header `.sub` label, and its
   JS-side title-template string; Live Sheet's line-1 comment; DM Console's `TOOL_VERSION`).
-  Cosmetic build-number bump only — `DATA.version` unchanged, parity still 20/0. Tagged
-  `v0.203` with a GitHub Release.
+  Cosmetic build-number bump only — `DATA.version` unchanged, parity still 20/0. The `v0.203`
+  git tag + GitHub Release are **not yet created** — both a plain `git tag`+`git push` and a
+  `gh api .../releases` POST were tried from this session and both were rejected (403): the
+  cloud-session GitHub proxy restricts git pushes to the current working branch and separately
+  refuses release create/edit/delete outright regardless of credential, confirmed a deliberate
+  platform restriction, not a scope/config issue (see
+  `docs/sessions/2026-07-19-github-release-tag-cloud-session-restriction.md` for the detail).
+  Flagging for a human to tag/release manually until this is resolved.
 
 - **2026-07-19 · fix(feedback) — fixed CSS specificity collision hiding the anon checkbox
   incorrectly**: `js/feedback.js`'s `.pact-fb-anon{display:flex}` rule had the same
