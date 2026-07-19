@@ -217,11 +217,6 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
   file plus three tools); damage scale is low (CSS-only, trivially revertible, no data/security
   implication); damage likelihood is medium (no automated visual-regression gate — would surface in
   manual review, not automatically).
-- "Continue / recent characters" on the landing page (needs the tools' save format). **Effort:** high ·
-  **Risk:** medium — ambiguity is medium (a genuinely new feature, but scoped to `index.html` reading
-  existing storage, not a cross-tool architecture change); damage scale is low (new opt-in UI, doesn't
-  touch `js/engine.js` or the tools, easily revertible); damage likelihood is medium (no automated
-  coverage for this UI — manual testing only).
 
 **Supporting reference tasks** (run when needed, intentionally untagged — too undefined in scope to
 rate Effort/Risk meaningfully until one is actually picked up and scoped):
