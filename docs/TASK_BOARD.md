@@ -157,6 +157,36 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 
 ---
 
+## Feedback widget's "hidden" anon checkbox stays visible due to a CSS specificity collision — TODO
+Branch fix/feedback-anon-hidden-specificity. Surfaced while implementing
+fix/feedback-anon-checkbox-inline (2026-07-19, PR #267): js/feedback.js's `.pact-fb-anon{display:flex;...}`
+rule has the same CSS specificity/origin as the browser's built-in `[hidden]{display:none}` rule, and
+wins because it's declared later in the injected stylesheet — so `anonWrap.hidden = true` (the
+signed-out default; a signed-out user should never see this checkbox at all) does NOT actually hide
+the row. Confirmed via an isolated real-browser check (Playwright/Chromium against the unmodified
+file straight from `origin/preview`, stubbing only the Supabase import) that this bug already exists
+on `preview` today, independent of the checkbox-inline change — it was just far less noticeable
+stacked below the note in its old placement than it is inline in front of it.
+**Effort:** low · **Risk:** low — ambiguity is low (a single obviously-right CSS specificity fix, e.g.
+scoping the rule to `.pact-fb-anon:not([hidden])` so the browser's own `[hidden]` rule wins again);
+damage scale is low (one file, CSS-only, git-revert, no data/security implication); damage likelihood
+is low (trivially checkable in a real-browser signed-out check, exactly how this was found).
+
+```text
+1. In js/feedback.js, fix the CSS specificity collision between `.pact-fb-anon{display:flex}` and the
+   browser's default `[hidden]{display:none}` rule so `anonWrap.hidden = true` actually hides the row
+   again — e.g. change the selector to `.pact-fb-anon:not([hidden])` (simplest fix; keeps every other
+   rule/behavior unchanged).
+2. Manually verify in a real browser: signed-out shows no checkbox/empty box at all (note text alone);
+   signed-in still shows a visible, working checkbox, same as before this fix.
+Display-only — do NOT bump DATA.version; just log in CHANGELOG.
+```
+
+**Done when:** `anonWrap.hidden = true` (signed-out) renders no checkbox at all; signed-in still shows
+a working checkbox; `testing/tests/engine-parity.html` still 20/0 (unaffected, CSS-only change).
+
+---
+
 **Low-severity review findings:**
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
   named sub-pricers. Only safe once REV-01 gives real assertions; dedicated PR, byte-identical output.
