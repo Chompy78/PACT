@@ -9,13 +9,13 @@ allowed-tools: Read, Grep, Glob, Agent, Bash(git clone *), Edit
 You read a session, session file, or transcript and draft candidate entries for the separate,
 private `chompy78/ai-lessons-learned` repo. This is a **report-only** pass for the drafting
 step — never write to `inbox/`, commit, or push without approval, same convention as
-`/close-session`'s item 9 (which this command supersedes as the reusable, standalone version
+`/close-code-session`'s item 9 (which this command supersedes as the reusable, standalone version
 of that same check).
 
 ## Step 1 — figure out the source
 
 `$ARGUMENTS` is a file path, a directory, a glob, or empty:
-- **Empty** — mine *this session's own conversation* so far (the same thing `/close-session`
+- **Empty** — mine *this session's own conversation* so far (the same thing `/close-code-session`
   item 9 does, but callable any time, not just at close).
 - **A single file** — a `docs/sessions/*.md` entry, an exported/teleported transcript
   (`claude --teleport` + `/export`), a `DECISIONS.md` excerpt, or similar. Read it directly.

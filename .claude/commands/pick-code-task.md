@@ -9,7 +9,7 @@ disallowed-tools: Edit, Write, NotebookEdit, Bash(git push *), Bash(git commit *
 
 You help pick the next task from the PACT roadmap and pre-flight it. Other Claude Code sessions might be
 working on this same repo at the same time. This command only reads and reports — it never edits a file
-or creates a worktree itself. Once you're done, Step 4 asks whether to hand off into `/run-task` (a
+or creates a worktree itself. Once you're done, Step 4 asks whether to hand off into `/run-code-task` (a
 separate command that does the actual work) right away, via a clickable confirmation.
 
 ## Step 1 — get the latest information
@@ -80,7 +80,7 @@ just drops it from the batch; for the primary pick, it stands as before (don't s
 primary task).
 
 **Check 2 — engine & effort calibration**
-`/run-task` inherits whatever model and reasoning effort this session is already running — a skill can't
+`/run-code-task` inherits whatever model and reasoning effort this session is already running — a skill can't
 switch those mid-command. Your job here is to work out what each task *should* run on and say so, not to
 silently assume Sonnet and move on.
 
@@ -108,10 +108,10 @@ token savings when every member stays at the routine Haiku/High floor.
 Tell me which task you picked and why, the result of both pre-flight checks, the suggested engine tier
 (Haiku/Sonnet/Opus) and effort level for it, and whether either escalation trigger fired. If a batch
 survived Step 3, list each surviving member with its own one-line reason and engine tier. Don't edit
-anything, don't create a worktree yet — that's `/run-task`'s job, gated on the confirmation below.
+anything, don't create a worktree yet — that's `/run-code-task`'s job, gated on the confirmation below.
 
 If the suggested engine differs from whatever this session is currently running on, say so explicitly and
-tell me to run `/model <engine>` before confirming below — `/run-task` inherits the session's model as-is
+tell me to run `/model <engine>` before confirming below — `/run-code-task` inherits the session's model as-is
 and won't switch it for you.
 
 Then, instead of ending with plain text to copy-paste, ask with **`AskUserQuestion`** (one question,
@@ -124,11 +124,11 @@ Every option — not only the recommended one — gets a one-line reason in its 
 
 - **Question:** "Start work now?"
 - **Options (no surviving batch):**
-  1. **"Run `/run-task <type/short-slug>` now"** (Recommended — pre-flight already passed, this is the
-     natural next step) — invoke the `run-task` skill immediately, in this same turn, passing
+  1. **"Run `/run-code-task <type/short-slug>` now"** (Recommended — pre-flight already passed, this is the
+     natural next step) — invoke the `run-code-task` skill immediately, in this same turn, passing
      `<type/short-slug>` as its sole argument.
   2. **"Not yet"** (if you want to review the pre-flight results first, or aren't ready to start) — stop
-     here. Don't touch anything else; tell me I can run `/run-task <type/short-slug>` myself whenever I'm
+     here. Don't touch anything else; tell me I can run `/run-code-task <type/short-slug>` myself whenever I'm
      ready.
   3. **"Choose a different task"** (if this pick isn't actually the one you wanted) — go back to the
      roadmap items already gathered in Step 1 (NOW, then NEXT, then LATER) and list the remaining TODO
@@ -138,9 +138,9 @@ Every option — not only the recommended one — gets a one-line reason in its 
      repeat this Step 4 hand-off for the new pick.
 - **Options (batch survived — replace option 1 above with two run variants, keep 2 and 3 as-is):**
   1. **"Run just `<primary slug>`"** (if you'd rather skip the batch candidates and keep this to one task)
-     — invoke `run-task` with only the primary pick's slug, ignoring the batch.
+     — invoke `run-code-task` with only the primary pick's slug, ignoring the batch.
   2. **"Batch `<primary slug>` + N more"** (Recommended — every member independently passed the same
-     quick/low-risk check, so bundling saves a rebase/test/PR cycle per task) — invoke `run-task` in this
+     quick/low-risk check, so bundling saves a rebase/test/PR cycle per task) — invoke `run-code-task` in this
      same turn, passing *all* surviving slugs (primary first, then each batch member) as separate
      space-separated arguments in one call, e.g. `docs/qa-checklist docs/rules-review-note`.
   3. **"Not yet"** — same reasoning as above.
@@ -152,7 +152,7 @@ option), that is not an answer — retry the exact same question once and wait f
 substitute the Recommended option (or any other guess) as if it were my answer; only tell me it failed if
 the retry also fails. Once a real answer comes back, restate it in one line ("You picked: X — doing that
 now") before invoking anything — that's the confirmation, and whichever "run" option comes back, invoke
-`run-task` right away without asking again.
+`run-code-task` right away without asking again.
 
 ---
 

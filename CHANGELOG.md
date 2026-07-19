@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-19 · chore(commands) — renamed all 8 Claude Code custom commands to carry `-code-`**: `add-task`→
+  `add-code-task`, `cleanup-branches`→`cleanup-code-branches`, `close-session`→`close-code-session`,
+  `log-ai-lessons`→`log-code-lesson`, `pick-task`→`pick-code-task`, `plan-for-review`→
+  `make-code-cold-plan-review`, `run-task`→`run-code-task`, `sweep-tasks`→`sweep-code-tasks` — distinguishes
+  them at a glance from the author's separate `-chat-` Claude.ai Skills. Updated every cross-reference in
+  `.claude/commands/*.md`, `AGENTS.md`, `docs/SKILLS.md` (which also gained an old→new mapping table),
+  `docs/HOW-TO-WORK.md`, `docs/TASK_BOARD.md`, and `.gitignore`. `CHANGELOG.md`/`DECISIONS.md`/
+  `docs/sessions/` deliberately left using the old names — dated historical record, not rewritten.
+
 - **2026-07-18 · feat(tools) — CharGen and Live Sheet now show the anvil/hammer PACT favicon**: moved
   `assets/PACT_favicon.png` → `assets/icons/PACT_favicon.png` and added `<link rel="icon"
   type="image/png" href="../assets/icons/PACT_favicon.png">` to the two non-DM tools' `<head>` (right after
