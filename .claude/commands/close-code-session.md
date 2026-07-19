@@ -40,7 +40,7 @@ say so:
   note; a one-line fix that uncovered a surprise still gets one.
   **If a note for this session already exists, re-read its content** against everything that's happened
   since it was last written, and update it — don't just confirm it exists. A note written mid-session goes
-  stale the moment more work happens after it (e.g. this same `/close-session` pass surfacing a decision
+  stale the moment more work happens after it (e.g. this same `/close-code-session` pass surfacing a decision
   that gets acted on, a rebase, a merge).
 
 **4. Roadmap graduation** — if a `docs/TASK_BOARD.md` task was finished this session, **remove** its entry
@@ -76,7 +76,7 @@ For each local branch/worktree, report:
 - **Orphaned** — local branch whose remote counterpart was deleted (shows `: gone]` in `git branch -vv`)
   but the local ref/worktree wasn't cleaned up. Flag as a cleanup candidate.
 
-Never delete or remove anything in this step — just report; cleanup is `/cleanup-branches` or an explicit go.
+Never delete or remove anything in this step — just report; cleanup is `/cleanup-code-branches` or an explicit go.
 
 **7. preview / main sync status**
 ```

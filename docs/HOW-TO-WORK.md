@@ -6,7 +6,7 @@ you commit the instructions once, then paste one task at a time.
 
 > **Primary tool: Claude Code** (CLI in a terminal in the repo). **Microsoft 365 Copilot** is used only as a
 > *cold reviewer* of self-contained plans — it is not repo-aware and never edits code.
-> **For the skills (`/pick-task`, `/run-task`, `/plan-for-review`, …) and how they chain, see
+> **For the skills (`/pick-code-task`, `/run-code-task`, `/make-code-cold-plan-review`, …) and how they chain, see
 > [`docs/SKILLS.md`](SKILLS.md).** This guide covers the app/test mechanics; SKILLS.md covers the workflow.
 
 ---
@@ -35,7 +35,7 @@ chore is gone.
 |---|---|
 | `docs/TASK_BOARD.md` | the task list (paste one at a time) |
 | `docs/HOW-TO-WORK.md` | this guide (app/test mechanics) |
-| `docs/SKILLS.md` | the skills (`/pick-task`, `/run-task`, …) + workflow, human-readable |
+| `docs/SKILLS.md` | the skills (`/pick-code-task`, `/run-code-task`, …) + workflow, human-readable |
 | `docs/VERSION-SYNC.md` | how the build version is kept consistent across the tools |
 | `docs/sessions/` | per-session narratives (optional; only when worth keeping) |
 | `docs/history/` | archived pre-GitHub history — **non-authoritative**, don't read unless asked |
@@ -112,9 +112,9 @@ Compare the numbers to the baseline in `testing/expected/expected-results.csv`.
 ---
 
 ## The loop per task
-The skills automate most of this — **`/pick-task` then `/run-task`** is the normal two-step path (see
-[`docs/SKILLS.md`](SKILLS.md)). For a big/risky task, run **`/plan-for-review`** first and send the plan to
-M365 Copilot for a cold review before implementing. The underlying mechanics `/run-task` performs, if you
+The skills automate most of this — **`/pick-code-task` then `/run-code-task`** is the normal two-step path (see
+[`docs/SKILLS.md`](SKILLS.md)). For a big/risky task, run **`/make-code-cold-plan-review`** first and send the plan to
+M365 Copilot for a cold review before implementing. The underlying mechanics `/run-code-task` performs, if you
 ever do it by hand:
 1. **Branch:** `git checkout -b feat/<short-slug>` (one task per branch; use `type/slug` — `feat/`, `fix/`, `docs/`).
 2. **Paste one task** from `docs/TASK_BOARD.md`. No need to re-describe the architecture — `AGENTS.md` is the standing context.
@@ -136,8 +136,8 @@ the automated gate (`engine-parity.html`) only covers `compute()`, not the UI wi
 
 ## Start of each session
 Claude Code reads `AGENTS.md` (via `CLAUDE.md`'s `@AGENTS.md` import) automatically, so you don't re-explain
-the project. A good opener: `Run /pick-task` — or paste **one** task from `docs/TASK_BOARD.md` directly.
-For big/risky work, ask for a plan first (`/plan-for-review`) and route it through M365 Copilot before
+the project. A good opener: `Run /pick-code-task` — or paste **one** task from `docs/TASK_BOARD.md` directly.
+For big/risky work, ask for a plan first (`/make-code-cold-plan-review`) and route it through M365 Copilot before
 building.
 
 ## Claude Code + M365 Copilot — who does what

@@ -1,26 +1,26 @@
 ---
-description: Do the work for one or more roadmap tasks picked by /pick-task — worktree, edit, test, rebase, PR (requires Claude Code v2.1.50+)
+description: Do the work for one or more roadmap tasks picked by /pick-code-task — worktree, edit, test, rebase, PR (requires Claude Code v2.1.50+)
 argument-hint: <type/short-slug> [<type/short-slug> ...]
 ---
 
 # PACT — work the roadmap task(s)
 
 `$ARGUMENTS` is one `<type/short-slug>`, or several space-separated ones handed off together as an
-explicitly-approved batch from `/pick-task`'s batch option. This command does the actual work: worktree,
+explicitly-approved batch from `/pick-code-task`'s batch option. This command does the actual work: worktree,
 edit, test, rebase, push, PR. **Requires Claude Code v2.1.50 or later** (native `--worktree` /
-`EnterWorktree` support). If `/pick-task` hasn't been run yet this session, ask for its output first —
+`EnterWorktree` support). If `/pick-code-task` hasn't been run yet this session, ask for its output first —
 this command doesn't re-derive the task(s) or re-run the pre-flight checks itself.
 
 **Single slug:** follow every step below literally, one task, one branch, as always.
 **Multiple slugs:** everything through Step 5 happens *per task*; Steps 6-8 (rebase, PR, cleanup) happen
 *once* for the whole batch. This is the one exception to "one task per branch" (see `AGENTS.md`) — it's
-only valid because `/pick-task` already confirmed every member is independently low-risk and touches no
+only valid because `/pick-code-task` already confirmed every member is independently low-risk and touches no
 overlapping files.
 
-**Engine check.** `/pick-task`'s Check 2 also worked out a suggested engine tier (Haiku/Sonnet/Opus) and
+**Engine check.** `/pick-code-task`'s Check 2 also worked out a suggested engine tier (Haiku/Sonnet/Opus) and
 effort level per task — restate it here before starting Step 4. This command inherits whatever model the
 session is already running; it does not and cannot switch it. If the running model doesn't match what
-`/pick-task` suggested, stop and tell the user to run `/model <engine>` first, then re-invoke `/run-task`
+`/pick-code-task` suggested, stop and tell the user to run `/model <engine>` first, then re-invoke `/run-code-task`
 — don't silently proceed on the wrong tier.
 
 ## Step 4 — enter your own worktree
@@ -91,13 +91,13 @@ must stay independently traceable even though several share a branch. Add a `DEC
 that task's change involved a non-obvious reason behind a choice you made. Commit each task separately
 (one commit per task) before moving to the next slug.
 
-If a task turns out — once you're actually in the code — to not be as small/isolated as `/pick-task`
+If a task turns out — once you're actually in the code — to not be as small/isolated as `/pick-code-task`
 assumed, or its edit collides with an earlier task's in this same batch, stop and flag it rather than
 forcing it through: pull it out of the batch (leave its roadmap entry alone, don't graduate it), finish
 the rest, and say clearly in the hand-off which task got dropped and why.
 
 Once every surviving task's commit is made, run the test suite (`testing/tests/engine-parity.html`) once
-against the combined diff and check it matches the pass count `/pick-task` reported — not a hardcoded
+against the combined diff and check it matches the pass count `/pick-code-task` reported — not a hardcoded
 number.
 
 **If you need `preview_start` to browser-verify a UI change from inside this worktree:** it resolves
@@ -116,7 +116,7 @@ git rebase origin/preview
 ```
 
 **If the rebase reports a non-trivial conflict, stop and show the affected files/hunks before
-continuing.** Don't resolve it silently and don't treat `/pick-task`'s earlier hand-off as authorization
+continuing.** Don't resolve it silently and don't treat `/pick-code-task`'s earlier hand-off as authorization
 to push through a conflict — that's exactly the kind of judgment call that needs a human look. Once
 resolved (by you, trivially, or by the user's direction), re-run the tests.
 
@@ -130,7 +130,7 @@ reviewer can see it's several independent small changes riding one branch, not o
 ## Step 8 — clean up
 
 Once the PR is open, exit and remove your worktree (leave the branch itself — cleaning up old branches is
-a separate task, see `/cleanup-branches`):
+a separate task, see `/cleanup-code-branches`):
 
 ```
 ExitWorktree(action: "remove")
