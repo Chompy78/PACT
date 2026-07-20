@@ -1,9 +1,9 @@
 ---
-description: Do the work for one or more roadmap tasks picked by /pick-code-task — worktree, edit, test, rebase, PR (requires Claude Code v2.1.50+)
+description: Do the work for one or more task-board tasks picked by /pick-code-task — worktree, edit, test, rebase, PR (requires Claude Code v2.1.50+)
 argument-hint: <type/short-slug> [<type/short-slug> ...]
 ---
 
-# PACT — work the roadmap task(s)
+# PACT — work the task-board task(s)
 
 `$ARGUMENTS` is one `<type/short-slug>`, or several space-separated ones handed off together as an
 explicitly-approved batch from `/pick-code-task`'s batch option. This command does the actual work: worktree,
@@ -93,7 +93,7 @@ that task's change involved a non-obvious reason behind a choice you made. Commi
 
 If a task turns out — once you're actually in the code — to not be as small/isolated as `/pick-code-task`
 assumed, or its edit collides with an earlier task's in this same batch, stop and flag it rather than
-forcing it through: pull it out of the batch (leave its roadmap entry alone, don't graduate it), finish
+forcing it through: pull it out of the batch (leave its task-board entry alone, don't graduate it), finish
 the rest, and say clearly in the hand-off which task got dropped and why.
 
 Once every surviving task's commit is made, run the test suite (`testing/tests/engine-parity.html`) once

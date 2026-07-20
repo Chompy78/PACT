@@ -32,12 +32,12 @@ say so. Once you've evaluated the criteria, act on that conclusion immediately �
 it) in the same turn. Don't phrase the evaluation as a question and pause for a reply first; presenting
 "here's my reasoning on whether this qualifies" as if it needs a go-ahead is the failure mode this line
 rules out — items 1–2 already write directly, and this step is no different:
-  - the actual root cause differed from what the task's diagnosis/roadmap entry assumed
+  - the actual root cause differed from what the task's diagnosis/task-board entry assumed
   - you picked between multiple valid approaches in a way a future agent could reasonably second-guess
   - the plan changed mid-session — blocked, pivoted, or scope grew because it had to, not because it was
     a nice-to-have
   - work collided with another session's work (duplicate PR, merge conflict, race)
-  - two or more roadmap items got done together in one sitting
+  - two or more task-board items got done together in one sitting
 
   None of these are about task complexity or tool-call count — a fiddly but uneventful task still skips the
   note; a one-line fix that uncovered a surprise still gets one.

@@ -157,6 +157,52 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 
 ---
 
+## Warn when compute() encounters a rules-table reference that no longer exists in DATA — TODO
+Branch feat/warn-missing-data-refs. Several `compute()` lookups silently no-op when a character
+references a racial trait/boon/drawback (and likely other categories) that's been removed or renamed
+from `DATA` — confirmed sites: racial traits (`js/engine.js` ~L182, L189, `if(!r)continue`), boons
+(~L372, `if(!bo)continue`), drawbacks (~L383, `||0` fallback). The character keeps the stale label in
+its saved data, but gets zero cost/effect from it on recompute with no warning telling anyone why —
+surfaced while discussing what happens if existing abilities get removed from the rules content.
+**Effort:** medium · **Risk:** medium — ambiguity is medium (touch each lookup site individually vs.
+centralize behind one shared helper is a contained, low-stakes call, not an architectural fork); damage
+scale is medium (touches `compute()` directly across several lookup sites, but the change is purely
+additive — new warning text only, no pricing/AP-total change — bounding the blast radius); damage
+likelihood is medium (the parity gate does check warning text via its `legacy_warnings`/
+`new_engine_warnings` columns, but REV-01's own follow-up note already flags a known fixture-coverage
+gap for some `W.push` branches, so a new warning path isn't automatically exercised without a dedicated
+fixture) — eligible for `/sweep-code-tasks`.
+
+```text
+1. Enumerate every DATA lookup in compute()/rebuildStateFromEvents() that silently skips or
+   zero-prices an unrecognized reference — confirmed so far: racialTraits, boons, drawbacks; also
+   check masteries, features, class/subclass references, spells/traditions, and feats for the same
+   pattern (grep for similar `if(!X)continue` / `||0` guards against DATA lookups).
+2. At each site, keep the existing skip/zero-fallback behavior unchanged (this task is additive, not a
+   pricing/behavior change) and push a warning to W naming the specific missing reference, e.g. "⚠
+   '<label>' is no longer in the rules data — no cost/effect applied." Reuse each site's existing
+   W.push warning-string conventions (⛔/⚠ prefixes, label-splitting logic) rather than inventing a new
+   format.
+3. Decide once, up front, whether to centralize these lookups behind one shared helper (e.g. a
+   `_lookupOrWarn(table, key, W)` function) or keep each site's existing ad hoc structure and just add
+   one warning line to each — default to the latter (minimal, additive, lowest risk) unless the audit
+   in step 1 finds it's clearly cleaner to centralize. Don't use this task to also refactor compute()'s
+   overall structure — that's REV-14b's job, tracked separately.
+4. Add at least one new fixture (or extend an existing one) in testing/fixtures/ + testing/expected/
+   with a build referencing a racial trait/boon/drawback deliberately absent from the current DATA, so
+   the new warning path gets real, permanent test coverage — closing exactly the kind of
+   fixture-coverage gap REV-01's own follow-up note already flags for W.push branches.
+5. This is additive/display-only for compute()'s numeric output (AP totals, pricing) — do NOT bump
+   DATA.version; log in CHANGELOG.
+```
+
+**Done when:** every silent-skip DATA lookup in compute() found in the step-1 audit pushes a visible
+warning naming the missing reference instead of silently doing nothing; at least one fixture exercises
+this new warning path; `testing/tests/engine-parity.html` is still 20/0 for all pre-existing fixtures
+(no numeric/pricing change), plus the new fixture passes with the expected warning text.
+
+---
+
 **Low-severity review findings:**
 - **REV-14** — (optional, engine-targeted) Extract `DATA` into `engine-data.json`; split `compute()` into
   named sub-pricers. Only safe once REV-01 gives real assertions; dedicated PR, byte-identical output.
