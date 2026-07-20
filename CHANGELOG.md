@@ -4,6 +4,13 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-20 · docs(tooling): close-code-session's session-note step writes without pausing**:
+  Part 1 item 3 (`docs/sessions/<date>-<topic>.md`) now says explicitly that once the write
+  criteria are evaluated, the file is written (or skipped) immediately in the same turn — no
+  presenting the evaluation as a question and waiting for a reply first. Closes the gap flagged
+  in the `TASK_BOARD.md` entry this graduates; the user had been missing session-note writes
+  because a prior run paused for confirmation that the skill never actually required.
+
 - **2026-07-19 · docs(terminology): replaced "roadmap" with "task board" everywhere it referred to
   `docs/TASK_BOARD.md`**: `AGENTS.md`, `docs/SKILLS.md`, `docs/HOW-TO-WORK.md`, and all 6
   `.claude/commands/*.md` skill files (9 files, ~38 occurrences) — including `/add-code-task`'s own
