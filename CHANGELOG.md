@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-20 · docs(sessions): ported the AGENTS.md/skills scaffold to a third repo, family-hub**:
+  same manual copy-and-adapt pattern as the `petdetective`/`homelife` ports, done directly against the
+  local clone at `C:/Users/user/dev/family-hub`. A genuinely third target-repo shape — not blank-slate,
+  not mature-with-conflicting-conventions, but rich product-planning docs with zero AI-workflow
+  governance layer. Nothing in PACT itself changed beyond this session note; see
+  `docs/sessions/2026-07-20-port-agents-scaffold-to-family-hub.md` for the full detail (target-repo
+  decisions logged in family-hub's own `DECISIONS.md`, not duplicated here).
+
 - **2026-07-20 · feat(tooling): close-code-session stages/commits/pushes once you approve the letter**:
   removed the `git add`/`git commit`/`git push` tool restriction at the user's explicit request — Part 3
   now surfaces "stage, commit, and push" as one of its lettered follow-ups and runs it once approved,
