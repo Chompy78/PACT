@@ -4,6 +4,28 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-19 · chore(release): bump BUILD to v0.203**: mirrored across all three tools per
+  `docs/VERSION-SYNC.md` (CharGen's line-1 comment, `<title>`, header `.sub` label, and its
+  JS-side title-template string; Live Sheet's line-1 comment; DM Console's `TOOL_VERSION`).
+  Cosmetic build-number bump only — `DATA.version` unchanged, parity still 20/0. The `v0.203`
+  git tag + GitHub Release are **not yet created** — both a plain `git tag`+`git push` and a
+  `gh api .../releases` POST were tried from this session and both were rejected (403): the
+  cloud-session GitHub proxy restricts git pushes to the current working branch and separately
+  refuses release create/edit/delete outright regardless of credential, confirmed a deliberate
+  platform restriction, not a scope/config issue (see
+  `docs/sessions/2026-07-19-github-release-tag-cloud-session-restriction.md` for the detail).
+  Flagging for a human to tag/release manually until this is resolved.
+
+- **2026-07-19 · fix(feedback) — fixed CSS specificity collision hiding the anon checkbox
+  incorrectly**: `js/feedback.js`'s `.pact-fb-anon{display:flex}` rule had the same
+  specificity/origin as the browser's built-in `[hidden]{display:none}` rule and won by source order,
+  so `anonWrap.hidden = true` (the signed-out default) never actually hid the "submit anonymously"
+  checkbox row. Scoped the selector to `.pact-fb-anon:not([hidden])` so the browser's own `[hidden]`
+  rule applies again. Verified in a real browser (Playwright/Chromium, isolated harness with a stubbed
+  Supabase client): signed-out now computes `display:none` (no checkbox/empty box); signed-in still
+  computes `display:flex` with a working, checkable checkbox. Display-only, no `DATA.version`/engine
+  impact; parity still 20/0.
+
 - **2026-07-19 · fix(feedback) — inlined the "submit anonymously" checkbox with its contact note**:
   `js/feedback.js`'s checkbox (shown only to signed-in users) previously rendered as its own row below
   the "Optional — only if you'd like a reply..." note; both now share one flex row
@@ -13,6 +35,9 @@
   `DATA.version`/engine impact; parity still 20/0. While verifying, found a separate pre-existing bug
   (the signed-out checkbox isn't actually hidden due to a CSS specificity collision) — filed as its own
   roadmap task rather than folded into this fix, since it predates this change and isn't scoped to it.
+- **2026-07-19 · chore(release) — graduated A6 (tag releases to build version)**: confirmed done —
+  `v0.107` was tagged with a GitHub Release on 2026-07-17; no further action needed, so the task-board
+  entry (which had flagged itself for human confirmation) is removed.
 
 - **2026-07-19 · fix(pwa) — closed the last two PWA-completeness gaps: manifest + apple-touch-icon on
   every HTML entry point**: `login.html` and `docs/PACT-Players-Guide.html` gained `<link rel="manifest">`
