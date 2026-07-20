@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-20 · docs(sessions): ported the AGENTS.md/skills scaffold to a fourth repo,
+  wildlife-explorer**: additive, not build-fresh — unlike family-hub (ported moments earlier the same
+  session), this repo already had a real governance file (`AI.md`) and a genuinely working
+  `npm run check` test/build/encoding-audit gate, so `AGENTS.md` was scoped as a thin process-layer
+  supplement rather than a competing entry point; `AI.md` was left completely untouched. Confirms a
+  "three independent axes" shape space (governance layer / product docs / real verification gate, each
+  present or absent independently) rather than a simple blank-vs-mature spectrum. Nothing in PACT itself
+  changed beyond this session note; see
+  `docs/sessions/2026-07-20-port-agents-scaffold-to-wildlife-explorer.md` for the full detail
+  (target-repo decisions logged in wildlife-explorer's own `DECISIONS.md`).
+
 - **2026-07-20 · docs(sessions): ported the AGENTS.md/skills scaffold to a third repo, family-hub**:
   same manual copy-and-adapt pattern as the `petdetective`/`homelife` ports, done directly against the
   local clone at `C:/Users/user/dev/family-hub`. A genuinely third target-repo shape — not blank-slate,
