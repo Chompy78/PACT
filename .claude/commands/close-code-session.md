@@ -1,16 +1,17 @@
 ---
-description: Wrap-up that WRITES the session's CHANGELOG/DECISIONS/session-note, graduates finished tasks, then PROPOSES a ready commit — never stages, commits, pushes, merges, or deletes
-allowed-tools: Read, Grep, Glob, Edit, Write, Bash(git status *), Bash(git log *), Bash(git diff *), Bash(git branch *), Bash(git worktree list *), Bash(git fetch *), mcp__github__pull_request_read, mcp__github__list_pull_requests, mcp__github__search_pull_requests
-disallowed-tools: NotebookEdit, Bash(git add *), Bash(git commit *), Bash(git push *), Bash(git merge *), Bash(git rebase *), Bash(git reset *), Bash(git branch -d *), Bash(git branch -D *), Bash(git worktree add *), Bash(git worktree remove *)
+description: Wrap-up that WRITES the session's CHANGELOG/DECISIONS/session-note, graduates finished tasks, then stages/commits/pushes once you approve the letter — never merges, rebases, resets, or deletes
+allowed-tools: Read, Grep, Glob, Edit, Write, Bash(git status *), Bash(git log *), Bash(git diff *), Bash(git branch *), Bash(git worktree list *), Bash(git fetch *), Bash(git add *), Bash(git commit *), Bash(git push *), mcp__github__pull_request_read, mcp__github__list_pull_requests, mcp__github__search_pull_requests
+disallowed-tools: NotebookEdit, Bash(git merge *), Bash(git rebase *), Bash(git reset *), Bash(git branch -d *), Bash(git branch -D *), Bash(git worktree add *), Bash(git worktree remove *)
 ---
 
 # PACT — close off this session
 
 You wrap up this session in three parts: **(1) log** the session's work to the right files (you write
 these entries yourself), **(2) verify & sweep** the tree/branches/PRs (report only), and **(3) propose a
-ready commit** for the human to run. You **never** stage (`git add`), commit, push, merge, rebase, or
-delete anything — those all wait for an explicit go from the human. Other Claude Code sessions may have
-worktrees and branches in flight; never touch those.
+commit, then stage/commit/push it yourself once the human names that letter**. Merging, rebasing,
+resetting, or deleting anything still waits for an explicit go, same as before — only the stage/commit/
+push boundary changed. Other Claude Code sessions may have worktrees and branches in flight; never touch
+those.
 
 **Before writing anything**, run `git status` / `git diff` and classify every touched path. You log against
 *this* session's real work only — a shared checkout can hold another session's in-flight changes, and those
@@ -98,23 +99,26 @@ one-line trigger plus a one-line generalized rule — and list "push it to `ai-l
 the lettered follow-up actions. **Draft only — never write it anywhere without approval.** If nothing
 general came up, say so and skip this.
 
-## Part 3 — Propose the commit (you do NOT run it)
+## Part 3 — Propose the commit, then run it once approved
 
 After Part 1's writes, run `git status` / `git diff` again, then:
 - List the exact files that belong to this session's real, finished work (the docs you just wrote, plus the
-  session's code changes). **Never** propose `git add -A` / `git add .` — name each file, because a shared
-  checkout may hold another session's changes you must not sweep in.
-- Print a **ready-to-run** block for the human to review and run themselves:
-  ```
-  git add <the named files>
-  git commit -m "<type(scope): summary>"
-  ```
-  Draft the message in this repo's Conventional-Commits style — check recent `git log --oneline` for the
-  exact prefix pattern in use; don't assume one. If the session finished more than one independent task,
-  propose **one commit per task** (matching the one-commit-per-task rule in `AGENTS.md`), not a bundle.
-- **Stop there.** `git add`, `git commit`, and `git push` are disallowed for this skill on purpose — the
-  human stages and commits after reading the diff. Never run them yourself, even if asked mid-run to "just
-  commit it": say it's out of scope for this skill and hand back the command.
+  session's code changes). **Never stage with `git add -A` / `git add .`** — name each file explicitly,
+  every time, even after approval. This is the one mitigation that survives the human no longer reviewing
+  the diff before commit: a shared checkout can hold another session's in-flight changes, and an exact file
+  list is what stops those from getting swept in.
+- Draft the commit message in this repo's Conventional-Commits style — check recent `git log --oneline` for
+  the exact prefix pattern in use; don't assume one. If the session finished more than one independent task,
+  propose **one commit per task** (matching the one-commit-per-task rule in `AGENTS.md`), not a bundle, and
+  stage/commit/push each separately.
+- Surface "stage, commit, and push the above" as one of Part 3's lettered options in the final report
+  (below) — same as every other actionable follow-up this skill surfaces. Once the human names that letter:
+  1. Re-run `git status` on the named files right before staging — approval may have landed a turn or two
+     after the list was drafted, and a shared checkout can move in that gap.
+  2. `git add <the named files>` (never `-A`/`.`), `git commit -m "<message>"`.
+  3. `git push` to the current branch's tracking remote (`-u origin <branch>` if it has none yet).
+  If `git push` is rejected because the remote moved, fetch and report back — don't force-push. Force-push
+  still needs its own separate explicit go, same as any destructive action for any other session.
 
 ## Output format
 
@@ -138,12 +142,15 @@ cleared their own gate.
 
 Recommending an action never means running it unprompted — writing the Part 1 docs is the only thing this
 skill does without a prompt; every side-effect (staging, committing, pushing, merging, cleanup) waits for
-the human to name the letters. Ask once which letters to run, e.g. "Run A1 and A3? Say the letters, or
-'none'," and wait for that single reply rather than confirming each item separately. If the
-`AskUserQuestion` tool is used for this instead of plain text, follow `AGENTS.md`'s rule for it: retry once
-on a tool error before assuming anything, and restate which letters were chosen before acting on them.
+the human to name the letters, and now actually runs once they do (stage/commit/push no longer needs a
+second, manual hand-off — merging, rebasing, resetting, and deleting still do, unchanged). Ask once which
+letters to run, e.g. "Run A1 and A3? Say the letters, or 'none'," and wait for that single reply rather
+than confirming each item separately. If the `AskUserQuestion` tool is used for this instead of plain text,
+follow `AGENTS.md`'s rule for it: retry once on a tool error before assuming anything, and restate which
+letters were chosen before acting on them.
 
-End with a one-line verdict: clear to close (docs logged, commit proposed), or not yet (and why).
+End with a one-line verdict: clear to close (docs logged, commit proposed/run per the human's letters), or
+not yet (and why).
 
 ---
 

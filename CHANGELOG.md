@@ -4,6 +4,28 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-20 · feat(tooling): close-code-session stages/commits/pushes once you approve the letter**:
+  removed the `git add`/`git commit`/`git push` tool restriction at the user's explicit request — Part 3
+  now surfaces "stage, commit, and push" as one of its lettered follow-ups and runs it once approved,
+  instead of only ever printing the command for manual hand-off. The shared-checkout mitigation (never
+  `git add -A`/`.`, always name exact files, re-check `git status` right before staging) is unchanged and
+  still applies regardless of who runs the add. Merging, rebasing, resetting, and deleting are still always
+  disallowed. See `D-GH-2026-07-20-close-code-session-run-commit`.
+
+- **2026-07-20 · chore(repo): swept 126 stale remote branches + 6 local worktree remnants**: local
+  cleanup removed 1 merged local branch/worktree (`feat/clone-char-standalone`, its lock stale — the
+  claimed PID wasn't running) and 5 orphaned `.git/worktrees/` admin dirs left over from past
+  `ExitWorktree` runs that never fully cleaned up (these were also the cause of the "Permission
+  denied" noise on every `git fetch` this session and prior sessions — resolved). Remote cleanup
+  classified all 129 `origin/*` branches against their PR history (`main`/`preview` never touched):
+  114 merged via PR, 2 closed without merging, 2 with no PR but fully absorbed into `preview`, and 8
+  with no PR and genuine unique commits — all verified superseded/already-shipped duplicates from
+  concurrent sessions except one (`claude/remote-control-149hqs`, held back pending its stored-XSS
+  fix); confirmed that fix already shipped via an identical parallel-session commit already on `main`
+  (`8660d42`, same message/timestamp as the held branch's `b3f7df3`), then deleted it too. Full
+  methodology and the Windows/Git-Bash CRLF pitfall hit along the way: see
+  `docs/sessions/2026-07-20-remote-branch-worktree-cleanup.md`.
+
 - **2026-07-20 · docs(tooling): close-code-session's session-note step writes without pausing**:
   Part 1 item 3 (`docs/sessions/<date>-<topic>.md`) now says explicitly that once the write
   criteria are evaluated, the file is written (or skipped) immediately in the same turn — no
@@ -24,14 +46,12 @@
 - **2026-07-19 · chore(release): bump BUILD to v0.203**: mirrored across all three tools per
   `docs/VERSION-SYNC.md` (CharGen's line-1 comment, `<title>`, header `.sub` label, and its
   JS-side title-template string; Live Sheet's line-1 comment; DM Console's `TOOL_VERSION`).
-  Cosmetic build-number bump only — `DATA.version` unchanged, parity still 20/0. The `v0.203`
-  git tag + GitHub Release are **not yet created** — both a plain `git tag`+`git push` and a
-  `gh api .../releases` POST were tried from this session and both were rejected (403): the
-  cloud-session GitHub proxy restricts git pushes to the current working branch and separately
-  refuses release create/edit/delete outright regardless of credential, confirmed a deliberate
-  platform restriction, not a scope/config issue (see
-  `docs/sessions/2026-07-19-github-release-tag-cloud-session-restriction.md` for the detail).
-  Flagging for a human to tag/release manually until this is resolved.
+  Cosmetic build-number bump only — `DATA.version` unchanged, parity still 20/0. The earlier
+  cloud-session restriction that blocked a plain `git tag`+`git push` and a `gh api .../releases`
+  POST (see `docs/sessions/2026-07-19-github-release-tag-cloud-session-restriction.md`) was
+  specific to that cloud-session proxy — a local session tagged `v0.203` and pushed it on
+  2026-07-19 without issue, and GitHub auto-generated the matching Release from the tag push.
+  Both now exist: https://github.com/Chompy78/PACT/releases/tag/v0.203.
 
 - **2026-07-19 · fix(feedback) — fixed CSS specificity collision hiding the anon checkbox
   incorrectly**: `js/feedback.js`'s `.pact-fb-anon{display:flex}` rule had the same
