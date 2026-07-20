@@ -29,12 +29,12 @@ write nothing here and say so, with the reason.
 
 **3. `docs/sessions/<date>-<topic>.md`** — write one if **any** of these are true, otherwise skip it and
 say so:
-  - the actual root cause differed from what the task's diagnosis/roadmap entry assumed
+  - the actual root cause differed from what the task's diagnosis/task-board entry assumed
   - you picked between multiple valid approaches in a way a future agent could reasonably second-guess
   - the plan changed mid-session — blocked, pivoted, or scope grew because it had to, not because it was
     a nice-to-have
   - work collided with another session's work (duplicate PR, merge conflict, race)
-  - two or more roadmap items got done together in one sitting
+  - two or more task-board items got done together in one sitting
 
   None of these are about task complexity or tool-call count — a fiddly but uneventful task still skips the
   note; a one-line fix that uncovered a surprise still gets one.

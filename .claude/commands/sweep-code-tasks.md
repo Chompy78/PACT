@@ -1,9 +1,9 @@
 ---
-description: Autonomously work through every low/medium-risk TODO on the roadmap — pick, execute, review, merge, repeat — adding any newly-surfaced tasks to the board along the way
+description: Autonomously work through every low/medium-risk TODO on the task board — pick, execute, review, merge, repeat — adding any newly-surfaced tasks to the board along the way
 argument-hint: [batch size, e.g. 6]
 ---
 
-# PACT — sweep the roadmap's quick, safe work
+# PACT — sweep the task board's quick, safe work
 
 This is the unattended version of `/pick-code-task` → `/run-code-task` → `/code-review` → merge, run in a
 loop over every eligible task instead of one at a time with a human confirming each step. It exists
@@ -82,7 +82,7 @@ early just because one candidate was taken. Report which candidates got skipped 
 **This kind of skip doesn't count toward the circuit breaker in Step 4** — it means the task is
 unavailable, not that anything went wrong.
 
-Use `TaskCreate` to log the surviving queue (one task per roadmap item) so progress is visible and
+Use `TaskCreate` to log the surviving queue (one task per task-board item) so progress is visible and
 survives a context compaction mid-sweep; mark each `in_progress` when you start it. On any
 **terminal** outcome — merged, parked, or dropped — mark it `completed` regardless of which one
 happened, and record the actual outcome and reason in the task's own note/description (e.g. prefix
@@ -122,7 +122,7 @@ For each surviving candidate:
 1. **Invoke `/run-code-task <type/short-slug>`** (single-slug form) via the `Skill` tool. This handles
    the worktree, the edit, the parity/audit gate, the rebase, and opening the PR. If `/run-code-task`
    itself determines mid-work that the task is bigger than it looked (its own Step 5 escape hatch),
-   let it drop the task and leave the roadmap entry alone — record that outcome, count it toward the
+   let it drop the task and leave the task-board entry alone — record that outcome, count it toward the
    circuit breaker, and move on to the next queued task. Don't attempt to force it through yourself.
    **Capturing the PR number `<n>`** (needed by items 2, 4, and 7 below): `/run-code-task`'s own Step 7
    ("push and open the pull request") states the PR it opened, including its number/URL — read that
@@ -185,7 +185,7 @@ For each surviving candidate:
    **If the rebase reports a non-trivial conflict, don't resolve it silently** — same rule
    `/run-code-task`'s own Step 6 already follows (this mirrors that file's rebase-conflict-abort rule
    directly; if that rule ever changes, check this reference too). Abort the rebase
-   (`git rebase --abort`), park this task (leave its roadmap entry alone, don't merge its PR), count
+   (`git rebase --abort`), park this task (leave its task-board entry alone, don't merge its PR), count
    it toward the circuit breaker, note the conflict in the final report for a human to resolve, then
    `ExitWorktree(action: "keep")` — **do not remove it**, so the human resolving the conflict has the
    actual conflicted state to look at instead of having to reconstruct it; name the worktree's path
@@ -201,7 +201,7 @@ For each surviving candidate:
    finding in the sweep's final report as something for a human to look at; still merge the rest of
    the PR if the finding isn't a real correctness bug (a cleanup/altitude finding can wait) — in that
    case `ExitWorktree(action: "remove", discard_changes: true)` as usual once merged. If it is a real
-   bug, park the whole task (leave the roadmap entry alone, don't merge, count toward the circuit
+   bug, park the whole task (leave the task-board entry alone, don't merge, count toward the circuit
    breaker) and `ExitWorktree(action: "keep")` for the same reason as the conflict case above — a
    human needs the actual state, not a torn-down worktree, to pick the redesign up.
 
@@ -240,7 +240,7 @@ deliberate, documented divergence from `/add-code-task`'s normal interactive flo
 don't "fix" it back to asking. Before committing, `git fetch origin preview && git rebase
 origin/preview` first (same care Step 4 item 5 gives feature branches) — if the push is rejected as
 non-fast-forward, re-fetch/rebase and retry once; if it still fails, note in the final report that
-this new task's roadmap entry didn't land, rather than losing it silently.
+this new task's task-board entry didn't land, rather than losing it silently.
 
 If the newly-added task itself clears the same `Risk: low`/`medium` bar, run it through Step 3's
 pre-flight branch-existence check exactly like any other queued candidate before trusting it as

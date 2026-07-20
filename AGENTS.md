@@ -10,7 +10,8 @@ is staging and promotes into `main`).
 ## Active Priorities
 <!-- Lets an agent start from current focus WITHOUT reading docs/TASK_BOARD.md; cached, so ~free after
      turn one. Keep it short, refresh when focus shifts, prune when stale (stale is worse than empty). The
-     roadmap stays the single writer of the full task list — this is a pointer to it, not a second copy. -->
+     docs/TASK_BOARD.md stays the single writer of the full task list — this is a pointer to it, not a
+     second copy. -->
 
 - **Current focus:** the 🔴 NOW section is currently empty — the last NOW item, the full engine
   module-bridge migration across all three tools, graduated to `CHANGELOG.md` on 2026-07-10. See
@@ -225,11 +226,11 @@ Before finishing a task / opening a PR, update what applies (newest on top):
 - **`DECISIONS.md`** — *why*, on any architectural/process choice (Context → Options → Decision → Why → Status).
 - **`docs/sessions/<date>-<topic>.md`** — the discussion, when it's worth keeping.
 - **Graduate:** when a `docs/TASK_BOARD.md` task is DONE, MOVE it into `CHANGELOG.md` in the same change —
-  the roadmap holds only open work.
+  the task board holds only open work.
 
 ## Multiple sessions
 More than one agent may be active. **`docs/TASK_BOARD.md` has a single writer** — don't append to it.
-If you have new roadmap items, output them in **this exact format** for the human to fold in, then carry on:
+If you have new tasks, output them in **this exact format** for the human to fold in, then carry on:
 
 **Carve-out: `/add-code-task` and `/sweep-code-tasks`.** These two skills are the sole exception to the
 single-writer rule above — both commit directly to `docs/TASK_BOARD.md` on `preview`, no human
@@ -262,10 +263,10 @@ exact same slug is reused on the exact same date — e.g. a same-day redo — ap
 One task per branch (the open branch is the "in flight" signal) — except a small, explicitly-approved
 **batch** of low-risk tasks (docs-only, config, single-tool CSS/UI — the same class `/pick-code-task`'s
 "quick" filter identifies), which `/pick-code-task` may offer to bundle into one branch/PR for token
-efficiency. Each bundled task still gets its own commit and its own `CHANGELOG.md`/roadmap-graduation
+efficiency. Each bundled task still gets its own commit and its own `CHANGELOG.md`/task-board-graduation
 line; only the branch/PR/rebase/test-run machinery is shared.
 
-**Worktrees.** `/pick-code-task` + `/run-code-task` are the two-step workflow for a roadmap task: `/pick-code-task`
+**Worktrees.** `/pick-code-task` + `/run-code-task` are the two-step workflow for a task: `/pick-code-task`
 fetches live state and pre-flights a task with no editing; `/run-code-task <type/short-slug>` does the actual
 work, isolated in a native Claude Code worktree (`EnterWorktree`, landing under `.claude/worktrees/`,
 gitignored — see D-GH22). Worktrees branch from `preview`, which is this repo's actual GitHub default
@@ -299,7 +300,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-code-
 5. Update `CHANGELOG.md` (always) · `DECISIONS.md` (if the change involves a non-obvious *why*:
    security model, trust boundary, caching strategy, data-model trade-off — ask "would a future agent
    wonder why this was done this way?") · `docs/sessions/` (if the session covered discussion or
-   spanned multiple areas worth preserving). Graduate the task out of the roadmap if done.
+   spanned multiple areas worth preserving). Graduate the task off the task board if done.
 6. Commit as `type(scope): summary` (Conventional Commits); open a PR and draft its body from the
    changelog entry.
 7. **After a successful PR merge:** re-check step 5's three docs. If any are missing, add them in a

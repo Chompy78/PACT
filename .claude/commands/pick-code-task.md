@@ -1,13 +1,13 @@
 ---
-description: Fetch live roadmap state, pick the next task, and pre-flight it — no editing, no worktree
+description: Fetch live task-board state, pick the next task, and pre-flight it — no editing, no worktree
 argument-hint: [task title or code]
 allowed-tools: Read, Grep, Glob, Agent, AskUserQuestion, Skill, Bash(git fetch *), Bash(git ls-remote *), Bash(git branch --list *)
 disallowed-tools: Edit, Write, NotebookEdit, Bash(git push *), Bash(git commit *), Bash(git worktree add *), Bash(git worktree remove *)
 ---
 
-# PACT — pick the next roadmap task
+# PACT — pick the next task-board task
 
-You help pick the next task from the PACT roadmap and pre-flight it. Other Claude Code sessions might be
+You help pick the next task from the PACT task board and pre-flight it. Other Claude Code sessions might be
 working on this same repo at the same time. This command only reads and reports — it never edits a file
 or creates a worktree itself. Once you're done, Step 4 asks whether to hand off into `/run-code-task` (a
 separate command that does the actual work) right away, via a clickable confirmation.
@@ -28,7 +28,7 @@ git show origin/preview:testing/expected/expected-results.csv
 
 — and to return only compact text, not the raw files: the branch-naming convention, the current expected
 pass count (the number of data rows in `expected-results.csv` — that's the live "N passed / 0 failed"
-target, not a number to hardcode), and every roadmap `— TODO` item in NOW/NEXT/LATER. (No need to fetch a
+target, not a number to hardcode), and every task-board `— TODO` item in NOW/NEXT/LATER. (No need to fetch a
 highest `D-GH#` — decision codes are now `D-GH-<date>-<branch-slug>`, collision-proof without a lookup.)
 
 If `git show` fails (e.g. no internet), fall back to reading the local copies of these files instead —
@@ -56,7 +56,7 @@ and mention that you had to do that.
 **Batch candidates (only when the difficulty-filter branch above was used):** after picking the primary
 task, scan the *rest* of NOW/NEXT/LATER for up to 2 more items that independently pass the same
 "looks small/quick" test, are not blocked, and — best effort, from each item's stated file scope in the
-roadmap text — don't touch any file the primary pick or each other already touch. Skip a candidate that
+task-board text — don't touch any file the primary pick or each other already touch. Skip a candidate that
 overlaps files rather than guessing whether the overlap is safe. Cap the batch at 3 tasks total (the
 primary pick + up to 2 more); more than that stops being a quick session. If no such candidates exist,
 say so plainly — the single-task flow continues as before. This step is skipped entirely for an
@@ -88,7 +88,7 @@ Pick one engine tier per task (primary pick, and every surviving batch candidate
 - **Haiku** — only when Step 2's quick/difficulty filter is what picked this task: docs-only edits, a
   config/manifest tweak, a single-file CSS/copy/UI fix, or an isolated bug fix with an obvious cause.
   These are mechanical enough that Sonnet-level judgment isn't buying anything.
-- **Sonnet** — the floor and default for a full roadmap task reached via the normal Step 2 path (topmost
+- **Sonnet** — the floor and default for a full task-board task reached via the normal Step 2 path (topmost
   🔴 NOW / 🟡 NEXT item, no quick filter): multi-file edits, running `engine-parity.html` to a pass count,
   rebasing against `preview`, opening a PR.
 - **Opus** — escalate from either floor only if the task has real rework risk: a genuine architectural
@@ -97,7 +97,7 @@ Pick one engine tier per task (primary pick, and every surviving batch candidate
   one pass.
 
 Effort is a separate axis: default to **High** for every tier, and only flag **above High** (`xhigh`/`max`)
-for a genuinely ambiguous judgment call, not routine roadmap work.
+for a genuinely ambiguous judgment call, not routine task-board work.
 
 A batch candidate that needs Opus, or needs more than High effort, contradicts its own "quick"
 classification from Step 2 — drop it from the batch instead of escalating it; a batch is only worth its
@@ -131,7 +131,7 @@ Every option — not only the recommended one — gets a one-line reason in its 
      here. Don't touch anything else; tell me I can run `/run-code-task <type/short-slug>` myself whenever I'm
      ready.
   3. **"Choose a different task"** (if this pick isn't actually the one you wanted) — go back to the
-     roadmap items already gathered in Step 1 (NOW, then NEXT, then LATER) and list the remaining TODO
+     task-board items already gathered in Step 1 (NOW, then NEXT, then LATER) and list the remaining TODO
      candidates as plain text (skip the one just pre-flighted). Ask which one to try instead — another
      `AskUserQuestion` if 4 or fewer reasonable candidates remain, otherwise plain text. Once I name one,
      go back to **Step 3** for it (re-run both pre-flight checks — don't assume they still hold), then

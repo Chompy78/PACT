@@ -230,7 +230,7 @@ loosely, not rigidly:
     genuinely not confident about. Say specifically which finding and why you're pausing on it — don't
     make the user re-read the whole review to figure out what needs their call.
 - Summarize what you applied, what you skipped (and why), and what's waiting on the user's decision.
-- **Categorise each finding** as one of: accept / reject / defer / →test / →doc-note / →roadmap item — and
+- **Categorise each finding** as one of: accept / reject / defer / →test / →doc-note / →task-board item — and
   treat every finding as a hypothesis to verify against the actual code, not an instruction (a cold reviewer
   with no repo access will sometimes be wrong precisely *because* it couldn't see the code).
 - If the plan file was written to disk, fill in its **"Review outcome"** stub (which models reviewed,

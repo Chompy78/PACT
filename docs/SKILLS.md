@@ -39,8 +39,8 @@ Most work follows this spine. Skills slot in at each step; not every step needs 
 
 | Step | What happens | Skill |
 |---|---|---|
-| 1. Capture | Park a new idea/bug/change in the roadmap, house format | `/add-code-task` |
-| 2. Pick | Fetch live roadmap, choose the next task, pre-flight it (no edits yet) | `/pick-code-task` |
+| 1. Capture | Park a new idea/bug/change on the task board, house format | `/add-code-task` |
+| 2. Pick | Fetch live task-board state, choose the next task, pre-flight it (no edits yet) | `/pick-code-task` |
 | 3. **Gate** | Decide: work alone, or plan-review first? (see rule below) | — |
 | 3a. (Big/risky only) | Draft a self-contained plan → paste to M365 Copilot → triage critique | `/make-code-cold-plan-review` |
 | 4. Do the work | Worktree, edit, run the parity gate, self-review, log, commit, PR | `/run-code-task` |
@@ -68,7 +68,7 @@ test/criterion would cause rework):
    assumptions, missing risks, overcomplication, unclear "done." (The plan already tells Copilot it has no
    repo access.)
 3. **You paste Copilot's critique back to Claude.** Claude triages each point — accept / reject / defer /
-   →test / →doc-note / →roadmap — treating every finding as a *hypothesis to verify against the real code*,
+   →test / →doc-note / →task-board — treating every finding as a *hypothesis to verify against the real code*,
    not an order. It stops and asks you on anything touching security or where reviewers disagree.
 4. **Then `/run-code-task`** builds the sharpened plan.
 
@@ -85,7 +85,7 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 ## Skill reference
 
 - **`/add-code-task`** — Formats a feature/change/bug into PACT's house task format and adds it to
-  `docs/TASK_BOARD.md`. Use it to capture work without derailing what you're doing. (The roadmap has a
+  `docs/TASK_BOARD.md`. Use it to capture work without derailing what you're doing. (The task board has a
   single writer — `/add-code-task` and `/sweep-code-tasks` are the only two things allowed to commit to it
   directly; everything else outputs the formatted task for you to fold in.) Every task gets an
   **Effort** tag (`low`/`medium`/`high`, informational) and a **Risk** tag — scored from three named
@@ -94,7 +94,7 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
   ambiguity (and so lands at `Risk: high`), even when a specific existing pattern exists to copy —
   don't round that down just because the copy step itself looks mechanical.
 
-- **`/pick-code-task`** — Fetches live roadmap state, picks the next task, and pre-flights it (reads what's
+- **`/pick-code-task`** — Fetches live task-board state, picks the next task, and pre-flights it (reads what's
   needed, flags whether a specialist agent or higher effort would help). **Read-only — no editing, no
   worktree.** This is step 1 of the two-step work pattern.
 
@@ -120,7 +120,7 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 - **`/cleanup-code-branches`** — Scans for merged/orphaned branches and worktrees and deletes only what you
   approve. Housekeeping between tasks.
 
-- **`/sweep-code-tasks`** — The unattended version of steps 2-5: loops over every roadmap task tagged
+- **`/sweep-code-tasks`** — The unattended version of steps 2-5: loops over every task-board task tagged
   `Risk: low` or `Risk: medium` (`Risk: high` is an absolute veto, no exception, regardless of
   Effort — Effort doesn't gate eligibility at all, only ordering/review-tier sizing), running each
   through `/run-code-task` → `/code-review` (tier scaled to Risk, not just file path) → merge with no

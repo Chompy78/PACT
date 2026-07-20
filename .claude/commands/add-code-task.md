@@ -1,5 +1,5 @@
 ---
-description: Format a feature/change into PACT's house task format and add it to the roadmap
+description: Format a feature/change into PACT's house task format and add it to the task board
 argument-hint: <task description>
 allowed-tools: Read, Edit, Bash(git *)
 ---
@@ -24,7 +24,7 @@ Use them as the source of truth for:
 
 - architecture rules
 - current BUILD/version references
-- roadmap bucket names (NOW / NEXT / LATER) and their existing tasks
+- task-board bucket names (NOW / NEXT / LATER) and their existing tasks
 - branch naming conventions
 - Task 6 status
 
@@ -151,7 +151,7 @@ Only after the user approves the task block:
 1. Check out `preview` and pull latest.
 2. Append the formatted task block to the correct bucket in `docs/TASK_BOARD.md`, formatted like the
    surrounding tasks. Do not change anything else.
-3. Commit directly to `preview` as `docs(roadmap): add <title> task` and push.
+3. Commit directly to `preview` as `docs(task-board): add <title> task` and push.
    No branch, no PR — this is a docs-only text change.
 
 ---

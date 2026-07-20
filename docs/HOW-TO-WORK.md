@@ -121,7 +121,7 @@ ever do it by hand:
 3. **Review the diff** the agent proposes; accept or push back (`/code-review` for an adversarial pass).
 4. **Verify:** run the gate (browser page, or the headless Node check above) → expect **20 passed / 0 failed**.
 5. **Log it:** confirm `CHANGELOG.md` is updated (+ `DECISIONS.md` / a `docs/sessions/` note if it applies);
-   graduate the task out of the roadmap into the changelog if it's done.
+   graduate the task off the task board into the changelog if it's done.
 6. **Commit** as `type(scope): summary`, open a PR, merge → GitHub Pages redeploys.
 
 ## Pre-release manual QA checklist
@@ -166,7 +166,7 @@ A change can be well-written, pass parity, and still be *wrong* if the number it
 rules text — code review alone won't catch that; only a check against the source document will.
 
 ## AI working defaults
-- Default to Sonnet at standard effort for spec-driven execution (a roadmap task with a clear "Done when").
+- Default to Sonnet at standard effort for spec-driven execution (a task-board task with a clear "Done when").
   Reach for Opus / higher effort only when the task is genuinely ambiguous or architectural — a design
   trade-off with no single obviously-correct answer, not just "this file is long."
 - One task per fresh session/branch (see the Conventions in `docs/TASK_BOARD.md`) — don't let a session

@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-19 · docs(terminology): replaced "roadmap" with "task board" everywhere it referred to
+  `docs/TASK_BOARD.md`**: `AGENTS.md`, `docs/SKILLS.md`, `docs/HOW-TO-WORK.md`, and all 6
+  `.claude/commands/*.md` skill files (9 files, ~38 occurrences) — including `/add-code-task`'s own
+  future-commit template (`docs(roadmap): ...` → `docs(task-board): ...`), so new task-board-addition
+  commits use the new scope going forward. `CHANGELOG.md`/`DECISIONS.md`/`docs/sessions/*.md` left
+  untouched, same as the earlier `-code-` command rename — dated historical record, not rewritten.
+  "Roadmap" was never a stale filename reference (the file has always been `docs/TASK_BOARD.md`), just
+  informal vocabulary for the same thing; the two terms coexisting caused real confusion, so picked one.
+  Docs/skill-file text only — no code or rules touched, parity unaffected (still 20/0).
+
 - **2026-07-19 · chore(release): bump BUILD to v0.203**: mirrored across all three tools per
   `docs/VERSION-SYNC.md` (CharGen's line-1 comment, `<title>`, header `.sub` label, and its
   JS-side title-template string; Live Sheet's line-1 comment; DM Console's `TOOL_VERSION`).
