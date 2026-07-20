@@ -4,6 +4,13 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-20 · docs(tooling): close-code-session's session-note step writes without pausing**:
+  Part 1 item 3 (`docs/sessions/<date>-<topic>.md`) now says explicitly that once the write
+  criteria are evaluated, the file is written (or skipped) immediately in the same turn — no
+  presenting the evaluation as a question and waiting for a reply first. Closes the gap flagged
+  in the `TASK_BOARD.md` entry this graduates; the user had been missing session-note writes
+  because a prior run paused for confirmation that the skill never actually required.
+
 - **2026-07-19 · chore(release): bump BUILD to v0.203**: mirrored across all three tools per
   `docs/VERSION-SYNC.md` (CharGen's line-1 comment, `<title>`, header `.sub` label, and its
   JS-side title-template string; Live Sheet's line-1 comment; DM Console's `TOOL_VERSION`).

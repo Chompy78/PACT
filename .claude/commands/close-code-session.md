@@ -28,7 +28,10 @@ using a `D-GH-<YYYY-MM-DD>-<branch-slug>` ID (per `AGENTS.md`'s numbering rule).
 write nothing here and say so, with the reason.
 
 **3. `docs/sessions/<date>-<topic>.md`** — write one if **any** of these are true, otherwise skip it and
-say so:
+say so. Once you've evaluated the criteria, act on that conclusion immediately — write the file (or skip
+it) in the same turn. Don't phrase the evaluation as a question and pause for a reply first; presenting
+"here's my reasoning on whether this qualifies" as if it needs a go-ahead is the failure mode this line
+rules out — items 1–2 already write directly, and this step is no different:
   - the actual root cause differed from what the task's diagnosis/roadmap entry assumed
   - you picked between multiple valid approaches in a way a future agent could reasonably second-guess
   - the plan changed mid-session — blocked, pivoted, or scope grew because it had to, not because it was
