@@ -212,10 +212,6 @@ rate Effort/Risk meaningfully until one is actually picked up and scoped):
   same class as the feedback-widget's anon-write table decision, D-GH-2026-07-15-feedback-widget);
   damage likelihood is medium (the per-change checklist's Supabase-advisor check is a real gate, but a
   manual one, not CI-enforced) — worst-of driven by damage scale.
-- **A6 — Tag releases to the build version.** `git tag v0.x` (matching `BUILD`) + a GitHub Release per
-  ship, for a labelled rollback point. *Then (lighter alternative):* tags only, no notes — *caveat:* less
-  context on what each release shipped. *(base shipped 2026-07-17 — v0.107 tagged with a GitHub Release;
-  not yet marked done/graduated here — flag for a human to confirm and move to CHANGELOG.md.)*
 - **A7 — Lighthouse 85 → 90.** *(base shipped 2026-07-16)* Lighthouse CI now runs on every PR
   touching `index.html`/assets (D-GH-2026-07-16-lighthouse-ci), gated on a measured baseline
   (perf 100, a11y 98-100, best-practices 96, seo 100), so regressions auto-catch going forward.
