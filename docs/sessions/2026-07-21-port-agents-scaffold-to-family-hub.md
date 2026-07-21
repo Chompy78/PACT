@@ -1,4 +1,4 @@
-# 2026-07-20 — port the AGENTS.md/skills scaffold to a third repo, family-hub
+# 2026-07-21 — port the AGENTS.md/skills scaffold to a third repo, family-hub
 
 ## What happened
 
@@ -59,6 +59,6 @@ of a port, grep the target repo for references to it before calling the port don
 ## Status
 
 family-hub's own scaffold is live in that repo's working tree, not yet committed there — the user
-reviews before it lands (see family-hub's own `docs/sessions/2026-07-20-agent-scaffold-port.md` for the
+reviews before it lands (see family-hub's own `docs/sessions/2026-07-21-agent-scaffold-port.md` for the
 target-side detail). Nothing in PACT itself changed as a result of this session; this note exists purely
 as PACT-side institutional memory of the cross-repo work.

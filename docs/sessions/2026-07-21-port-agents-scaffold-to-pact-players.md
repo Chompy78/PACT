@@ -21,15 +21,21 @@ before committing rather than trusting the session's own working-tree state — 
 surfacing via a different mechanism (file authorship collision, not `git add` sweeping in unrelated
 changes).
 
-## A self-caught date-labeling mistake, not yet fully corrected
+## A self-caught date-labeling mistake — corrected in a follow-up
 
 Separately, this session mislabeled every date across `family-hub`, `wildlife-explorer`, this repo's
 first draft, and both of PACT's own prior port session notes as **2026-07-20**, when the actual date was
-**2026-07-21**. Caught and fixed in `PACT_Players` (nothing was committed yet, so cheap). `family-hub`
-and `wildlife-explorer` were already pushed with the wrong date baked into filenames and decision IDs —
-flagged to the user with two options (leave as cosmetic, or add correction notes) and **not yet
-resolved** as of this note; check `family-hub`'s and `wildlife-explorer`'s own `DECISIONS.md`/session
-notes for whether a follow-up landed.
+**2026-07-21**. Caught and fixed in `PACT_Players` immediately (nothing was committed yet, so cheap).
+`family-hub` and `wildlife-explorer` were already pushed with the wrong date baked into filenames and
+decision IDs — flagged to the user with two options (leave as cosmetic, or add correction commits); the
+user chose correction. Fixed as new commits (not history rewrites) in both repos plus this repo's own
+two session notes — see `family-hub`'s `62d0a1d`, `wildlife-explorer`'s `d2fb9b9`. One real near-miss
+during the fix itself: an overly broad `sed` pattern briefly renamed a *different, concurrent* session's
+decision ID in `wildlife-explorer` (`D-2026-07-20-branch-model-confirmed`, from an unrelated status-
+review session) — caught by re-grepping immediately after and reverted before committing. Worth a
+generalizable lesson: word-boundary regex isn't enough to isolate "my own" IDs from someone else's
+similarly-prefixed ones in a shared file — check for accidental collateral matches after any bulk
+find-replace, especially one touching content you didn't author.
 
 ## What got built (light port, then corrected mid-session)
 
@@ -51,7 +57,7 @@ notes for whether a follow-up landed.
 
 Two generalizable lessons, both candidates for `ai-lessons-learned` (not yet drafted/pushed as of this
 note): first, a "which shape is this port" question needs a prior question — "is this even the kind of
-project this scaffold was built for" — which this repo's `docs/sessions/2026-07-20-port-agents-scaffold-
+project this scaffold was built for" — which this repo's `docs/sessions/2026-07-21-port-agents-scaffold-
 to-family-hub.md` note didn't yet have language for, since it's the first of five ports that needed
 "skip most of it" as the answer. Second, and more general than scaffold-porting specifically: a shared
 checkout can hold another session's *newly-authored* file, not just in-flight edits to an existing one —

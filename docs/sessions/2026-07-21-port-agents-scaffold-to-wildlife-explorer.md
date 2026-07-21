@@ -1,8 +1,8 @@
-# 2026-07-20 — port the AGENTS.md/skills scaffold to a fourth repo, wildlife-explorer
+# 2026-07-21 — port the AGENTS.md/skills scaffold to a fourth repo, wildlife-explorer
 
 ## What happened
 
-Same session as `docs/sessions/2026-07-20-port-agents-scaffold-to-family-hub.md`, immediately after
+Same session as `docs/sessions/2026-07-21-port-agents-scaffold-to-family-hub.md`, immediately after
 that port: the user asked to do "the same" for `chompy78/wildlife-explorer`, a child-friendly React/
 TypeScript wildlife-exploration game, currently at Milestone 5. Done via direct local access to the
 target repo's clone (`C:/Users/user/dev/wildlife-explorer`).
@@ -31,7 +31,7 @@ Rather than creating a competing `AGENTS.md` as the primary entry point (family-
 there because no equivalent file existed), `AI.md` was left completely untouched and `AGENTS.md` was
 scoped narrowly — its own first line tells the reader to read `AI.md` first, and it only adds the
 process layer (task format, decision logging, communication conventions) `AI.md` doesn't cover. Full
-reasoning logged in wildlife-explorer's own `DECISIONS.md` (`D-2026-07-20-scaffold-port`), not
+reasoning logged in wildlife-explorer's own `DECISIONS.md` (`D-2026-07-21-scaffold-port`), not
 duplicated here. Also logged there: the branch-model decision (commit straight to `main`, same as
 family-hub) explicitly notes this repo is *closer* to being ready to reverse it than family-hub is,
 since `npm run check` already exists — wiring it into CI would be a small lift, not a redesign.

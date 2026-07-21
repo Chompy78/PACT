@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-21 · docs(sessions): corrected the 2026-07-20/2026-07-21 date-labeling mistake** — fixed
+  everywhere across `family-hub`, `wildlife-explorer`, and PACT's own two session notes about them:
+  decision IDs, `CHANGELOG.md` entry dates, and session-note filenames. Left every reference to the
+  *other*, genuinely-pre-existing `2026-07-20` dates untouched in both target repos (family-hub's
+  original Copilot planning session, wildlife-explorer's Milestone-5 planning log) — those are real,
+  not mislabeled. Also left the two decision IDs a separate, concurrent status-review session added to
+  wildlife-explorer (`D-2026-07-20-web-session-branch-override`, `D-2026-07-20-branch-model-confirmed`)
+  untouched — no basis to assume those are wrong too. Done as new commits in each repo, not history
+  rewrites, since `family-hub`'s and `wildlife-explorer`'s originals were already pushed.
+
 - **2026-07-21 · docs(sessions): light-ported the memory-layer scaffold to a fifth repo,
   PACT_Players**: a Quartz-based campaign-content site, not a software project — full scaffold skipped
   (no `AGENTS.md`, no Effort/Risk task board), only `CHANGELOG.md`/`DECISIONS.md`/`sessions/` (repo-root,
@@ -13,7 +23,7 @@
   prior two ports were mislabeled `2026-07-20` when the actual date was `2026-07-21`. See
   `docs/sessions/2026-07-21-port-agents-scaffold-to-pact-players.md`.
 
-- **2026-07-20 · docs(sessions): ported the AGENTS.md/skills scaffold to a fourth repo,
+- **2026-07-21 · docs(sessions): ported the AGENTS.md/skills scaffold to a fourth repo,
   wildlife-explorer**: additive, not build-fresh — unlike family-hub (ported moments earlier the same
   session), this repo already had a real governance file (`AI.md`) and a genuinely working
   `npm run check` test/build/encoding-audit gate, so `AGENTS.md` was scoped as a thin process-layer
@@ -21,15 +31,15 @@
   "three independent axes" shape space (governance layer / product docs / real verification gate, each
   present or absent independently) rather than a simple blank-vs-mature spectrum. Nothing in PACT itself
   changed beyond this session note; see
-  `docs/sessions/2026-07-20-port-agents-scaffold-to-wildlife-explorer.md` for the full detail
+  `docs/sessions/2026-07-21-port-agents-scaffold-to-wildlife-explorer.md` for the full detail
   (target-repo decisions logged in wildlife-explorer's own `DECISIONS.md`).
 
-- **2026-07-20 · docs(sessions): ported the AGENTS.md/skills scaffold to a third repo, family-hub**:
+- **2026-07-21 · docs(sessions): ported the AGENTS.md/skills scaffold to a third repo, family-hub**:
   same manual copy-and-adapt pattern as the `petdetective`/`homelife` ports, done directly against the
   local clone at `C:/Users/user/dev/family-hub`. A genuinely third target-repo shape — not blank-slate,
   not mature-with-conflicting-conventions, but rich product-planning docs with zero AI-workflow
   governance layer. Nothing in PACT itself changed beyond this session note; see
-  `docs/sessions/2026-07-20-port-agents-scaffold-to-family-hub.md` for the full detail (target-repo
+  `docs/sessions/2026-07-21-port-agents-scaffold-to-family-hub.md` for the full detail (target-repo
   decisions logged in family-hub's own `DECISIONS.md`, not duplicated here).
 
 - **2026-07-20 · feat(tooling): close-code-session stages/commits/pushes once you approve the letter**:
