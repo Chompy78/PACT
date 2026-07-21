@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-21 · docs(sessions): light-ported the memory-layer scaffold to a fifth repo,
+  PACT_Players**: a Quartz-based campaign-content site, not a software project — full scaffold skipped
+  (no `AGENTS.md`, no Effort/Risk task board), only `CHANGELOG.md`/`DECISIONS.md`/`sessions/` (repo-root,
+  not `docs/sessions/` — that's Quartz's own vendored docs) plus 4 of 8 skills. Mid-port, discovered a
+  concurrent session had already authored a real `TASKS.md`; adopted it rather than overwriting with a
+  placeholder. Also caught (not yet fully corrected) a session-wide date-labeling mistake — this and the
+  prior two ports were mislabeled `2026-07-20` when the actual date was `2026-07-21`. See
+  `docs/sessions/2026-07-21-port-agents-scaffold-to-pact-players.md`.
+
 - **2026-07-20 · docs(sessions): ported the AGENTS.md/skills scaffold to a fourth repo,
   wildlife-explorer**: additive, not build-fresh — unlike family-hub (ported moments earlier the same
   session), this repo already had a real governance file (`AI.md`) and a genuinely working
