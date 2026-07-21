@@ -114,8 +114,8 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 
 - **`/close-code-session`** — Wrap-up that **writes** the session's `CHANGELOG`/`DECISIONS`/session-note,
   graduates finished tasks out of `TASK_BOARD.md`, verifies tests/tree/worktrees/sync, then **proposes a
-  ready-to-run commit** for you to review. It never stages, commits, pushes, merges, or deletes — every
-  side-effect past the doc-writes waits for your explicit go.
+  commit** and stages/commits/pushes it once you name that letter — no separate manual hand-off needed.
+  Merging, rebasing, resetting, and deleting still always wait for your explicit go.
 
 - **`/cleanup-code-branches`** — Scans for merged/orphaned branches and worktrees and deletes only what you
   approve. Housekeeping between tasks.

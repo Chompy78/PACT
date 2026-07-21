@@ -1,13 +1,16 @@
-# Session: pick-task collision, a wrong backlog assumption caught, and a terminology sweep
+# Session: pick-task collision, a wrong backlog assumption caught, a terminology sweep, and a real promotion conflict
 
-**Date:** 2026-07-19 · **Task-board additions:** `feat/warn-missing-data-refs` (new TODO, not yet built)
+**Date:** 2026-07-19 · **Task-board additions:** `feat/warn-missing-data-refs` (new TODO, not yet built) ·
+**PR:** #274 (merged into `main`, with manual conflict resolution — see item 6 below)
 
 Why this note exists: a routine `/pick-code-task` on two named tasks hit two different snags in the
 same turn — one task turned out already merged by another session, the other wasn't a formal task at
 all — and formalizing the second one via `/add-code-task` surfaced that the task's own originating
 assumption (what to rename `MUT.patch` to) was factually wrong once actually traced through the code.
-Worth preserving so a future session doesn't re-trust that same wrong assumption, and so the collision
-pattern (another session finishing a task mid-pick) is on record.
+The same root collision (another session's PR #273) resurfaced later the same session as a real,
+unresolvable-by-GitHub merge conflict during a `preview`→`main` promotion. Worth preserving so a future
+session doesn't re-trust that same wrong assumption, recognizes this collision pattern, and has a
+worked example of resolving a genuine cross-session conflict on `main` rather than punting on it.
 
 ## What happened, in order
 
@@ -61,9 +64,35 @@ pattern (another session finishing a task mid-pick) is on record.
    `docs(roadmap): ...`. Left `CHANGELOG.md`/`DECISIONS.md`/`docs/sessions/*.md` untouched, matching the
    precedent already set by the earlier `-code-` command rename (dated historical record, not rewritten).
 
+6. **The same PR #273 collision resurfaced as a real merge conflict during promotion.** Asked to promote
+   `preview`→`main`, opened PR #274 and attempted the standard merge — GitHub rejected it (`405 Pull
+   Request has merge conflicts`). Root cause: PR #273 had merged straight to `main` (bypassing `preview`,
+   per that session's own explicit request), so `main` held a commit `preview` never received, while
+   `preview` held 4 commits of its own `main` lacked — genuine divergence, not a transient error.
+
+   Used `git merge-tree` to simulate the merge *before* touching anything, rather than guessing: only
+   **one** of the three flagged files (`.claude/commands/close-code-session.md`) had a real,
+   unresolvable-by-3-way-merge conflict — both sessions had edited the same lines (one adding "don't
+   pause for a reply" wording, this session's terminology sweep correcting "roadmap"→"task board"
+   nearby). `CHANGELOG.md` and `docs/TASK_BOARD.md` were flagged too but auto-merged cleanly with no
+   actual markers — worth knowing that `git merge-tree`'s "changed in both" label doesn't by itself mean
+   unresolvable; check for actual `<<<<<<<` markers before assuming every flagged file needs manual work.
+
+   Resolved by merging `main` into local `preview` (the standard fix for a conflicting PR — resolve on
+   the source branch, then the PR merges cleanly), combining both legitimate edits in the one real
+   conflict rather than picking a side, and catching a second, subtler issue the auto-merge introduced
+   on its own: `CHANGELOG.md`'s two new entries landed in the wrong order (a 2026-07-19 entry above a
+   2026-07-20 one, violating the file's own "newest first" rule) — git's merge doesn't understand date
+   semantics, only text proximity, so a clean auto-merge still needs a human/agent read-through before
+   trusting it. Re-ran `engine-parity` (20/0) before completing the merge commit, pushed, confirmed
+   `main` was now a true ancestor of `preview`, then merged PR #274 with a real 2-parent merge commit
+   (matching the repo's existing `chore(release): promote preview → main` convention, not squash — squash
+   would have broken the ancestry property other tooling, e.g. `run-code-task.md`'s worktree-base check,
+   already relies on).
+
 ## Why this is worth remembering
 
-Two lessons for future sessions specifically:
+Three lessons for future sessions specifically:
 - **A backlog note's own suggested fix can be based on a wrong assumption about scope** — this is exactly
   what `/add-code-task`'s "read live context first" step exists to catch, and it worked here. Don't
   skip straight to formatting a task from its one-line description; trace the real code first when the
@@ -71,8 +100,13 @@ Two lessons for future sessions specifically:
 - **Another session can finish a task in the gap between when you last checked the board and when you
   act on it.** The live-fetch-before-picking discipline `/pick-code-task` already follows caught this
   cleanly (PR #273 merging elsewhere) rather than this session duplicating already-done work.
+- **A "merge conflicts" error from GitHub's PR API is a real signal to investigate, not retry blindly** —
+  `git merge-tree` against the merge-base let this session see the *exact* scope of the problem (one
+  file, one hunk) before touching anything, and a clean auto-merge still needs a sanity read (the
+  CHANGELOG ordering slip) rather than trusting "no conflict markers" as proof of correctness.
 
 ## Status
 
 `chore/mut-patch-restrict` and `feat/warn-missing-data-refs` both sit on `docs/TASK_BOARD.md` as open
-`— TODO` items, not yet built. The terminology sweep is fully shipped (commit `6dcb477`).
+`— TODO` items, not yet built. The terminology sweep and the promotion are both fully shipped — `main`
+and `preview` are in sync as of commit `9a8ff07` on `main`.
