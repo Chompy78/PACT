@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · fix(dm-console): "Award" button silently clipped off-screen on narrow viewports** —
+  reported as "no button to push AP to players." Reproduced: the Campaign Roster's Award AP cell needs
+  ~250px for its amount/note/button row, but `#campRoster table{width:100%}` forces the table to fit
+  its container regardless, and `#campRoster{overflow:hidden}` (there for the rounded corners) silently
+  clips whatever doesn't fit instead of wrapping or scrolling — confirmed via a real headless-browser
+  render at 320-414px widths that the Award button's bounding box extended well past the visible
+  container, while the amount input (visible) stayed in view, matching exactly what was reported. Fixed
+  by wrapping the table in its own `.roster-scroll` (`overflow-x:auto`, table `min-width:560px`) so
+  narrow viewports scroll horizontally to reach Award/History instead of losing them — verified the
+  scroll region activates, the button becomes reachable and clickable after scrolling, and desktop
+  widths are unaffected (button was already fully visible there). Display-only; no `DATA.version` bump.
+
 - **2026-07-25 · fix: favicon on every remaining HTML page** — follow-up to the index/DM-Console
   favicon fix. Swept every `.html` file in the repo (`find . -iname "*.html"`, excluding
   `docs/history/` archives) and added the same `assets/icons/PACT_favicon.png` `<link rel="icon">` to
