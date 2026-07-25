@@ -4,6 +4,25 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · fix(dm-console): campaign-panel polish — layout order, code tooltips, oversized fields**
+  — Three follow-ups from live feedback on the campaign create/archive feature. (1) "New campaign" and
+  "Archived campaigns" moved from the top of the Campaign panel (shown before any selected-campaign detail,
+  confusing on every load) to the bottom, in that order — selected-campaign details now show first. (2)
+  Added a small ⓘ button next to the Players/DMs invite codes (hover *or* click, matching existing
+  `title`-attribute hint patterns like `.warnicon`/`.tamper` elsewhere in this file) explaining what each
+  reusable code does — while wiring this up, confirmed `joinAsDm()` (the co-DM redemption RPC) has no
+  consuming UI in *any* tool, same class of dead-code gap `createCampaign()` had before this session; not
+  fixed here, flagged to the user as a possible follow-up task. (3) `body` never set an explicit
+  `font-size`, so every `.field` input and non-`.sm` `.btn` (which both use `font:inherit`) fell back to
+  the browser default (~16px) against the rest of the UI's deliberate 11–14px scale — reported as
+  "Starting DM AP"/"Starting Budget AP" (invite-form placeholders) looking oversized, but affected every
+  `.field`/plain `.btn` in the tool. Fixed at the root with one `body{font-size:14px}` rather than
+  patching each selector. All three verified in a real browser — including, for the first time this
+  session, with the `campaign-ready`-gated JS (create/archive/info-button click handlers) actually
+  exercised via a stubbed `supabase-client.js` import (this sandbox has no network path to esm.sh, so
+  earlier same-session screenshots only verified CSS/layout, not click wiring — noted for the record).
+  Display-only; no `DATA.version` bump.
+
 - **2026-07-25 · feat(dm-console): add theme selector (Default/Dark/D&D·Parchment/Royal/Forest)** — DM
   Console had zero UI to change theme (only ever picked up dark mode from OS `prefers-color-scheme`,
   no way to override it, and none of Live Sheet/CharGen's other 3 themes existed there at all). Added a

@@ -66,7 +66,7 @@
   html,body{margin:0;padding:0}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    background:var(--paper); color:var(--ink); line-height:1.45; -webkit-text-size-adjust:100%;
+    font-size:14px; background:var(--paper); color:var(--ink); line-height:1.45; -webkit-text-size-adjust:100%;
   }
   a{color:var(--blue)}
 
@@ -377,6 +377,10 @@
   .codechip{display:flex;gap:6px;align-items:center;margin-bottom:5px}
   .codechip .lbl{font-size:11px;color:var(--muted);min-width:56px;flex-shrink:0}
   .codechip .field.ro{flex:1;font-size:11px;padding:0 7px;min-height:30px}
+  .infobtn{appearance:none;border:1px solid var(--line);background:transparent;color:var(--muted);
+    border-radius:50%;width:22px;height:22px;min-height:0;padding:0;font-size:12px;line-height:1;
+    cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+  .infobtn:hover{color:var(--ink);border-color:var(--muted)}
   .ruleblock{margin-bottom:6px}
   .ruleblock>.lbl{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:3px}
   .rulegrid{display:flex;flex-wrap:wrap;gap:4px 10px}
@@ -493,25 +497,18 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       </div>
       <div id="campControls" style="display:none">
         <select id="campSel"><option value="">— select campaign —</option></select>
-        <div id="campNewRow" style="display:flex;gap:6px;margin-bottom:8px">
-          <input class="field" type="text" id="campNewName" placeholder="New campaign name" maxlength="80">
-          <button type="button" class="btn sm" id="campNewBtn">+ Create</button>
-        </div>
-        <div id="campNewStatus" style="font-size:11px;color:var(--muted);margin:-4px 0 8px"></div>
-        <details id="campArchivedDetails" style="margin-bottom:8px">
-          <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Archived campaigns</summary>
-          <div id="campArchivedList" style="margin-top:8px"></div>
-        </details>
         <div id="campCodes" style="display:none">
           <div class="codechip">
             <span class="lbl">Players:</span>
             <input class="field ro" id="campPlayerCode" readonly>
             <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
+            <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. Anyone who enters this code (CharGen's “Join campaign”) gets a new character bound to this campaign, with no preset AP/budget.">ⓘ</button>
           </div>
           <div class="codechip">
             <span class="lbl">DMs:</span>
             <input class="field ro" id="campDmCode" readonly>
             <button type="button" class="btn sm ghost" id="copyDmCode">Copy</button>
+            <button type="button" class="infobtn" id="campDmCodeInfo" title="Reusable — share with a trusted co-DM. Redeeming it lets them manage this campaign alongside you (rules, rosters, AP awards).">ⓘ</button>
           </div>
           <div class="ruleblock" id="campArchiveBlock" style="display:none;margin-top:8px">
             <button type="button" class="btn sm danger" id="campArchiveBtn">Archive campaign</button>
@@ -616,6 +613,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             </div>
           </details>
         </div>
+        <div id="campNewRow" style="display:flex;gap:6px;margin-top:10px">
+          <input class="field" type="text" id="campNewName" placeholder="New campaign name" maxlength="80">
+          <button type="button" class="btn sm" id="campNewBtn">+ Create</button>
+        </div>
+        <div id="campNewStatus" style="font-size:11px;color:var(--muted);margin:4px 0 0"></div>
+        <details id="campArchivedDetails" style="margin-top:10px">
+          <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Archived campaigns</summary>
+          <div id="campArchivedList" style="margin-top:8px"></div>
+        </details>
       </div>
     </div>
   </div>
@@ -1702,6 +1708,8 @@ document.addEventListener('campaign-ready', function () {
   document.getElementById('copyDmCode').addEventListener('click', function(){
     navigator.clipboard.writeText(document.getElementById('campDmCode').value);
   });
+  document.getElementById('campPlayerCodeInfo').addEventListener('click', function(){ alert(this.title); });
+  document.getElementById('campDmCodeInfo').addEventListener('click', function(){ alert(this.title); });
   ignoreChk.addEventListener('change', async function(){
     if(!currentCampId) return;
     await B.setIgnorePlayerAp(currentCampId, ignoreChk.checked);
