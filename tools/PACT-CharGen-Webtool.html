@@ -675,6 +675,15 @@ document.addEventListener('sync-ready', function () {
     if (!listEl) return;   // menu closed while the list was loading
     if (!mine.length) { listEl.innerHTML = '<div style="padding:6px 10px;font-size:12px;color:var(--grey)">No saved characters yet.</div>'; return; }
     listEl.innerHTML = mine.map(function (c) {
+      // hasData:false = this row exists (e.g. a redeemed player invite never opened yet) but was
+      // never actually saved, so there's nothing to load — show it as an inert row instead of a
+      // button that would resolve to "No character data found" after the fact.
+      if (!c.hasData) {
+        return '<div class="mi" style="display:flex;align-items:center;color:var(--grey);cursor:default;opacity:.65" ' +
+          'title="Never saved from CharGen or Live Sheet — there is nothing to load yet.">' +
+          '<span style="flex:1">' + _apEsc(c.name || 'Unnamed') + '</span>' +
+          '<span style="font-size:10px;margin-left:6px;flex-shrink:0">empty</span></div>';
+      }
       return '<button type="button" class="mi cg-cloud-load-btn" data-cid="' + _apEsc(c.id) + '" data-cname="' + _apEsc(c.name || 'Unnamed') + '">' + _apEsc(c.name || 'Unnamed') +
         ' <span style="color:var(--grey);font-weight:400">— ' + _apEsc((c.updated_at || '').slice(0, 10)) + '</span></button>';
     }).join('');

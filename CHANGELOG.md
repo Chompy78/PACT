@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · fix(sync, live-sheet, chargen): "No character data found" on cloud-load** — reported as
+  every entry in Live Sheet's "Load saved character" list failing with this error. Root-caused against
+  the **live database** (not just code): all 4 affected rows had `stats` = `{}` or `{"note":"hello"}` —
+  pre-launch test/stub data with no `LOG` array, not corrupted real saves. Deleted the 4 stub rows
+  (`piuprrrnaotrtxucrtsb`, table `characters`). Separately hardened both tools against this class of row
+  recurring (e.g. a redeemed player invite a player never opened): `js/sync.js`'s `listCharacters()` now
+  selects `stats->LOG` and returns a `hasData` flag per character; both CharGen's and Live Sheet's
+  cloud-load menus render a `hasData:false` row as an inert, greyed "empty" entry (shown, not hidden — a
+  player should still be able to see it exists) instead of a clickable button that resolves to the
+  generic error after the user already committed to loading it. Verified end-to-end in a real browser
+  (both tools) with a mocked signed-in session carrying one real and one stub character: the stub renders
+  as a non-interactive `<div>` with no click handler attached, the real one still loads correctly.
+  Display-only; no `DATA.version` bump.
+
 - **2026-07-25 · fix(dm-console): "Award" button silently clipped off-screen on narrow viewports** —
   reported as "no button to push AP to players." Reproduced: the Campaign Roster's Award AP cell needs
   ~250px for its amount/note/button row, but `#campRoster table{width:100%}` forces the table to fit

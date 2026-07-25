@@ -1669,6 +1669,17 @@ document.addEventListener('sync-ready', function () {
       function buildCharRow(c){
         var nm = esc(c.name||'Unnamed');
         var ts = (c.updated_at||'').slice(0,10);
+        // hasData:false means this row exists (e.g. a redeemed player invite never opened yet, or a
+        // stray manual insert) but was never actually saved from CharGen/Live Sheet — nothing to load
+        // or clone. Show it, not hide it (a player should still be able to see/account for it), but
+        // as an inert row instead of a button that would resolve to a confusing error after the fact.
+        if(!c.hasData){
+          return '<div class="mi" style="display:flex;align-items:center;color:var(--grey);cursor:default;opacity:.65" '+
+            'title="Never saved from Live Sheet or CharGen — there is nothing to load yet.">'+
+            '<span style="flex:1">'+nm+'</span>'+
+            '<span style="font-size:10px;margin-left:6px;flex-shrink:0">empty</span>'+
+            '</div>';
+        }
         var row = '<button class="mi cloud-load-btn" data-cid="'+esc(c.id)+'">'+
           '<span style="flex:1">'+nm+'</span>'+
           '<span style="font-size:10px;color:var(--grey);margin-left:6px;flex-shrink:0">'+ts+'</span>'+

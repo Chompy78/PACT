@@ -174,20 +174,27 @@ async function reconcile(id) {
 }
 
 /** List characters. Online: server list merged with not-yet-pushed local ones.
- *  Offline: whatever is in localStorage. */
+ *  Offline: whatever is in localStorage. Each entry carries `hasData` — false for a
+ *  character row that exists (e.g. a redeemed player invite, or a stray manual insert)
+ *  but was never actually saved from CharGen/Live Sheet, so it has no `stats.LOG` to
+ *  load — callers should show these as non-loadable rather than let a click resolve to
+ *  the generic "No character data found" error after the fact. */
 export async function listCharacters() {
   const tombstoned = new Set(lsDeletes());
   if (navigator.onLine && await currentUser()) {
     const { data, error } = await supabase
       .from('characters')
-      .select('id, name, kind, ap, campaign_id, updated_at')
+      .select('id, name, kind, ap, campaign_id, updated_at, log:stats->LOG')
       .order('updated_at', { ascending: false });
     if (error) throw error;
-    const serverIds = new Set(data.map(c => c.id));
-    const localOnly = lsIndex().map(lsGet).filter(r => r && !serverIds.has(r.id));
-    return [...data, ...localOnly].filter(c => !tombstoned.has(c.id));
+    const withFlag = data.map(({ log, ...c }) => ({ ...c, hasData: Array.isArray(log) }));
+    const serverIds = new Set(withFlag.map(c => c.id));
+    const localOnly = lsIndex().map(lsGet).filter(r => r && !serverIds.has(r.id))
+      .map(r => ({ ...r, hasData: Array.isArray(r.stats && r.stats.LOG) }));
+    return [...withFlag, ...localOnly].filter(c => !tombstoned.has(c.id));
   }
-  return lsIndex().map(lsGet).filter(Boolean).filter(c => !tombstoned.has(c.id));
+  return lsIndex().map(lsGet).filter(Boolean).filter(c => !tombstoned.has(c.id))
+    .map(r => ({ ...r, hasData: Array.isArray(r.stats && r.stats.LOG) }));
 }
 
 /** Delete a character: local is removed immediately and tombstoned so a later
