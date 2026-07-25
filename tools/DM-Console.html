@@ -58,10 +58,10 @@
 
   .toolrow{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; align-items:stretch}
   .panel{
-    background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.22);
-    border-radius:12px; padding:10px 12px; backdrop-filter:blur(2px);
+    background:var(--card); border:1px solid var(--line);
+    border-radius:12px; padding:10px 12px; box-shadow:var(--shadow);
   }
-  .panel .ptitle{font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--light); margin-bottom:7px; font-weight:700; opacity:.9}
+  .panel .ptitle{font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); margin-bottom:7px; font-weight:700}
   .btn{
     appearance:none; border:0; cursor:pointer; font:inherit; font-weight:600;
     min-height:40px; padding:0 16px; border-radius:9px; background:var(--light); color:var(--navy);
@@ -76,14 +76,14 @@
     background:rgba(255,255,255,.96); color:var(--ink); padding:0 11px; font:inherit; width:100%;
   }
   .field.ro{background:#eaf0fb; color:var(--navy); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px}
-  label.lbl{display:block;font-size:11px;color:var(--light);margin-bottom:3px}
+  label.lbl{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
 
   /* import panel */
   #importPanel{flex:1 1 320px; min-width:260px}
   #grantPanel{flex:1 1 320px; min-width:260px}
   .grantgrid{display:grid; grid-template-columns:90px 1fr auto; gap:8px; align-items:end}
   .grantgrid .full{grid-column:1 / -1}
-  .grantnote{font-size:11px;color:var(--light);margin-top:7px;opacity:.85}
+  .grantnote{font-size:11px;color:var(--muted);margin-top:7px}
   .codeRow{display:flex; gap:8px; margin-top:8px}
   .codeRow .field.ro{flex:1}
   .hiddenFile{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
@@ -344,17 +344,17 @@
   /* ---- campaign panel ---- */
   #campPanel{flex:1 1 300px;min-width:260px}
   #campAuthRow{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
-  #campWho{flex:1;color:var(--light);font-size:12px}
+  #campWho{flex:1;color:var(--muted);font-size:12px}
   #campSel{width:100%;padding:7px 10px;border:1px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.96);color:var(--ink);font:inherit;font-size:13px;margin-bottom:8px}
   .codechip{display:flex;gap:6px;align-items:center;margin-bottom:5px}
-  .codechip .lbl{font-size:11px;color:var(--light);min-width:56px;flex-shrink:0}
+  .codechip .lbl{font-size:11px;color:var(--muted);min-width:56px;flex-shrink:0}
   .codechip .field.ro{flex:1;font-size:11px;padding:0 7px;min-height:30px}
   .ruleblock{margin-bottom:6px}
-  .ruleblock>.lbl{font-size:11px;color:var(--light);font-weight:700;opacity:.9;margin-bottom:3px}
+  .ruleblock>.lbl{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:3px}
   .rulegrid{display:flex;flex-wrap:wrap;gap:4px 10px}
-  .rulegrid label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--light);cursor:pointer;white-space:nowrap}
-  .hrchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--light);background:rgba(255,255,255,.08);border-radius:12px;padding:3px 8px;margin:2px 4px 2px 0}
-  .hrchip button{background:none;border:none;color:var(--light);cursor:pointer;font-size:12px;line-height:1;padding:0}
+  .rulegrid label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap}
+  .hrchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:3px 8px;margin:2px 4px 2px 0}
+  .hrchip button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;padding:0}
   /* ---- history modal ---- */
   .hist-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center}
   .hist-modal .inner{background:#fff;border-radius:12px;max-width:640px;width:94%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:16px 20px}
@@ -474,14 +474,14 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <input class="field ro" id="inviteLinkOut" readonly>
               <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
             </div>
-            <div id="inviteStatus" style="font-size:11px;color:var(--light);margin-top:4px"></div>
+            <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
             <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the starting AP/budget above. Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
           </div>
-          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--light);margin-top:8px;cursor:pointer">
+          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin-top:8px;cursor:pointer">
             <input type="checkbox" id="ignorePlayerAp"> Ignore player-entered AP
           </label>
           <details id="campRulesDetails" style="margin-top:10px">
-            <summary style="cursor:pointer;font-size:11px;color:var(--light);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
+            <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
             <div style="margin-top:8px">
               <div class="ruleblock" id="ruleCopyBlock" style="display:none">
                 <div class="lbl">Copy rules from another campaign</div>
@@ -489,7 +489,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                   <select class="field" id="ruleCopyFrom" style="flex:1"><option value="">— select a campaign —</option></select>
                   <button type="button" class="btn sm ghost" id="ruleCopyBtn">Copy</button>
                 </div>
-                <span id="ruleCopyStatus" style="font-size:11px;color:var(--light)"></span>
+                <span id="ruleCopyStatus" style="font-size:11px;color:var(--muted)"></span>
                 <div class="grantnote">Loads that campaign’s rules into the form below as a starting point. Nothing is saved until you click <b>Save rules</b>; the source campaign is left unchanged.</div>
               </div>
               <div class="ruleblock"><div class="lbl">Banned species</div><div class="rulegrid" id="ruleBannedSpecies"></div></div>
@@ -499,7 +499,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
               <div class="ruleblock"><div class="lbl">Banned drawbacks</div><div class="rulegrid" id="ruleBannedDrawbacks"></div></div>
               <div class="ruleblock"><div class="lbl">Banned arts</div><div class="rulegrid" id="ruleBannedArts"></div></div>
-              <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--light);margin:8px 0;cursor:pointer">
+              <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
                 <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
               </label>
               <div class="ruleblock">
@@ -510,9 +510,9 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                     <option value="generous">Generous (83/+28)</option>
                     <option value="custom">Custom</option>
                   </select>
-                  <label style="font-size:11px;color:var(--light)">L1 <input class="field" type="number" id="ruleBudgetL1" min="20" max="300" step="1" style="width:64px" value="79"></label>
-                  <label style="font-size:11px;color:var(--light)">+per lvl <input class="field" type="number" id="ruleBudgetInc" min="1" max="80" step="1" style="width:64px" value="24"></label>
-                  <span style="font-size:11px;color:var(--light)">L20 = <b id="ruleBudgetL20Preview">535</b> AP</span>
+                  <label style="font-size:11px;color:var(--muted)">L1 <input class="field" type="number" id="ruleBudgetL1" min="20" max="300" step="1" style="width:64px" value="79"></label>
+                  <label style="font-size:11px;color:var(--muted)">+per lvl <input class="field" type="number" id="ruleBudgetInc" min="1" max="80" step="1" style="width:64px" value="24"></label>
+                  <span style="font-size:11px;color:var(--muted)">L20 = <b id="ruleBudgetL20Preview">535</b> AP</span>
                 </div>
                 <div class="grantnote">Display only — tunes the “Track-Level” label a player sees on their sheet against AP spent. Does NOT change any purchase price.</div>
               </div>
@@ -526,7 +526,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                     <option value="custom">Custom</option>
                   </select>
                   <input class="field" type="number" id="ruleAwardPaceCustom" min="1" max="50" step="1" style="width:64px" value="7">
-                  <span style="font-size:11px;color:var(--light)">AP/session</span>
+                  <span style="font-size:11px;color:var(--muted)">AP/session</span>
                 </div>
                 <div class="grantnote">A documented baseline only — AP is still granted ad-hoc via the “+ Award AP” action. Nothing auto-awards.</div>
               </div>
@@ -541,7 +541,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                     <option value="custom">Custom</option>
                   </select>
                   <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
-                  <span style="font-size:11px;color:var(--light)">AP</span>
+                  <span style="font-size:11px;color:var(--muted)">AP</span>
                 </div>
                 <div class="grantnote">Pre-fills the “Starting budget” field when you generate a player invite (still editable per invite).</div>
               </div>
@@ -555,7 +555,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               </div>
               <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
                 <button type="button" class="btn sm" id="ruleSaveBtn">Save rules</button>
-                <span id="ruleSaveStatus" style="font-size:11px;color:var(--light)"></span>
+                <span id="ruleSaveStatus" style="font-size:11px;color:var(--muted)"></span>
               </div>
               <div class="grantnote">Read-only for players — they see these rules in the Live Sheet but can't change them.</div>
             </div>
@@ -1369,7 +1369,7 @@ document.addEventListener('campaign-ready', function () {
       return '<span class="hrchip"><label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer">'+
         '<input type="checkbox" data-hr="'+esc(name)+'" '+(currentHouseRules[name]?'checked':'')+'>'+esc(name)+'</label>'+
         '<button type="button" data-hrdel="'+esc(name)+'" title="Remove" aria-label="Remove '+esc(name)+'">×</button></span>';
-    }).join('') || '<span style="font-size:11px;color:var(--light);opacity:.7">No house rules yet.</span>';
+    }).join('') || '<span style="font-size:11px;color:var(--muted)">No house rules yet.</span>';
     ruleHouseRules.querySelectorAll('input[data-hr]').forEach(function(cb){
       cb.addEventListener('change', function(){ currentHouseRules[cb.dataset.hr] = cb.checked; });
     });

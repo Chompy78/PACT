@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · fix(dm-console): panel/label text illegible against its own card background** —
+  `#importPanel`/`#grantPanel`/`#campPanel`'s `.ptitle`, `label.lbl`, `.grantnote`, and ~15 similar
+  Campaign-Rules labels/notes used `var(--light)` (a pale near-white blue) as text color, styled for the
+  navy hero header they were copy-pasted from — but these panels actually sit in `<main>` on the light
+  `--paper` background, making the text nearly invisible (reported: "AP grant code" / "Amount" / "Note
+  (optional)" / the whole-party grant note unreadable). Fixed by giving `.panel` a proper card treatment
+  (`--card` background, `--line` border, `--shadow`, matching `.card` elsewhere) and switching all
+  panel-scoped label/note text to `--muted` (checkbox labels to `--ink`), the same variables already used
+  for equivalent labels elsewhere in this tool (`.xtra .xlabel`, `.cglabel`). `.hrchip` house-rule chips
+  got a real chip background (`--paper`/`--line`) for the same reason. Display-only CSS/JS-template
+  change — no `DATA.version` bump. Verified visually in both light and dark theme via a headless
+  screenshot. Left the header's own (correctly-placed) `--light` text and the pale-bg/navy-text chip
+  components (`.chip`, table headers, badges) untouched — a separate, unreported low-contrast issue
+  affecting those chips/buttons and `.field` input values specifically in dark theme was noticed but not
+  fixed here (out of scope of the report); worth a follow-up task if it bothers users in practice.
+
 - **2026-07-21 · docs(sessions): corrected the 2026-07-20/2026-07-21 date-labeling mistake** — fixed
   everywhere across `family-hub`, `wildlife-explorer`, and PACT's own two session notes about them:
   decision IDs, `CHANGELOG.md` entry dates, and session-note filenames. Left every reference to the
