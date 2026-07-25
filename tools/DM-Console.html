@@ -362,7 +362,8 @@
   #campSection{margin-bottom:18px;display:none}
   #campSection .cstitle{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   #campRoster{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-  #campRoster table{width:100%;border-collapse:collapse;font-size:13px}
+  #campRoster .roster-scroll{overflow-x:auto}
+  #campRoster table{width:100%;min-width:560px;border-collapse:collapse;font-size:13px}
   #campRoster th{background:var(--light);color:var(--navy);text-align:left;padding:8px 12px;font-size:12px;font-weight:700}
   #campRoster td{padding:8px 12px;border-top:1px solid var(--line);vertical-align:middle}
   .camp-empty{text-align:center;padding:30px;color:var(--muted);font-size:14px}
@@ -1772,7 +1773,11 @@ document.addEventListener('campaign-ready', function () {
     var rows;
     try { rows = await B.getRoster(campId); } catch(err){ campRoster.innerHTML='<div class="camp-empty">Error: '+esc(err.message)+'</div>'; return; }
     if(!rows||!rows.length){ campRoster.innerHTML='<div class="camp-empty">No characters in this campaign yet.</div>'; return; }
-    var html = '<table><thead><tr><th>Player</th><th>Character</th><th>DM AP</th><th>Award AP</th><th>History</th></tr></thead><tbody>';
+    // The Award AP cell needs ~250px for its amount/note/button row, which doesn't fit a phone-width
+    // column -- wrap the table in its own horizontal-scroll region so the Award button and History
+    // column stay reachable by swiping/scrolling instead of being silently clipped by this container's
+    // overflow:hidden (there for the rounded corners, not meant to hide table content).
+    var html = '<div class="roster-scroll"><table><thead><tr><th>Player</th><th>Character</th><th>DM AP</th><th>Award AP</th><th>History</th></tr></thead><tbody>';
     rows.forEach(function(row){
       var cid  = row.id;
       var cname = row.name||row.id.slice(0,8);
@@ -1790,7 +1795,7 @@ document.addEventListener('campaign-ready', function () {
         '<td><button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(cid)+'" data-cname="'+esc(cname)+'">📒</button></td>' +
         '</tr>';
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     campRoster.innerHTML = html;
 
     campRoster.querySelectorAll('.award-btn').forEach(function(btn){
