@@ -11,9 +11,11 @@
   (function () {
     try {
       var t = localStorage.getItem('pact-dm-theme');
-      if (t && ['dark'].indexOf(t) !== -1) {
+      if (t && ['dark', 'dnd', 'royal', 'forest'].indexOf(t) !== -1) {
         document.documentElement.setAttribute('data-theme', t);
-      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      } else if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // Matches the same not-distinguished-from-never-chosen "Default" behavior
+        // tools/PACT-Live-Char-Sheet.html and tools/PACT-CharGen-Webtool.html already use.
         document.documentElement.setAttribute('data-theme', 'dark');
       }
     } catch (e) {}
@@ -30,11 +32,35 @@
   }
   [data-theme="dark"] {
     --navy:#0f1729; --navy2:#0a0e17; --blue:#1a3a5c; --blue-lt:#2851a3;
-    --light:#475569; --paper:#0f172a; --card:#1e293b;
+    --light:#c9d6ec; --paper:#0f172a; --card:#1e293b;
     --ink:#e2e8f0; --muted:#94a3b8; --line:#334155;
     --good:#22c55e; --good-bg:#1e3a1f; --zero:#64748b; --zero-bg:#0f1729;
     --bad:#ef4444; --bad-bg:#1f0f0f; --warn:#eab308; --warn-bg:#1f1701;
     --shadow:0 1px 3px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.3);
+  }
+  [data-theme="dnd"] {
+    --navy:#5a1e1b; --navy2:#451712; --blue:#7a2a23; --blue-lt:#9c3f34;
+    --light:#ecdcb8; --paper:#efe6d2; --card:#f8f2e2;
+    --ink:#2b2018; --muted:#6e5d44; --line:#c9b489;
+    --good:#3f6f2a; --good-bg:#dce8cc; --zero:#8a7a5e; --zero-bg:#f0e9d6;
+    --bad:#9c2b1e; --bad-bg:#e6c2b0; --warn:#96721e; --warn-bg:#f2e3b8;
+    --shadow:0 1px 3px rgba(90,30,27,.15),0 6px 18px rgba(90,30,27,.10);
+  }
+  [data-theme="royal"] {
+    --navy:#3b2a6b; --navy2:#2a1d4d; --blue:#5a3fa0; --blue-lt:#7a5cc4;
+    --light:#e4dcf4; --paper:#f3f0fa; --card:#ffffff;
+    --ink:#241a3a; --muted:#6a5d86; --line:#cbbfe8;
+    --good:#2e7d32; --good-bg:#dcefdc; --zero:#8a7fa0; --zero-bg:#ece7f7;
+    --bad:#b3245b; --bad-bg:#f3c9d8; --warn:#a8791e; --warn-bg:#f2e6c8;
+    --shadow:0 1px 3px rgba(59,42,107,.15),0 6px 18px rgba(59,42,107,.10);
+  }
+  [data-theme="forest"] {
+    --navy:#1f3d2e; --navy2:#142a20; --blue:#2f6b4a; --blue-lt:#4a9068;
+    --light:#d7e8da; --paper:#eef4ec; --card:#ffffff;
+    --ink:#1c2620; --muted:#5b6b5f; --line:#aecbb4;
+    --good:#2e7d32; --good-bg:#dcefdc; --zero:#7a8a7e; --zero-bg:#e7f0e7;
+    --bad:#b5462e; --bad-bg:#f0cbb7; --warn:#96821e; --warn-bg:#f0e8c0;
+    --shadow:0 1px 3px rgba(31,61,46,.15),0 6px 18px rgba(31,61,46,.10);
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
@@ -58,32 +84,32 @@
 
   .toolrow{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; align-items:stretch}
   .panel{
-    background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.22);
-    border-radius:12px; padding:10px 12px; backdrop-filter:blur(2px);
+    background:var(--card); border:1px solid var(--line);
+    border-radius:12px; padding:10px 12px; box-shadow:var(--shadow);
   }
-  .panel .ptitle{font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--light); margin-bottom:7px; font-weight:700; opacity:.9}
+  .panel .ptitle{font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); margin-bottom:7px; font-weight:700}
   .btn{
     appearance:none; border:0; cursor:pointer; font:inherit; font-weight:600;
     min-height:40px; padding:0 16px; border-radius:9px; background:var(--light); color:var(--navy);
     transition:transform .05s ease, filter .15s ease; display:inline-flex; align-items:center; gap:7px; justify-content:center;
   }
   .btn:hover{filter:brightness(1.04)} .btn:active{transform:translateY(1px)}
-  .btn.ghost{background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.35)}
+  .btn.ghost{background:transparent; color:var(--ink); border:1px solid var(--line)}
   .btn.sm{min-height:34px; padding:0 11px; font-size:13px}
   .btn.danger{background:var(--bad-bg); color:var(--bad)}
   .field{
     min-height:40px; border-radius:9px; border:1px solid rgba(255,255,255,.4);
-    background:rgba(255,255,255,.96); color:var(--ink); padding:0 11px; font:inherit; width:100%;
+    background:rgba(255,255,255,.96); color:var(--navy); padding:0 11px; font:inherit; width:100%;
   }
   .field.ro{background:#eaf0fb; color:var(--navy); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px}
-  label.lbl{display:block;font-size:11px;color:var(--light);margin-bottom:3px}
+  label.lbl{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
 
   /* import panel */
   #importPanel{flex:1 1 320px; min-width:260px}
   #grantPanel{flex:1 1 320px; min-width:260px}
   .grantgrid{display:grid; grid-template-columns:90px 1fr auto; gap:8px; align-items:end}
   .grantgrid .full{grid-column:1 / -1}
-  .grantnote{font-size:11px;color:var(--light);margin-top:7px;opacity:.85}
+  .grantnote{font-size:11px;color:var(--muted);margin-top:7px}
   .codeRow{display:flex; gap:8px; margin-top:8px}
   .codeRow .field.ro{flex:1}
   .hiddenFile{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
@@ -220,6 +246,8 @@
   .topactions{margin-top:10px;}
   .topbtn{appearance:none;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
   .topbtn:hover{background:rgba(255,255,255,.26);}
+  #dmThemeSel{appearance:none;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+  #dmThemeSel:hover{background:rgba(255,255,255,.26);}
   .homelink{display:inline-flex;align-items:center;gap:4px;color:#fff;text-decoration:none;font-size:13px;font-weight:700;padding:3px 9px;border:1px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.12);white-space:nowrap;flex-shrink:0}
   .homelink:hover{background:rgba(255,255,255,.26)}
   #viewToggle{min-width:7.6em;text-align:center;}
@@ -344,17 +372,17 @@
   /* ---- campaign panel ---- */
   #campPanel{flex:1 1 300px;min-width:260px}
   #campAuthRow{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
-  #campWho{flex:1;color:var(--light);font-size:12px}
-  #campSel{width:100%;padding:7px 10px;border:1px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.96);color:var(--ink);font:inherit;font-size:13px;margin-bottom:8px}
+  #campWho{flex:1;color:var(--muted);font-size:12px}
+  #campSel{width:100%;padding:7px 10px;border:1px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.96);color:var(--navy);font:inherit;font-size:13px;margin-bottom:8px}
   .codechip{display:flex;gap:6px;align-items:center;margin-bottom:5px}
-  .codechip .lbl{font-size:11px;color:var(--light);min-width:56px;flex-shrink:0}
+  .codechip .lbl{font-size:11px;color:var(--muted);min-width:56px;flex-shrink:0}
   .codechip .field.ro{flex:1;font-size:11px;padding:0 7px;min-height:30px}
   .ruleblock{margin-bottom:6px}
-  .ruleblock>.lbl{font-size:11px;color:var(--light);font-weight:700;opacity:.9;margin-bottom:3px}
+  .ruleblock>.lbl{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:3px}
   .rulegrid{display:flex;flex-wrap:wrap;gap:4px 10px}
-  .rulegrid label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--light);cursor:pointer;white-space:nowrap}
-  .hrchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--light);background:rgba(255,255,255,.08);border-radius:12px;padding:3px 8px;margin:2px 4px 2px 0}
-  .hrchip button{background:none;border:none;color:var(--light);cursor:pointer;font-size:12px;line-height:1;padding:0}
+  .rulegrid label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap}
+  .hrchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:3px 8px;margin:2px 4px 2px 0}
+  .hrchip button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;padding:0}
   /* ---- history modal ---- */
   .hist-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center}
   .hist-modal .inner{background:#fff;border-radius:12px;max-width:640px;width:94%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:16px 20px}
@@ -374,8 +402,21 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   <h1><span class="dot"></span>PACT — DM Console</h1>
   <div class="summary" id="summary">No characters imported yet.</div>
   <div class="lastedited">Last edited 2026-06-28 23:10</div>
-  <div class="topactions"><button type="button" class="topbtn" id="viewToggle">▦ Table view</button><button type="button" class="topbtn" id="matrixBtn">📊 Skill Matrix</button><button type="button" class="topbtn" id="ledgerBtn">📒 AP Ledger</button></div>
+  <div class="topactions"><button type="button" class="topbtn" id="viewToggle">▦ Table view</button><button type="button" class="topbtn" id="matrixBtn">📊 Skill Matrix</button><button type="button" class="topbtn" id="ledgerBtn">📒 AP Ledger</button><select id="dmThemeSel" onchange="dmSetTheme(this.value)" title="Theme"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></div>
 </header>
+
+<script>
+  function dmSetTheme(t){
+    if(t) document.documentElement.setAttribute('data-theme', t);
+    else document.documentElement.removeAttribute('data-theme');
+    try{ localStorage.setItem('pact-dm-theme', t||''); }catch(e){}
+  }
+  (function(){
+    var cur = document.documentElement.getAttribute('data-theme') || '';
+    var sel = document.getElementById('dmThemeSel');
+    if(sel) sel.value = cur;
+  })();
+</script>
 
 <main>
 
@@ -452,6 +493,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       </div>
       <div id="campControls" style="display:none">
         <select id="campSel"><option value="">— select campaign —</option></select>
+        <div id="campNewRow" style="display:flex;gap:6px;margin-bottom:8px">
+          <input class="field" type="text" id="campNewName" placeholder="New campaign name" maxlength="80">
+          <button type="button" class="btn sm" id="campNewBtn">+ Create</button>
+        </div>
+        <div id="campNewStatus" style="font-size:11px;color:var(--muted);margin:-4px 0 8px"></div>
+        <details id="campArchivedDetails" style="margin-bottom:8px">
+          <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Archived campaigns</summary>
+          <div id="campArchivedList" style="margin-top:8px"></div>
+        </details>
         <div id="campCodes" style="display:none">
           <div class="codechip">
             <span class="lbl">Players:</span>
@@ -462,6 +512,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <span class="lbl">DMs:</span>
             <input class="field ro" id="campDmCode" readonly>
             <button type="button" class="btn sm ghost" id="copyDmCode">Copy</button>
+          </div>
+          <div class="ruleblock" id="campArchiveBlock" style="display:none;margin-top:8px">
+            <button type="button" class="btn sm danger" id="campArchiveBtn">Archive campaign</button>
+            <div class="grantnote">Removes this campaign from your active list above. Players and their
+              characters are unaffected, and you can restore it anytime from “Archived campaigns” above.</div>
           </div>
           <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
             <div class="lbl">Invite new player</div>
@@ -474,14 +529,14 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <input class="field ro" id="inviteLinkOut" readonly>
               <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
             </div>
-            <div id="inviteStatus" style="font-size:11px;color:var(--light);margin-top:4px"></div>
+            <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
             <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the starting AP/budget above. Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
           </div>
-          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--light);margin-top:8px;cursor:pointer">
+          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin-top:8px;cursor:pointer">
             <input type="checkbox" id="ignorePlayerAp"> Ignore player-entered AP
           </label>
           <details id="campRulesDetails" style="margin-top:10px">
-            <summary style="cursor:pointer;font-size:11px;color:var(--light);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
+            <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
             <div style="margin-top:8px">
               <div class="ruleblock" id="ruleCopyBlock" style="display:none">
                 <div class="lbl">Copy rules from another campaign</div>
@@ -489,7 +544,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                   <select class="field" id="ruleCopyFrom" style="flex:1"><option value="">— select a campaign —</option></select>
                   <button type="button" class="btn sm ghost" id="ruleCopyBtn">Copy</button>
                 </div>
-                <span id="ruleCopyStatus" style="font-size:11px;color:var(--light)"></span>
+                <span id="ruleCopyStatus" style="font-size:11px;color:var(--muted)"></span>
                 <div class="grantnote">Loads that campaign’s rules into the form below as a starting point. Nothing is saved until you click <b>Save rules</b>; the source campaign is left unchanged.</div>
               </div>
               <div class="ruleblock"><div class="lbl">Banned species</div><div class="rulegrid" id="ruleBannedSpecies"></div></div>
@@ -499,7 +554,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
               <div class="ruleblock"><div class="lbl">Banned drawbacks</div><div class="rulegrid" id="ruleBannedDrawbacks"></div></div>
               <div class="ruleblock"><div class="lbl">Banned arts</div><div class="rulegrid" id="ruleBannedArts"></div></div>
-              <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--light);margin:8px 0;cursor:pointer">
+              <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
                 <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
               </label>
               <div class="ruleblock">
@@ -510,9 +565,9 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                     <option value="generous">Generous (83/+28)</option>
                     <option value="custom">Custom</option>
                   </select>
-                  <label style="font-size:11px;color:var(--light)">L1 <input class="field" type="number" id="ruleBudgetL1" min="20" max="300" step="1" style="width:64px" value="79"></label>
-                  <label style="font-size:11px;color:var(--light)">+per lvl <input class="field" type="number" id="ruleBudgetInc" min="1" max="80" step="1" style="width:64px" value="24"></label>
-                  <span style="font-size:11px;color:var(--light)">L20 = <b id="ruleBudgetL20Preview">535</b> AP</span>
+                  <label style="font-size:11px;color:var(--muted)">L1 <input class="field" type="number" id="ruleBudgetL1" min="20" max="300" step="1" style="width:64px" value="79"></label>
+                  <label style="font-size:11px;color:var(--muted)">+per lvl <input class="field" type="number" id="ruleBudgetInc" min="1" max="80" step="1" style="width:64px" value="24"></label>
+                  <span style="font-size:11px;color:var(--muted)">L20 = <b id="ruleBudgetL20Preview">535</b> AP</span>
                 </div>
                 <div class="grantnote">Display only — tunes the “Track-Level” label a player sees on their sheet against AP spent. Does NOT change any purchase price.</div>
               </div>
@@ -526,7 +581,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                     <option value="custom">Custom</option>
                   </select>
                   <input class="field" type="number" id="ruleAwardPaceCustom" min="1" max="50" step="1" style="width:64px" value="7">
-                  <span style="font-size:11px;color:var(--light)">AP/session</span>
+                  <span style="font-size:11px;color:var(--muted)">AP/session</span>
                 </div>
                 <div class="grantnote">A documented baseline only — AP is still granted ad-hoc via the “+ Award AP” action. Nothing auto-awards.</div>
               </div>
@@ -541,7 +596,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                     <option value="custom">Custom</option>
                   </select>
                   <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
-                  <span style="font-size:11px;color:var(--light)">AP</span>
+                  <span style="font-size:11px;color:var(--muted)">AP</span>
                 </div>
                 <div class="grantnote">Pre-fills the “Starting budget” field when you generate a player invite (still editable per invite).</div>
               </div>
@@ -555,7 +610,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               </div>
               <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
                 <button type="button" class="btn sm" id="ruleSaveBtn">Save rules</button>
-                <span id="ruleSaveStatus" style="font-size:11px;color:var(--light)"></span>
+                <span id="ruleSaveStatus" style="font-size:11px;color:var(--muted)"></span>
               </div>
               <div class="grantnote">Read-only for players — they see these rules in the Live Sheet but can't change them.</div>
             </div>
@@ -1287,11 +1342,11 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 
 <script type="module">
   import { currentSession, onSessionChange } from '../js/auth.js';
-  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite } from '../js/campaign.js';
+  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
   import { getRoster, awardAp, getAwardHistory } from '../js/dm.js';
   import { DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   import { verifyCharacterEnvelope } from '../js/character-store.js';   // tamper-evidence read-side (D-GH48)
-  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, createPlayerInvite };
+  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, createPlayerInvite, createCampaign, archiveCampaign, unarchiveCampaign };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy };
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   // Engine module bridge (D-GH26, extended D-GH36/D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
@@ -1329,7 +1384,14 @@ document.addEventListener('campaign-ready', function () {
   var ruleCopyBlock  = document.getElementById('ruleCopyBlock');
   var ruleCopyFrom   = document.getElementById('ruleCopyFrom');
   var ruleCopyStatus = document.getElementById('ruleCopyStatus');
+  var campNewName    = document.getElementById('campNewName');
+  var campNewBtn     = document.getElementById('campNewBtn');
+  var campNewStatus  = document.getElementById('campNewStatus');
+  var campArchivedList = document.getElementById('campArchivedList');
+  var campArchiveBlock = document.getElementById('campArchiveBlock');
+  var campArchiveBtn   = document.getElementById('campArchiveBtn');
   var currentCampaigns = [];
+  var archivedCampaigns = [];
   var currentCampId = null;
   var currentHouseRules = {};
   var _dmWasSignedIn = false;
@@ -1369,7 +1431,7 @@ document.addEventListener('campaign-ready', function () {
       return '<span class="hrchip"><label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer">'+
         '<input type="checkbox" data-hr="'+esc(name)+'" '+(currentHouseRules[name]?'checked':'')+'>'+esc(name)+'</label>'+
         '<button type="button" data-hrdel="'+esc(name)+'" title="Remove" aria-label="Remove '+esc(name)+'">×</button></span>';
-    }).join('') || '<span style="font-size:11px;color:var(--light);opacity:.7">No house rules yet.</span>';
+    }).join('') || '<span style="font-size:11px;color:var(--muted)">No house rules yet.</span>';
     ruleHouseRules.querySelectorAll('input[data-hr]').forEach(function(cb){
       cb.addEventListener('change', function(){ currentHouseRules[cb.dataset.hr] = cb.checked; });
     });
@@ -1532,10 +1594,32 @@ document.addEventListener('campaign-ready', function () {
     }
   }
 
+  function renderArchivedCampaigns(){
+    campArchivedList.innerHTML = archivedCampaigns.length ? archivedCampaigns.map(function(c){
+      return '<div class="codechip"><span class="lbl" style="min-width:0;flex:1;font-size:12px;color:var(--ink)">'+esc(c.name)+'</span>'+
+        '<button type="button" class="btn sm ghost" data-unarchive="'+c.id+'">Unarchive</button></div>';
+    }).join('') : '<div class="grantnote">No archived campaigns.</div>';
+    campArchivedList.querySelectorAll('button[data-unarchive]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        btn.disabled = true;
+        try {
+          await B.unarchiveCampaign(btn.dataset.unarchive);
+          await loadCampaigns();
+        } catch(err){
+          alert('Could not restore: '+(err&&err.message?err.message:err));
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
   async function loadCampaigns(){
     var camps;
     try { camps = await B.listMyCampaigns(); } catch(err){ console.error('listMyCampaigns:', err); return; }
-    currentCampaigns = (camps||[]).filter(function(c){ return c.isDm||c.isOwner; });
+    var mine = (camps||[]).filter(function(c){ return c.isDm||c.isOwner; });
+    currentCampaigns = mine.filter(function(c){ return !c.archived_at; });
+    archivedCampaigns = mine.filter(function(c){ return c.archived_at && c.isOwner; });
+    renderArchivedCampaigns();
     var prev = campSel.value;
     campSel.innerHTML = '<option value="">— select campaign —</option>';
     currentCampaigns.forEach(function(c){
@@ -1544,18 +1628,19 @@ document.addEventListener('campaign-ready', function () {
       o.textContent = c.name + (c.isOwner ? ' (owner)' : ' (co-DM)');
       campSel.appendChild(o);
     });
-    if(prev && currentCampaigns.find(function(c){return c.id===prev;})) campSel.value = prev;
-    if(campSel.value) selectCampaign(campSel.value);
+    campSel.value = (prev && currentCampaigns.find(function(c){return c.id===prev;})) ? prev : '';
+    selectCampaign(campSel.value);
   }
 
   async function selectCampaign(id){
-    currentCampId = id;
+    currentCampId = id || null;
     var camp = currentCampaigns.find(function(c){return c.id===id;});
-    if(!camp){ campCodes.style.display='none'; campSection.style.display='none'; return; }
+    if(!camp){ campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none'; return; }
     campCodes.style.display = 'block';
     document.getElementById('campPlayerCode').value = camp.invite_code||'';
     document.getElementById('campDmCode').value     = camp.dm_invite_code||'';
     ignoreChk.checked = !!camp.ignore_player_ap;
+    campArchiveBlock.style.display = camp.isOwner ? '' : 'none';
     inviteLinkRow.style.display = 'none';
     inviteLinkOut.value = '';
     inviteStatus.textContent = '';
@@ -1574,6 +1659,39 @@ document.addEventListener('campaign-ready', function () {
   }
 
   campSel.addEventListener('change', function(){ selectCampaign(campSel.value); });
+
+  campNewBtn.addEventListener('click', async function(){
+    var name = (campNewName.value||'').trim();
+    if(!name){ campNewStatus.textContent = 'Enter a campaign name.'; return; }
+    campNewBtn.disabled = true;
+    campNewStatus.textContent = 'Creating…';
+    try {
+      var camp = await B.createCampaign(name);
+      campNewName.value = '';
+      campNewStatus.textContent = '';
+      await loadCampaigns();
+      campSel.value = camp.id;
+      selectCampaign(camp.id);
+    } catch(err){
+      campNewStatus.textContent = 'Error: '+(err&&err.message?err.message:err);
+    }
+    campNewBtn.disabled = false;
+  });
+
+  campArchiveBtn.addEventListener('click', async function(){
+    if(!currentCampId) return;
+    var camp = currentCampaigns.find(function(c){return c.id===currentCampId;});
+    var name = camp ? camp.name : 'this campaign';
+    if(!confirm('Archive “'+name+'”?\n\nIt disappears from your active campaign list, but nothing is deleted — players keep their characters, and you can restore it anytime from “Archived campaigns” above.')) return;
+    campArchiveBtn.disabled = true;
+    try {
+      await B.archiveCampaign(currentCampId);
+      await loadCampaigns();
+    } catch(err){
+      alert('Could not archive: '+(err&&err.message?err.message:err));
+    }
+    campArchiveBtn.disabled = false;
+  });
 
   document.getElementById('refreshRosterBtn').addEventListener('click', function(){
     if(currentCampId) loadRoster(currentCampId);

@@ -113,6 +113,7 @@ create table if not exists public.campaigns (
                    check (dm_invite_code ~ '^[A-Z0-9]{6}$'),
   ignore_player_ap boolean not null default false,   -- when true, only DM-granted AP counts
   rules            jsonb not null default '{}'::jsonb, -- DM-authoritative campaign rules (D-GH14)
+  archived_at      timestamptz,   -- soft-delete (owner-only, reversible); null = active
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
@@ -289,6 +290,32 @@ begin
     raise exception 'The owner cannot be removed as DM';
   end if;
   delete from campaign_dms where campaign_id = p_campaign and dm_id = p_profile;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- archive_campaign / unarchive_campaign — owner-only soft-delete, reversible.
+-- Same tier as delete (not "any DM"). is_campaign_owner() is defined in
+-- rls-policies.sql; see its "Column-level campaign-write lockdown" section for
+-- why this RPC is the only path that can write archived_at.
+-- ---------------------------------------------------------------------------
+create or replace function public.archive_campaign(p_campaign uuid)
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not is_campaign_owner(p_campaign) then
+    raise exception 'Only the campaign owner can archive it';
+  end if;
+  update campaigns set archived_at = now() where id = p_campaign;
+end;
+$$;
+
+create or replace function public.unarchive_campaign(p_campaign uuid)
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not is_campaign_owner(p_campaign) then
+    raise exception 'Only the campaign owner can restore it';
+  end if;
+  update campaigns set archived_at = null where id = p_campaign;
 end;
 $$;
 

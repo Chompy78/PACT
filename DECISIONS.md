@@ -9,6 +9,19 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-25-dm-console-themes** — Added a theme selector to DM Console (previously the only one
+  of the three tools with no theme UI at all) and 3 new themes (`dnd`/`royal`/`forest`) matching Live
+  Sheet/CharGen's set, mapped onto DM Console's own distinct CSS variable names rather than copying
+  those tools' variables verbatim, since it's a structurally different, newer token system.
+- **D-GH-2026-07-25-campaign-archive** — Wired up campaign create (a plain `createCampaign()` insert that
+  already existed but had no UI calling it) and campaign delete-as-archive (new, reversible — hard delete
+  was deliberately left unwired) in DM Console. Added a genuinely owner-only `archived_at` column,
+  reachable only via new `archive_campaign()`/`unarchive_campaign()` RPCs, enforced by a column-level
+  UPDATE grant lockdown (the same class of fix `characters.ap` already had) rather than relying on the
+  RPC alone — the pre-existing blanket `campaigns` UPDATE grant would otherwise have let any co-DM bypass
+  the owner check via a direct REST call. Also fixed `.btn.ghost` (Copy/Unarchive buttons), found
+  unreadable in light theme while screenshot-testing the new UI — same root cause as the two dark-theme
+  fixes below (styled for the navy header, actually rendered on the light main-content panels).
 - **D-GH-2026-07-20-close-code-session-run-commit** — `/close-code-session` can now stage, commit, and
   push once the human names that letter, instead of only ever printing the command for manual hand-off.
   Removes the human-reviews-the-diff-before-commit gate `D-GH-2026-07-16-close-session-auto-log`
@@ -152,6 +165,81 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-25-dm-console-themes · DM Console gains a theme selector + 3 new themes, token-mapped rather than copy-pasted
+- **Context:** while investigating a light-theme readability bug in DM Console earlier this session, found
+  it has no theme UI at all — `data-theme="dark"` only ever came from OS `prefers-color-scheme`, with no
+  way to override it and none of Live Sheet/CharGen's other 3 themes (D&D/Parchment, Royal, Forest)
+  present. Both other tools have a real `<select id="themesel">` dropdown wired to `setTheme()`/
+  `localStorage['pactTheme']`.
+- **Options:** (i) copy the other tools' theme CSS blocks verbatim into DM Console; (ii) design new
+  `[data-theme="dnd"/"royal"/"forest"]` blocks using DM Console's own variable names
+  (`--navy`/`--navy2`/`--blue`/`--blue-lt`/`--light`/`--paper`/`--card`/`--ink`/`--muted`/`--line`/status
+  pairs), matching the other tools' color choices where a directly-equivalent token exists and deriving
+  the rest from the same pattern DM Console's own existing `default`/`dark` blocks already establish.
+- **Decision:** (ii). Reused exact hex values from the other tools' themes for every token with a clear
+  1:1 role match (`--navy`↔navy, `--blue`↔blue, `--ink`↔ink, `--muted`↔grey, `--line`↔line, `--paper`↔bg,
+  `--card`↔card, `--good`/`--bad`↔good/bad, `--light`↔lt where a pale accent tone was needed); derived new
+  values only for tokens DM Console has that the other tools don't (`--navy2`, `--blue-lt`, `--good-bg`/
+  `--zero`/`--zero-bg`/`--bad-bg`/`--warn`/`--warn-bg`, `--shadow`), each built the same way the existing
+  `default`→`dark` pair already derives them (e.g. `--navy2` = a darker shade of that theme's `--navy`,
+  status `-bg` pairs = a pale tint of the status color in that theme's hue family).
+- **Why:** (i) was rejected outright — DM Console's CSS uses an entirely different variable set than Live
+  Sheet/CharGen's (confirmed by diffing both files' `:root` blocks earlier this session while fixing the
+  panel-contrast bugs), so a verbatim copy wouldn't even apply to DM Console's selectors. Reusing the
+  other tools' hex values (rather than inventing fresh colors) keeps the same 5-theme *palette family*
+  recognizable across all three tools for a DM who uses more than one, without requiring an actual shared
+  CSS/variable bridge between three intentionally-standalone tools (per `AGENTS.md`'s "Vanilla JS
+  only... tools stay standalone single files" hard rule). Verified all 5 themes in a real browser,
+  including that the earlier `.panel`/`.btn.ghost`/dark-contrast fixes (D-GH-2026-07-25's other two
+  entries) hold up correctly across every new theme — confirming those fixes were genuinely token-based,
+  not color-literal patches that happened to work only for `dark`.
+- **Status:** DONE. `#dmThemeSel` in the top bar; `dmSetTheme()`/init script mirror the other tools'
+  `pact-dm-theme`/`pactTheme` localStorage pattern (same not-distinguished-from-never-chosen "Default"
+  quirk both other tools already have, kept for consistency rather than fixed unilaterally here).
+
+## D-GH-2026-07-25-campaign-archive · DM Console gains campaign create + archive (soft-delete), with a genuine owner-only enforcement fix
+- **Context:** DM Console could manage an existing campaign's rules/rosters/invites but had no UI to
+  create or remove one. Tracing the code: `createCampaign()` already existed in `js/campaign.js` (a plain
+  INSERT, already correctly gated by the `campaigns_insert` RLS policy) but was dead code — never
+  imported by any tool. Delete had no JS function at all, though `sql/rls-policies.sql` already had an
+  owner-only `campaigns_delete` RLS policy sitting unused.
+- **Options:** (i) wire the existing hard-delete RLS policy up to a "Delete campaign" button; (ii) add a
+  reversible archive (soft-delete) instead, with no user-facing hard delete. For enforcing "owner-only":
+  (a) trust the new RPC's internal `is_campaign_owner()` check alone; (b) also lock down the `archived_at`
+  column so a direct REST call can't bypass the RPC, mirroring `characters.ap`'s existing column-grant
+  pattern.
+- **Decision:** (ii) archive, not hard delete — a DM tool with no confirmation stronger than a browser
+  `confirm()` shouldn't offer an irreversible action that destroys a campaign's rules/invite codes/co-DM
+  list with no recovery path; FK behavior on `characters.campaign_id` is `on delete set null` so a hard
+  delete wouldn't even orphan player data, but it would still permanently sever every player's binding
+  with zero warning. True hard delete remains reachable directly in Supabase if ever genuinely needed —
+  the RLS policy is untouched, just not exposed in any tool. For enforcement: (b) — added
+  `revoke update on public.campaigns from authenticated; grant update (ignore_player_ap, rules) to
+  authenticated;`, so `archived_at` (and `name`/`invite_code`/`dm_invite_code`/`dm_id`, which have no
+  direct-update client path at all today) can be written only through their SECURITY DEFINER RPCs.
+- **Why:** the existing `campaigns_update` RLS policy is `is_campaign_dm(id)` (**any** co-DM), because
+  Postgres RLS can't scope a row policy to specific columns — so a blanket UPDATE grant would have let
+  any co-DM archive/unarchive (and reassign ownership-adjacent fields) via a direct REST call, silently
+  defeating the "owner-only" guarantee the new RPCs exist to provide. This is the identical shape of gap
+  `characters.ap` was already locked down for (see `rls-policies.sql`'s original "Column-level ap
+  lockdown"), so applying the same fix here is precedent, not a new pattern. Confirmed via
+  `list_tables` that `campaigns` had 0 rows before this migration (pre-launch, matching D-GH37's
+  prior finding) — safe to apply directly to the live project rather than needing a phased rollout.
+  Applied live via `mcp__Supabase__apply_migration`, verified with `get_advisors` (only the expected
+  boilerplate SECURITY DEFINER WARN every existing RPC in this project already carries — no new real
+  finding), and persisted as `sql/migrations/2026-07-25-campaign-archive.sql` +
+  matching updates to `sql/schema.sql`/`sql/rls-policies.sql` so a fresh install and the live project
+  agree. Separately, while screenshot-verifying the new "+ Create"/"Unarchive" buttons in a real browser
+  (per `AGENTS.md`'s UI-testing expectation), found `.btn.ghost` (used by every "Copy"/"+ Add" button in
+  these same campaign panels) was white-text-on-white in light theme — the same root cause as the two
+  panel/dark-theme contrast fixes earlier this session (a component styled for the navy hero header,
+  actually rendered on the light main-content panels) — fixed in the same change since it directly
+  affected the new Unarchive button and was trivially confirmed broken in the screenshot already taken.
+  Display-only; `js/engine.js` untouched.
+- **Status:** DONE. `js/campaign.js` gained `archiveCampaign`/`unarchiveCampaign` + validation on
+  `createCampaign`; DM Console wired up "+ New campaign", an "Archive campaign" button (owner-only,
+  confirm-gated), and an "Archived campaigns" panel with per-row Unarchive.
 
 ## D-GH-2026-07-20-close-code-session-run-commit · close-code-session stages/commits/pushes once approved, instead of only printing the command
 - **Context:** `D-GH-2026-07-16-close-session-auto-log` deliberately kept `git add`/`git commit`/`git push`

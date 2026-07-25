@@ -4,6 +4,63 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · feat(dm-console): add theme selector (Default/Dark/D&D·Parchment/Royal/Forest)** — DM
+  Console had zero UI to change theme (only ever picked up dark mode from OS `prefers-color-scheme`,
+  no way to override it, and none of Live Sheet/CharGen's other 3 themes existed there at all). Added a
+  `<select id="dmThemeSel">` in the top bar (matching Live Sheet/CharGen's existing `#themesel` pattern),
+  a `dmSetTheme()` persisting to `localStorage['pact-dm-theme']`, and three new `[data-theme]` variable
+  blocks (`dnd`/`royal`/`forest`) mapped onto DM Console's own token set (`--navy`/`--navy2`/`--blue`/
+  `--blue-lt`/`--light`/`--paper`/`--card`/`--ink`/`--muted`/`--line`/status-color pairs) — colors chosen
+  to match the other two tools' equivalent themes where a direct token existed, derived consistently
+  from the existing `default`/`dark` blocks' pattern where DM Console has extra tokens the others don't.
+  Verified all 5 themes in a real browser (init script, live switch, and page-reload persistence) —
+  campaign panels/buttons from the two contrast fixes above render correctly in every theme, confirming
+  those fixes were token-based rather than color-literal. Display-only CSS; no `DATA.version` bump.
+
+- **2026-07-25 · feat(dm-console): create + archive/unarchive campaigns** — DM Console had no way to
+  create or remove a campaign. Wired up the existing (previously dead-code) `createCampaign()` behind a
+  new "+ New campaign" row, and added reversible archive (not hard delete — see D-GH-2026-07-25-
+  campaign-archive for why) via new `archive_campaign()`/`unarchive_campaign()` RPCs, an "Archive
+  campaign" button (owner-only, confirm-gated), and an "Archived campaigns" panel with per-row Unarchive.
+  New `campaigns.archived_at` column, genuinely owner-only via a column-level UPDATE grant lockdown
+  (mirrors `characters.ap`'s existing pattern) — closes a gap where the previous blanket grant would have
+  let any co-DM write it directly. Applied live via Supabase MCP (`get_advisors` clean beyond the
+  standard boilerplate every RPC here already has), persisted as
+  `sql/migrations/2026-07-25-campaign-archive.sql` + `sql/schema.sql`/`sql/rls-policies.sql`. Also fixed
+  `.btn.ghost` (Copy/Unarchive buttons), found unreadable in light theme while verifying the new UI —
+  same root cause as the panel/dark-theme fixes below. Display-only CSS; no `DATA.version` bump.
+
+- **2026-07-25 · fix(dm-console): dark-theme contrast — buttons, chips, table headers, and field
+  values were unreadable** — follow-up to the panel/label fix below. Root cause: `[data-theme="dark"]`'s
+  `--light` custom property was `#475569` (a medium slate), nearly the same luminance as `--navy`
+  (`#0f1729`) and `--blue` (`#1a3a5c`) in dark mode — so every component pairing `--light`+`--navy`
+  (`.btn`, `.chip`, `.card .csub .tier`, `#tableRoot table.awards th`/`.badge`, `#campRoster th`) and the
+  header's own `.summary` subtitle text collapsed to ~1.5:1 contrast (WCAG AA needs 4.5:1). Fixed by
+  changing dark theme's `--light` to an actually pale value (`#c9d6ec`) — one token, fixes every affected
+  component at once (verified: Sign in/Generate code/Copy/Save rules buttons, roster table headers,
+  tier/award badges). Separately, `.field`/`#campSel` had a hardcoded near-white background (both themes)
+  but `color:var(--ink)` (theme-varying — light gray in dark mode), so typed/selected values were
+  near-invisible; changed to `color:var(--navy)`, matching the already-correct convention its sibling
+  `.field.ro` uses for the same fixed-light-background pattern. `#tableRoot`'s own locally-scoped
+  variables (always light, by design, unaffected by `[data-theme]`) were left untouched. Display-only,
+  no `DATA.version` bump; verified visually in both themes via headless screenshot.
+
+- **2026-07-25 · fix(dm-console): panel/label text illegible against its own card background** —
+  `#importPanel`/`#grantPanel`/`#campPanel`'s `.ptitle`, `label.lbl`, `.grantnote`, and ~15 similar
+  Campaign-Rules labels/notes used `var(--light)` (a pale near-white blue) as text color, styled for the
+  navy hero header they were copy-pasted from — but these panels actually sit in `<main>` on the light
+  `--paper` background, making the text nearly invisible (reported: "AP grant code" / "Amount" / "Note
+  (optional)" / the whole-party grant note unreadable). Fixed by giving `.panel` a proper card treatment
+  (`--card` background, `--line` border, `--shadow`, matching `.card` elsewhere) and switching all
+  panel-scoped label/note text to `--muted` (checkbox labels to `--ink`), the same variables already used
+  for equivalent labels elsewhere in this tool (`.xtra .xlabel`, `.cglabel`). `.hrchip` house-rule chips
+  got a real chip background (`--paper`/`--line`) for the same reason. Display-only CSS/JS-template
+  change — no `DATA.version` bump. Verified visually in both light and dark theme via a headless
+  screenshot. Left the header's own (correctly-placed) `--light` text and the pale-bg/navy-text chip
+  components (`.chip`, table headers, badges) untouched — a separate, unreported low-contrast issue
+  affecting those chips/buttons and `.field` input values specifically in dark theme was noticed but not
+  fixed here (out of scope of the report); worth a follow-up task if it bothers users in practice.
+
 - **2026-07-21 · docs(sessions): corrected the 2026-07-20/2026-07-21 date-labeling mistake** — fixed
   everywhere across `family-hub`, `wildlife-explorer`, and PACT's own two session notes about them:
   decision IDs, `CHANGELOG.md` entry dates, and session-note filenames. Left every reference to the
