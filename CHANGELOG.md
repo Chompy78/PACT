@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · fix(index, dm-console): consistent browser-tab favicon across the whole app** —
+  `index.html` had its own one-off inline SVG "P" emblem (a different icon than every other page); DM
+  Console had **no** `<link rel="icon">` at all (a deliberate omission from an earlier favicon pass —
+  D-GH-2026-07-19-pwa-manifest-icon-coverage — now reversed at explicit request). Both now use the same
+  `assets/icons/PACT_favicon.png` CharGen/Live Sheet already use (relative path, matching those two
+  tools' existing convention). Verified via real HTTP requests (not just file existence) that the
+  favicon resolves with a 200 from both pages' actual served locations. `login.html` still has no
+  favicon — out of scope of this ask, left alone. Display-only; no `DATA.version` bump.
+
 - **2026-07-25 · fix(dm-console): Campaign panel on its own row; Import Roster dims when a cloud
   campaign is active** — `#campPanel` had no explicit flex-basis (`flex:1 1 300px`), so at wide enough
   viewports it could sit alongside Import Roster/AP Grant Code instead of getting its own row, despite
