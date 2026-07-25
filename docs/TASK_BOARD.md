@@ -206,6 +206,44 @@ manual verification) — eligible for `/sweep-code-tasks`.
 successfully redeem it via `joinAsDm()`, and see that campaign appear in their campaign list — verified
 in a real browser.
 
+## Support banning a class as a 2nd origin only (mirror the species asymmetric-ban pattern) — TODO
+Branch feat/banned-2nd-origin-class. Investigated while adding boon/drawback tooltips (2026-07-25):
+`js/engine.js`'s `validate()` already bans an origin class in **both** `originClass`/`originClass2` slots
+via one `bannedOriginClasses` list — there's no equivalent to species' `bannedOriginSpecies` (an
+asymmetric list banning a species *only* as a bonus 2nd origin, while still allowing it as a primary
+species). This is a genuine engine gap, not a UI oversight: add a mirrored `bannedOriginClasses2`-style
+rule so a DM can allow a class as a primary origin but ban it as a stacked 2nd origin, same as species
+already supports.
+**Effort:** medium · **Risk:** medium — ambiguity is medium (an exact precedent exists to mirror —
+`bannedOriginSpecies`'s schema field, `validate()` branch at `js/engine.js` ~lines 689-691, and DM
+Console's "Banned as 2nd origin species" rule grid — but naming the new field and confirming CharGen's
+embedded engine copy needs the same update are real, if low-stakes, calls); damage scale is medium
+(touches `js/engine.js`'s `validate()`, not `compute()`/`_replay()`/`DATA.version` directly, so per
+`AGENTS.md`'s rubric this doesn't hit the High tier, but it's still the rules engine); damage likelihood
+is medium (no fixture currently exercises `bannedOriginClasses`-style violations, so nothing automated
+would catch a wrong implementation) — eligible for `/sweep-code-tasks`, but touches `js/engine.js` so
+treat with the file's usual care.
+
+```text
+1. Mirror the exact species pattern:
+   - `js/engine.js`: add a new rule-schema field (e.g. `bannedOriginClasses2`) alongside
+     `bannedOriginSpecies` in `RULE_BAN_FIELDS` (~line 733-745).
+   - `validate()`: add a branch checking `b.originClass2` against the new list, mirroring the
+     `bannedOriginSpecies` check at ~lines 689-691 (banned only in the 2nd-origin slot, not slot 1).
+2. `tools/DM-Console.html`: add a "Banned as 2nd origin classes" rule grid (mirroring
+   `ruleBannedOriginSpecies`) to `RULE_GRIDS` and the Campaign Rules panel markup, options from
+   `DATA.classes` (same source `ruleBannedOriginClasses` already uses).
+3. Best done after Task 6, or update CharGen's embedded engine copy in the same PR — check whether
+   CharGen's local copy also needs the new field/validate() branch (per AGENTS.md's Task 6 note).
+4. Check whether this changes any existing REV-01 fixture's output (it shouldn't — the new list only
+   fires when a DM explicitly sets it, which no existing fixture does). If genuinely output-neutral for
+   all current fixtures, do NOT bump DATA.version — log in CHANGELOG. If any fixture's violations output
+   changes, bump DATA.version and update testing/expected/ in the same PR.
+```
+
+**Done when:** a DM can ban a class as a 2nd-origin-only pick (allowed as primary, banned as bonus 2nd)
+via a new DM Console rule grid, `validate()` enforces it, `testing/tests/engine-parity.html` is still 20/0.
+
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)

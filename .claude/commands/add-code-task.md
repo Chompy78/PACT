@@ -140,13 +140,14 @@ retroactively guess at one as a side effect of adding a different, unrelated tas
 - **Bucket = priority.** 🔴 NOW = urgent/high · 🟡 NEXT = build work / medium · ⚪ LATER = idea / low.
   Default a new feature to **NEXT** unless stated otherwise; say which bucket you chose in one line.
 
-After formatting, **show the task block to the user and ask for approval before doing anything else.**
-Wait for confirmation (e.g. "yes", "looks good", "go") before proceeding to Step 4.
-If the user requests changes, revise and show again. Do not proceed until approved.
+After formatting, **show the task block to the user, then proceed straight to Step 4 in the same turn —
+no approval gate.** Per the user's standing instruction (2026-07-25), don't wait for a "yes"/"looks good"
+before committing: showing the block *is* the review step. If the user doesn't like what got committed,
+they'll say so afterward, and the fix is a follow-up edit/revert commit, not a pre-commit pause. This
+applies to task drafts specifically — it does not loosen any other skill's own approval gates (e.g.
+`/port-agents-scaffold`'s draft-before-writing-to-a-foreign-repo discipline is unrelated and still applies).
 
 ## Step 4 — execute
-
-Only after the user approves the task block:
 
 1. Check out `preview` and pull latest.
 2. Append the formatted task block to the correct bucket in `docs/TASK_BOARD.md`, formatted like the
