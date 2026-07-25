@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · fix(dm-console): Campaign panel on its own row; Import Roster dims when a cloud
+  campaign is active** — `#campPanel` had no explicit flex-basis (`flex:1 1 300px`), so at wide enough
+  viewports it could sit alongside Import Roster/AP Grant Code instead of getting its own row, despite
+  being the longest of the three panels. Changed to `flex:1 1 100%` (matching the `#drop` drop-zone's
+  existing "always its own full row" pattern) — Campaign now always renders below the other two,
+  full-width. Separately: Import Roster (local `.json` drag-drop) and a loaded cloud campaign's live
+  roster are two independent, coexisting features — confirmed neither UI state hides the other
+  (`selectCampaign()` never touches `#grid`/`#empty`). Reported as confusing which one "is" the
+  campaign; added a `dimmed` class (opacity .55, full opacity on hover) toggled on `#importPanel`
+  whenever a campaign is selected, plus a small clarifying note — dims rather than disables, since
+  local-file review alongside an active campaign remains a legitimate use. Verified in a real browser
+  (both themes, wide viewport) with a full mocked Supabase session exercising the actual
+  `selectCampaign()`/`updateAuth()` code paths. Display-only; no `DATA.version` bump.
+
 - **2026-07-25 · feat(dm-console): boon/drawback tooltips in Campaign Rules banned-lists** — the
   "Banned boons"/"Banned drawbacks" checkbox grids showed only names, no description of what each
   actually does. Added an optional 3rd element to `RULE_GRIDS` entries (a per-name tooltip-text

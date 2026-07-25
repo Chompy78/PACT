@@ -105,7 +105,9 @@
   label.lbl{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
 
   /* import panel */
-  #importPanel{flex:1 1 320px; min-width:260px}
+  #importPanel{flex:1 1 320px; min-width:260px; transition:opacity .15s ease}
+  #importPanel.dimmed{opacity:.55}
+  #importPanel.dimmed:hover{opacity:.9}
   #grantPanel{flex:1 1 320px; min-width:260px}
   .grantgrid{display:grid; grid-template-columns:90px 1fr auto; gap:8px; align-items:end}
   .grantgrid .full{grid-column:1 / -1}
@@ -370,7 +372,7 @@
   .bottomctl{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;margin-top:12px}
   .bottomctl #drop{flex:0 0 100%}
   /* ---- campaign panel ---- */
-  #campPanel{flex:1 1 300px;min-width:260px}
+  #campPanel{flex:1 1 100%}
   #campAuthRow{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
   #campWho{flex:1;color:var(--muted);font-size:12px}
   #campSel{width:100%;padding:7px 10px;border:1px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.96);color:var(--navy);font:inherit;font-size:13px;margin-bottom:8px}
@@ -466,6 +468,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       </div>
       <input class="hiddenFile" type="file" id="fileInput" multiple accept=".json,application/json">
       <div class="grantnote">Read-only — this tool never edits a character. It only imports &amp; displays.</div>
+      <div class="grantnote" id="importCampNote" style="display:none">A cloud campaign is loaded below — this panel is for local files only and isn't part of it.</div>
     </div>
     <div class="panel" id="grantPanel">
       <div class="ptitle">AP grant code</div>
@@ -1396,6 +1399,8 @@ document.addEventListener('campaign-ready', function () {
   var campArchivedList = document.getElementById('campArchivedList');
   var campArchiveBlock = document.getElementById('campArchiveBlock');
   var campArchiveBtn   = document.getElementById('campArchiveBtn');
+  var importPanel   = document.getElementById('importPanel');
+  var importCampNote = document.getElementById('importCampNote');
   var currentCampaigns = [];
   var archivedCampaigns = [];
   var currentCampId = null;
@@ -1582,6 +1587,14 @@ document.addEventListener('campaign-ready', function () {
     ruleCopyStatus.textContent = 'Copied from “'+src.name+'”. Review the rules below, then click Save rules to apply them to this campaign.';
   });
 
+  // Import Roster is a separate, local-files-only feature that still works with a cloud campaign
+  // loaded — dim it (don't disable it) so the live campaign roster below reads as primary, without
+  // blocking the legitimate case of reviewing a local file alongside an active campaign.
+  function setImportPanelDimmed(on){
+    importPanel.classList.toggle('dimmed', !!on);
+    importCampNote.style.display = on ? '' : 'none';
+  }
+
   function updateAuth(session){
     var wasSignedIn = _dmWasSignedIn;
     var nowSignedIn = !!session;
@@ -1605,6 +1618,7 @@ document.addEventListener('campaign-ready', function () {
       campSignInBtn.onclick = null;
       campControls.style.display = 'none';
       campSection.style.display = 'none';
+      setImportPanelDimmed(false);
     }
   }
 
@@ -1649,7 +1663,12 @@ document.addEventListener('campaign-ready', function () {
   async function selectCampaign(id){
     currentCampId = id || null;
     var camp = currentCampaigns.find(function(c){return c.id===id;});
-    if(!camp){ campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none'; return; }
+    if(!camp){
+      campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none';
+      setImportPanelDimmed(false);
+      return;
+    }
+    setImportPanelDimmed(true);
     campCodes.style.display = 'block';
     document.getElementById('campPlayerCode').value = camp.invite_code||'';
     document.getElementById('campDmCode').value     = camp.dm_invite_code||'';
