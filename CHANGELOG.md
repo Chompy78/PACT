@@ -4,6 +4,21 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · fix(dm-console): dark-theme contrast — buttons, chips, table headers, and field
+  values were unreadable** — follow-up to the panel/label fix below. Root cause: `[data-theme="dark"]`'s
+  `--light` custom property was `#475569` (a medium slate), nearly the same luminance as `--navy`
+  (`#0f1729`) and `--blue` (`#1a3a5c`) in dark mode — so every component pairing `--light`+`--navy`
+  (`.btn`, `.chip`, `.card .csub .tier`, `#tableRoot table.awards th`/`.badge`, `#campRoster th`) and the
+  header's own `.summary` subtitle text collapsed to ~1.5:1 contrast (WCAG AA needs 4.5:1). Fixed by
+  changing dark theme's `--light` to an actually pale value (`#c9d6ec`) — one token, fixes every affected
+  component at once (verified: Sign in/Generate code/Copy/Save rules buttons, roster table headers,
+  tier/award badges). Separately, `.field`/`#campSel` had a hardcoded near-white background (both themes)
+  but `color:var(--ink)` (theme-varying — light gray in dark mode), so typed/selected values were
+  near-invisible; changed to `color:var(--navy)`, matching the already-correct convention its sibling
+  `.field.ro` uses for the same fixed-light-background pattern. `#tableRoot`'s own locally-scoped
+  variables (always light, by design, unaffected by `[data-theme]`) were left untouched. Display-only,
+  no `DATA.version` bump; verified visually in both themes via headless screenshot.
+
 - **2026-07-25 · fix(dm-console): panel/label text illegible against its own card background** —
   `#importPanel`/`#grantPanel`/`#campPanel`'s `.ptitle`, `label.lbl`, `.grantnote`, and ~15 similar
   Campaign-Rules labels/notes used `var(--light)` (a pale near-white blue) as text color, styled for the
