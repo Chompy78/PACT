@@ -42,7 +42,7 @@ question (one or two at most) if any of the following are genuinely unclear:
 
 If a sensible default is obvious, take it and state it rather than asking. Don't ask unnecessary questions.
 
-## Step 3 — format the task and show it for approval
+## Step 3 — format the task and show it
 
 Format the task using this house format exactly:
 

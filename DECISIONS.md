@@ -13,6 +13,15 @@
   good" before committing a drafted task to `docs/TASK_BOARD.md` — shows the block, then commits in the
   same turn, at explicit user request. If the user dislikes what landed, the fix is a follow-up
   edit/revert commit, not a pre-commit pause. Scoped to this one skill's task-drafting gate only.
+- **D-GH-2026-07-25-character-archive** — Added `characters.archived_at` for the new "My Characters" page.
+  Unlike `campaigns.archived_at` (D-GH-2026-07-25-campaign-archive), no RPC is needed: `characters_update`'s
+  RLS policy is already owner-only, so a plain column-level UPDATE grant is correctly scoped as-is.
+- **D-GH-2026-07-25-cloud-load-empty-characters** — "No character data found" on every cloud-load
+  attempt traced to 4 pre-launch stub rows in the live `characters` table (deleted). Hardened both
+  tools' cloud-load menus to show a `hasData:false` character as a visible, inert "empty" row instead
+  of a clickable button that fails after the fact — shown, not hidden, so a player isn't left wondering
+  where a character they know exists went.
+
 - **D-GH-2026-07-25-dm-console-themes** — Added a theme selector to DM Console (previously the only one
   of the three tools with no theme UI at all) and 3 new themes (`dnd`/`royal`/`forest`) matching Live
   Sheet/CharGen's set, mapped onto DM Console's own distinct CSS variable names rather than copying
@@ -189,6 +198,66 @@
   plan going out with the wrong content.
 - **Status:** DONE. `.claude/commands/add-code-task.md` Step 3 rewritten: show the block, then proceed
   straight to Step 4 in the same turn.
+
+## D-GH-2026-07-25-character-archive · characters.archived_at needs no RPC, unlike campaigns.archived_at
+
+- **Context:** built a player-facing "My Characters" page (`tools/characters.html`) with archive (reversible
+  soft-delete) and permanent-delete actions. The campaign-archive feature earlier this session
+  (D-GH-2026-07-25-campaign-archive) needed dedicated `archive_campaign()`/`unarchive_campaign()`
+  SECURITY DEFINER RPCs plus a column-level UPDATE lockdown, because `campaigns_update`'s row policy
+  allows *any* co-DM (`is_campaign_dm(id)`) — a plain column grant would have let a co-DM archive a
+  campaign unilaterally, bypassing the intended owner-only semantics.
+- **Options:** (i) copy the campaign pattern verbatim — add `archive_character()`/`unarchive_character()`
+  RPCs; (ii) check whether `characters_update`'s row policy already excludes the co-owner case that made
+  campaigns need an RPC, and use a plain column grant if so.
+- **Decision:** (ii). Read `sql/rls-policies.sql`'s `characters_update` policy directly rather than
+  assuming parity with campaigns: `for update using (owner_id = auth.uid()) with check (owner_id =
+  auth.uid())` — owner-only in both clauses already, no co-DM/co-owner case exists for a character the
+  way it does for a campaign. Added `archived_at timestamptz` to `characters` and
+  `grant update (archived_at) on public.characters to authenticated` — no new RPC.
+- **Why:** an RPC is the *fix* for a too-permissive row policy, not something to add reflexively whenever
+  a table gets a new soft-delete column — adding one here would have been unnecessary surface area for a
+  problem that doesn't exist on this table. Verified via `get_advisors(type: security)` after applying the
+  migration live: no new finding, confirming the plain grant didn't open anything the RPC would have
+  needed to close.
+- **Status:** DONE. Migration applied live (`piuprrrnaotrtxucrtsb`) and persisted to
+  `sql/schema.sql`/`sql/rls-policies.sql`/`sql/migrations/2026-07-25-character-archive.sql`. `js/sync.js`
+  gained `listMyCharacters()` (owner-scoped — deliberately not reusing `listCharacters()`, which also
+  surfaces a DM's-eye view of a player's character via `is_campaign_dm`), `archiveCharacter()`,
+  `unarchiveCharacter()`. See CHANGELOG.md for the full "My Characters" page feature this shipped inside.
+
+## D-GH-2026-07-25-cloud-load-empty-characters · "No character data found" was stub data, not a code bug — hardened both tools against the row shape anyway
+- **Context:** reported as every entry in Live Sheet's "Load saved character" list failing with "No
+  character data found." Queried the live `characters` table directly (`piuprrrnaotrtxucrtsb`, not just
+  read the code) rather than guess: all 4 `kind='livesheet'` rows had `stats` = `{}` or
+  `{"note":"hello"}` — no `LOG` array at all. These aren't corrupted real saves; they're pre-launch
+  test/stub data (the literal `"note":"hello"` placeholder text and empty `{}` stats aren't anything the
+  real Save-to-cloud path — `buildCharacterEnvelope()` — has ever produced). Both tools' load-click
+  handlers already correctly require `Array.isArray(rec.stats.LOG)` before proceeding (this is deliberate
+  validation, not a missing check) — they were refusing to load garbage exactly as designed. The gap was
+  UX: a user gets this error only *after* clicking to load, with no way to tell in advance which list
+  entries are hollow.
+- **Options:** for the stale data — (i) leave the 4 rows, document the cause; (ii) delete them (this app
+  is pre-launch, confirmed 0 rows across `characters` after deletion, matching D-GH37's prior finding of
+  no real user data to protect). For the UX gap — (a) do nothing, since it's not technically a bug; (b)
+  filter hollow rows out of the load list entirely; (c) show them, visibly disabled, with an explanation.
+- **Decision:** (ii) delete the stale rows. (c) show-disabled, not hidden or ignored.
+- **Why:** (ii) over (i) — there is no future value in keeping known-hollow rows around now that their
+  cause is understood and logged here; leaving them just re-triggers the same confusion for the next
+  person who opens the menu. (c) over (b)/(a): a player should be able to see that a character slot
+  exists (e.g. a redeemed player-invite character they haven't opened in Live Sheet/CharGen yet) rather
+  than have it silently vanish from their list, but clicking it must not resolve to a generic,
+  after-the-fact error — showing it inert with a specific explanation ("never saved... nothing to load
+  yet") satisfies both. Implemented by adding a `hasData` flag to `js/sync.js`'s shared `listCharacters()`
+  (selects `stats->LOG` via a PostgREST JSON-path alias rather than the full `stats` blob, to avoid
+  doubling the payload of every character in the list just to check one key's presence) — both tools
+  already independently required a `.hasData`-equivalent (`Array.isArray(rec.stats.LOG)`) at load time
+  with identical semantics, so one shared flag serves both without new duplication.
+- **Status:** DONE. Verified end-to-end in a real browser (both tools) with a mocked session carrying one
+  real and one stub character: the stub renders as a non-interactive `<div>` with no click handler
+  attached (clicking it produces no dialog, confirmed); the real character's button still triggers the
+  normal load confirmation and completes with zero console errors. The 4 live stub rows are deleted;
+  `characters` table confirmed at 0 rows immediately after.
 
 ## D-GH-2026-07-25-dm-console-themes · DM Console gains a theme selector + 3 new themes, token-mapped rather than copy-pasted
 - **Context:** while investigating a light-theme readability bug in DM Console earlier this session, found

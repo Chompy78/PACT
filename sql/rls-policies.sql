@@ -189,6 +189,12 @@ create policy characters_delete on public.characters
 revoke update on public.characters from authenticated, anon;
 grant update (name, kind, stats) on public.characters to authenticated;
 
+-- archived_at (soft-delete/undelete) needs no RPC, unlike campaigns.archived_at:
+-- characters_update's row policy above is already owner-only in both USING and
+-- WITH CHECK (no co-owner/co-DM case to guard against), so a plain column grant
+-- is already correctly scoped.
+grant update (archived_at) on public.characters to authenticated;
+
 -- Same guard on INSERT: strip blanket INSERT, grant it only on the columns a
 -- new character actually needs. ap and campaign_id are excluded here too —
 -- any future insert naming either column is rejected by Postgres itself,
