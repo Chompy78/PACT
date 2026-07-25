@@ -4,6 +4,21 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · fix: favicon on every remaining HTML page** — follow-up to the index/DM-Console
+  favicon fix. Swept every `.html` file in the repo (`find . -iname "*.html"`, excluding
+  `docs/history/` archives) and added the same `assets/icons/PACT_favicon.png` `<link rel="icon">` to
+  the 9 that still had none: `login.html`, `404.html`, `docs/PACT-Players-Guide.html`,
+  `docs/dev-status.html`, `docs/roadmap.html`, `testing/campaign-test.html`, `testing/sync-test.html`,
+  `testing/tests/engine-parity.html`, `testing/tests/sync-timestamp.html` — relative path depth adjusted
+  per file's location. `docs/PACT-Players-Guide.html` edited via a targeted `Edit` (not a full read) per
+  its own "never read wholesale" note — confirmed the exact existing `<link>` text via a 1-line `Read`
+  first. Verified every page+icon pair resolves 200 via both direct HTTP requests and a real browser
+  (favicon request observed firing from each page's actual served location) — `404.html`'s favicon
+  request couldn't be observed in the local test harness because the page's existing
+  `window.location.replace()` redirect fires immediately (expected; it correctly returns to `/PACT/` on
+  the real site), but the `<link>` tag itself and direct icon fetch both confirmed present/200.
+  Display-only; no `DATA.version` bump.
+
 - **2026-07-25 · fix(index, dm-console): consistent browser-tab favicon across the whole app** —
   `index.html` had its own one-off inline SVG "P" emblem (a different icon than every other page); DM
   Console had **no** `<link rel="icon">` at all (a deliberate omission from an earlier favicon pass —
