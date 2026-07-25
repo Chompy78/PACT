@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · feat(dm-console): add theme selector (Default/Dark/D&D·Parchment/Royal/Forest)** — DM
+  Console had zero UI to change theme (only ever picked up dark mode from OS `prefers-color-scheme`,
+  no way to override it, and none of Live Sheet/CharGen's other 3 themes existed there at all). Added a
+  `<select id="dmThemeSel">` in the top bar (matching Live Sheet/CharGen's existing `#themesel` pattern),
+  a `dmSetTheme()` persisting to `localStorage['pact-dm-theme']`, and three new `[data-theme]` variable
+  blocks (`dnd`/`royal`/`forest`) mapped onto DM Console's own token set (`--navy`/`--navy2`/`--blue`/
+  `--blue-lt`/`--light`/`--paper`/`--card`/`--ink`/`--muted`/`--line`/status-color pairs) — colors chosen
+  to match the other two tools' equivalent themes where a direct token existed, derived consistently
+  from the existing `default`/`dark` blocks' pattern where DM Console has extra tokens the others don't.
+  Verified all 5 themes in a real browser (init script, live switch, and page-reload persistence) —
+  campaign panels/buttons from the two contrast fixes above render correctly in every theme, confirming
+  those fixes were token-based rather than color-literal. Display-only CSS; no `DATA.version` bump.
+
 - **2026-07-25 · feat(dm-console): create + archive/unarchive campaigns** — DM Console had no way to
   create or remove a campaign. Wired up the existing (previously dead-code) `createCampaign()` behind a
   new "+ New campaign" row, and added reversible archive (not hard delete — see D-GH-2026-07-25-

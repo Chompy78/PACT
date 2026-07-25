@@ -11,9 +11,11 @@
   (function () {
     try {
       var t = localStorage.getItem('pact-dm-theme');
-      if (t && ['dark'].indexOf(t) !== -1) {
+      if (t && ['dark', 'dnd', 'royal', 'forest'].indexOf(t) !== -1) {
         document.documentElement.setAttribute('data-theme', t);
-      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      } else if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // Matches the same not-distinguished-from-never-chosen "Default" behavior
+        // tools/PACT-Live-Char-Sheet.html and tools/PACT-CharGen-Webtool.html already use.
         document.documentElement.setAttribute('data-theme', 'dark');
       }
     } catch (e) {}
@@ -35,6 +37,30 @@
     --good:#22c55e; --good-bg:#1e3a1f; --zero:#64748b; --zero-bg:#0f1729;
     --bad:#ef4444; --bad-bg:#1f0f0f; --warn:#eab308; --warn-bg:#1f1701;
     --shadow:0 1px 3px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.3);
+  }
+  [data-theme="dnd"] {
+    --navy:#5a1e1b; --navy2:#451712; --blue:#7a2a23; --blue-lt:#9c3f34;
+    --light:#ecdcb8; --paper:#efe6d2; --card:#f8f2e2;
+    --ink:#2b2018; --muted:#6e5d44; --line:#c9b489;
+    --good:#3f6f2a; --good-bg:#dce8cc; --zero:#8a7a5e; --zero-bg:#f0e9d6;
+    --bad:#9c2b1e; --bad-bg:#e6c2b0; --warn:#96721e; --warn-bg:#f2e3b8;
+    --shadow:0 1px 3px rgba(90,30,27,.15),0 6px 18px rgba(90,30,27,.10);
+  }
+  [data-theme="royal"] {
+    --navy:#3b2a6b; --navy2:#2a1d4d; --blue:#5a3fa0; --blue-lt:#7a5cc4;
+    --light:#e4dcf4; --paper:#f3f0fa; --card:#ffffff;
+    --ink:#241a3a; --muted:#6a5d86; --line:#cbbfe8;
+    --good:#2e7d32; --good-bg:#dcefdc; --zero:#8a7fa0; --zero-bg:#ece7f7;
+    --bad:#b3245b; --bad-bg:#f3c9d8; --warn:#a8791e; --warn-bg:#f2e6c8;
+    --shadow:0 1px 3px rgba(59,42,107,.15),0 6px 18px rgba(59,42,107,.10);
+  }
+  [data-theme="forest"] {
+    --navy:#1f3d2e; --navy2:#142a20; --blue:#2f6b4a; --blue-lt:#4a9068;
+    --light:#d7e8da; --paper:#eef4ec; --card:#ffffff;
+    --ink:#1c2620; --muted:#5b6b5f; --line:#aecbb4;
+    --good:#2e7d32; --good-bg:#dcefdc; --zero:#7a8a7e; --zero-bg:#e7f0e7;
+    --bad:#b5462e; --bad-bg:#f0cbb7; --warn:#96821e; --warn-bg:#f0e8c0;
+    --shadow:0 1px 3px rgba(31,61,46,.15),0 6px 18px rgba(31,61,46,.10);
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
@@ -220,6 +246,8 @@
   .topactions{margin-top:10px;}
   .topbtn{appearance:none;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
   .topbtn:hover{background:rgba(255,255,255,.26);}
+  #dmThemeSel{appearance:none;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+  #dmThemeSel:hover{background:rgba(255,255,255,.26);}
   .homelink{display:inline-flex;align-items:center;gap:4px;color:#fff;text-decoration:none;font-size:13px;font-weight:700;padding:3px 9px;border:1px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.12);white-space:nowrap;flex-shrink:0}
   .homelink:hover{background:rgba(255,255,255,.26)}
   #viewToggle{min-width:7.6em;text-align:center;}
@@ -374,8 +402,21 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   <h1><span class="dot"></span>PACT — DM Console</h1>
   <div class="summary" id="summary">No characters imported yet.</div>
   <div class="lastedited">Last edited 2026-06-28 23:10</div>
-  <div class="topactions"><button type="button" class="topbtn" id="viewToggle">▦ Table view</button><button type="button" class="topbtn" id="matrixBtn">📊 Skill Matrix</button><button type="button" class="topbtn" id="ledgerBtn">📒 AP Ledger</button></div>
+  <div class="topactions"><button type="button" class="topbtn" id="viewToggle">▦ Table view</button><button type="button" class="topbtn" id="matrixBtn">📊 Skill Matrix</button><button type="button" class="topbtn" id="ledgerBtn">📒 AP Ledger</button><select id="dmThemeSel" onchange="dmSetTheme(this.value)" title="Theme"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></div>
 </header>
+
+<script>
+  function dmSetTheme(t){
+    if(t) document.documentElement.setAttribute('data-theme', t);
+    else document.documentElement.removeAttribute('data-theme');
+    try{ localStorage.setItem('pact-dm-theme', t||''); }catch(e){}
+  }
+  (function(){
+    var cur = document.documentElement.getAttribute('data-theme') || '';
+    var sel = document.getElementById('dmThemeSel');
+    if(sel) sel.value = cur;
+  })();
+</script>
 
 <main>
 
