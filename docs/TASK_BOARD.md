@@ -179,6 +179,33 @@ drift — only manual/visual review would) — eligible for `/sweep-code-tasks`.
 the signed-in state is clearly visible (not just a subtle badge) in every tool, and this has been visually
 verified in a real browser in both auth states.
 
+## Wire up joinAsDm() — co-DM invite codes currently can't be redeemed anywhere — TODO
+Branch feat/join-as-dm-ui. `js/campaign.js` exports `joinAsDm(code)` (a SECURITY DEFINER RPC, already
+correctly gated server-side) but no tool calls it — DM Console generates and lets you copy a campaign's
+"DMs" invite code, but there's no UI anywhere to redeem it and actually become a co-DM. Found while adding
+an info tooltip to the Players/DMs codes (2026-07-25); same class of gap `createCampaign()` had before
+this session (confirmed dead via `grep -rln "joinAsDm" tools/*.html login.html` → zero matches).
+**Effort:** medium · **Risk:** medium — ambiguity is low (CharGen's existing "Join campaign" flow —
+`cgJoinCode`/`onJoinCampaignClick` calling `joinCampaign()` — is a near-exact pattern to mirror for
+`joinAsDm()`, just in DM Console instead); damage scale is low (new, additive UI + one already-gated RPC
+call, isolated and reversible); damage likelihood is medium (no automated gate for this UI flow, only
+manual verification) — eligible for `/sweep-code-tasks`.
+
+```text
+1. Add `joinAsDm` to DM Console's campaign.js import list and window._campBridge (tools/DM-Console.html
+   ~line 1290/1294, alongside this session's createCampaign/archiveCampaign/unarchiveCampaign additions).
+2. Add a "Join as co-DM" input + button to DM Console's Campaign panel (mirrors CharGen's cgJoinCode/
+   onJoinCampaignClick pattern almost exactly — an invite-code text input, a button calling
+   B.joinAsDm(code), a status message on success/error).
+3. On success, reload the campaign list (loadCampaigns()) so the newly-joined campaign appears and is
+   selectable, matching the pattern this session's createCampaign wiring already uses.
+4. UI-only, no engine.js/compute() involvement. Display-only — do NOT bump DATA.version; log in CHANGELOG.
+```
+
+**Done when:** a signed-in user can enter a campaign's DM invite code somewhere in DM Console,
+successfully redeem it via `joinAsDm()`, and see that campaign appear in their campaign list — verified
+in a real browser.
+
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
