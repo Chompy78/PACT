@@ -4,6 +4,25 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · feat(dm-console): boon/drawback tooltips in Campaign Rules banned-lists** — the
+  "Banned boons"/"Banned drawbacks" checkbox grids showed only names, no description of what each
+  actually does. Added an optional 3rd element to `RULE_GRIDS` entries (a per-name tooltip-text
+  function) and a conditional `title=` attribute in `renderRuleGrids()`'s shared render template —
+  reads `DATA.boons[name].fx` / `DATA.drawbackFx[name]` directly (the same data every other tool
+  already reads for these descriptions; confirmed via research that CharGen/Live Sheet already
+  normalize both maps to a common `.fx` shape and CharGen's racial-trait checkboxes already use the
+  identical `title=`-from-DATA pattern), so there's exactly one source of truth and no new text to
+  keep in sync. Also investigated adding a symmetric "banned as 2nd origin classes" list to mirror
+  "2nd origin species" — found it would be a no-op: `validate()` already bans a class in both
+  `originClass`/`originClass2` slots via the single existing `bannedOriginClasses` list; species has
+  a *second*, asymmetric list only because it also supports an "okay as primary, not as bonus 2nd"
+  case that classes never had modeled. Logging the asymmetric-class-ban feature as a separate task
+  rather than building it here (a real engine design decision, not this task's scope). Verified
+  end-to-end in a real browser with a full mocked Supabase session (not just CSS, this time — the
+  actual `campaign-ready`-gated render path executed): 88/88 boons and 69/69 drawbacks carry correct
+  tooltip text; the five unaffected grids (species, 2nd origin species, origin classes, masteries,
+  arts) confirmed to have no `title=` regression. Display-only; no `DATA.version` bump.
+
 - **2026-07-25 · fix(dm-console): campaign-panel polish — layout order, code tooltips, oversized fields**
   — Three follow-ups from live feedback on the campaign create/archive feature. (1) "New campaign" and
   "Archived campaigns" moved from the top of the Campaign panel (shown before any selected-campaign detail,

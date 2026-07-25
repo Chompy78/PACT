@@ -1404,21 +1404,29 @@ document.addEventListener('campaign-ready', function () {
 
   // ---- Campaign Rules panel (D-GH14) ----
   var _D = (typeof DATA !== 'undefined') ? DATA : {};
+  // Third element (optional) maps a grid's option name -> hover-tooltip text, sourced from the
+  // same DATA the rest of the app reads (js/engine-data.js) so this can never drift out of sync
+  // with what boons/drawbacks actually do — mirrors the DATA.racialFx `title=` pattern already
+  // used for racial-trait checkboxes in tools/PACT-CharGen-Webtool.html.
   var RULE_GRIDS = [
     ['ruleBannedSpecies', function(){ return Object.keys(_D.pack||{}); }],
     ['ruleBannedOriginSpecies', function(){ return Object.keys(_D.pack||{}); }],
     ['ruleBannedOriginClasses', function(){ return _D.classes||[]; }],
     ['ruleBannedMasteries', function(){ return Object.keys(_D.masteryFx||{}); }],
-    ['ruleBannedBoons', function(){ return Object.keys(_D.boons||{}); }],
-    ['ruleBannedDrawbacks', function(){ return Object.keys(_D.drawbacks||{}); }],
+    ['ruleBannedBoons', function(){ return Object.keys(_D.boons||{}); },
+      function(name){ return (_D.boons && _D.boons[name] && _D.boons[name].fx) || ''; }],
+    ['ruleBannedDrawbacks', function(){ return Object.keys(_D.drawbacks||{}); },
+      function(name){ return (_D.drawbackFx && _D.drawbackFx[name]) || ''; }],
     ['ruleBannedArts', function(){ return Object.keys(_D.arts||{}); }]
   ];
   function renderRuleGrids(){
     RULE_GRIDS.forEach(function(pair){
       var el = document.getElementById(pair[0]);
       if(!el || el.childElementCount) return;   // render option list once
+      var tip = pair[2];
       el.innerHTML = pair[1]().map(function(name){
-        return '<label><input type="checkbox" value="'+esc(name)+'">'+esc(name)+'</label>';
+        var t = tip ? tip(name) : '';
+        return '<label'+(t?' title="'+esc(t)+'"':'')+'><input type="checkbox" value="'+esc(name)+'">'+esc(name)+'</label>';
       }).join('');
     });
   }
