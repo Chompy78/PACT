@@ -105,6 +105,39 @@ unverified) — worst-of lands at high, never eligible for /sweep-code-tasks.
 **Done when:** compute() is a dispatcher over named `_price*` helpers (shared-context design), unchanged
 signature/return shape; full-payload output identical across all fixtures; engine-parity still 20/0.
 
+## Prevent Supabase free-tier auto-pause (keep-alive or paid upgrade) — TODO
+Branch chore/supabase-keep-alive. The PACT Supabase project auto-paused from inactivity today (2026-07-25),
+which silently broke login/register app-wide with "Failed to fetch" until manually restored via
+`mcp__Supabase__restore_project` — evaluate and implement a fix so this doesn't recur, especially before
+PACT has real users relying on cloud sync/DM campaigns.
+**Effort:** medium · **Risk:** medium — ambiguity is medium (scheduled keep-alive ping vs. paid-tier
+upgrade is a real but low-stakes call, not architectural); damage scale is low (a new CI workflow file
+only, easily reverted, no engine/app code touched, uses only the already-committed anon key); damage
+likelihood is low (worst case on failure is a return to today's status quo, not a new/worse failure
+mode) — eligible for `/sweep-code-tasks`.
+
+```text
+1. Evaluate two options and pick one (or recommend the paid-tier one to the user as a billing decision
+   they must approve, since it's a recurring cost):
+   a. A scheduled GitHub Actions workflow (e.g. .github/workflows/supabase-keepalive.yml) that pings the
+      Supabase project on a cron cadence tighter than the free-tier auto-pause window (~7 days of
+      inactivity) — e.g. every 3 days, a lightweight authenticated request using only the already-committed
+      publishable/anon key (js/supabase-client.js's SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY). This is CI/ops
+      tooling, not app backend code, so it doesn't conflict with the "GitHub Pages only, no custom backend"
+      rule (same class as the existing Lighthouse CI workflow).
+   b. Upgrade the Supabase project to a paid tier, which removes auto-pause entirely — flag this to the
+      user explicitly rather than deciding unilaterally, since it's a recurring cost only they can approve.
+2. Default to (a) unless the user explicitly opts into (b). If implementing (a), verify the workflow
+   actually prevents pausing (check project status stays ACTIVE_HEALTHY across a full off-cadence window)
+   before considering this done.
+3. Log the decision (workflow vs. paid-tier, and why) as D-GH-<date>-supabase-keep-alive in DECISIONS.md.
+```
+
+**Done when:** a scheduled keep-alive workflow is running and has been confirmed to keep the Supabase
+project's status `ACTIVE_HEALTHY` across at least one full auto-pause window (or, if the user chose the
+paid-tier path instead, the project has been upgraded and auto-pause confirmed disabled), and the decision
+is logged in DECISIONS.md.
+
 ---
 
 # ⚪ LATER — low-severity fixes + ideas (not scheduled)
