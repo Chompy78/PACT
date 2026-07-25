@@ -4,6 +4,38 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · docs(add-code-task): drop the pre-commit approval gate** — `/add-code-task` now shows the
+  drafted task block and proceeds straight to committing it to `docs/TASK_BOARD.md` in the same turn,
+  instead of waiting for an explicit "yes"/"looks good" first (D-GH-2026-07-25-add-task-drop-approval-gate).
+- **2026-07-25 · feat(characters): "My Characters" page — archive/delete, campaign grouping, open-in-tool
+  deep links** — new `tools/characters.html`: every cloud-saved character (CharGen + Live Sheet) in one
+  signed-in, online-only view, grouped by campaign name (via `listMyCampaigns()`) with a "No campaign"
+  bucket, and a "Show archived" toggle (archived rows hidden by default). Each row: Open in CharGen/Live
+  Sheet (disabled with an "empty" tag for `hasData:false` rows), Archive/Unarchive (reversible), and —
+  only once archived — Delete permanently (uses the existing, previously UI-less `deleteCharacter()`).
+  `js/sync.js` gained `listMyCharacters()` (owner-scoped, unlike `listCharacters()` which also returns a
+  DM's-eye view via `is_campaign_dm`), `archiveCharacter()`/`unarchiveCharacter()`. DB: `characters` gained
+  `archived_at timestamptz` + `grant update (archived_at) on characters to authenticated` — no RPC needed,
+  unlike `campaigns.archived_at`, because `characters_update`'s RLS is already owner-only (see
+  D-GH-2026-07-25-character-archive). CharGen and Live Sheet both gained a `?cloudChar=<id>` boot-time deep
+  link (each tool's existing cloud-load logic extracted into a shared `loadCloudChar(id,label)`, called by
+  both the menu click and the new boot handler) so the new page's "Open in ..." buttons can hand off to a
+  specific saved character. Discoverability: a "📋 My Characters" link in each tool's ☁ Cloud menu, plus a
+  card on `index.html`.
+- **2026-07-25 · fix(sync, live-sheet, chargen): "No character data found" on cloud-load** — reported as
+  every entry in Live Sheet's "Load saved character" list failing with this error. Root-caused against
+  the **live database** (not just code): all 4 affected rows had `stats` = `{}` or `{"note":"hello"}` —
+  pre-launch test/stub data with no `LOG` array, not corrupted real saves. Deleted the 4 stub rows
+  (`piuprrrnaotrtxucrtsb`, table `characters`). Separately hardened both tools against this class of row
+  recurring (e.g. a redeemed player invite a player never opened): `js/sync.js`'s `listCharacters()` now
+  selects `stats->LOG` and returns a `hasData` flag per character; both CharGen's and Live Sheet's
+  cloud-load menus render a `hasData:false` row as an inert, greyed "empty" entry (shown, not hidden — a
+  player should still be able to see it exists) instead of a clickable button that resolves to the
+  generic error after the user already committed to loading it. Verified end-to-end in a real browser
+  (both tools) with a mocked signed-in session carrying one real and one stub character: the stub renders
+  as a non-interactive `<div>` with no click handler attached, the real one still loads correctly.
+  Display-only; no `DATA.version` bump.
+
 - **2026-07-25 · fix(dm-console): "Award" button silently clipped off-screen on narrow viewports** —
   reported as "no button to push AP to players." Reproduced: the Campaign Roster's Award AP cell needs
   ~250px for its amount/note/button row, but `#campRoster table{width:100%}` forces the table to fit

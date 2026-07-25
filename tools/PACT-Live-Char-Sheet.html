@@ -1604,6 +1604,67 @@ document.addEventListener('sync-ready', function () {
     if(typeof window.render === 'function') window.render();
   }
 
+  // Core load, no confirm gate — shared by the cloud-menu click (which confirms first, since it
+  // can clobber whatever's currently open) and the ?cloudChar= deep link from the My Characters
+  // page (feat/character-management), where clicking "Open in Live Sheet" there is already the
+  // confirming action. Was inlined in the cloud-load-btn click handler; extracted verbatim so
+  // both callers share one implementation instead of drifting.
+  async function loadCloudChar(id, label){
+    var rec = await S.loadCharacter(id);
+    if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return false; }
+    window._dmAp = rec.ap || 0;
+    window._ignorePlayerAp = false;
+    window._cloudCampaignRules = null;
+    _campaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
+    if(rec.campaign_id && window._campaignBridge) {
+      try {
+        var camps = await window._campaignBridge.listMyCampaigns();
+        var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
+        if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; window._rulesStatus = 'active'; }
+      } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds; window._rulesStatus correctly stays 'unavailable', not silently 'none' */ }
+    }
+    renderCloudStatusBadge();
+    var d = rec.stats;
+    // Bare assignment, not window.X= — LOG/SEQ/loadedRules/REDO/viewAt/__charId are top-level
+    // `let` bindings in this file's main script, which do NOT become window properties; a
+    // window.X= write here is a dead write to an unused property that every render()/foldBuild()/
+    // economy()/buy() call (all of which read the bare identifier) never sees. This previously
+    // meant clicking "Load" updated the AP-model globals above but silently left the sheet/ledger
+    // showing the PREVIOUSLY loaded character. Mirrors _lsConsumeHandoff()'s already-correct
+    // pattern a few hundred lines up.
+    LOG = d.LOG;
+    SEQ = d.SEQ||(d.LOG.length+1);
+    loadedRules = d.rules||null;
+    REDO = []; viewAt = null;
+    if(rec.id) __charId = rec.id;
+    // Offline campaign-rules carry: now that LOG is the loaded character's, refresh its snapshot
+    // from the live rules (or clear it if this character is standalone) before save() persists it.
+    if(typeof window._writeRulesSnapshot==='function'){
+      if(window._rulesStatus==='active' && window._cloudCampaignRules){ window._writeRulesSnapshot(window._cloudCampaignRules); }
+      else if(rec && !rec.campaign_id){ window._writeRulesSnapshot(null); }
+    }
+    if(typeof window.save   === 'function') window.save();
+    if(typeof window.render === 'function') window.render();
+    cloudMenu.classList.remove('open');
+    if(typeof window.flash  === 'function') window.flash('☁ Loaded: '+esc(label));
+    return true;
+  }
+
+  // ?cloudChar=<id> deep link (feat/character-management): the My Characters page's "Open in
+  // Live Sheet" action navigates here with this param instead of duplicating the load logic.
+  // Consumed once, then stripped from the URL so a reload doesn't reload the same character again.
+  (function(){
+    var qs = new URLSearchParams(location.search);
+    var cid = qs.get('cloudChar');
+    if(!cid) return;
+    qs.delete('cloudChar');
+    try{ history.replaceState(null,'',location.pathname+(qs.toString()?('?'+qs.toString()):'')+location.hash); }catch(e){}
+    A.currentSession().then(function(session){
+      if(!session){ alert('Sign in to open a saved character.'); return; }
+      loadCloudChar(cid,'character').catch(function(err){ alert('Could not load that character: '+(err&&err.message?err.message:err)); });
+    });
+  })();
+
   cloudBtn.addEventListener('click', function(e){
     e.stopPropagation();
     cloudMenu.classList.toggle('open');
@@ -1623,6 +1684,7 @@ document.addEventListener('sync-ready', function () {
     cloudMenu.innerHTML =
       '<div style="padding:6px 12px;font-size:11px;color:var(--grey);border-bottom:1px solid var(--line)">'+esc(_session.user.email)+'</div>'+
       '<button class="mi" id="cloudSaveBtn">☁ Save to cloud</button>'+
+      '<a href="characters.html" class="mi" style="display:block;text-decoration:none">📋 My Characters</a>'+
       '<div style="padding:4px 10px;font-size:11px;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:4px">Load saved character</div>'+
       '<div id="cloudCharList"><div style="padding:6px 12px;font-size:12px;color:var(--grey)">Loading…</div></div>';
 
@@ -1669,6 +1731,17 @@ document.addEventListener('sync-ready', function () {
       function buildCharRow(c){
         var nm = esc(c.name||'Unnamed');
         var ts = (c.updated_at||'').slice(0,10);
+        // hasData:false means this row exists (e.g. a redeemed player invite never opened yet, or a
+        // stray manual insert) but was never actually saved from CharGen/Live Sheet — nothing to load
+        // or clone. Show it, not hide it (a player should still be able to see/account for it), but
+        // as an inert row instead of a button that would resolve to a confusing error after the fact.
+        if(!c.hasData){
+          return '<div class="mi" style="display:flex;align-items:center;color:var(--grey);cursor:default;opacity:.65" '+
+            'title="Never saved from Live Sheet or CharGen — there is nothing to load yet.">'+
+            '<span style="flex:1">'+nm+'</span>'+
+            '<span style="font-size:10px;margin-left:6px;flex-shrink:0">empty</span>'+
+            '</div>';
+        }
         var row = '<button class="mi cloud-load-btn" data-cid="'+esc(c.id)+'">'+
           '<span style="flex:1">'+nm+'</span>'+
           '<span style="font-size:10px;color:var(--grey);margin-left:6px;flex-shrink:0">'+ts+'</span>'+
@@ -1689,43 +1762,7 @@ document.addEventListener('sync-ready', function () {
           btn.addEventListener('click', async function(){
             var label = btn.querySelector('span').textContent;
             if(!confirm('Load "'+label+'"? This replaces your current character history.')) return;
-            var rec = await S.loadCharacter(btn.dataset.cid);
-            if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return; }
-            window._dmAp = rec.ap || 0;
-            window._ignorePlayerAp = false;
-            window._cloudCampaignRules = null;
-            _campaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
-            if(rec.campaign_id && window._campaignBridge) {
-              try {
-                var camps = await window._campaignBridge.listMyCampaigns();
-                var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
-                if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; window._rulesStatus = 'active'; }
-              } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds; window._rulesStatus correctly stays 'unavailable', not silently 'none' */ }
-            }
-            renderCloudStatusBadge();
-            var d = rec.stats;
-            // Bare assignment, not window.X= — LOG/SEQ/loadedRules/REDO/viewAt/__charId are top-level
-            // `let` bindings in this file's main script, which do NOT become window properties; a
-            // window.X= write here is a dead write to an unused property that every render()/foldBuild()/
-            // economy()/buy() call (all of which read the bare identifier) never sees. This previously
-            // meant clicking "Load" updated the AP-model globals above but silently left the sheet/ledger
-            // showing the PREVIOUSLY loaded character. Mirrors _lsConsumeHandoff()'s already-correct
-            // pattern a few hundred lines up.
-            LOG = d.LOG;
-            SEQ = d.SEQ||(d.LOG.length+1);
-            loadedRules = d.rules||null;
-            REDO = []; viewAt = null;
-            if(rec.id) __charId = rec.id;
-            // Offline campaign-rules carry: now that LOG is the loaded character's, refresh its snapshot
-            // from the live rules (or clear it if this character is standalone) before save() persists it.
-            if(typeof window._writeRulesSnapshot==='function'){
-              if(window._rulesStatus==='active' && window._cloudCampaignRules){ window._writeRulesSnapshot(window._cloudCampaignRules); }
-              else if(rec && !rec.campaign_id){ window._writeRulesSnapshot(null); }
-            }
-            if(typeof window.save   === 'function') window.save();
-            if(typeof window.render === 'function') window.render();
-            cloudMenu.classList.remove('open');
-            if(typeof window.flash  === 'function') window.flash('☁ Loaded: '+esc(label));
+            await loadCloudChar(btn.dataset.cid, label);
           });
         });
         listEl.querySelectorAll('.cloud-clone-btn').forEach(function(btn){

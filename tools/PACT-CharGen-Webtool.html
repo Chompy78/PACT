@@ -649,6 +649,7 @@ document.addEventListener('sync-ready', function () {
     }
     cgCloudMenu.innerHTML = '<div style="padding:2px 10px 6px;font-size:11px;color:var(--grey)">' + _apEsc(_session.user.email || '') + '</div>' +
       '<button type="button" class="mi" id="cgCloudSaveBtn">☁ Save to cloud</button>' +
+      '<a href="characters.html" class="mi" style="display:block;text-decoration:none">📋 My Characters</a>' +
       '<div style="padding:8px 10px 2px;font-size:11px;color:var(--grey);font-weight:700">Join campaign</div>' +
       '<div style="padding:2px 10px 6px">' +
       (window._dmApStatus === 'active' && window._cloudCampaign
@@ -675,6 +676,15 @@ document.addEventListener('sync-ready', function () {
     if (!listEl) return;   // menu closed while the list was loading
     if (!mine.length) { listEl.innerHTML = '<div style="padding:6px 10px;font-size:12px;color:var(--grey)">No saved characters yet.</div>'; return; }
     listEl.innerHTML = mine.map(function (c) {
+      // hasData:false = this row exists (e.g. a redeemed player invite never opened yet) but was
+      // never actually saved, so there's nothing to load — show it as an inert row instead of a
+      // button that would resolve to "No character data found" after the fact.
+      if (!c.hasData) {
+        return '<div class="mi" style="display:flex;align-items:center;color:var(--grey);cursor:default;opacity:.65" ' +
+          'title="Never saved from CharGen or Live Sheet — there is nothing to load yet.">' +
+          '<span style="flex:1">' + _apEsc(c.name || 'Unnamed') + '</span>' +
+          '<span style="font-size:10px;margin-left:6px;flex-shrink:0">empty</span></div>';
+      }
       return '<button type="button" class="mi cg-cloud-load-btn" data-cid="' + _apEsc(c.id) + '" data-cname="' + _apEsc(c.name || 'Unnamed') + '">' + _apEsc(c.name || 'Unnamed') +
         ' <span style="color:var(--grey);font-weight:400">— ' + _apEsc((c.updated_at || '').slice(0, 10)) + '</span></button>';
     }).join('');
@@ -745,20 +755,45 @@ document.addEventListener('sync-ready', function () {
     if (btn) btn.disabled = false;
   }
 
-  async function onLoadClick(id, label) {
-    if (!confirm('Load "' + label + '"? This replaces your current character build.')) return;
+  // Core load, no confirm gate — shared by the menu click (which confirms first, since it can
+  // clobber whatever's currently open) and the ?cloudChar= deep link from the My Characters page
+  // (feat/character-management), where clicking "Open in CharGen" there is already the confirming
+  // action — a second confirm on arrival would just be a redundant prompt for the common case of
+  // landing on a fresh/empty page.
+  async function loadCloudChar(id, label) {
     var rec = await S.loadCharacter(id);
-    if (!rec || !rec.stats || !Array.isArray(rec.stats.LOG)) { alert('No character data found.'); return; }
+    if (!rec || !rec.stats || !Array.isArray(rec.stats.LOG)) { alert('No character data found.'); return false; }
     if (rec.id) __charId = rec.id;   // bare assignment — __charId is a top-level `let`, so a window.X= write here would silently shadow-fail (see the Live Sheet's own cloud-load bug, fixed elsewhere in this change — deliberately not repeated here)
     _cgApplyEnvelope(rec.stats, { clearHistory: true });      // bare LOG/SEQ assignment inside — same reason
     cgCloudMenu.classList.remove('open');
     await _cgResolveDmApStatus(rec.ap, rec.campaign_id);
     render();
     if (typeof flash === 'function') flash('☁ Loaded: ' + label);
+    return true;
+  }
+
+  async function onLoadClick(id, label) {
+    if (!confirm('Load "' + label + '"? This replaces your current character build.')) return;
+    await loadCloudChar(id, label);
   }
 
   A.onSessionChange(function (session) { _session = session; });
   A.currentSession().then(function (session) { _session = session; });
+
+  // ?cloudChar=<id> deep link (feat/character-management): the My Characters page's "Open in
+  // CharGen" action navigates here with this param instead of duplicating the load logic itself.
+  // Consumed once, then stripped from the URL so a reload doesn't reload/re-flash the same character.
+  (function () {
+    var qs = new URLSearchParams(location.search);
+    var cid = qs.get('cloudChar');
+    if (!cid) return;
+    qs.delete('cloudChar');
+    try { history.replaceState(null, '', location.pathname + (qs.toString() ? ('?' + qs.toString()) : '') + location.hash); } catch (e) {}
+    A.currentSession().then(function (session) {
+      if (!session) { alert('Sign in to open a saved character.'); return; }
+      loadCloudChar(cid, 'character').catch(function (err) { alert('Could not load that character: ' + (err && err.message ? err.message : err)); });
+    });
+  })();
 });
 </script>
 <script>
