@@ -1,0 +1,211 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png">
+<title>PACT — My Characters</title>
+<style>
+:root,body[data-theme]{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;--good:#2E7D32;--bad:#C00000;--inp:#EAF1FB;--bg:#F4F7FC;--card:#fff}
+body[data-theme="dark"]{--navy:#0e1117;--blue:#6ea8ff;--teal:#5bb39f;--lt:#2d3340;--ink:#e7e9ee;--grey:#9aa3b2;--line:#3a4150;--good:#5fce6a;--bad:#e08585;--inp:#2f3542;--bg:#15181e;--card:#252a33}
+body[data-theme="dnd"]{--navy:#5a1e1b;--blue:#7a2a23;--teal:#6a5520;--lt:#e7d8b6;--ink:#2b2018;--grey:#6e5d44;--line:#c9b489;--good:#3f6f2a;--bad:#9c2b1e;--inp:#efe4c8;--bg:#efe6d2;--card:#f8f2e2}
+body[data-theme="royal"]{--navy:#3b2a6b;--blue:#5a3fa0;--teal:#3f7a8c;--lt:#e4dcf4;--ink:#241a3a;--grey:#6a5d86;--line:#cbbfe8;--good:#2E7D32;--bad:#b3245b;--inp:#efeafb;--bg:#f3f0fa;--card:#fff}
+body[data-theme="forest"]{--navy:#1f3d2e;--blue:#2f6b4a;--teal:#3a7d5a;--lt:#d7e8da;--ink:#1c2620;--grey:#5b6b5f;--line:#aecbb4;--good:#2E7D32;--bad:#b5462e;--inp:#e6f1e7;--bg:#eef4ec;--card:#fff}
+*{box-sizing:border-box}
+body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background:var(--bg);margin:0;font-size:14px}
+.top{background:var(--navy);color:#fff;padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+.top h1{margin:0;font-size:18px;flex:0 0 auto}
+.homelink{display:inline-flex;align-items:center;gap:4px;color:#fff;text-decoration:none;font-size:13px;font-weight:700;padding:3px 9px;border:1px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.12);white-space:nowrap;flex-shrink:0}
+.homelink:hover{background:rgba(255,255,255,.24)}
+.top select{font:inherit;font-size:12px;border-radius:6px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;padding:3px 6px}
+.top select option{color:#000}
+.wrap{max-width:900px;margin:20px auto;padding:0 14px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.hint{color:var(--grey);font-size:13px}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.toolbar label{font-size:13px;color:var(--grey);display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.group{margin-bottom:18px}
+.group h2{font-size:14px;color:var(--navy);border-bottom:1px solid var(--line);padding-bottom:5px;margin:0 0 8px}
+.row{display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .nm{font-weight:700;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row.archived .nm{opacity:.6;text-decoration:line-through}
+.badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 7px;border-radius:10px;background:var(--lt);color:var(--navy);flex:0 0 auto}
+.badge.arch{background:var(--bad);color:#fff}
+.meta{font-size:11px;color:var(--grey);flex:0 0 auto;white-space:nowrap}
+.actions{display:flex;gap:6px;flex:0 0 auto;flex-wrap:wrap}
+.btn{font:inherit;font-size:12px;font-weight:700;border-radius:6px;padding:5px 10px;cursor:pointer;border:1px solid var(--blue);background:var(--blue);color:#fff;white-space:nowrap}
+.btn.g{background:var(--card);color:var(--blue)}
+.btn.danger{background:var(--card);color:var(--bad);border-color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:default}
+.empty-tag{font-size:10px;color:var(--grey);border:1px solid var(--line);border-radius:8px;padding:2px 7px;flex:0 0 auto}
+#msg{min-height:18px;font-size:13px;margin-top:8px}
+#msg.bad{color:var(--bad)}
+#msg.good{color:var(--good)}
+.signin-card a{color:var(--blue);font-weight:700}
+</style>
+</head>
+<body>
+<div class="top">
+  <a class="homelink" href="../index.html">&larr; All tools</a>
+  <h1>My Characters</h1>
+  <select id="themesel" onchange="setTheme(this.value)" title="Theme" style="margin-left:auto">
+    <option value="">Default</option>
+    <option value="dark">Dark mode</option>
+    <option value="dnd">D&amp;D / Parchment</option>
+    <option value="royal">Royal</option>
+    <option value="forest">Forest</option>
+  </select>
+</div>
+<div class="wrap">
+  <div class="card" id="signinCard" hidden>
+    <p class="hint signin-card">This page shows the characters saved to your cloud account. <a href="../login.html">Sign in</a> to see them.</p>
+  </div>
+  <div class="card" id="offlineCard" hidden>
+    <p class="hint">You're offline. Reconnect to see your cloud characters.</p>
+  </div>
+  <div id="mainCard" class="card" hidden>
+    <div class="toolbar">
+      <p class="hint" style="margin:0">Grouped by campaign. Archiving is reversible; deleting is not.</p>
+      <label><input type="checkbox" id="showArchived"> Show archived</label>
+    </div>
+    <div id="groups"></div>
+    <div id="msg" role="status" aria-live="polite"></div>
+  </div>
+</div>
+
+<script src="../js/ui-helpers.js"></script>
+<script>
+function setTheme(t){if(t)document.body.setAttribute('data-theme',t);else document.body.removeAttribute('data-theme');
+  try{localStorage.setItem('pactTheme',t||'');}catch(e){}}
+(function(){let t='';try{t=localStorage.getItem('pactTheme')||'';}catch(e){}
+  if(!t&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)t='dark';
+  if(t){setTheme(t);var s=document.getElementById('themesel');if(s)s.value=t;}})();
+</script>
+<script type="module">
+import { currentSession, onSessionChange } from '../js/auth.js';
+import { listMyCharacters, archiveCharacter, unarchiveCharacter, deleteCharacter } from '../js/sync.js';
+import { listMyCampaigns } from '../js/campaign.js';
+
+const TOOL = {
+  chargen:   { label: 'CharGen',    open: 'PACT-CharGen-Webtool.html?cloudChar=' },
+  livesheet: { label: 'Live Sheet', open: 'PACT-Live-Char-Sheet.html?cloudChar=' },
+};
+
+const signinCard = document.getElementById('signinCard');
+const offlineCard = document.getElementById('offlineCard');
+const mainCard = document.getElementById('mainCard');
+const groupsEl = document.getElementById('groups');
+const msgEl = document.getElementById('msg');
+const showArchivedEl = document.getElementById('showArchived');
+
+let _chars = [], _campNames = new Map();
+
+function say(text, cls){ msgEl.textContent = text || ''; msgEl.className = cls || ''; }
+
+async function boot(){
+  const session = await currentSession();
+  if (!session) { signinCard.hidden = false; offlineCard.hidden = true; mainCard.hidden = true; return; }
+  if (!navigator.onLine) { offlineCard.hidden = false; signinCard.hidden = true; mainCard.hidden = true; return; }
+  signinCard.hidden = true; offlineCard.hidden = true; mainCard.hidden = false;
+  await loadAndRender();
+}
+
+async function loadAndRender(){
+  say('Loading…');
+  try {
+    const [chars, camps] = await Promise.all([listMyCharacters(), listMyCampaigns()]);
+    _chars = chars || [];
+    _campNames = new Map((camps || []).map(c => [c.id, c.name]));
+    render();
+    say('');
+  } catch (err) {
+    say('Could not load your characters: ' + (err && err.message ? err.message : err), 'bad');
+  }
+}
+
+function render(){
+  const showArchived = showArchivedEl.checked;
+  const byGroup = new Map();   // campaign_id (or 'none') -> characters[]
+  _chars.forEach(c => {
+    if (c.archived_at && !showArchived) return;
+    const key = c.campaign_id || 'none';
+    if (!byGroup.has(key)) byGroup.set(key, []);
+    byGroup.get(key).push(c);
+  });
+  for (const list of byGroup.values()) list.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+
+  const keys = [...byGroup.keys()].sort((a, b) => {
+    if (a === 'none') return -1;
+    if (b === 'none') return 1;
+    return (_campNames.get(a) || '').localeCompare(_campNames.get(b) || '');
+  });
+
+  if (!keys.length) {
+    groupsEl.innerHTML = '<p class="hint">No characters yet. Build one in the Character Generator, or play one in the Live Sheet, then save it to the cloud.</p>';
+    return;
+  }
+
+  groupsEl.innerHTML = keys.map(key => {
+    const title = key === 'none' ? 'No campaign' : esc(_campNames.get(key) || 'Unknown campaign');
+    const rows = byGroup.get(key).map(rowHtml).join('');
+    return '<div class="group"><h2>' + title + '</h2>' + rows + '</div>';
+  }).join('');
+
+  groupsEl.querySelectorAll('[data-open]').forEach(btn => {
+    btn.addEventListener('click', () => { location.href = btn.dataset.open; });
+  });
+  groupsEl.querySelectorAll('[data-archive]').forEach(btn => {
+    btn.addEventListener('click', () => onArchiveToggle(btn.dataset.archive, btn.dataset.unarchive === '1'));
+  });
+  groupsEl.querySelectorAll('[data-delete]').forEach(btn => {
+    btn.addEventListener('click', () => onDelete(btn.dataset.delete, btn.dataset.name));
+  });
+}
+
+function rowHtml(c){
+  const tool = TOOL[c.kind] || TOOL.chargen;
+  const name = esc(c.name || 'Unnamed');
+  const ts = (c.updated_at || '').slice(0, 10);
+  const archived = !!c.archived_at;
+  const openBtn = c.hasData
+    ? '<button type="button" class="btn" data-open="' + tool.open + esc(c.id) + '">Open in ' + tool.label + '</button>'
+    : '<span class="empty-tag" title="Never saved from CharGen or Live Sheet — nothing to open.">empty</span>';
+  const archBtn = '<button type="button" class="btn g" data-archive="' + esc(c.id) + '" data-unarchive="' + (archived ? '1' : '0') + '">' +
+    (archived ? 'Unarchive' : 'Archive') + '</button>';
+  const delBtn = archived
+    ? '<button type="button" class="btn danger" data-delete="' + esc(c.id) + '" data-name="' + name + '">Delete permanently</button>'
+    : '';
+  return '<div class="row' + (archived ? ' archived' : '') + '">' +
+    '<span class="nm">' + name + '</span>' +
+    '<span class="badge' + (archived ? ' arch' : '') + '">' + (archived ? 'Archived' : tool.label) + '</span>' +
+    '<span class="meta">' + esc(ts) + (c.ap ? ' · ' + esc(String(c.ap)) + ' AP' : '') + '</span>' +
+    '<span class="actions">' + openBtn + archBtn + delBtn + '</span>' +
+    '</div>';
+}
+
+async function onArchiveToggle(id, isArchived){
+  try {
+    if (isArchived) await unarchiveCharacter(id); else await archiveCharacter(id);
+    const c = _chars.find(x => x.id === id);
+    if (c) c.archived_at = isArchived ? null : new Date().toISOString();
+    render();
+    say(isArchived ? 'Unarchived.' : 'Archived. Use "Show archived" to find it again.', 'good');
+  } catch (err) { say('Could not update: ' + (err && err.message ? err.message : err), 'bad'); }
+}
+
+async function onDelete(id, name){
+  if (!confirm('Permanently delete "' + name + '"? This cannot be undone.')) return;
+  try {
+    await deleteCharacter(id);
+    _chars = _chars.filter(c => c.id !== id);
+    render();
+    say('Deleted.', 'good');
+  } catch (err) { say('Could not delete: ' + (err && err.message ? err.message : err), 'bad'); }
+}
+
+showArchivedEl.addEventListener('change', render);
+onSessionChange(() => boot());
+window.addEventListener('online', boot);
+window.addEventListener('offline', boot);
+boot();
+</script>
+</body></html>

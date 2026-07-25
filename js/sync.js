@@ -197,6 +197,47 @@ export async function listCharacters() {
     .map(r => ({ ...r, hasData: Array.isArray(r.stats && r.stats.LOG) }));
 }
 
+/** List the current user's own characters (owner-only — never a DM's-eye view
+ *  of a player's character via is_campaign_dm), each annotated with `hasData`
+ *  (see listCharacters()) and `campaign_id` for campaign-name grouping by the
+ *  caller. Requires sign-in; throws if called while signed out. */
+export async function listMyCharacters() {
+  const user = await currentUser();
+  if (!user) throw new Error('Not signed in');
+  const tombstoned = new Set(lsDeletes());
+  if (navigator.onLine) {
+    const { data, error } = await supabase
+      .from('characters')
+      .select('id, name, kind, ap, campaign_id, archived_at, updated_at, log:stats->LOG')
+      .eq('owner_id', user.id)
+      .order('updated_at', { ascending: false });
+    if (error) throw error;
+    const withFlag = data.map(({ log, ...c }) => ({ ...c, hasData: Array.isArray(log) }));
+    const serverIds = new Set(withFlag.map(c => c.id));
+    const localOnly = lsIndex().map(lsGet).filter(r => r && !serverIds.has(r.id))
+      .map(r => ({ ...r, hasData: Array.isArray(r.stats && r.stats.LOG) }));
+    return [...withFlag, ...localOnly].filter(c => !tombstoned.has(c.id));
+  }
+  return lsIndex().map(lsGet).filter(Boolean).filter(c => !tombstoned.has(c.id))
+    .map(r => ({ ...r, hasData: Array.isArray(r.stats && r.stats.LOG) }));
+}
+
+/** Archive/unarchive: reversible soft-delete, owner-only (see rls-policies.sql).
+ *  Archived characters stay in listCharacters()/listMyCharacters() output (tagged
+ *  via archived_at) — callers filter/group by it, it doesn't hide the row. */
+export async function archiveCharacter(id) {
+  const { error } = await supabase.from('characters').update({ archived_at: nowIso() }).eq('id', id);
+  if (error) throw error;
+  const local = lsGet(id);
+  if (local) lsSet({ ...local, archived_at: nowIso() });
+}
+export async function unarchiveCharacter(id) {
+  const { error } = await supabase.from('characters').update({ archived_at: null }).eq('id', id);
+  if (error) throw error;
+  const local = lsGet(id);
+  if (local) lsSet({ ...local, archived_at: null });
+}
+
 /** Delete a character: local is removed immediately and tombstoned so a later
  *  pull can't resurrect it; the server delete is attempted right away if
  *  online, and retried via the tombstone on reconnect/syncAll otherwise. */

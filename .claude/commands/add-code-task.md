@@ -42,7 +42,7 @@ question (one or two at most) if any of the following are genuinely unclear:
 
 If a sensible default is obvious, take it and state it rather than asking. Don't ask unnecessary questions.
 
-## Step 3 — format the task and show it for approval
+## Step 3 — format the task and show it
 
 Format the task using this house format exactly:
 
@@ -140,13 +140,12 @@ retroactively guess at one as a side effect of adding a different, unrelated tas
 - **Bucket = priority.** 🔴 NOW = urgent/high · 🟡 NEXT = build work / medium · ⚪ LATER = idea / low.
   Default a new feature to **NEXT** unless stated otherwise; say which bucket you chose in one line.
 
-After formatting, **show the task block to the user and ask for approval before doing anything else.**
-Wait for confirmation (e.g. "yes", "looks good", "go") before proceeding to Step 4.
-If the user requests changes, revise and show again. Do not proceed until approved.
+After formatting, **show the task block to the user, then proceed straight to Step 4 in the same
+turn — no approval gate.** The user will say if they don't like something rather than approve it
+first (see D-GH-2026-07-25-add-task-drop-approval-gate); don't wait for a "yes"/"looks good" before
+committing.
 
 ## Step 4 — execute
-
-Only after the user approves the task block:
 
 1. Check out `preview` and pull latest.
 2. Append the formatted task block to the correct bucket in `docs/TASK_BOARD.md`, formatted like the

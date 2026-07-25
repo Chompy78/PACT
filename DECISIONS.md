@@ -9,6 +9,12 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-25-character-archive** — Added `characters.archived_at` for the new "My Characters" page.
+  Unlike `campaigns.archived_at` (D-GH-2026-07-25-campaign-archive), no RPC is needed: `characters_update`'s
+  RLS policy is already owner-only, so a plain column-level UPDATE grant is correctly scoped as-is.
+- **D-GH-2026-07-25-add-task-drop-approval-gate** — `/add-code-task` no longer waits for the user to
+  approve the drafted task block before committing it to `docs/TASK_BOARD.md`; it shows the draft, then
+  proceeds straight to Step 4 in the same turn.
 - **D-GH-2026-07-25-cloud-load-empty-characters** — "No character data found" on every cloud-load
   attempt traced to 4 pre-launch stub rows in the live `characters` table (deleted). Hardened both
   tools' cloud-load menus to show a `hasData:false` character as a visible, inert "empty" row instead
@@ -171,6 +177,48 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-25-character-archive · characters.archived_at needs no RPC, unlike campaigns.archived_at
+
+- **Context:** built a player-facing "My Characters" page (`tools/characters.html`) with archive (reversible
+  soft-delete) and permanent-delete actions. The campaign-archive feature earlier this session
+  (D-GH-2026-07-25-campaign-archive) needed dedicated `archive_campaign()`/`unarchive_campaign()`
+  SECURITY DEFINER RPCs plus a column-level UPDATE lockdown, because `campaigns_update`'s row policy
+  allows *any* co-DM (`is_campaign_dm(id)`) — a plain column grant would have let a co-DM archive a
+  campaign unilaterally, bypassing the intended owner-only semantics.
+- **Options:** (i) copy the campaign pattern verbatim — add `archive_character()`/`unarchive_character()`
+  RPCs; (ii) check whether `characters_update`'s row policy already excludes the co-owner case that made
+  campaigns need an RPC, and use a plain column grant if so.
+- **Decision:** (ii). Read `sql/rls-policies.sql`'s `characters_update` policy directly rather than
+  assuming parity with campaigns: `for update using (owner_id = auth.uid()) with check (owner_id =
+  auth.uid())` — owner-only in both clauses already, no co-DM/co-owner case exists for a character the
+  way it does for a campaign. Added `archived_at timestamptz` to `characters` and
+  `grant update (archived_at) on public.characters to authenticated` — no new RPC.
+- **Why:** an RPC is the *fix* for a too-permissive row policy, not something to add reflexively whenever
+  a table gets a new soft-delete column — adding one here would have been unnecessary surface area for a
+  problem that doesn't exist on this table. Verified via `get_advisors(type: security)` after applying the
+  migration live: no new finding, confirming the plain grant didn't open anything the RPC would have
+  needed to close.
+- **Status:** DONE. Migration applied live (`piuprrrnaotrtxucrtsb`) and persisted to
+  `sql/schema.sql`/`sql/rls-policies.sql`/`sql/migrations/2026-07-25-character-archive.sql`. `js/sync.js`
+  gained `listMyCharacters()` (owner-scoped — deliberately not reusing `listCharacters()`, which also
+  surfaces a DM's-eye view of a player's character via `is_campaign_dm`), `archiveCharacter()`,
+  `unarchiveCharacter()`. See CHANGELOG.md for the full "My Characters" page feature this shipped inside.
+
+## D-GH-2026-07-25-add-task-drop-approval-gate · /add-code-task no longer waits for approval before committing
+
+- **Context:** `/add-code-task` Step 3 required showing the drafted task block and waiting for explicit
+  user approval ("yes", "looks good") before Step 4 committed it to `docs/TASK_BOARD.md`. User: "Rewrite
+  task that it doesn't need my approval anymore. I'll say if i don't like it rather than say i approve it."
+- **Options:** (i) keep the approval gate; (ii) drop it entirely for this one skill; (iii) drop it for
+  every draft-before-write skill (`/log-code-lesson`, `/make-code-cold-plan-review`, etc.).
+- **Decision:** (ii) — scoped to `/add-code-task` only.
+- **Why:** the user named this workflow specifically, not draft-before-write skills in general; a
+  task-board entry is low-stakes and easy to edit/remove after the fact (unlike, say, a cold-plan-review
+  document meant to be sent externally), so dropping the gate here doesn't set a precedent for skills
+  where a wrong draft is costlier to have already acted on.
+- **Status:** DONE. `.claude/commands/add-code-task.md` Step 3/4 rewritten: show the draft, then proceed
+  straight to Step 4 in the same turn.
 
 ## D-GH-2026-07-25-cloud-load-empty-characters · "No character data found" was stub data, not a code bug — hardened both tools against the row shape anyway
 - **Context:** reported as every entry in Live Sheet's "Load saved character" list failing with "No

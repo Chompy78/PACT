@@ -164,7 +164,8 @@ create table if not exists public.characters (
   stats       jsonb not null default '{}'::jsonb,   -- build JSON or { LOG, SEQ, rules }
   ap          integer not null default 0,           -- DM-authoritative; never written by players
   created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
+  updated_at  timestamptz not null default now(),
+  archived_at timestamptz    -- soft-delete (owner-only, reversible); null = active
 );
 
 create index if not exists idx_characters_owner    on public.characters(owner_id);
