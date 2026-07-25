@@ -10,7 +10,7 @@
 import { supabase } from './supabase-client.js';
 import { currentUser } from './auth.js';
 
-const CAMPAIGN_COLS = 'id, name, invite_code, dm_invite_code, ignore_player_ap, rules, dm_id';
+const CAMPAIGN_COLS = 'id, name, invite_code, dm_invite_code, ignore_player_ap, rules, dm_id, archived_at';
 
 /**
  * sessionStorage key for a pending Path-A player-invite token (see docs/plans/2026-07-11-
@@ -25,6 +25,8 @@ export const PENDING_INVITE_KEY = 'pact_pending_invite';
 export async function createCampaign(name) {
   const user = await currentUser();
   if (!user) throw new Error('Not signed in');
+  name = (name || '').trim();
+  if (!name) throw new Error('Campaign name is required');
   const { data, error } = await supabase
     .from('campaigns')
     .insert({ name, dm_id: user.id })
@@ -32,6 +34,23 @@ export async function createCampaign(name) {
     .single();
   if (error) throw error;
   return data;
+}
+
+/**
+ * Owner-only: archive a campaign (soft-delete, reversible via unarchiveCampaign).
+ * Hides it from the active list; players and their characters are unaffected.
+ * archived_at is writable ONLY through this RPC (see sql/rls-policies.sql's
+ * "Column-level campaign-write lockdown") — a direct table update is rejected.
+ */
+export async function archiveCampaign(campaignId) {
+  const { error } = await supabase.rpc('archive_campaign', { p_campaign: campaignId });
+  if (error) throw error;
+}
+
+/** Owner-only: restore an archived campaign. */
+export async function unarchiveCampaign(campaignId) {
+  const { error } = await supabase.rpc('unarchive_campaign', { p_campaign: campaignId });
+  if (error) throw error;
 }
 
 /** Join a campaign as a PLAYER by its invite code. Returns the campaign id. */

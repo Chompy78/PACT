@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-25 · feat(dm-console): create + archive/unarchive campaigns** — DM Console had no way to
+  create or remove a campaign. Wired up the existing (previously dead-code) `createCampaign()` behind a
+  new "+ New campaign" row, and added reversible archive (not hard delete — see D-GH-2026-07-25-
+  campaign-archive for why) via new `archive_campaign()`/`unarchive_campaign()` RPCs, an "Archive
+  campaign" button (owner-only, confirm-gated), and an "Archived campaigns" panel with per-row Unarchive.
+  New `campaigns.archived_at` column, genuinely owner-only via a column-level UPDATE grant lockdown
+  (mirrors `characters.ap`'s existing pattern) — closes a gap where the previous blanket grant would have
+  let any co-DM write it directly. Applied live via Supabase MCP (`get_advisors` clean beyond the
+  standard boilerplate every RPC here already has), persisted as
+  `sql/migrations/2026-07-25-campaign-archive.sql` + `sql/schema.sql`/`sql/rls-policies.sql`. Also fixed
+  `.btn.ghost` (Copy/Unarchive buttons), found unreadable in light theme while verifying the new UI —
+  same root cause as the panel/dark-theme fixes below. Display-only CSS; no `DATA.version` bump.
+
 - **2026-07-25 · fix(dm-console): dark-theme contrast — buttons, chips, table headers, and field
   values were unreadable** — follow-up to the panel/label fix below. Root cause: `[data-theme="dark"]`'s
   `--light` custom property was `#475569` (a medium slate), nearly the same luminance as `--navy`

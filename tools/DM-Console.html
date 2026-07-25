@@ -68,7 +68,7 @@
     transition:transform .05s ease, filter .15s ease; display:inline-flex; align-items:center; gap:7px; justify-content:center;
   }
   .btn:hover{filter:brightness(1.04)} .btn:active{transform:translateY(1px)}
-  .btn.ghost{background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.35)}
+  .btn.ghost{background:transparent; color:var(--ink); border:1px solid var(--line)}
   .btn.sm{min-height:34px; padding:0 11px; font-size:13px}
   .btn.danger{background:var(--bad-bg); color:var(--bad)}
   .field{
@@ -452,6 +452,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       </div>
       <div id="campControls" style="display:none">
         <select id="campSel"><option value="">— select campaign —</option></select>
+        <div id="campNewRow" style="display:flex;gap:6px;margin-bottom:8px">
+          <input class="field" type="text" id="campNewName" placeholder="New campaign name" maxlength="80">
+          <button type="button" class="btn sm" id="campNewBtn">+ Create</button>
+        </div>
+        <div id="campNewStatus" style="font-size:11px;color:var(--muted);margin:-4px 0 8px"></div>
+        <details id="campArchivedDetails" style="margin-bottom:8px">
+          <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Archived campaigns</summary>
+          <div id="campArchivedList" style="margin-top:8px"></div>
+        </details>
         <div id="campCodes" style="display:none">
           <div class="codechip">
             <span class="lbl">Players:</span>
@@ -462,6 +471,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <span class="lbl">DMs:</span>
             <input class="field ro" id="campDmCode" readonly>
             <button type="button" class="btn sm ghost" id="copyDmCode">Copy</button>
+          </div>
+          <div class="ruleblock" id="campArchiveBlock" style="display:none;margin-top:8px">
+            <button type="button" class="btn sm danger" id="campArchiveBtn">Archive campaign</button>
+            <div class="grantnote">Removes this campaign from your active list above. Players and their
+              characters are unaffected, and you can restore it anytime from “Archived campaigns” above.</div>
           </div>
           <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
             <div class="lbl">Invite new player</div>
@@ -1287,11 +1301,11 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 
 <script type="module">
   import { currentSession, onSessionChange } from '../js/auth.js';
-  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite } from '../js/campaign.js';
+  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
   import { getRoster, awardAp, getAwardHistory } from '../js/dm.js';
   import { DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   import { verifyCharacterEnvelope } from '../js/character-store.js';   // tamper-evidence read-side (D-GH48)
-  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, createPlayerInvite };
+  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, createPlayerInvite, createCampaign, archiveCampaign, unarchiveCampaign };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy };
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   // Engine module bridge (D-GH26, extended D-GH36/D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
@@ -1329,7 +1343,14 @@ document.addEventListener('campaign-ready', function () {
   var ruleCopyBlock  = document.getElementById('ruleCopyBlock');
   var ruleCopyFrom   = document.getElementById('ruleCopyFrom');
   var ruleCopyStatus = document.getElementById('ruleCopyStatus');
+  var campNewName    = document.getElementById('campNewName');
+  var campNewBtn     = document.getElementById('campNewBtn');
+  var campNewStatus  = document.getElementById('campNewStatus');
+  var campArchivedList = document.getElementById('campArchivedList');
+  var campArchiveBlock = document.getElementById('campArchiveBlock');
+  var campArchiveBtn   = document.getElementById('campArchiveBtn');
   var currentCampaigns = [];
+  var archivedCampaigns = [];
   var currentCampId = null;
   var currentHouseRules = {};
   var _dmWasSignedIn = false;
@@ -1532,10 +1553,32 @@ document.addEventListener('campaign-ready', function () {
     }
   }
 
+  function renderArchivedCampaigns(){
+    campArchivedList.innerHTML = archivedCampaigns.length ? archivedCampaigns.map(function(c){
+      return '<div class="codechip"><span class="lbl" style="min-width:0;flex:1;font-size:12px;color:var(--ink)">'+esc(c.name)+'</span>'+
+        '<button type="button" class="btn sm ghost" data-unarchive="'+c.id+'">Unarchive</button></div>';
+    }).join('') : '<div class="grantnote">No archived campaigns.</div>';
+    campArchivedList.querySelectorAll('button[data-unarchive]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        btn.disabled = true;
+        try {
+          await B.unarchiveCampaign(btn.dataset.unarchive);
+          await loadCampaigns();
+        } catch(err){
+          alert('Could not restore: '+(err&&err.message?err.message:err));
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
   async function loadCampaigns(){
     var camps;
     try { camps = await B.listMyCampaigns(); } catch(err){ console.error('listMyCampaigns:', err); return; }
-    currentCampaigns = (camps||[]).filter(function(c){ return c.isDm||c.isOwner; });
+    var mine = (camps||[]).filter(function(c){ return c.isDm||c.isOwner; });
+    currentCampaigns = mine.filter(function(c){ return !c.archived_at; });
+    archivedCampaigns = mine.filter(function(c){ return c.archived_at && c.isOwner; });
+    renderArchivedCampaigns();
     var prev = campSel.value;
     campSel.innerHTML = '<option value="">— select campaign —</option>';
     currentCampaigns.forEach(function(c){
@@ -1544,18 +1587,19 @@ document.addEventListener('campaign-ready', function () {
       o.textContent = c.name + (c.isOwner ? ' (owner)' : ' (co-DM)');
       campSel.appendChild(o);
     });
-    if(prev && currentCampaigns.find(function(c){return c.id===prev;})) campSel.value = prev;
-    if(campSel.value) selectCampaign(campSel.value);
+    campSel.value = (prev && currentCampaigns.find(function(c){return c.id===prev;})) ? prev : '';
+    selectCampaign(campSel.value);
   }
 
   async function selectCampaign(id){
-    currentCampId = id;
+    currentCampId = id || null;
     var camp = currentCampaigns.find(function(c){return c.id===id;});
-    if(!camp){ campCodes.style.display='none'; campSection.style.display='none'; return; }
+    if(!camp){ campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none'; return; }
     campCodes.style.display = 'block';
     document.getElementById('campPlayerCode').value = camp.invite_code||'';
     document.getElementById('campDmCode').value     = camp.dm_invite_code||'';
     ignoreChk.checked = !!camp.ignore_player_ap;
+    campArchiveBlock.style.display = camp.isOwner ? '' : 'none';
     inviteLinkRow.style.display = 'none';
     inviteLinkOut.value = '';
     inviteStatus.textContent = '';
@@ -1574,6 +1618,39 @@ document.addEventListener('campaign-ready', function () {
   }
 
   campSel.addEventListener('change', function(){ selectCampaign(campSel.value); });
+
+  campNewBtn.addEventListener('click', async function(){
+    var name = (campNewName.value||'').trim();
+    if(!name){ campNewStatus.textContent = 'Enter a campaign name.'; return; }
+    campNewBtn.disabled = true;
+    campNewStatus.textContent = 'Creating…';
+    try {
+      var camp = await B.createCampaign(name);
+      campNewName.value = '';
+      campNewStatus.textContent = '';
+      await loadCampaigns();
+      campSel.value = camp.id;
+      selectCampaign(camp.id);
+    } catch(err){
+      campNewStatus.textContent = 'Error: '+(err&&err.message?err.message:err);
+    }
+    campNewBtn.disabled = false;
+  });
+
+  campArchiveBtn.addEventListener('click', async function(){
+    if(!currentCampId) return;
+    var camp = currentCampaigns.find(function(c){return c.id===currentCampId;});
+    var name = camp ? camp.name : 'this campaign';
+    if(!confirm('Archive “'+name+'”?\n\nIt disappears from your active campaign list, but nothing is deleted — players keep their characters, and you can restore it anytime from “Archived campaigns” above.')) return;
+    campArchiveBtn.disabled = true;
+    try {
+      await B.archiveCampaign(currentCampId);
+      await loadCampaigns();
+    } catch(err){
+      alert('Could not archive: '+(err&&err.message?err.message:err));
+    }
+    campArchiveBtn.disabled = false;
+  });
 
   document.getElementById('refreshRosterBtn').addEventListener('click', function(){
     if(currentCampId) loadRoster(currentCampId);

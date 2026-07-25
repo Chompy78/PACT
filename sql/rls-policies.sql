@@ -79,7 +79,7 @@ alter table public.ap_awards    enable row level security;
 grant usage on schema public to authenticated, anon;
 
 grant select, delete on public.characters to authenticated;
-grant select, insert, update, delete on public.campaigns to authenticated;
+grant select, insert, delete on public.campaigns to authenticated;   -- update is column-scoped below
 grant select, insert, update on public.profiles to authenticated;
 grant select on public.campaign_dms to authenticated;   -- writes via RPCs only
 grant select on public.ap_awards    to authenticated;   -- inserts via award_ap only
@@ -122,6 +122,18 @@ create policy campaigns_update on public.campaigns
 drop policy if exists campaigns_delete on public.campaigns;
 create policy campaigns_delete on public.campaigns
   for delete using (dm_id = auth.uid());
+
+-- ---------------------------------------------------------------------------
+-- Column-level campaign-write lockdown. The campaigns_update row policy above
+-- (any DM) can't be column-scoped by Postgres RLS, so a blanket UPDATE grant
+-- would let any co-DM write archived_at directly via REST, bypassing
+-- archive_campaign()/unarchive_campaign()'s owner-only check — the same class
+-- of gap characters.ap was already locked down for. Only re-grant the columns
+-- an ordinary DM actually needs to update directly today; archived_at (and
+-- name/invite_code/dm_invite_code/dm_id, which have no direct-update client
+-- path at all) go only through their SECURITY DEFINER RPCs.
+-- ---------------------------------------------------------------------------
+grant update (ignore_player_ap, rules) on public.campaigns to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- campaign_dms — readable by any DM or member of the campaign; writes are only
@@ -241,6 +253,8 @@ grant execute on function public.promote_to_dm(uuid, uuid)          to authentic
 grant execute on function public.remove_dm(uuid, uuid)              to authenticated;
 grant execute on function public.regenerate_invite_code(uuid)       to authenticated;
 grant execute on function public.regenerate_dm_invite_code(uuid)    to authenticated;
+grant execute on function public.archive_campaign(uuid)             to authenticated;
+grant execute on function public.unarchive_campaign(uuid)           to authenticated;
 grant execute on function public.award_ap(uuid, integer, text)      to authenticated;
 grant execute on function public.create_player_invite(uuid, integer, integer) to authenticated;
 grant execute on function public.redeem_player_invite(text, text)             to authenticated;
@@ -294,6 +308,8 @@ revoke execute on function public.join_campaign(text)             from public;
 revoke execute on function public.join_as_dm(text)                from public;
 revoke execute on function public.promote_to_dm(uuid, uuid)       from public;
 revoke execute on function public.remove_dm(uuid, uuid)           from public;
+revoke execute on function public.archive_campaign(uuid)          from public;
+revoke execute on function public.unarchive_campaign(uuid)        from public;
 revoke execute on function public.regenerate_invite_code(uuid)    from public;
 revoke execute on function public.regenerate_dm_invite_code(uuid) from public;
 
