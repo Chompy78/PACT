@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-26 · fix(dm-console): sticky header down to one row, theme dropdown readable** — the sticky
+  `header.topbar` stacked title/summary/last-edited/actions as separate block elements (~4-5 rows); moved
+  the summary/last-edited line into a new non-sticky `.subbar` right below it, and made the header itself
+  a single flex row (home link, title, actions) — sticky scroll now only ever pins that one ~53px row.
+  Separately, `#dmThemeSel`'s native `<option>` popup inherited the closed box's white text with no
+  explicit background, rendering white-on-the-browser's-default-white in every theme; added
+  `#dmThemeSel option{color:#1F3864;background:#fff}` so the list is readable regardless of the header's
+  current `--navy`/`--blue` (which only paint the closed box, never the native popup).
+
 - **2026-07-25 · docs(add-code-task): drop the pre-commit approval gate** — `/add-code-task` now shows the
   drafted task block and proceeds straight to committing it to `docs/TASK_BOARD.md` in the same turn,
   instead of waiting for an explicit "yes"/"looks good" first (D-GH-2026-07-25-add-task-drop-approval-gate).
