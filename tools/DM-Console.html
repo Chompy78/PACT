@@ -72,16 +72,21 @@
   a{color:var(--blue)}
 
   /* ---------- Top bar ---------- */
+  /* Single sticky row (home + title + actions) — the summary/last-edited line lives in the
+     non-sticky .subbar just below, so scrolling only ever pins this one compact row, not the
+     whole multi-line block that used to be here. */
   header.topbar{
     background:linear-gradient(160deg,var(--navy) 0%,var(--blue) 140%);
-    color:#fff; padding:16px clamp(12px,3vw,28px); box-shadow:var(--shadow);
+    color:#fff; padding:10px clamp(12px,3vw,28px); box-shadow:var(--shadow);
     position:sticky; top:0; z-index:20;
+    display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px;
   }
-  .topbar h1{margin:0; font-size:clamp(18px,2.4vw,24px); letter-spacing:.3px; font-weight:700; display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-  .topbar h1 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--light);box-shadow:0 0 0 3px rgba(222,231,244,.25)}
-  .summary{margin-top:6px; font-size:14px; color:var(--light); opacity:.95}
-  .summary b{color:#fff}
-  .lastedited{margin-top:6px;font-size:12px;color:rgba(255,255,255,.8);opacity:.9}
+  .topbar h1{margin:0; font-size:clamp(16px,2.2vw,22px); letter-spacing:.3px; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:nowrap; white-space:nowrap}
+  .topbar h1 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--light);box-shadow:0 0 0 3px rgba(222,231,244,.25);flex-shrink:0}
+  .subbar{background:var(--card); border-bottom:1px solid var(--line); padding:6px clamp(12px,3vw,28px); box-shadow:var(--shadow)}
+  .summary{font-size:13px; color:var(--muted)}
+  .summary b{color:var(--navy)}
+  .lastedited{margin-top:2px; font-size:11px; color:var(--muted)}
 
   .toolrow{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; align-items:stretch}
   .panel{
@@ -246,11 +251,18 @@
   .bottomctl{margin-top:20px; display:flex; gap:14px; flex-wrap:wrap}
   .bottomctl .panel{flex:1 1 280px}
   /* ---- skill overlays + party matrix (UI add) ---- */
-  .topactions{margin-top:10px;}
+  .topactions{margin-left:auto; display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
   .topbtn{appearance:none;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
   .topbtn:hover{background:rgba(255,255,255,.26);}
   #dmThemeSel{appearance:none;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
   #dmThemeSel:hover{background:rgba(255,255,255,.26);}
+  /* The closed box sits on the dark header gradient (white text reads fine there in every
+     theme — see the [data-theme] --navy/--blue values above, all dark). The dropdown POPUP
+     is a separate, browser-native surface that does NOT inherit the header's background —
+     it renders on the OS's default (near-white) list background, so the inherited white
+     option text was invisible against it. Force dark-on-light for the popup explicitly,
+     independent of theme, since the popup is never actually painted with --navy/--card. */
+  #dmThemeSel option{color:#1F3864;background:#fff;}
   .homelink{display:inline-flex;align-items:center;gap:4px;color:#fff;text-decoration:none;font-size:13px;font-weight:700;padding:3px 9px;border:1px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.12);white-space:nowrap;flex-shrink:0}
   .homelink:hover{background:rgba(255,255,255,.26)}
   #viewToggle{min-width:7.6em;text-align:center;}
@@ -408,10 +420,12 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <header class="topbar">
   <a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a>
   <h1><span class="dot"></span>PACT — DM Console</h1>
-  <div class="summary" id="summary">No characters imported yet.</div>
-  <div class="lastedited">Last edited 2026-06-28 23:10</div>
   <div class="topactions"><button type="button" class="topbtn" id="viewToggle">▦ Table view</button><button type="button" class="topbtn" id="matrixBtn">📊 Skill Matrix</button><button type="button" class="topbtn" id="ledgerBtn">📒 AP Ledger</button><select id="dmThemeSel" onchange="dmSetTheme(this.value)" title="Theme"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></div>
 </header>
+<div class="subbar">
+  <div class="summary" id="summary">No characters imported yet.</div>
+  <div class="lastedited">Last edited 2026-06-28 23:10</div>
+</div>
 
 <script>
   function dmSetTheme(t){
