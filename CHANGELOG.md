@@ -4,6 +4,12 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-28 · docs(commands): make task-board/decisions commands format-agnostic** — hardened all 7
+  `.claude/commands/*.md` files that read or write `docs/TASK_BOARD.md`/`DECISIONS.md` to check for the
+  split-file shape (`TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md`, a thin `DECISIONS.md` index over
+  `decisions/<year>/D-*.md`) before assuming today's single-file layout. No content migration — this
+  project's own `DECISIONS.md`/`CHANGELOG.md` are still the current single-file shape, tracked as their
+  own future task. See D-GH-2026-07-28-command-format-agnostic.
 - **2026-07-26 · fix(dm-console): sticky header down to one row, theme dropdown readable** — the sticky
   `header.topbar` stacked title/summary/last-edited/actions as separate block elements (~4-5 rows); moved
   the summary/last-edited line into a new non-sticky `.subbar` right below it, and made the header itself
