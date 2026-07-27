@@ -18,7 +18,8 @@ of that same check).
 - **Empty** — mine *this session's own conversation* so far (the same thing `/close-code-session`
   item 9 does, but callable any time, not just at close).
 - **A single file** — a `docs/sessions/*.md` entry, an exported/teleported transcript
-  (`claude --teleport` + `/export`), a `DECISIONS.md` excerpt, or similar. Read it directly.
+  (`claude --teleport` + `/export`), a `DECISIONS.md` index entry or `decisions/<year>/D-*.md` record, or
+  similar. Read it directly.
 - **A directory or glob matching several files** (e.g. a historical backfill across
   `docs/sessions/*.md`) — don't read them all inline. Delegate to a `general-purpose` agent:
   give it the file list, ask it to read everything and return only the drafted candidates

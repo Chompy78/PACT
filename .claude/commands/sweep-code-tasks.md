@@ -34,8 +34,13 @@ now. Have it run:
 git fetch origin
 git show origin/preview:AGENTS.md
 git show origin/preview:docs/TASK_BOARD.md
+git show origin/preview:docs/TASK_BOARD_NOW.md
+git show origin/preview:docs/TASK_BOARD_NEXT.md
+git show origin/preview:docs/TASK_BOARD_LATER.md
 git show origin/preview:testing/expected/expected-results.csv
 ```
+This project currently keeps a single `docs/TASK_BOARD.md`; the `_NOW.md`/`_NEXT.md`/`_LATER.md` fetches
+are there in case it's since been split (some will 404 if not — expected, use whichever set resolves).
 
 Ask it to return: the branch-naming convention, the current expected pass count (data rows in
 `expected-results.csv`), and **every** `— TODO` task in NOW/NEXT/LATER verbatim, including each

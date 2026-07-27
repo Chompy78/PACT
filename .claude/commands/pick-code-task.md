@@ -17,19 +17,25 @@ separate command that does the actual work) right away, via a clickable confirma
 Don't trust the files sitting in the shared folder right now — another session could switch branches
 in that same folder while you're reading, so what you see on disk might not match what's really on the
 `preview` branch. Instead, delegate to an `Explore`-type subagent (via the `Agent` tool) so this session's
-own context stays clean: give it these three paths and ask it to pull them straight from GitHub —
+own context stays clean: give it these paths and ask it to pull them straight from GitHub —
 
 ```
 git fetch origin
 git show origin/preview:AGENTS.md
 git show origin/preview:docs/TASK_BOARD.md
+git show origin/preview:docs/TASK_BOARD_NOW.md
+git show origin/preview:docs/TASK_BOARD_NEXT.md
+git show origin/preview:docs/TASK_BOARD_LATER.md
 git show origin/preview:testing/expected/expected-results.csv
 ```
 
-— and to return only compact text, not the raw files: the branch-naming convention, the current expected
-pass count (the number of data rows in `expected-results.csv` — that's the live "N passed / 0 failed"
-target, not a number to hardcode), and every task-board `— TODO` item in NOW/NEXT/LATER. (No need to fetch a
-highest `D-GH#` — decision codes are now `D-GH-<date>-<branch-slug>`, collision-proof without a lookup.)
+— this project currently keeps a single `docs/TASK_BOARD.md`; the `_NOW.md`/`_NEXT.md`/`_LATER.md` fetches
+are there in case it's since been split (some will 404 if not — that's expected, use whichever set
+actually resolves) — and ask it to return only compact text, not the raw files: the branch-naming
+convention, the current expected pass count (the number of data rows in `expected-results.csv` — that's
+the live "N passed / 0 failed" target, not a number to hardcode), and every task-board `— TODO` item in
+NOW/NEXT/LATER. (No need to fetch a highest `D-GH#` — decision codes are now `D-GH-<date>-<branch-slug>`,
+collision-proof without a lookup.)
 
 If `git show` fails (e.g. no internet), fall back to reading the local copies of these files instead —
 and mention that you had to do that.

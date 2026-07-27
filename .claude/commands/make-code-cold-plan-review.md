@@ -46,8 +46,9 @@ Look in `docs/plans/` for a prior plan that overlaps this one (same feature/area
 
 ## Step 3 — do the actual planning
 
-Research whatever the plan touches (read the relevant files; check `AGENTS.md` / `docs/TASK_BOARD.md` /
-`DECISIONS.md` for constraints that apply) and work out a real plan, not a placeholder. Think through:
+Research whatever the plan touches (read the relevant files; check `AGENTS.md` / the task board
+(`docs/TASK_BOARD.md`, or `_NOW.md`/`_NEXT.md`/`_LATER.md` if split) / `DECISIONS.md` for constraints that
+apply) and work out a real plan, not a placeholder. Think through:
 - the concrete goal, and how you'd know it's done
 - the proposed approach, broken into ordered steps, naming concrete files/functions/symbols where you
   already know them (prefer these over line numbers — they rot on the next edit; names don't)
