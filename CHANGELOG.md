@@ -4,6 +4,10 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-07-28 · docs: add 'technical access != scope' rule** — Added a "Technical Access ≠ Scope" section
+  to `AGENTS.md`, after direct testing on Home AI Server confirmed a session with broad, non-enforced
+  access would cross into a different project's files if asked. See `DECISIONS.md`
+  D-GH-2026-07-28-technical-access-not-scope.
 - **2026-07-28 · docs(commands): make task-board/decisions commands format-agnostic** — hardened all 7
   `.claude/commands/*.md` files that read or write `docs/TASK_BOARD.md`/`DECISIONS.md` to check for the
   split-file shape (`TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md`, a thin `DECISIONS.md` index over

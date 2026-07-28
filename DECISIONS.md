@@ -9,6 +9,9 @@
 > One line per decision, in document order (newest on top). Jump to the full
 > **Context → Options → Decision → Why → Status** entry below.
 
+- **D-GH-2026-07-28-technical-access-not-scope** — Added a "Technical Access ≠ Scope" section to
+  `AGENTS.md`, after direct testing on Home AI Server confirmed a session with broad, non-enforced access
+  would cross into a different project's files if asked.
 - **D-GH-2026-07-28-command-format-agnostic** — Hardened all 7 `.claude/commands/*.md` files to check for
   a split-file task-board/decisions shape before assuming today's single-file layout, so PACT's eventual
   own migration (and anything ported from PACT, like PetDetective) won't need the command files touched
@@ -182,6 +185,18 @@
 - **D-001** — Front-door `INDEX.md` as the single entry point
 
 ---
+
+## D-GH-2026-07-28-technical-access-not-scope · Add a "technical access ≠ scope" rule to AGENTS.md
+- **Context:** Direct testing on Home AI Server (a different project sharing this AI_templates standard)
+  confirmed a real gap: a session with broad, non-enforced filesystem/connector access (there, a Windows
+  app's drive mapping covering multiple projects, not a project-scoped one) reasoned it *would* edit a
+  different project's files if asked, since it saw no rule stopping it.
+- **Options:** Leave it as an unstated assumption; or state it explicitly in AGENTS.md, matching the
+  standard-level rule now added to AI_templates' `AGENTS_TEMPLATE.md`/`AI_RULES.md`.
+- **Decision:** State it explicitly.
+- **Why:** The Home AI Server test showed the assumption doesn't hold — a session without an enforced
+  technical boundary needs to actually be told, not just expected to infer it.
+- **Status:** Active. See AI_templates' `D-2026-07-28-technical-access-not-scope` for the full reasoning.
 
 ## D-GH-2026-07-28-command-format-agnostic · Harden task-board/decisions commands against a future file-shape migration
 - **Context:** While migrating `homelife` and `wildlife-explorer` (two other repos that ported PACT's

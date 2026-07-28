@@ -220,6 +220,14 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   `racialFx` and `page` fields are never read by `compute()` — editing them is a docs change, so don't
   bump it; just log it in `CHANGELOG.md`.
 
+## Technical Access ≠ Scope
+Any AI session without real technical permission-scoping (i.e. most sessions — Claude Code with enforced
+deny-rules is the exception) should not read or edit files belonging to a different project than this one,
+unless explicitly asked. Checking another project's rules or adding something there on request is fine;
+doing it unprompted isn't. Confirmed via direct testing (28 July 2026, Home AI Server) that a session with
+broad, non-enforced access will cross into another project's files if asked, seeing no rule against it —
+see AI_templates' `D-2026-07-28-technical-access-not-scope`.
+
 ## Log as you go (this is how context survives between sessions)
 Before finishing a task / opening a PR, update what applies (newest on top):
 - **`CHANGELOG.md`** — *what* changed, one line.
