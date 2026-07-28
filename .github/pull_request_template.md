@@ -13,7 +13,7 @@
       caching strategy, data-model trade-off).
 - [ ] `docs/sessions/` updated if the session covered discussion or spanned multiple areas worth
       preserving.
-- [ ] Roadmap item graduated out of `docs/TASK_BOARD.md` if done.
+- [ ] Roadmap item graduated out of the task board (`docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md`) if done.
 - [ ] Version sync checked per `docs/VERSION-SYNC.md` if `BUILD` or `DATA.version` changed.
 
 ## Review cadence

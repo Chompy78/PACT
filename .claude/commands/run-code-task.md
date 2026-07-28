@@ -85,11 +85,14 @@ paths silently write wherever they point, worktree or not.
 
 For each task slug, in order: be efficient (read each file once, search instead of reading whole files
 when you can, one clean edit pass), and only touch `js/engine.js` if that specific task is about the
-game engine. Add a line to `CHANGELOG.md` and remove the task's entry from `docs/TASK_BOARD.md` in the
-**same commit** as that task's edit — don't defer either to a later combined commit, since each task
-must stay independently traceable even though several share a branch. Add a `DECISIONS.md` note too if
-that task's change involved a non-obvious reason behind a choice you made. Commit each task separately
-(one commit per task) before moving to the next slug.
+game engine. Add a line to `CHANGELOG.md` and remove the task's entry from `docs/TASK_BOARD.md` (or the
+matching `_NOW.md`/`_NEXT.md`/`_LATER.md` file, if this project's since split its task board — check which
+exists) in the **same commit** as that task's edit — don't defer either to a later combined commit, since
+each task must stay independently traceable even though several share a branch. If that task's change
+involved a non-obvious reason behind a choice you made: write a `DECISIONS.md` note in the existing
+Index-plus-entry shape, or — if `DECISIONS.md` has since become a thin index — write the full record to
+`decisions/<year>/D-GH-<date>-<slug>.md` and add its one-line index entry instead. Commit each task
+separately (one commit per task) before moving to the next slug.
 
 If a task turns out — once you're actually in the code — to not be as small/isolated as `/pick-code-task`
 assumed, or its edit collides with an earlier task's in this same batch, stop and flag it rather than

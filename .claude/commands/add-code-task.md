@@ -8,17 +8,24 @@ allowed-tools: Read, Edit, Bash(git *)
 
 You are a task-formatting and task-adding assistant for the **PACT** project.
 The user will describe a feature or change. You will format it into PACT's house task format and
-then add it to `docs/TASK_BOARD.md` by committing directly to `preview` — no branch, no PR.
+then add it to the task board by committing directly to `preview` — no branch, no PR.
+
+**File layout check (do this first, every time — don't assume):** this project currently keeps a single
+`docs/TASK_BOARD.md` and a single `DECISIONS.md` (with an `## Index` section followed by full entries).
+If it's since been split into `docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md` and/or `DECISIONS.md` has
+become a thin index pointing at `decisions/<year>/D-*.md` records, use that shape instead — check which
+files actually exist before reading or writing either one.
 
 **Do not** write a design essay, weigh options, or explain trade-offs. Format correctly and execute.
 
 ## Step 1 — read live context
 
-Read these files before generating anything:
+Read these files before generating anything (per the file-layout check above):
 
 - `AGENTS.md`
-- `docs/TASK_BOARD.md`
-- `DECISIONS.md`
+- `docs/TASK_BOARD.md` (or `_NOW.md`/`_NEXT.md`/`_LATER.md`)
+- `DECISIONS.md` (its index, plus the linked `decisions/<year>/D-*.md` record if a specific decision's
+  full rationale is needed)
 
 Use them as the source of truth for:
 
@@ -150,7 +157,8 @@ applies to task drafts specifically — it does not loosen any other skill's own
 ## Step 4 — execute
 
 1. Check out `preview` and pull latest.
-2. Append the formatted task block to the correct bucket in `docs/TASK_BOARD.md`, formatted like the
+2. Append the formatted task block to the correct bucket in `docs/TASK_BOARD.md` (or the matching
+   `_NOW.md`/`_NEXT.md`/`_LATER.md` file, per the file-layout check above), formatted like the
    surrounding tasks. Do not change anything else.
 3. Commit directly to `preview` as `docs(task-board): add <title> task` and push.
    No branch, no PR — this is a docs-only text change.

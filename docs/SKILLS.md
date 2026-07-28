@@ -85,7 +85,8 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 ## Skill reference
 
 - **`/add-code-task`** — Formats a feature/change/bug into PACT's house task format and adds it to
-  `docs/TASK_BOARD.md`. Use it to capture work without derailing what you're doing. (The task board has a
+  the task board (`docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md`). Use it to capture work without
+  derailing what you're doing. (The task board has a
   single writer — `/add-code-task` and `/sweep-code-tasks` are the only two things allowed to commit to it
   directly; everything else outputs the formatted task for you to fold in.) Every task gets an
   **Effort** tag (`low`/`medium`/`high`, informational) and a **Risk** tag — scored from three named
@@ -113,7 +114,7 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
   session) — check the skill's own output for which one actually ran.
 
 - **`/close-code-session`** — Wrap-up that **writes** the session's `CHANGELOG`/`DECISIONS`/session-note,
-  graduates finished tasks out of `TASK_BOARD.md`, verifies tests/tree/worktrees/sync, then **proposes a
+  graduates finished tasks out of the task board, verifies tests/tree/worktrees/sync, then **proposes a
   commit** and stages/commits/pushes it once you name that letter — no separate manual hand-off needed.
   Merging, rebasing, resetting, and deleting still always wait for your explicit go.
 
@@ -146,6 +147,7 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
 - **`AGENTS.md`** — the standing instructions Claude reads every session (architecture, hard rules, the
   Agent-guidance rubric that says *when* to reach for cold review, and the current Active Priorities).
 - **`docs/HOW-TO-WORK.md`** — how to run/preview the app, the parity gate, fixtures, the per-task loop.
-- **`docs/TASK_BOARD.md`** — the open task list. · **`CHANGELOG.md`** / **`DECISIONS.md`** — what / why.
+- **`docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md`** — the open task list, by band. ·
+  **`CHANGELOG.md`** / **`DECISIONS.md`** — what / why.
 - **`docs/sweep-log.md`** — what `/sweep-code-tasks` attempted each run, not just what shipped.
 - The individual `.claude/commands/*.md` files — the exact steps each skill executes.

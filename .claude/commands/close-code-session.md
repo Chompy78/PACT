@@ -17,16 +17,28 @@ those.
 *this* session's real work only — a shared checkout can hold another session's in-flight changes, and those
 are not yours to describe, stage, or commit.
 
+**File layout check (do this first, every time — don't assume):** this project currently keeps a single
+`docs/TASK_BOARD.md` and a single `DECISIONS.md` (with an `## Index` section followed by full entries). If
+it's since been split into `docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md` and/or `DECISIONS.md` has
+become a thin index pointing at `decisions/<year>/D-*.md` records, use that shape instead throughout this
+skill — check which files actually exist before reading or writing any of them.
+
 ## Part 1 — Log the session's work (you WRITE these directly)
 
 **1. `CHANGELOG.md`** — add the one-line entry (or entries) for what changed this session, newest on top,
 in the surrounding format. Always required, even for small/docs-only changes.
 
 **2. `DECISIONS.md`** — only if a change involved a non-obvious *why* (a trust boundary, a data-model
-trade-off, a caching choice — something a future agent would wonder about). When it's warranted, write
-**both** the Index bullet and the full `Context → Options → Decision → Why → Status` entry, newest on top,
-using a `D-GH-<YYYY-MM-DD>-<branch-slug>` ID (per `AGENTS.md`'s numbering rule). If it isn't warranted,
-write nothing here and say so, with the reason.
+trade-off, a caching choice — something a future agent would wonder about). When it's warranted:
+- **If `DECISIONS.md` is still the single-file Index-plus-entries shape** (the current layout): write
+  **both** the Index bullet and the full `Context → Options → Decision → Why → Status` entry, newest on
+  top, using a `D-GH-<YYYY-MM-DD>-<branch-slug>` ID (per `AGENTS.md`'s numbering rule).
+- **If it's since been split** (per the file-layout check above): write the full record to
+  `decisions/<year>/D-GH-<YYYY-MM-DD>-<branch-slug>.md`, then add a matching one-line index entry
+  (Status/Summary/Record) to `DECISIONS.md` itself — never write full decision detail directly into
+  `DECISIONS.md` once it's index-only.
+
+If it isn't warranted, write nothing here and say so, with the reason.
 
 **3. `docs/sessions/<date>-<topic>.md`** — write one if **any** of these are true, otherwise skip it and
 say so. Once you've evaluated the criteria, act on that conclusion immediately — write the file (or skip
@@ -47,19 +59,21 @@ rules out — items 1–2 already write directly, and this step is no different:
   stale the moment more work happens after it (e.g. this same `/close-code-session` pass surfacing a decision
   that gets acted on, a rebase, a merge).
 
-**4. Roadmap graduation** — if a `docs/TASK_BOARD.md` task was finished this session, **remove** its entry
-from `TASK_BOARD.md` now and confirm the matching `CHANGELOG.md` line exists (graduate = move, not
-duplicate). **The single-writer rule still holds** (`AGENTS.md` → *Multiple sessions*): you may only
-*remove* finished items — **never append new open tasks to `TASK_BOARD.md`**. Any new task you discovered
-this session gets **output in the house `## <title> — TODO` / `Done when:` format** for the human to fold
-in (surface it in Part 3's report), not written into the file.
+**4. Roadmap graduation** — if a task board task was finished this session, **remove** its entry from
+whichever file it's actually on (`docs/TASK_BOARD.md`, or the matching `_NOW.md`/`_NEXT.md`/`_LATER.md`
+if split — grep for the task title if you're not sure which) and confirm the matching `CHANGELOG.md` line
+exists (graduate = move, not duplicate). **The single-writer rule still holds** (`AGENTS.md` → *Multiple
+sessions*): you may only *remove* finished items — **never append new open tasks to the task board**. Any
+new task you discovered this session gets **output in the house `## <title> — TODO` / `Done when:` format**
+for the human to fold in (surface it in Part 3's report), not written into the file.
 
 ## Part 2 — Verify & sweep (report only — write nothing, change nothing)
 
 **5. Test gate**
 Classify this session's changes: `git status` every touched path. If everything touched is under `docs/`,
-or is `CHANGELOG.md`, `DECISIONS.md`, or `TASK_BOARD.md`, skip the check and report: "5. Test gate —
-skipped, this session was docs-only." Otherwise, confirm `testing/tests/engine-parity.html` was run this
+or is `CHANGELOG.md`, `DECISIONS.md` (or a `decisions/<year>/D-*.md` record), or a `TASK_BOARD*.md` file,
+skip the check and report: "5. Test gate — skipped, this session was docs-only." Otherwise, confirm
+`testing/tests/engine-parity.html` was run this
 session and passed the *current* baseline (read `testing/expected/expected-results.csv` — don't assume a
 fixed pass count). If you can't confirm it was run, say so rather than assuming it passed.
 
