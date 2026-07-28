@@ -136,9 +136,9 @@ footer code{background:var(--panel2);border:1px solid var(--line2);border-radius
   </div>
 
   <footer>
-    Live view — fetches <code>docs/TASK_BOARD.md</code>, <code>CHANGELOG.md</code>, and
-    <code>DECISIONS.md</code> at load, so it never goes stale (unlike the baked-in
-    <a href="roadmap.html">roadmap.html</a>, which is the fuller Board/Timeline/Dashboard interface).
+    Live view — fetches <code>docs/TASK_BOARD_NOW.md</code>/<code>_NEXT.md</code>/<code>_LATER.md</code>,
+    <code>CHANGELOG.md</code>, and <code>DECISIONS.md</code> at load, so it never goes stale (unlike the
+    baked-in <a href="roadmap.html">roadmap.html</a>, which is the fuller Board/Timeline/Dashboard interface).
     Open it via the served site (GitHub Pages or a local server) — a raw <code>file://</code> open can't
     fetch the docs.
   </footer>
@@ -254,13 +254,26 @@ function showError(msg){
 // Bootstrap is NOT auto-run — the auth-gate module below calls it only for signed-in users.
 window.__bootDevStatus = async function(){
   try{
-    var results = await Promise.allSettled([ load('TASK_BOARD.md'), load('../DECISIONS.md'), load('../CHANGELOG.md') ]);
+    // Task board is split into 3 band files (see DECISIONS.md D-GH-2026-07-28-decisions-changelog-
+    // task-board-split); fetch all 3 and hand the concatenated text to parseTasks() unchanged — it
+    // already keys off each file's own band header, not file boundaries.
+    var boardFiles = ['TASK_BOARD_NOW.md', 'TASK_BOARD_NEXT.md', 'TASK_BOARD_LATER.md'];
+    var results = await Promise.allSettled(
+      boardFiles.map(load).concat([ load('../DECISIONS.md'), load('../CHANGELOG.md') ])
+    );
     var failed = [];
-    if(results[0].status==='fulfilled') renderTasks(parseTasks(results[0].value));
-    else { failed.push('TASK_BOARD.md'); fill('tasks', [], 'Could not load TASK_BOARD.md.'); }
-    if(results[1].status==='fulfilled') renderDecisions(parseDecisions(results[1].value, 7));
+    var boardParts = [];
+    boardFiles.forEach(function(name, i){
+      if(results[i].status==='fulfilled') boardParts.push(results[i].value);
+      else failed.push(name);
+    });
+    if(boardParts.length) renderTasks(parseTasks(boardParts.join('\n')));
+    else fill('tasks', [], 'Could not load the task board.');
+    var decisionsResult = results[boardFiles.length];
+    var changelogResult = results[boardFiles.length + 1];
+    if(decisionsResult.status==='fulfilled') renderDecisions(parseDecisions(decisionsResult.value, 7));
     else { failed.push('DECISIONS.md'); fill('decisions', [], 'Could not load DECISIONS.md.'); }
-    if(results[2].status==='fulfilled') renderChanges(parseChangelog(results[2].value, 7));
+    if(changelogResult.status==='fulfilled') renderChanges(parseChangelog(changelogResult.value, 7));
     else { failed.push('CHANGELOG.md'); fill('changes', [], 'Could not load CHANGELOG.md.'); }
     if(failed.length) showError('Could not fetch: ' + failed.join(', ') +
       '. If you opened this file directly (file://), serve it via GitHub Pages or a local server instead.');
