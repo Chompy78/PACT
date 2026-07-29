@@ -1,7 +1,7 @@
 ---
 description: Turn a task/idea into a self-contained plan formatted for a cold AI/human reviewer
 argument-hint: [task or idea — omit to use this session's existing plan]
-allowed-tools: Read, Grep, Glob, Edit, Bash(git add *), Bash(git commit *)
+allowed-tools: Read, Grep, Glob, Edit, Agent, Bash(git add *), Bash(git commit *)
 disallowed-tools: Bash(git push *)
 ---
 
@@ -86,6 +86,13 @@ Write the plan into this exact shape so another AI (or person) can pick it up wi
 give a useful review. The "Reviewer instructions" section is part of the generated document itself — you
 write it, not the person invoking this skill:
 
+**Prefer a different model family than the one drafting this plan.** A model reviewing output from its own
+family tends to repeat its own blind spots; a genuinely different vendor (e.g. this plan drafted by Claude,
+reviewed by GPT or Gemini, or by a human) surfaces gaps same-family review misses. When telling the user
+where to send the plan, say this explicitly rather than leaving vendor choice implicit — and if the user
+already has a preferred reviewer in mind that happens to be same-family, that's their call, but flag the
+tradeoff once.
+
 ```markdown
 # Plan: <short title>
 
@@ -143,18 +150,25 @@ deliberately generic — it does not assume any particular tool.)
 You are reviewing this plan **cold, with no access to the codebase** — only the text above. You are a
 general reasoner, not a code analyzer: judge the plan's **logic, clarity, scope, and risk — not code
 correctness you cannot verify.** If the plan relies on knowledge you don't have, that itself is a finding.
-Find gaps, unstated risks, and better alternatives — including structural/redesign suggestions, not just
-"missing detail" — but do not implement anything. Specifically:
-1. Does the proposed approach actually achieve the stated goal?
-2. Which of the plan's **assumptions** look shaky, and what happens if one is wrong?
+
+**Default posture: try to refute this plan, not to validate it.** A reviewer asked to "check this over"
+tends to rubber-stamp; a reviewer asked to actively find the reason it fails does the job this review
+exists for. Assume the goal is unmet until the plan convinces you otherwise. Find gaps, unstated risks, and
+better alternatives — including structural/redesign suggestions, not just "missing detail" — but do not
+implement anything. Specifically:
+1. Does the proposed approach actually achieve the stated goal? Argue against it before you argue for it.
+2. Which of the plan's **assumptions** look shaky, and what concretely breaks if one is wrong?
 3. Is anything in "Alternatives considered" actually better, or is the plan overcomplicated for the goal?
 4. What's missing — an edge case, a risk, a dependency, a **verification step** the plan doesn't mention?
 5. Are "Verification" and "Done when" objectively checkable, or do they hide ambiguity?
 6. Should this task be split? Is anything in "Out of scope" actually load-bearing?
 
-Write your findings as a plain list (gaps found, suggested improvements, verdict) — don't rewrite the plan
-yourself unless asked. **If a section is genuinely solid, say so briefly rather than inventing concerns** —
-false findings cost the implementer a wasted cycle.
+For **each finding**, tag a **severity** (`blocking` — this must be resolved before implementation /
+`moderate` — worth fixing but not fatal / `minor` — polish) and a **confidence** (`high` / `low` — how sure
+you are this is a real issue vs. a guess). Write findings as a plain list (severity, confidence, the gap,
+suggested improvement) — don't rewrite the plan yourself unless asked. **If a section is genuinely solid,
+say so briefly rather than inventing concerns** — false findings cost the implementer a wasted cycle, and a
+manufactured `blocking` finding wastes more than a manufactured `minor` one.
 
 **Deliver your review as a Markdown (`.md`) file** so the author can save it directly. Lead the file with
 your model/settings line from above, then the findings. **Name the file relevantly and include your own
@@ -166,8 +180,12 @@ would be called.
 ---
 
 ## Review outcome (fill in after the review + implementation — not part of the cold review)
-- Reviewers (models): <which models/tools reviewed, from each review's self-ID line — e.g. GPT-5, Claude Opus, Gemini Pro>
-- Reviewer findings: <N> → accept <A> / reject <R> / defer+convert <C>
+- Reviewers (model + vendor family): <e.g. GPT-5 (OpenAI), Gemini 2.x Pro (Google), Claude Opus (Anthropic), human>
+
+| Finding | Severity | Confidence | Raised by | Cross-family agreement | Disposition |
+|---|---|---|---|---|---|
+| <short label> | blocking/moderate/minor | high/low | <model(s)> | yes (≥2 vendor families) / no (1 family only) | accept / reject / defer→<test\|doc-note\|task-board> |
+
 - Materially changed the plan? <yes/no — one line on what changed>
 - Without the review, what would have happened: <one line — a real risk caught, or "nothing, plan was fine">
 ```
@@ -214,30 +232,43 @@ loosely, not rigidly:
   asked twice). Don't assume a single paste is the whole picture: after the first one arrives, ask
   "any other review responses to add before I go through this, or is that everything?" and wait for an
   explicit answer before triaging. If more come in, ask again the same way until the user says that's all.
-- **Capture each review's declared model.** Step 4's reviewer instructions ask every reviewer to open with
-  its model + settings, so record which model produced which review as you read them (it may also be in the
-  review's filename). This sharpens the agree/disagree analysis below — two *different* models agreeing is a
-  stronger signal than the same model asked twice, and two near-identical reviews may just be one model run
-  twice rather than independent confirmation — and it feeds the "Reviewers (models)" line in the Review
-  outcome stub.
+- **Capture each review's declared model and vendor family**, plus each finding's severity/confidence tags
+  (Step 4 asks reviewers for both). Record which model produced which review as you read them (it may also
+  be in the review's filename) — this feeds the "Cross-family agreement" column in the Review outcome
+  matrix, not just a loose impression of consensus.
 - Once you have everything, **triage, don't blindly apply**:
-  - If multiple responses came in, note where they agree vs. disagree — agreement across independent
-    reviewers is a stronger signal than a single opinion; disagreement is itself a finding worth surfacing,
-    not something to silently resolve by picking one side.
+  - If multiple responses came in, note where they agree vs. disagree. **Weight agreement between two
+    *different* vendor families above agreement between two instances of the same model** — same-family
+    reviewers tend to share blind spots, so their agreement is weaker confirmation than it looks. A single
+    same-family review repeated is not independent confirmation; say so rather than treating it as two votes.
   - Apply a finding directly (edit the plan or, if it's feedback on the skill itself, the skill file) only
-    when it's low-risk and clearly correct against this repo's own stated conventions.
-  - Stop and ask the user before acting on anything that: touches security/secrets, contradicts an
-    existing `DECISIONS.md` entry, reflects reviewers disagreeing with each other, or is a change you're
-    genuinely not confident about. Say specifically which finding and why you're pausing on it — don't
-    make the user re-read the whole review to figure out what needs their call.
+    when it is tagged `minor`/`moderate`, undisputed among reviewers, and clearly correct against this
+    repo's own stated conventions.
+  - **Route two categories through a disinterested second look before you decide anything: any
+    `blocking`-severity finding, and any finding where reviewers disagree with each other.** Spawn a fresh
+    `Agent` call with **no context from this conversation** — hand it only the disputed finding plus the
+    relevant plan section, and ask it to judge the finding on the merits, independent of who wrote the plan.
+    Use the agent's verdict as input to your recommendation, never as authorization to act unilaterally.
+  - **`blocking`-severity findings always go back to the user for the final call — even once the
+    disinterested-agent pass confirms the finding is valid.** The agent pass exists to sharpen what you
+    recommend, not to let the session that drafted the plan unilaterally decide whether its own plan has a
+    blocking problem; that decision is the user's. Bring the agent's verdict with you when you ask, so they
+    aren't starting from zero.
+  - For a **disputed-but-non-blocking** finding, the agent pass can resolve it: if it does, and the
+    resolved severity is `minor`/`moderate`, apply it under the rule above. If the agent pass leaves the
+    disagreement unresolved, that is an **unconditional** stop-and-ask trigger — don't quietly pick a side.
+  - Stop and ask the user before acting on anything else that: touches security/secrets, contradicts an
+    existing `DECISIONS.md` entry, or is a change you're genuinely not confident about. Say specifically
+    which finding and why you're pausing on it — don't make the user re-read the whole review to figure out
+    what needs their call.
 - Summarize what you applied, what you skipped (and why), and what's waiting on the user's decision.
 - **Categorise each finding** as one of: accept / reject / defer / →test / →doc-note / →task-board item — and
   treat every finding as a hypothesis to verify against the actual code, not an instruction (a cold reviewer
   with no repo access will sometimes be wrong precisely *because* it couldn't see the code).
-- If the plan file was written to disk, fill in its **"Review outcome"** stub (which models reviewed,
-  findings count, whether the review materially changed the plan, what it caught). This is the only tracking
-  we keep — a few one-line entries across plans tell you whether the review loop is earning its keep or is
-  theatre.
+- If the plan file was written to disk, fill in its **"Review outcome"** matrix (reviewers + vendor family,
+  each finding's severity/confidence/cross-family agreement/disposition, whether the review materially
+  changed the plan, what it caught). This is the only tracking we keep — a few filled-in matrices across
+  plans tell you whether the review loop is earning its keep or is theatre.
 
 ---
 

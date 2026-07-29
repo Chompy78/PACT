@@ -63,13 +63,20 @@ test/criterion would cause rework):
 
 1. **Claude drafts a self-contained plan** — `/make-code-cold-plan-review`. Everything the reviewer needs is baked
    into the text (goal, files, assumptions vs. verified facts, risks, acceptance criteria, verification),
-   because the reviewer can't see the repo.
-2. **You paste that plan into M365 Copilot** and ask it to critique *plan quality, not code* — hidden
-   assumptions, missing risks, overcomplication, unclear "done." (The plan already tells Copilot it has no
-   repo access.)
-3. **You paste Copilot's critique back to Claude.** Claude triages each point — accept / reject / defer /
+   because the reviewer can't see the repo. Claude also flags that the plan should go to a *different model
+   family* than the one that drafted it — same-family review tends to repeat its own blind spots.
+2. **You paste that plan into M365 Copilot** (or another vendor) and ask it to critique *plan quality, not
+   code* — hidden assumptions, missing risks, overcomplication, unclear "done." The plan itself tells the
+   reviewer it has no repo access and asks it to actively try to **refute** the plan rather than just check
+   it over, tagging each finding with a **severity** (blocking/moderate/minor) and a **confidence** level.
+3. **You paste the critique back to Claude.** Claude triages each point — accept / reject / defer /
    →test / →doc-note / →task-board — treating every finding as a *hypothesis to verify against the real code*,
-   not an order. It stops and asks you on anything touching security or where reviewers disagree.
+   not an order. Agreement between two *different* vendor families counts for more than the same model
+   repeating itself. Any `blocking`-severity finding, or one reviewers disagree on, gets a second opinion
+   from a fresh, context-free sub-agent before Claude decides what to recommend — but a `blocking` finding
+   always comes back to you for the final call, even once that second opinion confirms it's real. Claude
+   fills in a structured outcome table (severity, confidence, which reviewers raised it, cross-family
+   agreement, disposition) so a later reader can tell whether the review loop is earning its keep.
 4. **Then `/run-code-task`** builds the sharpened plan.
 
 Why it works: the code-aware tool (Claude) does the thinking and bakes it into the plan, so Copilot's lack
@@ -100,8 +107,12 @@ clearer, plain-English explanations. **Never send:** secrets/keys, or anything w
   worktree.** This is step 1 of the two-step work pattern.
 
 - **`/make-code-cold-plan-review`** — Turns a task/idea into a **self-contained** markdown plan formatted for a cold
-  reviewer (M365 Copilot, another AI, or a human) with no shared context. Opens with the gate rule and
-  skips trivial work. It never implements anything — it's a drafting aid. See the review loop above.
+  reviewer (M365 Copilot, another AI, or a human) with no shared context — and steers toward a *different
+  model family* than the one drafting the plan. Opens with the gate rule and skips trivial work. Asks the
+  reviewer to actively refute the plan rather than just check it over, and to tag findings with severity/
+  confidence. Blocking or disputed findings get a second opinion from a fresh sub-agent before triage, and
+  always come back to you for the final call. It never implements anything — it's a drafting aid. See the
+  review loop above.
 
 - **`/run-code-task`** — Does the actual work for a picked task: creates an isolated worktree (branched off
   `preview`), edits, runs the engine-parity gate, self-reviews, updates the logs, and opens a PR. Step 2 of
