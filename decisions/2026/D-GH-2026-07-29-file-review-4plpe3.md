@@ -87,8 +87,42 @@ Status: Active
   unchanged, so this is not a mechanics change), and `BUILD` deliberately NOT bumped (no user-visible
   change; a bump would mean touching three tool files to mirror a number nothing observable moved).
 
-  Noted for follow-up, not fixed here: `engine.js`'s own header comment says "do not read the ~238 KB
-  body wholesale" and `AGENTS.md` says "`js/engine.js` (~237 KB)". Both are wrong — `engine.js` is
-  ~65 KB / 881 lines; the ~194 KB is `js/engine-data.js`, which `DATA` was split into (REV-14a). The
-  figure appears to predate that split and now misdirects agents' read-budget decisions about which
-  of the two files is actually the expensive one.
+  Also fixed, same branch — see the addendum below: `engine.js`'s header comment claimed "~238 KB" and
+  `AGENTS.md` claimed "~237 KB" for a file that is ~66 KB. On investigation *every* size figure in
+  `AGENTS.md`'s read-budget list was stale, and the same wrong number was being handed to external
+  reviewers via `docs/AI_review_prompt.md`.
+
+## Addendum (2026-07-29) — the stale-size figures, and why they mattered to this very review
+
+Flagged while verifying the perf claims above, then fixed on this branch once approved.
+
+- **What was wrong.** `AGENTS.md`'s "Don't read large files wholesale" section — whose entire job is to
+  inform agents' read-budget decisions — had a wrong number in every entry. Measured 2026-07-29:
+  `js/engine.js` **~66 KB / 924 lines** (claimed ~237 KB); `docs/PACT-Players-Guide.html` **~1.4 MB**
+  (claimed ~657 KB, i.e. understated by more than half); `tools/*.html` **~127–376 KB** (claimed
+  "320–520 KB each", so DM Console at ~127 KB was overstated ~2.5×). And the actual biggest file in
+  `js/` — `js/engine-data.js`, **~189 KB on ~13 lines** — was not in the list at all.
+- **Root cause.** The ~237/238 KB figure was `engine.js` *before* REV-14a split the `DATA` blob out into
+  `js/engine-data.js`. After the split, the number stayed attached to `engine.js` instead of following the
+  data, so the list pointed agents away from the expensive file and toward the cheap one. The Players
+  Guide and tool figures simply drifted as those files grew.
+- **Why it mattered here specifically.** `docs/AI_review_prompt.md` — the live template used to
+  commission external `engine.js` reviews — repeated the same figure as "**~237 KB** (mostly a large DATA
+  blob)". The Copilot review that prompted this whole task was produced from that template, and its
+  recommendations are consistent with believing the file was a large, hot data-heavy module: it
+  prioritized allocation/GC micro-optimizations and `structuredClone`, and ranked the one genuinely
+  quadratic defect fifth. A reviewer with no repo access can only reason from what the prompt tells it,
+  so a stale size in the prompt is not a cosmetic docs bug — it degrades the review it buys.
+- **Decision:** corrected all three *live* locations (`AGENTS.md`, `js/engine.js`'s header,
+  `docs/AI_review_prompt.md`), added `engine-data.js` to the read-budget list, said plainly that
+  `engine.js` is now small enough to read in full when the task targets it, and added to
+  `AI_review_prompt.md` the fact that `compute()` costs ~0.02 ms on per-character arrays — so the next
+  external reviewer is not set up to make the same misjudgement.
+- **Deliberately NOT changed:** the same figures appearing in `decisions/2026/D-009.md`,
+  `D-GH-2026-07-19-pwa-vs-capacitor-migration.md`, `docs/sessions/*`, and
+  `docs/CHANGELOG-archive-*`. Those are historical records and the number was *correct when written*
+  (pre-split); rewriting them would falsify the record rather than fix it. Only live, forward-looking
+  guidance was touched.
+- **Durability:** the `AGENTS.md` list now carries the measurement date plus an instruction to
+  re-measure rather than trust it, because a confidently-wrong size is worse than no size — it silently
+  misdirects the decision it exists to inform, which is exactly how this survived a 2–4× drift unnoticed.

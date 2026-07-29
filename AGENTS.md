@@ -200,10 +200,19 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   crosses users, so an unescaped field is a stored-XSS path, not just a display bug (REV-12).
 
 ## Don't read large files wholesale (token budget)
-- **`js/engine.js` (~237 KB)** — don't read end-to-end unless the task targets the engine; `grep` for the
-  symbol you need (full API is the Exports line above).
-- **Never load `docs/PACT-Players-Guide.html` (~657 KB) or `assets/pact-cover.webp`** — player assets, not code.
-- **`tools/*.html` are 320–520 KB each** — search within for the relevant section; don't read the whole file.
+> Sizes below measured **2026-07-29**. Re-measure rather than trust them if a decision hinges on the number —
+> every figure in this list was once stale by 2–4× (see `D-GH-2026-07-29-file-review-4plpe3`), which is worse
+> than no figure at all because it misdirects the read-budget call it exists to inform.
+- **`js/engine-data.js` (~189 KB, but only ~13 lines)** — the rules dataset `DATA`, split out of the engine
+  (REV-14a). **This is the genuinely expensive file in `js/`**, and its near-single-line shape means there's no
+  useful "read a slice" — `grep` for the key you need.
+- **`js/engine.js` (~66 KB, ~930 lines)** — `grep` for the symbol you need (full API is the Exports line
+  above). But it *is* small enough to read in full when the task genuinely targets the engine — don't
+  contort around it. The old "~237 KB" figure here predated the REV-14a data split and was really
+  `engine.js` + `engine-data.js` combined.
+- **Never load `docs/PACT-Players-Guide.html` (~1.4 MB) or `assets/pact-cover.webp`** — player assets, not code.
+- **`tools/*.html` are ~127–376 KB each** (DM Console ~127 KB, Live Sheet ~236 KB, CharGen ~376 KB) — search
+  within for the relevant section; don't read the whole file.
 - **`docs/history/` is a retired architecture** (`src/engine/`, `build.cjs`, a Node audit) — never read it
   unless asked.
 - **`source-assets/` holds full-resolution/pre-optimization originals** (images today, possibly other

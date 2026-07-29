@@ -6,6 +6,21 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-07-29 · docs: correct every stale file-size figure in the read-budget guidance** — `AGENTS.md`'s
+  "Don't read large files wholesale" section had a wrong number in each entry, and the same wrong number
+  was reaching external reviewers. Measured: `js/engine.js` is **~66 KB / 924 lines**, not ~237 KB — that
+  figure predated REV-14a splitting the `DATA` blob into `js/engine-data.js` (**~189 KB on ~13 lines**),
+  which is the genuinely expensive file in `js/` and wasn't in the list at all. Also
+  `docs/PACT-Players-Guide.html` **~1.4 MB** (listed as ~657 KB) and `tools/*.html` **~127–376 KB**
+  (listed as "320–520 KB each"). Fixed in all three *live* locations — `AGENTS.md`, `js/engine.js`'s
+  header comment, and `docs/AI_review_prompt.md`, the template used to commission external engine
+  reviews, which described the file as "~237 KB (mostly a large DATA blob)" and so primed reviewers to
+  misjudge it (the review behind the perf work below came from that template). The list now carries its
+  measurement date and says to re-measure rather than trust it. Historical mentions in
+  `decisions/2026/D-009.md`, the PWA-migration record, `docs/sessions/*` and the changelog archive were
+  deliberately left alone — those figures were correct when written. See addendum in
+  `decisions/2026/D-GH-2026-07-29-file-review-4plpe3.md`.
+
 - **2026-07-29 · perf(engine): make LOG replay linear, drop a redundant `activeEvents()` pass** —
   acted on an external perf review of `js/engine.js` after verifying and benchmarking each claim.
   (1) `_replay()`'s nine single-instance proficiency lists were deduped with
