@@ -242,20 +242,25 @@ loosely, not rigidly:
     reviewers tend to share blind spots, so their agreement is weaker confirmation than it looks. A single
     same-family review repeated is not independent confirmation; say so rather than treating it as two votes.
   - Apply a finding directly (edit the plan or, if it's feedback on the skill itself, the skill file) only
-    when it's low-risk, tagged `minor`/`moderate`, and clearly correct against this repo's own stated
-    conventions.
-  - **Any `blocking`-severity finding, or any finding where reviewers disagree with each other, gets a
-    disinterested second look before you decide** — don't let the session that drafted the plan be the sole
-    judge of whether criticism of its own plan is valid (that's the same self-grading trap the cold review
-    was built to avoid in the first place). Spawn a fresh `Agent` call with **no context from this
-    conversation** — hand it only the disputed finding plus the relevant plan section, and ask it to judge
-    on the merits whether the finding holds, independent of who wrote the plan. Use the agent's verdict as
-    input to your decision, not as a rubber stamp for what you already wanted to do.
-  - Stop and ask the user before acting on anything that: touches security/secrets, contradicts an
-    existing `DECISIONS.md` entry, reflects reviewers disagreeing with each other, or is a change you're
-    genuinely not confident about — including after the disinterested-agent pass, if it didn't resolve the
-    disagreement. Say specifically which finding and why you're pausing on it — don't make the user re-read
-    the whole review to figure out what needs their call.
+    when it is tagged `minor`/`moderate`, undisputed among reviewers, and clearly correct against this
+    repo's own stated conventions.
+  - **Route two categories through a disinterested second look before you decide anything: any
+    `blocking`-severity finding, and any finding where reviewers disagree with each other.** Spawn a fresh
+    `Agent` call with **no context from this conversation** — hand it only the disputed finding plus the
+    relevant plan section, and ask it to judge the finding on the merits, independent of who wrote the plan.
+    Use the agent's verdict as input to your recommendation, never as authorization to act unilaterally.
+  - **`blocking`-severity findings always go back to the user for the final call — even once the
+    disinterested-agent pass confirms the finding is valid.** The agent pass exists to sharpen what you
+    recommend, not to let the session that drafted the plan unilaterally decide whether its own plan has a
+    blocking problem; that decision is the user's. Bring the agent's verdict with you when you ask, so they
+    aren't starting from zero.
+  - For a **disputed-but-non-blocking** finding, the agent pass can resolve it: if it does, and the
+    resolved severity is `minor`/`moderate`, apply it under the rule above. If the agent pass leaves the
+    disagreement unresolved, that is an **unconditional** stop-and-ask trigger — don't quietly pick a side.
+  - Stop and ask the user before acting on anything else that: touches security/secrets, contradicts an
+    existing `DECISIONS.md` entry, or is a change you're genuinely not confident about. Say specifically
+    which finding and why you're pausing on it — don't make the user re-read the whole review to figure out
+    what needs their call.
 - Summarize what you applied, what you skipped (and why), and what's waiting on the user's decision.
 - **Categorise each finding** as one of: accept / reject / defer / →test / →doc-note / →task-board item — and
   treat every finding as a hypothesis to verify against the actual code, not an instruction (a cold reviewer

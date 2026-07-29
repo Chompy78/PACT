@@ -6,6 +6,19 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-07-29 · docs: fix `/make-code-cold-plan-review` Step 7 triage gap + sync `docs/SKILLS.md`** —
+  `/code-review` on PR #276 found two issues in the previous same-day change: (1) Step 7 had no defined
+  action for a `blocking`-severity finding that reviewers agreed on and that hit none of the four explicit
+  stop-and-ask triggers, and separately left it ambiguous whether "reviewers disagreeing" was an
+  unconditional stop-trigger or only when the new disinterested-agent pass failed to resolve it. Fixed by
+  making `blocking` findings always return to the user for the final call (even once the agent pass
+  confirms them), and making unresolved disagreement an unconditional stop while a resolved
+  minor/moderate disagreement may be applied directly. (2) `docs/SKILLS.md`'s "cold-review loop" section and
+  skill-reference bullet, the human-readable authority on this skill, hadn't been updated alongside the
+  prior change — now describes the cross-vendor guidance, adversarial/severity-confidence framing,
+  disinterested-agent second opinion, and structured outcome table. See addendum in
+  `decisions/2026/D-GH-2026-07-29-custom-skills-commands.md`.
+
 - **2026-07-29 · docs: strengthen `/make-code-cold-plan-review` with cross-vendor, adversarial, and
   consensus-matrix guidance** — based on research into cross-model code/plan review practice (see
   `decisions/2026/D-GH-2026-07-29-custom-skills-commands.md`): (1) Step 4 now explicitly tells the user to

@@ -31,3 +31,28 @@ Status: Active
 - **Status:** Active. Added `Agent` to the command's `allowed-tools` frontmatter since Step 7's
   disinterested-second-look step now needs it. No prior plans in `docs/plans/` were affected — this changes
   the skill's *template and process*, not any specific plan document already produced by it.
+
+## Addendum (2026-07-29) — `/code-review` findings on PR #276, fixed same-day
+
+Running `/code-review` against this PR surfaced two follow-on issues in the change above, both fixed in the
+same PR:
+
+1. **Step 7 triage gap.** The original triage bullets defined what to do for `minor`/`moderate` findings
+   (apply directly) and for `blocking`/disputed findings (route through a disinterested `Agent` pass), but
+   never said what happens *after* that agent pass confirms a `blocking` finding with no reviewer
+   disagreement — leaving the session with no defined next step for that case. A second, related ambiguity:
+   the phrase "reflects reviewers disagreeing with each other ... including after the disinterested-agent
+   pass, if it didn't resolve the disagreement" was compatible with two different readings of whether
+   disagreement was an unconditional stop-trigger or one only the agent pass could clear. Fixed by making
+   `blocking` severity an unconditional return-to-user trigger regardless of what the agent pass finds (the
+   agent's job is to sharpen the recommendation, not to authorize unilateral action on a blocking issue),
+   and by making an *unresolved* disagreement (after the agent pass) an unconditional stop, while a
+   *resolved* non-blocking disagreement may be applied directly per the normal minor/moderate rule.
+2. **`docs/SKILLS.md` drift.** This file is the project's stated human-readable authority on what each
+   skill does (see its own header: "This file is the human overview"), but the original change updated only
+   the skill file itself, not this description. Fixed by updating both the "cold-review loop" walkthrough
+   and the one-line skill-reference bullet to describe the cross-vendor guidance, adversarial/severity-
+   confidence framing, the disinterested-agent second opinion, and the structured outcome table.
+
+No new Context/Options/Decision structure needed for these — both are corrections to the same-day decision
+above, not a new design choice.
