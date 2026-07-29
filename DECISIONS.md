@@ -13,6 +13,12 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-07-29-custom-skills-commands** — Strengthened `/make-code-cold-plan-review` with
+  cross-vendor reviewer guidance, an adversarial reframe of the reviewer instructions plus
+  per-finding severity/confidence tags, a structured agree/disagree matrix in the "Review outcome"
+  stub, and a fresh context-free `Agent` call to adjudicate `blocking`/disputed findings instead
+  of the drafting session self-triaging. Full record:
+  `decisions/2026/D-GH-2026-07-29-custom-skills-commands.md`.
 - **D-GH-2026-07-28-decisions-changelog-task-board-split** — Migrated DECISIONS.md (112 full
   records + 1 orphaned index-only entry) to this thin index over decisions/2026/D-*.md, split
   docs/TASK_BOARD.md into _NOW/_NEXT/_LATER, and archived CHANGELOG.md entries older than
