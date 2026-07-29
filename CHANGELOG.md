@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-07-29 · docs: strengthen `/make-code-cold-plan-review` with cross-vendor, adversarial, and
+  consensus-matrix guidance** — based on research into cross-model code/plan review practice (see
+  `decisions/2026/D-GH-2026-07-29-custom-skills-commands.md`): (1) Step 4 now explicitly tells the user to
+  prefer a reviewer from a different vendor family than the plan's author, since same-family review repeats
+  its own blind spots; (2) the generated "Reviewer instructions" section now asks the reviewer to actively
+  try to refute the plan (not just "check it over") and to tag each finding with a severity
+  (blocking/moderate/minor) and confidence (high/low); (3) the "Review outcome" stub is now a structured
+  table (finding, severity, confidence, raised-by, cross-family agreement, disposition) instead of a
+  free-text summary; (4) Step 7's triage now sends any `blocking`-severity or reviewer-disputed finding to a
+  fresh, context-free `Agent` call for a disinterested second opinion before the plan's own author decides,
+  to avoid the same session grading its own homework. Added `Agent` to the command's `allowed-tools`.
+
 - **2026-07-28 · docs: migrate DECISIONS.md/CHANGELOG.md/docs/TASK_BOARD.md to the split-file pattern** —
   `DECISIONS.md` (371,703 bytes, 112 full records + 1 orphaned index-only entry) is now a thin index over
   `decisions/2026/D-*.md` (41,077 bytes live). `docs/TASK_BOARD.md` (35,953 bytes) split into
