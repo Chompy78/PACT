@@ -13,6 +13,18 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-07-29-file-review-4plpe3** — Acted on an external (Copilot) perf review of `js/engine.js`
+  by *measuring* every claim instead of trusting its stated priority order. Took the Set-based dedupe in
+  `_replay()` (O(n²)→O(n); `foldBuild()` on a 2000-event log ~14.6× faster and now linear), Set-based
+  membership tests, and the duplicate-`activeEvents()` consolidation — the last via a **private**
+  `_economyFrom()` rather than a new public `economy()` parameter, keeping the bridged API unchanged.
+  **Rejected the review's own #1 item** (`structuredClone`) on measurement: JSON round-trip is 1.9–3.1×
+  faster for every shape this engine clones, and the swap cost ~20% on `rebuildStateFromEvents()`; also
+  rejected cached `DATA.*` locals (unmeasurable) and async Web Crypto signing (breaks a documented
+  `file://`/sync constraint). Verified behaviour-identical by a 20,021-check differential test against
+  the pre-change engine. Full record:
+  [`decisions/2026/D-GH-2026-07-29-file-review-4plpe3.md`](decisions/2026/D-GH-2026-07-29-file-review-4plpe3.md)
+
 - **D-GH-2026-07-29-custom-skills-commands** — Strengthened `/make-code-cold-plan-review` with
   cross-vendor reviewer guidance, an adversarial reframe of the reviewer instructions plus
   per-finding severity/confidence tags, a structured agree/disagree matrix in the "Review outcome"
