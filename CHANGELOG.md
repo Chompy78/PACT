@@ -6,6 +6,43 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-07-29 · docs: correct every stale file-size figure in the read-budget guidance** — `AGENTS.md`'s
+  "Don't read large files wholesale" section had a wrong number in each entry, and the same wrong number
+  was reaching external reviewers. Measured: `js/engine.js` is **~66 KB / 924 lines**, not ~237 KB — that
+  figure predated REV-14a splitting the `DATA` blob into `js/engine-data.js` (**~189 KB on ~13 lines**),
+  which is the genuinely expensive file in `js/` and wasn't in the list at all. Also
+  `docs/PACT-Players-Guide.html` **~1.4 MB** (listed as ~657 KB) and `tools/*.html` **~127–376 KB**
+  (listed as "320–520 KB each"). Fixed in all three *live* locations — `AGENTS.md`, `js/engine.js`'s
+  header comment, and `docs/AI_review_prompt.md`, the template used to commission external engine
+  reviews, which described the file as "~237 KB (mostly a large DATA blob)" and so primed reviewers to
+  misjudge it (the review behind the perf work below came from that template). The list now carries its
+  measurement date and says to re-measure rather than trust it. Historical mentions in
+  `decisions/2026/D-009.md`, the PWA-migration record, `docs/sessions/*` and the changelog archive were
+  deliberately left alone — those figures were correct when written. See addendum in
+  `decisions/2026/D-GH-2026-07-29-file-review-4plpe3.md`.
+
+- **2026-07-29 · perf(engine): make LOG replay linear, drop a redundant `activeEvents()` pass** —
+  acted on an external perf review of `js/engine.js` after verifying and benchmarking each claim.
+  (1) `_replay()`'s nine single-instance proficiency lists were deduped with
+  `filter((v,i) => arr.indexOf(v) === i)` — a full rescan per element; now `[...new Set(arr)]`, same
+  first-occurrence order, O(n) instead of O(n²): **`foldBuild()` on a 2000-event log went 6.48 ms →
+  0.44 ms (~14.6×)** and is now linear rather than quadratic in log length. (2) `foldBuild()` and
+  `rebuildStateFromEvents()` each ran `activeEvents()` twice (once via `_replay()`, once via
+  `economy()`); `_replay()` now returns its snapshot and a private `_economyFrom()` tallies from it —
+  worth ~23% of a fold at 500 events, with **no change to public `economy(events)`**, which stays
+  single-argument for the three tools that bridge it. (3) `b.unlockedClasses` (four loops),
+  `b.racialTraits` and `skillList` membership tests now use a Set built once instead of a per-iteration
+  `indexOf` scan. Two of the review's suggestions were **measured and rejected**: `structuredClone`
+  (its top-ranked item) is 1.9–3.1× *slower* than the JSON round-trip for every shape this engine
+  clones and cost ~20% on `rebuildStateFromEvents()`, and caching `DATA.*` in locals was unmeasurable
+  (V8 inline caches) — `clone()` now carries an inline note recording the benchmark so it isn't
+  "modernized" again. Async Web Crypto signing was rejected as breaking `_sha256hex`'s documented
+  synchronous/`file://` constraint. No behaviour change: parity **20/0**, `log-fuzz` 3000 iterations
+  clean, plus a differential test against the pre-change engine over the fixtures and 4000 random LOGs
+  (**20,021 checks, 0 mismatches**). `DATA.version` and `BUILD` deliberately unchanged — no mechanics
+  or user-visible change. See
+  `decisions/2026/D-GH-2026-07-29-file-review-4plpe3.md`.
+
 - **2026-07-29 · docs: fix `/make-code-cold-plan-review` Step 7 triage gap + sync `docs/SKILLS.md`** —
   `/code-review` on PR #276 found two issues in the previous same-day change: (1) Step 7 had no defined
   action for a `blocking`-severity finding that reviewers agreed on and that hit none of the four explicit

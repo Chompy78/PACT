@@ -30,7 +30,10 @@
  *   signPayload(obj)  — a copy of obj with a tamper-evident `sig` attached.
  *   verifyPayload(obj)— {signed, valid, status}: check a signed payload's integrity.
  *
- * (Historical export note below; do not read the ~238 KB body wholesale — grep for the symbol you need.)
+ * (Historical export note below. This file is ~66 KB / ~930 lines — grep for a symbol when you need one,
+ *  but it IS small enough to read in full when the task targets the engine. The rules DATA blob that once
+ *  made this file ~238 KB now lives in js/engine-data.js (~189 KB on ~13 lines) — that's the one not to
+ *  read wholesale.)
  *
  * The rules data and the compute() costing logic are lifted verbatim from
  * PACT-CharGen-Webtool-v0.104.html; the event-replay logic mirrors the
@@ -66,6 +69,16 @@ DATA.startingTierRatios = STARTING_TIER_RATIOS;
 
 /* ---- shared helpers ------------------------------------------------------ */
 const _mod = s => Math.floor((s - 10) / 2);
+/* Deep clone. Deliberately a JSON round-trip, NOT structuredClone — measured, not assumed.
+ * structuredClone is a host-boundary call whose fixed setup cost dominates for small payloads, and
+ * every value this engine clones is small: a weaponProf map (MUT.wprof) and one snapshot field at a
+ * time (seedBuild, called once per key). Benchmarked on Node 22 across the real shapes — tiny object,
+ * stats block, string, number, small array, nested traditions entry — JSON won every case by
+ * 1.9–3.1×, and swapping it in cost ~20% on rebuildStateFromEvents() over the real fixtures.
+ * structuredClone only pays off on large/deeply-nested graphs, which this is not. It also THROWS on
+ * non-cloneable input (functions/DOM nodes/Symbols) where JSON.stringify silently drops it, so a swap
+ * would additionally turn a silent no-op into an exception. Don't "modernize" this without a
+ * benchmark that contradicts the above. */
 const clone = o => (o == null ? o : JSON.parse(JSON.stringify(o)));
 
 /* ==========================================================================
@@ -117,7 +130,7 @@ export function compute(b, opts){
   const paidTools=(b.tools||[]).length+(b.instruments||[]).length+(b.customProfs||[]).length;
   add("Tools & instruments",DATA.tools[paidTools]||0);
   add("Expertise",DATA.expertise[expList.length]||0);
-  for(const x of expList) if(!skillList.includes(x)) W.push("Expertise in "+x+" needs the skill bought first");
+  {const _skSet=new Set(skillList);for(const x of expList) if(!_skSet.has(x)) W.push("Expertise in "+x+" needs the skill bought first");}
   // tool expertise — its own independent track (separate count on the same Expertise ladder)
   const toolExpList=(b.toolExpertise||[]); add("Tool expertise",DATA.expertise[toolExpList.length]||0);
   {const _ownT=new Set([].concat(b.tools||[],b.instruments||[],b.customProfs||[]));for(const x of toolExpList) if(!_ownT.has(x)) W.push("Tool expertise in "+x+" needs that tool/instrument proficiency first");}
@@ -186,7 +199,7 @@ export function compute(b, opts){
     racAP+=_rc;_SI.push([lab,_rc]);}
   add("Species traits",racAP);addItems("Species traits",_SI);
   // §10 cross-species T2+ rule: traits above T1 can only be purchased by the origin species
-  for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;const isO=(r.race===b.species||r.race===b.species2);if(!isO&&(r.tier||1)>1)W.push((lab.split(': ')[1]||lab)+': only Tier 1 traits are available cross-species');}{var _ownsR=function(nm){if((b.racialTraits||[]).indexOf(nm)>=0)return true;var _r=DATA.racial[nm];return !!(_r&&_r.pack&&(_r.race===b.species||_r.race===b.species2));};for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;var _sn=(lab.split(": ")[1]||lab);if(r.reqRace&&!_ownsR(r.reqRace))W.push("⛔ "+_sn+" requires "+((r.reqRace.split(": ")[1])||r.reqRace));if(r.minHD&&hd<r.minHD)W.push("⛔ "+_sn+" needs "+r.minHD+" Hit Dice (level "+r.minHD+")");}}
+  for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;const isO=(r.race===b.species||r.race===b.species2);if(!isO&&(r.tier||1)>1)W.push((lab.split(': ')[1]||lab)+': only Tier 1 traits are available cross-species');}{var _rtSet=new Set(b.racialTraits||[]);var _ownsR=function(nm){if(_rtSet.has(nm))return true;var _r=DATA.racial[nm];return !!(_r&&_r.pack&&(_r.race===b.species||_r.race===b.species2));};for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;var _sn=(lab.split(": ")[1]||lab);if(r.reqRace&&!_ownsR(r.reqRace))W.push("⛔ "+_sn+" requires "+((r.reqRace.split(": ")[1])||r.reqRace));if(r.minHD&&hd<r.minHD)W.push("⛔ "+_sn+" needs "+r.minHD+" Hit Dice (level "+r.minHD+")");}}
   // §10 lineage spell-likes: cap-exempt cantrips + half-price 1/long-rest spells (Appendix B prices)
   {const _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[]; let _rs=0;
    for(const nm of (b.racialSpells||[])){const s=_lin.find(x=>x[0]===nm); if(!s)continue; _rs+=s[1];
@@ -201,6 +214,10 @@ export function compute(b, opts){
   if(has2nd) add("2nd origin class",14);
   // §14 Martially Bound: choose one class; −1 AP (floor 1) on that class's features, stacks with origin. +2 AP gain.
   const mbClass=(b.martiallyBound && b.martiallyBound!=="(none)")?b.martiallyBound:null;
+  // Membership-only view of unlockedClasses, built once and shared by the features / subclass-ability /
+  // tradition / discipline loops below — each previously re-scanned the array with indexOf per iteration.
+  // Used for lookups ONLY: b.unlockedClasses itself is untouched, so any order-dependent read is unaffected.
+  const _unlkSet=new Set(b.unlockedClasses||[]);
   // features — non-stepped: buy once. Stepped (rep): each re-buy is the next tier up.
   let featAP=0; const fcount={}; const _FI=[];
   for(const lab of (b.features||[])){const f=DATA.features[lab];if(!f)continue;
@@ -209,7 +226,7 @@ export function compute(b, opts){
     let origin,cross,stick;
     if(f.rep){const tier=Math.min(7,f.tier+n-1);stick=DATA.MASTER[tier][f.band];origin=Math.max(1,stick-(tier-1));cross=stick+tier;}
     else {origin=f.origin;cross=f.cross;stick=Math.max(1,f.cross-f.tier);}
-    const isO=(f.cls===b.originClass||f.cls===b.originClass2);const isUnlk=!isO&&(b.unlockedClasses||[]).indexOf(f.cls)>=0;let c=isO?origin:(isUnlk?stick:cross);
+    const isO=(f.cls===b.originClass||f.cls===b.originClass2);const isUnlk=!isO&&_unlkSet.has(f.cls);let c=isO?origin:(isUnlk?stick:cross);
     if(mbClass && f.cls===mbClass) c=Math.max(1,c-1);if(lab==="Sorcerer: Metamagic")c=2*n;   // Martially Bound discount (floor 1); Metamagic Steep ladder (option N=2N) v0.314
     featAP+=c;_FI.push([lab+(f.rep&&n>1?" (step "+n+")":""),c]);}
   add("Class features",featAP);addItems("Class features",_FI);{var _invN=(b.features||[]).filter(function(l){var f=DATA.features[l];return f&&f.inv;}).length;var _bs=0;for(var _i=0;_i<_invN;_i++)_bs+=Math.min(20,Math.floor(_i/2));if(_bs>0)add("Invocation breadth surcharge",_bs);}{var _ea=(b.features||[]).filter(function(l){return /: Extra Attack$/.test(l);}).length+((b.features||[]).indexOf("Warlock: Thirsting Blade")>=0?1:0)+(b.subAbilities||[]).filter(function(k){return /\|Extra Attack$/.test(k);}).length;if(_ea>=2)W.push("Extra Attack / Thirsting Blade gained "+_ea+" times — a 2nd attack doesn't stack; the duplicates add no benefit (keep one).");}
@@ -242,7 +259,7 @@ export function compute(b, opts){
   const freeSub=b.freeSub||{}; const subUsed={}; let subAP=0;const _UI=[];
   for(const key of (b.subAbilities||[])){const a=DATA.subAbilMap[key];if(!a)continue;
     (subUsed[a.cls]=subUsed[a.cls]||{})[a.sub]=1;
-    const isO=(a.cls===b.originClass||a.cls===b.originClass2);const isUS=!isO&&(b.unlockedClasses||[]).indexOf(a.cls)>=0;const _uc=isO?a.origin:(isUS?Math.max(1,a.cross-a.tier):a.cross);subAP+=_uc;_UI.push([(a.cls+" › "+a.sub+": "+a.name),_uc]);}
+    const isO=(a.cls===b.originClass||a.cls===b.originClass2);const isUS=!isO&&_unlkSet.has(a.cls);const _uc=isO?a.origin:(isUS?Math.max(1,a.cross-a.tier):a.cross);subAP+=_uc;_UI.push([(a.cls+" › "+a.sub+": "+a.name),_uc]);}
   add("Subclass abilities",subAP);addItems("Subclass abilities",_UI);
   // v0.196: a bought expanded-list bundle also opens its subclass for unlock-accounting
   for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");if(_p[0]&&_p[1])(subUsed[_p[0]]=subUsed[_p[0]]||{})[_p[1]]=1;}
@@ -264,7 +281,7 @@ export function compute(b, opts){
     const discs=(t.disciplines||[]).filter(d=>d&&d.name&&d.name!=="(none)");
     if(discs.length===0)return;
     const hasOrigin=discs.some(d=>d.name===b.originClass||d.name===b.originClass2);
-    const hasUnlk=!hasOrigin&&discs.some(d=>(b.unlockedClasses||[]).indexOf(d.name)>=0);const baseDisc=hasOrigin?1:(hasUnlk?0:-1);
+    const hasUnlk=!hasOrigin&&discs.some(d=>_unlkSet.has(d.name));const baseDisc=hasOrigin?1:(hasUnlk?0:-1);
     const foundation=Math.max(1,7-baseDisc); add(tag+" — Foundation",foundation);
     const rank=t.rank||0; const rankCost=rank>0?Math.max(0,(DATA.rankCum[rank-1]||0)-baseDisc*rank):0;
     if(rank>0) add(tag+" — Rank "+rank,rankCost);
@@ -274,7 +291,7 @@ export function compute(b, opts){
     tradInfo.push({index:ti,name:t.name,baseDisc,foundation,rank,rankCost,extraCost,nDisc:discs.length,saved:tsaved});
     discs.forEach(d=>{
       const isO=(d.name===b.originClass||d.name===b.originClass2);
-      const _unlk=!isO&&(b.unlockedClasses||[]).indexOf(d.name)>=0;const dd=(isO?1:(_unlk?0:-1))+(d.bound?1:0);
+      const _unlk=!isO&&_unlkSet.has(d.name);const dd=(isO?1:(_unlk?0:-1))+(d.bound?1:0);
       const noOrig=d.bound?1:0; let savedOrig=0; const slotCostByLv=[], knownCostByLv=[];
       if(d.bound)mbGain+=2;
       const castAb=DATA.castAbility[d.name]||"INT"; const dmod=mod[castAb]||0;   // auto stat per discipline
@@ -504,8 +521,22 @@ function _spendCost(e) {
   return 0;
 }
 
-export function economy(events) {
-  const { evs, boughtOff } = activeEvents(events);
+// AP tally core, over an ALREADY-resolved activeEvents() snapshot.
+//
+// Split out of economy() so the fold/rebuild paths can tally without a second activeEvents() pass:
+// _replay() has to resolve that snapshot anyway, and both foldBuild() and rebuildStateFromEvents()
+// used to call _replay(log) and then economy(log), each independently re-running activeEvents() —
+// one redundant filter(Boolean) allocation plus one redundant boughtOff sweep over the whole log.
+//
+// economy()'s public signature and behaviour are deliberately UNCHANGED (it is bridged into all three
+// tools as economy(events) — see AGENTS.md/D-GH37); this is the same function with its first line
+// lifted one level out, not a new API.
+//
+// Reusing a snapshot taken before replay is safe because _replay() never writes to an event or to the
+// log array — it only reads event fields and mutates the build `b`. boughtOff depends solely on
+// e.type/e.refVal, and this tally solely on e.type/e.amount/e.cat/e.cost/e.payload.v, so a snapshot
+// resolved before the replay is identical to one resolved after it.
+function _economyFrom(evs, boughtOff) {
   let earned = 0, spent = 0, drawbackEarned = 0;
   for (const e of evs) {
     if (e.type === 'award') earned += Number(e.amount) || 0;
@@ -521,8 +552,15 @@ export function economy(events) {
   return { earned, spent, available: earned - spent, drawbackEarned };
 }
 
+export function economy(events) {
+  const { evs, boughtOff } = activeEvents(events);
+  return _economyFrom(evs, boughtOff);
+}
+
 // Replay an append-only event log onto build `b` in place (shared by foldBuild
-// and rebuildStateFromEvents). Returns the boughtOff map.
+// and rebuildStateFromEvents). Returns the activeEvents() snapshot it resolved
+// ({evs, boughtOff}) so callers can tally the economy via _economyFrom() without
+// making activeEvents() scan the whole log a second time.
 //
 // creationLocked bookkeeping (D-GH31/D-GH32): a one-way ratchet tracking whether creation
 // pricing is still available at each point in the LOG, in LOG order — locked by an
@@ -558,7 +596,8 @@ export function economy(events) {
 // half of the loop does, so both run interleaved per-event rather than as two separate passes over
 // `evs` — `_wasLocked` is captured before advancing state for this event, same as before.
 function _replay(b, log) {
-  const { evs, boughtOff } = activeEvents(log);
+  const ae = activeEvents(log);
+  const { evs, boughtOff } = ae;
   let _locked = false, _spent = 0, _campaignBound = false;
   for (let _i = 0; _i < evs.length; _i++) {
     const e = evs[_i];
@@ -576,14 +615,21 @@ function _replay(b, log) {
       (b._raceTraitLocked = b._raceTraitLocked || {})[e.payload.v] = _wasLocked;
     (MUT[e.cat] || (() => {}))(b, e.payload || {});
   }
-  // single-instance proficiency lists never hold duplicates
+  // single-instance proficiency lists never hold duplicates.
+  // Set-based dedupe keeps the same first-occurrence-wins ORDER as the previous
+  // `filter((v,i) => arr.indexOf(v) === i)` form (Set iteration order is insertion order) but runs in
+  // O(n) instead of O(n²) — the old form re-scanned the whole array once per element, which dominated
+  // replay cost on long logs (a 2000-event log spent most of _replay() in these nine indexOf sweeps).
+  // Equivalent here because these lists hold STRINGS: the one case where the two forms differ is NaN
+  // (indexOf can never match it, so the old form dropped every NaN; Set's SameValueZero keeps one),
+  // which a proficiency-name list cannot contain.
   ['saves','skills','expertise','toolExpertise','tools','instruments','masteries','racialTraits','racialSpells']
-    .forEach(k => { if (Array.isArray(b[k])) b[k] = b[k].filter((v, i) => b[k].indexOf(v) === i); });
+    .forEach(k => { if (Array.isArray(b[k])) b[k] = [...new Set(b[k])]; });
   // half-casters can't hold cantrips
   (b.traditions || []).forEach(t => (t.disciplines || []).forEach(d => {
     if (d && (DATA.noCantrip || []).indexOf(d.name) >= 0) { d.cantrips = 0; d.cantripNames = []; }
   }));
-  return boughtOff;
+  return ae;
 }
 
 // foldBuild(events): the Live Sheet's fold — build a character from a blank
@@ -591,8 +637,8 @@ function _replay(b, log) {
 export function foldBuild(events) {
   const log = (Array.isArray(events) ? events : []).filter(Boolean);
   const b = baseBuild();
-  _replay(b, log);
-  b.budget = economy(log).earned;
+  const ae = _replay(b, log);        // reuse _replay's snapshot instead of re-deriving it via economy(log)
+  b.budget = _economyFrom(ae.evs, ae.boughtOff).earned;
   return b;
 }
 
@@ -643,8 +689,8 @@ export function rebuildStateFromEvents(baseSnapshot, events, opts) {
     }
   }
   const b = seedBuild(base);
-  _replay(b, log);
-  const eco = economy(log);
+  const ae = _replay(b, log);        // reuse _replay's snapshot instead of re-deriving it via economy(log)
+  const eco = _economyFrom(ae.evs, ae.boughtOff);
   // budget = whatever the base build started with, plus all AP earned through the
   // log. For a full export (base=null) this is exactly economy().earned, matching
   // the Live Sheet, where budget = total AP awarded over the character's life.

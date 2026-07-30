@@ -45,10 +45,15 @@ DATA.version = "v0.336"
 File size:
 
 ```text
-~237 KB
+~66 KB (~930 lines)
 ```
 
-(mostly a large DATA blob)
+The rules dataset was split out into `js/engine-data.js` (~189 KB), which `engine.js` imports and
+re-exports unchanged as `DATA`. So `engine.js` is **~66 KB of logic**, not a large data blob — if you are
+reviewing pricing/replay code, essentially all of this file is relevant and it is small enough to read in
+full. Bear that in mind before recommending optimizations premised on it being a big or hot file: the
+arrays `compute()` walks are per-character (single digits to low tens of entries), and `compute()` itself
+costs ~0.02 ms on a real build.
 
 ---
 
