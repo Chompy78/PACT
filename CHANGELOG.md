@@ -6,6 +6,28 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · fix(security): CharGen's/Live Sheet's cloud "Load saved character" menu no longer
+  leaks other players' characters to a DM** — live report: "why can I see 4 characters, I should only
+  have 1." `js/sync.js`'s `listCharacters()` (used by both tools' ☁ Cloud menu) had no `owner_id`
+  filter and relied entirely on RLS, whose `characters_select` policy deliberately also grants a DM
+  read access to every character in campaigns they run (needed for DM Console's roster). Confirmed
+  live against the production DB: the 4 rows belonged to 4 different Google accounts — other players
+  who'd redeemed invites into a campaign the reporting user DMs, not characters they'd created. Deleted
+  `listCharacters()` entirely (verified zero other callers) and pointed both cloud-menu call sites at
+  the already-existing, explicitly owner-scoped `listMyCharacters()` (already used by `characters.html`).
+  See `decisions/2026/D-GH-2026-08-01-dm-console-listcharacters-leak.md`.
+- **2026-08-02 · fix(dm-console): cloud roster's "has this character been built yet" check no
+  longer false-positives on CharGen's auto-synced default name** — the empty-invite placeholder fix
+  earlier today treated a `buy`/`buyoff`/`names`/`name` event as evidence a player had actually
+  built something, but CharGen's invite-redemption seed (`_cgApplyEnvelope`, tools/PACT-CharGen-
+  Webtool.html ~line 2854) unconditionally re-syncs a `type:'name'` event from the boot-time
+  `#cname` field as "back-compat" — even when that field still holds the server-assigned default
+  "New Character" the player never touched. Every freshly-redeemed invite therefore already carried
+  a `name` event alongside its seed `award`, so it still rendered the full baseBuild()-defaults card
+  instead of the placeholder — confirmed live (a real campaign character showing "New Character",
+  HP 6, AC 10, Purchases 0). `hasData` now checks for a real `buy` event only, matching the same
+  definition the "Purchases" count elsewhere in this file already uses — `name`/`names`/`buyoff`
+  events alone no longer count.
 - **2026-08-02 · feat(dm-console): AP grant code is now per-character, both bottom panels are
   collapsible** — two live-testing follow-ups. (1) "AP grant code" (`#grantPanel`) generated one code
   for the whole party at one shared amount; it's now a `<details>` (collapsed by default, like the
@@ -48,6 +70,26 @@
   dark-mode screenshot before/after, light-theme regression screenshot, collapsed/expanded import card,
   file import still working nested inside `<details>`); `engine-parity-ci.mjs` 20/0 and
   `random-manual-e2e.mjs` green (no `js/engine.js` change).
+
+- **2026-08-01 · docs(agents): fix two more stale `AGENTS.md` bullets referencing removed
+  `buildToLiveLog()`/`_lsImportFold`** — verified in `tools/PACT-CharGen-Webtool.html` (code comment at
+  the old call site: "D-GH40: buildToLiveLog()/exportToLiveSheet() removed") that CharGen's last local
+  `MUT` closures were deleted along with the whole dedicated-export path, not just superseded. Corrected
+  the High-risk-files bullet, the Architecture MUT-bridging paragraph (CharGen's `MUT` is now fully
+  bridged like the other two tools, no local exceptions), and the old "CharGen → Live Sheet export
+  (D-GH3)" bullet to describe the current mechanism (shared save envelope + `switchToLiveSheet()`
+  handoff, D-GH38). Docs-only.
+
+- **2026-08-01 · docs(agents): fix stale `AGENTS.md` Persistence bullet describing `characters.stats`** —
+  same pre-D-GH40 claim as the `sql/schema.sql` fix above ("CharGen = a flat build JSON; Live Sheet =
+  an event log"), corrected to describe the one shared `{schema:'pact-character/1', ...}` envelope both
+  tools have used since 2026-07-10. Docs-only.
+
+- **2026-08-01 · docs(schema): fix stale `sql/schema.sql` comments describing `characters.stats`** —
+  the header design notes and the `stats`/`kind` column comments still described the pre-D-GH40 state
+  (CharGen = flat build JSON, Live Sheet = event log). Since D-GH40 (2026-07-10) both tools share one
+  canonical envelope, `{schema:'pact-character/1', rules, name, LOG, SEQ, id}`; `kind` now only marks
+  which tool owns/opens a character, not a different data shape. Docs-only, no schema/DDL change.
 
 - **2026-08-01 · feat(dm-console): cloud campaign roster now renders as full character cards, plus
   "remove from campaign" and DM-private per-character notes** — three linked gaps found live-testing:

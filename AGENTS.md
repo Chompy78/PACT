@@ -20,13 +20,13 @@ is staging and promotes into `main`).
   display-only. The deferred long-term question — whether `js/engine.js` should grow a
   frozen-ledger-aware remaining-AP export — is now a NEXT item, `feat/ap-model-reconcile`, in
   `docs/TASK_BOARD_NEXT.md`.)
-- **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); CharGen's still-local
-  `MUT` inside its import-fold path (`_lsImportFold`/`buildToLiveLog` — see Architecture below; the rest of
-  `DATA`/`compute`/`baseBuild`/`MUT`/`activeEvents`/`economy`/`foldBuild` are live imports in all three
-  tools as of D-GH26/D-GH36/D-GH37, so they can no longer drift by definition); Live Sheet's
+- **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); Live Sheet's
   `compute()`-vs-frozen-`economy()` divergence (see D-GH30 and `feat/ap-model-reconcile`) — any UI that
   displays "AP left" for an event-sourced character must use the frozen ledger, not a retroactive
-  recompute.
+  recompute. (`DATA`/`compute`/`baseBuild`/`MUT`/`activeEvents`/`economy`/`foldBuild` are live imports in
+  all three tools as of D-GH26/D-GH36/D-GH37/D-GH40 — CharGen's last local `MUT` closures
+  (`_lsImportFold`/`buildToLiveLog`, the pre-D-GH40 export path) were deleted along with that whole path,
+  so none of them can drift by definition anymore. See Architecture below.)
 - **Preferred task shape:** one task per branch (`type/short-slug`), small focused PRs into `preview`; use
   `/pick-code-task` → `/run-code-task`; for big/risky work draft a plan for cold review first (see Agent guidance below).
 - **Avoid:** re-implementing rules logic anywhere but `engine.js`; patching `undo()` with tool-local state
@@ -150,19 +150,29 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   once confirmed this app is still pre-launch (no real characters to protect) — see D-GH37 for the full
   reasoning, including a related finding: no tool's UI actually triggers the `creationLocked`/`campaignBound`
   events this pricing mechanism depends on yet, so it doesn't functionally do anything in any tool today
-  regardless of the bridge. `MUT` is bridged in **Live Sheet** (byte-identical to the engine's before the
-  bridge) and **DM Console** (D-GH36 — fixed the `found`/`dbound` drift on the way). `MUT` is still local
-  in **CharGen**'s import-fold path only — specialized closures inside `_lsImportFold`/`buildToLiveLog` (the
-  D-GH3 export bridge), separate from CharGen's main event-sourced build, which already uses the bridged
-  `MUT`/`foldBuild`. Never re-implement rules logic anywhere else; `tools/` and `js/` must stay siblings.
+  regardless of the bridge. `MUT` is bridged in **all three tools**: **Live Sheet** (byte-identical to the
+  engine's before the bridge), **DM Console** (D-GH36 — fixed the `found`/`dbound` drift on the way), and
+  **CharGen** — whose last local closures, `_lsImportFold`/`buildToLiveLog` (the D-GH3 export bridge), were
+  deleted along with that whole export path by D-GH40 (superseded by the unified save format; see
+  Persistence below), so CharGen's `MUT` is now fully bridged with no local exceptions. Never re-implement
+  rules logic anywhere else; `tools/` and `js/` must stay siblings.
 - **Persistence:** the app is an installable, offline-capable PWA with **optional sign-in**. Local-only
   still works (localStorage + JSON import/export); when signed in, characters also save to the **cloud
-  (Supabase)** and DMs run **campaigns**. CharGen = a flat build JSON; Live Sheet = an event log
-  `{ LOG, SEQ, rules }`. Store only raw character data; derive HP/AC/AP/warnings via `compute()` /
-  `rebuildStateFromEvents()` at runtime — **never store derived values.**
-- **CharGen → Live Sheet export (D-GH3, see DECISIONS.md):** emits one native buy event per purchase plus
-  structural patches; imported characters must be indistinguishable from hand-built ones (drawbacks
-  buy-off-able, one ledger entry per line).
+  (Supabase)** and DMs run **campaigns**. Since D-GH40 (2026-07-10), both tools share one canonical
+  envelope for local files and the cloud `stats` column alike — `{schema:'pact-character/1', rules,
+  name, LOG, SEQ, id}`; `characters.kind` (`chargen`/`livesheet`) marks which tool a character
+  currently opens in, not a different data shape. Store only raw character data; derive
+  HP/AC/AP/warnings via `compute()` / `rebuildStateFromEvents()` at runtime — **never store derived
+  values.**
+- **CharGen ↔ Live Sheet handoff (D-GH3's dedicated export superseded by D-GH40/D-GH38):** the old
+  "Export to Live Sheet" button and its `buildToLiveLog()`/`_lsImportFold` converter (which re-synthesized
+  a fake LOG from the current build and dropped `id`) are gone. CharGen's native Save and Live Sheet's
+  native Load now speak the same envelope (see Persistence above), so a normal Save + the other tool's
+  normal Load moves a character between tools with no separate converter — this is also what makes the
+  D-GH3 invariant (imported characters indistinguishable from hand-built ones: drawbacks buy-off-able, one
+  ledger entry per line) hold automatically rather than needing a special-purpose bridge.
+  `switchToLiveSheet()` (D-GH38) additionally covers "open this character in the other tool right now" —
+  a same-origin handoff baton, no file involved at all.
 
 ## Working discipline (source of truth, edits, claims)
 - **Files win over chat; the shipped artifact wins over the written guide.** Institutional memory lives in
