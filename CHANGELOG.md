@@ -31,6 +31,15 @@
   file import still working nested inside `<details>`); `engine-parity-ci.mjs` 20/0 and
   `random-manual-e2e.mjs` green (no `js/engine.js` change).
 
+- **2026-08-01 · docs(agents): fix two more stale `AGENTS.md` bullets referencing removed
+  `buildToLiveLog()`/`_lsImportFold`** — verified in `tools/PACT-CharGen-Webtool.html` (code comment at
+  the old call site: "D-GH40: buildToLiveLog()/exportToLiveSheet() removed") that CharGen's last local
+  `MUT` closures were deleted along with the whole dedicated-export path, not just superseded. Corrected
+  the High-risk-files bullet, the Architecture MUT-bridging paragraph (CharGen's `MUT` is now fully
+  bridged like the other two tools, no local exceptions), and the old "CharGen → Live Sheet export
+  (D-GH3)" bullet to describe the current mechanism (shared save envelope + `switchToLiveSheet()`
+  handoff, D-GH38). Docs-only.
+
 - **2026-08-01 · docs(agents): fix stale `AGENTS.md` Persistence bullet describing `characters.stats`** —
   same pre-D-GH40 claim as the `sql/schema.sql` fix above ("CharGen = a flat build JSON; Live Sheet =
   an event log"), corrected to describe the one shared `{schema:'pact-character/1', ...}` envelope both
