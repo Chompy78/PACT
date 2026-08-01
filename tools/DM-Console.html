@@ -30,6 +30,12 @@
     --good:#1f8a4c; --good-bg:#e4f5ea; --zero:#7a869b; --zero-bg:#eef1f6;
     --bad:#c0392b; --bad-bg:#fbe7e4; --warn:#b8860b; --warn-bg:#fbf2d8;
     --shadow:0 1px 3px rgba(20,40,80,.12),0 6px 18px rgba(20,40,80,.08);
+    /* Heading/value text color for text sitting directly on --card/--paper (not on a --light chip
+       background). Indirects through --navy so dnd/royal/forest (whose --navy already reads fine on
+       their light --card) need no override — only dark mode does, since its --navy went dark for use
+       as a BACKGROUND (header gradient, buttons) and is unreadable as foreground text on the
+       also-dark --card/--paper it would otherwise inherit here. */
+    --heading:var(--navy);
   }
   [data-theme="dark"] {
     --navy:#0f1729; --navy2:#0a0e17; --blue:#1a3a5c; --blue-lt:#2851a3;
@@ -38,6 +44,7 @@
     --good:#22c55e; --good-bg:#1e3a1f; --zero:#64748b; --zero-bg:#0f1729;
     --bad:#ef4444; --bad-bg:#1f0f0f; --warn:#eab308; --warn-bg:#1f1701;
     --shadow:0 1px 3px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.3);
+    --heading:#c9d6ec;
   }
   [data-theme="dnd"] {
     --navy:#5a1e1b; --navy2:#451712; --blue:#7a2a23; --blue-lt:#9c3f34;
@@ -85,7 +92,7 @@
   .topbar h1 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--light);box-shadow:0 0 0 3px rgba(222,231,244,.25);flex-shrink:0}
   .subbar{background:var(--card); border-bottom:1px solid var(--line); padding:6px clamp(12px,3vw,28px); box-shadow:var(--shadow)}
   .summary{font-size:13px; color:var(--muted)}
-  .summary b{color:var(--navy)}
+  .summary b{color:var(--heading)}
   .lastedited{margin-top:2px; font-size:11px; color:var(--muted)}
 
   .toolrow{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; align-items:stretch}
@@ -110,10 +117,18 @@
   .field.ro{background:#eaf0fb; color:var(--navy); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px}
   label.lbl{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
 
-  /* import panel */
+  /* import panel — a <details> now (D-GH-2026-08-01), collapsed by default: local-file import is a
+     secondary/offline path next to the cloud campaign roster, so it starts out of the way. */
   #importPanel{flex:1 1 320px; min-width:260px; transition:opacity .15s ease}
   #importPanel.dimmed{opacity:.55}
   #importPanel.dimmed:hover{opacity:.9}
+  #importPanel > summary{list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; margin-bottom:0}
+  #importPanel > summary::-webkit-details-marker{display:none}
+  #importPanel > summary::marker{content:''}
+  #importPanel > summary .chev{color:var(--muted); transition:transform .15s ease; flex-shrink:0}
+  #importPanel[open] > summary{margin-bottom:7px}
+  #importPanel[open] > summary .chev{transform:rotate(90deg)}
+  #importPanel .importPanelBody{margin-top:8px}
   #grantPanel{flex:1 1 320px; min-width:260px}
   .grantgrid{display:grid; grid-template-columns:90px 1fr auto; gap:8px; align-items:end}
   .grantgrid .full{grid-column:1 / -1}
@@ -144,12 +159,6 @@
   .errchip button{background:none;border:0;color:var(--bad);cursor:pointer;font-size:15px;line-height:1;padding:0;opacity:.7}
   .errchip button:hover{opacity:1}
 
-  /* empty state */
-  #empty{text-align:center; padding:46px 16px; color:var(--muted)}
-  #empty .emoji{font-size:42px; opacity:.5}
-  #empty .t{font-size:18px; font-weight:600; color:var(--navy); margin-top:8px}
-  #empty .s{font-size:14px; margin-top:4px}
-
   /* ---------- card grid ---------- */
   #grid,.cardgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px}
   .card{
@@ -157,7 +166,7 @@
     box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column;
   }
   .card .chead{padding:14px 16px 12px; border-bottom:1px solid var(--line); position:relative}
-  .card .cname{font-size:20px; font-weight:700; color:var(--navy); line-height:1.2; padding-right:42px; word-break:break-word}
+  .card .cname{font-size:20px; font-weight:700; color:var(--heading); line-height:1.2; padding-right:42px; word-break:break-word}
   .card .csub{font-size:13px; color:var(--muted); margin-top:3px}
   .card .csub .tier{display:inline-block;background:var(--light);color:var(--navy);border-radius:6px;padding:1px 7px;font-weight:600;font-size:12px;margin-left:2px}
   .rmcard{
@@ -174,7 +183,7 @@
 
   /* stat strip */
   .stats{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line)}
-  .stat{background:#fafcff; padding:9px 6px; text-align:center}
+  .stat{background:var(--paper); padding:9px 6px; text-align:center}
   .stat .k{font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:700}
   .stat .v{font-size:17px; font-weight:700; color:var(--ink); margin-top:1px}
 
@@ -235,8 +244,8 @@
   }
   /* per-card expandable sections (UI add) */
   .sec{border-top:1px solid var(--line)}
-  .secrow{display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding:8px 14px; font-size:12.5px; font-weight:700; color:var(--navy); user-select:none}
-  .secrow:hover{background:#f2f6fc}
+  .secrow{display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding:8px 14px; font-size:12.5px; font-weight:700; color:var(--heading); user-select:none}
+  .secrow:hover{background:var(--paper)}
   .sec .chev{transition:transform .15s; color:var(--blue); font-size:11px}
   .sec.open .chev{transform:rotate(90deg)}
   .secbody{display:none; padding:2px 14px 12px}
@@ -247,7 +256,7 @@
   .warnicon{display:inline-block; background:var(--bad-bg,#fde8e4); color:var(--bad,#b3261e); border:1px solid #f0c4bd; border-radius:10px; padding:0 7px; font-size:11px; font-weight:700; cursor:help; vertical-align:middle; margin-left:6px}
   .kvs{margin:4px 0}
   .kvrow{display:flex; justify-content:space-between; font-size:12.5px; padding:3px 0; border-bottom:1px dotted var(--line)}
-  .kvrow .kk{color:var(--muted)} .kvrow .vv{font-weight:700; color:var(--navy)}
+  .kvrow .kk{color:var(--muted)} .kvrow .vv{font-weight:700; color:var(--heading)}
   .bottomctl{margin-top:20px; display:flex; gap:14px; flex-wrap:wrap}
   .bottomctl .panel{flex:1 1 280px}
   /* ---- skill overlays + party matrix (UI add) ---- */
@@ -372,7 +381,7 @@
 
   /* ---- campaign section ---- */
   #campSection{margin-bottom:18px;display:none}
-  #campSection .cstitle{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  #campSection .cstitle{font-size:14px;font-weight:700;color:var(--heading);margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .camp-empty{text-align:center;padding:30px;color:var(--muted);font-size:14px}
   .award-form{display:flex;gap:6px;align-items:center}
   .award-amt{width:64px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:12px}
@@ -445,12 +454,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 
   <div id="errs"></div>
 
-  <div id="empty">
-    <div class="emoji">🛡️</div>
-    <div class="t">Drop your players' exported .json files here</div>
-    <div class="s">Imported characters appear as a card grid. Nothing is ever modified.</div>
-  </div>
-
   <div id="campSection">
     <div class="cstitle">
       Campaign Roster — <span id="campRosterName"></span>
@@ -470,23 +473,25 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   </div>
 
   <div class="bottomctl">
-    <div id="drop">
-      <div class="big">Drop your players' exported .json files here</div>
-      <div class="sub">Each player exports from the PACT Live Sheet (a <code>.json</code> of <code>{rules, name, LOG, SEQ}</code>). Drop one or many.</div>
-      <div class="inline-import">
-        <button type="button" class="btn sm" id="pickBtn2">Browse files…</button>
+    <details class="panel" id="importPanel">
+      <summary class="ptitle" id="importPanelSummary">
+        <span>Import roster (local files)</span>
+        <span class="chev">▸</span>
+      </summary>
+      <div class="importPanelBody">
+        <div id="drop">
+          <div class="big">Drop your players' exported .json files here</div>
+          <div class="sub">Each player exports from the PACT Live Sheet (a <code>.json</code> of <code>{rules, name, LOG, SEQ}</code>). Drop one or many.</div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+          <button type="button" class="btn" id="pickBtn">Choose .json files…</button>
+          <button type="button" class="btn danger sm" id="clearBtn" title="Remove all imported characters">Clear party</button>
+        </div>
+        <input class="hiddenFile" type="file" id="fileInput" multiple accept=".json,application/json">
+        <div class="grantnote">Read-only — this tool never edits a character. It only imports &amp; displays.</div>
+        <div class="grantnote" id="importCampNote" style="display:none">A cloud campaign is loaded below — this panel is for local files only and isn't part of it.</div>
       </div>
-    </div>
-    <div class="panel" id="importPanel">
-      <div class="ptitle">Import roster</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button type="button" class="btn" id="pickBtn">Choose .json files…</button>
-        <button type="button" class="btn danger sm" id="clearBtn" title="Remove all imported characters">Clear party</button>
-      </div>
-      <input class="hiddenFile" type="file" id="fileInput" multiple accept=".json,application/json">
-      <div class="grantnote">Read-only — this tool never edits a character. It only imports &amp; displays.</div>
-      <div class="grantnote" id="importCampNote" style="display:none">A cloud campaign is loaded below — this panel is for local files only and isn't part of it.</div>
-    </div>
+    </details>
     <div class="panel" id="grantPanel">
       <div class="ptitle">AP grant code</div>
       <div class="grantgrid">
@@ -803,6 +808,9 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
                           // [{id, summary, hasData, campId, ownerId, player, ap, playerLabel, dmNotes}]
+  var _cloudRosterEl = null;   // #campRoster, saved so render()'s view toggle can re-draw cloud cards
+                                // (table mode folds cloud data into the shared table instead; see render()).
+  function _cloudHasData(){ return cloudRoster.some(function(r){ return r.hasData; }); }
   // Both local and cloud cards render through the SAME cardHTML()/buildSections() machinery and share
   // the document-level [data-sk]/[data-tools]/[data-known] overlay handlers in initSkillUI() — this
   // looks up an id in either roster so those handlers don't care which one a card came from.
@@ -1159,8 +1167,11 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   var hiddenCols=(function(){ try{ var r=localStorage.getItem(COLKEY); if(r){ var a=JSON.parse(r); return new Set(Array.isArray(a)?a:[]); } }catch(e){} return new Set(['species2','class2','earned','spent']); })();
   function saveCols(){ try{ localStorage.setItem(COLKEY, JSON.stringify(Array.from(hiddenCols))); }catch(e){} }
   function visCols(){ return COLS.filter(function(c){ return c.key==='name' || !hiddenCols.has(c.key); }); }
-  function _rows(){ return roster.map(function(r){ return r.summary; }); }   // analysis objects, roster-aligned
-  function _idOf(a){ var rs=_rows(), i=rs.indexOf(a); return (i>=0&&roster[i])?roster[i].id:''; }
+  // Table view merges local imports with cloud characters that have real data (placeholders with no
+  // saved stats have no .summary and can't feed the table's column get()/disp() functions).
+  function _combinedRoster(){ return roster.concat(cloudRoster.filter(function(r){ return r.hasData; })); }
+  function _rows(){ return _combinedRoster().map(function(r){ return r.summary; }); }   // analysis objects, roster-aligned
+  function _idOf(a){ var rs=_rows(), i=rs.indexOf(a); if(i<0) return ''; var combined=_combinedRoster(); return combined[i]?combined[i].id:''; }
   function speciesText(a){ var s=a.species||'—'; if(a.species2&&a.species2!=='(none)') return 'Half-'+s+' '+a.species2; return s; }
   function classText(a){ var c=a.originClass||'—'; if(a.originClass2&&a.originClass2!=='(none)') c+=' / '+a.originClass2; return c; }
   function dcDisp(a){ return (a.saveDC==null)?'—':a.saveDC; }
@@ -1213,20 +1224,32 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   function wireColumns(){ var btn=$('colBtn'), panel=$('colPanel'); if(!btn||!panel) return; function build(){ panel.innerHTML=COLS.map(function(c){ var locked=c.key==='name'; var checked=locked||!hiddenCols.has(c.key); return '<label class="'+(locked?'locked':'')+'"><input type="checkbox" data-k="'+c.key+'"'+(checked?' checked':'')+(locked?' disabled':'')+'>'+esc(c.label)+'</label>'; }).join(''); Array.prototype.forEach.call(panel.querySelectorAll('input[data-k]'),function(inp){ inp.addEventListener('change',function(){ var k=inp.getAttribute('data-k'); if(inp.checked) hiddenCols.delete(k); else hiddenCols.add(k); saveCols(); render(); }); }); } btn.addEventListener('click',function(e){ e.stopPropagation(); build(); panel.classList.toggle('open'); }); document.addEventListener('click',function(e){ if(!panel.contains(e.target) && e.target!==btn) panel.classList.remove('open'); }); }
   function wireToggle(){ var b=$('viewToggle'); if(!b) return; function lbl(){ b.textContent=(view==='card')?'▦ Table view':'▤ Card view'; b.title=(view==='card')?'Switch to the data-table view':'Switch to the card-grid view'; } lbl(); b.addEventListener('click',function(){ view=(view==='card')?'table':'card'; lbl(); render(); }); }
 
-  /* ---------- render dispatcher (card grid OR data table) ---------- */
+  /* ---------- render dispatcher (card grid OR data table) ----------
+     The Table view toggle used to only ever affect `roster` (locally-imported files) — clicking it
+     visibly did nothing for a DM working purely from a cloud campaign, since #campRoster was a
+     separate container the toggle never touched. Table view now merges local + cloud (via
+     _combinedRoster()/_rows()) into one shared table, and #campRoster itself switches between its
+     own rich cards (Card view) and stepping aside for that shared table (Table view). */
   function render(){
     $('summary').innerHTML = summaryLine();
-    var has = roster.length>0;
-    $('empty').style.display = has ? 'none' : 'block';
+    var hasLocal = roster.length>0;
+    var hasAny = hasLocal || _cloudHasData();
     var cardOn = (view==='card');
-    var grid = $('grid'); if(grid) grid.style.display = (has&&cardOn) ? '' : 'none';
-    var tr = $('tableRoot'); if(tr) tr.style.display = (has&&!cardOn) ? '' : 'none';
-    if(!has){ if(grid) grid.innerHTML=''; return; }
-    // Explicit single-arg call, not roster.map(cardHTML): Array#map also passes (index, array) to
-    // its callback, and cardHTML now takes an optional second `dm` arg — bare `.map(cardHTML)` would
-    // silently pass every local card's numeric index in as `dm` (truthy for every index >0).
-    if(cardOn){ grid.innerHTML = roster.map(function(r){ return cardHTML(r); }).join(''); }
-    else { renderTable(); }
+    var grid = $('grid'); if(grid) grid.style.display = (hasLocal&&cardOn) ? '' : 'none';
+    var tr = $('tableRoot'); if(tr) tr.style.display = (hasAny&&!cardOn) ? '' : 'none';
+    if(hasLocal && cardOn){
+      // Explicit single-arg call, not roster.map(cardHTML): Array#map also passes (index, array) to
+      // its callback, and cardHTML now takes an optional second `dm` arg — bare `.map(cardHTML)` would
+      // silently pass every local card's numeric index in as `dm` (truthy for every index >0).
+      grid.innerHTML = roster.map(function(r){ return cardHTML(r); }).join('');
+    } else if(grid){
+      grid.innerHTML = '';
+    }
+    if(hasAny && !cardOn){ renderTable(); }
+    if(_cloudRosterEl){
+      if(cardOn){ renderCloudRoster(_cloudRosterEl); }
+      else { _cloudRosterEl.innerHTML = cloudRoster.length ? '<div class="camp-empty">Shown in the table below while Table view is on.</div>' : '<div class="camp-empty">No characters in this campaign yet.</div>'; }
+    }
   }
 
   /* ---------- event wiring (delegated) ---------- */
@@ -1248,7 +1271,6 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   var fi = $('fileInput');
   function openPicker(){ fi.value=''; fi.click(); }
   $('pickBtn').onclick = openPicker;
-  $('pickBtn2').onclick = openPicker;
   fi.addEventListener('change', function(){ handleFiles(fi.files); });
 
   $('clearBtn').onclick = clearParty;
@@ -1334,7 +1356,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       h+='<tr class="'+cls+'"><td>'+tag+esc(r.name)+'</td><td>'+esc(r.ab||'—')+'</td><td class="num">'+_sgnv(r.bonus)+'</td></tr>'; });
     return h+'</tbody></table>';
   }
-  function _chars(){ return roster.map(function(r){ return {name:(r.summary&&r.summary.name)||'Unnamed Hero', a:r.summary||{}}; }); }
+  function _chars(){ return _combinedRoster().map(function(r){ return {name:(r.summary&&r.summary.name)||'Unnamed Hero', a:r.summary||{}}; }); }
   function matrixOverlayHTML(chars){
     if(!chars.length) return '<h2 class="ov-h">Party Skill Matrix</h2><div class="ov-sub">No characters loaded.</div>';
     var skills=(typeof DATA!=='undefined'&&DATA.skillList)?DATA.skillList:[];
@@ -1467,8 +1489,12 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
   }
   window._dmRenderCloudRoster = function(container, rows){
+    _cloudRosterEl = container;
     cloudRoster = (rows||[]).map(cloudAnalyze);
-    renderCloudRoster(container);
+    // render() (below) is the single place that decides whether this container shows cards or defers
+    // to the shared Table view, based on the current view-toggle state — call it instead of drawing
+    // straight to `container` here, so a (re)load while Table view is active doesn't flash cards.
+    render();
   };
 
   // Delegated click handling for the cloud roster, scoped to #campRoster the same way #grid's own
@@ -1871,6 +1897,10 @@ document.addEventListener('campaign-ready', function () {
       campControls.style.display = 'none';
       campSection.style.display = 'none';
       setImportPanelDimmed(false);
+      // Clear the cloud roster on sign-out — otherwise it stays in memory and Table view (which
+      // merges cloud data into the shared local+cloud table regardless of #campSection's visibility)
+      // would keep showing a signed-out DM's last-loaded campaign's characters.
+      if(window._dmRenderCloudRoster) window._dmRenderCloudRoster(campRoster, []);
     }
   }
 
@@ -1918,6 +1948,8 @@ document.addEventListener('campaign-ready', function () {
     if(!camp){
       campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none';
       dmNotesText.value = ''; dmNotesStatus.textContent = '';
+      // Deselecting a campaign must also clear the cloud roster — see the sign-out branch above for why.
+      if(window._dmRenderCloudRoster) window._dmRenderCloudRoster(campRoster, []);
       setImportPanelDimmed(false);
       return;
     }
@@ -1941,8 +1973,6 @@ document.addEventListener('campaign-ready', function () {
     renderRuleCopyOptions();
     campSection.style.display = 'block';
     campRosterName.textContent = camp.name;
-    var emptyEl = document.getElementById('empty');
-    if(emptyEl) emptyEl.style.display = 'none';
     loadRoster(id);
   }
 
