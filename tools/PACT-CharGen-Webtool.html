@@ -507,11 +507,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange };
   window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -629,7 +629,7 @@ document.addEventListener('sync-ready', function () {
   var S = window._syncBridge, A = window._authBridge, C = window._campaignBridge;
   var cgCloudBtn = document.getElementById('cgCloudBtn'), cgCloudMenu = document.getElementById('cgCloudMenu');
   var _session = null;
-  var _cloudMenuGen = 0;   // bumped on every open — a stale in-flight listCharacters() checks this before writing the list, so a rapid close+reopen can't race a slower-loading earlier open
+  var _cloudMenuGen = 0;   // bumped on every open — a stale in-flight listMyCharacters() checks this before writing the list, so a rapid close+reopen can't race a slower-loading earlier open
 
   cgCloudBtn.addEventListener('click', function (e) {
     e.stopPropagation();
@@ -669,7 +669,7 @@ document.addEventListener('sync-ready', function () {
     var _joinBtn = document.getElementById('cgJoinBtn');
     if (_joinBtn) _joinBtn.addEventListener('click', onJoinCampaignClick);
     var chars;
-    try { chars = await S.listCharacters(); } catch (err) { chars = []; }
+    try { chars = await S.listMyCharacters(); } catch (err) { chars = []; }
     if (gen !== _cloudMenuGen) return;   // a newer open (or a close) superseded this fetch — discard it
     var mine = (chars || []).filter(function (c) { return c.kind === 'chargen'; });
     var listEl = document.getElementById('cgCloudCharList');
