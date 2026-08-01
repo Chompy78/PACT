@@ -1502,13 +1502,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
 </div></div>
 
 <script type="module">
-  import { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
   import { listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { getAwardHistory } from '../js/dm.js';
   import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listCharacters, newCharacterId, initSync };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync };
   window._authBridge = { currentSession, onAuthChange };
   window._campaignBridge = { listMyCampaigns, getCampaign };
   window._dmBridge = { getAwardHistory };
@@ -1721,7 +1721,7 @@ document.addEventListener('sync-ready', function () {
     });
 
     try {
-      var chars = await S.listCharacters();
+      var chars = await S.listMyCharacters();
       var live  = (chars||[]).filter(function(c){ return c.kind==='livesheet'; });
       var listEl = document.getElementById('cloudCharList');
 
@@ -1832,7 +1832,7 @@ document.addEventListener('sync-ready', function () {
               ? '⧉ Cloned to a standalone character'
               : '⧉ Cloned locally (offline — will sync to the cloud when online)');
             // Update the in-memory list and re-render locally instead of calling
-            // S.listCharacters() again — the clone's id/name/timestamp are already known,
+            // S.listMyCharacters() again — the clone's id/name/timestamp are already known,
             // so a full server re-fetch would only be re-reading data we already have.
             live.unshift({ id: res.id, name: cloneName, kind: 'livesheet', campaign_id: null, updated_at: new Date().toISOString() });
             renderCharListUI();

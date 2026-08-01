@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · fix(security): CharGen's/Live Sheet's cloud "Load saved character" menu no longer
+  leaks other players' characters to a DM** — live report: "why can I see 4 characters, I should only
+  have 1." `js/sync.js`'s `listCharacters()` (used by both tools' ☁ Cloud menu) had no `owner_id`
+  filter and relied entirely on RLS, whose `characters_select` policy deliberately also grants a DM
+  read access to every character in campaigns they run (needed for DM Console's roster). Confirmed
+  live against the production DB: the 4 rows belonged to 4 different Google accounts — other players
+  who'd redeemed invites into a campaign the reporting user DMs, not characters they'd created. Deleted
+  `listCharacters()` entirely (verified zero other callers) and pointed both cloud-menu call sites at
+  the already-existing, explicitly owner-scoped `listMyCharacters()` (already used by `characters.html`).
+  See `decisions/2026/D-GH-2026-08-01-dm-console-listcharacters-leak.md`.
 - **2026-08-02 · fix(dm-console): cloud roster's "has this character been built yet" check no
   longer false-positives on CharGen's auto-synced default name** — the empty-invite placeholder fix
   earlier today treated a `buy`/`buyoff`/`names`/`name` event as evidence a player had actually

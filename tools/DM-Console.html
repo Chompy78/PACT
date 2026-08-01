@@ -1567,7 +1567,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     };
   }
   // A roster row can exist with no character data yet — e.g. a redeemed invite the player hasn't
-  // opened CharGen/Live Sheet from (same "hasData" gap js/sync.js's listCharacters() already
+  // opened CharGen/Live Sheet from (same "hasData" gap js/sync.js's listMyCharacters() already
   // documents) — show a lightweight placeholder instead of running dmAnalyze() on an empty LOG.
   function cloudCardHTML(rec){
     if(!rec.hasData){

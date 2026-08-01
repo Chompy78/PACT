@@ -13,6 +13,15 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-01-dm-console-listcharacters-leak** — CharGen's/Live Sheet's ☁ Cloud → "Load saved
+  character" menu called `js/sync.js`'s `listCharacters()`, which had no `owner_id` filter and relied
+  entirely on RLS — whose `characters_select` policy deliberately also grants a DM read access to
+  every character in campaigns they run (needed for DM Console's roster). A DM opening their own
+  personal cloud menu therefore saw every player's blank invite-seeded characters, confirmed live
+  against the production DB (four rows, four different Google accounts). Deleted `listCharacters()`
+  entirely (zero other callers) and pointed both cloud-menu call sites at the already-existing,
+  explicitly owner-scoped `listMyCharacters()`. Full record:
+  `decisions/2026/D-GH-2026-08-01-dm-console-listcharacters-leak.md`.
 - **D-GH-2026-08-01-dm-console-cloud-roster** — Cloud (campaign) characters showed in a bare
   Player/Character/DM-AP table instead of the rich cards local imports get, had no "remove from
   campaign" path at all (`characters.campaign_id` had a setter but no unsetter), and had nowhere for a
