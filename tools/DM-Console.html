@@ -1545,11 +1545,16 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   function cloudAnalyze(row){
     var log = (row.stats && Array.isArray(row.stats.LOG)) ? row.stats.LOG : null;
     // A LOG that's only ever seen award events (e.g. the starting AP grant from a freshly-redeemed
-    // invite) — no buy/names/name events — means the player hasn't actually built anything yet.
-    // Running dmAnalyze() on that folds to the engine's bare defaults (Human Fighter, HP 6, AC 10…)
-    // and renders a full-looking card as if the player had chosen those, which is misleading — treat
-    // it the same as no data at all so the "no character data yet" placeholder shows instead.
-    var hasData = !!(log && log.some(function(e){ return e && (e.type==='buy' || e.type==='buyoff' || e.type==='names' || e.type==='name'); }));
+    // invite) means the player hasn't actually built anything yet. Running dmAnalyze() on that folds
+    // to the engine's bare defaults (Human Fighter, HP 6, AC 10…) and renders a full-looking card as
+    // if the player had chosen those, which is misleading — treat it the same as no data at all so
+    // the "no character data yet" placeholder shows instead. `buy` is the ONLY reliable signal here
+    // (same definition the "Purchases" count elsewhere in this file already uses) — CharGen's invite
+    // redemption seed (tools/PACT-CharGen-Webtool.html's _cgApplyEnvelope, ~line 2854) unconditionally
+    // re-syncs a `type:'name'` event from the boot-time #cname field even when it still holds the
+    // server-assigned default "New Character", so a `name`/`names` event alone does NOT mean the
+    // player has done anything — including them here made every freshly-redeemed invite look built.
+    var hasData = !!(log && log.some(function(e){ return e && e.type==='buy'; }));
     var summary = null;
     if(hasData){
       try {

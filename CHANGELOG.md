@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · fix(dm-console): cloud roster's "has this character been built yet" check no
+  longer false-positives on CharGen's auto-synced default name** — the empty-invite placeholder fix
+  earlier today treated a `buy`/`buyoff`/`names`/`name` event as evidence a player had actually
+  built something, but CharGen's invite-redemption seed (`_cgApplyEnvelope`, tools/PACT-CharGen-
+  Webtool.html ~line 2854) unconditionally re-syncs a `type:'name'` event from the boot-time
+  `#cname` field as "back-compat" — even when that field still holds the server-assigned default
+  "New Character" the player never touched. Every freshly-redeemed invite therefore already carried
+  a `name` event alongside its seed `award`, so it still rendered the full baseBuild()-defaults card
+  instead of the placeholder — confirmed live (a real campaign character showing "New Character",
+  HP 6, AC 10, Purchases 0). `hasData` now checks for a real `buy` event only, matching the same
+  definition the "Purchases" count elsewhere in this file already uses — `name`/`names`/`buyoff`
+  events alone no longer count.
 - **2026-08-02 · feat(dm-console): AP grant code is now per-character, both bottom panels are
   collapsible** — two live-testing follow-ups. (1) "AP grant code" (`#grantPanel`) generated one code
   for the whole party at one shared amount; it's now a `<details>` (collapsed by default, like the
