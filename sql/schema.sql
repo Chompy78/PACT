@@ -192,6 +192,26 @@ create table if not exists public.ap_awards (
 create index if not exists idx_ap_awards_char on public.ap_awards(character_id);
 
 -- ---------------------------------------------------------------------------
+-- character_dm_notes — DM-only per-character annotations (player-name label +
+-- freeform notes). Deliberately a separate table, not columns on `characters`:
+-- characters has a blanket SELECT grant with only row-level filtering, so any
+-- new column there would be visible to the character's own owner the moment
+-- their row passes characters_select — Postgres RLS can't hide a column within
+-- an otherwise-visible row. See sql/migrations/2026-08-01-dm-remove-character-notes.sql.
+-- ---------------------------------------------------------------------------
+create table if not exists public.character_dm_notes (
+  character_id uuid primary key references public.characters(id) on delete cascade,
+  player_label text,
+  notes        text,
+  updated_at   timestamptz not null default now()
+);
+
+drop trigger if exists trg_character_dm_notes_updated_at on public.character_dm_notes;
+create trigger trg_character_dm_notes_updated_at
+  before update on public.character_dm_notes
+  for each row execute function public.set_updated_at();
+
+-- ---------------------------------------------------------------------------
 -- find_campaign_by_invite_code — shared "look up campaign by shared invite_code"
 -- lookup for join_campaign and bind_character_to_campaign (NOT
 -- redeem_player_invite, which resolves via a single-use token against

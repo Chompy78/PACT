@@ -13,6 +13,17 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-01-dm-console-cloud-roster** — Cloud (campaign) characters showed in a bare
+  Player/Character/DM-AP table instead of the rich cards local imports get, had no "remove from
+  campaign" path at all (`characters.campaign_id` had a setter but no unsetter), and had nowhere for a
+  DM to leave a player-name label or private notes. Asked the user directly on two real decisions:
+  remove = unbind (character/data survive) not delete, and new fields = DM-only/private not
+  player-visible. Shipped: `#campRoster` now renders through the same `cardHTML()`/`analyzeAug()`
+  pipeline as local imports; a new `dm_unbind_character()` RPC (mirrors `award_ap()`'s
+  `SECURITY DEFINER` shape); a new `character_dm_notes` table (not new `characters` columns — RLS
+  can't hide a column within an otherwise-visible row) with access via a live join to the character's
+  *current* campaign, not a cached one. Migration applied to the live project + advisor-clean. Full
+  record: `decisions/2026/D-GH-2026-08-01-dm-console-cloud-roster.md`.
 - **D-GH-2026-08-01-dm-console-ui-improvements-2** — A Tradition left with every discipline slot at
   "(none)" was silently skipped by `compute()` — no Foundation cost, no line items, no warning. Added an
   engine-level warning (`js/engine.js`, shared by all three tools' Issues/warnings trays) plus a

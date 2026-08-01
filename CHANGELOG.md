@@ -6,6 +6,25 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-01 · feat(dm-console): cloud campaign roster now renders as full character cards, plus
+  "remove from campaign" and DM-private per-character notes** — three linked gaps found live-testing:
+  (1) cloud (campaign) characters showed in a bare Player/Character/DM-AP table, not the rich card
+  view local `.json` imports get. `#campRoster` now renders through the exact same `cardHTML()` /
+  `buildSections()` / `analyzeAug()` pipeline as the import grid (full stats, skills, spellcasting,
+  etc.), sharing the `[data-sk]`/`[data-tools]`/`[data-known]` overlay handlers via a small
+  `findRosterEntry()` lookup that checks both rosters. (2) there was no way to remove a character from
+  a campaign at all — `characters.campaign_id` had no "unset" path (only `join_campaign()` /
+  `bind_character_to_campaign()` ever set it). Added `dm_unbind_character()` (SECURITY DEFINER RPC,
+  mirrors `award_ap()`'s shape) — a soft "kick": the character and its data/AP survive, it just leaves
+  the campaign's roster; exposed as a "Remove from campaign" button with a confirm dialog, deliberately
+  *not* the local grid's quick corner "×" (that one's trivially reversible; unbinding isn't). (3) added
+  DM-only player-name label + freeform notes per character, editable inline on each cloud card and
+  saved via `setCharacterDmNotes()`. Stored in a new `character_dm_notes` table (not new `characters`
+  columns — a blanket `select` grant on `characters` means any new column there would be visible to the
+  character's own owner the moment their row passes RLS; a separate table with its own DM-only policy
+  avoids that). DB migration applied to the live project + verified via `get_advisors` (no new issues).
+  See `decisions/2026/D-GH-2026-08-01-dm-console-cloud-roster.md`.
+
 - **2026-08-01 · feat(engine, chargen): warn when a Tradition has no Discipline chosen (`DATA.version`
   v0.336 → v0.337)** — a Tradition ("Arcane"/"Divine"/"Primal") with every discipline slot left at
   "(none)" was priced as a complete no-op: `compute()` skipped it entirely (no Foundation cost, no line
