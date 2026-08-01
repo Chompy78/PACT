@@ -6,6 +6,29 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-01 · fix(chargen): half-caster discipline cantrip picker silently discarded selections** —
+  reported live: picking a cantrip count for a Paladin/Ranger discipline in CharGen showed a priced,
+  fully-clickable dropdown but added no ledger line and deducted no AP. Root cause: `js/engine.js`'s LOG
+  replay correctly zeroes `cantrips` for any discipline in `DATA.noCantrip` (half-casters can't take
+  cantrips) on every fold, but `tools/PACT-CharGen-Webtool.html`'s `.disc-cant` `<select>` had no matching
+  UI guard — Live Sheet already avoids this by simply not rendering the Cantrip buy button for these
+  disciplines. Fixed by disabling the select and resetting its displayed value to 0 whenever the current
+  discipline is in `DATA.noCantrip` (covers both picking a half-caster discipline directly and switching
+  an existing discipline into one), with a tooltip explaining why. No `js/engine.js`/`compute()` change —
+  reproduced and verified via a headless Playwright drive of the real CharGen UI (stubbed Supabase CDN
+  import); `testing/tests/engine-parity.html` still 20/0.
+
+- **2026-08-01 · feat(dm-console): restructure the Campaign (cloud) panel into per-purpose tiles, add DM
+  notes, alphabetize banned lists** — the panel had grown into one long undifferentiated block. Split it
+  into visually distinct nested tiles in order: Owner settings (ignore player-entered AP) → Invite new
+  player (player/DM codes + invite generator) → Campaign Rules (banned lists, multi-discipline toggle,
+  house rules) → Level budget curve / award pace / starting tier → a new DM notes tile (free-text,
+  campaign-scoped, stored in the same `campaigns.rules` JSONB column as `rules.dmNotes`, own "Save notes"
+  button) → New campaign / archived campaigns, with "Archive campaign" moved to the bottom of that tile.
+  All seven banned-item grids (`ruleBannedSpecies`/`…OriginSpecies`/`…OriginClasses`/`…Masteries`/
+  `…Boons`/`…Drawbacks`/`…Arts`) now render alphabetically instead of DATA's declaration order. No IDs
+  renamed, no `js/engine.js` change; verified with a headless screenshot of the real page.
+
 - **2026-07-29 · docs: correct every stale file-size figure in the read-budget guidance** — `AGENTS.md`'s
   "Don't read large files wholesale" section had a wrong number in each entry, and the same wrong number
   was reaching external reviewers. Measured: `js/engine.js` is **~66 KB / 924 lines**, not ~237 KB — that

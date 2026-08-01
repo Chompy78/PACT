@@ -13,6 +13,14 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-01-dm-console-ui-improvements** — CharGen's `.disc-cant` cantrip picker had no guard for
+  `DATA.noCantrip` half-caster disciplines (Paladin/Ranger): `js/engine.js` already silently zeroes their
+  cantrips on every fold (correct rules enforcement, and Live Sheet already hides the buy control for
+  them), but CharGen showed a priced, clickable dropdown whose selection was discarded with zero feedback
+  — no ledger line, no AP deducted, no warning. Fixed by disabling the control and forcing its displayed
+  value to 0 whenever the current discipline can't take cantrips, re-evaluated every render (also
+  self-corrects switching an existing discipline into a half-caster mid-edit). No engine change. Full
+  record: `decisions/2026/D-GH-2026-08-01-dm-console-ui-improvements.md`.
 - **D-GH-2026-07-29-file-review-4plpe3** — Acted on an external (Copilot) perf review of `js/engine.js`
   by *measuring* every claim instead of trusting its stated priority order. Took the Set-based dedupe in
   `_replay()` (O(n²)→O(n); `foldBuild()` on a 2000-event log ~14.6× faster and now linear), Set-based

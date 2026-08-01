@@ -3232,10 +3232,28 @@ function annotate(b,r){
       td.textContent=tot>0?(tot+' ('+unit+' ea)'):(unit+' ea');td.style.color='#2E5496';});
     d.querySelectorAll('.knc').forEach(td=>{const L=+td.dataset.l;if(info.prepared){td.textContent='—';return;}const unit=Math.max(1,DATA.knownUnit[L]-info.dd);const tot=info.knownCostByLv[L]||0;
       td.textContent=tot>0?(tot+' ('+unit+' ea)'):(unit+' ea');td.style.color='#2E5496';});
-    // cantrips: cost labels + cap (#8,#11)
+    // cantrips: cost labels + cap (#8,#11). Half-casters (DATA.noCantrip, e.g. Paladin/Ranger) can't
+    // take cantrips at all — engine.js's fold silently zeroes d.cantrips for these every replay
+    // (js/engine.js "half-casters can't hold cantrips"), so without this guard the dropdown looked
+    // fully purchasable (priced options, no cap) but any selection was discarded with zero feedback:
+    // no ledger line, no AP deducted, no warning. Live Sheet already avoids this by not rendering the
+    // Cantrip buy button at all for these disciplines — mirror that here by disabling the control and
+    // forcing its displayed value back to 0 so the widget never shows a value the engine has discarded.
     const cs=d.querySelector('.disc-cant');
-    relabel(cs,n=>n+(n>0?' (+'+Math.max(0,(DATA.cantCum[n]-DATA.cantCum[n-1])-info.dd)+' AP)':'')+(n>info.cantripCap?' ✕cap':''));
-    if(cs){for(const o of cs.options)o.disabled=(+o.value>info.cantripCap);if(+cs.value>info.cantripCap)cs.value=info.cantripCap;}
+    const noCant=(DATA.noCantrip||[]).indexOf(dn)>=0;
+    if(cs){
+      cs.disabled=noCant;
+      if(noCant){
+        if(cs.value!=='0')cs.value='0';
+        relabel(cs,n=>n===0?'0':'—');
+        cs.title='Half-casters can’t take cantrips';
+      } else {
+        relabel(cs,n=>n+(n>0?' (+'+Math.max(0,(DATA.cantCum[n]-DATA.cantCum[n-1])-info.dd)+' AP)':'')+(n>info.cantripCap?' ✕cap':''));
+        for(const o of cs.options)o.disabled=(+o.value>info.cantripCap);
+        if(+cs.value>info.cantripCap)cs.value=info.cantripCap;
+        cs.title='';
+      }
+    }
     // slot/known dropdowns: plain counts only — the AP cost is shown in the ↳AP row beneath each
     d.querySelectorAll('.ds').forEach(sel=>relabel(sel,n=>''+n));
     d.querySelectorAll('.dk').forEach(sel=>{sel.disabled=info.prepared;relabel(sel,n=>info.prepared?'—':(''+n));});

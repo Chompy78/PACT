@@ -397,6 +397,11 @@
     border-radius:50%;width:22px;height:22px;min-height:0;padding:0;font-size:12px;line-height:1;
     cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
   .infobtn:hover{color:var(--ink);border-color:var(--muted)}
+  /* ---- campaign panel: nested tiles (feat/dm-console-ui) ---- */
+  .subtile{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  .subtile:last-child{margin-bottom:0}
+  .subtile .stitle{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;margin-bottom:8px}
+  #dmNotesText{min-height:90px;padding:8px 10px;resize:vertical;font-family:inherit}
   .ruleblock{margin-bottom:6px}
   .ruleblock>.lbl{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:3px}
   .rulegrid{display:flex;flex-wrap:wrap;gap:4px 10px}
@@ -517,130 +522,162 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       <div id="campControls" style="display:none">
         <select id="campSel"><option value="">— select campaign —</option></select>
         <div id="campCodes" style="display:none">
-          <div class="codechip">
-            <span class="lbl">Players:</span>
-            <input class="field ro" id="campPlayerCode" readonly>
-            <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
-            <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. Anyone who enters this code (CharGen's “Join campaign”) gets a new character bound to this campaign, with no preset AP/budget.">ⓘ</button>
+
+          <div class="subtile" id="campOwnerTile">
+            <div class="stitle">Owner settings</div>
+            <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer">
+              <input type="checkbox" id="ignorePlayerAp"> Ignore player-entered AP
+            </label>
           </div>
-          <div class="codechip">
-            <span class="lbl">DMs:</span>
-            <input class="field ro" id="campDmCode" readonly>
-            <button type="button" class="btn sm ghost" id="copyDmCode">Copy</button>
-            <button type="button" class="infobtn" id="campDmCodeInfo" title="Reusable — share with a trusted co-DM. Redeeming it lets them manage this campaign alongside you (rules, rosters, AP awards).">ⓘ</button>
+
+          <div class="subtile" id="campInviteTile">
+            <div class="stitle">Invite new player</div>
+            <div class="codechip">
+              <span class="lbl">Players:</span>
+              <input class="field ro" id="campPlayerCode" readonly>
+              <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
+              <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. Anyone who enters this code (CharGen's “Join campaign”) gets a new character bound to this campaign, with no preset AP/budget.">ⓘ</button>
+            </div>
+            <div class="codechip">
+              <span class="lbl">DMs:</span>
+              <input class="field ro" id="campDmCode" readonly>
+              <button type="button" class="btn sm ghost" id="copyDmCode">Copy</button>
+              <button type="button" class="infobtn" id="campDmCodeInfo" title="Reusable — share with a trusted co-DM. Redeeming it lets them manage this campaign alongside you (rules, rosters, AP awards).">ⓘ</button>
+            </div>
+            <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <input class="field" type="number" id="inviteStartAp" placeholder="Starting DM AP" min="0" step="1" style="width:140px">
+                <input class="field" type="number" id="inviteStartBudget" placeholder="Starting budget" min="0" step="1" style="width:140px">
+                <button type="button" class="btn sm" id="createInviteBtn">Generate invite link</button>
+              </div>
+              <div id="inviteLinkRow" style="display:none;align-items:center;gap:6px;margin-top:6px">
+                <input class="field ro" id="inviteLinkOut" readonly>
+                <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
+              </div>
+              <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the starting AP/budget above. Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
+            </div>
           </div>
-          <div class="ruleblock" id="campArchiveBlock" style="display:none;margin-top:8px">
+
+          <div class="subtile" id="campRulesTile">
+            <details id="campRulesDetails">
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
+              <div style="margin-top:8px">
+                <div class="ruleblock" id="ruleCopyBlock" style="display:none">
+                  <div class="lbl">Copy rules from another campaign</div>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <select class="field" id="ruleCopyFrom" style="flex:1"><option value="">— select a campaign —</option></select>
+                    <button type="button" class="btn sm ghost" id="ruleCopyBtn">Copy</button>
+                  </div>
+                  <span id="ruleCopyStatus" style="font-size:11px;color:var(--muted)"></span>
+                  <div class="grantnote">Loads that campaign’s rules into the form below as a starting point. Nothing is saved until you click <b>Save rules</b>; the source campaign is left unchanged.</div>
+                </div>
+                <div class="ruleblock"><div class="lbl">Banned species</div><div class="rulegrid" id="ruleBannedSpecies"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned as 2nd origin species</div><div class="rulegrid" id="ruleBannedOriginSpecies"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned origin classes</div><div class="rulegrid" id="ruleBannedOriginClasses"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned weapon masteries</div><div class="rulegrid" id="ruleBannedMasteries"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned drawbacks</div><div class="rulegrid" id="ruleBannedDrawbacks"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned arts</div><div class="rulegrid" id="ruleBannedArts"></div></div>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
+                  <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
+                </label>
+                <div class="ruleblock">
+                  <div class="lbl">House-rule toggles</div>
+                  <div id="ruleHouseRules"></div>
+                  <div style="display:flex;gap:6px;margin-top:5px">
+                    <input class="field" type="text" id="ruleHouseRuleName" placeholder="toggle name" style="flex:1">
+                    <button type="button" class="btn sm ghost" id="ruleAddHouseRule">+ Add</button>
+                  </div>
+                </div>
+                <div class="grantnote">Read-only for players — they see these rules in the Live Sheet but can't change them.</div>
+              </div>
+            </details>
+          </div>
+
+          <div class="subtile" id="campAdvancementTile">
+            <div class="stitle">Level budget curve · award pace · starting tier</div>
+            <div class="ruleblock">
+              <div class="lbl">📈 Level budget curve</div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <select id="ruleBudgetPreset" class="field" style="flex:0 0 140px">
+                  <option value="standard">Standard (79/+24)</option>
+                  <option value="generous">Generous (83/+28)</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <label style="font-size:11px;color:var(--muted)">L1 <input class="field" type="number" id="ruleBudgetL1" min="20" max="300" step="1" style="width:64px" value="79"></label>
+                <label style="font-size:11px;color:var(--muted)">+per lvl <input class="field" type="number" id="ruleBudgetInc" min="1" max="80" step="1" style="width:64px" value="24"></label>
+                <span style="font-size:11px;color:var(--muted)">L20 = <b id="ruleBudgetL20Preview">535</b> AP</span>
+              </div>
+              <div class="grantnote">Display only — tunes the “Track-Level” label a player sees on their sheet against AP spent. Does NOT change any purchase price.</div>
+            </div>
+            <div class="ruleblock">
+              <div class="lbl">⏱ Award pace (AP per session)</div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <select id="ruleAwardPacePreset" class="field" style="flex:0 0 120px">
+                  <option value="slow">Slow (5)</option>
+                  <option value="average" selected>Average (7)</option>
+                  <option value="fast">Fast (10)</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <input class="field" type="number" id="ruleAwardPaceCustom" min="1" max="50" step="1" style="width:64px" value="7">
+                <span style="font-size:11px;color:var(--muted)">AP/session</span>
+              </div>
+              <div class="grantnote">A documented baseline only — AP is still granted ad-hoc via the “+ Award AP” action. Nothing auto-awards.</div>
+            </div>
+            <div class="ruleblock" style="margin-bottom:0">
+              <div class="lbl">🎬 Starting tier (new-PC budget)</div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <select id="ruleStartingTierPreset" class="field" style="flex:0 0 150px">
+                  <option value="prelude">Prelude (0.7×)</option>
+                  <option value="standard" selected>Standard (1.0×)</option>
+                  <option value="veteran">Veteran (1.3×)</option>
+                  <option value="legendary">Legendary (1.6×)</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
+                <span style="font-size:11px;color:var(--muted)">AP</span>
+              </div>
+              <div class="grantnote">Pre-fills the “Starting budget” field when you generate a player invite (still editable per invite).</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;margin:2px 0 4px">
+            <button type="button" class="btn sm" id="ruleSaveBtn">Save rules</button>
+            <span id="ruleSaveStatus" style="font-size:11px;color:var(--muted)"></span>
+          </div>
+          <div class="grantnote" style="margin:0 0 10px">Saves the Campaign Rules and advancement settings above together.</div>
+
+          <div class="subtile" id="dmNotesTile">
+            <div class="stitle">DM notes</div>
+            <textarea class="field" id="dmNotesText" placeholder="Private notes for this campaign — players never see these."></textarea>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+              <button type="button" class="btn sm" id="dmNotesSaveBtn">Save notes</button>
+              <span id="dmNotesStatus" style="font-size:11px;color:var(--muted)"></span>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="subtile" id="campManageTile" style="margin-top:10px">
+          <div class="stitle">New campaign · archived campaigns</div>
+          <div id="campNewRow" style="display:flex;gap:6px">
+            <input class="field" type="text" id="campNewName" placeholder="New campaign name" maxlength="80">
+            <button type="button" class="btn sm" id="campNewBtn">+ Create</button>
+          </div>
+          <div id="campNewStatus" style="font-size:11px;color:var(--muted);margin:4px 0 0"></div>
+          <details id="campArchivedDetails" style="margin-top:10px">
+            <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Archived campaigns</summary>
+            <div id="campArchivedList" style="margin-top:8px"></div>
+          </details>
+          <div class="ruleblock" id="campArchiveBlock" style="display:none;margin-top:12px;margin-bottom:0">
+            <div class="lbl">Archive this campaign</div>
             <button type="button" class="btn sm danger" id="campArchiveBtn">Archive campaign</button>
             <div class="grantnote">Removes this campaign from your active list above. Players and their
               characters are unaffected, and you can restore it anytime from “Archived campaigns” above.</div>
           </div>
-          <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
-            <div class="lbl">Invite new player</div>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-              <input class="field" type="number" id="inviteStartAp" placeholder="Starting DM AP" min="0" step="1" style="width:140px">
-              <input class="field" type="number" id="inviteStartBudget" placeholder="Starting budget" min="0" step="1" style="width:140px">
-              <button type="button" class="btn sm" id="createInviteBtn">Generate invite link</button>
-            </div>
-            <div id="inviteLinkRow" style="display:none;align-items:center;gap:6px;margin-top:6px">
-              <input class="field ro" id="inviteLinkOut" readonly>
-              <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
-            </div>
-            <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-            <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the starting AP/budget above. Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
-          </div>
-          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin-top:8px;cursor:pointer">
-            <input type="checkbox" id="ignorePlayerAp"> Ignore player-entered AP
-          </label>
-          <details id="campRulesDetails" style="margin-top:10px">
-            <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
-            <div style="margin-top:8px">
-              <div class="ruleblock" id="ruleCopyBlock" style="display:none">
-                <div class="lbl">Copy rules from another campaign</div>
-                <div style="display:flex;gap:6px;align-items:center">
-                  <select class="field" id="ruleCopyFrom" style="flex:1"><option value="">— select a campaign —</option></select>
-                  <button type="button" class="btn sm ghost" id="ruleCopyBtn">Copy</button>
-                </div>
-                <span id="ruleCopyStatus" style="font-size:11px;color:var(--muted)"></span>
-                <div class="grantnote">Loads that campaign’s rules into the form below as a starting point. Nothing is saved until you click <b>Save rules</b>; the source campaign is left unchanged.</div>
-              </div>
-              <div class="ruleblock"><div class="lbl">Banned species</div><div class="rulegrid" id="ruleBannedSpecies"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned as 2nd origin species</div><div class="rulegrid" id="ruleBannedOriginSpecies"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned origin classes</div><div class="rulegrid" id="ruleBannedOriginClasses"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned weapon masteries</div><div class="rulegrid" id="ruleBannedMasteries"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned drawbacks</div><div class="rulegrid" id="ruleBannedDrawbacks"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned arts</div><div class="rulegrid" id="ruleBannedArts"></div></div>
-              <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
-                <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
-              </label>
-              <div class="ruleblock">
-                <div class="lbl">📈 Level budget curve</div>
-                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                  <select id="ruleBudgetPreset" class="field" style="flex:0 0 140px">
-                    <option value="standard">Standard (79/+24)</option>
-                    <option value="generous">Generous (83/+28)</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <label style="font-size:11px;color:var(--muted)">L1 <input class="field" type="number" id="ruleBudgetL1" min="20" max="300" step="1" style="width:64px" value="79"></label>
-                  <label style="font-size:11px;color:var(--muted)">+per lvl <input class="field" type="number" id="ruleBudgetInc" min="1" max="80" step="1" style="width:64px" value="24"></label>
-                  <span style="font-size:11px;color:var(--muted)">L20 = <b id="ruleBudgetL20Preview">535</b> AP</span>
-                </div>
-                <div class="grantnote">Display only — tunes the “Track-Level” label a player sees on their sheet against AP spent. Does NOT change any purchase price.</div>
-              </div>
-              <div class="ruleblock">
-                <div class="lbl">⏱ Award pace (AP per session)</div>
-                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                  <select id="ruleAwardPacePreset" class="field" style="flex:0 0 120px">
-                    <option value="slow">Slow (5)</option>
-                    <option value="average" selected>Average (7)</option>
-                    <option value="fast">Fast (10)</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <input class="field" type="number" id="ruleAwardPaceCustom" min="1" max="50" step="1" style="width:64px" value="7">
-                  <span style="font-size:11px;color:var(--muted)">AP/session</span>
-                </div>
-                <div class="grantnote">A documented baseline only — AP is still granted ad-hoc via the “+ Award AP” action. Nothing auto-awards.</div>
-              </div>
-              <div class="ruleblock">
-                <div class="lbl">🎬 Starting tier (new-PC budget)</div>
-                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                  <select id="ruleStartingTierPreset" class="field" style="flex:0 0 150px">
-                    <option value="prelude">Prelude (0.7×)</option>
-                    <option value="standard" selected>Standard (1.0×)</option>
-                    <option value="veteran">Veteran (1.3×)</option>
-                    <option value="legendary">Legendary (1.6×)</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
-                  <span style="font-size:11px;color:var(--muted)">AP</span>
-                </div>
-                <div class="grantnote">Pre-fills the “Starting budget” field when you generate a player invite (still editable per invite).</div>
-              </div>
-              <div class="ruleblock">
-                <div class="lbl">House-rule toggles</div>
-                <div id="ruleHouseRules"></div>
-                <div style="display:flex;gap:6px;margin-top:5px">
-                  <input class="field" type="text" id="ruleHouseRuleName" placeholder="toggle name" style="flex:1">
-                  <button type="button" class="btn sm ghost" id="ruleAddHouseRule">+ Add</button>
-                </div>
-              </div>
-              <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
-                <button type="button" class="btn sm" id="ruleSaveBtn">Save rules</button>
-                <span id="ruleSaveStatus" style="font-size:11px;color:var(--muted)"></span>
-              </div>
-              <div class="grantnote">Read-only for players — they see these rules in the Live Sheet but can't change them.</div>
-            </div>
-          </details>
         </div>
-        <div id="campNewRow" style="display:flex;gap:6px;margin-top:10px">
-          <input class="field" type="text" id="campNewName" placeholder="New campaign name" maxlength="80">
-          <button type="button" class="btn sm" id="campNewBtn">+ Create</button>
-        </div>
-        <div id="campNewStatus" style="font-size:11px;color:var(--muted);margin:4px 0 0"></div>
-        <details id="campArchivedDetails" style="margin-top:10px">
-          <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Archived campaigns</summary>
-          <div id="campArchivedList" style="margin-top:8px"></div>
-        </details>
+
       </div>
     </div>
   </div>
@@ -1415,6 +1452,9 @@ document.addEventListener('campaign-ready', function () {
   var campArchivedList = document.getElementById('campArchivedList');
   var campArchiveBlock = document.getElementById('campArchiveBlock');
   var campArchiveBtn   = document.getElementById('campArchiveBtn');
+  var dmNotesText   = document.getElementById('dmNotesText');
+  var dmNotesSaveBtn = document.getElementById('dmNotesSaveBtn');
+  var dmNotesStatus = document.getElementById('dmNotesStatus');
   var importPanel   = document.getElementById('importPanel');
   var importCampNote = document.getElementById('importCampNote');
   var currentCampaigns = [];
@@ -1445,7 +1485,8 @@ document.addEventListener('campaign-ready', function () {
       var el = document.getElementById(pair[0]);
       if(!el || el.childElementCount) return;   // render option list once
       var tip = pair[2];
-      el.innerHTML = pair[1]().map(function(name){
+      var names = pair[1]().slice().sort(function(a,b){ return a.localeCompare(b); });
+      el.innerHTML = names.map(function(name){
         var t = tip ? tip(name) : '';
         return '<label'+(t?' title="'+esc(t)+'"':'')+'><input type="checkbox" value="'+esc(name)+'">'+esc(name)+'</label>';
       }).join('');
@@ -1562,7 +1603,10 @@ document.addEventListener('campaign-ready', function () {
       startingTier: {
         preset: document.getElementById('ruleStartingTierPreset').value || 'standard',
         ap: parseInt(document.getElementById('ruleStartingTierAp').value, 10) || 79
-      }
+      },
+      // dmNotes lives in the same rules JSON but has its own "Save notes" button (DM notes tile)
+      // — carry the live textarea value through here too so this save never clobbers it.
+      dmNotes: dmNotesText.value
     };
     ruleSaveStatus.textContent = 'Saving…';
     try {
@@ -1572,6 +1616,19 @@ document.addEventListener('campaign-ready', function () {
       ruleSaveStatus.textContent = 'Saved.';
     } catch(err){
       ruleSaveStatus.textContent = 'Error: '+err.message;
+    }
+  });
+  document.getElementById('dmNotesSaveBtn').addEventListener('click', async function(){
+    if(!currentCampId) return;
+    var camp = currentCampaigns.find(function(c){return c.id===currentCampId;});
+    var rules = Object.assign({}, (camp && camp.rules) || {}, { dmNotes: dmNotesText.value });
+    dmNotesStatus.textContent = 'Saving…';
+    try {
+      await B.setCampaignRules(currentCampId, rules);
+      if(camp) camp.rules = rules;
+      dmNotesStatus.textContent = 'Saved.';
+    } catch(err){
+      dmNotesStatus.textContent = 'Error: '+err.message;
     }
   });
 
@@ -1681,6 +1738,7 @@ document.addEventListener('campaign-ready', function () {
     var camp = currentCampaigns.find(function(c){return c.id===id;});
     if(!camp){
       campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none';
+      dmNotesText.value = ''; dmNotesStatus.textContent = '';
       setImportPanelDimmed(false);
       return;
     }
@@ -1699,6 +1757,8 @@ document.addEventListener('campaign-ready', function () {
     var _tierAp = camp.rules && camp.rules.startingTier && camp.rules.startingTier.ap;
     inviteStartBudget.value = (_tierAp != null && _tierAp !== '') ? _tierAp : '';
     loadRulesIntoPanel(camp.rules);
+    dmNotesText.value = (camp.rules && camp.rules.dmNotes) || '';
+    dmNotesStatus.textContent = '';
     renderRuleCopyOptions();
     campSection.style.display = 'block';
     campRosterName.textContent = camp.name;
