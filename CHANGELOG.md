@@ -6,6 +6,24 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · feat(dm-console): AP grant code is now per-character, both bottom panels are
+  collapsible** — two live-testing follow-ups. (1) "AP grant code" (`#grantPanel`) generated one code
+  for the whole party at one shared amount; it's now a `<details>` (collapsed by default, like the
+  import panel) listing every character currently loaded (local imports + cloud roster, including
+  not-yet-built placeholders) with a tick-box and its own amount field, so a DM can grant different AP
+  to different players in one pass — "Generate code(s)" produces one code per ticked character, each
+  shown with its own Copy button. (2) The "Campaign (cloud)" panel (`#campPanel`) is now also a
+  `<details>` (open by default, since it hosts sign-in/campaign-select) — the collapse mechanics
+  (chevron, marker suppression) were generalized from `#importPanel`-only CSS to a shared
+  `details.panel` selector so all three bottom panels collapse identically.
+- **2026-08-02 · fix(dm-console): cloud roster card no longer shows a fake "fully built" character for
+  an unopened invite** — a freshly-redeemed player invite's LOG holds only the seed `award` event (no
+  `buy`/`names`/`name`), but `cloudAnalyze()`'s `hasData` check only verified the LOG was an array, so
+  it ran `dmAnalyze()` anyway and rendered a full card off `baseBuild()`'s bare engine defaults (Human
+  Fighter, HP 6, AC 10, Speed 30′…) as if the player had actually chosen them — the exact "card just
+  says 'New Character', no real details" reported from live testing. `hasData` now requires at least
+  one real build event in the LOG; without one it falls back to the existing "No character data yet"
+  placeholder, which already existed for this case but was never reached.
 - **2026-08-02 · fix(dm-console): Table/Card view toggle now covers the cloud roster, dark-mode
   contrast on card headings/stat-strip/section-rows, collapsible local-import card** — four bugs from
   live testing. (1) Clicking "Table view" visibly did nothing for a DM with only cloud (campaign)
