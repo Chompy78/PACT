@@ -31,6 +31,12 @@
   file import still working nested inside `<details>`); `engine-parity-ci.mjs` 20/0 and
   `random-manual-e2e.mjs` green (no `js/engine.js` change).
 
+- **2026-08-01 · docs(schema): fix stale `sql/schema.sql` comments describing `characters.stats`** —
+  the header design notes and the `stats`/`kind` column comments still described the pre-D-GH40 state
+  (CharGen = flat build JSON, Live Sheet = event log). Since D-GH40 (2026-07-10) both tools share one
+  canonical envelope, `{schema:'pact-character/1', rules, name, LOG, SEQ, id}`; `kind` now only marks
+  which tool owns/opens a character, not a different data shape. Docs-only, no schema/DDL change.
+
 - **2026-08-01 · feat(dm-console): cloud campaign roster now renders as full character cards, plus
   "remove from campaign" and DM-private per-character notes** — three linked gaps found live-testing:
   (1) cloud (campaign) characters showed in a bare Player/Character/DM-AP table, not the rich card

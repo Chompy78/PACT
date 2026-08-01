@@ -3,9 +3,10 @@
 -- rls-policies.sql and MUST be applied after this file.
 --
 -- Design notes (see docs/PWA-BUILD-PLAN.md Tasks 3 & 4):
---   * characters.stats is the ONLY place raw character data lives:
---       CharGen   -> the flat build JSON
---       Live Sheet-> the event log { LOG, SEQ, rules }
+--   * characters.stats is the ONLY place raw character data lives: one canonical envelope,
+--       { schema:'pact-character/1', rules, name, LOG, SEQ, id }, shared by both CharGen and
+--       Live Sheet since D-GH40 — kind ('chargen'/'livesheet') marks which tool owns/opens
+--       the character, not a different data shape.
 --     Derived stats (HP, AC, AP, warnings) are NEVER stored; the engine recomputes them.
 --   * characters.ap is a SEPARATE column, not inside stats, so RLS can protect it
 --     independently — players can never write it; only a campaign's DM can.
@@ -153,15 +154,15 @@ create trigger trg_campaign_owner_dm
   for each row execute function public.add_owner_as_dm();
 
 -- ---------------------------------------------------------------------------
--- characters — raw build JSON / event log + server-authoritative ap
+-- characters — event-log character data + server-authoritative ap
 -- ---------------------------------------------------------------------------
 create table if not exists public.characters (
   id          uuid primary key default gen_random_uuid(),
   owner_id    uuid not null references public.profiles(id) on delete cascade,
   campaign_id uuid references public.campaigns(id) on delete set null,
   name        text not null default 'New Character',
-  kind        text not null default 'livesheet' check (kind in ('chargen','livesheet')),
-  stats       jsonb not null default '{}'::jsonb,   -- build JSON or { LOG, SEQ, rules }
+  kind        text not null default 'livesheet' check (kind in ('chargen','livesheet')),  -- which tool owns/opens it; both kinds share the same stats shape (D-GH40)
+  stats       jsonb not null default '{}'::jsonb,   -- { schema:'pact-character/1', rules, name, LOG, SEQ, id } for both kinds (D-GH40)
   ap          integer not null default 0,           -- DM-authoritative; never written by players
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
