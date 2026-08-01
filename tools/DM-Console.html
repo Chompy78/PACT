@@ -117,25 +117,38 @@
   .field.ro{background:#eaf0fb; color:var(--navy); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px}
   label.lbl{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
 
-  /* import panel — a <details> now (D-GH-2026-08-01), collapsed by default: local-file import is a
-     secondary/offline path next to the cloud campaign roster, so it starts out of the way. */
+  /* collapsible panels — <details class="panel"> (D-GH-2026-08-01/-2): local-file import, the AP
+     grant-code generator and the cloud Campaign panel are all secondary-or-occasional controls next
+     to the live roster, so all three collapse the same way and start out of the way (Campaign starts
+     open since it also hosts sign-in). */
+  details.panel > summary{list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; margin-bottom:0}
+  details.panel > summary::-webkit-details-marker{display:none}
+  details.panel > summary::marker{content:''}
+  details.panel > summary .chev{color:var(--muted); transition:transform .15s ease; flex-shrink:0}
+  details.panel[open] > summary{margin-bottom:7px}
+  details.panel[open] > summary .chev{transform:rotate(90deg)}
   #importPanel{flex:1 1 320px; min-width:260px; transition:opacity .15s ease}
   #importPanel.dimmed{opacity:.55}
   #importPanel.dimmed:hover{opacity:.9}
-  #importPanel > summary{list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; margin-bottom:0}
-  #importPanel > summary::-webkit-details-marker{display:none}
-  #importPanel > summary::marker{content:''}
-  #importPanel > summary .chev{color:var(--muted); transition:transform .15s ease; flex-shrink:0}
-  #importPanel[open] > summary{margin-bottom:7px}
-  #importPanel[open] > summary .chev{transform:rotate(90deg)}
   #importPanel .importPanelBody{margin-top:8px}
   #grantPanel{flex:1 1 320px; min-width:260px}
+  #grantPanel .grantPanelBody{margin-top:8px}
   .grantgrid{display:grid; grid-template-columns:90px 1fr auto; gap:8px; align-items:end}
   .grantgrid .full{grid-column:1 / -1}
   .grantnote{font-size:11px;color:var(--muted);margin-top:7px}
   .codeRow{display:flex; gap:8px; margin-top:8px}
   .codeRow .field.ro{flex:1}
   .hiddenFile{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+  .grantCharList{max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:4px 6px; margin:4px 0 8px}
+  .grantCharRow{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 2px; border-bottom:1px solid var(--line)}
+  .grantCharRow:last-child{border-bottom:none}
+  .grantCharRow label{display:flex; align-items:center; gap:7px; flex:1; min-width:0; font-size:13px; cursor:pointer; color:var(--ink)}
+  .grantCharRow .grantCharName{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .grantCharRow .grant-amt{width:76px; flex-shrink:0; min-height:32px; padding:0 8px; font-size:12px}
+  #grantCodesOut{display:flex; flex-direction:column; gap:6px; margin-top:4px}
+  #grantCodesOut .codeRow{margin-top:0}
+  .grantCodeName{flex:0 0 150px; font-size:12px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .grantCodeAmt{color:var(--muted); font-weight:400}
 
   /* ---------- main ---------- */
   main{padding:clamp(12px,2.5vw,26px); max-width:1880px; margin:0 auto}
@@ -492,30 +505,38 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
         <div class="grantnote" id="importCampNote" style="display:none">A cloud campaign is loaded below — this panel is for local files only and isn't part of it.</div>
       </div>
     </details>
-    <div class="panel" id="grantPanel">
-      <div class="ptitle">AP grant code</div>
-      <div class="grantgrid">
-        <div>
-          <label class="lbl" for="grantAmt">Amount</label>
-          <input class="field" type="number" id="grantAmt" value="10" step="1">
+    <details class="panel" id="grantPanel">
+      <summary class="ptitle" id="grantPanelSummary">
+        <span>AP grant code</span>
+        <span class="chev">▸</span>
+      </summary>
+      <div class="grantPanelBody">
+        <div class="grantnote">Tick each character to grant, set their amount, then generate — every ticked character gets its own code (different players can get different amounts). Codes are redeemed by the player pasting theirs into their own Live Sheet.</div>
+        <div class="grantCharList" id="grantCharList"><div class="camp-empty" style="padding:14px">No characters loaded yet — import local files or select a cloud campaign above.</div></div>
+        <div class="grantgrid">
+          <div>
+            <label class="lbl" for="grantDefaultAmt">Default amount</label>
+            <input class="field" type="number" id="grantDefaultAmt" value="10" step="1">
+          </div>
+          <div>
+            <label class="lbl" for="grantNote">Note (optional, shared)</label>
+            <input class="field" type="text" id="grantNote" placeholder="e.g. cleared the crypt">
+          </div>
+          <div class="gen">
+            <label class="lbl">&nbsp;</label>
+            <button type="button" class="btn ghost sm" id="grantSelAllBtn">Select all</button>
+            <button type="button" class="btn" id="genBtn">Generate code(s)</button>
+          </div>
         </div>
-        <div>
-          <label class="lbl" for="grantNote">Note (optional)</label>
-          <input class="field" type="text" id="grantNote" placeholder="e.g. cleared the crypt">
-        </div>
-        <div class="gen">
-          <label class="lbl">&nbsp;</label>
-          <button type="button" class="btn" id="genBtn">Generate code</button>
-        </div>
+        <div id="grantCodesOut"></div>
       </div>
-      <div class="codeRow">
-        <input class="field ro" id="grantCode" readonly placeholder="PACTAP:… code appears here">
-        <button type="button" class="btn sm" id="copyBtn">Copy</button>
-      </div>
-      <div class="grantnote">One code works for the <b>whole party</b> — send it to every player to grant the same AP.</div>
-    </div>
-    <div class="panel" id="campPanel">
-      <div class="ptitle">Campaign (cloud)</div>
+    </details>
+    <details class="panel" id="campPanel" open>
+      <summary class="ptitle" id="campPanelSummary">
+        <span>Campaign (cloud)</span>
+        <span class="chev">▸</span>
+      </summary>
+      <div class="campPanelBody">
       <div id="campAuthRow">
         <span id="campWho">Not signed in</span>
         <a class="btn sm" href="../login.html" id="campSignInBtn">Sign in</a>
@@ -680,7 +701,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
         </div>
 
       </div>
-    </div>
+      </div>
+    </details>
   </div>
 
   <div class="footnote">PACT DM Console <span id="toolVer"></span> · read-only roster viewer · rules engine <span id="rulesVer"></span> · <a href="https://github.com/Chompy78/PACT/issues/new" target="_blank" rel="noopener" style="color:inherit">Report an issue</a></div>
@@ -1250,6 +1272,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       if(cardOn){ renderCloudRoster(_cloudRosterEl); }
       else { _cloudRosterEl.innerHTML = cloudRoster.length ? '<div class="camp-empty">Shown in the table below while Table view is on.</div>' : '<div class="camp-empty">No characters in this campaign yet.</div>'; }
     }
+    renderGrantCharList();
   }
 
   /* ---------- event wiring (delegated) ---------- */
@@ -1295,30 +1318,92 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
   });
 
-  /* ---------- AP grant code ---------- */
-  $('genBtn').onclick = function(){
-    var amt = parseInt($('grantAmt').value, 10);
-    if(isNaN(amt)){ alert('Enter a whole-number AP amount.'); return; }
-    var note = $('grantNote').value || '';
-    var code;
-    try{ code = dmMakeGrant(amt, note); }
-    catch(e){ code = ''; alert('Could not generate code: '+(e&&e.message?e.message:'error')); }
-    $('grantCode').value = code;
-  };
-  $('copyBtn').onclick = function(){
-    var el = $('grantCode');
-    var txt = el.value;
-    if(!txt){ return; }
-    var done = function(){ var b=$('copyBtn'); var o=b.textContent; b.textContent='Copied!'; setTimeout(function(){ b.textContent=o; }, 1200); };
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(txt).then(done, function(){ fallbackCopy(el, done); });
-    } else { fallbackCopy(el, done); }
-  };
+  /* ---------- AP grant code: one code per ticked character, own amount each ---------- */
+  // Roster shown for grant-code generation: local imports (always have a summary) plus every cloud
+  // roster row, including ones with no build yet (a freshly-redeemed invite still needs starting AP).
+  function _grantRosterList(){
+    var out = roster.map(function(r){ return {id:r.id, name:(r.summary&&r.summary.name)||'Unnamed Hero'}; });
+    cloudRoster.forEach(function(rec){
+      var name = rec.hasData ? ((rec.summary&&rec.summary.name)||'Unnamed Hero') : (rec.dm.playerLabel||'Unnamed character');
+      out.push({id:rec.id, name:name});
+    });
+    return out;
+  }
   function fallbackCopy(el, done){
     try{ el.removeAttribute('readonly'); el.select(); el.setSelectionRange(0, el.value.length);
       document.execCommand('copy'); el.setAttribute('readonly','readonly'); done();
     }catch(e){ alert('Copy not supported — select the code and copy manually.'); }
   }
+  // Re-renders on every render() call (roster composition may have changed), but preserves any
+  // ticked boxes / edited amounts already on screen for characters that are still present.
+  function renderGrantCharList(){
+    var el = $('grantCharList');
+    if(!el) return;
+    var list = _grantRosterList();
+    var prevChecked = {}, prevAmt = {};
+    Array.prototype.forEach.call(el.querySelectorAll('.grant-chk'), function(c){ prevChecked[c.getAttribute('data-id')] = c.checked; });
+    Array.prototype.forEach.call(el.querySelectorAll('.grant-amt'), function(a){ prevAmt[a.getAttribute('data-id')] = a.value; });
+    if(!list.length){
+      el.innerHTML = '<div class="camp-empty" style="padding:14px">No characters loaded yet — import local files or select a cloud campaign above.</div>';
+      return;
+    }
+    var defAmt = $('grantDefaultAmt') ? $('grantDefaultAmt').value : '10';
+    el.innerHTML = list.map(function(c){
+      var amt = (prevAmt[c.id]!=null) ? prevAmt[c.id] : defAmt;
+      var checked = prevChecked[c.id] ? ' checked' : '';
+      return '<div class="grantCharRow" data-id="'+esc(c.id)+'">' +
+        '<label><input type="checkbox" class="grant-chk" data-id="'+esc(c.id)+'"'+checked+'><span class="grantCharName">'+esc(c.name)+'</span></label>' +
+        '<input class="field grant-amt" type="number" data-id="'+esc(c.id)+'" value="'+esc(amt)+'" step="1" title="AP amount for '+esc(c.name)+'">' +
+      '</div>';
+    }).join('');
+  }
+  $('grantSelAllBtn').onclick = function(){
+    var boxes = $('grantCharList').querySelectorAll('.grant-chk');
+    if(!boxes.length) return;
+    var allChecked = Array.prototype.every.call(boxes, function(b){ return b.checked; });
+    Array.prototype.forEach.call(boxes, function(b){ b.checked = !allChecked; });
+  };
+  function renderGrantCodesOut(list){
+    var el = $('grantCodesOut');
+    if(!list.length){ return; }
+    el.innerHTML = list.map(function(g){
+      return '<div class="codeRow">' +
+        '<span class="grantCodeName" title="'+esc(g.name)+'">'+esc(g.name)+' <span class="grantCodeAmt">('+(g.amt>=0?'+':'')+g.amt+' AP)</span></span>' +
+        '<input class="field ro" readonly value="'+esc(g.code)+'">' +
+        '<button type="button" class="btn sm grant-copy-btn">Copy</button>' +
+      '</div>';
+    }).join('') + el.innerHTML;
+  }
+  $('genBtn').onclick = function(){
+    var note = $('grantNote').value || '';
+    var checked = Array.prototype.slice.call($('grantCharList').querySelectorAll('.grant-chk:checked'));
+    if(!checked.length){ alert('Tick at least one character to generate a code for.'); return; }
+    var out = [];
+    checked.forEach(function(chk){
+      var id = chk.getAttribute('data-id');
+      var row = chk.closest('.grantCharRow');
+      var amtInp = row ? row.querySelector('.grant-amt') : null;
+      var amt = parseInt(amtInp && amtInp.value, 10);
+      var name = row ? row.querySelector('.grantCharName').textContent : id;
+      if(isNaN(amt)){ return; }
+      var code;
+      try{ code = dmMakeGrant(amt, note); } catch(e){ code = ''; }
+      if(code) out.push({id:id, name:name, amt:amt, code:code});
+    });
+    if(!out.length){ alert('Enter a whole-number AP amount for at least one ticked character.'); return; }
+    renderGrantCodesOut(out);
+  };
+  $('grantCodesOut').addEventListener('click', function(e){
+    var btn = e.target.closest('.grant-copy-btn');
+    if(!btn) return;
+    var row = btn.closest('.codeRow');
+    var inp = row ? row.querySelector('.field.ro') : null;
+    if(!inp || !inp.value) return;
+    var done = function(){ var o=btn.textContent; btn.textContent='Copied!'; setTimeout(function(){ btn.textContent=o; }, 1200); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(inp.value).then(done, function(){ fallbackCopy(inp, done); });
+    } else { fallbackCopy(inp, done); }
+  });
 
   /* ---------- skill overlays: per-character skills + party matrix ---------- */
   function _sgnv(n){ n=+n||0; return (n>=0?'+':'')+n; }
@@ -1458,11 +1543,17 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
      thing exposed across that script boundary — called after B.getRoster() resolves. cloudRoster
      itself is never persisted (always re-fetched live on campaign select/refresh), unlike `roster`. */
   function cloudAnalyze(row){
-    var hasData = !!(row.stats && Array.isArray(row.stats.LOG));
+    var log = (row.stats && Array.isArray(row.stats.LOG)) ? row.stats.LOG : null;
+    // A LOG that's only ever seen award events (e.g. the starting AP grant from a freshly-redeemed
+    // invite) — no buy/names/name events — means the player hasn't actually built anything yet.
+    // Running dmAnalyze() on that folds to the engine's bare defaults (Human Fighter, HP 6, AC 10…)
+    // and renders a full-looking card as if the player had chosen those, which is misleading — treat
+    // it the same as no data at all so the "no character data yet" placeholder shows instead.
+    var hasData = !!(log && log.some(function(e){ return e && (e.type==='buy' || e.type==='buyoff' || e.type==='names' || e.type==='name'); }));
     var summary = null;
     if(hasData){
       try {
-        summary = analyzeAug({ LOG: row.stats.LOG, SEQ: row.stats.SEQ || (row.stats.LOG.length+1), rules: row.stats.rules, name: row.name });
+        summary = analyzeAug({ LOG: log, SEQ: row.stats.SEQ || (log.length+1), rules: row.stats.rules, name: row.name });
       } catch(e){ hasData = false; summary = null; }
     }
     return {
