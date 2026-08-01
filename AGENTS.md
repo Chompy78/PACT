@@ -157,9 +157,12 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   `MUT`/`foldBuild`. Never re-implement rules logic anywhere else; `tools/` and `js/` must stay siblings.
 - **Persistence:** the app is an installable, offline-capable PWA with **optional sign-in**. Local-only
   still works (localStorage + JSON import/export); when signed in, characters also save to the **cloud
-  (Supabase)** and DMs run **campaigns**. CharGen = a flat build JSON; Live Sheet = an event log
-  `{ LOG, SEQ, rules }`. Store only raw character data; derive HP/AC/AP/warnings via `compute()` /
-  `rebuildStateFromEvents()` at runtime — **never store derived values.**
+  (Supabase)** and DMs run **campaigns**. Since D-GH40 (2026-07-10), both tools share one canonical
+  envelope for local files and the cloud `stats` column alike — `{schema:'pact-character/1', rules,
+  name, LOG, SEQ, id}`; `characters.kind` (`chargen`/`livesheet`) marks which tool a character
+  currently opens in, not a different data shape. Store only raw character data; derive
+  HP/AC/AP/warnings via `compute()` / `rebuildStateFromEvents()` at runtime — **never store derived
+  values.**
 - **CharGen → Live Sheet export (D-GH3, see DECISIONS.md):** emits one native buy event per purchase plus
   structural patches; imported characters must be indistinguishable from hand-built ones (drawbacks
   buy-off-able, one ledger entry per line).

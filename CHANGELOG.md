@@ -31,6 +31,11 @@
   file import still working nested inside `<details>`); `engine-parity-ci.mjs` 20/0 and
   `random-manual-e2e.mjs` green (no `js/engine.js` change).
 
+- **2026-08-01 · docs(agents): fix stale `AGENTS.md` Persistence bullet describing `characters.stats`** —
+  same pre-D-GH40 claim as the `sql/schema.sql` fix above ("CharGen = a flat build JSON; Live Sheet =
+  an event log"), corrected to describe the one shared `{schema:'pact-character/1', ...}` envelope both
+  tools have used since 2026-07-10. Docs-only.
+
 - **2026-08-01 · docs(schema): fix stale `sql/schema.sql` comments describing `characters.stats`** —
   the header design notes and the `stats`/`kind` column comments still described the pre-D-GH40 state
   (CharGen = flat build JSON, Live Sheet = event log). Since D-GH40 (2026-07-10) both tools share one
