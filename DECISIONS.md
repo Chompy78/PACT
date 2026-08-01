@@ -13,6 +13,14 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-01-build-version-pr-linked** — `BUILD` (`js/engine.js`) was an independently-
+  incremented `v0.10x` counter, bumped on an ad hoc schedule with no fixed rule for when/who bumps it.
+  Changed to `v<N>` where `N` is the GitHub PR number that promotes `preview` → `main`, set once as
+  part of that promotion PR (never inside a regular feature PR) and tagged onto the resulting `main`
+  commit with the same number. Removes a manual "what's the next number" guess (the same shared-
+  mutable-counter hazard already documented for the old `D-GH<N>` decision numbering) and makes every
+  build directly traceable to the exact PR diff it shipped. `DATA.version` (rules axis) unaffected.
+  Full record: `decisions/2026/D-GH-2026-08-01-build-version-pr-linked.md`.
 - **D-GH-2026-08-01-dm-console-listcharacters-leak** — CharGen's/Live Sheet's ☁ Cloud → "Load saved
   character" menu called `js/sync.js`'s `listCharacters()`, which had no `owner_id` filter and relied
   entirely on RLS — whose `characters_select` policy deliberately also grants a DM read access to
