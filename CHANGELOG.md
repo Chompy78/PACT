@@ -6,6 +6,31 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · fix(dm-console): Table/Card view toggle now covers the cloud roster, dark-mode
+  contrast on card headings/stat-strip/section-rows, collapsible local-import card** — four bugs from
+  live testing. (1) Clicking "Table view" visibly did nothing for a DM with only cloud (campaign)
+  characters loaded — the toggle only ever drove `#grid`/`#tableRoot` from the local `roster` array;
+  `#campRoster` (cloud cards) was a separate container it never touched. Table view now merges local +
+  cloud data (`_combinedRoster()`/`_rows()`/`_idOf()`), and `#campRoster` itself switches between its
+  own rich cards and stepping aside for the shared table. Cloud roster is also now cleared on sign-out
+  and campaign deselection, so stale data can't leak into a later Table view. (2) The 6 stat-strip boxes
+  (HP/AC/Speed/Pass Perc/Prof/Save DC) had a hardcoded near-white background (`#fafcff`) instead of a
+  theme variable, so in dark mode they stayed white while their (theme-aware) text went light-on-light.
+  (3) Several card-view text colors (`.cname`, `.secrow`, `.kvrow .vv`, `.summary b`,
+  `#campSection .cstitle`) used `--navy` directly, which dark mode redefines to a near-black shade for
+  its OWN use as a *background* (header gradient, buttons) — unreadable as foreground text on the
+  also-dark card background it actually sits on. Added a new `--heading` variable (indirects through
+  `--navy` so dnd/royal/forest need no change; dark mode gets an explicit light override) and swapped
+  those five selectors to it; also fixed `.secrow:hover`'s hardcoded near-white hover background the
+  same way. (4) The redundant "Drop your players' exported .json files here" banner (`#empty`, shown
+  above the Campaign Roster whenever no local file was imported — which is always, for a DM working
+  purely from the cloud) is removed; the dropzone and "Import roster" panel are merged into one
+  collapsible `<details>` card (collapsed by default), decluttering the page for the common case.
+  Verified via headless Playwright against the real DM Console code (toggle with cloud-only data,
+  dark-mode screenshot before/after, light-theme regression screenshot, collapsed/expanded import card,
+  file import still working nested inside `<details>`); `engine-parity-ci.mjs` 20/0 and
+  `random-manual-e2e.mjs` green (no `js/engine.js` change).
+
 - **2026-08-01 · feat(dm-console): cloud campaign roster now renders as full character cards, plus
   "remove from campaign" and DM-private per-character notes** — three linked gaps found live-testing:
   (1) cloud (campaign) characters showed in a bare Player/Character/DM-AP table, not the rich card
