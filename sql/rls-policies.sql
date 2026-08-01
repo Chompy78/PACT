@@ -59,14 +59,27 @@ returns boolean language sql security definer stable set search_path = public, p
   );
 $$;
 
+-- character_dm_notes: DM-only, evaluated against the character's CURRENT
+-- campaign (a live join, not a cached campaign_id on this table) so access
+-- automatically follows a character if it's unbound or re-bound elsewhere.
+create or replace function public.is_campaign_dm_of_character(p_character uuid)
+returns boolean language sql security definer stable set search_path = public, pg_temp as $$
+  select exists (
+    select 1 from characters c
+    join campaign_dms d on d.campaign_id = c.campaign_id
+    where c.id = p_character and d.dm_id = auth.uid()
+  );
+$$;
+
 -- ---------------------------------------------------------------------------
 -- Enable RLS
 -- ---------------------------------------------------------------------------
-alter table public.profiles     enable row level security;
-alter table public.campaigns    enable row level security;
-alter table public.characters   enable row level security;
-alter table public.campaign_dms enable row level security;
-alter table public.ap_awards    enable row level security;
+alter table public.profiles           enable row level security;
+alter table public.campaigns          enable row level security;
+alter table public.characters         enable row level security;
+alter table public.campaign_dms       enable row level security;
+alter table public.ap_awards          enable row level security;
+alter table public.character_dm_notes enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Base table privileges. RLS gates WHICH ROWS the authenticated role may touch,
@@ -180,6 +193,17 @@ create policy characters_delete on public.characters
   for delete using (owner_id = auth.uid() or is_campaign_dm(campaign_id));
 
 -- ---------------------------------------------------------------------------
+-- character_dm_notes — DM-only per-character notes/label. Never the character's
+-- owner, even though they can read/delete the character row itself.
+-- ---------------------------------------------------------------------------
+drop policy if exists character_dm_notes_all on public.character_dm_notes;
+create policy character_dm_notes_all on public.character_dm_notes
+  for all using (is_campaign_dm_of_character(character_id))
+  with check (is_campaign_dm_of_character(character_id));
+
+grant select, insert, update, delete on public.character_dm_notes to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Column-level ap lockdown — the real ap guard.
 -- Strip blanket UPDATE, then grant UPDATE only on the player-writable columns.
 -- ap is deliberately excluded; it can change ONLY through award_ap().
@@ -235,6 +259,31 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- dm_unbind_character(character) — the ONLY way to clear characters.campaign_id
+-- once set (join_campaign()/bind_character_to_campaign() are the only setters).
+-- characters_update's row policy is owner-only, so a DM removing a PLAYER's
+-- character from their own campaign needs the same SECURITY DEFINER bypass
+-- award_ap() uses. A soft "kick": the character and its stats/AP survive,
+-- untouched, just no longer attached to any campaign.
+-- ---------------------------------------------------------------------------
+create or replace function public.dm_unbind_character(p_character uuid)
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_campaign uuid;
+begin
+  select campaign_id into v_campaign from characters where id = p_character;
+  if v_campaign is null then
+    raise exception 'Character is not in a campaign';
+  end if;
+  if not is_campaign_dm(v_campaign) then
+    raise exception 'Only a campaign DM can remove a character from the campaign';
+  end if;
+
+  update characters set campaign_id = null where id = p_character;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- campaign_invites — single-use per-player invite tokens (Path A). A DM sees
 -- all invites for their campaign; a redeemer can read their own redeemed row
 -- (CharGen's crash-recovery path re-reads starting_budget from it if a
@@ -265,10 +314,14 @@ grant execute on function public.award_ap(uuid, integer, text)      to authentic
 grant execute on function public.create_player_invite(uuid, integer, integer) to authenticated;
 grant execute on function public.redeem_player_invite(text, text)             to authenticated;
 grant execute on function public.bind_character_to_campaign(uuid, text)       to authenticated;
+grant execute on function public.dm_unbind_character(uuid)                    to authenticated;
+grant execute on function public.is_campaign_dm_of_character(uuid)            to authenticated;
 
 revoke execute on function public.create_player_invite(uuid, integer, integer) from public;
 revoke execute on function public.redeem_player_invite(text, text)             from public;
 revoke execute on function public.bind_character_to_campaign(uuid, text)       from public;
+revoke execute on function public.dm_unbind_character(uuid)                    from public;
+revoke execute on function public.is_campaign_dm_of_character(uuid)            from public;
 
 -- Postgres grants EXECUTE to PUBLIC by default on every new function; revoke it here
 -- so award_ap is authenticated-only rather than relying solely on its internal

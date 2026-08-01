@@ -13,6 +13,32 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-01-dm-console-cloud-roster** — Cloud (campaign) characters showed in a bare
+  Player/Character/DM-AP table instead of the rich cards local imports get, had no "remove from
+  campaign" path at all (`characters.campaign_id` had a setter but no unsetter), and had nowhere for a
+  DM to leave a player-name label or private notes. Asked the user directly on two real decisions:
+  remove = unbind (character/data survive) not delete, and new fields = DM-only/private not
+  player-visible. Shipped: `#campRoster` now renders through the same `cardHTML()`/`analyzeAug()`
+  pipeline as local imports; a new `dm_unbind_character()` RPC (mirrors `award_ap()`'s
+  `SECURITY DEFINER` shape); a new `character_dm_notes` table (not new `characters` columns — RLS
+  can't hide a column within an otherwise-visible row) with access via a live join to the character's
+  *current* campaign, not a cached one. Migration applied to the live project + advisor-clean. Full
+  record: `decisions/2026/D-GH-2026-08-01-dm-console-cloud-roster.md`.
+- **D-GH-2026-08-01-dm-console-ui-improvements-2** — A Tradition left with every discipline slot at
+  "(none)" was silently skipped by `compute()` — no Foundation cost, no line items, no warning. Added an
+  engine-level warning (`js/engine.js`, shared by all three tools' Issues/warnings trays) plus a
+  CharGen-only inline "⚠ No discipline chosen" marker (the one tool where this state is reachable through
+  normal editing). Bumped `DATA.version` v0.336 → v0.337 since this changes `compute()`'s possible
+  `warnings` output; none of the 20 parity fixtures exercise the state, so `testing/expected/` needed no
+  changes. Full record: `decisions/2026/D-GH-2026-08-01-dm-console-ui-improvements-2.md`.
+- **D-GH-2026-08-01-dm-console-ui-improvements** — CharGen's `.disc-cant` cantrip picker had no guard for
+  `DATA.noCantrip` half-caster disciplines (Paladin/Ranger): `js/engine.js` already silently zeroes their
+  cantrips on every fold (correct rules enforcement, and Live Sheet already hides the buy control for
+  them), but CharGen showed a priced, clickable dropdown whose selection was discarded with zero feedback
+  — no ledger line, no AP deducted, no warning. Fixed by disabling the control and forcing its displayed
+  value to 0 whenever the current discipline can't take cantrips, re-evaluated every render (also
+  self-corrects switching an existing discipline into a half-caster mid-edit). No engine change. Full
+  record: `decisions/2026/D-GH-2026-08-01-dm-console-ui-improvements.md`.
 - **D-GH-2026-07-29-file-review-4plpe3** — Acted on an external (Copilot) perf review of `js/engine.js`
   by *measuring* every claim instead of trusting its stated priority order. Took the Set-based dedupe in
   `_replay()` (O(n²)→O(n); `foldBuild()` on a 2000-event log ~14.6× faster and now linear), Set-based
