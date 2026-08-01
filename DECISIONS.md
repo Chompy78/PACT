@@ -13,6 +13,13 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-01-dm-console-ui-improvements-2** — A Tradition left with every discipline slot at
+  "(none)" was silently skipped by `compute()` — no Foundation cost, no line items, no warning. Added an
+  engine-level warning (`js/engine.js`, shared by all three tools' Issues/warnings trays) plus a
+  CharGen-only inline "⚠ No discipline chosen" marker (the one tool where this state is reachable through
+  normal editing). Bumped `DATA.version` v0.336 → v0.337 since this changes `compute()`'s possible
+  `warnings` output; none of the 20 parity fixtures exercise the state, so `testing/expected/` needed no
+  changes. Full record: `decisions/2026/D-GH-2026-08-01-dm-console-ui-improvements-2.md`.
 - **D-GH-2026-08-01-dm-console-ui-improvements** — CharGen's `.disc-cant` cantrip picker had no guard for
   `DATA.noCantrip` half-caster disciplines (Paladin/Ranger): `js/engine.js` already silently zeroes their
   cantrips on every fold (correct rules enforcement, and Live Sheet already hides the buy control for

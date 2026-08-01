@@ -6,6 +6,21 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-01 · feat(engine, chargen): warn when a Tradition has no Discipline chosen (`DATA.version`
+  v0.336 → v0.337)** — a Tradition ("Arcane"/"Divine"/"Primal") with every discipline slot left at
+  "(none)" was priced as a complete no-op: `compute()` skipped it entirely (no Foundation cost, no line
+  items) with zero indication anything was incomplete. `js/engine.js` now pushes a
+  `"<Tradition>: no Discipline chosen — pick one to activate this Tradition…"` warning for this state,
+  which surfaces automatically as a real ⚠ issue (not an advisory ⓘ) in every tool's warnings/Issues tray
+  since they all read `compute()`'s `warnings` live. CharGen additionally shows an inline red "⚠ No
+  discipline chosen" marker directly on the empty discipline row (`tools/PACT-CharGen-Webtool.html`'s
+  per-discipline render block), since that's the one tool where this state is actually reachable
+  (Live Sheet's discipline buy buttons always target a named discipline). Bumped `DATA.version` because
+  this changes `compute()`'s possible `warnings` output; the 20 parity fixtures don't exercise this state
+  so `testing/expected/` needed no changes — confirmed 20/0 before and after. Mirrored the new version
+  string into CharGen's hardcoded cosmetic labels (header comment, `<title>`, `#cgPactver`) and
+  `docs/AI_review_prompt.md`.
+
 - **2026-08-01 · fix(chargen): half-caster discipline cantrip picker silently discarded selections** —
   reported live: picking a cantrip count for a Paladin/Ranger discipline in CharGen showed a priced,
   fully-clickable dropdown but added no ledger line and deducted no AP. Root cause: `js/engine.js`'s LOG
