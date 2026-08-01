@@ -279,7 +279,7 @@ export function compute(b, opts){
     if(!t||!t.name||t.name==="(none)")return;
     const tag="Trad "+(ti+1)+" "+t.name;
     const discs=(t.disciplines||[]).filter(d=>d&&d.name&&d.name!=="(none)");
-    if(discs.length===0)return;
+    if(discs.length===0){W.push(t.name+": no Discipline chosen — pick one to activate this Tradition (nothing has been purchased for it yet)");return;}
     const hasOrigin=discs.some(d=>d.name===b.originClass||d.name===b.originClass2);
     const hasUnlk=!hasOrigin&&discs.some(d=>_unlkSet.has(d.name));const baseDisc=hasOrigin?1:(hasUnlk?0:-1);
     const foundation=Math.max(1,7-baseDisc); add(tag+" — Foundation",foundation);

@@ -6,6 +6,63 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-01 · feat(dm-console): cloud campaign roster now renders as full character cards, plus
+  "remove from campaign" and DM-private per-character notes** — three linked gaps found live-testing:
+  (1) cloud (campaign) characters showed in a bare Player/Character/DM-AP table, not the rich card
+  view local `.json` imports get. `#campRoster` now renders through the exact same `cardHTML()` /
+  `buildSections()` / `analyzeAug()` pipeline as the import grid (full stats, skills, spellcasting,
+  etc.), sharing the `[data-sk]`/`[data-tools]`/`[data-known]` overlay handlers via a small
+  `findRosterEntry()` lookup that checks both rosters. (2) there was no way to remove a character from
+  a campaign at all — `characters.campaign_id` had no "unset" path (only `join_campaign()` /
+  `bind_character_to_campaign()` ever set it). Added `dm_unbind_character()` (SECURITY DEFINER RPC,
+  mirrors `award_ap()`'s shape) — a soft "kick": the character and its data/AP survive, it just leaves
+  the campaign's roster; exposed as a "Remove from campaign" button with a confirm dialog, deliberately
+  *not* the local grid's quick corner "×" (that one's trivially reversible; unbinding isn't). (3) added
+  DM-only player-name label + freeform notes per character, editable inline on each cloud card and
+  saved via `setCharacterDmNotes()`. Stored in a new `character_dm_notes` table (not new `characters`
+  columns — a blanket `select` grant on `characters` means any new column there would be visible to the
+  character's own owner the moment their row passes RLS; a separate table with its own DM-only policy
+  avoids that). DB migration applied to the live project + verified via `get_advisors` (no new issues).
+  See `decisions/2026/D-GH-2026-08-01-dm-console-cloud-roster.md`.
+
+- **2026-08-01 · feat(engine, chargen): warn when a Tradition has no Discipline chosen (`DATA.version`
+  v0.336 → v0.337)** — a Tradition ("Arcane"/"Divine"/"Primal") with every discipline slot left at
+  "(none)" was priced as a complete no-op: `compute()` skipped it entirely (no Foundation cost, no line
+  items) with zero indication anything was incomplete. `js/engine.js` now pushes a
+  `"<Tradition>: no Discipline chosen — pick one to activate this Tradition…"` warning for this state,
+  which surfaces automatically as a real ⚠ issue (not an advisory ⓘ) in every tool's warnings/Issues tray
+  since they all read `compute()`'s `warnings` live. CharGen additionally shows an inline red "⚠ No
+  discipline chosen" marker directly on the empty discipline row (`tools/PACT-CharGen-Webtool.html`'s
+  per-discipline render block), since that's the one tool where this state is actually reachable
+  (Live Sheet's discipline buy buttons always target a named discipline). Bumped `DATA.version` because
+  this changes `compute()`'s possible `warnings` output; the 20 parity fixtures don't exercise this state
+  so `testing/expected/` needed no changes — confirmed 20/0 before and after. Mirrored the new version
+  string into CharGen's hardcoded cosmetic labels (header comment, `<title>`, `#cgPactver`) and
+  `docs/AI_review_prompt.md`.
+
+- **2026-08-01 · fix(chargen): half-caster discipline cantrip picker silently discarded selections** —
+  reported live: picking a cantrip count for a Paladin/Ranger discipline in CharGen showed a priced,
+  fully-clickable dropdown but added no ledger line and deducted no AP. Root cause: `js/engine.js`'s LOG
+  replay correctly zeroes `cantrips` for any discipline in `DATA.noCantrip` (half-casters can't take
+  cantrips) on every fold, but `tools/PACT-CharGen-Webtool.html`'s `.disc-cant` `<select>` had no matching
+  UI guard — Live Sheet already avoids this by simply not rendering the Cantrip buy button for these
+  disciplines. Fixed by disabling the select and resetting its displayed value to 0 whenever the current
+  discipline is in `DATA.noCantrip` (covers both picking a half-caster discipline directly and switching
+  an existing discipline into one), with a tooltip explaining why. No `js/engine.js`/`compute()` change —
+  reproduced and verified via a headless Playwright drive of the real CharGen UI (stubbed Supabase CDN
+  import); `testing/tests/engine-parity.html` still 20/0.
+
+- **2026-08-01 · feat(dm-console): restructure the Campaign (cloud) panel into per-purpose tiles, add DM
+  notes, alphabetize banned lists** — the panel had grown into one long undifferentiated block. Split it
+  into visually distinct nested tiles in order: Owner settings (ignore player-entered AP) → Invite new
+  player (player/DM codes + invite generator) → Campaign Rules (banned lists, multi-discipline toggle,
+  house rules) → Level budget curve / award pace / starting tier → a new DM notes tile (free-text,
+  campaign-scoped, stored in the same `campaigns.rules` JSONB column as `rules.dmNotes`, own "Save notes"
+  button) → New campaign / archived campaigns, with "Archive campaign" moved to the bottom of that tile.
+  All seven banned-item grids (`ruleBannedSpecies`/`…OriginSpecies`/`…OriginClasses`/`…Masteries`/
+  `…Boons`/`…Drawbacks`/`…Arts`) now render alphabetically instead of DATA's declaration order. No IDs
+  renamed, no `js/engine.js` change; verified with a headless screenshot of the real page.
+
 - **2026-07-29 · docs: correct every stale file-size figure in the read-budget guidance** — `AGENTS.md`'s
   "Don't read large files wholesale" section had a wrong number in each entry, and the same wrong number
   was reaching external reviewers. Measured: `js/engine.js` is **~66 KB / 924 lines**, not ~237 KB — that

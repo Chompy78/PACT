@@ -39,7 +39,7 @@ Exports include:
 Current version:
 
 ```js
-DATA.version = "v0.336"
+DATA.version = "v0.337"
 ```
 
 File size:

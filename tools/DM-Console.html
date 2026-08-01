@@ -151,7 +151,7 @@
   #empty .s{font-size:14px; margin-top:4px}
 
   /* ---------- card grid ---------- */
-  #grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px}
+  #grid,.cardgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px}
   .card{
     background:var(--card); border:1px solid var(--line); border-radius:14px;
     box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column;
@@ -228,7 +228,7 @@
   .xtra .warnitem{font-size:12px; color:var(--warn); background:var(--warn-bg); border:1px solid #ecd99a; border-radius:7px; padding:5px 9px}
 
   @media (max-width:520px){
-    #grid{grid-template-columns:1fr}
+    #grid,.cardgrid{grid-template-columns:1fr}
     .grantgrid{grid-template-columns:1fr 1fr; }
     .grantgrid .gen{grid-column:1 / -1}
     .topbar h1{font-size:19px}
@@ -373,15 +373,11 @@
   /* ---- campaign section ---- */
   #campSection{margin-bottom:18px;display:none}
   #campSection .cstitle{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  #campRoster{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-  #campRoster .roster-scroll{overflow-x:auto}
-  #campRoster table{width:100%;min-width:560px;border-collapse:collapse;font-size:13px}
-  #campRoster th{background:var(--light);color:var(--navy);text-align:left;padding:8px 12px;font-size:12px;font-weight:700}
-  #campRoster td{padding:8px 12px;border-top:1px solid var(--line);vertical-align:middle}
   .camp-empty{text-align:center;padding:30px;color:var(--muted);font-size:14px}
   .award-form{display:flex;gap:6px;align-items:center}
   .award-amt{width:64px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:12px}
   .award-note{flex:1;min-width:80px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:12px}
+  .dm-notes-in{min-height:64px;padding:8px 10px;resize:vertical;font-family:inherit}
   /* ---- bottomctl flex layout ---- */
   .bottomctl{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;margin-top:12px}
   .bottomctl #drop{flex:0 0 100%}
@@ -397,6 +393,11 @@
     border-radius:50%;width:22px;height:22px;min-height:0;padding:0;font-size:12px;line-height:1;
     cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
   .infobtn:hover{color:var(--ink);border-color:var(--muted)}
+  /* ---- campaign panel: nested tiles (feat/dm-console-ui) ---- */
+  .subtile{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  .subtile:last-child{margin-bottom:0}
+  .subtile .stitle{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;margin-bottom:8px}
+  #dmNotesText{min-height:90px;padding:8px 10px;resize:vertical;font-family:inherit}
   .ruleblock{margin-bottom:6px}
   .ruleblock>.lbl{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:3px}
   .rulegrid{display:flex;flex-wrap:wrap;gap:4px 10px}
@@ -517,130 +518,162 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       <div id="campControls" style="display:none">
         <select id="campSel"><option value="">— select campaign —</option></select>
         <div id="campCodes" style="display:none">
-          <div class="codechip">
-            <span class="lbl">Players:</span>
-            <input class="field ro" id="campPlayerCode" readonly>
-            <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
-            <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. Anyone who enters this code (CharGen's “Join campaign”) gets a new character bound to this campaign, with no preset AP/budget.">ⓘ</button>
+
+          <div class="subtile" id="campOwnerTile">
+            <div class="stitle">Owner settings</div>
+            <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer">
+              <input type="checkbox" id="ignorePlayerAp"> Ignore player-entered AP
+            </label>
           </div>
-          <div class="codechip">
-            <span class="lbl">DMs:</span>
-            <input class="field ro" id="campDmCode" readonly>
-            <button type="button" class="btn sm ghost" id="copyDmCode">Copy</button>
-            <button type="button" class="infobtn" id="campDmCodeInfo" title="Reusable — share with a trusted co-DM. Redeeming it lets them manage this campaign alongside you (rules, rosters, AP awards).">ⓘ</button>
+
+          <div class="subtile" id="campInviteTile">
+            <div class="stitle">Invite new player</div>
+            <div class="codechip">
+              <span class="lbl">Players:</span>
+              <input class="field ro" id="campPlayerCode" readonly>
+              <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
+              <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. Anyone who enters this code (CharGen's “Join campaign”) gets a new character bound to this campaign, with no preset AP/budget.">ⓘ</button>
+            </div>
+            <div class="codechip">
+              <span class="lbl">DMs:</span>
+              <input class="field ro" id="campDmCode" readonly>
+              <button type="button" class="btn sm ghost" id="copyDmCode">Copy</button>
+              <button type="button" class="infobtn" id="campDmCodeInfo" title="Reusable — share with a trusted co-DM. Redeeming it lets them manage this campaign alongside you (rules, rosters, AP awards).">ⓘ</button>
+            </div>
+            <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <input class="field" type="number" id="inviteStartAp" placeholder="Starting DM AP" min="0" step="1" style="width:140px">
+                <input class="field" type="number" id="inviteStartBudget" placeholder="Starting budget" min="0" step="1" style="width:140px">
+                <button type="button" class="btn sm" id="createInviteBtn">Generate invite link</button>
+              </div>
+              <div id="inviteLinkRow" style="display:none;align-items:center;gap:6px;margin-top:6px">
+                <input class="field ro" id="inviteLinkOut" readonly>
+                <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
+              </div>
+              <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the starting AP/budget above. Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
+            </div>
           </div>
-          <div class="ruleblock" id="campArchiveBlock" style="display:none;margin-top:8px">
+
+          <div class="subtile" id="campRulesTile">
+            <details id="campRulesDetails">
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
+              <div style="margin-top:8px">
+                <div class="ruleblock" id="ruleCopyBlock" style="display:none">
+                  <div class="lbl">Copy rules from another campaign</div>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <select class="field" id="ruleCopyFrom" style="flex:1"><option value="">— select a campaign —</option></select>
+                    <button type="button" class="btn sm ghost" id="ruleCopyBtn">Copy</button>
+                  </div>
+                  <span id="ruleCopyStatus" style="font-size:11px;color:var(--muted)"></span>
+                  <div class="grantnote">Loads that campaign’s rules into the form below as a starting point. Nothing is saved until you click <b>Save rules</b>; the source campaign is left unchanged.</div>
+                </div>
+                <div class="ruleblock"><div class="lbl">Banned species</div><div class="rulegrid" id="ruleBannedSpecies"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned as 2nd origin species</div><div class="rulegrid" id="ruleBannedOriginSpecies"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned origin classes</div><div class="rulegrid" id="ruleBannedOriginClasses"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned weapon masteries</div><div class="rulegrid" id="ruleBannedMasteries"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned drawbacks</div><div class="rulegrid" id="ruleBannedDrawbacks"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned arts</div><div class="rulegrid" id="ruleBannedArts"></div></div>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
+                  <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
+                </label>
+                <div class="ruleblock">
+                  <div class="lbl">House-rule toggles</div>
+                  <div id="ruleHouseRules"></div>
+                  <div style="display:flex;gap:6px;margin-top:5px">
+                    <input class="field" type="text" id="ruleHouseRuleName" placeholder="toggle name" style="flex:1">
+                    <button type="button" class="btn sm ghost" id="ruleAddHouseRule">+ Add</button>
+                  </div>
+                </div>
+                <div class="grantnote">Read-only for players — they see these rules in the Live Sheet but can't change them.</div>
+              </div>
+            </details>
+          </div>
+
+          <div class="subtile" id="campAdvancementTile">
+            <div class="stitle">Level budget curve · award pace · starting tier</div>
+            <div class="ruleblock">
+              <div class="lbl">📈 Level budget curve</div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <select id="ruleBudgetPreset" class="field" style="flex:0 0 140px">
+                  <option value="standard">Standard (79/+24)</option>
+                  <option value="generous">Generous (83/+28)</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <label style="font-size:11px;color:var(--muted)">L1 <input class="field" type="number" id="ruleBudgetL1" min="20" max="300" step="1" style="width:64px" value="79"></label>
+                <label style="font-size:11px;color:var(--muted)">+per lvl <input class="field" type="number" id="ruleBudgetInc" min="1" max="80" step="1" style="width:64px" value="24"></label>
+                <span style="font-size:11px;color:var(--muted)">L20 = <b id="ruleBudgetL20Preview">535</b> AP</span>
+              </div>
+              <div class="grantnote">Display only — tunes the “Track-Level” label a player sees on their sheet against AP spent. Does NOT change any purchase price.</div>
+            </div>
+            <div class="ruleblock">
+              <div class="lbl">⏱ Award pace (AP per session)</div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <select id="ruleAwardPacePreset" class="field" style="flex:0 0 120px">
+                  <option value="slow">Slow (5)</option>
+                  <option value="average" selected>Average (7)</option>
+                  <option value="fast">Fast (10)</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <input class="field" type="number" id="ruleAwardPaceCustom" min="1" max="50" step="1" style="width:64px" value="7">
+                <span style="font-size:11px;color:var(--muted)">AP/session</span>
+              </div>
+              <div class="grantnote">A documented baseline only — AP is still granted ad-hoc via the “+ Award AP” action. Nothing auto-awards.</div>
+            </div>
+            <div class="ruleblock" style="margin-bottom:0">
+              <div class="lbl">🎬 Starting tier (new-PC budget)</div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <select id="ruleStartingTierPreset" class="field" style="flex:0 0 150px">
+                  <option value="prelude">Prelude (0.7×)</option>
+                  <option value="standard" selected>Standard (1.0×)</option>
+                  <option value="veteran">Veteran (1.3×)</option>
+                  <option value="legendary">Legendary (1.6×)</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
+                <span style="font-size:11px;color:var(--muted)">AP</span>
+              </div>
+              <div class="grantnote">Pre-fills the “Starting budget” field when you generate a player invite (still editable per invite).</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;margin:2px 0 4px">
+            <button type="button" class="btn sm" id="ruleSaveBtn">Save rules</button>
+            <span id="ruleSaveStatus" style="font-size:11px;color:var(--muted)"></span>
+          </div>
+          <div class="grantnote" style="margin:0 0 10px">Saves the Campaign Rules and advancement settings above together.</div>
+
+          <div class="subtile" id="dmNotesTile">
+            <div class="stitle">DM notes</div>
+            <textarea class="field" id="dmNotesText" placeholder="Private notes for this campaign — players never see these."></textarea>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+              <button type="button" class="btn sm" id="dmNotesSaveBtn">Save notes</button>
+              <span id="dmNotesStatus" style="font-size:11px;color:var(--muted)"></span>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="subtile" id="campManageTile" style="margin-top:10px">
+          <div class="stitle">New campaign · archived campaigns</div>
+          <div id="campNewRow" style="display:flex;gap:6px">
+            <input class="field" type="text" id="campNewName" placeholder="New campaign name" maxlength="80">
+            <button type="button" class="btn sm" id="campNewBtn">+ Create</button>
+          </div>
+          <div id="campNewStatus" style="font-size:11px;color:var(--muted);margin:4px 0 0"></div>
+          <details id="campArchivedDetails" style="margin-top:10px">
+            <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Archived campaigns</summary>
+            <div id="campArchivedList" style="margin-top:8px"></div>
+          </details>
+          <div class="ruleblock" id="campArchiveBlock" style="display:none;margin-top:12px;margin-bottom:0">
+            <div class="lbl">Archive this campaign</div>
             <button type="button" class="btn sm danger" id="campArchiveBtn">Archive campaign</button>
             <div class="grantnote">Removes this campaign from your active list above. Players and their
               characters are unaffected, and you can restore it anytime from “Archived campaigns” above.</div>
           </div>
-          <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
-            <div class="lbl">Invite new player</div>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-              <input class="field" type="number" id="inviteStartAp" placeholder="Starting DM AP" min="0" step="1" style="width:140px">
-              <input class="field" type="number" id="inviteStartBudget" placeholder="Starting budget" min="0" step="1" style="width:140px">
-              <button type="button" class="btn sm" id="createInviteBtn">Generate invite link</button>
-            </div>
-            <div id="inviteLinkRow" style="display:none;align-items:center;gap:6px;margin-top:6px">
-              <input class="field ro" id="inviteLinkOut" readonly>
-              <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
-            </div>
-            <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-            <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the starting AP/budget above. Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
-          </div>
-          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin-top:8px;cursor:pointer">
-            <input type="checkbox" id="ignorePlayerAp"> Ignore player-entered AP
-          </label>
-          <details id="campRulesDetails" style="margin-top:10px">
-            <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
-            <div style="margin-top:8px">
-              <div class="ruleblock" id="ruleCopyBlock" style="display:none">
-                <div class="lbl">Copy rules from another campaign</div>
-                <div style="display:flex;gap:6px;align-items:center">
-                  <select class="field" id="ruleCopyFrom" style="flex:1"><option value="">— select a campaign —</option></select>
-                  <button type="button" class="btn sm ghost" id="ruleCopyBtn">Copy</button>
-                </div>
-                <span id="ruleCopyStatus" style="font-size:11px;color:var(--muted)"></span>
-                <div class="grantnote">Loads that campaign’s rules into the form below as a starting point. Nothing is saved until you click <b>Save rules</b>; the source campaign is left unchanged.</div>
-              </div>
-              <div class="ruleblock"><div class="lbl">Banned species</div><div class="rulegrid" id="ruleBannedSpecies"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned as 2nd origin species</div><div class="rulegrid" id="ruleBannedOriginSpecies"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned origin classes</div><div class="rulegrid" id="ruleBannedOriginClasses"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned weapon masteries</div><div class="rulegrid" id="ruleBannedMasteries"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned drawbacks</div><div class="rulegrid" id="ruleBannedDrawbacks"></div></div>
-              <div class="ruleblock"><div class="lbl">Banned arts</div><div class="rulegrid" id="ruleBannedArts"></div></div>
-              <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
-                <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
-              </label>
-              <div class="ruleblock">
-                <div class="lbl">📈 Level budget curve</div>
-                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                  <select id="ruleBudgetPreset" class="field" style="flex:0 0 140px">
-                    <option value="standard">Standard (79/+24)</option>
-                    <option value="generous">Generous (83/+28)</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <label style="font-size:11px;color:var(--muted)">L1 <input class="field" type="number" id="ruleBudgetL1" min="20" max="300" step="1" style="width:64px" value="79"></label>
-                  <label style="font-size:11px;color:var(--muted)">+per lvl <input class="field" type="number" id="ruleBudgetInc" min="1" max="80" step="1" style="width:64px" value="24"></label>
-                  <span style="font-size:11px;color:var(--muted)">L20 = <b id="ruleBudgetL20Preview">535</b> AP</span>
-                </div>
-                <div class="grantnote">Display only — tunes the “Track-Level” label a player sees on their sheet against AP spent. Does NOT change any purchase price.</div>
-              </div>
-              <div class="ruleblock">
-                <div class="lbl">⏱ Award pace (AP per session)</div>
-                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                  <select id="ruleAwardPacePreset" class="field" style="flex:0 0 120px">
-                    <option value="slow">Slow (5)</option>
-                    <option value="average" selected>Average (7)</option>
-                    <option value="fast">Fast (10)</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <input class="field" type="number" id="ruleAwardPaceCustom" min="1" max="50" step="1" style="width:64px" value="7">
-                  <span style="font-size:11px;color:var(--muted)">AP/session</span>
-                </div>
-                <div class="grantnote">A documented baseline only — AP is still granted ad-hoc via the “+ Award AP” action. Nothing auto-awards.</div>
-              </div>
-              <div class="ruleblock">
-                <div class="lbl">🎬 Starting tier (new-PC budget)</div>
-                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                  <select id="ruleStartingTierPreset" class="field" style="flex:0 0 150px">
-                    <option value="prelude">Prelude (0.7×)</option>
-                    <option value="standard" selected>Standard (1.0×)</option>
-                    <option value="veteran">Veteran (1.3×)</option>
-                    <option value="legendary">Legendary (1.6×)</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
-                  <span style="font-size:11px;color:var(--muted)">AP</span>
-                </div>
-                <div class="grantnote">Pre-fills the “Starting budget” field when you generate a player invite (still editable per invite).</div>
-              </div>
-              <div class="ruleblock">
-                <div class="lbl">House-rule toggles</div>
-                <div id="ruleHouseRules"></div>
-                <div style="display:flex;gap:6px;margin-top:5px">
-                  <input class="field" type="text" id="ruleHouseRuleName" placeholder="toggle name" style="flex:1">
-                  <button type="button" class="btn sm ghost" id="ruleAddHouseRule">+ Add</button>
-                </div>
-              </div>
-              <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
-                <button type="button" class="btn sm" id="ruleSaveBtn">Save rules</button>
-                <span id="ruleSaveStatus" style="font-size:11px;color:var(--muted)"></span>
-              </div>
-              <div class="grantnote">Read-only for players — they see these rules in the Live Sheet but can't change them.</div>
-            </div>
-          </details>
         </div>
-        <div id="campNewRow" style="display:flex;gap:6px;margin-top:10px">
-          <input class="field" type="text" id="campNewName" placeholder="New campaign name" maxlength="80">
-          <button type="button" class="btn sm" id="campNewBtn">+ Create</button>
-        </div>
-        <div id="campNewStatus" style="font-size:11px;color:var(--muted);margin:4px 0 0"></div>
-        <details id="campArchivedDetails" style="margin-top:10px">
-          <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Archived campaigns</summary>
-          <div id="campArchivedList" style="margin-top:8px"></div>
-        </details>
+
       </div>
     </div>
   </div>
@@ -766,7 +799,18 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
   var TOOL_VERSION = 'v0.203';   // console build version — bump on each non-trivial change
-  var roster = [];   // [{id, fileName, summary, raw}]
+  var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
+  var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
+                          // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
+                          // [{id, summary, hasData, campId, ownerId, player, ap, playerLabel, dmNotes}]
+  // Both local and cloud cards render through the SAME cardHTML()/buildSections() machinery and share
+  // the document-level [data-sk]/[data-tools]/[data-known] overlay handlers in initSkillUI() — this
+  // looks up an id in either roster so those handlers don't care which one a card came from.
+  function findRosterEntry(id){
+    var a = roster.filter(function(x){ return String(x.id)===String(id); })[0];
+    if(a) return a;
+    return cloudRoster.filter(function(x){ return String(x.id)===String(id); })[0];
+  }
 
   // DM-set second AC — console-side annotation keyed by character name; never touches the sheet
   var AC2_KEY='pactDM_ac2';
@@ -1019,8 +1063,32 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return '<div class="cg"><span class="cglabel">Weapons</span>'+chips(wp)+'</div>'+
            '<div class="cg"><span class="cglabel">Armour</span>'+chips(ar)+'</div>';
   }
-  function buildSections(s, id){
+  // Cloud-only: player label + private DM notes (character_dm_notes — never readable by the
+  // character's own owner, see sql/migrations/2026-08-01-dm-remove-character-notes.sql) plus the
+  // Award AP / History actions the old plain-table roster used to carry. `dm` is
+  // {ap, player, playerLabel, dmNotes} — see cloudRoster in loadRoster().
+  function dmToolsBody(id, dm){
+    var h = '<div class="kvs"><div class="kvrow"><span class="kk">Player (account)</span><span class="vv">'+esc(dm.player||'—')+'</span></div>' +
+            '<div class="kvrow"><span class="kk">DM AP (server total)</span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
+    h += '<div class="ruleblock" style="margin-top:8px"><div class="lbl">Player-name label</div>' +
+         '<input type="text" class="field dm-label-in" data-cid="'+esc(id)+'" value="'+esc(dm.playerLabel||'')+'" placeholder="e.g. Jess (Saturday group)"></div>';
+    h += '<div class="ruleblock"><div class="lbl">DM notes — private, the player never sees these</div>' +
+         '<textarea class="field dm-notes-in" data-cid="'+esc(id)+'" placeholder="e.g. owes me a session recap; this is their 2nd character">'+esc(dm.dmNotes||'')+'</textarea></div>';
+    h += '<div style="display:flex;align-items:center;gap:8px;margin:2px 0 10px">' +
+         '<button type="button" class="btn sm dm-notes-save" data-cid="'+esc(id)+'">Save label &amp; notes</button>' +
+         '<span class="dm-notes-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
+    h += '<div class="ruleblock"><div class="lbl">Award AP</div><div class="award-form">' +
+         '<input type="number" value="0" step="1" class="award-amt" data-cid="'+esc(id)+'" title="AP amount (negative to deduct)">' +
+         '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">' +
+         '<button type="button" class="btn sm award-btn" data-cid="'+esc(id)+'">Award</button></div>' +
+         '<span class="award-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
+    h += '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'">📒 AP history</button>' +
+         '<button type="button" class="btn sm danger unbind-btn" data-cid="'+esc(id)+'" style="margin-left:8px">Remove from campaign</button>';
+    return h;
+  }
+  function buildSections(s, id, dm){
     var h = '';
+    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm));
     h += secBlock('Skills & Tools', chipGroup('Skills',s.skills)+chipGroup('Tools',s.tools)+chipGroup('Instruments',s.instruments));
     h += secBlock('Expertise & Saves', chipGroup('Expertise',s.expertise)+chipGroup('Saves',s.saves)+chipGroup('Masteries',s.masteries));
     h += secBlock('Saving Throws', saveBody(s));
@@ -1034,7 +1102,12 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     h += secBlock('PACT build · warnings · AP history', pactBuildBody(s));
     return h;
   }
-  function cardHTML(r){
+  // dm (optional): {ap, player, playerLabel, dmNotes} — present only for a cloud-roster card.
+  // Cloud cards skip the corner "×" (a local-only "remove from my console" shortcut, trivially
+  // reversible by re-dropping the file) in favour of the deliberate "Remove from campaign" button
+  // inside DM tools below — unbinding is a real, less-reversible campaign state change and shouldn't
+  // share a hair-trigger affordance with the harmless local one.
+  function cardHTML(r, dm){
     var s = r.summary;
     var lvl = (s.apLevel!=null ? s.apLevel : '?');
     var avail = (s.available||0);
@@ -1062,14 +1135,14 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return '' +
     '<div class="card" data-id="'+esc(r.id)+'">' +
       '<div class="chead">' +
-        '<button type="button" class="rmcard" title="Remove from console" aria-label="Remove from console" data-rm="'+esc(r.id)+'">×</button>' +
-        '<div class="cname">'+esc(s.name)+warnIcon+tamperBadge(s)+'</div>' +
+        (dm ? '' : '<button type="button" class="rmcard" title="Remove from console" aria-label="Remove from console" data-rm="'+esc(r.id)+'">×</button>') +
+        '<div class="cname">'+esc(s.name)+warnIcon+tamperBadge(s)+(dm&&dm.playerLabel?' <span class="tier" title="DM-set player label">'+esc(dm.playerLabel)+'</span>':'')+'</div>' +
         '<div class="csub">'+esc(speciesDisp(s))+' · '+esc(fmtClass(s))+
             ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span></div>' +
         '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button></div>' +
       '</div>' +
       '<div class="stats">'+statsHTML+'</div>' +
-      buildSections(s, r.id) +
+      buildSections(s, r.id, dm) +
     '</div>';
   }
 
@@ -1149,7 +1222,10 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     var grid = $('grid'); if(grid) grid.style.display = (has&&cardOn) ? '' : 'none';
     var tr = $('tableRoot'); if(tr) tr.style.display = (has&&!cardOn) ? '' : 'none';
     if(!has){ if(grid) grid.innerHTML=''; return; }
-    if(cardOn){ grid.innerHTML = roster.map(cardHTML).join(''); }
+    // Explicit single-arg call, not roster.map(cardHTML): Array#map also passes (index, array) to
+    // its callback, and cardHTML now takes an optional second `dm` arg — bare `.map(cardHTML)` would
+    // silently pass every local card's numeric index in as `dm` (truthy for every index >0).
+    if(cardOn){ grid.innerHTML = roster.map(function(r){ return cardHTML(r); }).join(''); }
     else { renderTable(); }
   }
 
@@ -1331,15 +1407,15 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       if(t && (t.id==='ovX' || t.id==='ov')){ closeOv(); return; }
       var sk=t.closest? t.closest('[data-sk]') : null;
       if(sk){ e.preventDefault(); e.stopPropagation(); var id=sk.getAttribute('data-sk');
-        var r=roster.filter(function(x){return String(x.id)===String(id);})[0];
+        var r=findRosterEntry(id);
         if(r&&r.summary) openOv(skillsOverlayHTML(r.summary.name||'Unnamed Hero', r.summary)); return; }
       var tl=t.closest? t.closest('[data-tools]') : null;
       if(tl){ e.preventDefault(); e.stopPropagation(); var tid=tl.getAttribute('data-tools');
-        var rt=roster.filter(function(x){return String(x.id)===String(tid);})[0];
+        var rt=findRosterEntry(tid);
         if(rt&&rt.summary) openOv(toolsOverlayHTML(rt.summary.name||'Unnamed Hero', rt.summary)); return; }
       var kn=t.closest? t.closest('[data-known]') : null;
       if(kn){ e.preventDefault(); e.stopPropagation(); var kid=kn.getAttribute('data-known');
-        var rr=roster.filter(function(x){return String(x.id)===String(kid);})[0];
+        var rr=findRosterEntry(kid);
         if(rr&&rr.summary) openOv(knownSpellsOverlayHTML(rr.summary.name||'Unnamed Hero', rr.summary.casting||[])); }
     });
     document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeOv(); });
@@ -1351,6 +1427,146 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       }
     });
   }
+
+  /* ---------- Cloud roster (campaign characters) ----------
+     Shares cardHTML()/buildSections()/analyzeAug() with the local-import grid above, so cloud
+     characters get the exact same rich card (stats, skills, spellcasting, etc.) instead of the old
+     bare Player/Character/AP table. Lives in this IIFE (not the separate campaign-ready script
+     below) so it can reuse those private helpers directly; window._dmRenderCloudRoster is the one
+     thing exposed across that script boundary — called after B.getRoster() resolves. cloudRoster
+     itself is never persisted (always re-fetched live on campaign select/refresh), unlike `roster`. */
+  function cloudAnalyze(row){
+    var hasData = !!(row.stats && Array.isArray(row.stats.LOG));
+    var summary = null;
+    if(hasData){
+      try {
+        summary = analyzeAug({ LOG: row.stats.LOG, SEQ: row.stats.SEQ || (row.stats.LOG.length+1), rules: row.stats.rules, name: row.name });
+      } catch(e){ hasData = false; summary = null; }
+    }
+    return {
+      id: row.id, summary: summary, hasData: hasData,
+      dm: { ap: row.ap||0, player: row.player||'', playerLabel: row.playerLabel||'', dmNotes: row.dmNotes||'' }
+    };
+  }
+  // A roster row can exist with no character data yet — e.g. a redeemed invite the player hasn't
+  // opened CharGen/Live Sheet from (same "hasData" gap js/sync.js's listCharacters() already
+  // documents) — show a lightweight placeholder instead of running dmAnalyze() on an empty LOG.
+  function cloudCardHTML(rec){
+    if(!rec.hasData){
+      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || 'Unnamed character';
+      return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
+        '<div class="cname">'+esc(nm)+'</div>'+
+        '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
+        '</div><div style="padding:0 16px 16px">'+dmToolsBody(rec.id, rec.dm)+'</div></div>';
+    }
+    return cardHTML(rec, rec.dm);
+  }
+  function renderCloudRoster(container){
+    if(!container) return;
+    if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet.</div>'; return; }
+    container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
+  }
+  window._dmRenderCloudRoster = function(container, rows){
+    cloudRoster = (rows||[]).map(cloudAnalyze);
+    renderCloudRoster(container);
+  };
+
+  // Delegated click handling for the cloud roster, scoped to #campRoster the same way #grid's own
+  // listener is scoped above — wired once; innerHTML swaps in renderCloudRoster() don't need rebinding.
+  // Reads window._campBridge lazily (not captured at IIFE-parse time): that bridge is set by a later
+  // `type="module"` script, but every handler here only ever runs from an actual click, which can't
+  // happen before campaign-ready has already populated the roster — so it's always ready by then.
+  (function wireCloudRosterDelegation(){
+    var el = document.getElementById('campRoster');
+    if(!el) return;
+    el.addEventListener('click', function(ev){
+      var t = ev.target;
+      var srow = t.closest ? t.closest('.secrow') : null;
+      if(srow){ srow.parentNode.classList.toggle('open'); return; }
+      var card = t.closest ? t.closest('.card') : null;
+      var B = window._campBridge;
+      if(!B) return;
+
+      var awardBtn = t.closest ? t.closest('.award-btn') : null;
+      if(awardBtn && card){
+        var acid = awardBtn.getAttribute('data-cid');
+        var amtEl = card.querySelector('.award-amt[data-cid="'+acid+'"]');
+        var noteEl = card.querySelector('.award-note[data-cid="'+acid+'"]');
+        var astatus = card.querySelector('.award-status[data-cid="'+acid+'"]');
+        var amt = parseFloat(amtEl&&amtEl.value)||0;
+        var note = (noteEl&&noteEl.value||'').trim();
+        if(amt===0){ alert('Enter a non-zero amount.'); return; }
+        awardBtn.disabled = true;
+        B.awardAp(acid, amt, note).then(function(newAp){
+          awardBtn.disabled = false;
+          var entry = cloudRoster.filter(function(x){return String(x.id)===String(acid);})[0];
+          if(entry){ entry.dm.ap = newAp; }
+          renderCloudRoster(el);
+        }).catch(function(err){ awardBtn.disabled=false; if(astatus) astatus.textContent=''; alert('Award failed: '+err.message); });
+        return;
+      }
+
+      var histBtn = t.closest ? t.closest('.hist-btn') : null;
+      if(histBtn){
+        var hcid = histBtn.getAttribute('data-cid');
+        var hentry = cloudRoster.filter(function(x){return String(x.id)===String(hcid);})[0];
+        var hname = (hentry&&hentry.summary&&hentry.summary.name) || (hentry&&hentry.dm.playerLabel) || 'Character';
+        B.getAwardHistory(hcid).then(function(data){
+          var trows = (data||[]).map(function(r){
+            var amt = r.amount>0?'+'+r.amount:r.amount;
+            var dmName = r.dm||'DM';
+            var ts = (r.created_at||'').slice(0,16).replace('T',' ');
+            return '<tr><td>'+esc(ts)+'</td><td><b>'+amt+'</b></td><td>'+esc(dmName)+'</td><td>'+esc(r.note||'')+'</td></tr>';
+          }).join('');
+          var modal = document.createElement('div');
+          modal.className = 'hist-modal';
+          modal.innerHTML = '<div class="inner">'+
+            '<h3 style="margin:0 0 10px;color:var(--navy)">'+esc(hname)+' — AP history</h3>'+
+            (trows
+              ? '<table><thead><tr><th>Date</th><th>Amount</th><th>DM</th><th>Note</th></tr></thead><tbody>'+trows+'</tbody></table>'
+              : '<p style="color:var(--muted)">No awards yet.</p>')+
+            '<div style="text-align:right;margin-top:12px"><button class="btn sm" onclick="this.closest(\'.hist-modal\').remove()">Close</button></div>'+
+            '</div>';
+          modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
+          document.body.appendChild(modal);
+        }).catch(function(err){ alert('Error: '+err.message); });
+        return;
+      }
+
+      var saveBtn = t.closest ? t.closest('.dm-notes-save') : null;
+      if(saveBtn && card){
+        var scid = saveBtn.getAttribute('data-cid');
+        var labelEl = card.querySelector('.dm-label-in[data-cid="'+scid+'"]');
+        var notesEl = card.querySelector('.dm-notes-in[data-cid="'+scid+'"]');
+        var sstatus = card.querySelector('.dm-notes-status[data-cid="'+scid+'"]');
+        var playerLabel = labelEl ? labelEl.value.trim() : '';
+        var notes = notesEl ? notesEl.value.trim() : '';
+        saveBtn.disabled = true;
+        if(sstatus) sstatus.textContent = 'Saving…';
+        B.setCharacterDmNotes(scid, {playerLabel:playerLabel, notes:notes}).then(function(){
+          saveBtn.disabled = false;
+          if(sstatus) sstatus.textContent = 'Saved.';
+          var entry = cloudRoster.filter(function(x){return String(x.id)===String(scid);})[0];
+          if(entry){ entry.dm.playerLabel = playerLabel; entry.dm.dmNotes = notes; }
+        }).catch(function(err){ saveBtn.disabled=false; if(sstatus) sstatus.textContent = 'Error: '+err.message; });
+        return;
+      }
+
+      var unbindBtn = t.closest ? t.closest('.unbind-btn') : null;
+      if(unbindBtn){
+        var ucid = unbindBtn.getAttribute('data-cid');
+        var uentry = cloudRoster.filter(function(x){return String(x.id)===String(ucid);})[0];
+        var uname = (uentry&&uentry.summary&&uentry.summary.name) || (uentry&&uentry.dm.playerLabel) || 'this character';
+        if(!confirm('Remove "'+uname+'" from this campaign?\n\nThe character and all its data (including its AP) are kept — it just stops being part of this campaign’s roster. The player would need a fresh invite/join code to come back.')) return;
+        unbindBtn.disabled = true;
+        B.unbindCharacter(ucid).then(function(){
+          cloudRoster = cloudRoster.filter(function(x){return String(x.id)!==String(ucid);});
+          renderCloudRoster(el);
+        }).catch(function(err){ unbindBtn.disabled=false; alert('Remove failed: '+err.message); });
+        return;
+      }
+    });
+  })();
 
   /* ---------- boot ---------- */
   function _dmBoot(){
@@ -1368,10 +1584,10 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 <script type="module">
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
-  import { getRoster, awardAp, getAwardHistory } from '../js/dm.js';
+  import { getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes } from '../js/dm.js';
   import { DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   import { verifyCharacterEnvelope } from '../js/character-store.js';   // tamper-evidence read-side (D-GH48)
-  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, createPlayerInvite, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes, createPlayerInvite, createCampaign, archiveCampaign, unarchiveCampaign };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy };
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   // Engine module bridge (D-GH26, extended D-GH36/D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
@@ -1415,6 +1631,9 @@ document.addEventListener('campaign-ready', function () {
   var campArchivedList = document.getElementById('campArchivedList');
   var campArchiveBlock = document.getElementById('campArchiveBlock');
   var campArchiveBtn   = document.getElementById('campArchiveBtn');
+  var dmNotesText   = document.getElementById('dmNotesText');
+  var dmNotesSaveBtn = document.getElementById('dmNotesSaveBtn');
+  var dmNotesStatus = document.getElementById('dmNotesStatus');
   var importPanel   = document.getElementById('importPanel');
   var importCampNote = document.getElementById('importCampNote');
   var currentCampaigns = [];
@@ -1445,7 +1664,8 @@ document.addEventListener('campaign-ready', function () {
       var el = document.getElementById(pair[0]);
       if(!el || el.childElementCount) return;   // render option list once
       var tip = pair[2];
-      el.innerHTML = pair[1]().map(function(name){
+      var names = pair[1]().slice().sort(function(a,b){ return a.localeCompare(b); });
+      el.innerHTML = names.map(function(name){
         var t = tip ? tip(name) : '';
         return '<label'+(t?' title="'+esc(t)+'"':'')+'><input type="checkbox" value="'+esc(name)+'">'+esc(name)+'</label>';
       }).join('');
@@ -1562,7 +1782,10 @@ document.addEventListener('campaign-ready', function () {
       startingTier: {
         preset: document.getElementById('ruleStartingTierPreset').value || 'standard',
         ap: parseInt(document.getElementById('ruleStartingTierAp').value, 10) || 79
-      }
+      },
+      // dmNotes lives in the same rules JSON but has its own "Save notes" button (DM notes tile)
+      // — carry the live textarea value through here too so this save never clobbers it.
+      dmNotes: dmNotesText.value
     };
     ruleSaveStatus.textContent = 'Saving…';
     try {
@@ -1572,6 +1795,19 @@ document.addEventListener('campaign-ready', function () {
       ruleSaveStatus.textContent = 'Saved.';
     } catch(err){
       ruleSaveStatus.textContent = 'Error: '+err.message;
+    }
+  });
+  document.getElementById('dmNotesSaveBtn').addEventListener('click', async function(){
+    if(!currentCampId) return;
+    var camp = currentCampaigns.find(function(c){return c.id===currentCampId;});
+    var rules = Object.assign({}, (camp && camp.rules) || {}, { dmNotes: dmNotesText.value });
+    dmNotesStatus.textContent = 'Saving…';
+    try {
+      await B.setCampaignRules(currentCampId, rules);
+      if(camp) camp.rules = rules;
+      dmNotesStatus.textContent = 'Saved.';
+    } catch(err){
+      dmNotesStatus.textContent = 'Error: '+err.message;
     }
   });
 
@@ -1681,6 +1917,7 @@ document.addEventListener('campaign-ready', function () {
     var camp = currentCampaigns.find(function(c){return c.id===id;});
     if(!camp){
       campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none';
+      dmNotesText.value = ''; dmNotesStatus.textContent = '';
       setImportPanelDimmed(false);
       return;
     }
@@ -1699,6 +1936,8 @@ document.addEventListener('campaign-ready', function () {
     var _tierAp = camp.rules && camp.rules.startingTier && camp.rules.startingTier.ap;
     inviteStartBudget.value = (_tierAp != null && _tierAp !== '') ? _tierAp : '';
     loadRulesIntoPanel(camp.rules);
+    dmNotesText.value = (camp.rules && camp.rules.dmNotes) || '';
+    dmNotesStatus.textContent = '';
     renderRuleCopyOptions();
     campSection.style.display = 'block';
     campRosterName.textContent = camp.name;
@@ -1782,75 +2021,14 @@ document.addEventListener('campaign-ready', function () {
     });
   });
 
+  // Card rendering + all per-card interaction (award AP, history, DM notes, unbind) live in the
+  // earlier "UI layer" IIFE, which shares cardHTML()/buildSections()/analyzeAug() with the local
+  // import grid — see window._dmRenderCloudRoster there. This function is now just the fetch.
   async function loadRoster(campId){
     campRoster.innerHTML = '<div class="camp-empty">Loading…</div>';
     var rows;
     try { rows = await B.getRoster(campId); } catch(err){ campRoster.innerHTML='<div class="camp-empty">Error: '+esc(err.message)+'</div>'; return; }
-    if(!rows||!rows.length){ campRoster.innerHTML='<div class="camp-empty">No characters in this campaign yet.</div>'; return; }
-    // The Award AP cell needs ~250px for its amount/note/button row, which doesn't fit a phone-width
-    // column -- wrap the table in its own horizontal-scroll region so the Award button and History
-    // column stay reachable by swiping/scrolling instead of being silently clipped by this container's
-    // overflow:hidden (there for the rounded corners, not meant to hide table content).
-    var html = '<div class="roster-scroll"><table><thead><tr><th>Player</th><th>Character</th><th>DM AP</th><th>Award AP</th><th>History</th></tr></thead><tbody>';
-    rows.forEach(function(row){
-      var cid  = row.id;
-      var cname = row.name||row.id.slice(0,8);
-      var pname = row.player||row.owner_id.slice(0,8);
-      var ap = row.ap||0;
-      html += '<tr data-cid="'+esc(cid)+'">' +
-        '<td>'+esc(pname)+'</td>' +
-        '<td>'+esc(cname)+'</td>' +
-        '<td><b>'+ap+'</b></td>' +
-        '<td><div class="award-form">' +
-          '<input type="number" value="0" step="1" class="award-amt" title="AP amount (negative to deduct)">' +
-          '<input type="text" placeholder="note" class="award-note">' +
-          '<button type="button" class="btn sm award-btn" data-cid="'+esc(cid)+'" data-cname="'+esc(cname)+'">Award</button>' +
-        '</div></td>' +
-        '<td><button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(cid)+'" data-cname="'+esc(cname)+'">📒</button></td>' +
-        '</tr>';
-    });
-    html += '</tbody></table></div>';
-    campRoster.innerHTML = html;
-
-    campRoster.querySelectorAll('.award-btn').forEach(function(btn){
-      btn.addEventListener('click', async function(){
-        var tr  = campRoster.querySelector('tr[data-cid="'+btn.dataset.cid+'"]');
-        var amt = parseFloat(tr.querySelector('.award-amt').value)||0;
-        var note= tr.querySelector('.award-note').value.trim();
-        if(amt===0){ alert('Enter a non-zero amount.'); return; }
-        btn.disabled = true;
-        try { await B.awardAp(btn.dataset.cid, amt, note); }
-        catch(err){ btn.disabled=false; alert('Award failed: '+err.message); return; }
-        btn.disabled = false;
-        tr.querySelector('.award-amt').value = 0;
-        tr.querySelector('.award-note').value = '';
-        loadRoster(campId);
-      });
-    });
-
-    campRoster.querySelectorAll('.hist-btn').forEach(function(btn){
-      btn.addEventListener('click', async function(){
-        var data;
-        try { data = await B.getAwardHistory(btn.dataset.cid); } catch(err){ alert('Error: '+err.message); return; }
-        var trows = (data||[]).map(function(r){
-          var amt = r.amount>0?'+'+r.amount:r.amount;
-          var dm  = r.dm||'DM';
-          var ts  = (r.created_at||'').slice(0,16).replace('T',' ');
-          return '<tr><td>'+esc(ts)+'</td><td><b>'+amt+'</b></td><td>'+esc(dm)+'</td><td>'+esc(r.note||'')+'</td></tr>';
-        }).join('');
-        var modal = document.createElement('div');
-        modal.className = 'hist-modal';
-        modal.innerHTML = '<div class="inner">'+
-          '<h3 style="margin:0 0 10px;color:var(--navy)">'+esc(btn.dataset.cname)+' — AP history</h3>'+
-          (trows
-            ? '<table><thead><tr><th>Date</th><th>Amount</th><th>DM</th><th>Note</th></tr></thead><tbody>'+trows+'</tbody></table>'
-            : '<p style="color:var(--muted)">No awards yet.</p>')+
-          '<div style="text-align:right;margin-top:12px"><button class="btn sm" onclick="this.closest(\'.hist-modal\').remove()">Close</button></div>'+
-          '</div>';
-        modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
-        document.body.appendChild(modal);
-      });
-    });
+    window._dmRenderCloudRoster(campRoster, rows);
   }
 
   // onSessionChange (js/auth.js) takes only session, structurally ruling out the argument-order
