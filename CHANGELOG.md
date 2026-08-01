@@ -49,6 +49,26 @@
   file import still working nested inside `<details>`); `engine-parity-ci.mjs` 20/0 and
   `random-manual-e2e.mjs` green (no `js/engine.js` change).
 
+- **2026-08-01 · docs(agents): fix two more stale `AGENTS.md` bullets referencing removed
+  `buildToLiveLog()`/`_lsImportFold`** — verified in `tools/PACT-CharGen-Webtool.html` (code comment at
+  the old call site: "D-GH40: buildToLiveLog()/exportToLiveSheet() removed") that CharGen's last local
+  `MUT` closures were deleted along with the whole dedicated-export path, not just superseded. Corrected
+  the High-risk-files bullet, the Architecture MUT-bridging paragraph (CharGen's `MUT` is now fully
+  bridged like the other two tools, no local exceptions), and the old "CharGen → Live Sheet export
+  (D-GH3)" bullet to describe the current mechanism (shared save envelope + `switchToLiveSheet()`
+  handoff, D-GH38). Docs-only.
+
+- **2026-08-01 · docs(agents): fix stale `AGENTS.md` Persistence bullet describing `characters.stats`** —
+  same pre-D-GH40 claim as the `sql/schema.sql` fix above ("CharGen = a flat build JSON; Live Sheet =
+  an event log"), corrected to describe the one shared `{schema:'pact-character/1', ...}` envelope both
+  tools have used since 2026-07-10. Docs-only.
+
+- **2026-08-01 · docs(schema): fix stale `sql/schema.sql` comments describing `characters.stats`** —
+  the header design notes and the `stats`/`kind` column comments still described the pre-D-GH40 state
+  (CharGen = flat build JSON, Live Sheet = event log). Since D-GH40 (2026-07-10) both tools share one
+  canonical envelope, `{schema:'pact-character/1', rules, name, LOG, SEQ, id}`; `kind` now only marks
+  which tool owns/opens a character, not a different data shape. Docs-only, no schema/DDL change.
+
 - **2026-08-01 · feat(dm-console): cloud campaign roster now renders as full character cards, plus
   "remove from campaign" and DM-private per-character notes** — three linked gaps found live-testing:
   (1) cloud (campaign) characters showed in a bare Player/Character/DM-AP table, not the rich card
