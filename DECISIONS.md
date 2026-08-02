@@ -13,6 +13,34 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-02-syncall-owner-scope** — Follow-up to the `syncAll()` finding flagged in
+  `D-GH-2026-08-02-dm-readonly-livesheet-view`: the background auto-sync job (runs on every signed-in
+  page load, no user action needed) queried `characters` with no owner filter, so for a DM it relied
+  entirely on RLS's `is_campaign_dm()` clause and ended up caching every one of their players'
+  characters locally as routine behavior. Previously harmless only because `listMyCharacters()`'s
+  `dirty` check happened to filter these out downstream — not because the fetch itself was scoped
+  correctly. Added `.eq('owner_id', user.id)`, the same pattern `listMyCharacters()` already uses, so
+  the job is correct by construction rather than relying on an unrelated downstream check. Full record:
+  `decisions/2026/D-GH-2026-08-02-syncall-owner-scope.md`.
+- **D-GH-2026-08-02-dm-readonly-livesheet-view** — DM Console gets a "👁 View in Live Sheet ↗" button
+  per cloud roster card, opening a genuine read-only view in a new tab. Rejected reusing the existing
+  `?cloudChar=` deep link — it makes the loaded character active/editable and calls `save()`
+  immediately, risking cross-tab corruption of the shared local-autosave slot and, if "☁ Save to cloud"
+  were clicked, a new trigger for the `listMyCharacters()` local-cache leak. Instead: a new `?viewChar=`
+  link uses `peekCharacter()` (never touches localStorage) and a `VIEW_ONLY` flag that guards `emit()`/
+  `save()`/`undo()`/`redo()` — the two/four choke points every mutation already routes through — so
+  future Live Sheet features inherit the same protection without needing this code revisited. Separately
+  flagged (not fixed here): `syncAll()` caches every RLS-visible character with no owner filter at all,
+  currently safe only because of the `dirty` check the sibling leak fix added. Full record:
+  `decisions/2026/D-GH-2026-08-02-dm-readonly-livesheet-view.md`.
+- **D-GH-2026-08-02-invite-already-joined-message** — A DM sent a player two invites to the same
+  campaign; the second showed "Could not join campaign: You have already joined this campaign" —
+  reads as a failure. Traced to the correct, deliberate one-character-per-player-per-campaign rule
+  (DB-enforced) doing exactly what it should; no data lost. Invites are anonymous single-use tokens
+  (no player identity at generation time), so this can't be caught before redemption. Fixed the
+  message only: `tryRedeem()` now shows "You're already in this campaign — this invite wasn't needed"
+  instead of an error-styled string. Full record:
+  `decisions/2026/D-GH-2026-08-02-invite-already-joined-message.md`.
 - **D-GH-2026-08-02-listmycharacters-local-cache-leak** — Follow-up to the `listCharacters()` server-
   side leak fix: a DM still saw 4 other accounts' characters on "My Characters" after that fix shipped.
   Root cause was client-side, not server-side: `listMyCharacters()`'s local-storage merge (for

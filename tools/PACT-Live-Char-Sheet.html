@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.296.html**-->
+<!--**PACT-Live-Char-Sheet v1.300.html**-->
 
 <!doctype html>
 <!--
@@ -423,6 +423,14 @@ let SEQ=1;
 let __charId=null;                                   // stable per-character id for hand-typed sheet fields
 function currentCharId(){if(!__charId)__charId=genCharId();return __charId;}
 let viewAt=null;   // time-travel: render state as-of this many events (null = head)
+// DM read-only view (?viewChar=<id>, see _lsConsumeViewChar below): true whenever this tab is
+// showing a character it doesn't own, loaded via peekCharacter() (never writes localStorage) rather
+// than loadCharacter(). emit()/save()/undo()/redo() all check this before doing anything, so ANY
+// mutating action added to this tool in the future is safe by construction as long as it still goes
+// through one of those choke points, the way every existing mutation already does — no need to keep
+// this list in sync with new buttons/features for SAFETY (only the UI-hiding in _lsConsumeViewChar
+// below is enumerated by element and could go stale, which is a cosmetic gap, not a data risk).
+let VIEW_ONLY=false;
 let RULES='v0.176';   // set from engine DATA.version at engine-ready (module bridge, D-GH26)
 let loadedRules=null;   // rules version stamped on a loaded file/localStorage; null until an older-version build is imported. Dormant while only the current version exists.
 
@@ -486,7 +494,8 @@ function legalCheck(cat,payload,_cur){
   return compute(cand).warnings.filter(w=>{ if(/OVER BUDGET/.test(w))return false; if(seen[w]>0){seen[w]--;return false;} return true; }); // OVER BUDGET is a soft planning advisory only — the live economy (apAvailable(), frozen prices) already gates affordability in buy(); never hard-block a purchase you can actually pay for. Otherwise: new warnings introduced — by content, not count (so Vigor 1→2→3 each flag)
 }
 
-function emit(ev){ ev.seq=SEQ++; ev.ts=Date.now(); ev.rules=ev.rules||RULES; LOG.push(ev); REDO=[]; viewAt=null; save(); render(); }
+function _viewOnlyBlock(){ if(!VIEW_ONLY) return false; if(typeof flash==='function') flash('👁 Read-only DM view — nothing here can be changed or saved.'); return true; }
+function emit(ev){ if(_viewOnlyBlock())return; ev.seq=SEQ++; ev.ts=Date.now(); ev.rules=ev.rules||RULES; LOG.push(ev); REDO=[]; viewAt=null; save(); render(); }
 function award(amount,note,disc){ if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
 // these stay confirm-through. Everything else a purchase raises is a hard rules violation → blocked with a popup.
@@ -520,19 +529,25 @@ function takeDrawback(v){ const refund=DATA.drawbacks[v]||0; emit({type:'buy',ca
 function buyoffDrawback(v){ const refund=DATA.drawbacks[v]||0; const cost=refund*3; const avail=apAvailable(null);
   if(cost>avail){flash('Buying off costs '+cost+' AP (3×); you have '+avail);return;} emit({type:'buyoff',refVal:v,cost,label:'Bought off — '+v}); }
 function undo(){
+  if(_viewOnlyBlock())return;
   // rulesSnapshot events are sync-written metadata, not user actions — never the undo target (they
   // re-materialize on the next online sync). Drop any trailing ones so undo hits the real last action.
   var _dropped=false; while(LOG.length && LOG[LOG.length-1] && LOG[LOG.length-1].type==='rulesSnapshot'){ LOG.pop(); _dropped=true; }
   if(!LOG.length){ if(_dropped){save();render();} return; }
   if(LOG[LOG.length-1].type==='award'&&!LOG[LOG.length-1].disc){ if(_dropped){save();render();} flash('AP awards lock your history — buys made before an award can\'t be undone.');return; }
   REDO.push(LOG.pop()); viewAt=null; save(); render(); }
-function redo(){ if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save(); render(); }
+function redo(){ if(_viewOnlyBlock())return; if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save(); render(); }
 
 // ---------------- persistence ----------------
 const KEY='pactLiveSheet';
 // D-GH40: local save now carries the same CHAR_SCHEMA shape the file Save/Export use (schema+name added;
 // was {LOG,SEQ,rules,id} untagged) — purely additive, load() below already tolerates either shape.
-function save(){ const _nm=foldBuild(null).name; try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId()},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); }
+// VIEW_ONLY guard: this is the single choke point for the tool's own local-slot autosave (KEY, below)
+// -- undo()/redo() call it directly, bypassing emit()'s own guard, and every OTHER mutation already
+// routes through emit(). Blocking here (not just in emit()) also stops a read-only tab open in a
+// second window/tab from clobbering the SAME shared localStorage[KEY] slot a DM's own in-progress
+// character might be using in another tab of the same browser.
+function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId()},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); }
   // Feed the shared recent-characters store (landing "Continue" list). Best-effort + guarded so it can
   // never break the real save above; window.recordAutosave arrives with the engine bridge (engine-ready).
   try{if(window.recordAutosave)window.recordAutosave({tool:'livesheet',id:currentCharId(),name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ});}catch(e){} }
@@ -790,8 +805,8 @@ function render(){
   $('tt').max=LOG.length; $('tt').value=(viewAt==null?LOG.length:viewAt);
   $('ttlabel').textContent=(viewAt==null?'live (head)':'viewing after event '+viewAt+' of '+LOG.length);
   $('histwrap').style.opacity=head?'1':'.6';
-  // --- buy panel (only at head) ---
-  buildBuyPanel(b,r,Object.assign({},eco,{available:_apAvail}),head);
+  // --- buy panel (only at head, and never in a read-only DM view) ---
+  buildBuyPanel(b,r,Object.assign({},eco,{available:_apAvail}),head&&!VIEW_ONLY);
 }
 
 let buyQuery=''; const grpOpen={Progress:1,Abilities:1,'Ki, Sorcery & Attunement points':1}; let affordOnly=false; let hideUnavail=false; let buyCls='';
@@ -818,7 +833,7 @@ function levelDelta(hd){return (DATA.levelAP[hd+1]||DATA.levelAP[hd]||0)-(DATA.l
 function toggleTasha(){var b=foldBuild(null);var on=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);emit({type:"buy",cat:"tasharule",payload:{v:!on},cost:0,label:"DM house rule — Tasha abilities "+(!on?"allowed":"barred"),level:b.hd});}
 function awardToNext(){const b=foldBuild(null);const d=levelDelta(b.hd);if(d>0)award(d,'Level '+(b.hd+1)+' budget');else flash('Already at the top of the benchmark table.');}
 function buildBuyPanel(b,r,eco,head){
-  const buyEl=$('buy'); if(!head){buyEl.innerHTML='<p class="hint">Viewing history — return to <b>live</b> to make purchases.</p>';return;}
+  const buyEl=$('buy'); if(!head){buyEl.innerHTML='<p class="hint">'+(VIEW_ONLY?'👁 Read-only DM view — purchases are disabled.':'Viewing history — return to <b>live</b> to make purchases.')+'</p>';return;}
   // a buyable button: greys out (with the reason) when not allowed; tap a greyed one to hear why
   function racialWhy(r){if(!r)return '';if(r.minHD&&b.hd<r.minHD)return 'needs '+r.minHD+' Hit Dice (level '+r.minHD+')';if(r.reqRace){var _o=DATA.racial[r.reqRace];var owns=b.racialTraits.indexOf(r.reqRace)>=0||!!(_o&&_o.pack&&(_o.race===b.species||_o.race===b.species2));if(!owns)return 'requires '+((r.reqRace.split(': ')[1])||r.reqRace);}return '';}function ib(label,cat,payload,reasonExtra,descr){
     if(buyQuery && label.toLowerCase().indexOf(buyQuery)<0) return '';
@@ -1587,7 +1602,13 @@ document.addEventListener('sync-ready', function () {
   // who reloads the page (rather than clicking ☁ Cloud → Load again) would see the rules badge correctly
   // reflect their campaign while the AP chip silently stayed at "player only" until they re-clicked Load.
   async function refreshCloudCampaignRules(){
-    if(!_session || typeof window.currentCharId !== 'function') { renderCloudStatusBadge(); return; }
+    // VIEW_ONLY: this races the ?viewChar= handler below, which sets __charId to a character this
+    // device doesn't own so render()/foldBuild() etc. pick it up — S.loadCharacter() (unlike the
+    // peekCharacter() the view-only path deliberately uses) caches whatever it fetches to
+    // localStorage with no ownership check, so letting this run against the just-set foreign
+    // __charId would leak it into the local cache exactly like D-GH-2026-08-02-listmycharacters-
+    // local-cache-leak. The view-only path already resolves window._dmAp/_rulesStatus/etc. itself.
+    if(VIEW_ONLY || !_session || typeof window.currentCharId !== 'function') { renderCloudStatusBadge(); return; }
     try {
       var rec = await S.loadCharacter(window.currentCharId());
       window._dmAp = rec ? (rec.ap || 0) : 0;
@@ -1662,6 +1683,77 @@ document.addEventListener('sync-ready', function () {
     A.currentSession().then(function(session){
       if(!session){ alert('Sign in to open a saved character.'); return; }
       loadCloudChar(cid,'character').catch(function(err){ alert('Could not load that character: '+(err&&err.message?err.message:err)); });
+    });
+  })();
+
+  // Hides/disables the controls that would otherwise look editable in a read-only DM view, and shows
+  // a persistent banner naming whose character this is. NOT the safety mechanism (VIEW_ONLY's guards
+  // on emit/save/undo/redo already make every one of these a no-op regardless) -- purely so the DM
+  // doesn't see buttons that visibly do nothing when clicked. A future control that isn't added to
+  // this list just silently no-ops instead of being hidden; harmless, not a data risk (see the
+  // VIEW_ONLY declaration's comment for why the safety half doesn't need this list kept in sync).
+  function _lsApplyViewOnlyUi(name){
+    var hide = function(sel){ document.querySelectorAll(sel).forEach(function(el){ el.style.display='none'; }); };
+    hide('[onclick="undo()"]'); hide('[onclick="redo()"]');
+    hide('[onclick^="document.getElementById(\'imp\')"]');
+    hide('[onclick="switchToCharGen()"]');
+    hide('[onclick="closeMore();resetAll()"]');
+    var dmToggle=document.getElementById('dmtoggle'), dmContent=document.getElementById('dmcontent');
+    if(dmToggle) dmToggle.style.display='none';
+    if(dmContent) dmContent.style.display='none';
+    if(cloudBtn) cloudBtn.style.display='none';
+    var top=document.querySelector('.top');
+    if(top){
+      var b=document.createElement('div');
+      b.id='viewOnlyBanner';
+      b.style.cssText='width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px';
+      b.textContent='👁 Viewing '+name+' — read-only DM view. Nothing here can be edited or saved.';
+      top.parentNode.insertBefore(b, top.nextSibling);
+    }
+  }
+
+  // ?viewChar=<id> deep link: DM Console's "View in Live Sheet" button on a cloud roster card
+  // (the DM doesn't own this character — read access comes from characters_select's DM-of-campaign
+  // grant). Deliberately NOT loadCloudChar(): that makes the loaded character this tab's active,
+  // editable one and calls save() immediately, which would (a) overwrite this browser's shared
+  // pactLiveSheet local-autosave slot with someone else's data — corrupting whatever the DM's own
+  // in-progress character was in another tab — and (b) if the DM then hit "Save to cloud", write a
+  // dirty:true local cache entry under the player's character id, which listMyCharacters()'s local-
+  // draft merge (see D-GH-2026-08-02-listmycharacters-local-cache-leak) would treat as the DM's own,
+  // resurfacing someone else's character on the DM's own "My Characters" — a new variant of the exact
+  // leak that fix closed. peekCharacter() never touches localStorage at all (see its own docstring in
+  // js/sync.js), so there's nothing to leak or corrupt; VIEW_ONLY (see its declaration near `viewAt`)
+  // then blocks every mutation path (emit/save/undo/redo) regardless of what's clicked.
+  (function(){
+    var qs = new URLSearchParams(location.search);
+    var vid = qs.get('viewChar');
+    if(!vid) return;
+    qs.delete('viewChar');
+    try{ history.replaceState(null,'',location.pathname+(qs.toString()?('?'+qs.toString()):'')+location.hash); }catch(e){}
+    A.currentSession().then(function(session){
+      if(!session){ alert('Sign in to view this character.'); return; }
+      S.peekCharacter(vid).then(function(rec){
+        if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return; }
+        VIEW_ONLY = true;
+        window._dmAp = rec.ap || 0;
+        window._ignorePlayerAp = false;
+        window._cloudCampaignRules = null;
+        _campaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
+        var afterRules = function(){
+          renderCloudStatusBadge();
+          var d = rec.stats;
+          LOG = d.LOG; SEQ = d.SEQ||(d.LOG.length+1); loadedRules = d.rules||null; REDO=[]; viewAt=null;
+          if(rec.id) __charId = rec.id;
+          _lsApplyViewOnlyUi(rec.name||'this character');
+          render();
+        };
+        if(rec.campaign_id && window._campaignBridge){
+          window._campaignBridge.listMyCampaigns().then(function(camps){
+            var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
+            if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules||null; _campaignName = camp.name; window._rulesStatus = 'active'; }
+          }).catch(function(){ /* non-fatal — mirrors loadCloudChar's own handling */ }).then(afterRules);
+        } else { afterRules(); }
+      }).catch(function(err){ alert('Could not load that character: '+(err&&err.message?err.message:err)); });
     });
   })();
 

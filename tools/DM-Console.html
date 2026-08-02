@@ -825,7 +825,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.296';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.300';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1112,7 +1112,8 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
          '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">' +
          '<button type="button" class="btn sm award-btn" data-cid="'+esc(id)+'">Award</button></div>' +
          '<span class="award-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
-    h += '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'">📒 AP history</button>' +
+    h += '<button type="button" class="btn sm ghost view-btn" data-cid="'+esc(id)+'" title="Open a read-only view of this character\'s full sheet in a new tab — nothing there can be edited or saved">👁 View in Live Sheet ↗</button>' +
+         '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'" style="margin-left:8px">📒 AP history</button>' +
          '<button type="button" class="btn sm danger unbind-btn" data-cid="'+esc(id)+'" style="margin-left:8px">Remove from campaign</button>';
     return h;
   }
@@ -1625,6 +1626,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
           if(entry){ entry.dm.ap = newAp; }
           renderCloudRoster(el);
         }).catch(function(err){ awardBtn.disabled=false; if(astatus) astatus.textContent=''; alert('Award failed: '+err.message); });
+        return;
+      }
+
+      var viewBtn = t.closest ? t.closest('.view-btn') : null;
+      if(viewBtn){
+        var vcid = viewBtn.getAttribute('data-cid');
+        window.open('PACT-Live-Char-Sheet.html?viewChar='+encodeURIComponent(vcid), '_blank');
         return;
       }
 
