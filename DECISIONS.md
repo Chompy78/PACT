@@ -15,12 +15,15 @@
 
 - **D-GH-2026-08-02-build-version-pr-linked** — `BUILD` (`js/engine.js`) was an independently-
   incremented `v0.10x` counter, bumped on an ad hoc schedule with no fixed rule for when/who bumps it.
-  Changed to `v<N>` where `N` is the GitHub PR number that promotes `preview` → `main`, set once as
-  part of that promotion PR (never inside a regular feature PR) and tagged onto the resulting `main`
-  commit with the same number. Removes a manual "what's the next number" guess (the same shared-
-  mutable-counter hazard already documented for the old `D-GH<N>` decision numbering) and makes every
-  build directly traceable to the exact PR diff it shipped. `DATA.version` (rules axis) unaffected.
-  Full record: `decisions/2026/D-GH-2026-08-02-build-version-pr-linked.md`.
+  Changed to `v<major>.<PR#>` (e.g. `v1.293`) — `PR#` is the GitHub PR that promotes `preview` →
+  `main`, set once as part of that promotion PR (never inside a regular feature PR) and tagged onto
+  the resulting `main` commit with the same value; `major` is a plain manual number (starts at `1`),
+  carried forward unchanged unless a human explicitly bumps it for a relaunch/milestone. Removes a
+  manual "what's the next number" guess for the PR half (the same shared-mutable-counter hazard
+  already documented for the old `D-GH<N>` decision numbering) while keeping a human-legible
+  generation marker. `DATA.version` (rules axis) unaffected. Full record:
+  `decisions/2026/D-GH-2026-08-02-build-version-pr-linked.md` (see same-day addendum for the
+  two-part-format refinement).
 - **D-GH-2026-08-01-dm-console-listcharacters-leak** — CharGen's/Live Sheet's ☁ Cloud → "Load saved
   character" menu called `js/sync.js`'s `listCharacters()`, which had no `owner_id` filter and relied
   entirely on RLS — whose `characters_select` policy deliberately also grants a DM read access to
