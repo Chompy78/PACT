@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · fix(security): "My Characters" local-storage merge no longer resurrects other
+  accounts' characters after the server-side leak fix** — a DM still saw 4 other accounts' characters
+  on `tools/characters.html` after `listCharacters()`'s owner-filter fix shipped. Root cause was
+  client-side: `listMyCharacters()`'s local-storage merge (meant to surface not-yet-synced drafts)
+  trusted *any* character cached in `localStorage` by id as "mine," with no ownership check —
+  `loadCharacter()`/`reconcile()` caches any character it can fetch (by design, for DM/campaign-role
+  reads) with no owner check either, so a character viewed once while the server-side bug was live
+  stuck in the local cache forever, on that device, even after the server fix. Now requires
+  `dirty === true` (set only by this device's own unsynced `saveCharacter()` calls, cleared on
+  successful push) for a local-only entry to count as "mine." Verified via a headless-Playwright unit
+  test against the real `js/sync.js`. See
+  `decisions/2026/D-GH-2026-08-02-listmycharacters-local-cache-leak.md`.
 - **2026-08-02 · chore(release): `BUILD` format corrected to `v<major>.<PR#>` (v1.293)** — follow-up
   to the entry below: after PR #293 merged with `BUILD = "v293"`, clarified the intended format
   includes a manual major/epoch number ahead of the PR number (`v1.293`, not a bare PR number). The

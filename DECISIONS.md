@@ -13,6 +13,16 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-02-listmycharacters-local-cache-leak** — Follow-up to the `listCharacters()` server-
+  side leak fix: a DM still saw 4 other accounts' characters on "My Characters" after that fix shipped.
+  Root cause was client-side, not server-side: `listMyCharacters()`'s local-storage merge (for
+  not-yet-synced drafts) trusted *any* cached-by-id local record as "mine," with no ownership check —
+  and `loadCharacter()`/`reconcile()` caches any character it can fetch (by design, for DM/campaign-
+  role reads) with no ownership check either. Once the DM had loaded one of the originally-leaked rows
+  (e.g. clicking it to investigate), it stuck in their local cache forever, surviving the server fix.
+  Fixed by requiring `dirty === true` (set only by this device's own unsynced saves, cleared on
+  successful push) for a local-only entry to count as "mine." Full record:
+  `decisions/2026/D-GH-2026-08-02-listmycharacters-local-cache-leak.md`.
 - **D-GH-2026-08-02-build-version-pr-linked** — `BUILD` (`js/engine.js`) was an independently-
   incremented `v0.10x` counter, bumped on an ad hoc schedule with no fixed rule for when/who bumps it.
   Changed to `v<major>.<PR#>` (e.g. `v1.293`) — `PR#` is the GitHub PR that promotes `preview` →
