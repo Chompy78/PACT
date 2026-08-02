@@ -13,6 +13,17 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-02-creation-lock-switch** — Engine half of the creation-lock feature. Adds
+  `creationLockConfig{auto,threshold}` and `creationUnlocked` events (both last-write-wins; unlock is
+  future-only and suppresses the auto-lock so it isn't a same-pass no-op), and documents the
+  lock-precedence rule above `_replay()`. Deliberately deviates from the cold-reviewed plan's
+  "defaults off": three existing fixtures assert `campaignBound` alone arms the lock at
+  `DATA.level1AP`, so defaults-off would have broken them — `auto` instead falls back to campaign
+  membership when unconfigured, keeping full backward compatibility. Also records a production
+  finding: the Amble campaign grants a 70 AP creation budget while the default threshold is 50, so a
+  player would auto-lock mid-creation — the threshold should default to the campaign's creation
+  budget, which needs deciding before this is enabled. Full record:
+  `decisions/2026/D-GH-2026-08-02-creation-lock-switch.md`.
 - **D-GH-2026-08-02-syncall-owner-scope** — Follow-up to the `syncAll()` finding flagged in
   `D-GH-2026-08-02-dm-readonly-livesheet-view`: the background auto-sync job (runs on every signed-in
   page load, no user action needed) queried `characters` with no owner filter, so for a DM it relied

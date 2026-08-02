@@ -1,7 +1,7 @@
 name: Engine parity gate
 
 # Headless regression gate (REV-11): asserts js/engine.js's compute()/rebuildStateFromEvents() output
-# for all 20 fixtures against testing/expected/expected-results.csv — the same assertions
+# for all 24 fixtures against testing/expected/expected-results.csv — the same assertions
 # testing/tests/engine-parity.html runs in a browser, ported to Node so it can run in CI with no
 # browser/install step. See testing/scripts/engine-parity-ci.mjs.
 #
