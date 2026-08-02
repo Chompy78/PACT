@@ -6,6 +6,14 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · fix(dm-console): dark-mode contrast on the Skills/Tools overlay popups** — the
+  per-character "🎯 Skills"/"🛠 Tools" popup (and its own trigger buttons) had a hardcoded white
+  background and navy/gray text, so in dark mode it showed as a light card floating on the dark page.
+  Added a new `--info`/`--info-bg` theme variable pair (matching the existing `--good`/`--good-bg`
+  pattern — there wasn't one for this "blue" highlight before) and switched `.ov-card`, `.ov-x`,
+  `.ov-h`, `.ov-sub`, `.sktab` (proficient/expertise row highlighting, borders), and `.skbtn` to the
+  theme variables already used elsewhere in this file. Light/dnd/royal/forest are visually unchanged
+  (verified pixel-identical computed styles before/after); only dark mode's colors actually change.
 - **2026-08-02 · fix(security): background auto-sync no longer caches every character a DM can see** —
   `js/sync.js`'s `syncAll()` (runs automatically on every signed-in page load) queried `characters`
   with no owner filter, relying entirely on RLS — for a DM that meant every player's character in

@@ -29,6 +29,7 @@
     --ink:#15233f; --muted:#5d6b85; --line:#cdd9ee;
     --good:#1f8a4c; --good-bg:#e4f5ea; --zero:#7a869b; --zero-bg:#eef1f6;
     --bad:#c0392b; --bad-bg:#fbe7e4; --warn:#b8860b; --warn-bg:#fbf2d8;
+    --info:#2E5496; --info-bg:#eef4ff;
     --shadow:0 1px 3px rgba(20,40,80,.12),0 6px 18px rgba(20,40,80,.08);
     /* Heading/value text color for text sitting directly on --card/--paper (not on a --light chip
        background). Indirects through --navy so dnd/royal/forest (whose --navy already reads fine on
@@ -43,6 +44,7 @@
     --ink:#e2e8f0; --muted:#94a3b8; --line:#334155;
     --good:#22c55e; --good-bg:#1e3a1f; --zero:#64748b; --zero-bg:#0f1729;
     --bad:#ef4444; --bad-bg:#1f0f0f; --warn:#eab308; --warn-bg:#1f1701;
+    --info:#60a5fa; --info-bg:#1e3a5f;
     --shadow:0 1px 3px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.3);
     --heading:#c9d6ec;
   }
@@ -290,21 +292,21 @@
   #viewToggle{min-width:7.6em;text-align:center;}
   .cardactions{margin-top:9px;}
   .detail-actions{margin:2px 0 10px;}
-  .skbtn{appearance:none;border:1px solid #c3d0e6;background:#fff;color:#1F3864;border-radius:7px;padding:4px 10px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;}
-  .skbtn:hover{background:#eef3fb;}
+  .skbtn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--heading);border-radius:7px;padding:4px 10px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;}
+  .skbtn:hover{filter:brightness(1.04);}
   .ov{position:fixed;inset:0;background:rgba(18,28,52,.55);display:none;align-items:flex-start;justify-content:center;z-index:120;padding:24px 12px;overflow:auto;}
   .ov.on{display:flex;}
-  .ov-card{background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(15,25,50,.35);max-width:940px;width:100%;padding:18px 18px 22px;position:relative;}
-  .ov-x{position:absolute;top:12px;right:12px;width:34px;height:34px;border:0;border-radius:9px;background:#eef2fb;color:#1F3864;font-size:16px;font-weight:800;cursor:pointer;}
-  .ov-x:hover{background:#e1e8f7;}
-  .ov-h{margin:2px 36px 2px 0;font-size:18px;color:#1F3864;}
-  .ov-sub{font-size:12px;color:#5d6b85;margin:4px 0 14px;}
+  .ov-card{background:var(--card);color:var(--ink);border-radius:14px;box-shadow:0 18px 50px rgba(15,25,50,.35);max-width:940px;width:100%;padding:18px 18px 22px;position:relative;}
+  .ov-x{position:absolute;top:12px;right:12px;width:34px;height:34px;border:0;border-radius:9px;background:var(--light);color:var(--navy);font-size:16px;font-weight:800;cursor:pointer;}
+  .ov-x:hover{filter:brightness(0.95);}
+  .ov-h{margin:2px 36px 2px 0;font-size:18px;color:var(--heading);}
+  .ov-sub{font-size:12px;color:var(--muted);margin:4px 0 14px;}
   .sktab{width:100%;border-collapse:collapse;font-size:13.5px;}
-  .sktab th,.sktab td{padding:6px 10px;border-bottom:1px solid #e7eefb;text-align:left;}
+  .sktab th,.sktab td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;}
   .sktab th.num,.sktab td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}
-  .sktab tr.prof td{background:#eef4ff;}
-  .sktab tr.exp td{background:#e4f5ea;}
-  .sktab .pdot{color:#2E5496;margin-right:6px;}
+  .sktab tr.prof td{background:var(--info-bg);}
+  .sktab tr.exp td{background:var(--good-bg);}
+  .sktab .pdot{color:var(--info);margin-right:6px;}
   .mtx-scroll{overflow:auto;max-height:70vh;border:1px solid #e7eefb;border-radius:10px;}
   .mtx{border-collapse:collapse;font-size:12.5px;white-space:nowrap;}
   .mtx th,.mtx td{border:1px solid #e7eefb;padding:5px 9px;text-align:center;font-variant-numeric:tabular-nums;}
