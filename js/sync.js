@@ -196,7 +196,15 @@ export async function listMyCharacters() {
     if (error) throw error;
     const withFlag = data.map(({ log, ...c }) => ({ ...c, hasData: Array.isArray(log) }));
     const serverIds = new Set(withFlag.map(c => c.id));
-    const localOnly = lsIndex().map(lsGet).filter(r => r && !serverIds.has(r.id))
+    // dirty:true means "created/edited here, not yet pushed" (set only by this device's own
+    // saveCharacter() calls) — the only local-storage state that's actually evidence of
+    // ownership. dirty:false means a read-only cache of whatever loadCharacter()/reconcile()
+    // last fetched by id, with NO owner check at all (by design — DM Console and campaign-role
+    // reads legitimately fetch characters this device doesn't own); trusting it here as "mine"
+    // is exactly how a character viewed once (e.g. while D-GH-2026-08-01-dm-console-
+    // listcharacters-leak was still live server-side) keeps reappearing on this device's own
+    // "My Characters" forever, even after the server-side owner_id filter was fixed.
+    const localOnly = lsIndex().map(lsGet).filter(r => r && r.dirty && !serverIds.has(r.id))
       .map(r => ({ ...r, hasData: Array.isArray(r.stats && r.stats.LOG) }));
     return [...withFlag, ...localOnly].filter(c => !tombstoned.has(c.id));
   }
@@ -205,7 +213,7 @@ export async function listMyCharacters() {
 }
 
 /** Archive/unarchive: reversible soft-delete, owner-only (see rls-policies.sql).
- *  Archived characters stay in listCharacters()/listMyCharacters() output (tagged
+ *  Archived characters stay in listMyCharacters() output (tagged
  *  via archived_at) — callers filter/group by it, it doesn't hide the row. */
 export async function archiveCharacter(id) {
   const { error } = await supabase.from('characters').update({ archived_at: nowIso() }).eq('id', id);
