@@ -862,7 +862,7 @@ document.addEventListener('sync-ready', function () {
       var ap, campaignId = res.campaignId;
       if(res.isNew){
         var seedLog = [{type:'award',amount:res.startingBudget,note:'Budget',noLock:true,
-          label:'Award — budget ('+res.startingBudget+' AP)',seq:1,ts:Date.now(),rules:DATA.version}];
+          label:'Starting creation budget ('+res.startingBudget+' AP)',seq:1,ts:Date.now(),rules:DATA.version}];
         _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:DATA.version,name:'New Character',LOG:seedLog,SEQ:2,id:res.characterId},{clearHistory:true});
         var stats = _cgEnvelope(false);
         var saveRes = await S.saveCharacter({id:res.characterId,name:stats.name||'New Character',kind:'chargen',stats:stats});
@@ -2697,7 +2697,7 @@ function _buildEventBurst(b){
   // AP each time this whole-build regeneration ran (unconditionally, on EVERY CharGen boot). Back it out.
   const _drawbackAP=(b.drawbacks||[]).reduce((s,v)=>s+(DATA.drawbacks[v]||0),0);
   const _rawAward=(b.budget||0)-_drawbackAP;
-  ev({type:'award',amount:_rawAward,note:'Imported budget',label:'Award — budget ('+_rawAward+' AP)'});
+  ev({type:'award',amount:_rawAward,note:'Imported budget',label:'Starting creation budget ('+_rawAward+' AP)'});
   if(b.name) ev({type:'name',name:b.name,label:'Name — '+b.name});
   if(b.appearance && Object.keys(b.appearance).some(k=>b.appearance[k])) ev({type:'buy',cat:'patch',payload:{patch:{appearance:C(b.appearance)}},cost:0,level:1,label:'Appearance & description (0 AP)'});
   ev({type:'buy',cat:'create',payload:{},cost:compute(liveBase()).total,level:1,label:'Level 1 character (Hit Die + base)'});

@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · fix(dm-console): clarify the two AP fields on a player invite** — the invite form's two
+  number inputs were bare placeholders ("Starting DM AP" / "Starting budget") with no explanation, and
+  they fund two genuinely different pools — which read as one confusing number in the resulting
+  character's ledger. Now proper labels with ⓘ tooltips: **Bonus DM AP** ("extra AP always available on
+  top of what the character earns — the same pool as clicking Award AP later; does NOT get spent
+  building the character") and **Creation budget** ("how much AP the player has to spend BUILDING their
+  character — the same starting budget every character gets, just customizable"). Also renamed the
+  card's "DM AP (server total)" row to "Bonus DM AP" to match, and the invite-seeded ledger entry from
+  the generic "Award — budget (N AP)" to "Starting creation budget (N AP)". Display-only; no change to
+  which pool anything actually goes into. (`_cgSyncAward()`'s live-reconcile label deliberately left
+  alone — its equality guard compares the whole event, so renaming it would churn every existing
+  character's LOG on next load for a pure wording change.)
 - **2026-08-02 · fix(dm-console): "View" button is always visible, next to Skills/Tools** — the "👁 View
   in Live Sheet" button (shipped earlier today) lived inside "DM tools (private)," a collapsible
   section that's closed by default on a fully-built character's card (same as every other section) —
