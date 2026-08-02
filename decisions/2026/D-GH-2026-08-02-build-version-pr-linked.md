@@ -53,5 +53,33 @@ Status: Active
   patterns match `v[\d.]+` specifically (digits and dots only, dot not required) — a plain `v268` (all
   digits, no dot) satisfies that pattern, so the new format passes the existing guard unchanged with no
   code change needed there. No `js/engine.js` rules logic touched; `engine-parity-ci.mjs` not affected
-  by a docs-only change (still expected 20/0, unchanged from before this record). The actual next
-  promotion PR is the first live test of the new procedure — not yet exercised as of this record.
+  by a docs-only change (still expected 20/0, unchanged from before this record).
+
+## Addendum (2026-08-02, same day): two-part format `v<major>.<PR#>`
+
+- **Context:** PR #293 (the first real promotion under this decision) merged with `BUILD = "v293"`.
+  Immediately after, the user clarified they'd been picturing a **manual major/epoch number** ahead of
+  the PR number — a human-controlled marker for a relaunch or big milestone (their words: "a new
+  manual release tag eg v1 followed by the PR... this would be v1.293") — not a bare PR number alone.
+  Initially raised as "isn't the tag at v1 already?", which a direct check of `git ls-remote --tags`
+  and `list_releases` disproved (latest was `v0.203`, no `v1` anywhere) — the "v1" was the *intended
+  new* major, not an existing one.
+- **Decision / what shipped:** `BUILD` format is now `v<major>.<PR#>` — e.g. `v1.293`. The PR-number
+  half keeps every property this record already established (atomic, collision-free, traceable to an
+  exact diff). The major half is a plain manual value, starting at `1` (nothing preceded it), carried
+  forward unchanged at every future promotion **unless a human explicitly says this release bumps it**
+  — never inferred from the promotion's contents or size. Corrected the already-merged PR #293 (`BUILD`
+  was briefly `v293` on both `preview` and `main`) to `v1.293` via a direct follow-up commit on
+  `preview` (mirroring the existing "chore(release): bump BUILD" direct-commit precedent) plus a new
+  promotion PR to bring the corrected value to `main`. Updated `docs/VERSION-SYNC.md`'s promotion
+  procedure (added the "check/carry the previous major" step) and `AGENTS.md` to match.
+- **Why:** the major number gives back something the pure-PR-number scheme lost — a human-legible
+  "generation" marker a DM or player might actually recognize/talk about ("we're on v1 still"), while
+  keeping the part that matters for traceability (the PR number) fully automatic and collision-free.
+  Explicitly manual and explicitly carried-forward-by-default so it can't silently drift the way the
+  old single-counter `BUILD` did — a future agent bumping it without being told to would be repeating
+  exactly the mistake this whole decision exists to prevent.
+- **Status:** IN FORCE. Verified: `testing/scripts/audit.py`'s mirror-check regex (`v[\d.]+`) accepts
+  `v1.293` (digits and one dot) with no code change; `engine-parity-ci.mjs` 20/0 (no engine logic
+  touched, format-only). The corrected value is what actually shipped to `main` — see the new
+  promotion PR merged after this addendum for the live confirmation.

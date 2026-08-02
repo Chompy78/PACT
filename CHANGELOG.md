@@ -6,6 +6,14 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · chore(release): `BUILD` format corrected to `v<major>.<PR#>` (v1.293)** — follow-up
+  to the entry below: after PR #293 merged with `BUILD = "v293"`, clarified the intended format
+  includes a manual major/epoch number ahead of the PR number (`v1.293`, not a bare PR number). The
+  major is a plain manual value, starting at `1`, carried forward unchanged at every future promotion
+  unless a human explicitly bumps it for a relaunch/milestone — never inferred from a promotion's
+  contents. Corrected `js/engine.js` and all three tools' mirrors to `v1.293`; updated
+  `docs/VERSION-SYNC.md`'s promotion procedure and `AGENTS.md` to match. See the addendum in
+  `decisions/2026/D-GH-2026-08-02-build-version-pr-linked.md`.
 - **2026-08-02 · docs(versioning): `BUILD` is now the promotion PR number, not a manual counter** —
   `js/engine.js`'s `BUILD` used to be an independently-incremented `v0.10x` string, bumped on an ad hoc
   schedule. It's now `v<N>` where `N` is the GitHub PR number that promotes `preview` → `main` (e.g.

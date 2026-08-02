@@ -231,14 +231,17 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   there and how the optimized-vs-source split works.
 
 ## Versioning — TWO separate numbers (don't conflate or over-bump)
-- **Build version** (`BUILD`, currently `v0.203`) — the cosmetic web-tool/build number. As of
-  D-GH-2026-08-02-build-version-pr-linked, this is **the GitHub PR number that promotes `preview` →
-  `main`** (e.g. `v268` for PR #268), not an independently-incremented counter — bumped exactly once,
-  as part of that promotion PR, never inside a regular feature PR. The single source of truth is
-  `export const BUILD` in `js/engine.js`; the three tools must **mirror** it and stay consistent —
-  CharGen (line-1 comment, `<title>`, header `.sub` label), Live Sheet (line-1 comment), DM Console
-  (`TOOL_VERSION`). `index.html` reads `BUILD` live, so **never hand-edit its version.** Full
-  promotion/bump procedure: `docs/VERSION-SYNC.md`.
+- **Build version** (`BUILD`, currently `v1.293`) — the cosmetic web-tool/build number, format
+  `v<major>.<PR#>`. As of D-GH-2026-08-02-build-version-pr-linked, the number after the dot is **the
+  GitHub PR number that promotes `preview` → `main`** (e.g. `v1.268` for PR #268 under major `1`), not
+  an independently-incremented counter — bumped exactly once, as part of that promotion PR, never
+  inside a regular feature PR. The **major number is manual** (carried forward unchanged unless a
+  human explicitly decides this release deserves a new one — a relaunch, a big milestone; never
+  inferred from what's in the promotion). The single source of truth is `export const BUILD` in
+  `js/engine.js`; the three tools must **mirror** it and stay consistent — CharGen (line-1 comment,
+  `<title>`, header `.sub` label), Live Sheet (line-1 comment), DM Console (`TOOL_VERSION`).
+  `index.html` reads `BUILD` live, so **never hand-edit its version.** Full promotion/bump procedure:
+  `docs/VERSION-SYNC.md`.
 - **Rules version** (`DATA.version`, currently `v0.336`) — the rules dataset. Bump ONLY when mechanics
   change (ladders, prices, gates, `compute()` output). The display-only maps `masteryFx`, `drawbackFx`,
   `racialFx` and `page` fields are never read by `compute()` — editing them is a docs change, so don't
