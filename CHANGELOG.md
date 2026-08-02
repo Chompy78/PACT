@@ -6,6 +6,14 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · fix(chargen): clearer message when a redundant invite finds an existing campaign
+  membership** — a DM sent a player two invites to the same campaign; the second showed "Could not
+  join campaign: You have already joined this campaign," reading as a failure though nothing actually
+  went wrong (verified: the player has exactly one character, no data lost). Invites are anonymous
+  single-use tokens with no player identity at generation time, so this can't be caught before
+  redemption — `tryRedeem()`'s catch block now recognizes this specific case and shows "You're already
+  in this campaign — this invite wasn't needed" instead. See
+  `decisions/2026/D-GH-2026-08-02-invite-already-joined-message.md`.
 - **2026-08-02 · fix(security): "My Characters" local-storage merge no longer resurrects other
   accounts' characters after the server-side leak fix** — a DM still saw 4 other accounts' characters
   on `tools/characters.html` after `listCharacters()`'s owner-filter fix shipped. Root cause was
