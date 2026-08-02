@@ -6,6 +6,14 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · fix(dm-console): "View" button is always visible, next to Skills/Tools** — the "👁 View
+  in Live Sheet" button (shipped earlier today) lived inside "DM tools (private)," a collapsible
+  section that's closed by default on a fully-built character's card (same as every other section) —
+  so it looked like the button was missing entirely on real characters, only showing on unbuilt
+  placeholder cards (which have no collapsible sections at all). Moved it out to the always-visible
+  top action row next to "🎯 Skills"/"🛠 Tools" on every cloud character (built or not), shortened the
+  label to "👁 View". Award AP/History/Remove/notes stay inside the collapsible section — this is the
+  one DM action reached for often enough to not want an extra click for.
 - **2026-08-02 · fix(dm-console): dark-mode contrast on the Skills/Tools overlay popups** — the
   per-character "🎯 Skills"/"🛠 Tools" popup (and its own trigger buttons) had a hardcoded white
   background and navy/gray text, so in dark mode it showed as a light card floating on the dark page.
