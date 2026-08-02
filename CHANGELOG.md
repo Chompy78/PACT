@@ -6,7 +6,7 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
-- **2026-08-01 · docs(versioning): `BUILD` is now the promotion PR number, not a manual counter** —
+- **2026-08-02 · docs(versioning): `BUILD` is now the promotion PR number, not a manual counter** —
   `js/engine.js`'s `BUILD` used to be an independently-incremented `v0.10x` string, bumped on an ad hoc
   schedule. It's now `v<N>` where `N` is the GitHub PR number that promotes `preview` → `main` (e.g.
   `v268` for PR #268), set once as part of that promotion PR and never inside a regular feature PR.
@@ -14,7 +14,7 @@
   documented for the old `D-GH<N>` decision numbering) and makes every build directly traceable to
   the exact PR diff it shipped — `github.com/Chompy78/PACT/pull/<N>` *is* the build. `DATA.version`
   (the separate rules-version axis) is unaffected. Updated `docs/VERSION-SYNC.md` (full promotion
-  procedure) and `AGENTS.md`. See `decisions/2026/D-GH-2026-08-01-build-version-pr-linked.md`.
+  procedure) and `AGENTS.md`. See `decisions/2026/D-GH-2026-08-02-build-version-pr-linked.md`.
 - **2026-08-02 · fix(security): CharGen's/Live Sheet's cloud "Load saved character" menu no longer
   leaks other players' characters to a DM** — live report: "why can I see 4 characters, I should only
   have 1." `js/sync.js`'s `listCharacters()` (used by both tools' ☁ Cloud menu) had no `owner_id`
