@@ -70,12 +70,18 @@ pricing from always-expensive to always-cheap. Neither state is correct.
 
 ## Proposed approach
 
-1. **Engine — threshold becomes a log event (decision L1).** Introduce a
+1. **Engine — threshold becomes a log event (decision L1).** ✅ **SHIPPED in PR #305.** Introduce a
    `creationLockConfig` event carrying `{ auto: boolean, threshold: number|null }`.
-   Replay reads the **latest such event, last-write-wins**. Defaults when absent: `auto:false,
-   threshold:null` — i.e. **explicitly off**, so no existing log's behaviour changes. The engine
+   Replay reads the **latest such event, last-write-wins** (per field). The engine
    stays pure log-replay; `compute()`'s signature does not change.
-2. **Engine — keep the campaign-bound gate for campaign characters.** Automatic lock still
+   > **⚠ This step as originally written was WRONG and was NOT implemented literally.** It specified
+   > defaults of `auto:false, threshold:null` — "explicitly off, so no existing log's behaviour
+   > changes." The opposite is true: seven fixtures already exercise this mechanism, and three
+   > (EV-003/EV-007/EV-009) assert that `campaignBound` **alone** arms the auto-lock at the
+   > `DATA.level1AP` default. Defaults-off fails all three. As shipped: `auto` unset → falls back to
+   > `campaignBound` (historical); `true` → armed without it (solo opt-in); `false` → disarmed even
+   > with it. Threshold unset → `DATA.level1AP`. See the decision record.
+2. **Engine — keep the campaign-bound gate for campaign characters.** ✅ **SHIPPED in PR #305.** Automatic lock still
    requires `campaignBound`. *(This is a deliberate reversal of revision 1, which proposed
    dropping it — three reviewers correctly identified that dropping it contradicted the backfill
    step. Keeping it also preserves the documented "solo characters never auto-lock by accident"
@@ -83,14 +89,23 @@ pricing from always-expensive to always-cheap. Neither state is correct.
    `creationLockConfig{auto:true}` event, which the engine honours **without** requiring
    `campaignBound`. So: campaign → gated by membership; solo → gated by explicit opt-in. Nothing
    auto-locks unless someone asked for it.
-3. **Engine — unlock becomes an event (decision K1).** Introduce `creationUnlocked`.
+3. **Engine — unlock becomes an event (decision K1).** ✅ **SHIPPED in PR #305.** Introduce `creationUnlocked`.
    Precedence is strictly **log order, last-write-wins** among `creationLocked` /
    `creationUnlocked`; the automatic threshold is evaluated independently and can re-fire
    afterwards. Unlock is **future-only** — already-stamped purchases keep their frozen prices.
    Document this precedence as a hard rule so it can't drift.
+   > **Refinement made during implementation:** `creationUnlocked` also SUPPRESSES the automatic
+   > lock until re-armed. The plan said the threshold is "evaluated independently and can re-fire
+   > afterwards" — but that makes unlocking an over-threshold character a no-op, since it re-locks
+   > on the same replay pass. Suppression is what makes DM unlock actually work.
 4. **Campaign settings (DM), no migration.** Add to the existing settings blob: whether players
    may self-finalise; whether automatic locking is on; the threshold; and a list of character
    ids the DM has unlocked. The DM only ever writes their own campaign row — never a player's.
+   **The threshold DEFAULTS TO THE CAMPAIGN'S CREATION BUDGET** (the same number that pre-fills an
+   invite's "Creation budget" field), not `DATA.level1AP`. Decided 2026-08-02 after the production
+   dry run showed Amble grants 70 AP while the engine anchor is 50, which would lock a player
+   mid-creation. Do NOT try to derive this from the character's own budget award instead — that was
+   checked and breaks fixture EV-007 (see the decision record).
 5. **Materialisation.** On load, when online, a player's client reconciles campaign settings into
    its own log: appends a `creationLockConfig` if the effective config differs from the latest one
    in the log, appends `creationUnlocked` if this character is in the DM's unlocked list and isn't
