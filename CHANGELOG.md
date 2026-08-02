@@ -6,6 +6,22 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · feat(engine): creation-lock switch — the engine half (events, precedence, backward
+  compatibility)** — PACT's rules price own-species racial traits cheap during creation and expensive
+  if claimed later, but nothing could ever mark a character "finished," so the expensive branch was
+  unreachable. Both states the app has actually shipped were wrong: pre-D-GH37 every trait priced
+  *expensive* (local folds never produced the per-trait lock stamp, so `compute()` fell through to
+  `baseBuild()`'s unconditionally-true `inPlay`); post-D-GH37 every trait prices *cheap* (real replay
+  stamps `false`, no trigger exists). Measured at tier 3: 4 AP unlocked vs 10 locked. Adds
+  `creationLockConfig{auto,threshold}` (last-write-wins per field) and `creationUnlocked`
+  (last-write-wins with `creationLocked`, future-only, and suppressing the auto-lock so unlocking an
+  over-threshold character isn't a same-pass no-op); documents the precedence rule above `_replay()`.
+  Fully backward compatible — the plan's specified "defaults off" would have broken three existing
+  fixtures that assert `campaignBound` alone arms the lock, so `auto` falls back to campaign
+  membership when unconfigured. Parity 20/0 → **24/0** (4 new fixtures; all repo references to the
+  old count updated). Engine only — no UI, and **no production data written**. See
+  `decisions/2026/D-GH-2026-08-02-creation-lock-switch.md` and
+  `docs/plans/2026-08-02-creation-lock-switch.md`.
 - **2026-08-02 · fix(dm-console): clarify the two AP fields on a player invite** — the invite form's two
   number inputs were bare placeholders ("Starting DM AP" / "Starting budget") with no explanation, and
   they fund two genuinely different pools — which read as one confusing number in the resulting

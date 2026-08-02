@@ -1,0 +1,11 @@
+{
+  "description": "creationLockConfig threshold fixture: a DM-set threshold of 10 replaces the DATA.level1AP default (50). campaignBound is present, spend of 15 crosses the custom threshold but would NOT have crossed the default. Asserts the configured threshold is what the automatic lock actually uses — 'Halfling: Brave' prices at the locked tier-2 rate (4), where with the default threshold it would still have been at the creation rate (2).",
+  "baseSnapshotRef": "_shared/base-halfling.json",
+  "events": [
+    { "type": "award", "amount": 60, "note": "Quest reward", "label": "Award — Quest reward (60 AP)" },
+    { "type": "campaignBound", "campaignId": "camp-test-011", "label": "Campaign — Test Campaign" },
+    { "type": "creationLockConfig", "payload": { "threshold": 10 }, "label": "DM set creation-lock threshold to 10 AP" },
+    { "type": "buy", "cat": "patch", "payload": { "patch": {} }, "cost": 15, "level": 2, "label": "Spend filler crossing the custom threshold" },
+    { "type": "buy", "cat": "racial", "payload": { "v": "Halfling: Brave" }, "cost": 4, "level": 2, "label": "Species trait — Halfling: Brave (locked by custom threshold)" }
+  ]
+}

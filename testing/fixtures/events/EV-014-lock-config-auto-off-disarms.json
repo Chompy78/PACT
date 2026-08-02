@@ -1,0 +1,11 @@
+{
+  "description": "creationLockConfig disarm fixture: campaignBound IS present (which alone would arm the automatic lock, per EV-009) but creationLockConfig{auto:false} explicitly switches it off. Spend of 55 crosses DATA.level1AP. Asserts the explicit off-switch beats the campaign-membership default — 'Halfling: Brave' prices at the creation rate (2), not the locked tier-2 rate (4). This is the DM turning automatic locking off for a campaign.",
+  "baseSnapshotRef": "_shared/base-halfling.json",
+  "events": [
+    { "type": "award", "amount": 60, "note": "Quest reward", "label": "Award — Quest reward (60 AP)" },
+    { "type": "campaignBound", "campaignId": "camp-test-013", "label": "Campaign — Test Campaign" },
+    { "type": "creationLockConfig", "payload": { "auto": false }, "label": "DM switched automatic creation lock OFF" },
+    { "type": "buy", "cat": "patch", "payload": { "patch": {} }, "cost": 55, "level": 2, "label": "Spend filler crossing DATA.level1AP" },
+    { "type": "buy", "cat": "racial", "payload": { "v": "Halfling: Brave" }, "cost": 2, "level": 2, "label": "Species trait — Halfling: Brave (auto-lock disarmed, creation rate)" }
+  ]
+}
