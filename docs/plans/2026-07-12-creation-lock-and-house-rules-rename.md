@@ -1,5 +1,12 @@
 # Plan: Creation-lock trigger (DM-adjustable, offline-safe) + house-rules/campaign name separation
 
+> **⚠ SUPERSEDED (2026-08-02) by `docs/plans/2026-08-02-creation-lock-switch.md`.** Read that one
+> instead. Its still-valid design decisions (spend-based trigger, precedence invariant, adjust
+> asymmetry, undo/reversibility semantics) are carried forward there. Two things below are now
+> out of date: this plan's house-rules-rename prerequisite is moot (the local house-rules
+> code-paste feature was retired entirely rather than renamed), and its open question on whether
+> the racial-trait reprice is intended has since been answered by the designer — it is intended.
+
 > **Status: design capture (pre-implementation).** Part of the campaign-model program (siblings:
 > `2026-07-12-campaign-ap-model.md`, `2026-07-11-campaign-join-invite-flow.md`). Engine-model work sitting
 > next to the known D-GH30 / `feat/ap-model-reconcile` tension → intended for cold plan review before code.

@@ -29,6 +29,7 @@
     --ink:#15233f; --muted:#5d6b85; --line:#cdd9ee;
     --good:#1f8a4c; --good-bg:#e4f5ea; --zero:#7a869b; --zero-bg:#eef1f6;
     --bad:#c0392b; --bad-bg:#fbe7e4; --warn:#b8860b; --warn-bg:#fbf2d8;
+    --info:#2E5496; --info-bg:#eef4ff;
     --shadow:0 1px 3px rgba(20,40,80,.12),0 6px 18px rgba(20,40,80,.08);
     /* Heading/value text color for text sitting directly on --card/--paper (not on a --light chip
        background). Indirects through --navy so dnd/royal/forest (whose --navy already reads fine on
@@ -43,6 +44,7 @@
     --ink:#e2e8f0; --muted:#94a3b8; --line:#334155;
     --good:#22c55e; --good-bg:#1e3a1f; --zero:#64748b; --zero-bg:#0f1729;
     --bad:#ef4444; --bad-bg:#1f0f0f; --warn:#eab308; --warn-bg:#1f1701;
+    --info:#60a5fa; --info-bg:#1e3a5f;
     --shadow:0 1px 3px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.3);
     --heading:#c9d6ec;
   }
@@ -290,21 +292,21 @@
   #viewToggle{min-width:7.6em;text-align:center;}
   .cardactions{margin-top:9px;}
   .detail-actions{margin:2px 0 10px;}
-  .skbtn{appearance:none;border:1px solid #c3d0e6;background:#fff;color:#1F3864;border-radius:7px;padding:4px 10px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;}
-  .skbtn:hover{background:#eef3fb;}
+  .skbtn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--heading);border-radius:7px;padding:4px 10px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;}
+  .skbtn:hover{filter:brightness(1.04);}
   .ov{position:fixed;inset:0;background:rgba(18,28,52,.55);display:none;align-items:flex-start;justify-content:center;z-index:120;padding:24px 12px;overflow:auto;}
   .ov.on{display:flex;}
-  .ov-card{background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(15,25,50,.35);max-width:940px;width:100%;padding:18px 18px 22px;position:relative;}
-  .ov-x{position:absolute;top:12px;right:12px;width:34px;height:34px;border:0;border-radius:9px;background:#eef2fb;color:#1F3864;font-size:16px;font-weight:800;cursor:pointer;}
-  .ov-x:hover{background:#e1e8f7;}
-  .ov-h{margin:2px 36px 2px 0;font-size:18px;color:#1F3864;}
-  .ov-sub{font-size:12px;color:#5d6b85;margin:4px 0 14px;}
+  .ov-card{background:var(--card);color:var(--ink);border-radius:14px;box-shadow:0 18px 50px rgba(15,25,50,.35);max-width:940px;width:100%;padding:18px 18px 22px;position:relative;}
+  .ov-x{position:absolute;top:12px;right:12px;width:34px;height:34px;border:0;border-radius:9px;background:var(--light);color:var(--navy);font-size:16px;font-weight:800;cursor:pointer;}
+  .ov-x:hover{filter:brightness(0.95);}
+  .ov-h{margin:2px 36px 2px 0;font-size:18px;color:var(--heading);}
+  .ov-sub{font-size:12px;color:var(--muted);margin:4px 0 14px;}
   .sktab{width:100%;border-collapse:collapse;font-size:13.5px;}
-  .sktab th,.sktab td{padding:6px 10px;border-bottom:1px solid #e7eefb;text-align:left;}
+  .sktab th,.sktab td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;}
   .sktab th.num,.sktab td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}
-  .sktab tr.prof td{background:#eef4ff;}
-  .sktab tr.exp td{background:#e4f5ea;}
-  .sktab .pdot{color:#2E5496;margin-right:6px;}
+  .sktab tr.prof td{background:var(--info-bg);}
+  .sktab tr.exp td{background:var(--good-bg);}
+  .sktab .pdot{color:var(--info);margin-right:6px;}
   .mtx-scroll{overflow:auto;max-height:70vh;border:1px solid #e7eefb;border-radius:10px;}
   .mtx{border-collapse:collapse;font-size:12.5px;white-space:nowrap;}
   .mtx th,.mtx td{border:1px solid #e7eefb;padding:5px 9px;text-align:center;font-variant-numeric:tabular-nums;}
@@ -567,9 +569,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <button type="button" class="infobtn" id="campDmCodeInfo" title="Reusable — share with a trusted co-DM. Redeeming it lets them manage this campaign alongside you (rules, rosters, AP awards).">ⓘ</button>
             </div>
             <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
-              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <input class="field" type="number" id="inviteStartAp" placeholder="Starting DM AP" min="0" step="1" style="width:140px">
-                <input class="field" type="number" id="inviteStartBudget" placeholder="Starting budget" min="0" step="1" style="width:140px">
+              <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+                <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
+                  <span>Bonus DM AP <button type="button" class="infobtn" title="Extra AP always available on top of whatever the character earns normally — the same pool as clicking &quot;Award AP&quot; later, just pre-set here. Does NOT get spent building the character.">ⓘ</button></span>
+                  <input class="field" type="number" id="inviteStartAp" placeholder="0" min="0" step="1" style="width:140px">
+                </label>
+                <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
+                  <span>Creation budget <button type="button" class="infobtn" title="How much AP the player has to spend BUILDING their character — the same starting budget every character gets, just customizable here. Shows up as a normal ledger entry and gets spent down on ability scores, skills, etc. during creation.">ⓘ</button></span>
+                  <input class="field" type="number" id="inviteStartBudget" placeholder="0" min="0" step="1" style="width:140px">
+                </label>
                 <button type="button" class="btn sm" id="createInviteBtn">Generate invite link</button>
               </div>
               <div id="inviteLinkRow" style="display:none;align-items:center;gap:6px;margin-top:6px">
@@ -577,7 +585,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
               </div>
               <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the starting AP/budget above. Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
+              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the Bonus DM AP/Creation budget above (two separate pools — see the ⓘ on each). Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
             </div>
           </div>
 
@@ -660,7 +668,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
                 <span style="font-size:11px;color:var(--muted)">AP</span>
               </div>
-              <div class="grantnote">Pre-fills the “Starting budget” field when you generate a player invite (still editable per invite).</div>
+              <div class="grantnote">Pre-fills the “Creation budget” field when you generate a player invite (still editable per invite).</div>
             </div>
           </div>
 
@@ -825,7 +833,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.300';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.304';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1093,13 +1101,20 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return '<div class="cg"><span class="cglabel">Weapons</span>'+chips(wp)+'</div>'+
            '<div class="cg"><span class="cglabel">Armour</span>'+chips(ar)+'</div>';
   }
+  // Cloud-only, always visible (not tucked inside the collapsible "DM tools" section below — a DM
+  // reaches for this often enough that it shouldn't need an extra click to find, unlike Award/History/
+  // Remove which are rarer actions). Shares the .view-btn class + data-cid convention the delegated
+  // click handler (wireCloudRosterDelegation) already listens for.
+  function viewBtnHTML(id){
+    return '<button type="button" class="skbtn view-btn" data-cid="'+esc(id)+'" title="Open a read-only view of this character\'s full sheet in a new tab — nothing there can be edited or saved">👁 View</button>';
+  }
   // Cloud-only: player label + private DM notes (character_dm_notes — never readable by the
   // character's own owner, see sql/migrations/2026-08-01-dm-remove-character-notes.sql) plus the
   // Award AP / History actions the old plain-table roster used to carry. `dm` is
   // {ap, player, playerLabel, dmNotes} — see cloudRoster in loadRoster().
   function dmToolsBody(id, dm){
     var h = '<div class="kvs"><div class="kvrow"><span class="kk">Player (account)</span><span class="vv">'+esc(dm.player||'—')+'</span></div>' +
-            '<div class="kvrow"><span class="kk">DM AP (server total)</span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
+            '<div class="kvrow"><span class="kk">Bonus DM AP</span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     h += '<div class="ruleblock" style="margin-top:8px"><div class="lbl">Player-name label</div>' +
          '<input type="text" class="field dm-label-in" data-cid="'+esc(id)+'" value="'+esc(dm.playerLabel||'')+'" placeholder="e.g. Jess (Saturday group)"></div>';
     h += '<div class="ruleblock"><div class="lbl">DM notes — private, the player never sees these</div>' +
@@ -1112,8 +1127,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
          '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">' +
          '<button type="button" class="btn sm award-btn" data-cid="'+esc(id)+'">Award</button></div>' +
          '<span class="award-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
-    h += '<button type="button" class="btn sm ghost view-btn" data-cid="'+esc(id)+'" title="Open a read-only view of this character\'s full sheet in a new tab — nothing there can be edited or saved">👁 View in Live Sheet ↗</button>' +
-         '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'" style="margin-left:8px">📒 AP history</button>' +
+    h += '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'">📒 AP history</button>' +
          '<button type="button" class="btn sm danger unbind-btn" data-cid="'+esc(id)+'" style="margin-left:8px">Remove from campaign</button>';
     return h;
   }
@@ -1170,7 +1184,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         '<div class="cname">'+esc(s.name)+warnIcon+tamperBadge(s)+(dm&&dm.playerLabel?' <span class="tier" title="DM-set player label">'+esc(dm.playerLabel)+'</span>':'')+'</div>' +
         '<div class="csub">'+esc(speciesDisp(s))+' · '+esc(fmtClass(s))+
             ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span></div>' +
-        '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button></div>' +
+        '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button>'+(dm?' '+viewBtnHTML(r.id):'')+'</div>' +
       '</div>' +
       '<div class="stats">'+statsHTML+'</div>' +
       buildSections(s, r.id, dm) +
@@ -1576,6 +1590,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
+        '<div class="cardactions">'+viewBtnHTML(rec.id)+'</div>'+
         '</div><div style="padding:0 16px 16px">'+dmToolsBody(rec.id, rec.dm)+'</div></div>';
     }
     return cardHTML(rec, rec.dm);
