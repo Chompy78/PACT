@@ -49,7 +49,13 @@ Everything else must **match** that value:
    the four tool labels above to match (see the one-line prompt below).
 4. Leave `DATA.version` alone — it's the separate rules-version axis, bumped only when mechanics
    change, and is untouched by this procedure regardless of which feature PRs are in the promotion.
-5. Merge the promotion PR.
+5. **Merge the promotion PR with a regular merge commit — never squash.** Squashing a `preview`→`main`
+   promotion severs the shared commit history between the two branches (the squash commit has no
+   common ancestor with `preview`'s real history beyond that point), so the *next* promotion's 3-way
+   merge falls back to a stale common ancestor and produces spurious conflicts even when the content
+   isn't actually incompatible — this happened for real between PR #293 (squashed) and #294, and had
+   to be fixed with a manual reconciliation merge. Regular feature PRs into `preview` can still squash
+   freely; this rule is promotion-PRs-only.
 6. Tag the resulting `main` commit `v<major>.<PR#>` (same value) — and cut a GitHub Release from it
    if desired. **This step cannot be done from a cloud/web Claude Code session** — tag and release
    pushes get a hard platform 403 there regardless of numbering scheme (see
