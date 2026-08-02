@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · feat(dm-console): read-only "View in Live Sheet" for a player's character** — DM
+  Console's cloud roster cards get a "👁 View in Live Sheet ↗" button opening the character's full
+  sheet in a new tab, genuinely read-only. Doesn't reuse the existing `?cloudChar=` deep link (that
+  makes the character the tab's active/editable one and immediately calls `save()`, risking cross-tab
+  corruption of the shared local-autosave slot, and a new trigger for the `listMyCharacters()`
+  local-cache leak if "☁ Save to cloud" were clicked). Instead: a new `?viewChar=` link fetches via
+  `peekCharacter()` (never touches `localStorage`) and a `VIEW_ONLY` flag gates `emit()`/`save()`/
+  `undo()`/`redo()` — the choke points every mutation already routes through — plus hides the controls
+  that would otherwise look interactive. See
+  `decisions/2026/D-GH-2026-08-02-dm-readonly-livesheet-view.md` (also flags a separate, pre-existing
+  `syncAll()` finding worth a defense-in-depth follow-up).
 - **2026-08-02 · fix(chargen): clearer message when a redundant invite finds an existing campaign
   membership** — a DM sent a player two invites to the same campaign; the second showed "Could not
   join campaign: You have already joined this campaign," reading as a failure though nothing actually
