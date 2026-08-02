@@ -6,6 +6,13 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-02 · fix(security): background auto-sync no longer caches every character a DM can see** —
+  `js/sync.js`'s `syncAll()` (runs automatically on every signed-in page load) queried `characters`
+  with no owner filter, relying entirely on RLS — for a DM that meant every player's character in
+  every campaign they run got cached locally as routine background behavior. Previously harmless only
+  because `listMyCharacters()`'s `dirty` check happened to exclude these downstream, not because the
+  fetch itself was scoped correctly. Added `.eq('owner_id', user.id)`, same pattern as
+  `listMyCharacters()`. See `decisions/2026/D-GH-2026-08-02-syncall-owner-scope.md`.
 - **2026-08-02 · feat(dm-console): read-only "View in Live Sheet" for a player's character** — DM
   Console's cloud roster cards get a "👁 View in Live Sheet ↗" button opening the character's full
   sheet in a new tab, genuinely read-only. Doesn't reuse the existing `?cloudChar=` deep link (that

@@ -246,13 +246,23 @@ async function replayDelete(id) {
   } catch { /* stays tombstoned, retry later */ }
 }
 
-/** Reconcile every known character (local index ∪ server rows), and replay any
- *  pending deletes first so tombstoned ids aren't resurrected by reconcile. */
+/** Reconcile every character this device knows about (local index ∪ this user's own server
+ *  rows), and replay any pending deletes first so tombstoned ids aren't resurrected by reconcile.
+ *  Explicitly owner-scoped (`.eq('owner_id', ...)`) rather than relying on RLS alone, same reason as
+ *  listMyCharacters() (D-GH-2026-08-01-dm-console-listcharacters-leak): characters_select also grants
+ *  a DM read access to every character in campaigns they run, and this job's purpose is "keep MY
+ *  characters in sync," not "cache everything I have read access to." Without this filter, syncAll()
+ *  — which runs automatically on every signed-in page load via initSync(), not on user action — would
+ *  fetch and cache every player's character in every campaign a DM runs as a matter of routine. That
+ *  was previously harmless only because listMyCharacters()'s dirty:true check (D-GH-2026-08-02-
+ *  listmycharacters-local-cache-leak) happens to filter out the dirty:false entries this creates —
+ *  i.e. the fetch itself was still wrong, just caught by an unrelated downstream check. */
 export async function syncAll() {
-  if (!navigator.onLine || !(await currentUser())) return { synced: 0 };
+  const user = await currentUser();
+  if (!navigator.onLine || !user) return { synced: 0 };
   for (const id of lsDeletes()) await replayDelete(id);
 
-  const { data, error } = await supabase.from('characters').select('id');
+  const { data, error } = await supabase.from('characters').select('id').eq('owner_id', user.id);
   if (error) throw error;
   const tombstoned = new Set(lsDeletes());
   const ids = new Set([...lsIndex(), ...data.map(c => c.id)].filter(id => !tombstoned.has(id)));
