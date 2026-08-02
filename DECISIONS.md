@@ -13,6 +13,14 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-02-invite-already-joined-message** — A DM sent a player two invites to the same
+  campaign; the second showed "Could not join campaign: You have already joined this campaign" —
+  reads as a failure. Traced to the correct, deliberate one-character-per-player-per-campaign rule
+  (DB-enforced) doing exactly what it should; no data lost. Invites are anonymous single-use tokens
+  (no player identity at generation time), so this can't be caught before redemption. Fixed the
+  message only: `tryRedeem()` now shows "You're already in this campaign — this invite wasn't needed"
+  instead of an error-styled string. Full record:
+  `decisions/2026/D-GH-2026-08-02-invite-already-joined-message.md`.
 - **D-GH-2026-08-02-listmycharacters-local-cache-leak** — Follow-up to the `listCharacters()` server-
   side leak fix: a DM still saw 4 other accounts' characters on "My Characters" after that fix shipped.
   Root cause was client-side, not server-side: `listMyCharacters()`'s local-storage merge (for

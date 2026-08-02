@@ -888,7 +888,17 @@ document.addEventListener('sync-ready', function () {
       hideBannerSoon();
     }catch(err){
       clearPendingToken();   // a terminal RPC error (already-joined, invalid/expired token, etc.) must not keep re-prompting either
-      showBanner('Could not join campaign: '+(err&&err.message?err.message:err));
+      var msg = err&&err.message?err.message:String(err);
+      // "Already joined" isn't a failure from the player's point of view -- it means a second
+      // invite was generated for someone already in the campaign (the invite RPC has no way to
+      // target a specific player, so the DM can't be warned before generating one). Whatever
+      // character this device already has loaded for that campaign is the real one; say so
+      // plainly instead of showing what reads as an error for a no-op.
+      if(/already joined/i.test(msg)){
+        showBanner('You’re already in this campaign — this invite wasn’t needed. Your existing character is shown below.');
+      } else {
+        showBanner('Could not join campaign: '+msg);
+      }
     }finally{
       _redeeming = false;
     }
