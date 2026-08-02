@@ -13,6 +13,17 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-02-dm-readonly-livesheet-view** — DM Console gets a "👁 View in Live Sheet ↗" button
+  per cloud roster card, opening a genuine read-only view in a new tab. Rejected reusing the existing
+  `?cloudChar=` deep link — it makes the loaded character active/editable and calls `save()`
+  immediately, risking cross-tab corruption of the shared local-autosave slot and, if "☁ Save to cloud"
+  were clicked, a new trigger for the `listMyCharacters()` local-cache leak. Instead: a new `?viewChar=`
+  link uses `peekCharacter()` (never touches localStorage) and a `VIEW_ONLY` flag that guards `emit()`/
+  `save()`/`undo()`/`redo()` — the two/four choke points every mutation already routes through — so
+  future Live Sheet features inherit the same protection without needing this code revisited. Separately
+  flagged (not fixed here): `syncAll()` caches every RLS-visible character with no owner filter at all,
+  currently safe only because of the `dirty` check the sibling leak fix added. Full record:
+  `decisions/2026/D-GH-2026-08-02-dm-readonly-livesheet-view.md`.
 - **D-GH-2026-08-02-invite-already-joined-message** — A DM sent a player two invites to the same
   campaign; the second showed "Could not join campaign: You have already joined this campaign" —
   reads as a failure. Traced to the correct, deliberate one-character-per-player-per-campaign rule
