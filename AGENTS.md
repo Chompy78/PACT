@@ -232,7 +232,7 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
 
 ## Versioning — TWO separate numbers (don't conflate or over-bump)
 - **Build version** (`BUILD`, currently `v0.203`) — the cosmetic web-tool/build number. As of
-  D-GH-2026-08-01-build-version-pr-linked, this is **the GitHub PR number that promotes `preview` →
+  D-GH-2026-08-02-build-version-pr-linked, this is **the GitHub PR number that promotes `preview` →
   `main`** (e.g. `v268` for PR #268), not an independently-incremented counter — bumped exactly once,
   as part of that promotion PR, never inside a regular feature PR. The single source of truth is
   `export const BUILD` in `js/engine.js`; the three tools must **mirror** it and stay consistent —

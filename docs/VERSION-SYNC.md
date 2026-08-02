@@ -9,7 +9,7 @@ Two **separate** version numbers live in this repo. Don't conflate them.
 
 ## Build version — now derived from the promotion PR, not a manual counter
 
-**As of D-GH-2026-08-01-build-version-pr-linked**, `BUILD` is the number of the GitHub PR that
+**As of D-GH-2026-08-02-build-version-pr-linked**, `BUILD` is the number of the GitHub PR that
 promotes `preview` → `main` (e.g. `v268` for PR #268), not an independently-incremented `v0.10x`
 counter. This is a deliberate change — see that decision record for the full reasoning — but the
 short version: a manually-picked "next" number is a shared mutable counter across concurrent

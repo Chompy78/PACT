@@ -1,4 +1,4 @@
-# D-GH-2026-08-01-build-version-pr-linked — `BUILD` is now the `preview`→`main` promotion PR number, not a manual counter
+# D-GH-2026-08-02-build-version-pr-linked — `BUILD` is now the `preview`→`main` promotion PR number, not a manual counter
 
 Status: Active
 
