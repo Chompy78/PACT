@@ -569,9 +569,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <button type="button" class="infobtn" id="campDmCodeInfo" title="Reusable — share with a trusted co-DM. Redeeming it lets them manage this campaign alongside you (rules, rosters, AP awards).">ⓘ</button>
             </div>
             <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
-              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <input class="field" type="number" id="inviteStartAp" placeholder="Starting DM AP" min="0" step="1" style="width:140px">
-                <input class="field" type="number" id="inviteStartBudget" placeholder="Starting budget" min="0" step="1" style="width:140px">
+              <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+                <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
+                  <span>Bonus DM AP <button type="button" class="infobtn" title="Extra AP always available on top of whatever the character earns normally — the same pool as clicking &quot;Award AP&quot; later, just pre-set here. Does NOT get spent building the character.">ⓘ</button></span>
+                  <input class="field" type="number" id="inviteStartAp" placeholder="0" min="0" step="1" style="width:140px">
+                </label>
+                <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
+                  <span>Creation budget <button type="button" class="infobtn" title="How much AP the player has to spend BUILDING their character — the same starting budget every character gets, just customizable here. Shows up as a normal ledger entry and gets spent down on ability scores, skills, etc. during creation.">ⓘ</button></span>
+                  <input class="field" type="number" id="inviteStartBudget" placeholder="0" min="0" step="1" style="width:140px">
+                </label>
                 <button type="button" class="btn sm" id="createInviteBtn">Generate invite link</button>
               </div>
               <div id="inviteLinkRow" style="display:none;align-items:center;gap:6px;margin-top:6px">
@@ -579,7 +585,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
               </div>
               <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the starting AP/budget above. Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
+              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the Bonus DM AP/Creation budget above (two separate pools — see the ⓘ on each). Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
             </div>
           </div>
 
@@ -662,7 +668,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
                 <span style="font-size:11px;color:var(--muted)">AP</span>
               </div>
-              <div class="grantnote">Pre-fills the “Starting budget” field when you generate a player invite (still editable per invite).</div>
+              <div class="grantnote">Pre-fills the “Creation budget” field when you generate a player invite (still editable per invite).</div>
             </div>
           </div>
 
@@ -1108,7 +1114,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // {ap, player, playerLabel, dmNotes} — see cloudRoster in loadRoster().
   function dmToolsBody(id, dm){
     var h = '<div class="kvs"><div class="kvrow"><span class="kk">Player (account)</span><span class="vv">'+esc(dm.player||'—')+'</span></div>' +
-            '<div class="kvrow"><span class="kk">DM AP (server total)</span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
+            '<div class="kvrow"><span class="kk">Bonus DM AP</span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     h += '<div class="ruleblock" style="margin-top:8px"><div class="lbl">Player-name label</div>' +
          '<input type="text" class="field dm-label-in" data-cid="'+esc(id)+'" value="'+esc(dm.playerLabel||'')+'" placeholder="e.g. Jess (Saturday group)"></div>';
     h += '<div class="ruleblock"><div class="lbl">DM notes — private, the player never sees these</div>' +
