@@ -1095,6 +1095,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return '<div class="cg"><span class="cglabel">Weapons</span>'+chips(wp)+'</div>'+
            '<div class="cg"><span class="cglabel">Armour</span>'+chips(ar)+'</div>';
   }
+  // Cloud-only, always visible (not tucked inside the collapsible "DM tools" section below — a DM
+  // reaches for this often enough that it shouldn't need an extra click to find, unlike Award/History/
+  // Remove which are rarer actions). Shares the .view-btn class + data-cid convention the delegated
+  // click handler (wireCloudRosterDelegation) already listens for.
+  function viewBtnHTML(id){
+    return '<button type="button" class="skbtn view-btn" data-cid="'+esc(id)+'" title="Open a read-only view of this character\'s full sheet in a new tab — nothing there can be edited or saved">👁 View</button>';
+  }
   // Cloud-only: player label + private DM notes (character_dm_notes — never readable by the
   // character's own owner, see sql/migrations/2026-08-01-dm-remove-character-notes.sql) plus the
   // Award AP / History actions the old plain-table roster used to carry. `dm` is
@@ -1114,8 +1121,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
          '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">' +
          '<button type="button" class="btn sm award-btn" data-cid="'+esc(id)+'">Award</button></div>' +
          '<span class="award-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
-    h += '<button type="button" class="btn sm ghost view-btn" data-cid="'+esc(id)+'" title="Open a read-only view of this character\'s full sheet in a new tab — nothing there can be edited or saved">👁 View in Live Sheet ↗</button>' +
-         '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'" style="margin-left:8px">📒 AP history</button>' +
+    h += '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'">📒 AP history</button>' +
          '<button type="button" class="btn sm danger unbind-btn" data-cid="'+esc(id)+'" style="margin-left:8px">Remove from campaign</button>';
     return h;
   }
@@ -1172,7 +1178,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         '<div class="cname">'+esc(s.name)+warnIcon+tamperBadge(s)+(dm&&dm.playerLabel?' <span class="tier" title="DM-set player label">'+esc(dm.playerLabel)+'</span>':'')+'</div>' +
         '<div class="csub">'+esc(speciesDisp(s))+' · '+esc(fmtClass(s))+
             ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span></div>' +
-        '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button></div>' +
+        '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button>'+(dm?' '+viewBtnHTML(r.id):'')+'</div>' +
       '</div>' +
       '<div class="stats">'+statsHTML+'</div>' +
       buildSections(s, r.id, dm) +
@@ -1578,6 +1584,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
+        '<div class="cardactions">'+viewBtnHTML(rec.id)+'</div>'+
         '</div><div style="padding:0 16px 16px">'+dmToolsBody(rec.id, rec.dm)+'</div></div>';
     }
     return cardHTML(rec, rec.dm);
