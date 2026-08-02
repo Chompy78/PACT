@@ -46,6 +46,16 @@ vendor families). This record covers the **engine slice only** — the tool/UI h
   character the DM funded. The threshold plainly wants to default to the campaign's own creation
   budget rather than the engine's level-1 anchor. Not fixed here (it's a UI/settings default, and the
   tool half isn't built), but it must be resolved before any of this is enabled for real players.
+  - **RESOLVED (same day, by the owner): the threshold defaults to the campaign's creation budget**,
+    not `DATA.level1AP`. The engine already supports this via `creationLockConfig{threshold}` — no
+    further engine change is needed; the settings layer must emit it. `DATA.level1AP` remains only as
+    the last-resort fallback for a character with no campaign and no explicit config.
+  - **Rejected: having the engine derive the threshold automatically from the character's own budget
+    award** (which would have been self-configuring and needed no settings at all). Checked against
+    the suite: it breaks EV-007, which grants a 150 AP `noLock` import burst and then asserts that 60
+    AP of genuine later spend still crosses the threshold and locks. Deriving the threshold from that
+    150 award raises the bar above 60, so the lock would never fire. The creation-budget award and the
+    lock threshold are therefore genuinely different numbers and cannot be collapsed into one.
 - **Status:** IN FORCE for the engine slice. Verified: parity **24/0** (20 pre-existing, all
   untouched, plus 4 new fixtures whose expected values were predicted from first principles *before*
   running and matched exactly on the first attempt — EV-011 unlock-is-future-only, EV-012 custom

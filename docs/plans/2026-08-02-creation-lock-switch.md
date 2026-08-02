@@ -91,6 +91,11 @@ pricing from always-expensive to always-cheap. Neither state is correct.
 4. **Campaign settings (DM), no migration.** Add to the existing settings blob: whether players
    may self-finalise; whether automatic locking is on; the threshold; and a list of character
    ids the DM has unlocked. The DM only ever writes their own campaign row — never a player's.
+   **The threshold DEFAULTS TO THE CAMPAIGN'S CREATION BUDGET** (the same number that pre-fills an
+   invite's "Creation budget" field), not `DATA.level1AP`. Decided 2026-08-02 after the production
+   dry run showed Amble grants 70 AP while the engine anchor is 50, which would lock a player
+   mid-creation. Do NOT try to derive this from the character's own budget award instead — that was
+   checked and breaks fixture EV-007 (see the decision record).
 5. **Materialisation.** On load, when online, a player's client reconciles campaign settings into
    its own log: appends a `creationLockConfig` if the effective config differs from the latest one
    in the log, appends `creationUnlocked` if this character is in the DM's unlocked list and isn't
