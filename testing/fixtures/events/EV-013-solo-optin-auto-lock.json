@@ -1,10 +1,10 @@
 {
-  "description": "Solo opt-in fixture: NO campaignBound event, but creationLockConfig{auto:true} explicitly arms the automatic lock. Spend of 55 crosses DATA.level1AP. Asserts a purely local character CAN auto-lock when its owner opts in — 'Halfling: Brave' prices at the locked tier-2 rate (4). Direct contrast with EV-008, which is the identical scenario WITHOUT the opt-in and correctly stays unlocked (2). Together the pair pins both halves of the D-GH32 gate: solo never auto-locks by accident, but may by request.",
+  "description": "Solo opt-in fixture: NO campaignBound event, but creationLockConfig{auto:true} explicitly arms the automatic lock. Spend of 85 crosses DATA.level1AP (79). Asserts a purely local character CAN auto-lock when its owner opts in — 'Halfling: Brave' prices at the locked tier-2 rate (4). Direct contrast with EV-008, which is the identical scenario WITHOUT the opt-in and correctly stays unlocked (2). Together the pair pins both halves of the D-GH32 gate: solo never auto-locks by accident, but may by request.",
   "baseSnapshotRef": "_shared/base-halfling.json",
   "events": [
-    { "type": "award", "amount": 60, "note": "Quest reward", "label": "Award — Quest reward (60 AP)" },
+    { "type": "award", "amount": 90, "note": "Quest reward", "label": "Award — Quest reward (90 AP)" },
     { "type": "creationLockConfig", "payload": { "auto": true }, "label": "Player opted in to automatic creation lock" },
-    { "type": "buy", "cat": "patch", "payload": { "patch": {} }, "cost": 55, "level": 2, "label": "Spend filler crossing DATA.level1AP" },
+    { "type": "buy", "cat": "patch", "payload": { "patch": {} }, "cost": 85, "level": 2, "label": "Spend filler crossing DATA.level1AP" },
     { "type": "buy", "cat": "racial", "payload": { "v": "Halfling: Brave" }, "cost": 4, "level": 2, "label": "Species trait — Halfling: Brave (locked by solo opt-in)" }
   ]
 }

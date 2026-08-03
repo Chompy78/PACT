@@ -6,8 +6,25 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · fix(rules): the AP-by-level ladder is the Standard BUDGET curve — 50 → 79 at L1**
+  (`DATA.version` **v0.337 → v0.338**) — `js/ap-by-level.js`'s `{1:50, 2:92 … 20:491}` was never a
+  rules curve. Per the Players Guide it was the appendix roster of twenty pregenerated Emberwatch
+  sample characters (“a 1st-level recruit (50 AP) to a 20th-level archmage (491 AP)”), transcribed
+  into a table and subsequently mislabelled a “pace curve”. PACT has a **budget** curve (what a
+  complete level-N build has spent: Standard L1 79/+24, Generous 83/+28) and an **award pace** (AP per
+  *session*, ~7) — and no AP-earned-per-level schedule at all. The ladder is now derived from
+  `LEVEL_BUDGET_CURVES.standard` by a new `budgetLadder({l1,inc})` covering levels **0–20** (level 0 =
+  55 on both presets, the Guide's prelude tier, straight out of the same formula). `DATA.level1AP` and
+  `DATA.defaultAp` become **79**, so a new solo character is offered a real level-1 budget and the
+  creation lock's fallback threshold is right by default. Also updated CharGen's budget picker default
+  and its stale hint (“L1 50 · L5 176 … L20 491”). Parity **24/0** with `testing/expected/` untouched
+  — the four threshold fixtures had their filler spend and their matching award raised by the same
+  delta, so `remaining` and every expected value held still; audit 27/0, fuzz 500/500, browser e2e
+  3/3. See `decisions/2026/D-GH-2026-08-03-ap-budget-curve-standard.md`.
+
 - **2026-08-03 · fix(engine): creation-lock threshold reads the campaign's BUDGET curve, not the pace
-  curve** — the auto-lock compared AP spent against `DATA.level1AP` (50). That's the *pace* curve —
+  curve** — *(“pace curve” here is the mislabel corrected by the entry above; the mechanism it
+  describes is unaffected)* — the auto-lock compared AP spent against `DATA.level1AP` (50). That's the *pace* curve —
   AP **earned** by level. The lock asks "is this character finished being built?", a question about
   **spend**, which is the separate *budget* curve (what a complete level-N build costs: Standard
   L1=79, Generous L1=83, per-campaign). `D-GH-2026-07-14-advancement-tracks` had already flagged this

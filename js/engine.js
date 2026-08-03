@@ -56,13 +56,18 @@ export { DATA };
  * surfaced on DATA so all three tools read it through the engine bridge. apByLevel/
  * defaultAp are the current names; levelAP/level1AP are back-compat aliases for the
  * same data (compute()'s racial-trait lock reads DATA.level1AP; tool display reads
- * DATA.levelAP). Editing js/ap-by-level.js propagates to every tool with no other change. */
+ * DATA.levelAP). Editing js/ap-by-level.js propagates to every tool with no other change.
+ * The ladder is the STANDARD level-BUDGET curve (cumulative AP a complete level-N build
+ * has spent): 0:55, 1:79 … 20:535, derived from LEVEL_BUDGET_CURVES.standard so the fixed
+ * default and the campaign preset can't drift. It is NOT an AP-earned-per-level schedule —
+ * PACT awards AP per session (AWARD_PACES), not per level. */
 DATA.apByLevel = AP_BY_LEVEL;
 DATA.defaultAp = AP_BY_LEVEL[DEFAULT_LEVEL];
 DATA.levelAP   = AP_BY_LEVEL;                 // back-compat alias (tool display / apLevel())
 DATA.level1AP  = AP_BY_LEVEL[DEFAULT_LEVEL];  // back-compat alias (compute racial-trait lock)
-// Per-campaign advancement dials — display/config-only reference tables, never
-// read by compute() or _replay(); editing js/advancement.js does not bump DATA.version.
+// Per-campaign advancement dials. AWARD_PACES/STARTING_TIER_RATIOS and the `generous` curve
+// are display/config-only, never read by compute() or _replay(). LEVEL_BUDGET_CURVES.standard
+// is the exception — it feeds AP_BY_LEVEL above, so editing THAT entry does bump DATA.version.
 DATA.levelBudgetCurves  = LEVEL_BUDGET_CURVES;
 DATA.awardPaces         = AWARD_PACES;
 DATA.startingTierRatios = STARTING_TIER_RATIOS;
@@ -679,20 +684,21 @@ function _replay(b, log) {
 // as a `creationLockConfig{threshold}` event; the engine's replay never reads campaign settings
 // directly (that would break pure-log-replay and make old logs re-price under today's settings).
 //
-// WHICH CURVE — this is the whole point of the function, and getting it wrong is a documented
-// trap (D-GH-2026-07-14-advancement-tracks: "Conflating them was a real error in two of the
-// reviews"). PACT has TWO different AP-per-level curves:
-//   * PACE curve   — AP a character has EARNED by level N. `DATA.apByLevel`, L1 = 50. This is
-//                    the Players Guide's "1st-level recruit (50 AP) to 20th-level archmage
-//                    (491 AP)" progression.
-//   * BUDGET curve — AP a COMPLETE level-N build is expected to have SPENT. Per-campaign
-//                    (`rules.levelBudgetCurve`), Standard L1 = 79, Generous L1 = 83.
-// The lock asks "has this character finished being built?" — a question about SPEND — so it must
-// read the BUDGET curve. The historical code used DATA.level1AP (the PACE curve's L1), which is
-// the conflation above; D-GH-2026-07-14 flagged fixing it as a follow-up and this is it.
+// WHICH CURVE — this is the whole point of the function. The lock asks "has this character
+// finished being built?", a question about SPEND, so the threshold must come from the level-BUDGET
+// curve (cumulative AP a complete level-N build has spent): Standard L1 = 79, Generous L1 = 83.
+// It must NOT come from the award pace (AP per SESSION, ~7 — PACT awards by the session, not by
+// the level) and must NOT come from the Guide's pregen-roster totals (the twenty Emberwatch sample
+// characters, "1st-level recruit (50 AP) to 20th-level archmage (491 AP)" — a cast list, not a
+// curve). Those totals used to BE `DATA.apByLevel`, which is why this function was originally
+// written to override a wrong default; fix/ap-budget-curve-standard replaced the ladder with the
+// Standard budget curve, so `DATA.level1AP` is now 79 and the fallback below is correct by default
+// rather than merely tolerable. Conflating the three is a documented trap — see
+// D-GH-2026-07-14-advancement-tracks ("Conflating them was a real error in two of the reviews").
 //
-// Falls back to DATA.level1AP only when there is no campaign or the campaign never tuned a curve,
-// which preserves the historical default for solo characters and for every existing fixture.
+// This function still earns its keep: it honours a campaign that TUNED its curve (Generous → 83,
+// or any custom {l1, inc}), falling back to DATA.level1AP — the Standard L1 — when there is no
+// campaign or the campaign never tuned one.
 export function creationLockThreshold(campaignRules) {
   const curve = campaignRules && campaignRules.levelBudgetCurve;
   const l1 = curve && Number(curve.l1);

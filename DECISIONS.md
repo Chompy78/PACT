@@ -13,6 +13,19 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-03-ap-budget-curve-standard** — The fixed AP ladder in `js/ap-by-level.js` was never
+  a rules curve: `{1:50 … 20:491}` was the Players Guide appendix's twenty pregenerated Emberwatch
+  characters, a cast list transcribed into a table and later mislabelled a "pace curve". The Guide has
+  a *budget* curve (Standard L1 79/+24, Generous 83/+28, prelude L0 55) and an *award pace* (AP per
+  session, ~7) — and no AP-earned-per-level schedule at all. The ladder is now **derived** from
+  `LEVEL_BUDGET_CURVES.standard` via a new `budgetLadder({l1,inc})`, spanning levels 0–20, so the
+  engine default and the DM-facing preset are the same two numbers by construction. `DATA.level1AP` /
+  `DATA.defaultAp` 50 → 79; `DATA.version` v0.337 → v0.338; `LEVEL_BUDGET_CURVES.standard` becomes the
+  one mechanics entry in an otherwise display-only file. Parity 24/0 with `testing/expected/`
+  untouched — four threshold fixtures had their filler spend and matching award raised by the same
+  delta, so no expected value moved. Full record:
+  `decisions/2026/D-GH-2026-08-03-ap-budget-curve-standard.md`.
+
 - **D-GH-2026-08-02-creation-lock-switch** — Engine half of the creation-lock feature. Adds
   `creationLockConfig{auto,threshold}` and `creationUnlocked` events (both last-write-wins; unlock is
   future-only and suppresses the auto-lock so it isn't a same-pass no-op), and documents the

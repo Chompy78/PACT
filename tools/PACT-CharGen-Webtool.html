@@ -1423,7 +1423,7 @@ function buildForm(F){
     '<div class="namelab">Name flavour</div><div class="namesty">'+styleChips+'</div>'+
     '<div class="namelab">Influence</div><div class="namesty influ">'+influChips+'</div>'+
     '<div class="hint" style="margin:2px 0 4px 218px">Tick flavours and/or influence toggles — the generator blends every chosen pool. Species/Class-linked pull from your origin species &amp; class. Leave the name as-is to keep it.</div>'+
-    rNum('budget','AP budget',50,12,750,'≈ level shown in the list · L1 50 · L5 176 · L10 281 · L15 386 · L20 491 (+21/level after L3)')+
+    rNum('budget','AP budget',79,12,750,'≈ level shown in the list · L0 55 · L1 79 · L5 175 · L10 295 · L15 415 · L20 535 (+24/level)')+
 '<div class="sublab">DM Calls &mdash; what is permitted at this table</div>'+
     '<div class="row" style="gap:20px;flex-wrap:wrap;padding:4px 0">'+
       '<label class="ck" title="Allow Martially Bound and Magically Bound options"><input type="checkbox" id="dm_bound" checked onchange="updateDmToggles()"> ⚔✦ Bound (martial &amp; magical)</label>'+
@@ -2938,7 +2938,7 @@ function randomizeRoll(){
   // spuriously once spend passes the player budget. _cgDmOpts() is a no-op ({dmAp:0,ignorePlayerAp:false})
   // for a local build with no active campaign, so ordinary local randomize behaviour is unchanged.
   const _dmO=_cgDmOpts();
-  const budget=compute(b,_dmO).spendable||DATA.level1AP||50;
+  const budget=compute(b,_dmO).spendable||DATA.level1AP||79;
   const C=x=>compute(x,_dmO);
   const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
   function tryAct(mut){ const snap=JSON.stringify(b);
@@ -3436,7 +3436,7 @@ function explainParas(label,b,r){
   else if(L==='Armour proficiency'){P('Flat climb: Light 2, Medium +4 (needs Light <b>and STR 10</b>), Heavy +6 (needs Medium <b>and STR 10</b>), Shield 2. Full plate = 12 AP.');}
   else if(L==='Heritage pack'){P('A species pack is a flat, subsidised bundle of that race\'s defining basics ('+(DATA.pack[b.species]||0)+' AP for '+b.species+'). Human is free.');}
   else if(L.indexOf('2nd origin species')===0){P('A second origin race (creation only) costs <b>double</b> its pack, and then its traits are bought at base price with no cross-species surcharge.');}
-  else if(L==='Species traits'){P('Race-defining traits are <b>T1 at character creation</b> (no Hit-Dice gate): your own race\'s at the ★ origin price, another race\'s at +1. Skill-granting traits are bought on the skill ladder instead.');if((b.budget||0)>(DATA.level1AP||45))P('⚠ Your budget is above the ~'+(DATA.level1AP||45)+' AP level-1 anchor — traits actually acquired in play would cost more (their current Tier).');}
+  else if(L==='Species traits'){P('Race-defining traits are <b>T1 at character creation</b> (no Hit-Dice gate): your own race\'s at the ★ origin price, another race\'s at +1. Skill-granting traits are bought on the skill ladder instead.');if((b.budget||0)>(DATA.level1AP||79))P('⚠ Your budget is above the ~'+(DATA.level1AP||79)+' AP level-1 anchor — traits actually acquired in play would cost more (their current Tier).');}
   else if(L==='Class unlocks'){P('Unlocking another class costs <b>7 × the classes you already own</b> (7, 14, 21, 28 → cumulative 7/21/42/70). Only needed if you want several of that class\'s features.');}
   else if(L.indexOf('2nd origin class')===0){P('A second origin class (creation only) is 14 AP and includes its unlock; both classes then get the origin discount on their features.');}
   else if(L==='Class features'){P('Each feature\'s price comes from the <b>Master Cost Table</b> (its Tier × availability band). Your <b>origin</b> class pays −(Tier−1) AP (floor 1); any other class pays +Tier. Martially Bound shaves a further −1 on the bound class.');}

@@ -1,5 +1,5 @@
 {
-  "description": "creationLockConfig threshold fixture: a DM-set threshold of 10 replaces the DATA.level1AP default (50). campaignBound is present, spend of 15 crosses the custom threshold but would NOT have crossed the default. Asserts the configured threshold is what the automatic lock actually uses — 'Halfling: Brave' prices at the locked tier-2 rate (4), where with the default threshold it would still have been at the creation rate (2).",
+  "description": "creationLockConfig threshold fixture: a DM-set threshold of 10 replaces the DATA.level1AP default (79). campaignBound is present, spend of 15 crosses the custom threshold but would NOT have crossed the default. Asserts the configured threshold is what the automatic lock actually uses — 'Halfling: Brave' prices at the locked tier-2 rate (4), where with the default threshold it would still have been at the creation rate (2).",
   "baseSnapshotRef": "_shared/base-halfling.json",
   "events": [
     { "type": "award", "amount": 60, "note": "Quest reward", "label": "Award — Quest reward (60 AP)" },
