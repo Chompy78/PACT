@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · fix(dm-console): explain the advancement dials and the two invite AP fields** — added
+  an ⓘ to each of “Level budget curve”, “Award pace (AP per session)” and “Starting tier (new-PC
+  budget)” spelling out what each dial actually drives (and, for the budget curve, that it now also
+  sets the creation-lock threshold — its note previously claimed “display only”). Rewrote the invite
+  form's two tooltips: both grants are spendable, and the real difference is ownership — **Creation
+  budget** becomes the first entry in the player's own AP ledger (“Starting creation budget (79 AP)”,
+  theirs to undo/redo against), while **Bonus DM AP** lives on the character record server-side,
+  DM-only, invisible in that ledger. The old Bonus DM AP tooltip said it “does NOT get spent building
+  the character”, which was wrong: `compute()` sets `spendable = playerAp + dmAp`. UI text only.
+
 - **2026-08-03 · fix(rules): the AP-by-level ladder is the Standard BUDGET curve — 50 → 79 at L1**
   (`DATA.version` **v0.337 → v0.338**) — `js/ap-by-level.js`'s `{1:50, 2:92 … 20:491}` was never a
   rules curve. Per the Players Guide it was the appendix roster of twenty pregenerated Emberwatch

@@ -571,11 +571,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
               <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
                 <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
-                  <span>Bonus DM AP <button type="button" class="infobtn" title="Extra AP always available on top of whatever the character earns normally — the same pool as clicking &quot;Award AP&quot; later, just pre-set here. Does NOT get spent building the character.">ⓘ</button></span>
+                  <span>Bonus DM AP <button type="button" class="infobtn" title="Extra AP you grant on top of the Creation budget — the same DM pool as the “Award AP” action later, just pre-set on this invite. IS spendable: the player’s AP-left = Creation budget + Bonus DM AP − AP spent. What makes it different is WHERE it lives: on the character record server-side, DM-only, so the player can’t edit or undo it and it does not appear as an entry in their own AP ledger. It also never counts toward the creation-pricing lock. Leave it 0 for an ordinary new player; use it to hand someone a head start you keep control of.">ⓘ</button></span>
                   <input class="field" type="number" id="inviteStartAp" placeholder="0" min="0" step="1" style="width:140px">
                 </label>
                 <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
-                  <span>Creation budget <button type="button" class="infobtn" title="How much AP the player has to spend BUILDING their character — the same starting budget every character gets, just customizable here. Shows up as a normal ledger entry and gets spent down on ability scores, skills, etc. during creation.">ⓘ</button></span>
+                  <span>Creation budget <button type="button" class="infobtn" title="The AP the player starts with to BUILD the character. On redeeming the invite it becomes the very first entry in their own AP ledger — “Starting creation budget (79 AP)” — and is spent down on ability scores, skills, boons and the rest. It belongs to the player’s character log (their undo/redo works against it), unlike Bonus DM AP which is DM-only and stored server-side. Pre-filled from “Starting tier” in the Level budget curve panel below; editable per invite. Best kept at your curve’s L1 (Standard = 79): a character stays on cheap creation pricing until spend passes that figure, so a matching grant lets them finish the build the campaign paid for before anything locks.">ⓘ</button></span>
                   <input class="field" type="number" id="inviteStartBudget" placeholder="0" min="0" step="1" style="width:140px">
                 </label>
                 <button type="button" class="btn sm" id="createInviteBtn">Generate invite link</button>
@@ -585,7 +585,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
               </div>
               <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the Bonus DM AP/Creation budget above (two separate pools — see the ⓘ on each). Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
+              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the two AP grants above. Both are spendable; they differ in who owns them (Creation budget = an entry in the player’s own ledger · Bonus DM AP = DM-only, server-side). See the ⓘ on each. Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
             </div>
           </div>
 
@@ -628,7 +628,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
           <div class="subtile" id="campAdvancementTile">
             <div class="stitle">Level budget curve · award pace · starting tier</div>
             <div class="ruleblock">
-              <div class="lbl">📈 Level budget curve</div>
+              <div class="lbl">📈 Level budget curve <button type="button" class="infobtn" title="How much cumulative AP a COMPLETE character of each level is expected to have SPENT. L1 is the level-1 figure, “+per lvl” the step: Standard 79/+24 reaches 535 at L20, Generous 83/+28 reaches 615. Run the same formula at level 0 and both land on 55 — the Guide’s optional prelude/apprentice tier. Two things read this curve: the “Track-Level” label a player sees on their sheet (their AP spent, measured against it), and the creation-pricing lock stamped into new characters, which fires once spend passes L1. It never changes what any individual option costs to buy.">ⓘ</button></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                 <select id="ruleBudgetPreset" class="field" style="flex:0 0 140px">
                   <option value="standard">Standard (79/+24)</option>
@@ -639,10 +639,10 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <label style="font-size:11px;color:var(--muted)">+per lvl <input class="field" type="number" id="ruleBudgetInc" min="1" max="80" step="1" style="width:64px" value="24"></label>
                 <span style="font-size:11px;color:var(--muted)">L20 = <b id="ruleBudgetL20Preview">535</b> AP</span>
               </div>
-              <div class="grantnote">Display only — tunes the “Track-Level” label a player sees on their sheet against AP spent. Does NOT change any purchase price.</div>
+              <div class="grantnote">Tunes the “Track-Level” label a player sees on their sheet against AP spent, and sets the creation-pricing lock threshold stamped into characters created from here on. Does NOT change any purchase price, and does not re-price existing characters.</div>
             </div>
             <div class="ruleblock">
-              <div class="lbl">⏱ Award pace (AP per session)</div>
+              <div class="lbl">⏱ Award pace (AP per session) <button type="button" class="infobtn" title="Your baseline rate for handing out AP. PACT awards AP by the SESSION, not by level — the rulebook default is about 7 AP a session. This is a documented expectation only: nothing is granted automatically, you still award AP yourself with the “+ Award AP” action, and changing it never alters anyone’s existing AP. Sanity check against the budget curve above: at 7 AP a session and a Standard +24 per level, a party gains roughly a level every 3–4 sessions.">ⓘ</button></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                 <select id="ruleAwardPacePreset" class="field" style="flex:0 0 120px">
                   <option value="slow">Slow (5)</option>
@@ -656,7 +656,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <div class="grantnote">A documented baseline only — AP is still granted ad-hoc via the “+ Award AP” action. Nothing auto-awards.</div>
             </div>
             <div class="ruleblock" style="margin-bottom:0">
-              <div class="lbl">🎬 Starting tier (new-PC budget)</div>
+              <div class="lbl">🎬 Starting tier (new-PC budget) <button type="button" class="infobtn" title="How much AP a brand-new player character is handed to build with, as a multiple of the L1 above — Prelude 0.7×, Standard 1.0×, Veteran 1.3×, Legendary 1.6×. Off a Standard L1 of 79 that gives 55 / 79 / 103 / 126 AP. Its only effect is to pre-fill the “Creation budget” box when you generate a player invite: existing characters are never touched, and you can still override the figure on any single invite.">ⓘ</button></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                 <select id="ruleStartingTierPreset" class="field" style="flex:0 0 150px">
                   <option value="prelude">Prelude (0.7×)</option>
