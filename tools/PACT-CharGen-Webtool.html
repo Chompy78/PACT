@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.311.html**-->
+<!--**PACT-CharGen-Webtool v1.313.html**-->
 
 <!doctype html>
 <!--
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.311 · Rules v0.338</title><style>
+<title>PACT Character Generator — Web Tool v1.313 · Rules v0.338</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -411,7 +411,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.311</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.337</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Save this character to the cloud, or load one you saved before" style="color:#fff;border-color:rgba(255,255,255,.35)">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.313</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.337</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Save this character to the cloud, or load one you saved before" style="color:#fff;border-color:rgba(255,255,255,.35)">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
@@ -1017,6 +1017,26 @@ function _cgDmOpts(){var a=window._dmApStatus==='active';return {dmAp:a?(window.
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
 function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;}
+// A file/handoff that carries a campaign binding is NOT a plain local character. Resetting DM AP to a
+// silent 0 (what every local-load path used to do) was harmless when DM AP was a bonus on top of a LOG
+// award, but since the grant became the character's ENTIRE budget it made an exported campaign character
+// open at 0 AP and flag every purchase as over budget. The file never carries the AP number itself — the
+// engine's ANTI-DOUBLE-COUNT INVARIANT forbids that — so resolve it properly instead:
+//   signed in  -> read the authoritative `ap` from the server and resolve to 'active'
+//   otherwise  -> 'unavailable', which the AP-source badge already explains as "NOT the same as none"
+async function _cgAdoptEnvelopeBinding(d){
+  _cgResetCloudApState();
+  var campId = d && d.campaignId; if(!campId) return;
+  var ap = 0;
+  try{
+    var S = window._syncBridge;
+    if(S && window._cloudSignedIn && navigator.onLine && d.id){
+      var rec = await S.peekCharacter(d.id);   // pure read — never reconciles or pushes (D-GH-2026-07-11)
+      if(rec && typeof rec.ap === 'number') ap = rec.ap;
+    }
+  }catch(e){ /* stays 0; _cgResolveDmApStatus reports 'unavailable', not a bogus total */ }
+  try{ await _cgResolveDmApStatus(ap, campId); render(); }catch(e){}
+}
 function _apEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function _apSourceHTML(r){
   var st=window._dmApStatus||'none', ignPlr=!!window._ignorePlayerAp, dmAp=window._dmAp||0;
@@ -2536,7 +2556,8 @@ async function loadViaPicker(){
 }
 function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
     const d=JSON.parse(e.target.result);
-    _cgResetCloudApState();   // a local file has no cloud campaign binding — don't carry over a prior cloud load's DM AP
+    _cgResetCloudApState();   // clear any prior cloud load first; _cgAdoptEnvelopeBinding below re-resolves
+                              // DM AP if THIS file carries a campaign binding (see that function).
     // Tamper-evidence (D-GH48): non-blocking flag if the incoming signed file's signature no longer matches.
     const _tampered=!!(window.verifyCharacterEnvelope&&window.verifyCharacterEnvelope(d).tampered);
     // Chunk C: three load branches, checked in order. A user file-load is ONE undoable step, so
@@ -2803,7 +2824,7 @@ function buildToEventLog(b,opts){return _buildEventBurst(b);}
 function switchToLiveSheet(){
  try{
   _cgAutosave();   // persist current state locally first; the handoff and the autosave both reflect it
-  const uid=writeHandoff({source:'chargen',LOG:LOG,SEQ:SEQ,rules:DATA.version,id:currentCharId()});
+  const uid=writeHandoff({source:'chargen',LOG:LOG,SEQ:SEQ,rules:DATA.version,id:currentCharId(),campaignId:window._cgCampaignId||null});
   if(!uid){flash('⚠ Could not open the Live Sheet — local storage is unavailable (private mode or full). Your build is unchanged.');return;}
   location.href='PACT-Live-Char-Sheet.html?handoff='+encodeURIComponent(uid);
  }catch(e){console.error('PACT CharGen: switch to Live Sheet failed',e);flash('⚠ Could not open the Live Sheet — '+(e&&e.message?e.message:'see console for details')+'.');}
@@ -2893,7 +2914,7 @@ var CG_AUTOSAVE_KEY='pactCharGenAutosaveV2';
 var CG_AUTOSAVE_KEY_LEGACY='pactCharGenAutosave';   // pre-Step-4 flat-build autosave — migrated then deleted
 // _cgEnvelope(true) → SIGNED file export (saveBuild); _cgEnvelope(false) → unsigned localStorage autosave
 // (never signature-checked on restore, so signing it every keystroke is wasted work — D-GH48).
-function _cgEnvelope(sign){return buildCharacterEnvelope({name:val('cname')||'',rules:DATA.version,LOG:LOG,SEQ:SEQ,id:currentCharId()},{sign:sign!==false});}
+function _cgEnvelope(sign){return buildCharacterEnvelope({name:val('cname')||'',rules:DATA.version,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._cgCampaignId||null},{sign:sign!==false});}
 // ---- cloud autosave — campaign-bound characters ONLY ----------------------------------------
 // CharGen only ever wrote to the cloud on an explicit action (Save to cloud, Join campaign, invite
 // redemption), so a player who redeemed an invite and started building stayed invisible in their DM's
@@ -2965,8 +2986,11 @@ function _cgConsumeHandoff(){
     // fires) survives this earlier, engine-ready-gated boot step instead of being silently wiped.
     try{qs.delete('handoff');history.replaceState(null,'',location.pathname+(qs.toString()?('?'+qs.toString()):'')+location.hash);}catch(e){}
     if(!p)return false;
-    _cgResetCloudApState();   // a Live Sheet handoff is a local transfer, not a cloud load — no DM AP/campaign to carry over
+    // A handoff is a local transfer, but the CHARACTER may still be campaign-bound — and since the DM
+    // grant became its entire budget, dropping the binding here made "switch tool" silently zero the
+    // player's AP in the same browser, same session. The baton carries the binding (never the number).
     _cgApplyEnvelope({LOG:p.LOG,SEQ:p.SEQ,id:p.id,rules:p.rules},{clearHistory:true});
+    _cgAdoptEnvelopeBinding(p);
     const fv=p.rules||'(unstamped)';
     if(typeof flash==='function')flash(fv===DATA.version?'Opened your character from the Live Sheet.':('Opened your Live Sheet character — repriced live under current '+DATA.version+' rules.'));
     return true;
@@ -2975,7 +2999,7 @@ function _cgConsumeHandoff(){
 function _cgRestoreAutosave(){try{
   const raw=localStorage.getItem(CG_AUTOSAVE_KEY);
   if(raw){const d=JSON.parse(raw);
-    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgResetCloudApState();_cgApplyEnvelope(d,{clearHistory:true});return true;}}
+    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});_cgAdoptEnvelopeBinding(d);return true;}}
   // one-time migration of the pre-Step-4 flat-build autosave, then remove the old key
   const legacy=localStorage.getItem(CG_AUTOSAVE_KEY_LEGACY);
   if(legacy){const b=JSON.parse(legacy);

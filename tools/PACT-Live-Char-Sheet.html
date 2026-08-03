@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.311.html**-->
+<!--**PACT-Live-Char-Sheet v1.313.html**-->
 
 <!doctype html>
 <!--
@@ -547,7 +547,7 @@ const KEY='pactLiveSheet';
 // routes through emit(). Blocking here (not just in emit()) also stops a read-only tab open in a
 // second window/tab from clobbering the SAME shared localStorage[KEY] slot a DM's own in-progress
 // character might be using in another tab of the same browser.
-function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId()},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); }
+function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._lsCampaignId||null},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); }
   // Feed the shared recent-characters store (landing "Continue" list). Best-effort + guarded so it can
   // never break the real save above; window.recordAutosave arrives with the engine bridge (engine-ready).
   try{if(window.recordAutosave)window.recordAutosave({tool:'livesheet',id:currentCharId(),name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ});}catch(e){} }
@@ -574,7 +574,7 @@ async function _pactShareOrSave(blob,filename,sharedMsg,savedMsg){
 }
 // D-GH40: unified file shape (schema tag + real `id` — the old shape had neither, so re-importing an
 // exported file always minted a fresh id; CharGen's native Load now also opens this file directly).
-async function exportJSON(){ const b=foldBuild(null); const blob=new Blob([JSON.stringify(buildCharacterEnvelope({name:b.name,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId()}),null,1)],{type:'application/json'});
+async function exportJSON(){ const b=foldBuild(null); const blob=new Blob([JSON.stringify(buildCharacterEnvelope({name:b.name,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._lsCampaignId||null}),null,1)],{type:'application/json'});
   const _efn=(b.name||'pact-live-sheet').replace(/[^a-z0-9]+/gi,'_')+'-'+_dstamp()+'.json';
   await _pactShareOrSave(blob,_efn,'“'+_efn+'” sent to the share sheet — choose Save to Files to keep it.','Character saved to your Downloads as “'+_efn+'”.'); }
 // Loading a saved character preserves its frozen prices. If it was stamped under an OLDER rules version,
@@ -622,7 +622,7 @@ function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=
 function switchToCharGen(){
  try{
   save();   // persist current state locally first; the handoff and the local save both reflect it
-  const uid=writeHandoff({source:'livesheet',LOG:LOG,SEQ:SEQ,rules:RULES,id:currentCharId()});
+  const uid=writeHandoff({source:'livesheet',LOG:LOG,SEQ:SEQ,rules:RULES,id:currentCharId(),campaignId:window._lsCampaignId||null});
   if(!uid){flash('⚠ Could not open the Character Generator — local storage is unavailable (private mode or full). Your character is unchanged.');return;}
   location.href='PACT-CharGen-Webtool.html?handoff='+encodeURIComponent(uid);
  }catch(e){console.error('PACT Live Sheet: switch to CharGen failed',e);flash('⚠ Could not open the Character Generator — '+(e&&e.message?e.message:'see console for details')+'.');}
@@ -1517,16 +1517,20 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
 </div></div>
 
 <script type="module">
-  import { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync } from '../js/sync.js';
-  import { currentSession, onAuthChange } from '../js/auth.js';
-  import { listMyCampaigns, getCampaign } from '../js/campaign.js';
-  import { getAwardHistory } from '../js/dm.js';
+  // ENGINE BRIDGE — local modules ONLY. Deliberately separate from the cloud bridge below, the
+  // same split CharGen has carried since D-GH-2026-07-12 ("js/sync.js belongs in THIS module (not
+  // the engine bridge) for the same CDN-resilience reason as auth/campaign").
+  //
+  // These two used to be ONE module script, which made the whole tool depend on a CDN it does not
+  // need to render a character: js/supabase-client.js imports @supabase/supabase-js from esm.sh, and
+  // a single failed import aborts the entire script. engine-ready then never fired, UI boot (gated
+  // on it) never ran, and the page rendered as a bare shell — while every classic-script call went
+  // on to throw "Cannot read properties of undefined (reading 'foldBuild')" against the unset
+  // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
+  // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
+  // half; the worst case is now local-only mode, which this app already supports.
   import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync };
-  window._authBridge = { currentSession, onAuthChange };
-  window._campaignBridge = { listMyCampaigns, getCampaign };
-  window._dmBridge = { getAwardHistory };
   window._engineBridge = { validate };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
@@ -1538,8 +1542,42 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   document.dispatchEvent(new Event('engine-ready'));
+</script>
+<script type="module">
+  // CLOUD BRIDGE — may fail (CDN/offline/blocked). Nothing above depends on it, so a failure here
+  // costs cloud save, campaigns and DM AP, not the tool. Listeners gate on sync-ready, which simply
+  // never fires; window._syncBridge etc. stay undefined and every consumer already null-checks them.
+  import { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync } from '../js/sync.js';
+  import { currentSession, onAuthChange } from '../js/auth.js';
+  import { listMyCampaigns, getCampaign } from '../js/campaign.js';
+  import { getAwardHistory } from '../js/dm.js';
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync };
+  window._authBridge = { currentSession, onAuthChange };
+  window._campaignBridge = { listMyCampaigns, getCampaign };
+  window._dmBridge = { getAwardHistory };
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
+</script>
+<script>
+// Cloud-bridge watchdog. The cloud module can fail independently of the engine (CDN blocked, offline,
+// esm.sh down) — by design, since splitting the bridges. But a tool whose UI is gated on the cloud event
+// then renders as a bare shell with no explanation, which reads as "the app is broken" rather than "the
+// cloud is unreachable". If the event hasn't fired shortly after load, say so plainly.
+(function(){
+  var EV = 'sync-ready', fired = false;
+  document.addEventListener(EV, function(){ fired = true; });
+  window.addEventListener('load', function(){
+    setTimeout(function(){
+      if (fired) return;
+      var d = document.createElement('div');
+      d.setAttribute('role','status');
+      d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999;padding:10px 14px;'
+        + 'background:#7a2a23;color:#fff;font:13px/1.4 "Segoe UI",Calibri,Arial,sans-serif;text-align:center';
+      d.textContent = '\u26a0 Couldn\u2019t reach the cloud. The sheet works normally and saves locally, but cloud save, campaigns and DM-granted AP are unavailable until you reload with a connection.';
+      document.body.insertBefore(d, document.body.firstChild);
+    }, 8000);
+  });
+})();
 </script>
 
 <script>
@@ -1613,6 +1651,7 @@ document.addEventListener('sync-ready', function () {
       var rec = await S.loadCharacter(window.currentCharId());
       window._dmAp = rec ? (rec.ap || 0) : 0;
       window._ignorePlayerAp = false;
+      window._lsCampaignId = (rec && rec.campaign_id) || null;   // binding only — see buildCharacterEnvelope
       if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; if(rec && typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(null); /* rec present but no campaign_id = confirmed standalone → clear the offline snapshot (a logged leave) */ renderCloudStatusBadge(); return; }
       window._rulesStatus = 'unavailable';   // interim, resolved just below — correctly NOT "no DM AP" if getCampaign throws
       var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
@@ -1635,6 +1674,7 @@ document.addEventListener('sync-ready', function () {
     if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return false; }
     window._dmAp = rec.ap || 0;
     window._ignorePlayerAp = false;
+    window._lsCampaignId = rec.campaign_id || null;   // binding only — see buildCharacterEnvelope
     window._cloudCampaignRules = null;
     _campaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
     if(rec.campaign_id && window._campaignBridge) {
@@ -1804,7 +1844,7 @@ document.addEventListener('sync-ready', function () {
         // Route through buildCharacterEnvelope so the cloud save carries the identical {schema,rules,name,
         // LOG,SEQ,id} shape as the local save()/exportJSON() (D-GH40), rather than a hand-built subset that
         // regressed this way. (Same window.X-doesn't-alias-a-let bug the Load handler above already fixed.)
-        var stats = window.buildCharacterEnvelope({ name: b.name, rules: RULES, LOG: LOG, SEQ: SEQ, id: id }, { sign: false });
+        var stats = window.buildCharacterEnvelope({ name: b.name, rules: RULES, LOG: LOG, SEQ: SEQ, id: id, campaignId: window._lsCampaignId||null }, { sign: false });
         var res   = await S.saveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet', stats: stats });
         // Adopt the id the sync layer used — it differs when a legacy pre-UUID id was migrated, and
         // not adopting it would migrate again on the next save and strand a second row. Bare

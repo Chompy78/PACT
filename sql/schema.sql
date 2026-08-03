@@ -434,6 +434,11 @@ begin
 end;
 $$;
 
+-- Redemption also records the grant in ap_awards, so a character's starting AP has the same
+-- provenance as any later DM award — and so Live Sheet's clone-to-standalone (which converts DM AP
+-- into log entries via getAwardHistory()) stops silently dropping it. See
+-- sql/migrations/2026-08-03-invite-grant-award-row.sql and
+-- decisions/2026/D-GH-2026-08-03-invite-grant-award-row.md.
 create or replace function public.redeem_player_invite(p_token text, p_name text default null)
 returns table(character_id uuid, starting_ap integer, starting_budget integer, campaign_id uuid, is_new boolean)
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -457,7 +462,7 @@ begin
       raise exception 'You have already joined this campaign';
     end if;
 
-    -- Single pool. The fold covers pre-migration invites, whose budget half would otherwise vanish.
+    -- Single pool. The fold covers pre-2026-08-03 invites, whose budget half would otherwise vanish.
     v_grant := coalesce(v_invite.starting_ap, 0) + coalesce(v_invite.starting_budget, 0);
 
     v_name := nullif(trim(coalesce(p_name, '')), '');
@@ -471,6 +476,15 @@ begin
     exception when unique_violation then
       raise exception 'You have already joined this campaign';
     end;
+
+    -- Provenance for the grant. Attributed to the DM who created the invite (campaign_invites.created_by)
+    -- rather than auth.uid(), which here is the redeeming PLAYER — recording the player as the awarding
+    -- DM would make the history actively misleading. Skipped when the grant is 0 so an unfunded invite
+    -- doesn't litter the history with a meaningless row.
+    if v_grant <> 0 then
+      insert into ap_awards (character_id, dm_id, campaign_id, amount, note)
+        values (v_char_id, v_invite.created_by, v_invite.campaign_id, v_grant, 'Starting AP (campaign invite)');
+    end if;
 
     -- starting_budget is returned as 0 so no client, old or new, seeds a player-AP award event.
     return query select v_char_id, v_grant, 0, v_invite.campaign_id, true;
@@ -489,16 +503,12 @@ begin
     raise exception 'Invite already redeemed but character not found';
   end if;
 
+  -- Idempotent replay: no second ap_awards row, or a double-click would double the recorded history
+  -- (and the character's ap was only ever incremented once).
   v_grant := coalesce(v_invite.starting_ap, 0) + coalesce(v_invite.starting_budget, 0);
   return query select v_char_id, v_grant, 0, v_invite.campaign_id, false;
 end;
 $$;
-
-comment on column public.campaign_invites.starting_budget is
-  'DEPRECATED (2026-08-03, D-GH-2026-08-03-invite-single-ap-grant). Always written 0. An invite now '
-  'carries a single AP grant in starting_ap, paid into characters.ap. Both RPCs still ADD this column '
-  'in so pre-migration invites redeem at their full intended amount. Kept, not dropped, so the change '
-  'stays reversible.';
 
 -- ---------------------------------------------------------------------------
 -- One-character-per-player-per-campaign, enforced at the database level (closes

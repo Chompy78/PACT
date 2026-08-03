@@ -13,6 +13,19 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-03-invite-grant-award-row** — `redeem_player_invite` set `characters.ap` directly and
+  wrote no `ap_awards` row, so once the invite grant became a character's entire starting AP that number
+  had no provenance (`ap_awards`: 0 rows campaign-wide). Not just an audit gap — Live Sheet's
+  clone-to-standalone converts DM AP into log entries by reading that table, so cloning silently dropped
+  the whole grant. Redemption now records the award, attributed to the invite's creator rather than the
+  redeeming player. Separately: local file / handoff loads zeroed DM AP, which was harmless when it was a
+  bonus and became total budget loss once it was the whole budget (verified: an exported campaign
+  character opened at `remaining -14`). Fixed by carrying the campaign **binding** in the envelope and
+  handoff — never the AP number, which `js/engine.js`'s ANTI-DOUBLE-COUNT INVARIANT forbids in an export
+  — and resolving the authoritative `ap` from the server when signed in, `'unavailable'` when not. `#b=`
+  share links deliberately unchanged. Full record:
+  `decisions/2026/D-GH-2026-08-03-invite-grant-award-row.md`.
+
 - **D-GH-2026-08-03-uuid-character-ids** — `genCharId()` minted `'c'+base36` ids (e.g.
   `cmscl7ilrr5muh`) while `characters.id` is a Postgres `uuid`, so a locally-born character could
   NEVER be saved to the cloud — and because `saveCharacter()` writes localStorage before pushing, each
