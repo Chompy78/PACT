@@ -141,11 +141,17 @@ function applySchema(cfg) {
   const dbUrl = cfg.db;
   for (const f of ['sql/schema.sql', 'sql/rls-policies.sql']) {
     try {
+      // client_min_messages=warning silences the "policy ... does not exist, skipping" NOTICEs that
+      // every `drop policy if exists` emits on a fresh database. Without it they flood stderr and, with
+      // ON_ERROR_STOP, the real error is the LAST line — which an early slice of stderr cuts off. That
+      // is exactly what made the first CI run unreadable.
       execSync(`psql "${dbUrl}" -v ON_ERROR_STOP=1 -q -f ${JSON.stringify(path.join(REPO, f))}`,
-               { cwd: REPO, stdio: ['ignore','pipe','pipe'] });
+               { cwd: REPO, stdio: ['ignore','pipe','pipe'],
+                 env: { ...process.env, PGOPTIONS: '-c client_min_messages=warning' } });
       log(`applied ${f}`);
     } catch (e) {
-      console.error(`[cloud-e2e] failed applying ${f}:\n` + String(e.stderr || e.message).slice(0, 1200));
+      const err = String(e.stderr || e.message);
+      console.error(`[cloud-e2e] failed applying ${f} (last 2000 chars of stderr):\n` + err.slice(-2000));
       process.exit(2);
     }
   }
