@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.317.html**-->
+<!--**PACT-Live-Char-Sheet v1.319.html**-->
 
 <!doctype html>
 <!--
@@ -477,7 +477,23 @@ function apAvailable(uptoIdx){ return _apRemaining(apCeiling(uptoIdx),economy(up
 // cloud module (and 'sync-ready') has had a chance to load. Set by the cloud-load handler /
 // refreshCloudCampaignRules(); reset by every non-cloud load path.
 window._rulesStatus = window._rulesStatus || 'none';
-function _lsResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._rulesStatus='none';}
+function _lsResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._rulesStatus='none';window._lsCampaignId=null;}
+// Resolve DM AP for a character whose campaign we know but which did NOT arrive via a cloud load (a
+// handoff from CharGen). Reads the authoritative `ap` from the server when signed in; otherwise leaves
+// the interim 'unavailable' status, which the AP-source line already explains as "not the same as none".
+async function _lsResolveDmAp(campaignId){
+  window._rulesStatus='unavailable';
+  try{
+    const S=window._syncBridge, C=window._campaignBridge;
+    if(S&&C&&navigator.onLine){
+      const rec=await S.peekCharacter(currentCharId());   // pure read — never reconciles or pushes
+      if(rec&&typeof rec.ap==='number')window._dmAp=rec.ap;
+      const camp=await C.getCampaign(campaignId);
+      if(camp){window._ignorePlayerAp=!!camp.ignore_player_ap;window._rulesStatus='active';}
+    }
+  }catch(e){ /* stays 'unavailable' — never silently 0 */ }
+  try{render();}catch(e){}
+}
 // price a prospective change: frozen delta against the CURRENT committed build
 function priceOf(cat,payload,_cur){
   const cur=_cur||foldBuild(null);   // optional pre-folded build: callers already holding foldBuild(null) (e.g. buy()) pass it to avoid a redundant re-fold; omitted → fresh fold (identical result — the fold is deterministic on the current LOG)
@@ -580,7 +596,10 @@ async function exportJSON(){ const b=foldBuild(null); const blob=new Blob([JSON.
 // Loading a saved character preserves its frozen prices. If it was stamped under an OLDER rules version,
 // we keep those prices (grandfathered) and surface the drift; with only the current version live this stays silent.
 function _showVersionBanner(){
-  if(!loadedRules||loadedRules===RULES)return;
+  // Hide, don't just return. This returned early when the loaded character was current-version, so a
+  // banner raised by an EARLIER load (a stale localStorage save, say) stayed on screen over a character
+  // that was perfectly current — and disagreed with the version line below it, which recomputes.
+  if(!loadedRules||loadedRules===RULES){var _vb=$('versionBanner');if(_vb)_vb.remove();return;}
   let vb=$('versionBanner');if(vb)return;  // already shown
   vb=document.createElement('div');vb.id='versionBanner';
   vb.style.cssText='position:sticky;top:0;z-index:50;background:#7a4f00;color:#fff;padding:6px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center';
@@ -639,6 +658,12 @@ function _lsConsumeHandoff(){
     if(!p)return false;
     _lsResetCloudApState();
     LOG=p.LOG;SEQ=p.SEQ||(LOG.length+1);loadedRules=p.rules||null;if(p.id)__charId=p.id;REDO=[];viewAt=null;
+    // The baton carries the campaign BINDING (never the AP number). Without adopting it, this tool held
+    // no campaign for a character that has one, and the RETURN handoff to CharGen then reported
+    // campaignId:null — so a round-trip silently detached the character from its campaign in the UI
+    // (the database row was never touched) and dropped its DM AP to 0 on screen.
+    window._lsCampaignId = p.campaignId || null;
+    if(p.campaignId) _lsResolveDmAp(p.campaignId);
     save();
     if(loadedRules&&loadedRules!==RULES){flash('Opened your '+loadedRules+' character from CharGen — old prices frozen under '+RULES+' rules.');_showVersionBanner();}
     else flash('Opened your character from CharGen.');
@@ -725,6 +750,7 @@ function spellPanel(b,r){
 function render(){
   if(!LOG.length){ /* still render empty */ }
   {const vl=$('verline');if(vl)vl.textContent='rules '+RULES+(loadedRules&&loadedRules!==RULES?' · loaded from '+loadedRules:'')+' · prices freeze at purchase';}
+  try{_showVersionBanner();}catch(e){}   // self-correcting: raises OR clears the banner to match loadedRules
   const head = viewAt==null;
   const idx = viewAt;
   const b=foldBuild(idx); const eco=economy(idx); const _dmO=_dmOpts(),_dmAp=_dmO.dmAp,_ignPlr=_dmO.ignorePlayerAp; const r=compute(b,_dmO); const m=r.mods;
