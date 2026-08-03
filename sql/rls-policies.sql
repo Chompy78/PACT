@@ -320,7 +320,6 @@ grant execute on function public.regenerate_dm_invite_code(uuid)    to authentic
 grant execute on function public.archive_campaign(uuid)             to authenticated;
 grant execute on function public.unarchive_campaign(uuid)           to authenticated;
 grant execute on function public.award_ap(uuid, integer, text)      to authenticated;
-grant execute on function public.create_player_invite(uuid, integer, integer) to authenticated;
 grant execute on function public.redeem_player_invite(text, text)             to authenticated;
 grant execute on function public.bind_character_to_campaign(uuid, text)       to authenticated;
 grant execute on function public.dm_unbind_character(uuid)                    to authenticated;

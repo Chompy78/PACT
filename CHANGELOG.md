@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · test(sw): a returning-visitor gate, and CharGen's dead service-worker registration** —
+  new `testing/scripts/sw-cache-e2e.mjs` + CI workflow installs the real service worker, deploys a module
+  change, and reloads *without* a hard refresh — the one state no other gate covers, and the only state in
+  which the 2026-08-03 outage existed. Verified red on that exact bug (`events=["engine-ready"]` only,
+  `does not provide an export named '__swProbe'`, exit 1) and green once fixed. Building it uncovered that
+  **line 3905 of CharGen was the truncated fragment `<li><sp`**, unterminated since PR #210, which
+  swallowed the `<script>` registering the service worker — so CharGen registered none of its own, masked
+  only because `index.html` registers one for the whole `/PACT/` scope. A deep link straight to CharGen got
+  no service worker, no offline support and no caching. Structure closed (the lost sentence is
+  unrecoverable and is marked, not invented).
+
 - **2026-08-03 · feat(vendor): the Supabase client is served from our own origin, not a CDN** — every
   cloud feature used to depend on `esm.sh` being reachable at page load, and an ES module import failure
   aborts the whole script, so an outage or an ad-blocker took the cloud half of every tool down. Now
