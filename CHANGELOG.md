@@ -6,6 +6,22 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · fix(invites,chargen,livesheet): an invite grant is a recorded award; a saved file keeps
+  its campaign binding** (SQL migration `2026-08-03-invite-grant-award-row.sql`) — redemption now writes
+  an `ap_awards` row for the grant, attributed to the DM who created the invite rather than the redeeming
+  player. Without it `ap_awards` was empty campaign-wide, which also meant Live Sheet's
+  clone-to-standalone — which converts DM AP into itemized log entries by reading that table — silently
+  dropped a character's entire starting grant. Five existing characters backfilled. Separately, the local
+  file, tool-handoff and share-link loads all zeroed DM AP; correct when it was a bonus on top of a LOG
+  award, total budget loss once the grant became the whole budget (an exported campaign character opened
+  at `budget 0 · remaining -14`, every purchase flagged over). Envelopes and handoff batons now carry the
+  campaign **binding** only — never the AP number, which the engine's ANTI-DOUBLE-COUNT INVARIANT forbids
+  in an export — and the reader resolves the authoritative `ap` from the server when signed in, or reports
+  DM AP as *unavailable* when not. The binding is covered by the D-GH48 signature, so editing it reads as
+  tampered. `#b=` share links deliberately unchanged: they carry the folded build, not the log, and are
+  the one path where a stale AP number would spread to other people. See
+  `decisions/2026/D-GH-2026-08-03-invite-grant-award-row.md`.
+
 - **2026-08-03 · fix(sync): the UUID id migration must not fork a campaign-bound character** — the
   migration shipped in v1.309 minted a fresh UUID unconditionally, which INSERTS a new row. A
   campaign-bound character whose id had drifted onto the legacy format was therefore saved as a

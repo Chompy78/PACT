@@ -547,7 +547,7 @@ const KEY='pactLiveSheet';
 // routes through emit(). Blocking here (not just in emit()) also stops a read-only tab open in a
 // second window/tab from clobbering the SAME shared localStorage[KEY] slot a DM's own in-progress
 // character might be using in another tab of the same browser.
-function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId()},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); }
+function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._lsCampaignId||null},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); }
   // Feed the shared recent-characters store (landing "Continue" list). Best-effort + guarded so it can
   // never break the real save above; window.recordAutosave arrives with the engine bridge (engine-ready).
   try{if(window.recordAutosave)window.recordAutosave({tool:'livesheet',id:currentCharId(),name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ});}catch(e){} }
@@ -574,7 +574,7 @@ async function _pactShareOrSave(blob,filename,sharedMsg,savedMsg){
 }
 // D-GH40: unified file shape (schema tag + real `id` — the old shape had neither, so re-importing an
 // exported file always minted a fresh id; CharGen's native Load now also opens this file directly).
-async function exportJSON(){ const b=foldBuild(null); const blob=new Blob([JSON.stringify(buildCharacterEnvelope({name:b.name,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId()}),null,1)],{type:'application/json'});
+async function exportJSON(){ const b=foldBuild(null); const blob=new Blob([JSON.stringify(buildCharacterEnvelope({name:b.name,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._lsCampaignId||null}),null,1)],{type:'application/json'});
   const _efn=(b.name||'pact-live-sheet').replace(/[^a-z0-9]+/gi,'_')+'-'+_dstamp()+'.json';
   await _pactShareOrSave(blob,_efn,'“'+_efn+'” sent to the share sheet — choose Save to Files to keep it.','Character saved to your Downloads as “'+_efn+'”.'); }
 // Loading a saved character preserves its frozen prices. If it was stamped under an OLDER rules version,
@@ -622,7 +622,7 @@ function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=
 function switchToCharGen(){
  try{
   save();   // persist current state locally first; the handoff and the local save both reflect it
-  const uid=writeHandoff({source:'livesheet',LOG:LOG,SEQ:SEQ,rules:RULES,id:currentCharId()});
+  const uid=writeHandoff({source:'livesheet',LOG:LOG,SEQ:SEQ,rules:RULES,id:currentCharId(),campaignId:window._lsCampaignId||null});
   if(!uid){flash('⚠ Could not open the Character Generator — local storage is unavailable (private mode or full). Your character is unchanged.');return;}
   location.href='PACT-CharGen-Webtool.html?handoff='+encodeURIComponent(uid);
  }catch(e){console.error('PACT Live Sheet: switch to CharGen failed',e);flash('⚠ Could not open the Character Generator — '+(e&&e.message?e.message:'see console for details')+'.');}
@@ -1613,6 +1613,7 @@ document.addEventListener('sync-ready', function () {
       var rec = await S.loadCharacter(window.currentCharId());
       window._dmAp = rec ? (rec.ap || 0) : 0;
       window._ignorePlayerAp = false;
+      window._lsCampaignId = (rec && rec.campaign_id) || null;   // binding only — see buildCharacterEnvelope
       if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; if(rec && typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(null); /* rec present but no campaign_id = confirmed standalone → clear the offline snapshot (a logged leave) */ renderCloudStatusBadge(); return; }
       window._rulesStatus = 'unavailable';   // interim, resolved just below — correctly NOT "no DM AP" if getCampaign throws
       var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
@@ -1635,6 +1636,7 @@ document.addEventListener('sync-ready', function () {
     if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return false; }
     window._dmAp = rec.ap || 0;
     window._ignorePlayerAp = false;
+    window._lsCampaignId = rec.campaign_id || null;   // binding only — see buildCharacterEnvelope
     window._cloudCampaignRules = null;
     _campaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
     if(rec.campaign_id && window._campaignBridge) {
@@ -1804,7 +1806,7 @@ document.addEventListener('sync-ready', function () {
         // Route through buildCharacterEnvelope so the cloud save carries the identical {schema,rules,name,
         // LOG,SEQ,id} shape as the local save()/exportJSON() (D-GH40), rather than a hand-built subset that
         // regressed this way. (Same window.X-doesn't-alias-a-let bug the Load handler above already fixed.)
-        var stats = window.buildCharacterEnvelope({ name: b.name, rules: RULES, LOG: LOG, SEQ: SEQ, id: id }, { sign: false });
+        var stats = window.buildCharacterEnvelope({ name: b.name, rules: RULES, LOG: LOG, SEQ: SEQ, id: id, campaignId: window._lsCampaignId||null }, { sign: false });
         var res   = await S.saveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet', stats: stats });
         // Adopt the id the sync layer used — it differs when a legacy pre-UUID id was migrated, and
         // not adopting it would migrate again on the next save and strand a second row. Bare
