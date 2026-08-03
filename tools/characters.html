@@ -52,6 +52,7 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 <body>
 <div class="top">
   <a class="homelink" href="../index.html">&larr; All tools</a>
+  <button type="button" class="homelink" id="backBtn" hidden>&larr; Back</button>
   <h1>My Characters</h1>
   <select id="themesel" onchange="setTheme(this.value)" title="Theme" style="margin-left:auto">
     <option value="">Default</option>
@@ -82,6 +83,18 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 <script>
 function setTheme(t){if(t)document.body.setAttribute('data-theme',t);else document.body.removeAttribute('data-theme');
   try{localStorage.setItem('pactTheme',t||'');}catch(e){}}
+// "All tools" always went to the menu, so arriving here from CharGen or the Live Sheet left no way
+// back to the tool you were using — you had to go via the menu and reopen it. Show a Back control only
+// when there is same-origin history to go back to, so it never appears as a dead button.
+(function(){
+  try{
+    var ref = document.referrer && new URL(document.referrer);
+    if (history.length > 1 && ref && ref.origin === location.origin && ref.pathname !== location.pathname) {
+      var b = document.getElementById('backBtn');
+      if (b) { b.hidden = false; b.addEventListener('click', function(){ history.back(); }); }
+    }
+  }catch(e){}
+})();
 (function(){let t='';try{t=localStorage.getItem('pactTheme')||'';}catch(e){}
   if(!t&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)t='dark';
   if(t){setTheme(t);var s=document.getElementById('themesel');if(s)s.value=t;}})();

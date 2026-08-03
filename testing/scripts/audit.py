@@ -186,6 +186,48 @@ def check_service_worker_precache(rep):
         rep.ok("all %d PRE_CACHE URLs resolve to files on disk" % len(urls))
 
 
+def check_sw_import_freshness(rep):
+    """A module imported by a network-first module must itself be network-first.
+
+    Mixed freshness across an import edge is not a caching trade-off, it is a broken build.
+    On 2026-08-03 js/sync.js (network-first) began importing `isCloudCharId` from
+    js/character-store.js (then cache-first). Returning users got today's sync.js against a
+    cached character-store.js that lacked the export, and a named ES import the target does not
+    export is a LINK-TIME failure — the whole graph refuses to instantiate. The cloud half of
+    every tool died on normal loads and came back on hard refresh (which bypasses the SW).
+    Nothing caught it: the parity/audit/e2e gates all run without a service worker.
+    """
+    rep.group("service-worker import freshness")
+    sw = read("service-worker.js")
+    m = re.search(r"NETWORK_FIRST_RE\s*=\s*/(.*?)/[gimsuy]*;", sw, re.DOTALL)
+    if not m:
+        rep.fail("could not find NETWORK_FIRST_RE in service-worker.js")
+        return
+    pattern = m.group(1)
+    inner = re.search(r"js\\/\((.*?)\)\\\.js", pattern)
+    if not inner:
+        rep.fail("could not parse the js/(...) alternation out of NETWORK_FIRST_RE")
+        return
+    fresh = set(inner.group(1).split("|"))
+
+    js_dir = REPO / "js"
+    edges, bad = 0, []
+    for f in sorted(js_dir.glob("*.js")):
+        importer = f.stem
+        if importer not in fresh:
+            continue          # a cache-first module may import anything; it is stale as a unit
+        for dep in re.findall(r"""from\s+['"]\./([A-Za-z0-9_-]+)\.js['"]""", f.read_text(encoding="utf8")):
+            edges += 1
+            if dep not in fresh:
+                bad.append("%s.js (network-first) imports %s.js (cache-first)" % (importer, dep))
+    if bad:
+        for b in bad:
+            rep.fail(b + " — a stale dependency breaks the importer at link time; "
+                         "add it to NETWORK_FIRST_RE and bump CACHE_NAME")
+    else:
+        rep.ok("all %d import edges from network-first modules stay network-first" % edges)
+
+
 def check_icons_and_404(rep):
     rep.group("PWA icons + 404")
     wanted = [("icons/icon-192.png", 192, 192),
@@ -535,6 +577,7 @@ def main(argv=None):
 
     rep = Report()
     check_service_worker_precache(rep)
+    check_sw_import_freshness(rep)
     check_icons_and_404(rep)
     check_manifest(rep)
     check_sw_registration(rep)
