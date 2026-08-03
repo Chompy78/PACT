@@ -316,8 +316,16 @@ grant execute on function public.redeem_player_invite(text, text)             to
 grant execute on function public.bind_character_to_campaign(uuid, text)       to authenticated;
 grant execute on function public.dm_unbind_character(uuid)                    to authenticated;
 grant execute on function public.is_campaign_dm_of_character(uuid)            to authenticated;
+grant execute on function public.create_player_invite(uuid, integer, integer, text) to authenticated;
+grant execute on function public.list_campaign_invites(uuid)                        to authenticated;
+grant execute on function public.set_invite_revoked(uuid, boolean)                  to authenticated;
 
-revoke execute on function public.create_player_invite(uuid, integer, integer) from public;
+-- create_player_invite gained a 4th (p_note) parameter on 2026-08-03. `create or replace` with a new
+-- signature CREATES a second function rather than replacing the old one, so the 3-argument version was
+-- dropped in that migration — this revoke targets the surviving signature.
+revoke execute on function public.create_player_invite(uuid, integer, integer, text) from public;
+revoke execute on function public.list_campaign_invites(uuid)                        from public;
+revoke execute on function public.set_invite_revoked(uuid, boolean)                  from public;
 revoke execute on function public.redeem_player_invite(text, text)             from public;
 revoke execute on function public.bind_character_to_campaign(uuid, text)       from public;
 revoke execute on function public.dm_unbind_character(uuid)                    from public;

@@ -6,6 +6,23 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · feat(dm-console): invites are listed, labelled and withdrawable** (SQL migrations
+  `2026-08-03-invite-notes-and-revoke.sql`, `-invite-manager-grant-lockdown.sql`) — a generated invite
+  link previously existed only wherever the DM pasted it, so unredeemed ones accumulated invisibly
+  (Amble had nine) with no way to tell which was meant for whom or what AP it carried. Now: an optional
+  **Note** when generating (which also becomes the note on the AP award the character receives), and an
+  **Invites issued** list showing each invite's note, AP, issue date and state — Open / Redeemed (with
+  redeemer and character) / Withdrawn — with copy and **Withdraw** on outstanding ones and Restore on
+  withdrawn ones. Withdrawal is soft (`revoked_at`), so the record of what was issued survives; a revoked
+  invite is refused at redemption, checked before the claiming UPDATE so it can't be consumed by a race.
+  Redeemed invites are immutable. Two problems the Supabase advisor caught and this fixes: `create or
+  replace` with a new signature had left the **old 3-argument `create_player_invite` alive alongside the
+  new one** (dropped — PostgREST resolves a 3-key call against the defaulted 4-argument version), and all
+  three new/changed functions had inherited Postgres's default `EXECUTE to PUBLIC`, making them
+  `anon`-callable; now revoked to `authenticated` only, matching the existing convention. **Caveat:**
+  `campaign_invites_select` lets a redeemer read their own row, so a player can read the note on the
+  invite they redeemed — treat notes as labels, not private commentary.
+
 - **2026-08-03 · fix(sw): a network-first module must not import a cache-first one** (`CACHE_NAME`
   `pact-v7` → `pact-v8`) — `js/sync.js` is network-first and began importing `isCloudCharId` from
   `js/character-store.js`, which was cache-first. Returning users therefore ran today's `sync.js` against
