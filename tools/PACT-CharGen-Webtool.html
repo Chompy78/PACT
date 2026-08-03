@@ -1490,7 +1490,7 @@ function buildForm(F){
     '<div class="namelab">Name flavour</div><div class="namesty">'+styleChips+'</div>'+
     '<div class="namelab">Influence</div><div class="namesty influ">'+influChips+'</div>'+
     '<div class="hint" style="margin:2px 0 4px 218px">Tick flavours and/or influence toggles — the generator blends every chosen pool. Species/Class-linked pull from your origin species &amp; class. Leave the name as-is to keep it.</div>'+
-    rNum('budget','AP budget',79,12,750,'≈ level shown in the list · L0 55 · L1 79 · L5 175 · L10 295 · L15 415 · L20 535 (+24/level)')+
+    rNum('budget','AP budget',79,0,750,'0 = none of your own (a campaign character spends DM-granted AP) · ≈ level shown in the list · L0 55 · L1 79 · L5 175 · L10 295 · L15 415 · L20 535 (+24/level)')+
 '<div class="sublab">DM Calls &mdash; what is permitted at this table</div>'+
     '<div class="row" style="gap:20px;flex-wrap:wrap;padding:4px 0">'+
       '<label class="ck" title="Allow Martially Bound and Magically Bound options"><input type="checkbox" id="dm_bound" checked onchange="updateDmToggles()"> ⚔✦ Bound (martial &amp; magical)</label>'+
@@ -2000,7 +2000,16 @@ function _cgSyncName(){const nm=val('cname')||'';
 // value on every cycle, unbounded). Subtract economy(LOG).drawbackEarned (the engine's own already-computed
 // split, D-GH41) back out so this only ever writes the true raw award — a no-op when nothing actually
 // changed, per _cgSyncSingletonEvent's equality guard.
-function _cgSyncAward(){const amt=(+val('budget')||DATA.level1AP)-economy(LOG).drawbackEarned;
+function _cgSyncAward(){
+  // Number(), not `||`: a budget of 0 is a REAL value for a campaign character (its AP lives in the DM
+  // pool, not in an award event), and `0 || DATA.level1AP` silently turned that into 79. Only a blank or
+  // unparseable field falls back to the level-1 default.
+  const raw=val('budget'), parsed=Number(raw);
+  const base=(raw===''||raw==null||!Number.isFinite(parsed))?DATA.level1AP:parsed;
+  const amt=base-economy(LOG).drawbackEarned;
+  // Don't mint a zero award for a character that has none. Without this, every load of a DM-AP-only
+  // character would append `award 0` — a meaningless event that also makes the log look edited.
+  if(amt===0&&!LOG.some(function(e){return e.type==='award';}))return;
   _cgSyncSingletonEvent('award',function(){return {type:'award',amount:amt,note:'Budget',noLock:true,label:'Award — budget ('+amt+' AP)'};});}
 
 // ---- canonicalBuild(): retained past the Chunk-6 flip (the shadow-diff scaffolding around it is gone).
@@ -2846,7 +2855,7 @@ function applyBuild(b,opts){
   try{
   __charId=(b&&b.id)||genCharId();   // loading a build adopts its id; a fresh/blank build gets a new one
   const set=(id,v)=>{const e=$(id);if(e)e.value=v;};
-  set('cname',b.name||'');set('budget',b.budget||DATA.level1AP);set('oclass',b.originClass||'(none)');set('oclass2',b.originClass2||'(none)');
+  set('cname',b.name||'');set('budget',b.budget!=null?b.budget:DATA.level1AP);set('oclass',b.originClass||'(none)');set('oclass2',b.originClass2||'(none)');
   set('spec',b.species||'(none)');set('spec2',b.species2||'(none)');set('charsize',b.size||'Small');
   for(const a of ABILS)set('st_'+a,(b.stats&&b.stats[a])||10);
   set('hd',b.hd||1);set('profBonus',b.profBonus||2);set('hardy',b.hardy||0);set('tough',b.tough||0);(function(){var u=(b.unlockedClasses&&b.unlockedClasses.length)?b.unlockedClasses:[];document.querySelectorAll('.classunlock').forEach(function(cb){cb.checked=u.indexOf(cb.dataset.cls)>=0;});})();set('gold',b.gold||0);set('dabblerCantrips',b.dabblerCantrips||0);set('languages',b.languages!=null?b.languages:1);
@@ -2888,7 +2897,7 @@ function applyBuild(b,opts){
   set('oclass',b.originClass||'(none)');set('oclass2',b.originClass2||'(none)');
   set('spec',b.species||'(none)');set('spec2',b.species2||'(none)');set('charsize',b.size||'Small');
   set('lineage',b.lineage||'');
-  set('hd',b.hd||1);set('profBonus',b.profBonus||2);set('budget',b.budget||DATA.level1AP);
+  set('hd',b.hd||1);set('profBonus',b.profBonus||2);set('budget',b.budget!=null?b.budget:DATA.level1AP);
   // Phase 2 Step 3 (Chunk 5, Category E): rebuild LOG from the freshly-written DOM so every whole-build-
   // replacement flow that funnels through applyBuild (loadFile — both the CharGen-flat and Live-Sheet-LOG
   // branches — loadFromHash, _cgRestoreAutosave, and Reset) leaves LOG in sync with the loaded build, not
