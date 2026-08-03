@@ -419,6 +419,17 @@
   .dm-notes-in{min-height:64px;padding:8px 10px;resize:vertical;font-family:inherit}
   /* ---- bottomctl flex layout ---- */
   .bottomctl{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;margin-top:12px}
+  /* Local tools master card. Dimmed rather than hidden when a cloud campaign is loaded: the capability
+     stays discoverable and the reason is stated, instead of a control silently disappearing. Kept
+     interactive (no pointer-events:none) — a DM may still legitimately import a local file for reference
+     while running a cloud campaign; this is guidance, not a lock. */
+  .localtools{flex:1 1 100%}
+  .localtools .localToolsInner{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+  .localtools .localToolsInner > .panel{flex:1 1 280px}
+  .localtools.dimmed .localToolsInner{opacity:.55}
+  .localtools.dimmed .localToolsInner:focus-within,
+  .localtools.dimmed .localToolsInner:hover{opacity:1}
+  .localdim-note{border-left:3px solid var(--line);padding-left:8px;margin-bottom:9px}
   .bottomctl #drop{flex:0 0 100%}
   /* ---- campaign panel ---- */
   #campPanel{flex:1 1 100%}
@@ -503,51 +514,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   </div>
 
   <div class="bottomctl">
-    <details class="panel" id="importPanel">
-      <summary class="ptitle" id="importPanelSummary">
-        <span>Import roster (local files)</span>
-        <span class="chev">▸</span>
-      </summary>
-      <div class="importPanelBody">
-        <div id="drop">
-          <div class="big">Drop your players' exported .json files here</div>
-          <div class="sub">Each player exports from the PACT Live Sheet (a <code>.json</code> of <code>{rules, name, LOG, SEQ}</code>). Drop one or many.</div>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
-          <button type="button" class="btn" id="pickBtn">Choose .json files…</button>
-          <button type="button" class="btn danger sm" id="clearBtn" title="Remove all imported characters">Clear party</button>
-        </div>
-        <input class="hiddenFile" type="file" id="fileInput" multiple accept=".json,application/json">
-        <div class="grantnote">Read-only — this tool never edits a character. It only imports &amp; displays.</div>
-        <div class="grantnote" id="importCampNote" style="display:none">A cloud campaign is loaded below — this panel is for local files only and isn't part of it.</div>
-      </div>
-    </details>
-    <details class="panel" id="grantPanel">
-      <summary class="ptitle" id="grantPanelSummary">
-        <span>AP grant code</span>
-        <span class="chev">▸</span>
-      </summary>
-      <div class="grantPanelBody">
-        <div class="grantnote">Tick each character to grant, set their amount, then generate — every ticked character gets its own code (different players can get different amounts). Codes are redeemed by the player pasting theirs into their own Live Sheet.</div>
-        <div class="grantCharList" id="grantCharList"><div class="camp-empty" style="padding:14px">No characters loaded yet — import local files or select a cloud campaign above.</div></div>
-        <div class="grantgrid">
-          <div>
-            <label class="lbl" for="grantDefaultAmt">Default amount</label>
-            <input class="field" type="number" id="grantDefaultAmt" value="10" step="1">
-          </div>
-          <div>
-            <label class="lbl" for="grantNote">Note (optional, shared)</label>
-            <input class="field" type="text" id="grantNote" placeholder="e.g. cleared the crypt">
-          </div>
-          <div class="gen">
-            <label class="lbl">&nbsp;</label>
-            <button type="button" class="btn ghost sm" id="grantSelAllBtn">Select all</button>
-            <button type="button" class="btn" id="genBtn">Generate code(s)</button>
-          </div>
-        </div>
-        <div id="grantCodesOut"></div>
-      </div>
-    </details>
     <details class="panel" id="campPanel" open>
       <summary class="ptitle" id="campPanelSummary">
         <span>Campaign (cloud)</span>
@@ -736,6 +702,67 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       </div>
       </div>
     </details>
+    <!-- Local / offline tools. Grouped and placed BELOW the cloud campaign because they are the
+         fallback path: when a cloud campaign is loaded, its roster and its own invite/AP tools are
+         authoritative and these two are not part of it. Dimmed (not hidden) in that state, so the
+         capability stays discoverable and the reason is stated rather than silently unavailable. -->
+    <details class="panel localtools" id="localToolsPanel">
+      <summary class="ptitle" id="localToolsSummary">
+        <span>Local files &amp; grant codes</span>
+        <span class="chev">&#9656;</span>
+      </summary>
+      <div class="localToolsBody">
+        <div class="grantnote localdim-note" id="localToolsNote" style="display:none"></div>
+        <div class="localToolsInner">
+    <details class="panel" id="importPanel">
+      <summary class="ptitle" id="importPanelSummary">
+        <span>Import roster (local files)</span>
+        <span class="chev">▸</span>
+      </summary>
+      <div class="importPanelBody">
+        <div id="drop">
+          <div class="big">Drop your players' exported .json files here</div>
+          <div class="sub">Each player exports from the PACT Live Sheet (a <code>.json</code> of <code>{rules, name, LOG, SEQ}</code>). Drop one or many.</div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+          <button type="button" class="btn" id="pickBtn">Choose .json files…</button>
+          <button type="button" class="btn danger sm" id="clearBtn" title="Remove all imported characters">Clear party</button>
+        </div>
+        <input class="hiddenFile" type="file" id="fileInput" multiple accept=".json,application/json">
+        <div class="grantnote">Read-only — this tool never edits a character. It only imports &amp; displays.</div>
+        <div class="grantnote" id="importCampNote" style="display:none">A cloud campaign is loaded below — this panel is for local files only and isn't part of it.</div>
+      </div>
+    </details>
+    <details class="panel" id="grantPanel">
+      <summary class="ptitle" id="grantPanelSummary">
+        <span>AP grant code</span>
+        <span class="chev">▸</span>
+      </summary>
+      <div class="grantPanelBody">
+        <div class="grantnote">A grant code carries an <b>amount and a note</b> &mdash; nothing else. It is not tied to a
+          character, so whoever pastes it into their Live Sheet receives that AP. (The old per-character tick list
+          implied a binding that never existed, which is why the same code worked for anyone.) Share one code per
+          player, or the same code with everyone if the award is the same.</div></div>
+        <div class="grantgrid">
+          <div>
+            <label class="lbl" for="grantDefaultAmt">AP amount</label>
+            <input class="field" type="number" id="grantDefaultAmt" value="10" step="1">
+          </div>
+          <div>
+            <label class="lbl" for="grantNote">Note (optional)</label>
+            <input class="field" type="text" id="grantNote" placeholder="e.g. cleared the crypt">
+          </div>
+          <div class="gen">
+            <label class="lbl">&nbsp;</label>
+            <button type="button" class="btn" id="genBtn">Generate code</button>
+          </div>
+        </div>
+        <div id="grantCodesOut"></div>
+      </div>
+    </details>
+        </div>
+      </div>
+    </details>
   </div>
 
   <div class="footnote">PACT DM Console <span id="toolVer"></span> · read-only roster viewer · rules engine <span id="rulesVer"></span> · <a href="https://github.com/Chompy78/PACT/issues/new" target="_blank" rel="noopener" style="color:inherit">Report an issue</a></div>
@@ -858,7 +885,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.319';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.321';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1283,6 +1310,9 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   function renderBody(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, isSel=(expanded===ri); html+='<tr class="data'+(isSel?' sel':'')+'" data-ri="'+ri+'">'; html+='<td class="exq"><span class="exq-chev">▸</span></td>'; visCols().forEach(function(c){ var cls=(c.cls==='name')?'name':((c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':'')); html+='<td class="'+cls+'">'+c.disp(a)+'</td>'; }); html+='</tr>'; if(isSel){ html+='<tr class="detail"><td colspan="'+(visCols().length+1)+'">'+detailHTML(a)+'</td></tr>'; } }); var tb=$('tbody'); tb.innerHTML=html; Array.prototype.forEach.call(tb.querySelectorAll('tr.data'),function(tr){ tr.addEventListener('click',function(){ var ri=+tr.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); }); }); }
   function renderCards(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, open=(expanded===ri); html+='<div class="ccard"><div class="chead" data-ri="'+ri+'"><div><div class="nm">'+esc(a.name||'Unnamed Hero')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div><div class="sub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div></div><div class="chev">'+(open?'−':'+')+'</div></div>'; if(open){ html+='<div class="cbody">'; html+=kv('HP',a.hp); html+='<div class="kv"><span class="k">AC</span><span class="v">'+acCellHTML(a.ac,a.name)+'</span></div>'; html+=kv('Save DC',dcDisp(a)); html+=kv('AP Earned',a.earned); html+=kv('AP Spent',a.spent); html+='<div class="kv"><span class="k">AP Available</span><span class="v">'+availCell(a.available)+'</span></div>'; html+='<div class="kv"><span class="k">Flags</span><span class="v">'+flagDisp(a)+'</span></div>'; html+=detailHTML(a); html+='</div>'; } html+='</div>'; }); var c=$('cards'); c.innerHTML=html; Array.prototype.forEach.call(c.querySelectorAll('.chead'),function(h){ h.addEventListener('click',function(){ var ri=+h.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); }); }); }
   function renderTable(){ renderHead(); renderBody(); renderCards(); }
+  // Dim the local-tools card whenever this campaign actually has characters. Guarded: the
+  // campaign-ready block that defines it may not have loaded (cloud bridge failure).
+  function syncLocalToolsDim(){ try{ if(window._pactSetLocalToolsDimmed) window._pactSetLocalToolsDimmed(cloudRoster.length); }catch(e){} }
   function wireColumns(){ var btn=$('colBtn'), panel=$('colPanel'); if(!btn||!panel) return; function build(){ panel.innerHTML=COLS.map(function(c){ var locked=c.key==='name'; var checked=locked||!hiddenCols.has(c.key); return '<label class="'+(locked?'locked':'')+'"><input type="checkbox" data-k="'+c.key+'"'+(checked?' checked':'')+(locked?' disabled':'')+'>'+esc(c.label)+'</label>'; }).join(''); Array.prototype.forEach.call(panel.querySelectorAll('input[data-k]'),function(inp){ inp.addEventListener('change',function(){ var k=inp.getAttribute('data-k'); if(inp.checked) hiddenCols.delete(k); else hiddenCols.add(k); saveCols(); render(); }); }); } btn.addEventListener('click',function(e){ e.stopPropagation(); build(); panel.classList.toggle('open'); }); document.addEventListener('click',function(e){ if(!panel.contains(e.target) && e.target!==btn) panel.classList.remove('open'); }); }
   function wireToggle(){ var b=$('viewToggle'); if(!b) return; function lbl(){ b.textContent=(view==='card')?'▦ Table view':'▤ Card view'; b.title=(view==='card')?'Switch to the data-table view':'Switch to the card-grid view'; } lbl(); b.addEventListener('click',function(){ view=(view==='card')?'table':'card'; lbl(); render(); }); }
 
@@ -1294,6 +1324,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
      own rich cards (Card view) and stepping aside for that shared table (Table view). */
   function render(){
     $('summary').innerHTML = summaryLine();
+    syncLocalToolsDim();   // local-tools card dims once this campaign has characters (see above)
     var hasLocal = roster.length>0;
     var hasAny = hasLocal || _cloudHasData();
     var cardOn = (view==='card');
@@ -1312,7 +1343,6 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       if(cardOn){ renderCloudRoster(_cloudRosterEl); }
       else { _cloudRosterEl.innerHTML = cloudRoster.length ? '<div class="camp-empty">Shown in the table below while Table view is on.</div>' : '<div class="camp-empty">No characters in this campaign yet.</div>'; }
     }
-    renderGrantCharList();
   }
 
   /* ---------- event wiring (delegated) ---------- */
@@ -1359,51 +1389,11 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   });
 
   /* ---------- AP grant code: one code per ticked character, own amount each ---------- */
-  // Roster shown for grant-code generation: local imports (always have a summary) plus every cloud
-  // roster row, including ones with no build yet (a freshly-redeemed invite still needs starting AP).
-  function _grantRosterList(){
-    var out = roster.map(function(r){ return {id:r.id, name:(r.summary&&r.summary.name)||'Unnamed Hero'}; });
-    cloudRoster.forEach(function(rec){
-      var name = rec.hasData ? ((rec.summary&&rec.summary.name)||'Unnamed Hero')
-                             : (rec.dm.playerLabel||rec.rowName||'Unnamed character');
-      out.push({id:rec.id, name:name});
-    });
-    return out;
-  }
   function fallbackCopy(el, done){
     try{ el.removeAttribute('readonly'); el.select(); el.setSelectionRange(0, el.value.length);
       document.execCommand('copy'); el.setAttribute('readonly','readonly'); done();
     }catch(e){ alert('Copy not supported — select the code and copy manually.'); }
   }
-  // Re-renders on every render() call (roster composition may have changed), but preserves any
-  // ticked boxes / edited amounts already on screen for characters that are still present.
-  function renderGrantCharList(){
-    var el = $('grantCharList');
-    if(!el) return;
-    var list = _grantRosterList();
-    var prevChecked = {}, prevAmt = {};
-    Array.prototype.forEach.call(el.querySelectorAll('.grant-chk'), function(c){ prevChecked[c.getAttribute('data-id')] = c.checked; });
-    Array.prototype.forEach.call(el.querySelectorAll('.grant-amt'), function(a){ prevAmt[a.getAttribute('data-id')] = a.value; });
-    if(!list.length){
-      el.innerHTML = '<div class="camp-empty" style="padding:14px">No characters loaded yet — import local files or select a cloud campaign above.</div>';
-      return;
-    }
-    var defAmt = $('grantDefaultAmt') ? $('grantDefaultAmt').value : '10';
-    el.innerHTML = list.map(function(c){
-      var amt = (prevAmt[c.id]!=null) ? prevAmt[c.id] : defAmt;
-      var checked = prevChecked[c.id] ? ' checked' : '';
-      return '<div class="grantCharRow" data-id="'+esc(c.id)+'">' +
-        '<label><input type="checkbox" class="grant-chk" data-id="'+esc(c.id)+'"'+checked+'><span class="grantCharName">'+esc(c.name)+'</span></label>' +
-        '<input class="field grant-amt" type="number" data-id="'+esc(c.id)+'" value="'+esc(amt)+'" step="1" title="AP amount for '+esc(c.name)+'">' +
-      '</div>';
-    }).join('');
-  }
-  $('grantSelAllBtn').onclick = function(){
-    var boxes = $('grantCharList').querySelectorAll('.grant-chk');
-    if(!boxes.length) return;
-    var allChecked = Array.prototype.every.call(boxes, function(b){ return b.checked; });
-    Array.prototype.forEach.call(boxes, function(b){ b.checked = !allChecked; });
-  };
   function renderGrantCodesOut(list){
     var el = $('grantCodesOut');
     if(!list.length){ return; }
@@ -1416,23 +1406,17 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     }).join('') + el.innerHTML;
   }
   $('genBtn').onclick = function(){
+    // dmMakeGrant() encodes an AMOUNT and a NOTE. It never encoded a character id, so the old
+    // tick-a-character list was describing a binding the format doesn't have — the same generated code
+    // worked for whoever pasted it. One amount, one note, one code.
     var note = $('grantNote').value || '';
-    var checked = Array.prototype.slice.call($('grantCharList').querySelectorAll('.grant-chk:checked'));
-    if(!checked.length){ alert('Tick at least one character to generate a code for.'); return; }
-    var out = [];
-    checked.forEach(function(chk){
-      var id = chk.getAttribute('data-id');
-      var row = chk.closest('.grantCharRow');
-      var amtInp = row ? row.querySelector('.grant-amt') : null;
-      var amt = parseInt(amtInp && amtInp.value, 10);
-      var name = row ? row.querySelector('.grantCharName').textContent : id;
-      if(isNaN(amt)){ return; }
-      var code;
-      try{ code = dmMakeGrant(amt, note); } catch(e){ code = ''; }
-      if(code) out.push({id:id, name:name, amt:amt, code:code});
-    });
-    if(!out.length){ alert('Enter a whole-number AP amount for at least one ticked character.'); return; }
-    renderGrantCodesOut(out);
+    var amt  = parseInt($('grantDefaultAmt').value, 10);
+    if(isNaN(amt)){ alert('Enter a whole-number AP amount.'); return; }
+    var code;
+    try{ code = dmMakeGrant(amt, note); }
+    catch(e){ alert('Could not generate a code: ' + (e && e.message ? e.message : e)); return; }
+    if(!code){ alert('Could not generate a code.'); return; }
+    renderGrantCodesOut([{ id:'', name:(note.trim() || 'AP grant'), amt:amt, code:code }]);
   };
   $('grantCodesOut').addEventListener('click', function(e){
     var btn = e.target.closest('.grant-copy-btn');
@@ -1849,6 +1833,31 @@ document.addEventListener('campaign-ready', function () {
   var dmNotesStatus = document.getElementById('dmNotesStatus');
   var importPanel   = document.getElementById('importPanel');
   var importCampNote = document.getElementById('importCampNote');
+  var localToolsPanel = document.getElementById('localToolsPanel');
+  var localToolsNote  = document.getElementById('localToolsNote');
+  // Dim the local-tools card while a cloud campaign with characters is loaded, and say why. Keyed on
+  // the roster having characters, not merely on a campaign being selected: a campaign you have just
+  // created is empty, and these tools are still the sensible way to work until players arrive.
+  // Exposed on window because the caller (render(), in the main IIFE) is a different closure and cannot
+  // see this one — and `cloudRoster` lives over there, so the COUNT is passed in rather than read here.
+  // Reading it across the boundary would have silently evaluated to undefined and never dimmed at all.
+  window._pactSetLocalToolsDimmed = _updateLocalToolsState;
+  function _updateLocalToolsState(n){
+    if(!localToolsPanel) return;
+    n = Number(n) || 0;
+    var active = n > 0;
+    localToolsPanel.classList.toggle('dimmed', active);
+    if(localToolsNote){
+      localToolsNote.style.display = active ? '' : 'none';
+      localToolsNote.textContent = active
+        ? 'A cloud campaign with ' + n + ' character' + (n === 1 ? '' : 's') + ' is loaded above. These '
+        + 'two are the local, non-cloud path — imported files are read-only and are not part of the '
+        + 'campaign, and a grant code is redeemed by hand in the Live Sheet rather than written to the '
+        + 'character. For a campaign character, award AP from its roster card above instead. Still '
+        + 'usable if you need them.'
+        : '';
+    }
+  }
   var currentCampaigns = [];
   var archivedCampaigns = [];
   var currentCampId = null;

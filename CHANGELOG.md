@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · fix(dm-console): the AP grant code stops pretending to be per-character; local tools
+  grouped below the cloud campaign** — the grant card asked you to tick each character and set an amount
+  each, implying every code was bound to a character. `dmMakeGrant()` encodes an **amount and a note and
+  nothing else**, so every generated code worked for whoever pasted it — the UI described a binding the
+  format never had. Reduced to one amount, one note, one code, with the sharing model stated plainly.
+  The two non-cloud cards (Import roster · AP grant code) now sit inside one **Local files & grant
+  codes** master card placed *below* Campaign (cloud), and dim with an explanation once the loaded
+  campaign actually has characters — pointing at the roster's own Award AP instead. Dimmed, not
+  disabled: importing a local file for reference while running a cloud campaign is still legitimate, so
+  this is guidance rather than a lock, and hover/focus restores full opacity.
+
 - **2026-08-03 · fix(chargen,livesheet): loading a campaign character no longer conjures 79 player AP;
   the tool-switch keeps its campaign** — three separate faults, all downstream of moving the invite grant
   into the DM pool. (1) `applyBuild` used `b.budget || DATA.level1AP`, treating a legitimate **0** as
