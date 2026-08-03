@@ -116,19 +116,61 @@ function _nonNegInt(n) {
  *
  * The invite used to carry two numbers, the second of which the client seeded into the
  * character's LOG as PLAYER AP — which any campaign with `ignore_player_ap` then discarded
- * outright (see D-GH-2026-08-03-invite-single-ap-grant). `p_starting_budget` is still sent
- * as 0 rather than omitted: the RPC keeps its three-parameter signature so a Pages deploy
- * and a DB migration need not be atomic, and a defaulted argument would make an arity-2
- * overload ambiguous.
+ * outright (see D-GH-2026-08-03-invite-single-ap-grant). `p_starting_budget` is still sent as 0
+ * rather than omitted so the intent is explicit at the call site; the column is deprecated and the
+ * RPC folds it into the single grant regardless.
+ *
+ * `note` is a DM-written label shown in the invite list (D-GH-2026-08-03-dm-invite-manager). It is
+ * readable by the redeeming player via campaign_invites_select once redeemed — a label, not private
+ * commentary.
  */
-export async function createPlayerInvite(campaignId, startingAp) {
+export async function createPlayerInvite(campaignId, startingAp, note) {
   const { data, error } = await supabase.rpc('create_player_invite', {
     p_campaign_id: campaignId,
     p_starting_ap: _nonNegInt(startingAp),
     p_starting_budget: 0,
+    p_note: (note == null ? null : String(note)),
   });
   if (error) throw error;
   return data;
+}
+
+/**
+ * DM-only: every invite ever issued for this campaign, newest first, with the redeemer's
+ * display name and the character the invite produced. Goes through an RPC rather than a direct
+ * select because those joins cross tables the caller's own RLS won't let them read wholesale;
+ * the function gates on is_campaign_dm() internally.
+ * @returns {Promise<Array<{id, token, note, startingAp, createdAt, revokedAt, redeemedAt,
+ *                          redeemedByName, characterId, characterName}>>}
+ */
+export async function listCampaignInvites(campaignId) {
+  const { data, error } = await supabase.rpc('list_campaign_invites', { p_campaign: campaignId });
+  if (error) throw error;
+  return (data || []).map(r => ({
+    id: r.id,
+    token: r.token,
+    note: r.note || '',
+    startingAp: r.starting_ap || 0,
+    createdAt: r.created_at,
+    revokedAt: r.revoked_at,
+    redeemedAt: r.redeemed_at,
+    redeemedByName: r.redeemed_by_name || null,
+    characterId: r.character_id || null,
+    characterName: r.character_name || null,
+  }));
+}
+
+/**
+ * DM-only: withdraw (or restore) an UNREDEEMED invite. Soft — the row is kept so the record of what
+ * was issued survives. A redeemed invite is immutable and the RPC rejects it: the character already
+ * exists and its AP was already granted, so "revoked" would describe a state that isn't true.
+ */
+export async function setInviteRevoked(inviteId, revoked = true) {
+  const { data, error } = await supabase.rpc('set_invite_revoked', {
+    p_invite: inviteId, p_revoked: !!revoked,
+  });
+  if (error) throw error;
+  return data;   // the new revoked_at, or null when restored
 }
 
 /**

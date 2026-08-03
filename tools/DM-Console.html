@@ -137,6 +137,21 @@
   #grantPanel .grantPanelBody{margin-top:8px}
   .grantgrid{display:grid; grid-template-columns:90px 1fr auto; gap:8px; align-items:end}
   .grantgrid .full{grid-column:1 / -1}
+  /* Invite list. The link is a read-only field rather than raw text so it can be selected and copied
+     without the DM hunting for the end of a 32-character token. */
+  .invrow{border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-bottom:6px;background:var(--card)}
+  .invrow.spent{opacity:.62}
+  .invrow .invtop{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .invrow .invnote{font-weight:700;font-size:12px;flex:1 1 160px;min-width:0;overflow-wrap:anywhere}
+  .invrow .invnote.none{font-weight:400;font-style:italic;color:var(--muted)}
+  .invrow .invap{font-size:11px;font-weight:700;background:var(--lt);color:var(--navy);border-radius:9px;padding:1px 7px;white-space:nowrap}
+  .invrow .invmeta{font-size:11px;color:var(--muted);margin-top:2px}
+  .invrow .invstate{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;border-radius:9px;padding:1px 7px;white-space:nowrap}
+  .invrow .invstate.open{background:#2E7D32;color:#fff}
+  .invrow .invstate.used{background:var(--lt);color:var(--navy)}
+  .invrow .invstate.gone{background:transparent;color:var(--muted);border:1px dashed var(--line)}
+  .invrow .invacts{display:flex;gap:5px;align-items:center;margin-top:5px;flex-wrap:wrap}
+  .invrow .invlink{flex:1 1 220px;min-width:0;font-size:11px}
   .grantnote{font-size:11px;color:var(--muted);margin-top:7px}
   .codeRow{display:flex; gap:8px; margin-top:8px}
   .codeRow .field.ro{flex:1}
@@ -574,6 +589,10 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                   <span>Starting AP <button type="button" class="infobtn" title="The AP this player begins with — one pool, granted as DM AP on the character record. They spend it building the character and it keeps funding purchases afterwards; it is exactly the same pool the “Award AP” action tops up later. Stored server-side and DM-only, so the player can’t edit or undo their own grant, and it is unaffected by the campaign’s “ignore player AP” switch. Pre-filled from “Starting tier” in the Level budget curve panel below; editable per invite. Worth matching to your curve’s L1 (Standard 79, Generous 83): a character stays on cheap creation pricing until spend passes that figure, so a matching grant lets them finish the build the campaign paid for before anything locks.">ⓘ</button></span>
                   <input class="field" type="number" id="inviteStartAp" placeholder="0" min="0" step="1" style="width:140px">
                 </label>
+                <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);flex:1 1 200px">
+                  <span>Note <button type="button" class="infobtn" title="A label for your own reference — who this invite is for, or why. It appears in the invite list below so an unredeemed link is identifiable months later, and it becomes the note on the AP award the character receives. The player who redeems this invite can read it, so treat it as a label rather than private DM commentary.">&#9432;</button></span>
+                  <input class="field" type="text" id="inviteNote" maxlength="200" placeholder="e.g. Rusty — replacement rogue">
+                </label>
                 <button type="button" class="btn sm" id="createInviteBtn">Generate invite link</button>
               </div>
               <div id="inviteLinkRow" style="display:none;align-items:center;gap:6px;margin-top:6px">
@@ -582,6 +601,16 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               </div>
               <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
               <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign, holding the Starting AP above as DM-granted AP. Distinct from the reusable Players code above, which creates a blank character with no preset AP.</div>
+              <div id="inviteListWrap" style="margin-top:10px">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <b style="font-size:12px">Invites issued</b>
+                  <label style="font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:5px;cursor:pointer">
+                    <input type="checkbox" id="inviteShowAll"> Show redeemed &amp; withdrawn
+                  </label>
+                  <button type="button" class="btn sm ghost" id="inviteRefresh" style="margin-left:auto">Refresh</button>
+                </div>
+                <div id="inviteList" style="margin-top:6px"></div>
+              </div>
             </div>
           </div>
 
@@ -829,7 +858,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.315';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.317';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1752,9 +1781,9 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). A failure here costs campaigns and the roster, not the
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
-  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
+  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
   import { getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes } from '../js/dm.js';
-  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes, createPlayerInvite, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes, createPlayerInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
 <script>
@@ -1793,6 +1822,10 @@ document.addEventListener('campaign-ready', function () {
   var campRosterName = document.getElementById('campRosterName');
   var ignoreChk    = document.getElementById('ignorePlayerAp');
   var inviteStartAp = document.getElementById('inviteStartAp');
+  var inviteNote    = document.getElementById('inviteNote');
+  var inviteList    = document.getElementById('inviteList');
+  var inviteShowAll = document.getElementById('inviteShowAll');
+  var inviteRefresh = document.getElementById('inviteRefresh');
   var createInviteBtn = document.getElementById('createInviteBtn');
   var inviteLinkRow = document.getElementById('inviteLinkRow');
   var inviteLinkOut = document.getElementById('inviteLinkOut');
@@ -2139,6 +2172,7 @@ document.addEventListener('campaign-ready', function () {
     campSection.style.display = 'block';
     campRosterName.textContent = camp.name;
     loadRoster(id);
+    loadInvites();
   }
 
   campSel.addEventListener('change', function(){ selectCampaign(campSel.value); });
@@ -2192,18 +2226,127 @@ document.addEventListener('campaign-ready', function () {
     await B.setIgnorePlayerAp(currentCampId, ignoreChk.checked);
   });
 
+  // ---- Invites issued -------------------------------------------------------------------------
+  // Before this, an invite link existed only in whatever the DM pasted it into: nothing listed
+  // outstanding invites, so unredeemed ones piled up invisibly (Amble had nine) with no way to tell
+  // which was meant for whom or what AP it carried. Since the grant became a character's entire
+  // starting AP, that is a question with real consequences.
+  var _invites = [];
+
+  async function loadInvites(){
+    if(!currentCampId || !inviteList) return;
+    inviteList.textContent = 'Loading…';
+    try {
+      _invites = await B.listCampaignInvites(currentCampId);
+      renderInvites();
+    } catch(err){
+      inviteList.textContent = 'Could not load invites: ' + (err && err.message ? err.message : err);
+    }
+  }
+
+  function inviteUrl(token){
+    return new URL('PACT-CharGen-Webtool.html?invite=' + encodeURIComponent(token), location.href).href;
+  }
+
+  function renderInvites(){
+    if(!inviteList) return;
+    var showAll = !!(inviteShowAll && inviteShowAll.checked);
+    var rows = _invites.filter(function(v){
+      return showAll || (!v.redeemedAt && !v.revokedAt);
+    });
+    if(!rows.length){
+      inviteList.innerHTML = '<div class="grantnote" style="margin-top:0">' +
+        (_invites.length ? 'No outstanding invites. Tick “Show redeemed &amp; withdrawn” to see the ' +
+                           _invites.length + ' already issued.'
+                         : 'No invites issued for this campaign yet.') + '</div>';
+      return;
+    }
+    // esc() on every player-controlled value that reaches innerHTML — notes and display names are
+    // written by users and rendered in another user's browser (hard invariant, REV-12).
+    inviteList.innerHTML = rows.map(function(v){
+      var spent = !!(v.redeemedAt || v.revokedAt);
+      var state = v.redeemedAt ? '<span class="invstate used">Redeemed</span>'
+                : v.revokedAt  ? '<span class="invstate gone">Withdrawn</span>'
+                               : '<span class="invstate open">Open</span>';
+      var meta;
+      if(v.redeemedAt){
+        meta = 'Redeemed ' + esc(String(v.redeemedAt).slice(0,10)) +
+               (v.redeemedByName ? ' by ' + esc(v.redeemedByName) : '') +
+               (v.characterName ? ' — ' + esc(v.characterName) : '');
+      } else if(v.revokedAt){
+        meta = 'Withdrawn ' + esc(String(v.revokedAt).slice(0,10)) +
+               ' · issued ' + esc(String(v.createdAt).slice(0,10));
+      } else {
+        meta = 'Issued ' + esc(String(v.createdAt).slice(0,10)) + ' · not yet redeemed';
+      }
+      var acts = '';
+      if(!spent){
+        acts = '<div class="invacts">' +
+               '<input class="field ro invlink" readonly value="' + esc(inviteUrl(v.token)) + '">' +
+               '<button type="button" class="btn sm ghost" data-copy="' + esc(v.token) + '">Copy</button>' +
+               '<button type="button" class="btn sm ghost" data-revoke="' + esc(v.id) + '">Withdraw</button>' +
+               '</div>';
+      } else if(v.revokedAt){
+        acts = '<div class="invacts">' +
+               '<button type="button" class="btn sm ghost" data-restore="' + esc(v.id) + '">Restore</button>' +
+               '</div>';
+      }
+      return '<div class="invrow' + (spent ? ' spent' : '') + '">' +
+               '<div class="invtop">' +
+                 '<span class="invnote' + (v.note ? '' : ' none') + '">' +
+                   (v.note ? esc(v.note) : 'No note') + '</span>' +
+                 '<span class="invap">' + esc(String(v.startingAp)) + ' AP</span>' +
+                 state +
+               '</div>' +
+               '<div class="invmeta">' + meta + '</div>' +
+               acts +
+             '</div>';
+    }).join('');
+
+    inviteList.querySelectorAll('[data-copy]').forEach(function(b){
+      b.addEventListener('click', function(){
+        navigator.clipboard.writeText(inviteUrl(b.dataset.copy));
+        b.textContent = 'Copied'; setTimeout(function(){ b.textContent = 'Copy'; }, 1200);
+      });
+    });
+    inviteList.querySelectorAll('[data-revoke]').forEach(function(b){
+      b.addEventListener('click', function(){ setRevoked(b.dataset.revoke, true, b); });
+    });
+    inviteList.querySelectorAll('[data-restore]').forEach(function(b){
+      b.addEventListener('click', function(){ setRevoked(b.dataset.restore, false, b); });
+    });
+  }
+
+  async function setRevoked(id, revoked, btn){
+    if(revoked && !confirm('Withdraw this invite? The link stops working. Nothing already redeemed is affected.')) return;
+    btn.disabled = true;
+    try {
+      await B.setInviteRevoked(id, revoked);
+      await loadInvites();
+    } catch(err){
+      inviteStatus.textContent = 'Error: ' + (err && err.message ? err.message : err);
+      btn.disabled = false;
+    }
+  }
+
+  if(inviteShowAll) inviteShowAll.addEventListener('change', renderInvites);
+  if(inviteRefresh) inviteRefresh.addEventListener('click', loadInvites);
+
   createInviteBtn.addEventListener('click', async function(){
     if(!currentCampId) return;
     var ap = parseInt(inviteStartAp.value, 10); if(!(ap >= 0)) ap = 0;
+    var note = (inviteNote && inviteNote.value || '').trim();
     createInviteBtn.disabled = true;
     inviteStatus.textContent = 'Generating…';
     inviteLinkRow.style.display = 'none';
     try {
-      var token = await B.createPlayerInvite(currentCampId, ap);
+      var token = await B.createPlayerInvite(currentCampId, ap, note);
       var url = new URL('PACT-CharGen-Webtool.html?invite=' + encodeURIComponent(token), location.href).href;
       inviteLinkOut.value = url;
       inviteLinkRow.style.display = 'flex';
       inviteStatus.textContent = 'Single-use — share this link with the player.';
+      if(inviteNote) inviteNote.value = '';   // the note is now recorded on the invite itself
+      loadInvites();
     } catch(err){
       inviteStatus.textContent = 'Error: '+err.message;   // .textContent is inherently XSS-safe -- esc() here would double-escape entities into literal garbled text
     }
