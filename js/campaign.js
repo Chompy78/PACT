@@ -121,8 +121,9 @@ function _nonNegInt(n) {
  * RPC folds it into the single grant regardless.
  *
  * `note` is a DM-written label shown in the invite list (D-GH-2026-08-03-dm-invite-manager). It is
- * readable by the redeeming player via campaign_invites_select once redeemed — a label, not private
- * commentary.
+ * DM-ONLY: `note` is withheld from `authenticated` at the column level, so the redeeming player cannot
+ * read it even though campaign_invites_select lets them see the rest of their own row
+ * (D-GH-2026-08-03-invite-note-dm-only). Read it back via listCampaignInvites(), never a direct select.
  */
 export async function createPlayerInvite(campaignId, startingAp, note) {
   const { data, error } = await supabase.rpc('create_player_invite', {
