@@ -71,8 +71,18 @@ export const CHAR_SCHEMA = 'pact-character/1';
 // way back in (the local load reads LOG directly), so signing them on every keystroke/buy is wasted work.
 // `sig` is metadata the engine never reads, so a signed envelope prices and rebuilds identically to an
 // unsigned one; older/unsigned files still load (verify → 'unsigned').
-export function buildCharacterEnvelope({ name, rules, LOG, SEQ, id }, { sign = true } = {}) {
+// `campaignId` records only the BINDING — which campaign this character belongs to — never the DM AP
+// number itself. js/engine.js's ANTI-DOUBLE-COUNT INVARIANT forbids writing dmAp into an export: the
+// cloud row keeps its `ap`, so a file carrying the number too would double-count the moment it synced
+// back. Carrying the binding instead lets a reader do the correct thing without duplicating the value —
+// fetch the authoritative `ap` from the server when signed in, and otherwise report DM AP as
+// *unavailable* rather than silently zero, which is what made an exported campaign character read as
+// wildly over budget. (Clone-to-standalone remains the one path that converts DM AP into log entries,
+// and it is safe precisely because it severs the campaign and resets ap to 0 — see
+// D-GH-2026-07-11-clone-campaign-character-standalone.)
+export function buildCharacterEnvelope({ name, rules, LOG, SEQ, id, campaignId }, { sign = true } = {}) {
   const envelope = { schema: CHAR_SCHEMA, rules, name: name || '', LOG, SEQ, id };
+  if (campaignId) envelope.campaignId = campaignId;   // omitted entirely for local-only characters
   return sign ? signPayload(envelope) : envelope;
 }
 
@@ -134,6 +144,7 @@ export function writeHandoff(data) {
     SEQ: data.SEQ,
     rules: data.rules,
     id: data.id,
+    campaignId: data.campaignId || null,   // binding only, never the DM AP value — see buildCharacterEnvelope
   };
   try { localStorage.setItem(HANDOFF_PREFIX + id, JSON.stringify(payload)); } catch (e) {
     console.error('PACT character-store: handoff write failed', e);
