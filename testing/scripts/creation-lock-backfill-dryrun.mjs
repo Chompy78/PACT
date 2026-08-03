@@ -24,9 +24,15 @@
 // exported read-only from the database. This script never connects to anything.
 
 import { readFile } from 'node:fs/promises';
-import { compute, foldBuild, DATA } from '../../js/engine.js';
+import { compute, foldBuild, DATA, creationLockThreshold } from '../../js/engine.js';
 
 const TRAIT_PROBE = 'Halfling: Naturally Stealthy';   // own-species, non-pack, banded => reprices on lock
+
+// Optional 2nd arg: a JSON file of {campaignId: rulesObject}. When supplied, the backfill also
+// stamps each character's campaign creation-lock threshold (from that campaign's BUDGET curve —
+// see creationLockThreshold()), instead of letting the engine fall back to DATA.level1AP, which is
+// the PACE curve's L1 and the wrong number for this question.
+const rulesFile = process.argv[3];
 
 function deepDiff(a, b, path = '', out = []) {
   if (a === b) return out;
@@ -43,6 +49,7 @@ const file = process.argv[2];
 if (!file) { console.error('usage: node creation-lock-backfill-dryrun.mjs <characters.json>'); process.exit(2); }
 
 const chars = JSON.parse(await readFile(file, 'utf8'));
+const campRules = rulesFile ? JSON.parse(await readFile(rulesFile, 'utf8')) : null;
 let failures = 0;
 
 console.log(`creation-lock backfill DRY RUN — ${chars.length} character(s), read-only\n`);
@@ -57,6 +64,14 @@ for (const c of chars) {
   const marker = { type: 'campaignBound', campaignId: c.campaign_id, seq: seqMax + 1, ts: Date.now(),
                    label: 'Campaign — backfilled membership marker' };
   const after = [...log, marker];
+  // Stamp the campaign's threshold alongside the membership marker, so the lock fires against the
+  // BUDGET curve rather than the engine's pace-curve fallback.
+  let thr = null;
+  if (campRules) {
+    thr = creationLockThreshold(campRules[c.campaign_id]);
+    after.push({ type: 'creationLockConfig', payload: { threshold: thr }, seq: seqMax + 2,
+                 ts: Date.now(), label: `Campaign creation-lock threshold (${thr} AP)` });
+  }
 
   const bBefore = foldBuild(log),  rBefore = compute(bBefore);
   const bAfter  = foldBuild(after), rAfter = compute(bAfter);
@@ -79,12 +94,14 @@ for (const c of chars) {
 
   // Effectiveness: would a NEW own-species trait purchase after the marker price as locked?
   const probe = { type: 'buy', cat: 'racial', payload: { v: TRAIT_PROBE }, cost: 0,
-                  seq: seqMax + 2, ts: Date.now(), label: 'probe' };
+                  seq: seqMax + 3, ts: Date.now(), label: 'probe' };
   const bProbe = foldBuild([...after, probe]);
   const lockedNow = !!(bProbe._raceTraitLocked || {})[TRAIT_PROBE];
-  const overThreshold = spent > DATA.level1AP;
+  const effThr = thr != null ? thr : DATA.level1AP;
+  const overThreshold = spent > effThr;
   console.log(`  effect: a future "${TRAIT_PROBE}" would price ${lockedNow ? 'LOCKED (expensive)' : 'unlocked (cheap)'}`
-            + ` — spend ${spent} ${overThreshold ? '>' : '<='} threshold ${DATA.level1AP}`);
+            + ` — spend ${spent} ${overThreshold ? '>' : '<='} threshold ${effThr}`
+            + (thr != null ? ' (campaign budget curve)' : ' (engine fallback — no campaign rules supplied)'));
   if (!lockedNow && overThreshold) { failures++; console.log('  WARNING: over threshold but not locking — backfill would be ineffective'); }
   console.log('');
 }
