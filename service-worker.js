@@ -8,6 +8,9 @@ const PRE_CACHE = [
   '/PACT/js/engine-data.js',
   '/PACT/js/character-store.js',
   '/PACT/js/supabase-client.js',
+  // Version-pinned vendor build: cache-first is SAFE here precisely because the filename carries the
+  // version, so an update is a different URL and can never be served stale against a newer caller.
+  '/PACT/js/vendor/supabase-js-2.110.2.js',
   '/PACT/js/auth.js',
   '/PACT/js/sync.js',
   '/PACT/js/campaign.js',

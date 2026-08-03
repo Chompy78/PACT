@@ -13,6 +13,26 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-03-vendor-supabase-js** — the Supabase client was imported from esm.sh, making every
+  cloud feature depend on a third-party CDN at page load; an ES module import failure aborts the whole
+  script, so an outage or a block took the cloud half of every tool down. Now vendored as
+  `js/vendor/supabase-js-2.110.2.js`. Chose the official UMD build (1 file, 206KB, zero imports) over
+  esm.sh's ESM form (6 files, 268KB, including injected node polyfills), adapted with a two-line export
+  footer and no transform — the UMD's top-level `var` is module-scoped inside an ES module, so exporting
+  it is the entire change. The version in the filename is load-bearing: an update is a new URL, so the
+  service worker can never serve it stale, which is what lets it stay cache-first. Verified with every
+  third-party host blocked: all three tools now fire their cloud event, which previously never fired at
+  all. Full record: `decisions/2026/D-GH-2026-08-03-vendor-supabase-js.md`.
+
+- **D-GH-2026-08-03-invite-note-dm-only** — RLS is row-level, so the redeemer clause on
+  `campaign_invites_select` let a player read the DM's `note` on their own invite. Withheld at the COLUMN
+  level; the DM still reads it through the SECURITY DEFINER `list_campaign_invites()`. Turned on a
+  Postgres subtlety worth remembering: a column-level REVOKE cannot subtract from a table-level GRANT —
+  it reports success and does nothing — so the blanket grant must be dropped and the wanted columns
+  granted explicitly. Consequence: `select *` on this table now fails loudly for `authenticated`, which
+  is preferred to silently re-leaking the column. Full record:
+  `decisions/2026/D-GH-2026-08-03-invite-note-dm-only.md`.
+
 - **D-GH-2026-08-03-invite-grant-award-row** — `redeem_player_invite` set `characters.ap` directly and
   wrote no `ap_awards` row, so once the invite grant became a character's entire starting AP that number
   had no provenance (`ap_awards`: 0 rows campaign-wide). Not just an audit gap — Live Sheet's
