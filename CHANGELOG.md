@@ -6,6 +6,23 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · fix(chargen,livesheet): loading a campaign character no longer conjures 79 player AP;
+  the tool-switch keeps its campaign** — three separate faults, all downstream of moving the invite grant
+  into the DM pool. (1) `applyBuild` used `b.budget || DATA.level1AP`, treating a legitimate **0** as
+  "missing". Harmless while every campaign character carried a LOG award; a data bug the moment their
+  budget legitimately folded to 0 — each load wrote 79 into the field and `_cgSyncAward()` emitted
+  `award 79`, manufacturing player AP from nothing. Inert on a campaign with `ignore_player_ap`, silently
+  inflating the budget on any campaign without it. The budget `<select>` also started at 12 and so could
+  not represent 0 at all: it blanked, and the empty-field fallback minted 79 regardless. Fixed at all
+  three points — nullish default, a numeric parse that accepts 0, a 0 option in the select, and no
+  zero-award minted for a character that has none. (2) The Live Sheet's handoff-receive never adopted the
+  campaign binding, so a CharGen → Live Sheet → CharGen round-trip reported `campaignId: null` and the
+  character appeared detached with 0 DM AP — the database row was never touched. It now adopts the
+  binding and resolves the authoritative `ap` from the server. (3) The version banner was a one-shot side
+  effect that never cleared, so a banner raised by an earlier stale load sat over a current-version
+  character and contradicted the version line beside it; it is now recomputed from `loadedRules` on every
+  render, like the line it disagreed with.
+
 - **2026-08-03 · feat(dm-console): invites are listed, labelled and withdrawable** (SQL migrations
   `2026-08-03-invite-notes-and-revoke.sql`, `-invite-manager-grant-lockdown.sql`) — a generated invite
   link previously existed only wherever the DM pasted it, so unredeemed ones accumulated invisibly
