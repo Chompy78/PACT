@@ -6,6 +6,26 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · fix(sw): a network-first module must not import a cache-first one** (`CACHE_NAME`
+  `pact-v7` → `pact-v8`) — `js/sync.js` is network-first and began importing `isCloudCharId` from
+  `js/character-store.js`, which was cache-first. Returning users therefore ran today's `sync.js` against
+  a cached `character-store.js` with no such export, and a named ES import the target doesn't export is a
+  **link-time** failure: the whole module graph refused to instantiate. The cloud bridge died on every
+  normal load while the engine bridge (importing only pre-existing names) linked fine — producing a
+  rendered-but-cloud-less app: empty "My Characters" for an account with 8 characters, invites never
+  redeemed so the previous character stayed on screen, "Sign in for campaign rules" while signed in, and
+  the Live Sheet's cloud-unreachable banner. A hard refresh bypasses the service worker, which is exactly
+  why everything "worked after a hard refresh". `character-store.js` is now network-first and the cache
+  name is bumped so already-broken browsers self-heal on next load. **New guard:**
+  `testing/scripts/audit.py` check `service-worker import freshness` fails if any network-first module
+  imports a cache-first one — verified to go red on this exact bug and green once fixed.
+
+- **2026-08-03 · fix(chargen,characters): feedback button no longer covers the AP ledger; My Characters
+  gets a Back control** — the fixed feedback button sat on the last rows of CharGen's ledger, so
+  `#sumdetails` now reserves its footprint rather than moving an affordance all three tools share. My
+  Characters only offered "All tools", so arriving from a tool left no way back to it; a Back button now
+  appears when there's same-origin history to return to, and stays hidden when there isn't.
+
 - **2026-08-03 · fix(invites,chargen,livesheet): an invite grant is a recorded award; a saved file keeps
   its campaign binding** (SQL migration `2026-08-03-invite-grant-award-row.sql`) — redemption now writes
   an `ap_awards` row for the grant, attributed to the DM who created the invite rather than the redeeming

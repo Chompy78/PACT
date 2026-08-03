@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pact-v7';
+const CACHE_NAME = 'pact-v8';   // v8: purge caches holding a pre-isCloudCharId character-store.js (see below)
 
 const PRE_CACHE = [
   '/PACT/',
@@ -37,8 +37,20 @@ const PRE_CACHE = [
 // D-GH-2026-07-16-sw-network-first-security-modules — this fetch handler already falls back to the cached
 // copy on failure, so widening this list costs nothing in offline capability, only speeds up fix
 // propagation for online users).
-// Everything else (icons, character-store.js, feedback.js) stays cache-first for speed.
-const NETWORK_FIRST_RE = /\.html$|\/PACT\/$|\/js\/(engine|engine-data|auth|supabase-client|sync|campaign|dm|ui-helpers|ap-by-level|advancement)\.js$/;
+// character-store.js was added to this list on 2026-08-03, and the reason is a bug worth remembering.
+// It was cache-first while js/sync.js (network-first) began importing `isCloudCharId` from it. Returning
+// users therefore got TODAY's sync.js against YESTERDAY's cached character-store.js — and a named ES
+// import that the target module doesn't export is a LINK-TIME failure, so the whole module graph refused
+// to instantiate. The cloud bridge died on every normal page load while the engine bridge (which only
+// imports names that already existed) linked fine, producing a rendered-but-cloud-less app: empty "My
+// Characters", invites never redeemed, "Sign in for campaign rules" while signed in. A hard refresh
+// bypasses the SW and fetched a fresh copy, which is why it "worked after a hard refresh".
+//
+// THE RULE THIS ENCODES: a module imported by any network-first module must ITSELF be network-first.
+// Mixed freshness across an import edge is not a caching trade-off, it is a broken build. testing/
+// scripts/audit.py now enforces this so it can't be reintroduced by adding an innocent-looking import.
+// Everything else (icons, feedback.js) stays cache-first for speed.
+const NETWORK_FIRST_RE = /\.html$|\/PACT\/$|\/js\/(engine|engine-data|character-store|auth|supabase-client|sync|campaign|dm|ui-helpers|ap-by-level|advancement)\.js$/;
 
 self.addEventListener('install', e => {
   e.waitUntil(
