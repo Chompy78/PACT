@@ -17,11 +17,36 @@
 
 import { signPayload, verifyPayload } from './engine.js';   // tamper-evident save signing (D-GH48, Feature B)
 
-// Stable per-character id. Migrated verbatim from the byte-identical copies previously
-// duplicated in both tools — the first shared primitive, establishing the pattern.
+// Stable per-character id — a UUID, because `characters.id` in Postgres is a `uuid` column.
+//
+// This used to mint 'c' + base36-timestamp + random (e.g. "cmscl7ilrr5muh"), migrated verbatim
+// from the byte-identical copies both tools carried before this module existed. That predated the
+// cloud entirely, and once cloud sync arrived it became a silent one-way door: a character born
+// locally could NEVER be saved to the cloud, because Postgres rejects the id outright with
+// `invalid input syntax for type uuid`. Worse, saveCharacter() writes localStorage before it
+// pushes, so each failed attempt left a local-only copy behind — the same character appearing
+// twice in My Characters, once from the cloud and once from the orphaned local record. Only
+// cloud-BORN characters (invite redemption, which gets its id from the server) ever worked.
+//
+// Legacy 'c…' ids already in localStorage stay readable; js/sync.js's saveCharacter() migrates one
+// to a fresh UUID the first time it's pushed, and returns the new id for the caller to adopt.
 export function genCharId() {
-  return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  // crypto.randomUUID needs a secure context; fall back to a v4 built from getRandomValues so
+  // file:// and plain-http LAN testing still produce a cloud-compatible id.
+  const b = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(b);
+  else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+  b[6] = (b[6] & 0x0f) | 0x40;   // version 4
+  b[8] = (b[8] & 0x3f) | 0x80;   // variant 10x
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
+
+// Is this id one Postgres will accept for characters.id? Used by the sync layer to spot a legacy
+// pre-UUID id and migrate it rather than firing a doomed insert.
+const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isCloudCharId(id) { return _UUID_RE.test(String(id || '')); }
 
 // ---- unified save/export file format (D-GH40) ----
 // Before this, CharGen's native save, CharGen's "export to Live Sheet", and the Live Sheet's native

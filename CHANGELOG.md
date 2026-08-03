@@ -6,6 +6,113 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · fix(sync): character ids are UUIDs — locally-born characters can finally reach the
+  cloud** — `genCharId()` minted `'c'+base36` (e.g. `cmscl7ilrr5muh`) while `characters.id` is a
+  Postgres `uuid`, so saving a locally-created character failed with `invalid input syntax for type
+  uuid` — and since `saveCharacter()` writes localStorage before pushing, every attempt left an
+  orphaned local copy, showing the same character twice in My Characters. Only cloud-born characters
+  (invite redemption) had ever synced. Ids are now `crypto.randomUUID()` (with a `getRandomValues`
+  v4 fallback for non-secure contexts); new `isCloudCharId()`; `saveCharacter()` migrates a legacy id
+  on first push and returns it, and all four save call sites adopt it — the join-campaign path
+  reassigns its local `id` too, since `bindCharacterToCampaign` runs straight afterwards. See
+  `decisions/2026/D-GH-2026-08-03-uuid-character-ids.md`.
+
+- **2026-08-03 · feat(characters): My Characters shows ☁ Cloud vs 📥 Device only** — both kinds rendered
+  identically, so a character that had never reached the server looked as safe as one that had.
+  `listMyCharacters()` now tags each row `cloud`/`pendingSync`; offline it reports what the device last
+  knew (`!dirty`). This is also what lets an owner tell an orphaned local duplicate from the real row.
+
+- **2026-08-03 · fix(invites): ONE AP grant per invite, paid as DM AP** (SQL migration
+  `2026-08-03-invite-single-ap-grant.sql`) — an invite carried two numbers and the second, "Creation
+  budget", was seeded into the character's LOG as **player** AP. `compute()` resolves
+  `spendable = (ignorePlayerAp ? 0 : playerAp) + dmAp`, so on a campaign with "ignore player AP" set,
+  the whole grant was awarded and discarded on the same pass. Live example: Amble issued 36 + 55, the
+  player could spend 36, and CharGen announced "created with 55 AP budget". Now one "Starting AP" field
+  paid into `characters.ap` — correct whichever way the toggle is set, and unlike a LOG award the
+  player can't edit their own grant. Both RPCs keep their signatures and fold
+  `starting_ap + starting_budget` server-side, so a Pages deploy and a DB migration need not be atomic
+  and pre-migration invites still pay out in full; `starting_budget` is deprecated and always written 0
+  but deliberately **not** dropped. Advisor re-run after the migration: no new findings. See
+  `decisions/2026/D-GH-2026-08-03-invite-single-ap-grant.md`.
+
+- **2026-08-03 · feat(chargen): cloud autosave for campaign-bound characters** — CharGen only ever wrote
+  to the cloud on an explicit action, so a player who redeemed an invite and started building stayed
+  invisible in their DM's roster until they happened to press Save. Now debounced (3 s after edits stop)
+  for characters bound to a campaign — the one case where somebody else is waiting on the data. Solo
+  local builds keep manual saving and today's traffic profile. Pushes never overlap (`pushCharacter()`
+  is a bare update-then-insert with no dirty check, so a slow request overtaken by a fast one could land
+  the older build last), and failures stay silent because the local autosave already holds the work.
+
+- **2026-08-03 · fix(chargen,dm-console): campaign status line after a join; a named character keeps its
+  name in the DM roster** — CharGen's header kept reading "Signed in — no campaign selected" for a
+  demonstrably bound character: the `<select>` was built at sign-in *before* the join so
+  `selEl.value = camp.id` no-opped, and `renderStatus()` was never called from outside its closure. New
+  `_cgAdoptCampaign()` fixes both. In DM Console, a character the player had named and saved rendered as
+  "Unnamed character" — `hasData` rightly requires a `buy` event, but the placeholder card never
+  consulted the `name` column that `getRoster()` already selects.
+
+- **2026-08-03 · fix(dm-console): Starting tier AP follows the budget curve's L1** — the tier is a ratio
+  of L1, but only recomputed when the *tier* dropdown changed, so switching Standard→Generous left the
+  invite prefill on the old number (Amble: tier 79 against a curve L1 of 83). Now recomputes when L1 or
+  the curve preset moves, and never overwrites a DM's own 'custom' figure.
+
+- **2026-08-03 · fix(dm-console): explain the advancement dials and the two invite AP fields** — added
+  an ⓘ to each of “Level budget curve”, “Award pace (AP per session)” and “Starting tier (new-PC
+  budget)” spelling out what each dial actually drives (and, for the budget curve, that it now also
+  sets the creation-lock threshold — its note previously claimed “display only”). Rewrote the invite
+  form's two tooltips: both grants are spendable, and the real difference is ownership — **Creation
+  budget** becomes the first entry in the player's own AP ledger (“Starting creation budget (79 AP)”,
+  theirs to undo/redo against), while **Bonus DM AP** lives on the character record server-side,
+  DM-only, invisible in that ledger. The old Bonus DM AP tooltip said it “does NOT get spent building
+  the character”, which was wrong: `compute()` sets `spendable = playerAp + dmAp`. UI text only.
+
+- **2026-08-03 · fix(rules): the AP-by-level ladder is the Standard BUDGET curve — 50 → 79 at L1**
+  (`DATA.version` **v0.337 → v0.338**) — `js/ap-by-level.js`'s `{1:50, 2:92 … 20:491}` was never a
+  rules curve. Per the Players Guide it was the appendix roster of twenty pregenerated Emberwatch
+  sample characters (“a 1st-level recruit (50 AP) to a 20th-level archmage (491 AP)”), transcribed
+  into a table and subsequently mislabelled a “pace curve”. PACT has a **budget** curve (what a
+  complete level-N build has spent: Standard L1 79/+24, Generous 83/+28) and an **award pace** (AP per
+  *session*, ~7) — and no AP-earned-per-level schedule at all. The ladder is now derived from
+  `LEVEL_BUDGET_CURVES.standard` by a new `budgetLadder({l1,inc})` covering levels **0–20** (level 0 =
+  55 on both presets, the Guide's prelude tier, straight out of the same formula). `DATA.level1AP` and
+  `DATA.defaultAp` become **79**, so a new solo character is offered a real level-1 budget and the
+  creation lock's fallback threshold is right by default. Also updated CharGen's budget picker default
+  and its stale hint (“L1 50 · L5 176 … L20 491”). Parity **24/0** with `testing/expected/` untouched
+  — the four threshold fixtures had their filler spend and their matching award raised by the same
+  delta, so `remaining` and every expected value held still; audit 27/0, fuzz 500/500, browser e2e
+  3/3. See `decisions/2026/D-GH-2026-08-03-ap-budget-curve-standard.md`.
+
+- **2026-08-03 · fix(engine): creation-lock threshold reads the campaign's BUDGET curve, not the pace
+  curve** — *(“pace curve” here is the mislabel corrected by the entry above; the mechanism it
+  describes is unaffected)* — the auto-lock compared AP spent against `DATA.level1AP` (50). That's the *pace* curve —
+  AP **earned** by level. The lock asks "is this character finished being built?", a question about
+  **spend**, which is the separate *budget* curve (what a complete level-N build costs: Standard
+  L1=79, Generous L1=83, per-campaign). `D-GH-2026-07-14-advancement-tracks` had already flagged this
+  exact conflation as a follow-up. New pure export `creationLockThreshold(campaignRules)` resolves
+  `rules.levelBudgetCurve.l1`, falling back to `DATA.level1AP` for solo/untuned characters; CharGen's
+  invite redemption stamps it into the character's log at seed time. For Amble (Generous) the
+  threshold becomes **83**: a player can spend their whole 70 AP grant and stay in creation, locking
+  only once in-play spending passes what a complete level-1 build costs. Verified the Players Guide's
+  Level 0 (55 AP) also sits on the budget curve and already falls out of the existing formula — no
+  table row is missing. No `DATA.version` bump (the threshold is a log event, so `compute()` output
+  is unchanged for every pre-existing input). Parity 24/0. See the 2026-08-03 addendum in
+  `decisions/2026/D-GH-2026-08-02-creation-lock-switch.md`.
+- **2026-08-02 · feat(engine): creation-lock switch — the engine half (events, precedence, backward
+  compatibility)** — PACT's rules price own-species racial traits cheap during creation and expensive
+  if claimed later, but nothing could ever mark a character "finished," so the expensive branch was
+  unreachable. Both states the app has actually shipped were wrong: pre-D-GH37 every trait priced
+  *expensive* (local folds never produced the per-trait lock stamp, so `compute()` fell through to
+  `baseBuild()`'s unconditionally-true `inPlay`); post-D-GH37 every trait prices *cheap* (real replay
+  stamps `false`, no trigger exists). Measured at tier 3: 4 AP unlocked vs 10 locked. Adds
+  `creationLockConfig{auto,threshold}` (last-write-wins per field) and `creationUnlocked`
+  (last-write-wins with `creationLocked`, future-only, and suppressing the auto-lock so unlocking an
+  over-threshold character isn't a same-pass no-op); documents the precedence rule above `_replay()`.
+  Fully backward compatible — the plan's specified "defaults off" would have broken three existing
+  fixtures that assert `campaignBound` alone arms the lock, so `auto` falls back to campaign
+  membership when unconfigured. Parity 20/0 → **24/0** (4 new fixtures; all repo references to the
+  old count updated). Engine only — no UI, and **no production data written**. See
+  `decisions/2026/D-GH-2026-08-02-creation-lock-switch.md` and
+  `docs/plans/2026-08-02-creation-lock-switch.md`.
 - **2026-08-02 · fix(dm-console): clarify the two AP fields on a player invite** — the invite form's two
   number inputs were bare placeholders ("Starting DM AP" / "Starting budget") with no explanation, and
   they fund two genuinely different pools — which read as one confusing number in the resulting

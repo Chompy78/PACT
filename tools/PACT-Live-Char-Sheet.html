@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.304.html**-->
+<!--**PACT-Live-Char-Sheet v1.309.html**-->
 
 <!doctype html>
 <!--
@@ -1806,6 +1806,10 @@ document.addEventListener('sync-ready', function () {
         // regressed this way. (Same window.X-doesn't-alias-a-let bug the Load handler above already fixed.)
         var stats = window.buildCharacterEnvelope({ name: b.name, rules: RULES, LOG: LOG, SEQ: SEQ, id: id }, { sign: false });
         var res   = await S.saveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet', stats: stats });
+        // Adopt the id the sync layer used — it differs when a legacy pre-UUID id was migrated, and
+        // not adopting it would migrate again on the next save and strand a second row. Bare
+        // assignment: __charId is a top-level `let` (window.__charId= would shadow-fail).
+        if(res.id) __charId = res.id;
         if(res.error) throw res.error;
         if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
       } catch(err){ alert('Save failed: '+err.message); }

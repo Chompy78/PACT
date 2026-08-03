@@ -37,6 +37,12 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 .btn.danger{background:var(--card);color:var(--bad);border-color:var(--bad)}
 .btn:disabled{opacity:.5;cursor:default}
 .empty-tag{font-size:10px;color:var(--grey);border:1px solid var(--line);border-radius:8px;padding:2px 7px;flex:0 0 auto}
+/* Cloud-saved vs device-only. Deliberately quieter than .badge (the tool label) — it's a status,
+   not the row's identity — but "device only" is outlined rather than filled so it reads as the
+   exception that needs action, without shouting on a list that is mostly cloud rows. */
+.synctag{font-size:10px;font-weight:700;letter-spacing:.02em;padding:2px 7px;border-radius:10px;flex:0 0 auto;white-space:nowrap}
+.synctag.cloudy{background:var(--lt);color:var(--navy)}
+.synctag.localy{background:transparent;color:var(--grey);border:1px dashed var(--line)}
 #msg{min-height:18px;font-size:13px;margin-top:8px}
 #msg.bad{color:var(--bad)}
 #msg.good{color:var(--good)}
@@ -174,9 +180,21 @@ function rowHtml(c){
   const delBtn = archived
     ? '<button type="button" class="btn danger" data-delete="' + esc(c.id) + '" data-name="' + name + '">Delete permanently</button>'
     : '';
+  // Cloud-saved vs this-device-only. Both kinds render in this list, and until now they rendered
+  // identically — so a character that had never reached the server looked as safe as one that had.
+  // `cloud`/`pendingSync` come from listMyCharacters(): a server row is cloud-saved by definition,
+  // a local-only row is not. The distinction matters most on a shared/incognito browser, where a
+  // "device only" character disappears with the profile.
+  const sync = c.cloud
+    ? '<span class="synctag cloudy" title="Saved to your account — available on any device you sign in on.">☁ Cloud</span>'
+    : '<span class="synctag localy" title="' + (c.pendingSync
+        ? 'On this device only, with changes not yet uploaded. Open it and use “Save to cloud” to back it up — it is lost if this browser’s data is cleared.'
+        : 'On this device only. Open it and use “Save to cloud” to back it up.') +
+      '">📥 Device only</span>';
   return '<div class="row' + (archived ? ' archived' : '') + '">' +
     '<span class="nm">' + name + '</span>' +
     '<span class="badge' + (archived ? ' arch' : '') + '">' + (archived ? 'Archived' : tool.label) + '</span>' +
+    sync +
     '<span class="meta">' + esc(ts) + (c.ap ? ' · ' + esc(String(c.ap)) + ' AP' : '') + '</span>' +
     '<span class="actions">' + openBtn + archBtn + delBtn + '</span>' +
     '</div>';

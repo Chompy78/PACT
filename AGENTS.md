@@ -31,7 +31,7 @@ is staging and promotes into `main`).
   `/pick-code-task` → `/run-code-task`; for big/risky work draft a plan for cold review first (see Agent guidance below).
 - **Avoid:** re-implementing rules logic anywhere but `engine.js`; patching `undo()` with tool-local state
   instead of LOG replay; bumping `DATA.version` for display-only changes; reading large files wholesale.
-- **Verification expectations:** `testing/tests/engine-parity.html` → **20/0**; if `compute()` output changed,
+- **Verification expectations:** `testing/tests/engine-parity.html` → **24/0**; if `compute()` output changed,
   update `testing/expected/` in the same PR and bump `DATA.version`; mirror build/version numbers per
   `docs/VERSION-SYNC.md`.
 
@@ -201,7 +201,7 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   `service_role`/secret key** or any private credential.
 - **Target:** modern evergreen browsers on phones and desktops (current Chrome/Edge/Firefox/Safari, incl.
   iOS Safari). Prefer widely-supported JS/CSS; no legacy/IE shims.
-- After any change, `testing/tests/engine-parity.html` must report **20 passed / 0 failed** (how to run it —
+- After any change, `testing/tests/engine-parity.html` must report **24 passed / 0 failed** (how to run it —
   browser or headless — is in `docs/HOW-TO-WORK.md`). Keep `engine.js`'s public API stable if you touch it.
 - **Every player-controlled value that reaches innerHTML/an attribute must pass through `esc()`** (or the
   tool's equivalent escaping helper) before it's rendered — character names, campaign names, free-text
@@ -318,7 +318,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-code-
   `docs/PACT-Players-Guide.html`.
 - **Engine support:** `js/` — `supabase-client.js`, `auth.js`, `sync.js`, `campaign.js`, `dm.js`;
   root — `manifest.json`, `service-worker.js`, `404.html`; `sql/` — `schema.sql`, `rls-policies.sql`, `migrations/`.
-- **Testing:** run `testing/tests/engine-parity.html` (expect **20/0**); fixtures in `testing/fixtures/`,
+- **Testing:** run `testing/tests/engine-parity.html` (expect **24/0**); fixtures in `testing/fixtures/`,
   expected output in `testing/expected/` (see `testing/README.md`).
 - **Docs:** `docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md` (open work) · `docs/HOW-TO-WORK.md` (app/test mechanics) ·
   `docs/SKILLS.md` (skills + workflow, human-readable) · `docs/sessions/` ·
@@ -330,7 +330,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-code-
 ## Per-change checklist
 1. One task, one branch — name it `type/short-slug` (e.g. `feat/…`, `fix/…`, `docs/…`).
 2. Touch `js/engine.js` only if the task targets the engine; else treat its API as fixed.
-3. `testing/tests/engine-parity.html` → **20/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
+3. `testing/tests/engine-parity.html` → **24/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
    `compute()` output, update `testing/expected/` in the same change and say so.
    For a release-shaped PR (not every doc/small fix), also run the pre-release manual QA checklist in
    `docs/HOW-TO-WORK.md`.

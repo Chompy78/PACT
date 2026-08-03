@@ -392,23 +392,35 @@ create table if not exists public.campaign_invites (
 );
 create index if not exists idx_campaign_invites_campaign on public.campaign_invites(campaign_id);
 
+-- Invite AP is a SINGLE grant, paid into characters.ap (DM-authoritative).
+-- `starting_budget` is DEPRECATED and always written 0 — both functions still ADD it in so
+-- pre-2026-08-03 invites redeem at their full intended amount. Signatures deliberately
+-- unchanged so a Pages deploy and a DB migration need not be atomic — which also means the old
+-- `drop function if exists redeem_player_invite(text,text)` that used to precede it is gone: the
+-- return shape no longer changes, and a drop+recreate would briefly remove a live function.
+-- Rationale in full:
+-- sql/migrations/2026-08-03-invite-single-ap-grant.sql and
+-- decisions/2026/D-GH-2026-08-03-invite-single-ap-grant.md.
 create or replace function public.create_player_invite(
   p_campaign_id     uuid,
   p_starting_ap     integer default 0,
-  p_starting_budget integer default 0
+  p_starting_budget integer default 0   -- DEPRECATED: folded into p_starting_ap; kept for old clients
 )
 returns text language plpgsql security definer set search_path = public, pg_temp as $$
 declare
-  v_token  text;
-  v_ap     integer := coalesce(p_starting_ap, 0);
-  v_budget integer := coalesce(p_starting_budget, 0);
+  v_token text;
+  v_ap    integer := coalesce(p_starting_ap, 0);
+  v_extra integer := coalesce(p_starting_budget, 0);
 begin
   if not is_campaign_dm(p_campaign_id) then
     raise exception 'Only a campaign DM can create a player invite';
   end if;
-  if v_ap < 0 or v_budget < 0 then
-    raise exception 'Starting AP and budget must be non-negative';
+  -- Checked BEFORE folding: two values that sum to a non-negative total must still each be
+  -- non-negative, or a negative budget could quietly cancel part of a positive AP grant.
+  if v_ap < 0 or v_extra < 0 then
+    raise exception 'Starting AP must be non-negative';
   end if;
+  v_ap := v_ap + v_extra;
 
   loop
     v_token := encode(extensions.gen_random_bytes(16), 'hex');
@@ -416,13 +428,12 @@ begin
   end loop;
 
   insert into campaign_invites (campaign_id, token, starting_ap, starting_budget, created_by)
-    values (p_campaign_id, v_token, v_ap, v_budget, auth.uid());
+    values (p_campaign_id, v_token, v_ap, 0, auth.uid());
 
   return v_token;
 end;
 $$;
 
-drop function if exists public.redeem_player_invite(text, text);   -- return shape changed (added campaign_id/is_new); CREATE OR REPLACE can't alter a return type
 create or replace function public.redeem_player_invite(p_token text, p_name text default null)
 returns table(character_id uuid, starting_ap integer, starting_budget integer, campaign_id uuid, is_new boolean)
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -430,6 +441,7 @@ declare
   v_invite  campaign_invites%rowtype;
   v_char_id uuid;
   v_name    text;
+  v_grant   integer;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
@@ -445,19 +457,23 @@ begin
       raise exception 'You have already joined this campaign';
     end if;
 
+    -- Single pool. The fold covers pre-migration invites, whose budget half would otherwise vanish.
+    v_grant := coalesce(v_invite.starting_ap, 0) + coalesce(v_invite.starting_budget, 0);
+
     v_name := nullif(trim(coalesce(p_name, '')), '');
     if v_name is null then v_name := 'New Character'; end if;
     if length(v_name) > 100 then v_name := left(v_name, 100); end if;
 
     begin
       insert into characters (owner_id, campaign_id, name, kind, ap)
-        values (auth.uid(), v_invite.campaign_id, v_name, 'chargen', v_invite.starting_ap)
+        values (auth.uid(), v_invite.campaign_id, v_name, 'chargen', v_grant)
         returning id into v_char_id;
     exception when unique_violation then
       raise exception 'You have already joined this campaign';
     end;
 
-    return query select v_char_id, v_invite.starting_ap, v_invite.starting_budget, v_invite.campaign_id, true;
+    -- starting_budget is returned as 0 so no client, old or new, seeds a player-AP award event.
+    return query select v_char_id, v_grant, 0, v_invite.campaign_id, true;
     return;
   end if;
 
@@ -473,9 +489,16 @@ begin
     raise exception 'Invite already redeemed but character not found';
   end if;
 
-  return query select v_char_id, v_invite.starting_ap, v_invite.starting_budget, v_invite.campaign_id, false;
+  v_grant := coalesce(v_invite.starting_ap, 0) + coalesce(v_invite.starting_budget, 0);
+  return query select v_char_id, v_grant, 0, v_invite.campaign_id, false;
 end;
 $$;
+
+comment on column public.campaign_invites.starting_budget is
+  'DEPRECATED (2026-08-03, D-GH-2026-08-03-invite-single-ap-grant). Always written 0. An invite now '
+  'carries a single AP grant in starting_ap, paid into characters.ap. Both RPCs still ADD this column '
+  'in so pre-migration invites redeem at their full intended amount. Kept, not dropped, so the change '
+  'stays reversible.';
 
 -- ---------------------------------------------------------------------------
 -- One-character-per-player-per-campaign, enforced at the database level (closes

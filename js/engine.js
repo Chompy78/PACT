@@ -45,7 +45,7 @@ import { AP_BY_LEVEL, DEFAULT_LEVEL } from './ap-by-level.js';
 // Per-campaign advancement dials (display/config-only; never read by compute()/_replay()).
 import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advancement.js';
 
-export const BUILD = "v1.304";
+export const BUILD = "v1.309";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -56,13 +56,18 @@ export { DATA };
  * surfaced on DATA so all three tools read it through the engine bridge. apByLevel/
  * defaultAp are the current names; levelAP/level1AP are back-compat aliases for the
  * same data (compute()'s racial-trait lock reads DATA.level1AP; tool display reads
- * DATA.levelAP). Editing js/ap-by-level.js propagates to every tool with no other change. */
+ * DATA.levelAP). Editing js/ap-by-level.js propagates to every tool with no other change.
+ * The ladder is the STANDARD level-BUDGET curve (cumulative AP a complete level-N build
+ * has spent): 0:55, 1:79 … 20:535, derived from LEVEL_BUDGET_CURVES.standard so the fixed
+ * default and the campaign preset can't drift. It is NOT an AP-earned-per-level schedule —
+ * PACT awards AP per session (AWARD_PACES), not per level. */
 DATA.apByLevel = AP_BY_LEVEL;
 DATA.defaultAp = AP_BY_LEVEL[DEFAULT_LEVEL];
 DATA.levelAP   = AP_BY_LEVEL;                 // back-compat alias (tool display / apLevel())
 DATA.level1AP  = AP_BY_LEVEL[DEFAULT_LEVEL];  // back-compat alias (compute racial-trait lock)
-// Per-campaign advancement dials — display/config-only reference tables, never
-// read by compute() or _replay(); editing js/advancement.js does not bump DATA.version.
+// Per-campaign advancement dials. AWARD_PACES/STARTING_TIER_RATIOS and the `generous` curve
+// are display/config-only, never read by compute() or _replay(). LEVEL_BUDGET_CURVES.standard
+// is the exception — it feeds AP_BY_LEVEL above, so editing THAT entry does bump DATA.version.
 DATA.levelBudgetCurves  = LEVEL_BUDGET_CURVES;
 DATA.awardPaces         = AWARD_PACES;
 DATA.startingTierRatios = STARTING_TIER_RATIOS;
@@ -592,6 +597,27 @@ export function economy(events) {
 // burst noLock:true keeps it from self-triggering the automatic lock before an
 // explicit creationLocked event (or genuine later spending) actually earns it.
 //
+// PRECEDENCE (D-GH-2026-08-02-creation-lock-switch; documented as a hard rule so it can't drift).
+// Two lock mechanisms coexist and behave differently — do not collapse them:
+//   * EXPLICIT — `creationLocked` / `creationUnlocked`, resolved in LOG order, last-write-wins.
+//     `creationLocked` is a one-way ratchet ONLY in the sense that nothing except a later
+//     `creationUnlocked` reopens it; the pair is a two-state toggle, not an irreversible flag.
+//   * AUTOMATIC — spend past a threshold. Derived fresh on every replay, so it is inherently
+//     reversible: undo the purchase that crossed the threshold and it un-fires. Armed by
+//     `creationLockConfig{auto:true}`, or — when no config event exists at all — by `campaignBound`
+//     alone (the historical behaviour, asserted by fixtures EV-003/EV-007/EV-009; changing this
+//     default would break them, so it is load-bearing, not incidental).
+//   * `creationLockConfig{auto,threshold}` — last-write-wins, per-field (a config setting only
+//     `threshold` leaves `auto` as it was). `threshold:null`/absent means DATA.level1AP.
+//   * A `creationUnlocked` SUPPRESSES the automatic lock as well as clearing the explicit one,
+//     until a later `creationLocked` or `creationLockConfig` re-arms. Without this, unlocking a
+//     character already over the threshold would be a no-op — it would re-lock on the same pass.
+//     This is a deliberate choice, NOT the same thing as raising the threshold: unlock grants
+//     open-ended creation room; raising the threshold grants a specific amount.
+// Everything above changes only WHEN the lock flips. It never changes the freeze-at-purchase
+// guarantee: `_wasLocked` is still captured before the event advances state, so a purchase is
+// always priced at the lock state in force at the moment it happened.
+//
 // Single pass: the lock/spend bookkeeping for event i never depends on anything the build-mutation
 // half of the loop does, so both run interleaved per-event rather than as two separate passes over
 // `evs` — `_wasLocked` is captured before advancing state for this event, same as before.
@@ -599,13 +625,34 @@ function _replay(b, log) {
   const ae = activeEvents(log);
   const { evs, boughtOff } = ae;
   let _locked = false, _spent = 0, _campaignBound = false;
+  // creationLockConfig / creationUnlocked bookkeeping (see the block comment above this function).
+  // _cfgAuto: undefined = "not configured" (legacy: campaignBound alone arms the auto-lock, which is
+  // what fixtures EV-003/EV-007/EV-009 assert); true = armed even without campaignBound (a solo
+  // player opting in); false = explicitly disarmed even WITH campaignBound (a DM switching it off).
+  // _cfgThreshold: null/undefined = fall back to DATA.level1AP, preserving the historical anchor.
+  // _explicitUnlocked: set by creationUnlocked, cleared by a later creationLocked — see below.
+  let _cfgAuto, _cfgThreshold, _explicitUnlocked = false;
   for (let _i = 0; _i < evs.length; _i++) {
     const e = evs[_i];
     const _wasLocked = _locked;
-    if (e.type === 'creationLocked') _locked = true;
+    if (e.type === 'creationLocked') { _locked = true; _explicitUnlocked = false; }
+    else if (e.type === 'creationUnlocked') { _locked = false; _explicitUnlocked = true; }
+    else if (e.type === 'creationLockConfig') {
+      // Last-write-wins. Only fields actually present are updated, so a config event that sets
+      // just a threshold doesn't silently reset `auto` (and vice versa).
+      if (e.payload && Object.prototype.hasOwnProperty.call(e.payload, 'auto')) _cfgAuto = e.payload.auto;
+      if (e.payload && Object.prototype.hasOwnProperty.call(e.payload, 'threshold')) _cfgThreshold = e.payload.threshold;
+      _explicitUnlocked = false;   // re-configuring re-arms: a DM setting a new threshold means "this applies again"
+    }
     else if (e.type === 'campaignBound') _campaignBound = true;
     else if (!e.noLock) _spent += _spendCost(e);
-    if (_campaignBound && _spent > DATA.level1AP) _locked = true;
+    // Automatic threshold lock. Armed when explicitly opted in (_cfgAuto===true) or, absent any
+    // config, by campaign membership (the legacy behaviour). _cfgAuto===false disarms both.
+    // Suppressed while _explicitUnlocked, so a DM's unlock isn't instantly undone by a character
+    // already sitting over the threshold — the unlock grants creation room until re-armed.
+    const _autoArmed = _cfgAuto === undefined ? _campaignBound : !!_cfgAuto;
+    const _thr = (_cfgThreshold === undefined || _cfgThreshold === null) ? DATA.level1AP : _cfgThreshold;
+    if (_autoArmed && !_explicitUnlocked && _spent > _thr) _locked = true;
 
     if (e.type === 'name') { b.name = e.name; continue; }
     if (e.type === 'names') { MUT.names(b, e); continue; }   // names take the whole event
@@ -630,6 +677,32 @@ function _replay(b, log) {
     if (d && (DATA.noCantrip || []).indexOf(d.name) >= 0) { d.cantrips = 0; d.cantripNames = []; }
   }));
   return ae;
+}
+
+// creationLockThreshold(campaignRules): the AP-spent figure past which the automatic creation
+// lock fires for a character in this campaign. Callers stamp the result into a character's log
+// as a `creationLockConfig{threshold}` event; the engine's replay never reads campaign settings
+// directly (that would break pure-log-replay and make old logs re-price under today's settings).
+//
+// WHICH CURVE — this is the whole point of the function. The lock asks "has this character
+// finished being built?", a question about SPEND, so the threshold must come from the level-BUDGET
+// curve (cumulative AP a complete level-N build has spent): Standard L1 = 79, Generous L1 = 83.
+// It must NOT come from the award pace (AP per SESSION, ~7 — PACT awards by the session, not by
+// the level) and must NOT come from the Guide's pregen-roster totals (the twenty Emberwatch sample
+// characters, "1st-level recruit (50 AP) to 20th-level archmage (491 AP)" — a cast list, not a
+// curve). Those totals used to BE `DATA.apByLevel`, which is why this function was originally
+// written to override a wrong default; fix/ap-budget-curve-standard replaced the ladder with the
+// Standard budget curve, so `DATA.level1AP` is now 79 and the fallback below is correct by default
+// rather than merely tolerable. Conflating the three is a documented trap — see
+// D-GH-2026-07-14-advancement-tracks ("Conflating them was a real error in two of the reviews").
+//
+// This function still earns its keep: it honours a campaign that TUNED its curve (Generous → 83,
+// or any custom {l1, inc}), falling back to DATA.level1AP — the Standard L1 — when there is no
+// campaign or the campaign never tuned one.
+export function creationLockThreshold(campaignRules) {
+  const curve = campaignRules && campaignRules.levelBudgetCurve;
+  const l1 = curve && Number(curve.l1);
+  return (Number.isFinite(l1) && l1 > 0) ? l1 : DATA.level1AP;
 }
 
 // foldBuild(events): the Live Sheet's fold — build a character from a blank

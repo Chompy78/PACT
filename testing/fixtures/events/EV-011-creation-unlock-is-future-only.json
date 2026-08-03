@@ -1,0 +1,11 @@
+{
+  "description": "creationUnlocked fixture (D-GH-2026-08-02-creation-lock-switch): an explicit creationLocked fires, a racial trait is bought at the locked rate, then a creationUnlocked event reopens creation and a second trait is bought. Asserts the unlock is FUTURE-ONLY and never retroactive: 'Halfling: Brave' (bought while locked) keeps its frozen tier-2 locked rate (4), while 'Halfling: Naturally Stealthy' (bought after the unlock) prices at the creation rate (origin=4, not the locked 7). This is the freeze-at-purchase guarantee holding across an unlock.",
+  "baseSnapshotRef": "_shared/base-halfling.json",
+  "events": [
+    { "type": "award", "amount": 60, "note": "Quest reward", "label": "Award — Quest reward (60 AP)" },
+    { "type": "creationLocked" },
+    { "type": "buy", "cat": "racial", "payload": { "v": "Halfling: Brave" }, "cost": 4, "level": 2, "label": "Species trait — Halfling: Brave (locked)" },
+    { "type": "creationUnlocked" },
+    { "type": "buy", "cat": "racial", "payload": { "v": "Halfling: Naturally Stealthy" }, "cost": 4, "level": 2, "label": "Species trait — Halfling: Naturally Stealthy (after unlock, creation rate)" }
+  ]
+}

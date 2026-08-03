@@ -5,12 +5,17 @@
  * DATA bridge (`DATA.levelBudgetCurves`, `DATA.awardPaces`, `DATA.startingTierRatios`)
  * so all three tools read them the same way they read the rest of DATA.
  *
- * These are DISPLAY / CONFIGURATION reference data ONLY — never read by
- * `compute()`'s pricing math or by `_replay()`. Adding or editing a value here
- * is NOT a mechanics change: do NOT bump `DATA.version` or touch the REV-01
- * baseline for edits confined to this file. (Contrast `js/ap-by-level.js`, whose
- * `AP_BY_LEVEL` IS read by `compute()`'s creation-lock via `DATA.level1AP` — that
- * file's values are mechanics and this file deliberately does not touch it.)
+ * MOSTLY display/configuration reference data — with ONE mechanics exception, added
+ * by fix/ap-budget-curve-standard (2026-08-03). `LEVEL_BUDGET_CURVES.standard` is now
+ * the source `js/ap-by-level.js` expands into `AP_BY_LEVEL`, which reaches `compute()`
+ * and `_replay()` as `DATA.level1AP` (the creation lock's fallback threshold) and
+ * `DATA.defaultAp` (a fresh build's starting budget). So:
+ *   * editing `LEVEL_BUDGET_CURVES.standard` IS a mechanics change — bump `DATA.version`
+ *     and refresh the REV-01 baseline (`testing/expected/`) in the same PR;
+ *   * editing anything else here (`generous`, `AWARD_PACES`, `STARTING_TIER_RATIOS`) is
+ *     NOT — do not bump `DATA.version` for those.
+ * The dependency runs advancement.js → ap-by-level.js → engine.js, one way only; never
+ * import ap-by-level.js from here.
  *
  * The DM's chosen values live per-campaign in the `campaigns.rules` JSONB
  * (`rules.levelBudgetCurve` / `rules.awardPace` / `rules.startingTier`); the
@@ -18,10 +23,15 @@
  */
 
 // Level budget curve presets — how much cumulative AP a level "costs" to build.
-// Cumulative AP at level N = l1 + inc × (N-1). Standard L20 = 535, Generous = 615.
-// Per PACT Players Guide v0.332 §3/§18. Display-only: this does NOT change any
-// actual purchase price — it only tunes the "track level" progress label a player
-// sees on the Live Sheet against their own AP spent.
+// Cumulative AP at level N = l1 + inc × (N-1). Standard L20 = 535, Generous = 615;
+// at N=0 both give 55, the Guide's optional Level 0 prelude tier.
+// Per PACT Players Guide v0.332 §3/§18 ("Level 1 = 79 standard or 83 generous;
+// optional Level 0 prelude = 55").
+// `standard` is ALSO the engine's fixed default ladder (js/ap-by-level.js expands it
+// into AP_BY_LEVEL → DATA.level1AP / DATA.defaultAp) — see the mechanics note in this
+// file's header before editing it. `generous` remains a per-campaign preset only:
+// picking it tunes the Live Sheet's "track level" label and a character's
+// creationLockConfig threshold, never a purchase price.
 export const LEVEL_BUDGET_CURVES = {
   standard: { l1: 79, inc: 24 },   // L20 = 79 + 19×24 = 535
   generous: { l1: 83, inc: 28 },   // L20 = 83 + 19×28 = 615

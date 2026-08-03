@@ -13,6 +13,48 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-03-uuid-character-ids** — `genCharId()` minted `'c'+base36` ids (e.g.
+  `cmscl7ilrr5muh`) while `characters.id` is a Postgres `uuid`, so a locally-born character could
+  NEVER be saved to the cloud — and because `saveCharacter()` writes localStorage before pushing, each
+  rejected attempt left an orphaned local copy, surfacing as the same character twice in My Characters.
+  Only cloud-born characters (invite redemption) ever synced, which is why it went unnoticed. Ids are
+  now UUIDs; `isCloudCharId()` shares the format predicate; legacy ids migrate lazily on first push and
+  every save call site adopts the returned id. My Characters now tags rows ☁ Cloud / 📥 Device only.
+  Full record: `decisions/2026/D-GH-2026-08-03-uuid-character-ids.md`.
+
+- **D-GH-2026-08-03-invite-single-ap-grant** — A player invite carried two AP numbers; the second
+  ("Creation budget") was seeded into the character's LOG as PLAYER AP, which any campaign with
+  `ignore_player_ap` then discarded outright. Observed live: Amble issued 36 + 55, the player could
+  spend 36, and the UI announced the 55. Collapsed to ONE grant paid into `characters.ap` — works
+  regardless of the toggle, and the player can't edit their own grant. Both RPCs keep their signatures
+  and fold `starting_ap + starting_budget` server-side so a Pages deploy and a DB migration need not be
+  atomic and pre-migration invites still pay out fully; `starting_budget` is deprecated-but-kept, not
+  dropped. Full record: `decisions/2026/D-GH-2026-08-03-invite-single-ap-grant.md`.
+
+- **D-GH-2026-08-03-ap-budget-curve-standard** — The fixed AP ladder in `js/ap-by-level.js` was never
+  a rules curve: `{1:50 … 20:491}` was the Players Guide appendix's twenty pregenerated Emberwatch
+  characters, a cast list transcribed into a table and later mislabelled a "pace curve". The Guide has
+  a *budget* curve (Standard L1 79/+24, Generous 83/+28, prelude L0 55) and an *award pace* (AP per
+  session, ~7) — and no AP-earned-per-level schedule at all. The ladder is now **derived** from
+  `LEVEL_BUDGET_CURVES.standard` via a new `budgetLadder({l1,inc})`, spanning levels 0–20, so the
+  engine default and the DM-facing preset are the same two numbers by construction. `DATA.level1AP` /
+  `DATA.defaultAp` 50 → 79; `DATA.version` v0.337 → v0.338; `LEVEL_BUDGET_CURVES.standard` becomes the
+  one mechanics entry in an otherwise display-only file. Parity 24/0 with `testing/expected/`
+  untouched — four threshold fixtures had their filler spend and matching award raised by the same
+  delta, so no expected value moved. Full record:
+  `decisions/2026/D-GH-2026-08-03-ap-budget-curve-standard.md`.
+
+- **D-GH-2026-08-02-creation-lock-switch** — Engine half of the creation-lock feature. Adds
+  `creationLockConfig{auto,threshold}` and `creationUnlocked` events (both last-write-wins; unlock is
+  future-only and suppresses the auto-lock so it isn't a same-pass no-op), and documents the
+  lock-precedence rule above `_replay()`. Deliberately deviates from the cold-reviewed plan's
+  "defaults off": three existing fixtures assert `campaignBound` alone arms the lock at
+  `DATA.level1AP`, so defaults-off would have broken them — `auto` instead falls back to campaign
+  membership when unconfigured, keeping full backward compatibility. Also records a production
+  finding: the Amble campaign grants a 70 AP creation budget while the default threshold is 50, so a
+  player would auto-lock mid-creation — the threshold should default to the campaign's creation
+  budget, which needs deciding before this is enabled. Full record:
+  `decisions/2026/D-GH-2026-08-02-creation-lock-switch.md`.
 - **D-GH-2026-08-02-syncall-owner-scope** — Follow-up to the `syncAll()` finding flagged in
   `D-GH-2026-08-02-dm-readonly-livesheet-view`: the background auto-sync job (runs on every signed-in
   page load, no user action needed) queried `characters` with no owner filter, so for a DM it relied
