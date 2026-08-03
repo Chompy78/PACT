@@ -216,10 +216,32 @@ def check_sw_import_freshness(rep):
         importer = f.stem
         if importer not in fresh:
             continue          # a cache-first module may import anything; it is stale as a unit
-        for dep in re.findall(r"""from\s+['"]\./([A-Za-z0-9_-]+)\.js['"]""", f.read_text(encoding="utf8")):
+        body = f.read_text(encoding="utf8")
+        for spec in re.findall(r"""from\s+['"](\./[A-Za-z0-9_./-]+\.js)['"]""", body):
             edges += 1
-            if dep not in fresh:
-                bad.append("%s.js (network-first) imports %s.js (cache-first)" % (importer, dep))
+            dep = spec[2:]                      # strip the leading "./"
+            # A version-pinned vendor file is exempt, and the pin is what earns the exemption: updating
+            # it means a NEW filename, so the service worker can never serve an old copy against a newer
+            # caller. An UNPINNED vendor file would be exactly the stale-dependency trap this check
+            # exists to catch, so it is not exempt.
+            if dep.startswith("vendor/"):
+                if not re.search(r"-\d+(\.\d+)*\.js$", dep):
+                    bad.append("%s.js imports %s, an UNVERSIONED vendor file — pin the version in the "
+                               "filename so an update changes the URL and cannot be served stale"
+                               % (importer, spec))
+                elif not (REPO / "js" / dep).is_file():
+                    bad.append("%s.js imports %s, which does not exist on disk" % (importer, spec))
+                else:
+                    sw_txt = read("service-worker.js")
+                    if ("js/" + dep) not in sw_txt:
+                        bad.append("%s.js imports %s but service-worker.js does not PRE_CACHE it — it "
+                                   "would be missing offline" % (importer, spec))
+                continue
+            if "/" in dep:
+                bad.append("%s.js imports %s — this check only reasons about js/*.js and js/vendor/; "
+                           "extend it before adding another layout" % (importer, spec))
+            elif dep[:-3] not in fresh:
+                bad.append("%s.js (network-first) imports %s (cache-first)" % (importer, spec))
     if bad:
         for b in bad:
             rep.fail(b + " — a stale dependency breaks the importer at link time; "
