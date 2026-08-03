@@ -6,6 +6,26 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · fix(sync): the UUID id migration must not fork a campaign-bound character** — the
+  migration shipped in v1.309 minted a fresh UUID unconditionally, which INSERTS a new row. A
+  campaign-bound character whose id had drifted onto the legacy format was therefore saved as a
+  brand-new, campaign-less duplicate while its real bound row kept only the seed log. Hit on the first
+  real character through the path: one build landed as two orphan rows (`campaign_id` null, `ap` 0)
+  while the Amble-bound row still showed 2 events, so opening it looked like the work had vanished.
+  `saveCharacter()` now takes an optional `campaignId` and, when migrating, adopts the server's
+  existing row for that campaign instead of minting — the DB already enforces one character per player
+  per campaign, so the row is unambiguous. CharGen passes it on all three cloud-save paths.
+
+- **2026-08-03 · fix(characters): device-only rows can be archived, deleted, and seen** — archiving sent
+  a legacy pre-UUID id to Postgres and threw `invalid input syntax for type uuid`; since Delete was
+  only offered once archived, those orphan rows could not be removed at all. Archive/unarchive/delete
+  now handle local-only ids entirely in localStorage (and skip the tombstone, which could never be
+  cleared for an id `replayDelete()` can't send). Device-only rows get a direct "Delete from this
+  device" instead of the cloud-only Archive step, with a confirm that says which copy is going. The
+  page also no longer hides everything behind a "reconnect" card when offline — `listMyCharacters()`
+  always had an offline branch, so withholding it hid exactly the at-risk device-only copies; campaign
+  names now degrade to "Unknown campaign" rather than failing the whole list.
+
 - **2026-08-03 · fix(sync): character ids are UUIDs — locally-born characters can finally reach the
   cloud** — `genCharId()` minted `'c'+base36` (e.g. `cmscl7ilrr5muh`) while `characters.id` is a
   Postgres `uuid`, so saving a locally-created character failed with `invalid input syntax for type

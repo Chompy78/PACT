@@ -66,11 +66,11 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
     <p class="hint signin-card">This page shows the characters saved to your cloud account. <a href="../login.html">Sign in</a> to see them.</p>
   </div>
   <div class="card" id="offlineCard" hidden>
-    <p class="hint">You're offline. Reconnect to see your cloud characters.</p>
+    <p class="hint">You're offline &mdash; showing what's stored in this browser. Reconnect to see everything in your cloud account and to sync anything still marked <b>&#128229; Device only</b>.</p>
   </div>
   <div id="mainCard" class="card" hidden>
     <div class="toolbar">
-      <p class="hint" style="margin:0">Grouped by campaign. Archiving is reversible; deleting is not.</p>
+      <p class="hint" style="margin:0">Grouped by campaign. <b>&#9729; Cloud</b> is saved to your account; <b>&#128229; Device only</b> exists in this browser alone and is lost if its data is cleared. Archiving is reversible; deleting is not.</p>
       <label><input type="checkbox" id="showArchived"> Show archived</label>
     </div>
     <div id="groups"></div>
@@ -110,15 +110,25 @@ function say(text, cls){ msgEl.textContent = text || ''; msgEl.className = cls |
 async function boot(){
   const session = await currentSession();
   if (!session) { signinCard.hidden = false; offlineCard.hidden = true; mainCard.hidden = true; return; }
-  if (!navigator.onLine) { offlineCard.hidden = false; signinCard.hidden = true; mainCard.hidden = true; return; }
-  signinCard.hidden = true; offlineCard.hidden = true; mainCard.hidden = false;
+  // Offline used to hide the whole list behind a "reconnect" card. listMyCharacters() has always had
+  // an offline branch returning what this device holds, so hiding it withheld data the user already
+  // had — including the device-only copies that are precisely the ones at risk. Show the notice AND
+  // the list.
+  signinCard.hidden = true;
+  offlineCard.hidden = navigator.onLine;
+  mainCard.hidden = false;
   await loadAndRender();
 }
 
 async function loadAndRender(){
   say('Loading…');
   try {
-    const [chars, camps] = await Promise.all([listMyCharacters(), listMyCampaigns()]);
+    // Campaign names are a labelling nicety and need the network; the character list must not fail
+    // with them. Offline, groups fall back to "Unknown campaign" rather than showing nothing at all.
+    const [chars, camps] = await Promise.all([
+      listMyCharacters(),
+      listMyCampaigns().catch(() => []),
+    ]);
     _chars = chars || [];
     _campNames = new Map((camps || []).map(c => [c.id, c.name]));
     render();
@@ -163,7 +173,7 @@ function render(){
     btn.addEventListener('click', () => onArchiveToggle(btn.dataset.archive, btn.dataset.unarchive === '1'));
   });
   groupsEl.querySelectorAll('[data-delete]').forEach(btn => {
-    btn.addEventListener('click', () => onDelete(btn.dataset.delete, btn.dataset.name));
+    btn.addEventListener('click', () => onDelete(btn.dataset.delete, btn.dataset.name, btn.dataset.cloud === '1'));
   });
 }
 
@@ -175,10 +185,19 @@ function rowHtml(c){
   const openBtn = c.hasData
     ? '<button type="button" class="btn" data-open="' + tool.open + esc(c.id) + '">Open in ' + tool.label + '</button>'
     : '<span class="empty-tag" title="Never saved from CharGen or Live Sheet — nothing to open.">empty</span>';
-  const archBtn = '<button type="button" class="btn g" data-archive="' + esc(c.id) + '" data-unarchive="' + (archived ? '1' : '0') + '">' +
-    (archived ? 'Unarchive' : 'Archive') + '</button>';
-  const delBtn = archived
-    ? '<button type="button" class="btn danger" data-delete="' + esc(c.id) + '" data-name="' + name + '">Delete permanently</button>'
+  // Archive is a CLOUD affordance — a reversible soft-delete other devices will see. It makes no
+  // sense for a row that exists only in this browser, so device-only rows get a straight Delete
+  // instead. That also removes a trap: Delete used to be offered only once archived, so a row whose
+  // archive call failed could never be deleted at all.
+  const archBtn = c.cloud
+    ? '<button type="button" class="btn g" data-archive="' + esc(c.id) + '" data-unarchive="' + (archived ? '1' : '0') + '">' +
+      (archived ? 'Unarchive' : 'Archive') + '</button>'
+    : '';
+  const delBtn = (archived || !c.cloud)
+    ? '<button type="button" class="btn danger" data-delete="' + esc(c.id) + '" data-name="' + name + '"' +
+      ' data-cloud="' + (c.cloud ? '1' : '0') + '"' +
+      (c.cloud ? '' : ' title="Removes this browser-only copy. Nothing in the cloud is touched."') +
+      '>' + (c.cloud ? 'Delete permanently' : 'Delete from this device') + '</button>'
     : '';
   // Cloud-saved vs this-device-only. Both kinds render in this list, and until now they rendered
   // identically — so a character that had never reached the server looked as safe as one that had.
@@ -210,8 +229,13 @@ async function onArchiveToggle(id, isArchived){
   } catch (err) { say('Could not update: ' + (err && err.message ? err.message : err), 'bad'); }
 }
 
-async function onDelete(id, name){
-  if (!confirm('Permanently delete "' + name + '"? This cannot be undone.')) return;
+async function onDelete(id, name, isCloud){
+  // Say which one they're about to lose. Deleting a device-only copy is a much smaller act than
+  // deleting the cloud record, and a single generic "permanently delete" made them look identical.
+  const msg = isCloud
+    ? 'Permanently delete "' + name + '"? This removes it from your account on every device and cannot be undone.'
+    : 'Delete this browser\'s copy of "' + name + '"? Nothing saved to the cloud is affected. This cannot be undone.';
+  if (!confirm(msg)) return;
   try {
     await deleteCharacter(id);
     _chars = _chars.filter(c => c.id !== id);

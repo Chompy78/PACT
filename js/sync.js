@@ -66,14 +66,24 @@ function lsDeletesRemove(id) {
  * to push to Supabase. ap is never sent — it stays whatever the server holds.
  * @returns {Promise<{id:string, synced:boolean, error?:Error}>}
  */
-export async function saveCharacter({ id, name, kind, stats }) {
+export async function saveCharacter({ id, name, kind, stats, campaignId }) {
   id = id || newCharacterId();
-  // Legacy pre-UUID id (genCharId's old 'c…' format — see js/character-store.js): Postgres rejects
-  // it as `invalid input syntax for type uuid`, so the push could never succeed and every attempt
-  // left another orphaned local record behind. Migrate it here, once, carrying the local record over
-  // to the new key. The caller MUST adopt the returned id — every save-to-cloud call site does.
+  // Legacy pre-UUID id (genCharId's old 'c…' format — see js/character-store.js): Postgres rejects it
+  // as `invalid input syntax for type uuid`, so the push could never succeed and every attempt left
+  // another orphaned local record behind. Migrate it here, once, carrying the local record over.
+  // The caller MUST adopt the returned id — every save-to-cloud call site does.
+  //
+  // `campaignId` is what stops the migration making things WORSE. Minting a fresh UUID unconditionally
+  // inserts a NEW row, so a campaign-bound character whose id had drifted onto the legacy format got
+  // saved as a brand-new, campaign-less duplicate while its real bound row kept only the seed log —
+  // which is exactly what happened to the first character through this path. When the caller knows the
+  // character's campaign, adopt the server's existing row for it instead of minting: the DB already
+  // enforces one character per player per campaign, so that row is unambiguous.
   let migratedFrom = null;
-  if (!isCloudCharId(id)) { migratedFrom = id; id = newCharacterId(); }
+  if (!isCloudCharId(id)) {
+    migratedFrom = id;
+    id = (campaignId && await _existingIdInCampaign(campaignId)) || newCharacterId();
+  }
   const prev = lsGet(migratedFrom || id);
   const rec = {
     id,
@@ -91,6 +101,24 @@ export async function saveCharacter({ id, name, kind, stats }) {
   if (!navigator.onLine) return { id, synced: false, migratedFrom };
   try { await pushCharacter(rec); return { id, synced: true, migratedFrom }; }
   catch (error) { return { id, synced: false, error, migratedFrom }; }   // stays dirty, will retry
+}
+
+/** The signed-in user's existing character id in this campaign, or null. Best-effort: any failure
+ *  returns null and the caller falls back to minting a new id, which is the pre-existing behaviour
+ *  rather than a broken state. */
+async function _existingIdInCampaign(campaignId) {
+  try {
+    const user = await currentUser();
+    if (!user || !navigator.onLine) return null;
+    const { data, error } = await supabase
+      .from('characters')
+      .select('id')
+      .eq('owner_id', user.id)
+      .eq('campaign_id', campaignId)
+      .limit(1)
+      .maybeSingle();
+    return (!error && data) ? data.id : null;
+  } catch { return null; }
 }
 
 /** Push one local record to Supabase. Insert if new, else update the writable
@@ -231,24 +259,31 @@ export async function listMyCharacters() {
 /** Archive/unarchive: reversible soft-delete, owner-only (see rls-policies.sql).
  *  Archived characters stay in listMyCharacters() output (tagged
  *  via archived_at) — callers filter/group by it, it doesn't hide the row. */
-export async function archiveCharacter(id) {
-  const { error } = await supabase.from('characters').update({ archived_at: nowIso() }).eq('id', id);
-  if (error) throw error;
+// A legacy pre-UUID id (see js/character-store.js) has no server row by definition — it could never
+// have been inserted — so sending it to Postgres only earns an `invalid input syntax for type uuid`
+// and leaves the record unmanageable: archiving threw, and Delete is only offered once archived, so
+// these orphans could not be removed at all. Local-only ids are handled entirely in localStorage.
+async function _setArchived(id, when) {
+  if (isCloudCharId(id)) {
+    const { error } = await supabase.from('characters').update({ archived_at: when }).eq('id', id);
+    if (error) throw error;
+  }
   const local = lsGet(id);
-  if (local) lsSet({ ...local, archived_at: nowIso() });
+  if (local) lsSet({ ...local, archived_at: when });
 }
-export async function unarchiveCharacter(id) {
-  const { error } = await supabase.from('characters').update({ archived_at: null }).eq('id', id);
-  if (error) throw error;
-  const local = lsGet(id);
-  if (local) lsSet({ ...local, archived_at: null });
-}
+export async function archiveCharacter(id)   { return _setArchived(id, nowIso()); }
+export async function unarchiveCharacter(id) { return _setArchived(id, null); }
 
 /** Delete a character: local is removed immediately and tombstoned so a later
  *  pull can't resurrect it; the server delete is attempted right away if
  *  online, and retried via the tombstone on reconnect/syncAll otherwise. */
 export async function deleteCharacter(id) {
   lsRemove(id);
+  // No tombstone for a local-only id: the tombstone exists to stop a later pull resurrecting a row
+  // that still exists server-side, and there is no such row here. Recording one would also leave a
+  // permanent un-clearable entry in the pending-deletes list, since replayDelete() can never succeed
+  // against a non-UUID id.
+  if (!isCloudCharId(id)) return;
   lsDeletesAdd(id);
   if (navigator.onLine && await currentUser()) await replayDelete(id);
 }
