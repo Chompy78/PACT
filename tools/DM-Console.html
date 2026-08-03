@@ -571,12 +571,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
               <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
                 <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
-                  <span>Bonus DM AP <button type="button" class="infobtn" title="Extra AP always available on top of whatever the character earns normally — the same pool as clicking &quot;Award AP&quot; later, just pre-set here. Does NOT get spent building the character.">ⓘ</button></span>
+                  <span>Starting AP <button type="button" class="infobtn" title="The AP this player begins with — one pool, granted as DM AP on the character record. They spend it building the character and it keeps funding purchases afterwards; it is exactly the same pool the “Award AP” action tops up later. Stored server-side and DM-only, so the player can’t edit or undo their own grant, and it is unaffected by the campaign’s “ignore player AP” switch. Pre-filled from “Starting tier” in the Level budget curve panel below; editable per invite. Worth matching to your curve’s L1 (Standard 79, Generous 83): a character stays on cheap creation pricing until spend passes that figure, so a matching grant lets them finish the build the campaign paid for before anything locks.">ⓘ</button></span>
                   <input class="field" type="number" id="inviteStartAp" placeholder="0" min="0" step="1" style="width:140px">
-                </label>
-                <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
-                  <span>Creation budget <button type="button" class="infobtn" title="How much AP the player has to spend BUILDING their character — the same starting budget every character gets, just customizable here. Shows up as a normal ledger entry and gets spent down on ability scores, skills, etc. during creation.">ⓘ</button></span>
-                  <input class="field" type="number" id="inviteStartBudget" placeholder="0" min="0" step="1" style="width:140px">
                 </label>
                 <button type="button" class="btn sm" id="createInviteBtn">Generate invite link</button>
               </div>
@@ -585,7 +581,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
               </div>
               <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign with the Bonus DM AP/Creation budget above (two separate pools — see the ⓘ on each). Distinct from the reusable Players code above, which creates a blank character with no preset budget.</div>
+              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign, holding the Starting AP above as DM-granted AP. Distinct from the reusable Players code above, which creates a blank character with no preset AP.</div>
             </div>
           </div>
 
@@ -628,7 +624,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
           <div class="subtile" id="campAdvancementTile">
             <div class="stitle">Level budget curve · award pace · starting tier</div>
             <div class="ruleblock">
-              <div class="lbl">📈 Level budget curve</div>
+              <div class="lbl">📈 Level budget curve <button type="button" class="infobtn" title="How much cumulative AP a COMPLETE character of each level is expected to have SPENT. L1 is the level-1 figure, “+per lvl” the step: Standard 79/+24 reaches 535 at L20, Generous 83/+28 reaches 615. Run the same formula at level 0 and both land on 55 — the Guide’s optional prelude/apprentice tier. Two things read this curve: the “Track-Level” label a player sees on their sheet (their AP spent, measured against it), and the creation-pricing lock stamped into new characters, which fires once spend passes L1. It never changes what any individual option costs to buy.">ⓘ</button></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                 <select id="ruleBudgetPreset" class="field" style="flex:0 0 140px">
                   <option value="standard">Standard (79/+24)</option>
@@ -639,10 +635,10 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <label style="font-size:11px;color:var(--muted)">+per lvl <input class="field" type="number" id="ruleBudgetInc" min="1" max="80" step="1" style="width:64px" value="24"></label>
                 <span style="font-size:11px;color:var(--muted)">L20 = <b id="ruleBudgetL20Preview">535</b> AP</span>
               </div>
-              <div class="grantnote">Display only — tunes the “Track-Level” label a player sees on their sheet against AP spent. Does NOT change any purchase price.</div>
+              <div class="grantnote">Tunes the “Track-Level” label a player sees on their sheet against AP spent, and sets the creation-pricing lock threshold stamped into characters created from here on. Does NOT change any purchase price, and does not re-price existing characters.</div>
             </div>
             <div class="ruleblock">
-              <div class="lbl">⏱ Award pace (AP per session)</div>
+              <div class="lbl">⏱ Award pace (AP per session) <button type="button" class="infobtn" title="Your baseline rate for handing out AP. PACT awards AP by the SESSION, not by level — the rulebook default is about 7 AP a session. This is a documented expectation only: nothing is granted automatically, you still award AP yourself with the “+ Award AP” action, and changing it never alters anyone’s existing AP. Sanity check against the budget curve above: at 7 AP a session and a Standard +24 per level, a party gains roughly a level every 3–4 sessions.">ⓘ</button></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                 <select id="ruleAwardPacePreset" class="field" style="flex:0 0 120px">
                   <option value="slow">Slow (5)</option>
@@ -656,7 +652,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <div class="grantnote">A documented baseline only — AP is still granted ad-hoc via the “+ Award AP” action. Nothing auto-awards.</div>
             </div>
             <div class="ruleblock" style="margin-bottom:0">
-              <div class="lbl">🎬 Starting tier (new-PC budget)</div>
+              <div class="lbl">🎬 Starting tier (new-PC budget) <button type="button" class="infobtn" title="How much AP a brand-new player character is handed to build with, as a multiple of the L1 above — Prelude 0.7×, Standard 1.0×, Veteran 1.3×, Legendary 1.6×. Off a Standard L1 of 79 that gives 55 / 79 / 103 / 126 AP. Its only effect is to pre-fill the “Creation budget” box when you generate a player invite: existing characters are never touched, and you can still override the figure on any single invite.">ⓘ</button></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                 <select id="ruleStartingTierPreset" class="field" style="flex:0 0 150px">
                   <option value="prelude">Prelude (0.7×)</option>
@@ -668,7 +664,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
                 <span style="font-size:11px;color:var(--muted)">AP</span>
               </div>
-              <div class="grantnote">Pre-fills the “Creation budget” field when you generate a player invite (still editable per invite).</div>
+              <div class="grantnote">Pre-fills the “Starting AP” field when you generate a player invite (still editable per invite). Recomputed from the L1 above whenever either the tier or the curve changes.</div>
             </div>
           </div>
 
@@ -1339,7 +1335,8 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   function _grantRosterList(){
     var out = roster.map(function(r){ return {id:r.id, name:(r.summary&&r.summary.name)||'Unnamed Hero'}; });
     cloudRoster.forEach(function(rec){
-      var name = rec.hasData ? ((rec.summary&&rec.summary.name)||'Unnamed Hero') : (rec.dm.playerLabel||'Unnamed character');
+      var name = rec.hasData ? ((rec.summary&&rec.summary.name)||'Unnamed Hero')
+                             : (rec.dm.playerLabel||rec.rowName||'Unnamed character');
       out.push({id:rec.id, name:name});
     });
     return out;
@@ -1576,8 +1573,17 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         summary = analyzeAug({ LOG: log, SEQ: row.stats.SEQ || (log.length+1), rules: row.stats.rules, name: row.name });
       } catch(e){ hasData = false; summary = null; }
     }
+    // Carry the `name` COLUMN through even when hasData is false. A player can name a character and
+    // save it before buying anything — the column then holds their real name while the LOG still has
+    // no `buy` event, so the placeholder card below must not fall back to "Unnamed character" and
+    // throw the name away (it did: a correctly-named, correctly-bound character read as nameless).
+    // 'New Character' is the server-assigned default (sql/schema.sql: characters.name's column
+    // default, and redeem_player_invite's v_name fallback), so it carries no more information than
+    // no name at all and is treated as absent here.
+    var rowName = (row.name||'').trim();
+    if(rowName === 'New Character') rowName = '';
     return {
-      id: row.id, summary: summary, hasData: hasData,
+      id: row.id, summary: summary, hasData: hasData, rowName: rowName,
       dm: { ap: row.ap||0, player: row.player||'', playerLabel: row.playerLabel||'', dmNotes: row.dmNotes||'' }
     };
   }
@@ -1586,7 +1592,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // documents) — show a lightweight placeholder instead of running dmAnalyze() on an empty LOG.
   function cloudCardHTML(rec){
     if(!rec.hasData){
-      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || 'Unnamed character';
+      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'Unnamed character';
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
@@ -1757,7 +1763,6 @@ document.addEventListener('campaign-ready', function () {
   var campRosterName = document.getElementById('campRosterName');
   var ignoreChk    = document.getElementById('ignorePlayerAp');
   var inviteStartAp = document.getElementById('inviteStartAp');
-  var inviteStartBudget = document.getElementById('inviteStartBudget');
   var createInviteBtn = document.getElementById('createInviteBtn');
   var inviteLinkRow = document.getElementById('inviteLinkRow');
   var inviteLinkOut = document.getElementById('inviteLinkOut');
@@ -1882,7 +1887,18 @@ document.addEventListener('campaign-ready', function () {
       var pz=(window.DATA&&DATA.levelBudgetCurves)||{standard:{l1:79,inc:24},generous:{l1:83,inc:28}};
       var c=pz[this.value]; if(c){ bl1.value=c.l1; binc.value=c.inc; } _updateBudgetPreview();
     });
-    bl1.addEventListener('input', function(){ bp.value='custom'; _updateBudgetPreview(); });
+    // Starting tier is a RATIO of the curve's L1, so moving L1 has to move the tier AP with it —
+    // otherwise switching Standard(79) to Generous(83) silently leaves the invite prefill on 79, which
+    // is exactly what happened to the Amble campaign. Only recompute for a named tier preset: once the
+    // DM has typed their own tier figure ('custom'), it is theirs and must not be overwritten.
+    function _syncStartingTierAp(){
+      if(stp.value === 'custom') return;
+      var ratio=((window.DATA&&DATA.startingTierRatios)||{prelude:0.7,standard:1.0,veteran:1.3,legendary:1.6})[stp.value];
+      if(ratio==null) return;
+      sta.value = Math.round((parseInt(bl1.value,10)||79) * ratio);
+    }
+    bp.addEventListener('change', _syncStartingTierAp);
+    bl1.addEventListener('input', function(){ bp.value='custom'; _updateBudgetPreview(); _syncStartingTierAp(); });
     binc.addEventListener('input', function(){ bp.value='custom'; _updateBudgetPreview(); });
     app.addEventListener('change', function(){
       var m=((window.DATA&&DATA.awardPaces)||{slow:{apPerSession:5},average:{apPerSession:7},fast:{apPerSession:10}})[this.value];
@@ -2085,7 +2101,7 @@ document.addEventListener('campaign-ready', function () {
     // Pre-fill the starting budget from the campaign's advancement starting-tier (feat/advancement-tracks).
     // Visible and fully editable — the DM can clear or override it before generating each invite.
     var _tierAp = camp.rules && camp.rules.startingTier && camp.rules.startingTier.ap;
-    inviteStartBudget.value = (_tierAp != null && _tierAp !== '') ? _tierAp : '';
+    inviteStartAp.value = (_tierAp != null && _tierAp !== '') ? _tierAp : '';
     loadRulesIntoPanel(camp.rules);
     dmNotesText.value = (camp.rules && camp.rules.dmNotes) || '';
     dmNotesStatus.textContent = '';
@@ -2149,12 +2165,11 @@ document.addEventListener('campaign-ready', function () {
   createInviteBtn.addEventListener('click', async function(){
     if(!currentCampId) return;
     var ap = parseInt(inviteStartAp.value, 10); if(!(ap >= 0)) ap = 0;
-    var budget = parseInt(inviteStartBudget.value, 10); if(!(budget >= 0)) budget = 0;
     createInviteBtn.disabled = true;
     inviteStatus.textContent = 'Generating…';
     inviteLinkRow.style.display = 'none';
     try {
-      var token = await B.createPlayerInvite(currentCampId, ap, budget);
+      var token = await B.createPlayerInvite(currentCampId, ap);
       var url = new URL('PACT-CharGen-Webtool.html?invite=' + encodeURIComponent(token), location.href).href;
       inviteLinkOut.value = url;
       inviteLinkRow.style.display = 'flex';

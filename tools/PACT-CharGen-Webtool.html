@@ -548,12 +548,27 @@ document.addEventListener('campaign-ready', function () {
     try { fetched = await C.listMyCampaigns(); } catch (err) { console.error('listMyCampaigns:', err); fetched = []; }
     if (gen !== authGen) return;   // a newer sign-in/sign-out superseded this fetch — discard it
     myCampaigns = fetched;
-    var prev = selEl.value;
+    renderCampaignOptions(selEl.value);
+  }
+
+  function renderCampaignOptions(preferredId){
     selEl.innerHTML = '<option value="">— no campaign —</option>' +
       myCampaigns.map(function (c) { return '<option value="' + _csEsc(c.id) + '">' + _csEsc(c.name) + '</option>'; }).join('');
-    if (prev && myCampaigns.some(function (c) { return c.id === prev; })) selEl.value = prev;
+    if (preferredId && myCampaigns.some(function (c) { return c.id === preferredId; })) selEl.value = preferredId;
     applySelection(selEl.value);
   }
+
+  /* Adopt a campaign the character just became bound to (invite redemption / "Join campaign"), so the
+     picker and the status line agree with reality immediately. Two things went wrong without this:
+     the campaign was fetched AFTER loadCampaigns() had already built the <select>, so it wasn't an
+     option and `selEl.value = camp.id` silently no-opped; and renderStatus() lives in this closure and
+     was never called, so the header kept reading "☁ Signed in — no campaign selected" for a character
+     that was in fact bound. Exposed on window because _cgResolveDmApStatus() is in a later script. */
+  window._cgAdoptCampaign = function (camp) {
+    if (!camp || !camp.id) return;
+    if (!myCampaigns.some(function (c) { return c.id === camp.id; })) myCampaigns = myCampaigns.concat([camp]);
+    renderCampaignOptions(camp.id);
+  };
 
   function applySelection(id){
     var camp = myCampaigns.find(function (c) { return c.id === id; }) || null;
@@ -600,6 +615,10 @@ document.addEventListener('campaign-ready', function () {
 async function _cgResolveDmApStatus(ap, campaignId){
   window._dmAp = ap || 0;
   window._ignorePlayerAp = false;
+  // Gate for cloud autosave (below). Keyed on campaign_id ALONE, deliberately: the character is bound
+  // whether or not getCampaign() happens to succeed right now, and a failed fetch must not silently
+  // downgrade it to "local, save manually" — that is the state this whole change exists to remove.
+  window._cgCampaignBound = !!campaignId;
   window._dmApStatus = campaignId ? 'unavailable' : 'none';   // resolved below -- 'unavailable' is the correct interim state, not silently 0
   if(!campaignId) return null;
   var C = window._campaignBridge;
@@ -609,9 +628,16 @@ async function _cgResolveDmApStatus(ap, campaignId){
       window._ignorePlayerAp = !!camp.ignore_player_ap;
       window._dmApStatus = 'active';
       window._cloudCampaign = camp;   // activates rule-filtering (cloudRuleBarred), same as the campaign-rules picker above
-      var selEl = document.getElementById('cgCloudCampSel');
-      if(selEl) selEl.value = camp.id;
-      if(typeof refreshCloudFilters === 'function') refreshCloudFilters();
+      // Adds the campaign to the picker if the list predates the join, selects it, AND re-renders the
+      // header status line — none of which the old `selEl.value = camp.id` here could do from outside
+      // that closure. Falls back to the bare assignment if the bridge somehow isn't up yet.
+      if(typeof window._cgAdoptCampaign === 'function'){
+        window._cgAdoptCampaign(camp);
+      } else {
+        var selEl = document.getElementById('cgCloudCampSel');
+        if(selEl) selEl.value = camp.id;
+        if(typeof refreshCloudFilters === 'function') refreshCloudFilters();
+      }
       return camp;
     }
   }catch(e){ /* non-fatal -- stays 'unavailable', which correctly reads as "unknown", not "no DM AP" */ }
@@ -701,6 +727,11 @@ document.addEventListener('sync-ready', function () {
       var id = currentCharId();
       var stats = _cgEnvelope(false);   // unsigned — matches the Live Sheet's cloud stats shape; never signature-checked on the way back in
       var res = await S.saveCharacter({ id: id, name: stats.name || 'Character', kind: 'chargen', stats: stats });
+      // Adopt the id the sync layer actually used. It differs from what we passed when this character
+      // still carried a legacy pre-UUID id — without adopting it, the next save would migrate AGAIN and
+      // strand a second row. Bare assignment: __charId is a top-level `let`, so window.__charId= would
+      // silently shadow-fail (same trap the cloud-load handler documents).
+      if (res.id) __charId = res.id;
       if (res.error) throw res.error;
       if (typeof flash === 'function') flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
     } catch (err) { alert('Save failed: ' + err.message); }
@@ -728,6 +759,9 @@ document.addEventListener('sync-ready', function () {
       var saveRes = await S.saveCharacter({ id: id, name: stats.name || 'Character', kind: 'chargen', stats: stats });
       if (saveRes && saveRes.error) throw saveRes.error;
       if (saveRes && saveRes.synced === false) throw new Error("You're offline — reconnect, then try joining again.");
+      // A legacy pre-UUID id is migrated by the save above, so the bind below MUST target the new id
+      // — binding the old one would fail against a row that was never inserted under it.
+      if (saveRes && saveRes.id) { id = saveRes.id; __charId = saveRes.id; }
 
       // Returns the bound campaign's id directly (no separate loadCharacter round-trip needed
       // to discover it -- ap is unaffected by a bind, so window._dmAp already has the right value).
@@ -861,8 +895,15 @@ document.addEventListener('sync-ready', function () {
 
       var ap, campaignId = res.campaignId;
       if(res.isNew){
-        var seedLog = [{type:'award',amount:res.startingBudget,note:'Budget',noLock:true,
-          label:'Starting creation budget ('+res.startingBudget+' AP)',seq:1,ts:Date.now(),rules:DATA.version}];
+        // An invite now carries ONE grant, paid into characters.ap (DM AP) by the RPC — so there is
+        // normally nothing to seed into the LOG at all. It used to seed res.startingBudget here as an
+        // `award` event, i.e. PLAYER AP, which any campaign with ignore_player_ap set then discarded
+        // outright: the grant was announced and immediately voided (D-GH-2026-08-03-invite-single-ap-grant).
+        // redeem_player_invite now always returns startingBudget = 0; the guard is kept so a client
+        // running against a not-yet-migrated database still seeds the budget half rather than losing it.
+        var seedLog = [];
+        if(res.startingBudget > 0) seedLog.push({type:'award',amount:res.startingBudget,note:'Budget',noLock:true,
+          label:'Starting creation budget ('+res.startingBudget+' AP)',seq:1,ts:Date.now(),rules:DATA.version});
         // Stamp this campaign's creation-lock threshold into the character's own log at the one
         // moment we can be certain which campaign it belongs to. The engine never reads campaign
         // settings during replay (that would re-price old logs under today's settings), so the
@@ -875,7 +916,7 @@ document.addEventListener('sync-ready', function () {
           var _thr = window._engineBridge && window._engineBridge.creationLockThreshold
                      ? window._engineBridge.creationLockThreshold(_seedCamp && _seedCamp.rules) : null;
           if(_thr!=null) seedLog.push({type:'creationLockConfig',payload:{threshold:_thr},
-            label:'Campaign creation-lock threshold ('+_thr+' AP)',seq:2,ts:Date.now(),rules:DATA.version});
+            label:'Campaign creation-lock threshold ('+_thr+' AP)',seq:seedLog.length+1,ts:Date.now(),rules:DATA.version});
         }catch(e){ /* non-fatal, see above */ }
         _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:DATA.version,name:'New Character',LOG:seedLog,SEQ:seedLog.length+1,id:res.characterId},{clearHistory:true});
         var stats = _cgEnvelope(false);
@@ -898,7 +939,7 @@ document.addEventListener('sync-ready', function () {
       await _cgResolveDmApStatus(ap, campaignId);
       clearPendingToken();
       render();
-      showBanner('☁ Joined campaign — character created with '+res.startingBudget+' AP budget.');
+      showBanner('☁ Joined campaign — character created with '+(ap||0)+' AP to spend.');
       hideBannerSoon();
     }catch(err){
       clearPendingToken();   // a terminal RPC error (already-joined, invalid/expired token, etc.) must not keep re-prompting either
@@ -974,7 +1015,7 @@ function _cgDmOpts(){var a=window._dmApStatus==='active';return {dmAp:a?(window.
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';}
+function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;}
 function _apEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function _apSourceHTML(r){
   var st=window._dmApStatus||'none', ignPlr=!!window._ignorePlayerAp, dmAp=window._dmAp||0;
@@ -1423,7 +1464,7 @@ function buildForm(F){
     '<div class="namelab">Name flavour</div><div class="namesty">'+styleChips+'</div>'+
     '<div class="namelab">Influence</div><div class="namesty influ">'+influChips+'</div>'+
     '<div class="hint" style="margin:2px 0 4px 218px">Tick flavours and/or influence toggles — the generator blends every chosen pool. Species/Class-linked pull from your origin species &amp; class. Leave the name as-is to keep it.</div>'+
-    rNum('budget','AP budget',50,12,750,'≈ level shown in the list · L1 50 · L5 176 · L10 281 · L15 386 · L20 491 (+21/level after L3)')+
+    rNum('budget','AP budget',79,12,750,'≈ level shown in the list · L0 55 · L1 79 · L5 175 · L10 295 · L15 415 · L20 535 (+24/level)')+
 '<div class="sublab">DM Calls &mdash; what is permitted at this table</div>'+
     '<div class="row" style="gap:20px;flex-wrap:wrap;padding:4px 0">'+
       '<label class="ck" title="Allow Martially Bound and Magically Bound options"><input type="checkbox" id="dm_bound" checked onchange="updateDmToggles()"> ⚔✦ Bound (martial &amp; magical)</label>'+
@@ -2852,7 +2893,36 @@ var CG_AUTOSAVE_KEY_LEGACY='pactCharGenAutosave';   // pre-Step-4 flat-build aut
 // _cgEnvelope(true) → SIGNED file export (saveBuild); _cgEnvelope(false) → unsigned localStorage autosave
 // (never signature-checked on restore, so signing it every keystroke is wasted work — D-GH48).
 function _cgEnvelope(sign){return buildCharacterEnvelope({name:val('cname')||'',rules:DATA.version,LOG:LOG,SEQ:SEQ,id:currentCharId()},{sign:sign!==false});}
+// ---- cloud autosave — campaign-bound characters ONLY ----------------------------------------
+// CharGen only ever wrote to the cloud on an explicit action (Save to cloud, Join campaign, invite
+// redemption), so a player who redeemed an invite and started building stayed invisible in their DM's
+// roster until they happened to press Save. Autosaving every build was rejected: it would push
+// local-only solo characters into the cloud and add a network write behind every keystroke. This is
+// scoped to characters already bound to a campaign — the one case where somebody else is waiting on
+// the data — and debounced so it fires after editing stops, not during it.
+var _cgCloudSaveTimer=null,_cgCloudSaveBusy=false,_cgCloudSaveAgain=false;
+function _cgCloudAutosave(){
+  if(!window._cgCampaignBound||!window._cloudSignedIn) return;
+  if(!window._syncBridge||!navigator.onLine) return;   // offline edits stay in the local autosave; sync.js retries dirty records on reconnect
+  clearTimeout(_cgCloudSaveTimer);
+  _cgCloudSaveTimer=setTimeout(_cgCloudPush,3000);
+}
+async function _cgCloudPush(){
+  // Never overlap two pushes for the same character — pushCharacter() is a bare update-then-insert with
+  // no dirty check, so a slow request overtaken by a fast one could land the older build last.
+  if(_cgCloudSaveBusy){_cgCloudSaveAgain=true;return;}
+  _cgCloudSaveBusy=true;
+  try{
+    var stats=_cgEnvelope(false);
+    var res=await window._syncBridge.saveCharacter({id:currentCharId(),name:stats.name||'Character',kind:'chargen',stats:stats});
+    if(res&&res.id)__charId=res.id;   // adopt a migrated pre-UUID id, same as the manual save
+  }catch(e){ /* deliberately silent: the local autosave already holds the work and sync.js leaves the
+                record dirty for the next retry — a toast on every failed keystroke would be noise */ }
+  _cgCloudSaveBusy=false;
+  if(_cgCloudSaveAgain){_cgCloudSaveAgain=false;_cgCloudAutosave();}
+}
 function _cgAutosave(){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(_cgEnvelope(false)));}catch(e){}
+  try{_cgCloudAutosave();}catch(e){}
   // Feed the shared recent-characters store (landing "Continue" list). Best-effort + guarded so it can
   // never break the real autosave above; window.recordAutosave arrives with the engine bridge (engine-ready).
   try{if(window.recordAutosave)window.recordAutosave({tool:'chargen',id:currentCharId(),name:val('cname')||'',rules:DATA.version,LOG:LOG,SEQ:SEQ});}catch(e){}}
@@ -2938,7 +3008,7 @@ function randomizeRoll(){
   // spuriously once spend passes the player budget. _cgDmOpts() is a no-op ({dmAp:0,ignorePlayerAp:false})
   // for a local build with no active campaign, so ordinary local randomize behaviour is unchanged.
   const _dmO=_cgDmOpts();
-  const budget=compute(b,_dmO).spendable||DATA.level1AP||50;
+  const budget=compute(b,_dmO).spendable||DATA.level1AP||79;
   const C=x=>compute(x,_dmO);
   const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
   function tryAct(mut){ const snap=JSON.stringify(b);
@@ -3436,7 +3506,7 @@ function explainParas(label,b,r){
   else if(L==='Armour proficiency'){P('Flat climb: Light 2, Medium +4 (needs Light <b>and STR 10</b>), Heavy +6 (needs Medium <b>and STR 10</b>), Shield 2. Full plate = 12 AP.');}
   else if(L==='Heritage pack'){P('A species pack is a flat, subsidised bundle of that race\'s defining basics ('+(DATA.pack[b.species]||0)+' AP for '+b.species+'). Human is free.');}
   else if(L.indexOf('2nd origin species')===0){P('A second origin race (creation only) costs <b>double</b> its pack, and then its traits are bought at base price with no cross-species surcharge.');}
-  else if(L==='Species traits'){P('Race-defining traits are <b>T1 at character creation</b> (no Hit-Dice gate): your own race\'s at the ★ origin price, another race\'s at +1. Skill-granting traits are bought on the skill ladder instead.');if((b.budget||0)>(DATA.level1AP||45))P('⚠ Your budget is above the ~'+(DATA.level1AP||45)+' AP level-1 anchor — traits actually acquired in play would cost more (their current Tier).');}
+  else if(L==='Species traits'){P('Race-defining traits are <b>T1 at character creation</b> (no Hit-Dice gate): your own race\'s at the ★ origin price, another race\'s at +1. Skill-granting traits are bought on the skill ladder instead.');if((b.budget||0)>(DATA.level1AP||79))P('⚠ Your budget is above the ~'+(DATA.level1AP||79)+' AP level-1 anchor — traits actually acquired in play would cost more (their current Tier).');}
   else if(L==='Class unlocks'){P('Unlocking another class costs <b>7 × the classes you already own</b> (7, 14, 21, 28 → cumulative 7/21/42/70). Only needed if you want several of that class\'s features.');}
   else if(L.indexOf('2nd origin class')===0){P('A second origin class (creation only) is 14 AP and includes its unlock; both classes then get the origin discount on their features.');}
   else if(L==='Class features'){P('Each feature\'s price comes from the <b>Master Cost Table</b> (its Tier × availability band). Your <b>origin</b> class pays −(Tier−1) AP (floor 1); any other class pays +Tier. Martially Bound shaves a further −1 on the bound class.');}

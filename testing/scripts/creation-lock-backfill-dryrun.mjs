@@ -29,9 +29,11 @@ import { compute, foldBuild, DATA, creationLockThreshold } from '../../js/engine
 const TRAIT_PROBE = 'Halfling: Naturally Stealthy';   // own-species, non-pack, banded => reprices on lock
 
 // Optional 2nd arg: a JSON file of {campaignId: rulesObject}. When supplied, the backfill also
-// stamps each character's campaign creation-lock threshold (from that campaign's BUDGET curve —
-// see creationLockThreshold()), instead of letting the engine fall back to DATA.level1AP, which is
-// the PACE curve's L1 and the wrong number for this question.
+// stamps each character's TUNED campaign creation-lock threshold (that campaign's own budget curve
+// — see creationLockThreshold()), instead of letting the engine fall back to DATA.level1AP. Since
+// fix/ap-budget-curve-standard that fallback is the Standard budget curve's L1 (79), so it is the
+// right kind of number either way; supplying rules only matters for a campaign on Generous (83) or
+// a custom curve.
 const rulesFile = process.argv[3];
 
 function deepDiff(a, b, path = '', out = []) {

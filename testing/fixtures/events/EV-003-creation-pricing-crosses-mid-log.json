@@ -1,5 +1,5 @@
 {
-  "description": "Creation-pricing-lock (D-GH31/D-GH32) fixture: a campaignBound event (required under D-GH32 for the automatic threshold to ever fire) is followed by cumulative spend crossing DATA.level1AP mid-LOG, between two different non-pack own-race Halfling trait purchases. Asserts PER-PURCHASE tagging, not a whole-build flag: 'Halfling: Brave' (bought before the crossing) prices at the flat creation rate (origin=2); 'Halfling: Naturally Stealthy' (bought after) prices at the tier-2 locked rate (MASTER[2][band2]=7), in the SAME build.",
+  "description": "Creation-pricing-lock (D-GH31/D-GH32) fixture: a campaignBound event (required under D-GH32 for the automatic threshold to ever fire) is followed by cumulative spend (2+85=87) crossing the default auto-lock threshold DATA.level1AP (79, the Standard level-budget curve's L1) mid-LOG, between two different non-pack own-race Halfling trait purchases. Asserts PER-PURCHASE tagging, not a whole-build flag: 'Halfling: Brave' (bought before the crossing) prices at the flat creation rate (origin=2); 'Halfling: Naturally Stealthy' (bought after) prices at the tier-2 locked rate (MASTER[2][band2]=7), in the SAME build.",
   "baseSnapshotRef": "_shared/base-halfling.json",
   "events": [
     {
@@ -9,9 +9,9 @@
     },
     {
       "type": "award",
-      "amount": 60,
+      "amount": 90,
       "note": "Big quest reward",
-      "label": "Award — Big quest reward (60 AP)"
+      "label": "Award — Big quest reward (90 AP)"
     },
     {
       "type": "buy",
@@ -29,7 +29,7 @@
       "payload": {
         "patch": {}
       },
-      "cost": 55,
+      "cost": 85,
       "level": 2,
       "label": "Spend filler crossing the creation-pricing threshold"
     },
