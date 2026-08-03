@@ -303,6 +303,53 @@ RPC-level authorization verified (only the current owner can create a claim link
 redemption can consume it) and the design questions above resolved and recorded in DECISIONS.md before
 merging.
 
+## Purge the "pace curve" mislabel from the historical records — TODO
+Branch docs/pace-curve-terminology. `D-GH-2026-08-03-ap-budget-curve-standard` established that PACT has
+no AP-earned-per-level curve at all — the `{1:50 … 20:491}` ladder was the Players Guide appendix's
+twenty pregenerated Emberwatch sample characters, and the rules define only a *budget* curve (Standard
+L1 79/+24, Generous 83/+28, prelude L0 55) and an *award pace* (AP per session, ~7). Live code was
+corrected in that change; several archival records still assert the wrong framing as settled fact.
+**Effort:** low · **Risk:** medium — ambiguity is low (the correct wording is already settled by
+`D-GH-2026-08-03-ap-budget-curve-standard`, one obviously-right annotation per site) and damage scale is
+low (docs only, fully `git revert`-able, no code, data or security surface); damage likelihood is medium
+— nothing automated gates doc prose, and the real hazard is an agent "tidying" a historical record and
+silently dropping reasoning, which AGENTS.md's edit-don't-regenerate rule exists to prevent.
+
+```text
+Annotate — do NOT rewrite. These are historical records of what was believed at the time; the repo's
+convention is a dated correction note or addendum, the same shape as the existing "Addendum (2026-08-03)"
+in D-GH-2026-08-02-creation-lock-switch.md. Preserve the original wording and reasoning verbatim; add a
+short note beside it pointing at D-GH-2026-08-03-ap-budget-curve-standard. Never regenerate a whole file.
+
+Sites (verified by grep on 2026-08-03 — re-grep before editing, they may have moved):
+1. DECISIONS.md:448 — "left js/ap-by-level.js untouched (pace curve != budget curve)". The parenthetical
+   is the mislabel; the decision it describes was still correct at the time.
+2. decisions/2026/D-GH49.md:8 — cites DATA.levelAP as {1:50…20:491} / DATA.level1AP 50. Numbers are now
+   79-based; note the supersession rather than editing the figures in place.
+3. decisions/2026/D-GH-2026-07-14-advancement-tracks.md:9 — "(AP earned by level: 1->50…20->491, which is
+   exactly what js/ap-by-level.js's AP_BY_LEVEL already is)". This record ALSO contains the follow-up
+   note that predicted a DATA.version bump would be needed; that prediction came true, so cross-link it.
+4. decisions/2026/D-GH-2026-08-02-creation-lock-switch.md:78/86/88 — the 2026-08-03 addendum's whole
+   two-curve framing. Its mechanism (threshold reads the campaign budget curve) is unaffected and must
+   stay; only the "pace curve" naming and the L1=50 figure are wrong.
+5. docs/sessions/2026-07-14-advancement-tracks-review-saga.md:22 — session note. Lowest priority; a
+   single dated footnote at the top is enough for a session log.
+
+Also re-grep for "1st-level recruit", "491" and "+21/level" outside docs/PACT-Players-Guide.html,
+docs/history/ and CHANGELOG-archive-*.md, in case a site was missed.
+
+Docs-only: do NOT bump DATA.version; log the sweep in CHANGELOG.md as one line. No new DECISIONS.md
+entry is needed — D-GH-2026-08-03-ap-budget-curve-standard already carries the "why", and this task is
+listed there under "Caveats and follow-ups".
+```
+
+**Done when:** `grep -rn "pace curve\|PACE curve" --include=*.md --include=*.js --include=*.html .`
+returns no hit that presents the term as current fact outside `docs/history/` and the changelog archive
+(hits inside an explicit correction note are fine and expected), every edited record still contains its
+original wording, and parity still 24/0.
+
+---
+
 ---
 
 # Conventions
