@@ -3902,7 +3902,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <h3>Other outputs</h3>
   <ul>
     <li><span class="tag">&#x1F4CB; Sheet</span> shows a printable character sheet overlay.</li>
-    <li><sp
+    <!-- NOTE: the source was truncated here ("<li><sp") from PR #210 until 2026-08-03. An unterminated
+         tag swallowed everything that followed, so the service-worker registration below never reached
+         the DOM and this tool registered no service worker of its own — masked only because index.html
+         registers one for the whole /PACT/ scope. The lost sentence is unrecoverable; the structure is
+         closed here instead of inventing documentation. See D-GH-2026-08-03-chargen-truncated-help. -->
+  </ul>
+</div>
+</div>
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/PACT/service-worker.js').then(reg => {

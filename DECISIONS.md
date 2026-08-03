@@ -13,6 +13,16 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-03-sw-cache-e2e** — added a returning-visitor gate: it installs the real service worker,
+  changes a module so a network-first one imports a symbol only the fresh copy exports, and reloads
+  without a hard refresh. Demonstrated red on the exact 2026-08-03 bug and green once fixed. Building it
+  uncovered that **CharGen's own service-worker registration has been dead since PR #210** — line 3905 was
+  the truncated fragment `<li><sp`, and an unterminated tag swallowed the registration script so it never
+  reached the DOM; masked only because index.html registers the worker for the whole `/PACT/` scope, so a
+  deep link to CharGen got no service worker at all. Also records why the test first reported vacuous
+  passes (`controller !== undefined` is true before activation). Full record:
+  `decisions/2026/D-GH-2026-08-03-sw-cache-e2e.md`.
+
 - **D-GH-2026-08-03-vendor-supabase-js** — the Supabase client was imported from esm.sh, making every
   cloud feature depend on a third-party CDN at page load; an ES module import failure aborts the whole
   script, so an outage or a block took the cloud half of every tool down. Now vendored as

@@ -1,0 +1,56 @@
+name: Service-worker staleness e2e
+
+# The behavioural counterpart to audit.py's "service-worker import freshness" check.
+#
+# On 2026-08-03 every cloud path broke for RETURNING users while all five CI checks were green:
+# js/sync.js (network-first) began importing a symbol from js/character-store.js (then cache-first), and
+# a returning browser ran the new sync.js against the cached old character-store.js — a link-time failure
+# that aborts the whole module graph. Nothing caught it because every other gate runs in a clean browser
+# with no service worker and no second visit, which is the only state where the bug exists.
+#
+# This installs the service worker, changes a module on disk, and reloads WITHOUT a hard refresh — what a
+# returning user actually does. Verified to go red on that exact bug and green once fixed.
+#
+# Deliberately broad path filter: the whole point is that this catches problems the other gates miss, and
+# the failure mode is a *combination* of a module change and a caching policy, not either alone.
+
+on:
+  pull_request:
+    paths:
+      - "js/**"
+      - "service-worker.js"
+      - "tools/*.html"
+      - "testing/scripts/sw-cache-e2e.mjs"
+      - "testing/package.json"
+      - "testing/package-lock.json"
+      - ".github/workflows/sw-cache-e2e.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: sw-cache-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sw-cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+
+      - name: Install test tooling (dev/CI only — the app itself needs no npm install)
+        working-directory: testing
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: testing
+        run: npx playwright install --with-deps chromium
+
+      - name: Returning-visitor / stale-module regression
+        working-directory: testing
+        run: node scripts/sw-cache-e2e.mjs
