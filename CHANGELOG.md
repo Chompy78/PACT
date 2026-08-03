@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · fix(engine): creation-lock threshold reads the campaign's BUDGET curve, not the pace
+  curve** — the auto-lock compared AP spent against `DATA.level1AP` (50). That's the *pace* curve —
+  AP **earned** by level. The lock asks "is this character finished being built?", a question about
+  **spend**, which is the separate *budget* curve (what a complete level-N build costs: Standard
+  L1=79, Generous L1=83, per-campaign). `D-GH-2026-07-14-advancement-tracks` had already flagged this
+  exact conflation as a follow-up. New pure export `creationLockThreshold(campaignRules)` resolves
+  `rules.levelBudgetCurve.l1`, falling back to `DATA.level1AP` for solo/untuned characters; CharGen's
+  invite redemption stamps it into the character's log at seed time. For Amble (Generous) the
+  threshold becomes **83**: a player can spend their whole 70 AP grant and stay in creation, locking
+  only once in-play spending passes what a complete level-1 build costs. Verified the Players Guide's
+  Level 0 (55 AP) also sits on the budget curve and already falls out of the existing formula — no
+  table row is missing. No `DATA.version` bump (the threshold is a log event, so `compute()` output
+  is unchanged for every pre-existing input). Parity 24/0. See the 2026-08-03 addendum in
+  `decisions/2026/D-GH-2026-08-02-creation-lock-switch.md`.
 - **2026-08-02 · feat(engine): creation-lock switch — the engine half (events, precedence, backward
   compatibility)** — PACT's rules price own-species racial traits cheap during creation and expensive
   if claimed later, but nothing could ever mark a character "finished," so the expensive branch was

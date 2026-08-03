@@ -674,6 +674,31 @@ function _replay(b, log) {
   return ae;
 }
 
+// creationLockThreshold(campaignRules): the AP-spent figure past which the automatic creation
+// lock fires for a character in this campaign. Callers stamp the result into a character's log
+// as a `creationLockConfig{threshold}` event; the engine's replay never reads campaign settings
+// directly (that would break pure-log-replay and make old logs re-price under today's settings).
+//
+// WHICH CURVE — this is the whole point of the function, and getting it wrong is a documented
+// trap (D-GH-2026-07-14-advancement-tracks: "Conflating them was a real error in two of the
+// reviews"). PACT has TWO different AP-per-level curves:
+//   * PACE curve   — AP a character has EARNED by level N. `DATA.apByLevel`, L1 = 50. This is
+//                    the Players Guide's "1st-level recruit (50 AP) to 20th-level archmage
+//                    (491 AP)" progression.
+//   * BUDGET curve — AP a COMPLETE level-N build is expected to have SPENT. Per-campaign
+//                    (`rules.levelBudgetCurve`), Standard L1 = 79, Generous L1 = 83.
+// The lock asks "has this character finished being built?" — a question about SPEND — so it must
+// read the BUDGET curve. The historical code used DATA.level1AP (the PACE curve's L1), which is
+// the conflation above; D-GH-2026-07-14 flagged fixing it as a follow-up and this is it.
+//
+// Falls back to DATA.level1AP only when there is no campaign or the campaign never tuned a curve,
+// which preserves the historical default for solo characters and for every existing fixture.
+export function creationLockThreshold(campaignRules) {
+  const curve = campaignRules && campaignRules.levelBudgetCurve;
+  const l1 = curve && Number(curve.l1);
+  return (Number.isFinite(l1) && l1 > 0) ? l1 : DATA.level1AP;
+}
+
 // foldBuild(events): the Live Sheet's fold — build a character from a blank
 // level-1 base by replaying the whole event log; budget = total AP earned.
 export function foldBuild(events) {
