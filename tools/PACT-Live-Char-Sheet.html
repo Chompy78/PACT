@@ -1517,16 +1517,20 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
 </div></div>
 
 <script type="module">
-  import { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync } from '../js/sync.js';
-  import { currentSession, onAuthChange } from '../js/auth.js';
-  import { listMyCampaigns, getCampaign } from '../js/campaign.js';
-  import { getAwardHistory } from '../js/dm.js';
+  // ENGINE BRIDGE — local modules ONLY. Deliberately separate from the cloud bridge below, the
+  // same split CharGen has carried since D-GH-2026-07-12 ("js/sync.js belongs in THIS module (not
+  // the engine bridge) for the same CDN-resilience reason as auth/campaign").
+  //
+  // These two used to be ONE module script, which made the whole tool depend on a CDN it does not
+  // need to render a character: js/supabase-client.js imports @supabase/supabase-js from esm.sh, and
+  // a single failed import aborts the entire script. engine-ready then never fired, UI boot (gated
+  // on it) never ran, and the page rendered as a bare shell — while every classic-script call went
+  // on to throw "Cannot read properties of undefined (reading 'foldBuild')" against the unset
+  // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
+  // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
+  // half; the worst case is now local-only mode, which this app already supports.
   import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync };
-  window._authBridge = { currentSession, onAuthChange };
-  window._campaignBridge = { listMyCampaigns, getCampaign };
-  window._dmBridge = { getAwardHistory };
   window._engineBridge = { validate };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
@@ -1538,8 +1542,42 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   document.dispatchEvent(new Event('engine-ready'));
+</script>
+<script type="module">
+  // CLOUD BRIDGE — may fail (CDN/offline/blocked). Nothing above depends on it, so a failure here
+  // costs cloud save, campaigns and DM AP, not the tool. Listeners gate on sync-ready, which simply
+  // never fires; window._syncBridge etc. stay undefined and every consumer already null-checks them.
+  import { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync } from '../js/sync.js';
+  import { currentSession, onAuthChange } from '../js/auth.js';
+  import { listMyCampaigns, getCampaign } from '../js/campaign.js';
+  import { getAwardHistory } from '../js/dm.js';
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync };
+  window._authBridge = { currentSession, onAuthChange };
+  window._campaignBridge = { listMyCampaigns, getCampaign };
+  window._dmBridge = { getAwardHistory };
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
+</script>
+<script>
+// Cloud-bridge watchdog. The cloud module can fail independently of the engine (CDN blocked, offline,
+// esm.sh down) — by design, since splitting the bridges. But a tool whose UI is gated on the cloud event
+// then renders as a bare shell with no explanation, which reads as "the app is broken" rather than "the
+// cloud is unreachable". If the event hasn't fired shortly after load, say so plainly.
+(function(){
+  var EV = 'sync-ready', fired = false;
+  document.addEventListener(EV, function(){ fired = true; });
+  window.addEventListener('load', function(){
+    setTimeout(function(){
+      if (fired) return;
+      var d = document.createElement('div');
+      d.setAttribute('role','status');
+      d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999;padding:10px 14px;'
+        + 'background:#7a2a23;color:#fff;font:13px/1.4 "Segoe UI",Calibri,Arial,sans-serif;text-align:center';
+      d.textContent = '\u26a0 Couldn\u2019t reach the cloud. The sheet works normally and saves locally, but cloud save, campaigns and DM-granted AP are unavailable until you reload with a connection.';
+      document.body.insertBefore(d, document.body.firstChild);
+    }, 8000);
+  });
+})();
 </script>
 
 <script>
