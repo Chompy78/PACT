@@ -387,6 +387,8 @@ create table if not exists public.campaign_invites (
   created_by      uuid references public.profiles(id) on delete set null,
   created_at      timestamptz not null default now(),
   expires_at      timestamptz,                                    -- reserved, not yet enforced
+  note            text,                                           -- DM label; see D-GH-2026-08-03-dm-invite-manager
+  revoked_at      timestamptz,                                    -- soft revocation; a revoked invite cannot redeem
   redeemed_by     uuid references public.profiles(id) on delete set null,
   redeemed_at     timestamptz
 );
@@ -401,44 +403,103 @@ create index if not exists idx_campaign_invites_campaign on public.campaign_invi
 -- Rationale in full:
 -- sql/migrations/2026-08-03-invite-single-ap-grant.sql and
 -- decisions/2026/D-GH-2026-08-03-invite-single-ap-grant.md.
+-- Invite AP is a SINGLE grant paid into characters.ap; redemption also records it in ap_awards so
+-- the grant has the same provenance as any later DM award. `note` labels an invite for the DM's own
+-- reference and `revoked_at` withdraws an unredeemed one without destroying the record. Rationale:
+-- sql/migrations/2026-08-03-invite-single-ap-grant.sql, -invite-grant-award-row.sql,
+-- -invite-notes-and-revoke.sql and decisions/2026/D-GH-2026-08-03-dm-invite-manager.md.
 create or replace function public.create_player_invite(
   p_campaign_id     uuid,
   p_starting_ap     integer default 0,
-  p_starting_budget integer default 0   -- DEPRECATED: folded into p_starting_ap; kept for old clients
+  p_starting_budget integer default 0,   -- DEPRECATED: folded into p_starting_ap; kept for old clients
+  p_note            text    default null
 )
 returns text language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_token text;
   v_ap    integer := coalesce(p_starting_ap, 0);
   v_extra integer := coalesce(p_starting_budget, 0);
+  v_note  text    := nullif(trim(coalesce(p_note, '')), '');
 begin
   if not is_campaign_dm(p_campaign_id) then
     raise exception 'Only a campaign DM can create a player invite';
   end if;
-  -- Checked BEFORE folding: two values that sum to a non-negative total must still each be
-  -- non-negative, or a negative budget could quietly cancel part of a positive AP grant.
   if v_ap < 0 or v_extra < 0 then
     raise exception 'Starting AP must be non-negative';
   end if;
   v_ap := v_ap + v_extra;
+  if v_note is not null and length(v_note) > 200 then v_note := left(v_note, 200); end if;
 
   loop
     v_token := encode(extensions.gen_random_bytes(16), 'hex');
     exit when not exists (select 1 from campaign_invites where token = v_token);
   end loop;
 
-  insert into campaign_invites (campaign_id, token, starting_ap, starting_budget, created_by)
-    values (p_campaign_id, v_token, v_ap, 0, auth.uid());
+  insert into campaign_invites (campaign_id, token, starting_ap, starting_budget, created_by, note)
+    values (p_campaign_id, v_token, v_ap, 0, auth.uid(), v_note);
 
   return v_token;
 end;
 $$;
 
--- Redemption also records the grant in ap_awards, so a character's starting AP has the same
--- provenance as any later DM award — and so Live Sheet's clone-to-standalone (which converts DM AP
--- into log entries via getAwardHistory()) stops silently dropping it. See
--- sql/migrations/2026-08-03-invite-grant-award-row.sql and
--- decisions/2026/D-GH-2026-08-03-invite-grant-award-row.md.
+-- Revoke / un-revoke an unredeemed invite. DM-only. Redeemed invites are immutable: the character
+-- already exists and its AP was already granted, so "revoking" it would describe a state that isn't true.
+create or replace function public.set_invite_revoked(p_invite uuid, p_revoked boolean default true)
+returns timestamptz language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_campaign uuid; v_redeemed uuid; v_at timestamptz;
+begin
+  select campaign_id, redeemed_by into v_campaign, v_redeemed
+    from campaign_invites where id = p_invite;
+  if v_campaign is null then raise exception 'Invite not found'; end if;
+  if not is_campaign_dm(v_campaign) then
+    raise exception 'Only a campaign DM can revoke an invite';
+  end if;
+  if v_redeemed is not null then
+    raise exception 'That invite has already been redeemed and cannot be revoked';
+  end if;
+  update campaign_invites
+    set revoked_at = case when p_revoked then now() else null end
+    where id = p_invite
+    returning revoked_at into v_at;
+  return v_at;
+end;
+$$;
+
+-- DM-only listing. SECURITY DEFINER so it can join profiles/characters, which the caller's own RLS
+-- would not let them read wholesale, while still gating on is_campaign_dm internally.
+create or replace function public.list_campaign_invites(p_campaign uuid)
+returns table(
+  id           uuid,
+  token        text,
+  note         text,
+  starting_ap  integer,
+  created_at   timestamptz,
+  revoked_at   timestamptz,
+  redeemed_at  timestamptz,
+  redeemed_by_name text,
+  character_id uuid,
+  character_name text
+)
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not is_campaign_dm(p_campaign) then
+    raise exception 'Only a campaign DM can list invites';
+  end if;
+  return query
+    select i.id, i.token, i.note,
+           coalesce(i.starting_ap, 0) + coalesce(i.starting_budget, 0),   -- same fold the RPCs apply
+           i.created_at, i.revoked_at, i.redeemed_at,
+           p.display_name, c.id, c.name
+      from campaign_invites i
+      left join profiles p on p.id = i.redeemed_by
+      left join characters c on c.owner_id = i.redeemed_by and c.campaign_id = i.campaign_id
+     where i.campaign_id = p_campaign
+     order by i.created_at desc;
+end;
+$$;
+
+-- A revoked invite must not redeem. Only this branch changes; the rest is unchanged from
+-- 2026-08-03-invite-grant-award-row.sql.
 create or replace function public.redeem_player_invite(p_token text, p_name text default null)
 returns table(character_id uuid, starting_ap integer, starting_budget integer, campaign_id uuid, is_new boolean)
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -452,9 +513,15 @@ begin
     raise exception 'Not authenticated';
   end if;
 
+  -- Checked before the claiming UPDATE so a revoked invite can't be consumed by the race.
+  if exists (select 1 from campaign_invites
+              where token = p_token and revoked_at is not null and redeemed_by is null) then
+    raise exception 'This invite has been withdrawn by the DM';
+  end if;
+
   update campaign_invites
     set redeemed_by = auth.uid(), redeemed_at = now()
-    where token = p_token and redeemed_by is null
+    where token = p_token and redeemed_by is null and revoked_at is null
     returning * into v_invite;
 
   if found then
@@ -462,7 +529,6 @@ begin
       raise exception 'You have already joined this campaign';
     end if;
 
-    -- Single pool. The fold covers pre-2026-08-03 invites, whose budget half would otherwise vanish.
     v_grant := coalesce(v_invite.starting_ap, 0) + coalesce(v_invite.starting_budget, 0);
 
     v_name := nullif(trim(coalesce(p_name, '')), '');
@@ -477,16 +543,12 @@ begin
       raise exception 'You have already joined this campaign';
     end;
 
-    -- Provenance for the grant. Attributed to the DM who created the invite (campaign_invites.created_by)
-    -- rather than auth.uid(), which here is the redeeming PLAYER — recording the player as the awarding
-    -- DM would make the history actively misleading. Skipped when the grant is 0 so an unfunded invite
-    -- doesn't litter the history with a meaningless row.
     if v_grant <> 0 then
       insert into ap_awards (character_id, dm_id, campaign_id, amount, note)
-        values (v_char_id, v_invite.created_by, v_invite.campaign_id, v_grant, 'Starting AP (campaign invite)');
+        values (v_char_id, v_invite.created_by, v_invite.campaign_id, v_grant,
+                coalesce(nullif(trim(v_invite.note), ''), 'Starting AP (campaign invite)'));
     end if;
 
-    -- starting_budget is returned as 0 so no client, old or new, seeds a player-AP award event.
     return query select v_char_id, v_grant, 0, v_invite.campaign_id, true;
     return;
   end if;
@@ -503,8 +565,6 @@ begin
     raise exception 'Invite already redeemed but character not found';
   end if;
 
-  -- Idempotent replay: no second ap_awards row, or a double-click would double the recorded history
-  -- (and the character's ap was only ever incremented once).
   v_grant := coalesce(v_invite.starting_ap, 0) + coalesce(v_invite.starting_budget, 0);
   return query select v_char_id, v_grant, 0, v_invite.campaign_id, false;
 end;
