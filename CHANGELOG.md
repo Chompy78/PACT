@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · fix(security): an invite's DM note is no longer readable by the player it describes**
+  (SQL migration `2026-08-03-invite-note-dm-only.sql`) — `campaign_invites_select` lets a redeemer read
+  their own row, and RLS being row-level meant that included the DM's `note`. Now withheld at the column
+  level; the DM reads it through the SECURITY DEFINER `list_campaign_invites()`. Worth knowing: a
+  column-level REVOKE cannot subtract from a table-level GRANT — the first attempt reported success and
+  changed nothing — so the blanket grant is dropped and the columns granted explicitly. `select *` on
+  this table now fails loudly for `authenticated` rather than silently omitting the column; nothing in
+  `js/`/`tools/` selects it directly, so nothing breaks. Verified live as the `authenticated` role
+  (note denied, `select *` denied, other columns fine) and as a simulated DM session (22 invites, notes
+  intact). Advisor: no new findings.
+
 - **2026-08-03 · fix(dm-console): the AP grant code stops pretending to be per-character; local tools
   grouped below the cloud campaign** — the grant card asked you to tick each character and set an amount
   each, implying every code was bound to a character. `dmMakeGrant()` encodes an **amount and a note and

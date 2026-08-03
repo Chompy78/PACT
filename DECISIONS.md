@@ -13,6 +13,15 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-03-invite-note-dm-only** — RLS is row-level, so the redeemer clause on
+  `campaign_invites_select` let a player read the DM's `note` on their own invite. Withheld at the COLUMN
+  level; the DM still reads it through the SECURITY DEFINER `list_campaign_invites()`. Turned on a
+  Postgres subtlety worth remembering: a column-level REVOKE cannot subtract from a table-level GRANT —
+  it reports success and does nothing — so the blanket grant must be dropped and the wanted columns
+  granted explicitly. Consequence: `select *` on this table now fails loudly for `authenticated`, which
+  is preferred to silently re-leaking the column. Full record:
+  `decisions/2026/D-GH-2026-08-03-invite-note-dm-only.md`.
+
 - **D-GH-2026-08-03-invite-grant-award-row** — `redeem_player_invite` set `characters.ap` directly and
   wrote no `ap_awards` row, so once the invite grant became a character's entire starting AP that number
   had no provenance (`ap_awards`: 0 rows campaign-wide). Not just an audit gap — Live Sheet's

@@ -285,11 +285,17 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- campaign_invites — single-use per-player invite tokens (Path A). A DM sees
--- all invites for their campaign; a redeemer can read their own redeemed row
--- (CharGen's crash-recovery path re-reads starting_budget from it if a
--- redeemed character's stats weren't seeded yet). Writes happen only through
--- create_player_invite()/redeem_player_invite() (both SECURITY DEFINER) — no
--- insert/update/delete policy.
+-- all invites for their campaign; a redeemer can read their own redeemed row.
+-- Writes happen only through create_player_invite()/redeem_player_invite()
+-- (both SECURITY DEFINER) — no insert/update/delete policy.
+--
+-- `note` is withheld at the COLUMN level (D-GH-2026-08-03-invite-note-dm-only): the redeemer clause
+-- below would otherwise let a player read the DM's label for their own invite, RLS being row-level.
+-- The DM reads notes through list_campaign_invites(), which is SECURITY DEFINER. Note that a
+-- column-level revoke cannot subtract from a table-level grant — the blanket grant is dropped and the
+-- wanted columns granted explicitly, which is why this is a column list and not `grant select on`.
+-- (The previous version of this comment claimed CharGen's crash-recovery path re-read starting_budget
+-- from here; that code no longer exists — nothing in js/ or tools/ selects this table at all.)
 -- ---------------------------------------------------------------------------
 alter table public.campaign_invites enable row level security;
 
@@ -297,7 +303,10 @@ drop policy if exists campaign_invites_select on public.campaign_invites;
 create policy campaign_invites_select on public.campaign_invites
   for select using (is_campaign_dm(campaign_id) or redeemed_by = auth.uid());
 
-grant select on public.campaign_invites to authenticated;
+grant select (id, campaign_id, token, starting_ap, starting_budget,
+              created_by, created_at, expires_at, revoked_at,
+              redeemed_by, redeemed_at)
+  on public.campaign_invites to authenticated;   -- every column EXCEPT note
 
 -- ---------------------------------------------------------------------------
 -- Allow authenticated users to call the controlled RPCs.
