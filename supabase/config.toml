@@ -1,0 +1,45 @@
+# Minimal Supabase CLI config for the LOCAL TEST STACK ONLY (`supabase start`).
+#
+# This project has no Supabase-CLI-managed deployment: production schema changes go through the
+# migrations in sql/migrations/, applied deliberately. This file exists purely so `supabase start` can
+# bring up a throwaway Postgres + GoTrue + PostgREST for testing/scripts/cloud-e2e.mjs in CI.
+#
+# The test database is built from sql/schema.sql + sql/rls-policies.sql rather than by replaying
+# sql/migrations/. Verified 2026-08-03 that those two files reproduce production exactly — 8 tables,
+# every column, 25 functions — so replaying 21 dated migrations would test the historical path rather
+# than the shipped schema, and would drift the moment a migration was consolidated.
+
+project_id = "pact-local-test"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "http://localhost:7970"
+# Test users are created straight through the admin API, so no mail round-trip is involved.
+enable_confirmations = false
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+[studio]
+enabled = false
+
+[storage]
+enabled = false
+
+[realtime]
+enabled = false
+
+[analytics]
+enabled = false
