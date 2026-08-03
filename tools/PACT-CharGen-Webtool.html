@@ -615,6 +615,10 @@ document.addEventListener('campaign-ready', function () {
 async function _cgResolveDmApStatus(ap, campaignId){
   window._dmAp = ap || 0;
   window._ignorePlayerAp = false;
+  // Gate for cloud autosave (below). Keyed on campaign_id ALONE, deliberately: the character is bound
+  // whether or not getCampaign() happens to succeed right now, and a failed fetch must not silently
+  // downgrade it to "local, save manually" — that is the state this whole change exists to remove.
+  window._cgCampaignBound = !!campaignId;
   window._dmApStatus = campaignId ? 'unavailable' : 'none';   // resolved below -- 'unavailable' is the correct interim state, not silently 0
   if(!campaignId) return null;
   var C = window._campaignBridge;
@@ -723,6 +727,11 @@ document.addEventListener('sync-ready', function () {
       var id = currentCharId();
       var stats = _cgEnvelope(false);   // unsigned — matches the Live Sheet's cloud stats shape; never signature-checked on the way back in
       var res = await S.saveCharacter({ id: id, name: stats.name || 'Character', kind: 'chargen', stats: stats });
+      // Adopt the id the sync layer actually used. It differs from what we passed when this character
+      // still carried a legacy pre-UUID id — without adopting it, the next save would migrate AGAIN and
+      // strand a second row. Bare assignment: __charId is a top-level `let`, so window.__charId= would
+      // silently shadow-fail (same trap the cloud-load handler documents).
+      if (res.id) __charId = res.id;
       if (res.error) throw res.error;
       if (typeof flash === 'function') flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
     } catch (err) { alert('Save failed: ' + err.message); }
@@ -750,6 +759,9 @@ document.addEventListener('sync-ready', function () {
       var saveRes = await S.saveCharacter({ id: id, name: stats.name || 'Character', kind: 'chargen', stats: stats });
       if (saveRes && saveRes.error) throw saveRes.error;
       if (saveRes && saveRes.synced === false) throw new Error("You're offline — reconnect, then try joining again.");
+      // A legacy pre-UUID id is migrated by the save above, so the bind below MUST target the new id
+      // — binding the old one would fail against a row that was never inserted under it.
+      if (saveRes && saveRes.id) { id = saveRes.id; __charId = saveRes.id; }
 
       // Returns the bound campaign's id directly (no separate loadCharacter round-trip needed
       // to discover it -- ap is unaffected by a bind, so window._dmAp already has the right value).
@@ -883,8 +895,15 @@ document.addEventListener('sync-ready', function () {
 
       var ap, campaignId = res.campaignId;
       if(res.isNew){
-        var seedLog = [{type:'award',amount:res.startingBudget,note:'Budget',noLock:true,
-          label:'Starting creation budget ('+res.startingBudget+' AP)',seq:1,ts:Date.now(),rules:DATA.version}];
+        // An invite now carries ONE grant, paid into characters.ap (DM AP) by the RPC — so there is
+        // normally nothing to seed into the LOG at all. It used to seed res.startingBudget here as an
+        // `award` event, i.e. PLAYER AP, which any campaign with ignore_player_ap set then discarded
+        // outright: the grant was announced and immediately voided (D-GH-2026-08-03-invite-single-ap-grant).
+        // redeem_player_invite now always returns startingBudget = 0; the guard is kept so a client
+        // running against a not-yet-migrated database still seeds the budget half rather than losing it.
+        var seedLog = [];
+        if(res.startingBudget > 0) seedLog.push({type:'award',amount:res.startingBudget,note:'Budget',noLock:true,
+          label:'Starting creation budget ('+res.startingBudget+' AP)',seq:1,ts:Date.now(),rules:DATA.version});
         // Stamp this campaign's creation-lock threshold into the character's own log at the one
         // moment we can be certain which campaign it belongs to. The engine never reads campaign
         // settings during replay (that would re-price old logs under today's settings), so the
@@ -897,7 +916,7 @@ document.addEventListener('sync-ready', function () {
           var _thr = window._engineBridge && window._engineBridge.creationLockThreshold
                      ? window._engineBridge.creationLockThreshold(_seedCamp && _seedCamp.rules) : null;
           if(_thr!=null) seedLog.push({type:'creationLockConfig',payload:{threshold:_thr},
-            label:'Campaign creation-lock threshold ('+_thr+' AP)',seq:2,ts:Date.now(),rules:DATA.version});
+            label:'Campaign creation-lock threshold ('+_thr+' AP)',seq:seedLog.length+1,ts:Date.now(),rules:DATA.version});
         }catch(e){ /* non-fatal, see above */ }
         _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:DATA.version,name:'New Character',LOG:seedLog,SEQ:seedLog.length+1,id:res.characterId},{clearHistory:true});
         var stats = _cgEnvelope(false);
@@ -920,7 +939,7 @@ document.addEventListener('sync-ready', function () {
       await _cgResolveDmApStatus(ap, campaignId);
       clearPendingToken();
       render();
-      showBanner('☁ Joined campaign — character created with '+res.startingBudget+' AP budget.');
+      showBanner('☁ Joined campaign — character created with '+(ap||0)+' AP to spend.');
       hideBannerSoon();
     }catch(err){
       clearPendingToken();   // a terminal RPC error (already-joined, invalid/expired token, etc.) must not keep re-prompting either
@@ -996,7 +1015,7 @@ function _cgDmOpts(){var a=window._dmApStatus==='active';return {dmAp:a?(window.
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';}
+function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;}
 function _apEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function _apSourceHTML(r){
   var st=window._dmApStatus||'none', ignPlr=!!window._ignorePlayerAp, dmAp=window._dmAp||0;
@@ -2874,7 +2893,36 @@ var CG_AUTOSAVE_KEY_LEGACY='pactCharGenAutosave';   // pre-Step-4 flat-build aut
 // _cgEnvelope(true) → SIGNED file export (saveBuild); _cgEnvelope(false) → unsigned localStorage autosave
 // (never signature-checked on restore, so signing it every keystroke is wasted work — D-GH48).
 function _cgEnvelope(sign){return buildCharacterEnvelope({name:val('cname')||'',rules:DATA.version,LOG:LOG,SEQ:SEQ,id:currentCharId()},{sign:sign!==false});}
+// ---- cloud autosave — campaign-bound characters ONLY ----------------------------------------
+// CharGen only ever wrote to the cloud on an explicit action (Save to cloud, Join campaign, invite
+// redemption), so a player who redeemed an invite and started building stayed invisible in their DM's
+// roster until they happened to press Save. Autosaving every build was rejected: it would push
+// local-only solo characters into the cloud and add a network write behind every keystroke. This is
+// scoped to characters already bound to a campaign — the one case where somebody else is waiting on
+// the data — and debounced so it fires after editing stops, not during it.
+var _cgCloudSaveTimer=null,_cgCloudSaveBusy=false,_cgCloudSaveAgain=false;
+function _cgCloudAutosave(){
+  if(!window._cgCampaignBound||!window._cloudSignedIn) return;
+  if(!window._syncBridge||!navigator.onLine) return;   // offline edits stay in the local autosave; sync.js retries dirty records on reconnect
+  clearTimeout(_cgCloudSaveTimer);
+  _cgCloudSaveTimer=setTimeout(_cgCloudPush,3000);
+}
+async function _cgCloudPush(){
+  // Never overlap two pushes for the same character — pushCharacter() is a bare update-then-insert with
+  // no dirty check, so a slow request overtaken by a fast one could land the older build last.
+  if(_cgCloudSaveBusy){_cgCloudSaveAgain=true;return;}
+  _cgCloudSaveBusy=true;
+  try{
+    var stats=_cgEnvelope(false);
+    var res=await window._syncBridge.saveCharacter({id:currentCharId(),name:stats.name||'Character',kind:'chargen',stats:stats});
+    if(res&&res.id)__charId=res.id;   // adopt a migrated pre-UUID id, same as the manual save
+  }catch(e){ /* deliberately silent: the local autosave already holds the work and sync.js leaves the
+                record dirty for the next retry — a toast on every failed keystroke would be noise */ }
+  _cgCloudSaveBusy=false;
+  if(_cgCloudSaveAgain){_cgCloudSaveAgain=false;_cgCloudAutosave();}
+}
 function _cgAutosave(){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(_cgEnvelope(false)));}catch(e){}
+  try{_cgCloudAutosave();}catch(e){}
   // Feed the shared recent-characters store (landing "Continue" list). Best-effort + guarded so it can
   // never break the real autosave above; window.recordAutosave arrives with the engine bridge (engine-ready).
   try{if(window.recordAutosave)window.recordAutosave({tool:'chargen',id:currentCharId(),name:val('cname')||'',rules:DATA.version,LOG:LOG,SEQ:SEQ});}catch(e){}}

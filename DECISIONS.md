@@ -13,6 +13,24 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-03-uuid-character-ids** — `genCharId()` minted `'c'+base36` ids (e.g.
+  `cmscl7ilrr5muh`) while `characters.id` is a Postgres `uuid`, so a locally-born character could
+  NEVER be saved to the cloud — and because `saveCharacter()` writes localStorage before pushing, each
+  rejected attempt left an orphaned local copy, surfacing as the same character twice in My Characters.
+  Only cloud-born characters (invite redemption) ever synced, which is why it went unnoticed. Ids are
+  now UUIDs; `isCloudCharId()` shares the format predicate; legacy ids migrate lazily on first push and
+  every save call site adopts the returned id. My Characters now tags rows ☁ Cloud / 📥 Device only.
+  Full record: `decisions/2026/D-GH-2026-08-03-uuid-character-ids.md`.
+
+- **D-GH-2026-08-03-invite-single-ap-grant** — A player invite carried two AP numbers; the second
+  ("Creation budget") was seeded into the character's LOG as PLAYER AP, which any campaign with
+  `ignore_player_ap` then discarded outright. Observed live: Amble issued 36 + 55, the player could
+  spend 36, and the UI announced the 55. Collapsed to ONE grant paid into `characters.ap` — works
+  regardless of the toggle, and the player can't edit their own grant. Both RPCs keep their signatures
+  and fold `starting_ap + starting_budget` server-side so a Pages deploy and a DB migration need not be
+  atomic and pre-migration invites still pay out fully; `starting_budget` is deprecated-but-kept, not
+  dropped. Full record: `decisions/2026/D-GH-2026-08-03-invite-single-ap-grant.md`.
+
 - **D-GH-2026-08-03-ap-budget-curve-standard** — The fixed AP ladder in `js/ap-by-level.js` was never
   a rules curve: `{1:50 … 20:491}` was the Players Guide appendix's twenty pregenerated Emberwatch
   characters, a cast list transcribed into a table and later mislabelled a "pace curve". The Guide has

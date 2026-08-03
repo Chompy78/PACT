@@ -6,6 +6,56 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · fix(sync): character ids are UUIDs — locally-born characters can finally reach the
+  cloud** — `genCharId()` minted `'c'+base36` (e.g. `cmscl7ilrr5muh`) while `characters.id` is a
+  Postgres `uuid`, so saving a locally-created character failed with `invalid input syntax for type
+  uuid` — and since `saveCharacter()` writes localStorage before pushing, every attempt left an
+  orphaned local copy, showing the same character twice in My Characters. Only cloud-born characters
+  (invite redemption) had ever synced. Ids are now `crypto.randomUUID()` (with a `getRandomValues`
+  v4 fallback for non-secure contexts); new `isCloudCharId()`; `saveCharacter()` migrates a legacy id
+  on first push and returns it, and all four save call sites adopt it — the join-campaign path
+  reassigns its local `id` too, since `bindCharacterToCampaign` runs straight afterwards. See
+  `decisions/2026/D-GH-2026-08-03-uuid-character-ids.md`.
+
+- **2026-08-03 · feat(characters): My Characters shows ☁ Cloud vs 📥 Device only** — both kinds rendered
+  identically, so a character that had never reached the server looked as safe as one that had.
+  `listMyCharacters()` now tags each row `cloud`/`pendingSync`; offline it reports what the device last
+  knew (`!dirty`). This is also what lets an owner tell an orphaned local duplicate from the real row.
+
+- **2026-08-03 · fix(invites): ONE AP grant per invite, paid as DM AP** (SQL migration
+  `2026-08-03-invite-single-ap-grant.sql`) — an invite carried two numbers and the second, "Creation
+  budget", was seeded into the character's LOG as **player** AP. `compute()` resolves
+  `spendable = (ignorePlayerAp ? 0 : playerAp) + dmAp`, so on a campaign with "ignore player AP" set,
+  the whole grant was awarded and discarded on the same pass. Live example: Amble issued 36 + 55, the
+  player could spend 36, and CharGen announced "created with 55 AP budget". Now one "Starting AP" field
+  paid into `characters.ap` — correct whichever way the toggle is set, and unlike a LOG award the
+  player can't edit their own grant. Both RPCs keep their signatures and fold
+  `starting_ap + starting_budget` server-side, so a Pages deploy and a DB migration need not be atomic
+  and pre-migration invites still pay out in full; `starting_budget` is deprecated and always written 0
+  but deliberately **not** dropped. Advisor re-run after the migration: no new findings. See
+  `decisions/2026/D-GH-2026-08-03-invite-single-ap-grant.md`.
+
+- **2026-08-03 · feat(chargen): cloud autosave for campaign-bound characters** — CharGen only ever wrote
+  to the cloud on an explicit action, so a player who redeemed an invite and started building stayed
+  invisible in their DM's roster until they happened to press Save. Now debounced (3 s after edits stop)
+  for characters bound to a campaign — the one case where somebody else is waiting on the data. Solo
+  local builds keep manual saving and today's traffic profile. Pushes never overlap (`pushCharacter()`
+  is a bare update-then-insert with no dirty check, so a slow request overtaken by a fast one could land
+  the older build last), and failures stay silent because the local autosave already holds the work.
+
+- **2026-08-03 · fix(chargen,dm-console): campaign status line after a join; a named character keeps its
+  name in the DM roster** — CharGen's header kept reading "Signed in — no campaign selected" for a
+  demonstrably bound character: the `<select>` was built at sign-in *before* the join so
+  `selEl.value = camp.id` no-opped, and `renderStatus()` was never called from outside its closure. New
+  `_cgAdoptCampaign()` fixes both. In DM Console, a character the player had named and saved rendered as
+  "Unnamed character" — `hasData` rightly requires a `buy` event, but the placeholder card never
+  consulted the `name` column that `getRoster()` already selects.
+
+- **2026-08-03 · fix(dm-console): Starting tier AP follows the budget curve's L1** — the tier is a ratio
+  of L1, but only recomputed when the *tier* dropdown changed, so switching Standard→Generous left the
+  invite prefill on the old number (Amble: tier 79 against a curve L1 of 83). Now recomputes when L1 or
+  the curve preset moves, and never overwrites a DM's own 'custom' figure.
+
 - **2026-08-03 · fix(dm-console): explain the advancement dials and the two invite AP fields** — added
   an ⓘ to each of “Level budget curve”, “Award pace (AP per session)” and “Starting tier (new-PC
   budget)” spelling out what each dial actually drives (and, for the budget curve, that it now also

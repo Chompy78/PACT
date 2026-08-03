@@ -16,6 +16,7 @@
 
 import { supabase } from './supabase-client.js';
 import { currentUser } from './auth.js';
+import { isCloudCharId } from './character-store.js';
 
 const LS_PREFIX  = 'pact-char-';   // one key per character
 const LS_INDEX   = 'pact-chars';   // JSON array of known character ids
@@ -67,7 +68,13 @@ function lsDeletesRemove(id) {
  */
 export async function saveCharacter({ id, name, kind, stats }) {
   id = id || newCharacterId();
-  const prev = lsGet(id);
+  // Legacy pre-UUID id (genCharId's old 'c…' format — see js/character-store.js): Postgres rejects
+  // it as `invalid input syntax for type uuid`, so the push could never succeed and every attempt
+  // left another orphaned local record behind. Migrate it here, once, carrying the local record over
+  // to the new key. The caller MUST adopt the returned id — every save-to-cloud call site does.
+  let migratedFrom = null;
+  if (!isCloudCharId(id)) { migratedFrom = id; id = newCharacterId(); }
+  const prev = lsGet(migratedFrom || id);
   const rec = {
     id,
     name: name ?? prev?.name ?? 'New Character',
@@ -78,10 +85,12 @@ export async function saveCharacter({ id, name, kind, stats }) {
     dirty: true,
   };
   lsSet(rec);
+  // Drop the old key only after the new one is written, so a crash mid-migration loses nothing.
+  if (migratedFrom) lsRemove(migratedFrom);
 
-  if (!navigator.onLine) return { id, synced: false };
-  try { await pushCharacter(rec); return { id, synced: true }; }
-  catch (error) { return { id, synced: false, error }; }   // stays dirty, will retry
+  if (!navigator.onLine) return { id, synced: false, migratedFrom };
+  try { await pushCharacter(rec); return { id, synced: true, migratedFrom }; }
+  catch (error) { return { id, synced: false, error, migratedFrom }; }   // stays dirty, will retry
 }
 
 /** Push one local record to Supabase. Insert if new, else update the writable
@@ -194,7 +203,11 @@ export async function listMyCharacters() {
       .eq('owner_id', user.id)
       .order('updated_at', { ascending: false });
     if (error) throw error;
-    const withFlag = data.map(({ log, ...c }) => ({ ...c, hasData: Array.isArray(log) }));
+    // `cloud` tells the UI whether this row actually exists on the server. A server row is cloud-saved
+    // by definition; a local-only row is not, and `pendingSync` distinguishes "waiting to upload" from
+    // "this device is offline" for the caller's wording. Without this the My Characters page rendered
+    // both kinds identically, so a character that had never reached the cloud looked saved.
+    const withFlag = data.map(({ log, ...c }) => ({ ...c, hasData: Array.isArray(log), cloud: true, pendingSync: false }));
     const serverIds = new Set(withFlag.map(c => c.id));
     // dirty:true means "created/edited here, not yet pushed" (set only by this device's own
     // saveCharacter() calls) — the only local-storage state that's actually evidence of
@@ -205,11 +218,14 @@ export async function listMyCharacters() {
     // listcharacters-leak was still live server-side) keeps reappearing on this device's own
     // "My Characters" forever, even after the server-side owner_id filter was fixed.
     const localOnly = lsIndex().map(lsGet).filter(r => r && r.dirty && !serverIds.has(r.id))
-      .map(r => ({ ...r, hasData: Array.isArray(r.stats && r.stats.LOG) }));
+      .map(r => ({ ...r, hasData: Array.isArray(r.stats && r.stats.LOG), cloud: false, pendingSync: true }));
     return [...withFlag, ...localOnly].filter(c => !tombstoned.has(c.id));
   }
+  // Offline: the server can't be consulted, so `cloud` reports what this device last knew — a record
+  // is treated as cloud-saved once a push confirmed it (dirty cleared by applyServerMeta). Anything
+  // still dirty has unpushed work, which is exactly what the caller needs to show.
   return lsIndex().map(lsGet).filter(Boolean).filter(c => !tombstoned.has(c.id))
-    .map(r => ({ ...r, hasData: Array.isArray(r.stats && r.stats.LOG) }));
+    .map(r => ({ ...r, hasData: Array.isArray(r.stats && r.stats.LOG), cloud: !r.dirty, pendingSync: !!r.dirty }));
 }
 
 /** Archive/unarchive: reversible soft-delete, owner-only (see rls-policies.sql).

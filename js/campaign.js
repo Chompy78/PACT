@@ -110,15 +110,22 @@ function _nonNegInt(n) {
 }
 
 /**
- * DM-only: create a single-use player invite token carrying a preset starting DM
- * AP amount and starting build budget. Returns the raw token — the caller builds
- * the canonical CharGen `?invite=<token>` redemption URL from it.
+ * DM-only: create a single-use player invite token carrying ONE preset AP grant,
+ * paid into `characters.ap` (DM-authoritative) on redemption. Returns the raw token
+ * — the caller builds the canonical CharGen `?invite=<token>` redemption URL from it.
+ *
+ * The invite used to carry two numbers, the second of which the client seeded into the
+ * character's LOG as PLAYER AP — which any campaign with `ignore_player_ap` then discarded
+ * outright (see D-GH-2026-08-03-invite-single-ap-grant). `p_starting_budget` is still sent
+ * as 0 rather than omitted: the RPC keeps its three-parameter signature so a Pages deploy
+ * and a DB migration need not be atomic, and a defaulted argument would make an arity-2
+ * overload ambiguous.
  */
-export async function createPlayerInvite(campaignId, startingAp, startingBudget) {
+export async function createPlayerInvite(campaignId, startingAp) {
   const { data, error } = await supabase.rpc('create_player_invite', {
     p_campaign_id: campaignId,
     p_starting_ap: _nonNegInt(startingAp),
-    p_starting_budget: _nonNegInt(startingBudget),
+    p_starting_budget: 0,
   });
   if (error) throw error;
   return data;
