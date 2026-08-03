@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-03 · feat(vendor): the Supabase client is served from our own origin, not a CDN** — every
+  cloud feature used to depend on `esm.sh` being reachable at page load, and an ES module import failure
+  aborts the whole script, so an outage or an ad-blocker took the cloud half of every tool down. Now
+  `js/vendor/supabase-js-2.110.2.js`, precached by the service worker. Uses the **official UMD build**
+  (1 file, 206KB, zero imports) rather than esm.sh's ESM form, which resolves transitively to 6 files and
+  268KB including injected node polyfills; adapted with a two-line export footer and no transform, since
+  the UMD's top-level `var` is module-scoped inside an ES module. The version in the filename is
+  load-bearing — an update is a new URL, so the SW can never serve it stale, which is what lets it stay
+  cache-first. `audit.py`'s import-freshness check gained vendor awareness (it previously only matched
+  same-directory imports and would have ignored `./vendor/…` entirely): it now fails on an unversioned
+  vendor filename, a missing file, or one absent from `PRE_CACHE` — both new failure modes demonstrated
+  red first. Verified with every third-party host blocked: all three tools fire their cloud event, which
+  previously never fired at all.
+
 - **2026-08-03 · fix(security): an invite's DM note is no longer readable by the player it describes**
   (SQL migration `2026-08-03-invite-note-dm-only.sql`) — `campaign_invites_select` lets a redeemer read
   their own row, and RLS being row-level meant that included the DM's `note`. Now withheld at the column

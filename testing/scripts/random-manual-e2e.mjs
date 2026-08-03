@@ -101,11 +101,13 @@ const int = (rng, min, max) => min + Math.floor(rng() * (max - min + 1));
 function log(msg) { console.log(`[e2e] ${msg}`); }
 
 // ---------- Supabase CDN stub ----------
-// js/supabase-client.js does `import { createClient } from 'https://esm.sh/@supabase/supabase-js@<pinned>'`
-// — the only external network dependency in the whole app. Engine boot on both tools is
-// gated behind that same module graph (see AGENTS.md / D-GH26), so if the CDN is
-// unreachable (sandboxed/offline CI), `window.compute` never gets set and everything
-// hangs. Supabase itself is optional (the app runs fully offline against localStorage —
+// js/supabase-client.js imports the Supabase client from js/vendor/supabase-js-<version>.js — vendored
+// locally as of D-GH-2026-08-03-vendor-supabase-js; before that it was an esm.sh URL and was the only
+// external network dependency in the whole app. The route below still matches the old esm.sh URL as well,
+// so this harness keeps working against an older checkout.
+//
+// The stub is still worth having now that the file is local: it keeps the run hermetic (no real Supabase
+// calls leak out of a test) and avoids parsing 200KB of vendor code on every page load. Supabase itself is optional (the app runs fully offline against localStorage —
 // see docs/SUPABASE-SETUP.md), so we stub the client with a chainable no-op Proxy: it
 // answers any method call (`.auth.getSession()`, `.from(...).select().eq()`, `.rpc(...)`,
 // `.channel(...)`) with an empty, awaitable result, letting the real app code (engine,
@@ -130,7 +132,7 @@ export function createClient() {
 async function stubSupabaseCdn(page) {
   // Version-agnostic matcher so this keeps intercepting whatever exact version js/supabase-client.js
   // is pinned to (e.g. @2.110.2) without needing an edit here on every pin bump.
-  await page.route(/esm\.sh\/@supabase\/supabase-js@/, (route) =>
+  await page.route(/js\/vendor\/supabase-js-[\d.]+\.js$|esm\.sh\/@supabase\/supabase-js@/, (route) =>
     route.fulfill({ status: 200, contentType: 'application/javascript', body: SUPABASE_STUB_MODULE })
   );
 }
@@ -627,9 +629,9 @@ async function testDmConsole(context, baseUrl, exported) {
   const report = { ok: true, notes: [] };
   const page = await context.newPage();
   try {
-    // DM Console's module bridge also imports auth.js/campaign.js/dm.js, which pull in the
-    // same esm.sh Supabase import as the other two tools — needs its own stub, since
-    // page.route() is per-page, not per-context.
+    // DM Console's cloud bridge also imports auth.js/campaign.js/dm.js, which pull in the same
+    // vendored Supabase client as the other two tools — needs its own stub, since page.route()
+    // is per-page, not per-context.
     await stubSupabaseCdn(page);
     await page.goto(`${baseUrl}/PACT/tools/DM-Console.html`);
     await page.waitForFunction(() => typeof window.compute === 'function');
