@@ -131,8 +131,18 @@ async function admin(cfg, pathname, init = {}) {
 const createUser = (cfg, email, password) =>
   admin(cfg, '/auth/v1/admin/users', { method: 'POST',
     body: JSON.stringify({ email, password, email_confirm: true }) });
-const sql = (cfg, query) =>
-  admin(cfg, '/rest/v1/rpc/_e2e_sql', { method: 'POST', body: JSON.stringify({ q: query }) });
+// Assertions read the database directly through psql on STDIN. Two things this avoids: shell quoting
+// (an earlier version passed multi-line, dollar-quoted SQL via `-c` and psql read the literal \n escapes
+// as backslash commands — "invalid command \n"), and creating a SECURITY DEFINER function that executes
+// arbitrary SQL just so a test can look at a table. Nothing is added to the database at all.
+function sql(cfg, query) {
+  const wrapped = `select coalesce(jsonb_agg(t), '[]'::jsonb) from (${query}) t;`;
+  const out = execSync(`psql "${cfg.db}" -At -f -`, {
+    input: wrapped, encoding: 'utf8', cwd: REPO, stdio: ['pipe','pipe','pipe'],
+    env: { ...process.env, PGOPTIONS: '-c client_min_messages=warning' },
+  });
+  return JSON.parse(out.trim() || '[]');
+}
 
 // ---------------------------------------------------------------------------------------------
 // Schema bootstrap
@@ -155,17 +165,6 @@ function applySchema(cfg) {
       process.exit(2);
     }
   }
-  // A tiny SECURITY DEFINER helper so the harness can assert on database state directly. Created only
-  // on the local stack, never in sql/ — it must not exist in production.
-  execSync(`psql "${dbUrl}" -v ON_ERROR_STOP=1 -q -c ${JSON.stringify(`
-    create or replace function public._e2e_sql(q text) returns jsonb
-    language plpgsql security definer as $fn$
-    declare r jsonb; begin
-      execute 'select coalesce(jsonb_agg(t), ''[]''::jsonb) from (' || q || ') t' into r; return r;
-    end $fn$;
-    grant execute on function public._e2e_sql(text) to service_role;`)}`,
-    { cwd: REPO, stdio: ['ignore','pipe','pipe'] });
-  log('created the _e2e_sql assertion helper (local stack only)');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -231,12 +230,12 @@ async function run() {
     check('redemption seeds NO player-AP budget', redeemed.startingBudget === 0,
           `startingBudget=${redeemed.startingBudget}`);
 
-    const row = (await sql(cfg, `select ap, campaign_id is not null as bound from characters
+    const row = (sql(cfg, `select ap, campaign_id is not null as bound from characters
                                  where id = '${redeemed.characterId}'`))[0];
     check('characters.ap equals the grant', row && row.ap === 36, `ap=${row && row.ap}`);
     check('the character is bound to the campaign', row && row.bound === true);
 
-    const awards = await sql(cfg, `select amount, note from ap_awards
+    const awards = sql(cfg, `select amount, note from ap_awards
                                    where character_id = '${redeemed.characterId}'`);
     check('the grant is recorded in ap_awards', awards.length === 1 && awards[0].amount === 36,
           JSON.stringify(awards));
