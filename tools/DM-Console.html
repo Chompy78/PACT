@@ -1339,7 +1339,8 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   function _grantRosterList(){
     var out = roster.map(function(r){ return {id:r.id, name:(r.summary&&r.summary.name)||'Unnamed Hero'}; });
     cloudRoster.forEach(function(rec){
-      var name = rec.hasData ? ((rec.summary&&rec.summary.name)||'Unnamed Hero') : (rec.dm.playerLabel||'Unnamed character');
+      var name = rec.hasData ? ((rec.summary&&rec.summary.name)||'Unnamed Hero')
+                             : (rec.dm.playerLabel||rec.rowName||'Unnamed character');
       out.push({id:rec.id, name:name});
     });
     return out;
@@ -1576,8 +1577,17 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         summary = analyzeAug({ LOG: log, SEQ: row.stats.SEQ || (log.length+1), rules: row.stats.rules, name: row.name });
       } catch(e){ hasData = false; summary = null; }
     }
+    // Carry the `name` COLUMN through even when hasData is false. A player can name a character and
+    // save it before buying anything — the column then holds their real name while the LOG still has
+    // no `buy` event, so the placeholder card below must not fall back to "Unnamed character" and
+    // throw the name away (it did: a correctly-named, correctly-bound character read as nameless).
+    // 'New Character' is the server-assigned default (sql/schema.sql: characters.name's column
+    // default, and redeem_player_invite's v_name fallback), so it carries no more information than
+    // no name at all and is treated as absent here.
+    var rowName = (row.name||'').trim();
+    if(rowName === 'New Character') rowName = '';
     return {
-      id: row.id, summary: summary, hasData: hasData,
+      id: row.id, summary: summary, hasData: hasData, rowName: rowName,
       dm: { ap: row.ap||0, player: row.player||'', playerLabel: row.playerLabel||'', dmNotes: row.dmNotes||'' }
     };
   }
@@ -1586,7 +1596,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // documents) — show a lightweight placeholder instead of running dmAnalyze() on an empty LOG.
   function cloudCardHTML(rec){
     if(!rec.hasData){
-      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || 'Unnamed character';
+      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'Unnamed character';
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+

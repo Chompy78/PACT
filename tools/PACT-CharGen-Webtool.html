@@ -548,12 +548,27 @@ document.addEventListener('campaign-ready', function () {
     try { fetched = await C.listMyCampaigns(); } catch (err) { console.error('listMyCampaigns:', err); fetched = []; }
     if (gen !== authGen) return;   // a newer sign-in/sign-out superseded this fetch — discard it
     myCampaigns = fetched;
-    var prev = selEl.value;
+    renderCampaignOptions(selEl.value);
+  }
+
+  function renderCampaignOptions(preferredId){
     selEl.innerHTML = '<option value="">— no campaign —</option>' +
       myCampaigns.map(function (c) { return '<option value="' + _csEsc(c.id) + '">' + _csEsc(c.name) + '</option>'; }).join('');
-    if (prev && myCampaigns.some(function (c) { return c.id === prev; })) selEl.value = prev;
+    if (preferredId && myCampaigns.some(function (c) { return c.id === preferredId; })) selEl.value = preferredId;
     applySelection(selEl.value);
   }
+
+  /* Adopt a campaign the character just became bound to (invite redemption / "Join campaign"), so the
+     picker and the status line agree with reality immediately. Two things went wrong without this:
+     the campaign was fetched AFTER loadCampaigns() had already built the <select>, so it wasn't an
+     option and `selEl.value = camp.id` silently no-opped; and renderStatus() lives in this closure and
+     was never called, so the header kept reading "☁ Signed in — no campaign selected" for a character
+     that was in fact bound. Exposed on window because _cgResolveDmApStatus() is in a later script. */
+  window._cgAdoptCampaign = function (camp) {
+    if (!camp || !camp.id) return;
+    if (!myCampaigns.some(function (c) { return c.id === camp.id; })) myCampaigns = myCampaigns.concat([camp]);
+    renderCampaignOptions(camp.id);
+  };
 
   function applySelection(id){
     var camp = myCampaigns.find(function (c) { return c.id === id; }) || null;
@@ -609,9 +624,16 @@ async function _cgResolveDmApStatus(ap, campaignId){
       window._ignorePlayerAp = !!camp.ignore_player_ap;
       window._dmApStatus = 'active';
       window._cloudCampaign = camp;   // activates rule-filtering (cloudRuleBarred), same as the campaign-rules picker above
-      var selEl = document.getElementById('cgCloudCampSel');
-      if(selEl) selEl.value = camp.id;
-      if(typeof refreshCloudFilters === 'function') refreshCloudFilters();
+      // Adds the campaign to the picker if the list predates the join, selects it, AND re-renders the
+      // header status line — none of which the old `selEl.value = camp.id` here could do from outside
+      // that closure. Falls back to the bare assignment if the bridge somehow isn't up yet.
+      if(typeof window._cgAdoptCampaign === 'function'){
+        window._cgAdoptCampaign(camp);
+      } else {
+        var selEl = document.getElementById('cgCloudCampSel');
+        if(selEl) selEl.value = camp.id;
+        if(typeof refreshCloudFilters === 'function') refreshCloudFilters();
+      }
       return camp;
     }
   }catch(e){ /* non-fatal -- stays 'unavailable', which correctly reads as "unknown", not "no DM AP" */ }
