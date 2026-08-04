@@ -925,7 +925,11 @@ document.addEventListener('sync-ready', function () {
         if(banner){var a=document.createElement('a');a.href='../login.html';a.textContent='Sign in';a.style.color='#fff';a.style.fontWeight='700';banner.appendChild(a);}
         return;
       }
-      if(!confirm('Accept this campaign invite? This creates a brand-new character bound to the campaign and replaces your current in-progress build.')){
+      // The campaign's NAME is deliberately absent: it only arrives with redeemPlayerInvite()'s
+      // response, and moving the prompt after that would be confirming an act already taken. So the
+      // copy leans on the consequence the player can actually evaluate — that their current build is
+      // about to be replaced — and says the invite survives a decline, which it now does.
+      if(!confirm('Accept this campaign invite?\n\nThis creates a NEW character bound to the campaign, and replaces the build you have open right now. Anything unsaved in it will be lost.\n\nYou can decline and accept later — the invite stays on this page either way.')){
         // Declining must not re-prompt on every later reload in this tab -- but it must ALSO not be a
         // one-way door. This used to clearPendingToken() and hide the banner outright, so a player who
         // clicked Cancel (or misclicked, or meant "let me think") lost the invite with no explanation and
@@ -3966,9 +3970,47 @@ if(window.compute){_cgBoot();}else{document.addEventListener('engine-ready',_cgB
 function setHeadH(){try{var h=document.querySelector('.stickyhead');if(h)document.documentElement.style.setProperty('--headh',h.offsetHeight+'px');}catch(e){}}
 setHeadH();window.addEventListener('resize',setHeadH);window.addEventListener('load',setHeadH);
 try{if(window.ResizeObserver){var _hh=document.querySelector('.stickyhead');if(_hh)new ResizeObserver(setHeadH).observe(_hh);}}catch(e){}
-function showInfo(){document.getElementById('infoModal').classList.add('open');}
-function closeInfo(){document.getElementById('infoModal').classList.remove('open');}
-document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();});
+// The info dialog is a visual overlay only: without a focus trap, Tab walked straight out of it and
+// onto the builder controls hidden behind the scrim, so a keyboard user could be "in" a modal while
+// editing the form underneath it, with no visible focus. Traps Tab/Shift+Tab inside the box, moves
+// focus in on open, and restores it to whatever opened the dialog on close.
+var _infoPrevFocus=null;
+function _infoFocusables(){
+  var box=document.getElementById('infoBox'); if(!box) return [];
+  return [].slice.call(box.querySelectorAll(
+    'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+  )).filter(function(el){ return el.offsetWidth||el.offsetHeight||el.getClientRects().length; });
+}
+function showInfo(){
+  var m=document.getElementById('infoModal'); if(!m) return;
+  _infoPrevFocus=document.activeElement;
+  m.classList.add('open');
+  m.setAttribute('role','dialog'); m.setAttribute('aria-modal','true');
+  var box=document.getElementById('infoBox');
+  if(box && !box.hasAttribute('tabindex')) box.setAttribute('tabindex','-1');
+  var f=_infoFocusables();
+  (f[0]||box||m).focus();
+}
+function closeInfo(){
+  var m=document.getElementById('infoModal'); if(!m) return;
+  var wasOpen=m.classList.contains('open');
+  m.classList.remove('open');
+  m.removeAttribute('aria-modal');
+  if(wasOpen && _infoPrevFocus && typeof _infoPrevFocus.focus==='function'){
+    try{_infoPrevFocus.focus();}catch(e){}
+  }
+  _infoPrevFocus=null;
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){closeInfo();return;}
+  var m=document.getElementById('infoModal');
+  if(e.key!=='Tab'||!m||!m.classList.contains('open')) return;
+  var f=_infoFocusables(); if(!f.length){e.preventDefault();return;}
+  var first=f[0], last=f[f.length-1], cur=document.activeElement;
+  // Wrap at both ends, and pull focus back in if it has already escaped the box.
+  if(e.shiftKey && (cur===first || !document.getElementById('infoBox').contains(cur))){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && (cur===last || !document.getElementById('infoBox').contains(cur))){ e.preventDefault(); first.focus(); }
+});
 (function(){var el=document.querySelector('.lastedited');if(!el)return;var d=new Date(document.lastModified);if(isNaN(d)||d.getFullYear()<2020)return;var m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),mn=String(d.getMinutes()).padStart(2,'0');el.textContent='Last edited '+d.getFullYear()+'-'+m+'-'+dy+' '+h+':'+mn;})();
 </script><!-- ── info modal ── -->
 <div id="infoModal" onclick="if(event.target===this)closeInfo()">

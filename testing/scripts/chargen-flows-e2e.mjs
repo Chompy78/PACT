@@ -129,6 +129,50 @@ section('declining an invite is recoverable, not a one-way door');
 }
 
 // -------------------------------------------------------------------------------------------------
+section('the info dialog traps keyboard focus');
+{
+  // Without a trap, Tab walked straight out of the overlay and onto the builder controls hidden behind
+  // the scrim -- a keyboard user could be "in" a modal while editing the form underneath it, with no
+  // visible focus. Verified RED: focus escaped after ONE Tab before the fix.
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, {waitUntil:'load'});
+  await p.waitForTimeout(2500);
+
+  await p.evaluate(()=>{ const e=document.getElementById('cname'); if(e) e.focus(); });
+  const before = await p.evaluate(()=>document.activeElement.id||document.activeElement.tagName);
+  await p.evaluate(()=>showInfo());
+  await p.waitForTimeout(250);
+
+  const inside = await p.evaluate(()=>document.getElementById('infoBox').contains(document.activeElement));
+  check('focus moves into the dialog on open', inside, String(inside));
+
+  const escapes = async (key) => {
+    for (let i=0;i<25;i++){
+      await p.keyboard.press(key);
+      const out = await p.evaluate(()=>{
+        const box=document.getElementById('infoBox');
+        return box.contains(document.activeElement) ? null : (document.activeElement.id||document.activeElement.tagName);
+      });
+      if (out) return `after ${i+1} ${key} -> ${out}`;
+    }
+    return null;
+  };
+  const fwd = await escapes('Tab');
+  check('Tab x25 never leaves the dialog', !fwd, fwd || 'stayed inside');
+  const back = await escapes('Shift+Tab');
+  check('Shift+Tab x25 never leaves it either', !back, back || 'stayed inside');
+
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(250);
+  const closed = await p.evaluate(()=>!document.getElementById('infoModal').classList.contains('open'));
+  const after  = await p.evaluate(()=>document.activeElement.id||document.activeElement.tagName);
+  check('Escape closes it', closed, String(closed));
+  check('focus returns to whatever opened it', after===before, `${before} -> ${after}`);
+  await ctx.close();
+}
+
+// -------------------------------------------------------------------------------------------------
 section('nothing is clipped off a 390px phone viewport');
 {
   const ctx = await browser.newContext({ viewport:{width:390,height:844} });

@@ -687,8 +687,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
           <div class="grantnote" style="margin:0 0 10px">Saves the Campaign Rules and advancement settings above together.</div>
 
           <div class="subtile" id="dmNotesTile">
-            <div class="stitle">DM notes</div>
-            <textarea class="field" id="dmNotesText" placeholder="Private notes for this campaign — players never see these."></textarea>
+            <div class="stitle">DM notes about THIS CAMPAIGN</div>
+            <textarea class="field" id="dmNotesText" placeholder="Private notes for the campaign as a whole — session plans, plot threads. Players never see these. (Each character has its own separate notes field, under its roster card → DM tools.)"></textarea>
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
               <button type="button" class="btn sm" id="dmNotesSaveBtn">Save notes</button>
               <span id="dmNotesStatus" style="font-size:11px;color:var(--muted)"></span>
@@ -1186,7 +1186,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
             '<div class="kvrow"><span class="kk" title="AP you have granted this character (the characters.ap column). This is PART OF their spendable total, not extra on top of it — the strip above shows what they can actually spend. Labelled &quot;Bonus DM AP&quot; until 2026-08-04, which read as a spendable figure and was mistaken for one.">DM-granted AP <span style="opacity:.6">&#9432;</span></span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     h += '<div class="ruleblock" style="margin-top:8px"><div class="lbl">Player-name label</div>' +
          '<input type="text" class="field dm-label-in" data-cid="'+esc(id)+'" value="'+esc(dm.playerLabel||'')+'" placeholder="e.g. Jess (Saturday group)"></div>';
-    h += '<div class="ruleblock"><div class="lbl">DM notes — private, the player never sees these</div>' +
+    h += '<div class="ruleblock"><div class="lbl">DM notes about THIS CHARACTER — private, the player never sees these</div>' +
          '<textarea class="field dm-notes-in" data-cid="'+esc(id)+'" placeholder="e.g. owes me a session recap; this is their 2nd character">'+esc(dm.dmNotes||'')+'</textarea></div>';
     h += '<div style="display:flex;align-items:center;gap:8px;margin:2px 0 10px">' +
          '<button type="button" class="btn sm dm-notes-save" data-cid="'+esc(id)+'">Save label &amp; notes</button>' +
@@ -2364,6 +2364,10 @@ document.addEventListener('campaign-ready', function () {
     try {
       await B.archiveCampaign(currentCampId);
       await loadCampaigns();
+      // Archiving removes the campaign from the picker, so the ONLY visible result was the panel
+      // emptying — indistinguishable from the button having failed silently. Say what happened, and
+      // where it went, since "archived" is reversible and people look for the way back.
+      if(typeof flash==='function') flash('Archived “'+name+'” — find it under “Show archived” to restore it.');
     } catch(err){
       alert('Could not archive: '+(err&&err.message?err.message:err));
     }
