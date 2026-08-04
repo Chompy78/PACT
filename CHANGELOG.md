@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · fix(campaign): five review findings on the join grant** (SQL migration
+  `2026-08-04-join-grant-bounds-and-default.sql`) — a campaign with **no** `rules.startingTier` granted 0
+  while DM Console displayed 79; since `rules` defaults to `'{}'` and `createCampaign` never writes a tier,
+  that was **3 of 4 live campaigns**, not an edge case. Absent now means 79. `'^[0-9]+$'` also accepted
+  `'2147483648'`, whose `::integer` cast overflowed and **aborted the join** — now bounded to 7 digits, with
+  anything malformed granting 0. DM Console's `parseInt(x,10) || 79` rewrote a DM's deliberate 0. And two
+  paths read DM AP via `peekCharacter()`, which prefers the **local** copy — so a player whose DM had just
+  paid them still saw 0 spendable AP, every purchase OVER BUDGET, and Randomize refusing; both now use a new
+  `refreshServerAp()`. `cloud-e2e` gains three scenarios and goes 24 → 32 checks — including an
+  unbind→rebind case, because the old "does not grant twice" check hit an early return and never reached the
+  double-pay guard at all. See `decisions/2026/D-GH-2026-08-04-join-grant-followups.md`.
+
 - **2026-08-04 · feat(campaign): joining by the shared code now grants the campaign's starting AP**
   (SQL migration `2026-08-04-campaign-starting-ap-on-join.sql`) — an invite created a character with its
   grant; joining by code only set `campaign_id`, so those players landed on **0 AP** with nothing saying

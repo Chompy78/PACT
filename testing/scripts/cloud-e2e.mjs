@@ -143,6 +143,18 @@ function sql(cfg, query) {
   });
   return JSON.parse(out.trim() || '[]');
 }
+// Same channel, for a statement that CHANGES something rather than reading it. Kept separate because
+// sql() wraps its argument in `select ... from (<query>) t` — a subquery, which Postgres will not let a
+// data-modifying statement (or a data-modifying CTE, which is only legal at the top level) appear in.
+// Used only to set up server-side state a client RPC deliberately cannot reach, e.g. unbinding a
+// character so the rebind path can be tested.
+function exec(cfg, statement) {
+  execSync(`psql "${cfg.db}" -v ON_ERROR_STOP=1 -q -At -f -`, {
+    input: statement.endsWith(';') ? statement : statement + ';', encoding: 'utf8', cwd: REPO,
+    stdio: ['pipe','pipe','pipe'],
+    env: { ...process.env, PGOPTIONS: '-c client_min_messages=warning' },
+  });
+}
 
 // ---------------------------------------------------------------------------------------------
 // Schema bootstrap
@@ -389,13 +401,88 @@ async function run() {
     check('the join grant has provenance in ap_awards',
           jaw.length === 1 && jaw[0].amount === 45, JSON.stringify(jaw));
 
-    // Rebinding must not pay a second time.
+    // Rebinding must not pay a second time. Two DISTINCT paths reach that promise and both need
+    // covering, because they are guarded by different code:
+    //   (a) still bound to this campaign -> the `v_char.campaign_id = v_campaign.id` early return,
+    //       which exits before the grant block is even reached;
+    //   (b) no longer bound, but previously paid -> the `not exists (select 1 from ap_awards ...)`
+    //       guard, the only thing standing between a re-join and a second free budget.
+    // Only (a) was covered here, so the ap_awards guard — the one that actually matters — was never
+    // executed by this suite at all; deleting it outright would have left every check green.
     await pl2Page.evaluate(async ({ id, code }) => {
       const c = await import('/PACT/js/campaign.js');
       await c.bindCharacterToCampaign(id, code);
     }, { id: joined, code: joinCamp.code });
     const again = (sql(cfg, `select ap from characters where id = '${joined}'`))[0];
-    check('rebinding does not grant twice', again && again.ap === 45, `ap=${again && again.ap}`);
+    check('rebinding while still bound does not grant twice', again && again.ap === 45,
+          `ap=${again && again.ap}`);
+
+    // (b): unbind server-side (no client RPC unbinds — a DM does this out of band), then re-join with
+    // the same code. campaign_id is null again, so the early return can't fire and the bind runs the
+    // grant block for real; the ap_awards row from the first join is what must stop the second payout.
+    exec(cfg, `update characters set campaign_id = null where id = '${joined}'`);
+    await pl2Page.evaluate(async ({ id, code }) => {
+      const c = await import('/PACT/js/campaign.js');
+      await c.bindCharacterToCampaign(id, code);
+    }, { id: joined, code: joinCamp.code });
+    const rejoined = (sql(cfg, `select ap, campaign_id is not null as bound
+                                 from characters where id = '${joined}'`))[0];
+    check('re-joining after an unbind rebinds the character', rejoined && rejoined.bound === true);
+    check('re-joining after an unbind does not grant again', rejoined && rejoined.ap === 45,
+          `ap=${rejoined && rejoined.ap}`);
+    const jaw2 = sql(cfg, `select amount from ap_awards where character_id = '${joined}'`);
+    check('and adds no second ap_awards row', jaw2.length === 1, JSON.stringify(jaw2));
+
+    // ---- 10. The join grant reads a real-world `rules` blob, not just a well-formed one ----
+    // `campaigns.rules` is free-form jsonb a DM edits, and it is `not null default '{}'` while
+    // createCampaign() inserts only {name, dm_id} — so "no startingTier at all" is the COMMON case,
+    // not an edge one. Both branches below were wrong before this PR: the absent case granted 0
+    // (while DM Console displayed 79), and an over-int32 figure passed the digits-only regex and then
+    // overflowed the ::integer cast, aborting the whole join transaction.
+    section('the join grant survives a real-world rules blob');
+    const oddCamps = await dmPage.evaluate(async () => {
+      const c = await import('/PACT/js/campaign.js');
+      // Left exactly as createCampaign() makes it: rules = '{}', no startingTier key.
+      const bare = await c.createCampaign('E2E Bare-Rules Campaign');
+      const huge = await c.createCampaign('E2E Overflow-Rules Campaign');
+      await c.setCampaignRules(huge.id, { startingTier: { preset: 'custom', ap: '2147483648' } });
+      const fresh = await c.listMyCampaigns();
+      const code = id => (fresh.find(x => x.id === id) || {}).invite_code;
+      return { bare: code(bare.id), huge: code(huge.id) };
+    });
+
+    // A fresh player per campaign — one character per campaign, and a joined character can't move.
+    const joinAs = async (label, code) => {
+      const email = `player-${label}+${stamp}@pact.test`;
+      await createUser(cfg, email, PW);
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      await signIn(page, base, email, PW);
+      const res = await page.evaluate(async (c) => {
+        const s = await import('/PACT/js/sync.js');
+        const cm = await import('/PACT/js/campaign.js');
+        const id = s.newCharacterId();
+        await s.saveCharacter({ id, name: 'Odd Rules', kind: 'chargen', stats: { LOG: [], SEQ: 1 } });
+        try { await cm.bindCharacterToCampaign(id, c); return { id, ok: true }; }
+        catch (e) { return { id, ok: false, err: String(e && e.message || e) }; }
+      }, code);
+      await ctx.close();
+      return res;
+    };
+
+    const bareJoin = await joinAs('bare', oddCamps.bare);
+    check('a campaign with no startingTier still lets a player join', bareJoin.ok, bareJoin.err);
+    const bareRow = (sql(cfg, `select ap from characters where id = '${bareJoin.id}'`))[0];
+    check('and grants the default 79 the UI advertises', bareRow && bareRow.ap === 79,
+          `ap=${bareRow && bareRow.ap}`);
+
+    const hugeJoin = await joinAs('huge', oddCamps.huge);
+    check('an out-of-range startingTier does not abort the join', hugeJoin.ok, hugeJoin.err);
+    const hugeRow = (sql(cfg, `select ap, campaign_id is not null as bound
+                                from characters where id = '${hugeJoin.id}'`))[0];
+    check('and the character is bound anyway', hugeRow && hugeRow.bound === true);
+    check('and grants nothing rather than overflowing', hugeRow && hugeRow.ap === 0,
+          `ap=${hugeRow && hugeRow.ap}`);
 
   } finally {
     await browser.close();

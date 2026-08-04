@@ -892,7 +892,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.330';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.332';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1997,6 +1997,15 @@ document.addEventListener('campaign-ready', function () {
     ruleHouseRuleName.value = '';
     renderHouseRules();
   });
+  /* parseInt(x,10)||fallback silently rewrites a deliberate 0, because 0 is falsy. Harmless for the
+     display-only curve dials, but startingTier.ap is REAL: bind_character_to_campaign pays it into
+     characters.ap when a player joins, so a DM who sets it to 0 ("this campaign grants nothing on
+     join") had that saved back as 79 and every joiner silently paid a full starting budget. Fall back
+     only when the field is genuinely empty or non-numeric. */
+  function _intOr(el, fallback){
+    var n = parseInt((el && el.value != null ? el.value : ''), 10);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+  }
   document.getElementById('ruleSaveBtn').addEventListener('click', async function(){
     if(!currentCampId) return;
     var rules = {
@@ -2021,7 +2030,7 @@ document.addEventListener('campaign-ready', function () {
       },
       startingTier: {
         preset: document.getElementById('ruleStartingTierPreset').value || 'standard',
-        ap: parseInt(document.getElementById('ruleStartingTierAp').value, 10) || 79
+        ap: _intOr(document.getElementById('ruleStartingTierAp'), 79)
       },
       // dmNotes lives in the same rules JSON but has its own "Save notes" button (DM notes tile)
       // — carry the live textarea value through here too so this save never clobbers it.

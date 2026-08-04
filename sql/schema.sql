@@ -625,19 +625,33 @@ begin
   end;
 
   -- Starting AP. Read defensively: `rules` is free-form jsonb a DM edits, so the tier figure may be
-  -- absent, empty, or a non-numeric string. Anything that isn't a plain non-negative integer grants
-  -- nothing rather than erroring the join — a malformed rules blob must not block a player joining.
+  -- absent, empty, or a non-numeric string. Three cases, and the difference between them matters:
+  --   absent    -> 79. A campaign created before the advancement dials existed (or one whose DM never
+  --                opened that card) has NO rules.startingTier at all, and `rules` defaults to '{}'.
+  --                Granting 0 there meant most real campaigns silently paid nothing on join while the
+  --                DM Console's own field showed 79 — the UI promised a number the DB never honoured.
+  --   numeric   -> that value, but LENGTH-BOUNDED. '^[0-9]+$' alone accepts '2147483648', and the
+  --                ::integer cast then overflows, aborting the whole transaction — so a junk rules blob
+  --                could hard-fail the join, the one thing this defensive read exists to prevent.
+  --   malformed -> 0. Grant nothing; never block the join.
   v_start_txt := nullif(trim(coalesce(v_campaign.rules -> 'startingTier' ->> 'ap', '')), '');
-  if v_start_txt ~ '^[0-9]+$' then
+  if v_start_txt is null then
+    v_start := 79;
+  elsif v_start_txt ~ '^[0-9]{1,7}$' then
     v_start := v_start_txt::integer;
-    if v_start > 0
-       and not exists (select 1 from ap_awards
-                        where character_id = p_character_id and campaign_id = v_campaign.id) then
-      update characters set ap = ap + v_start where id = p_character_id;
-      insert into ap_awards (character_id, dm_id, campaign_id, amount, note)
-        values (p_character_id, v_campaign.dm_id, v_campaign.id, v_start,
-                'Starting AP (joined by campaign code)');
-    end if;
+  else
+    v_start := 0;
+  end if;
+
+  -- Guarded against an unbind/rebind double-pay: the ap_awards row from the first join is the record
+  -- that stops a second payout (the same-campaign early return above never reaches this block).
+  if v_start > 0
+     and not exists (select 1 from ap_awards
+                      where character_id = p_character_id and campaign_id = v_campaign.id) then
+    update characters set ap = ap + v_start where id = p_character_id;
+    insert into ap_awards (character_id, dm_id, campaign_id, amount, note)
+      values (p_character_id, v_campaign.dm_id, v_campaign.id, v_start,
+              'Starting AP (joined by campaign code)');
   end if;
 
   return v_campaign.id;
