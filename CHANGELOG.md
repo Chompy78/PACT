@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · feat(dm-console): read-only view of an archived campaign** — an archived campaign offered
+  its name and an **Unarchive** button and nothing else, so checking an old campaign's roster, rules or
+  notes meant putting it back in the active list first — mutating state purely to look at it. Its name is
+  now a clickable control that opens the ordinary campaign panel, locked. Reuses `selectCampaign()`'s
+  render path (no second renderer to drift), and enforces the read-only state **twice**: `_peekBlocks()`
+  gates all eight write call sites — `setCampaignRules` ×2, `createPlayerInvite`, `setInviteRevoked`,
+  `setIgnorePlayerAp`, `archiveCampaign`, `awardAp`, `setCharacterDmNotes`, `unbindCharacter` — and
+  `_applyPeekLock()` disables the controls. Guarded, not hidden: the roster replaces its own `innerHTML`
+  on every refresh, so cards come back enabled and the handler guard is the half that can't be defeated.
+  A banner says why, `+ Create`/`Unarchive`/ⓘ stay live so the way out is never locked, and exiting
+  restores each control's prior disabled state rather than blanket-enabling. `dm-console-ui` 44 → **73**
+  checks; all 10 mutants killed. Display-only; no `DATA.version` bump.
+  See `decisions/2026/D-GH-2026-08-04-archived-campaign-peek.md`.
+
 - **2026-08-04 · fix(dm-console): three help strings still said the shared code grants no AP** — the
   Players-code tooltip claimed a code-join "gets a new character bound to this campaign, with no preset
   AP/budget", the invite note called it "a blank character with no preset AP", and the Starting-tier
