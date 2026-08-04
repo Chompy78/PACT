@@ -113,7 +113,57 @@ export function initFeedbackWidget(page) {
   actions.append(cancel, send);
 
   panel.append(title, msg, contact, contactRow, status, actions);
-  document.body.append(btn, panel);
+  // ---- Dismiss (this tab only) -------------------------------------------
+  // A fixed pill sits on top of whatever is under it. On mobile that was Undo/Redo; on desktop it was
+  // reported covering a Copy button, an invite badge and a panel header at different scroll positions.
+  // Clearing the bottom bars (below) fixes the mobile case structurally; this gives anyone working
+  // through a dense panel a way out of the desktop case without losing the widget permanently.
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'pact-fb-dismiss';
+  dismiss.textContent = '\u00d7';
+  dismiss.title = 'Hide the feedback button until the next page load';
+  dismiss.setAttribute('aria-label', 'Hide the feedback button');
+  dismiss.addEventListener('click', () => {
+    btn.style.display = 'none'; dismiss.style.display = 'none'; panel.hidden = true;
+  });
+
+  document.body.append(btn, dismiss, panel);
+
+  // ---- Keep clear of the host tool's fixed bottom bar ----------------------
+  // Measured rather than hard-coded per tool: each tool has its own bottom furniture (Live Sheet's
+  // #lmobar, and whatever a future tool adds), and a widget shared by all three should not need to
+  // know any of their class names. Anything position:fixed, pinned within a few px of the viewport
+  // bottom, visible, and horizontally overlapping the button gets cleared.
+  function keepClearOfBottomBars() {
+    let clearance = 16;
+    const vh = window.innerHeight;
+    const bx = btn.getBoundingClientRect();
+    for (const el of document.body.querySelectorAll('*')) {
+      if (el === btn || el === dismiss || el === panel || panel.contains(el)) continue;
+      const cs = getComputedStyle(el);
+      if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden') continue;
+      const r = el.getBoundingClientRect();
+      if (!r.height || !r.width) continue;
+      if (Math.abs(r.bottom - vh) > 4) continue;          // not pinned to the bottom
+      if (r.height > vh * 0.5) continue;                  // a full-screen overlay, not a bar
+      if (r.right < bx.left || r.left > bx.right) continue; // no horizontal overlap with the button
+      clearance = Math.max(clearance, Math.ceil(r.height) + 12);
+    }
+    document.documentElement.style.setProperty('--pact-fb-bottom', clearance + 'px');
+  }
+  keepClearOfBottomBars();
+  addEventListener('resize', keepClearOfBottomBars);
+  addEventListener('orientationchange', keepClearOfBottomBars);
+  // Bars can appear later (a mobile breakpoint, a panel opening), so re-measure on DOM changes —
+  // coalesced through rAF so a chatty re-render doesn't turn this into a layout-thrash loop.
+  let _pending = false;
+  new MutationObserver(() => {
+    if (_pending) return;
+    _pending = true;
+    requestAnimationFrame(() => { _pending = false; keepClearOfBottomBars(); });
+  }).observe(document.body, { childList: true, subtree: true, attributes: true,
+                              attributeFilter: ['style', 'class', 'hidden'] });
 
   // ---- Identity: signed-in users can opt out of attribution ---------------
   // Read the session from local storage (no network round-trip). If signed in,
@@ -234,12 +284,33 @@ export function initFeedbackWidget(page) {
 function injectStyles() {
   if (document.getElementById('pact-fb-styles')) return;
   const css = `
-.pact-fb-btn{position:fixed;right:16px;bottom:16px;z-index:2147483000;
+/* --pact-fb-bottom is measured at runtime (see keepClearOfBottomBars) so the widget clears whatever
+   fixed bottom bar the host tool has -- Live Sheet's #lmobar carries Undo/Redo on mobile and the pill
+   sat directly on top of it, covering the two controls most needed to correct a mis-tap mid-play.
+   safe-area-inset keeps it off the iOS home indicator on top of that. */
+.pact-fb-btn{position:fixed;right:16px;z-index:2147483000;
+  bottom:calc(var(--pact-fb-bottom,16px) + env(safe-area-inset-bottom,0px));
   font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff;
   background:#4f46e5;border:none;border-radius:999px;padding:10px 16px;
-  box-shadow:0 2px 10px rgba(0,0,0,.35);cursor:pointer}
-.pact-fb-btn:hover{background:#4338ca}
-.pact-fb-btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+  box-shadow:0 2px 10px rgba(0,0,0,.35);cursor:pointer;
+  transition:opacity .15s,background .15s}
+.pact-fb-btn:hover{background:#4338ca;opacity:1}
+.pact-fb-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;opacity:1}
+/* A fixed pill is unavoidably ON TOP of whatever is beneath it, and on desktop that was reported
+   covering a Copy button, an invite status badge and a panel header at different scroll positions.
+   Resting semi-transparent means the covered control stays readable, and the dismiss affordance below
+   means a DM working through a dense panel can get it out of the way entirely. */
+.pact-fb-btn{opacity:.72}
+/* Compact on phones: less area to collide with, and the label is redundant next to the icon. */
+@media (max-width:520px){
+  .pact-fb-btn{padding:9px 11px;font-size:0;line-height:0;border-radius:999px}
+  .pact-fb-btn::before{content:'💬';font-size:15px;line-height:1}
+}
+.pact-fb-dismiss{position:fixed;right:14px;z-index:2147483001;
+  bottom:calc(var(--pact-fb-bottom,16px) + env(safe-area-inset-bottom,0px) + 26px);
+  width:18px;height:18px;padding:0;border-radius:999px;border:1px solid rgba(255,255,255,.4);
+  background:#1f2937;color:#fff;font:700 11px/1 system-ui,sans-serif;cursor:pointer;opacity:.72}
+.pact-fb-dismiss:hover,.pact-fb-dismiss:focus-visible{opacity:1}
 .pact-fb-panel{position:fixed;right:16px;bottom:64px;z-index:2147483000;
   width:min(340px,calc(100vw - 32px));box-sizing:border-box;
   background:#1f2937;color:#f9fafb;border:1px solid #374151;border-radius:12px;

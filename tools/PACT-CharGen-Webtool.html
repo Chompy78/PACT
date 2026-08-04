@@ -111,7 +111,13 @@ body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);font
 #form{min-width:0}
 .summary{position:sticky;top:calc(var(--headh,84px) + 8px);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;max-height:calc(100vh - var(--headh,84px) - 24px);overflow:auto}
 @media(max-width:920px){.layout{grid-template-columns:1fr}.summary{position:static}}
-fieldset{border:1px solid var(--line);border-radius:10px;margin:0 0 12px;padding:8px 12px 12px;background:var(--card)}
+/* min-width:0 overrides the UA stylesheet's `fieldset{min-width:min-content}`, which stops a fieldset
+   shrinking below its content's intrinsic width no matter what its container says. That is why section
+   7 sat at 596px inside a 362px form on a 390px phone: the class grid could not shrink, and with
+   body{overflow-x:hidden} there was no scrollbar to reveal it, so the right-hand classes (Bard…Wizard)
+   were simply invisible with nothing on screen suggesting more existed. Applies to every section, not
+   just 7 — the others merely happened to have narrower content. */
+fieldset{min-width:0;border:1px solid var(--line);border-radius:10px;margin:0 0 12px;padding:8px 12px 12px;background:var(--card)}
 legend{font-weight:700;color:var(--blue);padding:0 6px}
 .row{display:flex;align-items:center;gap:8px;margin:5px 0;flex-wrap:wrap}
 .row label.l{flex:0 0 210px;color:var(--ink)}
@@ -132,6 +138,13 @@ input.bad,select.bad{background:var(--badbg)!important;border-color:var(--bad)!i
 .ck .c{margin-left:6px;color:var(--ink);font-size:11px;font-weight:700}
 .ck .dsc{display:block;font-size:10px;color:var(--grey);font-style:italic;line-height:1.2;font-weight:400}.gridck .ck{flex-wrap:wrap;align-items:flex-start;padding-left:20px}.gridck .ck>input[type=checkbox]:first-child{margin-left:-20px}.gridck .ck .dsc{flex:0 0 100%;margin-left:0;padding-top:1px}
 .ck .req{font-size:10px;color:var(--blue);font-weight:700;white-space:nowrap}
+/* The class picker was an INLINE style (grid-template-columns:repeat(2,1fr)), which no media query
+   can override — so it stayed two columns at 390px while every other grid in the tool collapsed, and
+   `1fr`'s implicit min-width:auto let long class names push the tracks past the viewport. With the
+   page body at overflow-x:hidden there was no scrollbar either, so half the classes (Bard…Wizard)
+   were simply invisible with nothing on screen suggesting they existed. minmax(0,1fr) lets the tracks
+   shrink; the mobile rule below collapses to one column like everything else. */
+#classpickgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px;margin-bottom:6px}
 table.sl{border-collapse:collapse;margin:4px 0}
 table.sl th,table.sl td{border:1px solid var(--line);padding:1px 3px;text-align:center;font-size:11px}
 table.sl th{background:var(--lt)}
@@ -208,7 +221,12 @@ h4{margin:8px 0 2px;color:var(--teal);font-size:12.5px}
 @media print{.spcols{grid-template-columns:1fr 1fr 1fr !important}.slotgrid{grid-template-columns:repeat(9,1fr) !important}.spellsec{break-inside:avoid}}
 .shledger{width:100%;border-collapse:collapse;font-size:10.5px}.shledger td{padding:1px 3px;border-bottom:1px solid var(--line)}.shledger td:last-child{text-align:right;font-weight:700}
 .shledger tr.tot td{border-top:2px solid var(--navy);font-weight:800;color:var(--navytx)}
-.grow{flex:1}
+/* min-width:0 defeats the flex-item default of min-width:auto, which floors a flex child at its
+   content's min-content width. Without it a wide child (the innate-spell table in section 9) sized its
+   own parent, so the table's own `max-width:100%` resolved against a box the table was itself
+   inflating — 599px inside a 362px section, clipped invisibly by body{overflow-x:hidden}. Same root
+   cause as the class grid, one layer out. */
+.grow{flex:1;min-width:0}
 @media print{.shcols{grid-template-columns:repeat(3,1fr) !important}.shcols2{grid-template-columns:1fr 2fr !important}.shrow{font-size:10.5px}.stickyhead,.layout,.shtop,#explainview,#portraitview{display:none !important}#sheetview{position:static;padding:0}
  /* force a light palette when printing, whatever theme is on screen */
  body,body[data-theme]{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;--good:#2E7D32;--bad:#C00000;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#fff;--card:#fff;background:#fff!important;color:#222!important}}
@@ -329,6 +347,11 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
  #sumdetails{padding-bottom:72px}
  table.sl{display:block;max-width:100%;overflow-x:auto;white-space:nowrap}
  .gridck{column-count:1}
+ /* minmax(0,1fr), not 1fr: `1fr` is shorthand for minmax(auto,1fr) and `auto` floors the track at the
+    content's min-content width, so a single column still refused to shrink below 570px. The children
+    need min-width:0 for the same reason — a grid item's own default min-width is auto. */
+ #classpickgrid{grid-template-columns:minmax(0,1fr)}
+ #classpickgrid>*{min-width:0}
  .abilrow,.shabrow{grid-template-columns:repeat(3,1fr)}
  /* labels sit on their own line so controls + hints get the full width and wrap properly */
  .row{flex-wrap:wrap}
@@ -1632,7 +1655,7 @@ function buildForm(F){
     '<div class="row" style="border-top:1px dashed var(--line);padding-top:6px"><label class="l">Ki / Focus points</label><select id="ki">'+numOpts(0,20,0)+'</select><span class="price" id="kip"></span><span class="hint">gentle ladder · no HD gate (Monk)</span></div>'+
     '<div class="row"><label class="l">Sorcery points</label><select id="sorcery">'+numOpts(0,20,0)+'</select><span class="price" id="sorceryp"></span><span class="hint">bands of two, first two free — requires the Sorcerer discipline + 2 Hit Dice</span></div>'+
     '<div class="row"><label class="l">Quick-add feature by class</label><span class="hint">origin class(es) marked ★ — their features get the discount</span></div>'+
-    '<div id="classpickgrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px 10px;margin-bottom:6px"></div>'+
+    '<div id="classpickgrid"></div>'+
     '<div class="row"><label class="l">Chosen features</label><button class="btn ghost" type="button" onclick="addRow(\'feat2\')">+ search all</button><span class="hint">Origin price if your class, else Cross</span></div><div id="feat2_rows"></div>'+
     '<datalist id="featureDL">'+DATA.featureList.map(f=>'<option value="'+f.replace(/"/g,'&quot;')+'">').join('')+'</datalist>');
 
