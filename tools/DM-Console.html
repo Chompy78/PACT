@@ -1974,6 +1974,11 @@ document.addEventListener('campaign-ready', function () {
     renderHouseRules();
     ruleSaveStatus.textContent = '';
   }
+  // Test seam. loadRulesIntoPanel runs for every DM opening every campaign and has to cope with three
+  // different startingTier shapes (current, pre-2026-08-04, absent), which is exactly the kind of
+  // branch that breaks silently and is impossible to reach from outside this closure. Exposed so
+  // testing/scripts/dm-console-ui-e2e.mjs can drive it; nothing in the app calls it through window.
+  window._dmRulesPanel = { load: loadRulesIntoPanel };
   // Advancement-dial helpers (feat/advancement-tracks): live L20 preview + preset↔field sync.
   // DATA tables are read lazily inside each handler so a panel opened before engine-ready
   // still wires up (falling back to the preset defaults until DATA arrives).
@@ -2074,9 +2079,15 @@ document.addEventListener('campaign-ready', function () {
         _rebuildTierLevels();
         stl.value = level == null ? '' : String(level);
         stb.value = band || 'standard';
-        _setOverridden(overridden);
         var c = _curveFields();
-        sta.value = ap != null ? ap : _tierAp(stl.value, stb.value, c.l1, c.inc);
+        var derived = _tierAp(stl.value, stb.value, c.l1, c.inc);
+        sta.value = ap != null ? ap : derived;
+        // A saved figure that does NOT match what level+band derive is an override whether or not it
+        // was flagged as one. Legacy values land here routinely: 'legendary' was 1.6 x 79 = 126, while
+        // level 3 on the same curve is 127. Keeping 126 is right — it is the number the DM's campaign
+        // actually grants — but showing "Level 3" beside a number that is not level 3's would be a
+        // quiet lie, so mark it overridden and let the badge say so.
+        _setOverridden(!!overridden || (ap != null && ap !== derived));
         _rebuildTierLevels();
       },
       read: function(){

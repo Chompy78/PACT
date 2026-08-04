@@ -15,6 +15,16 @@
   Reported by the owner, who read the tooltip and could not tell what their campaign actually grants.
   Display-only; no `DATA.version` bump.
 
+- **2026-08-04 · test(dm-console): first automated UI coverage for the console** — `cloud-e2e` drives
+  `js/campaign.js`/`js/dm.js` directly and never opens DM Console, so the rules panel could break on any
+  change with every gate still green. `testing/scripts/dm-console-ui-e2e.mjs` (27 checks) covers the
+  starting-tier model, its override semantics, and all three `startingTier` shapes `loadRulesIntoPanel`
+  must survive. Needs no Supabase stack — supabase-js is vendored, so the module bridge loads offline and
+  fires `campaign-ready` — which keeps it cheap enough to run on every PR. Verified RED before being
+  committed (perturbing `TIER_BANDS.heroic` failed 2 checks), and it immediately caught a real one:
+  legacy `legendary` (1.6 × 79 = 126) does not land on level 3 (127), so a mapped legacy value now keeps
+  its saved number and shows as an override instead of displaying a level its figure doesn't match.
+
 - **2026-08-04 · feat(dm-console): starting tier is now a level + a band, and an unconfigured campaign
   grants nothing** (SQL migration `2026-08-04-join-grant-absent-means-zero.sql`) — the old single ratio
   (Prelude 0.7× / Standard 1.0× / Veteran 1.3× / Legendary 1.6×) conflated "what level is this
