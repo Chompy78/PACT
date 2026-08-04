@@ -15,6 +15,21 @@
   Reported by the owner, who read the tooltip and could not tell what their campaign actually grants.
   Display-only; no `DATA.version` bump.
 
+- **2026-08-04 · feat(dm-console): starting tier is now a level + a band, and an unconfigured campaign
+  grants nothing** (SQL migration `2026-08-04-join-grant-absent-means-zero.sql`) — the old single ratio
+  (Prelude 0.7× / Standard 1.0× / Veteran 1.3× / Legendary 1.6×) conflated "what level is this
+  character" with "how well-resourced are they", and off a Standard L1 of 79 the presets were
+  *literally* levels: 55 = L0, 79 = L1, 103 = L2. Now two dropdowns — **level 0–20**, priced off the
+  campaign's own budget curve, and a band (**Gritty 0.85× / Standard 1.0× / Heroic 1.15×**) — with each
+  level option showing its live AP. Old `{preset, ap}` maps across exactly. The Players-code row now
+  states the grant where the code is copied ("grants **N AP**, once per character") with a link to
+  change it. And the `absent → 79` default from earlier the same day is **reversed**: that 79 was a
+  hardcoded input placeholder inside a collapsed panel, not a DM's choice, so an unconfigured campaign
+  now grants 0 and says so on screen. Amble and any campaign with a saved figure are unaffected. Also
+  fixes three help strings that still claimed the shared code granted no AP and created a blank
+  character — it binds the character the player is *currently building*. See
+  `decisions/2026/D-GH-2026-08-04-starting-tier-level-band.md`.
+
 - **2026-08-04 · test(review): seeded review stack + usability/QoL review prompt** — `cloud-e2e` proves
   the signed-in paths work but tears the stack down immediately, so a usability review had no way to
   reach the cloud half of the app at all. `testing/scripts/seed-review-stack.mjs` seeds five accounts,

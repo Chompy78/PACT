@@ -542,8 +542,12 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <span class="lbl">Players:</span>
               <input class="field ro" id="campPlayerCode" readonly>
               <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
-              <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. A player who enters this code (CharGen's “Join campaign”) binds the character they are CURRENTLY building to this campaign — it does not create a blank one — and is granted this campaign's Starting tier AP, set in “Level budget curve · award pace · starting tier” below (79 if you have never set one). Paid once per character: re-joining the same campaign does not grant it twice.">ⓘ</button>
+              <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. A player who enters this code (CharGen's “Join campaign”) binds the character they are CURRENTLY building to this campaign — it does not create a blank one — and is granted this campaign's Starting tier AP. Paid once per character: re-joining the same campaign does not grant it twice.">ⓘ</button>
             </div>
+            <!-- The single most-asked question about this code is "how much AP does it hand out?", and the
+                 answer lived three collapsed panels away. Show it here, live, with a link that opens the
+                 panel it comes from — so the figure is legible at the moment the code is copied. -->
+            <div class="grantnote" id="campPlayerCodeGrant" style="margin-top:2px"></div>
             <div class="codechip">
               <span class="lbl">DMs:</span>
               <input class="field ro" id="campDmCode" readonly>
@@ -652,19 +656,21 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <div class="grantnote">A documented baseline only — AP is still granted ad-hoc via the “+ Award AP” action. Nothing auto-awards.</div>
             </div>
             <div class="ruleblock" style="margin-bottom:0">
-              <div class="lbl">🎬 Starting tier (new-PC budget) <button type="button" class="infobtn" title="How much AP a brand-new player character is handed to build with, as a multiple of the L1 above — Prelude 0.7×, Standard 1.0×, Veteran 1.3×, Legendary 1.6×. Off a Standard L1 of 79 that gives 55 / 79 / 103 / 126 AP. Two effects: it pre-fills the “Starting AP” box when you generate a player invite (you can still override that per invite), AND it is the amount granted automatically to anyone who joins with the reusable Players code — that route has no per-player box, so this figure is the whole of it. Existing characters are never touched, and a character is only granted it once. Leave it unset and a code-join grants 79.">ⓘ</button></div>
+              <div class="lbl">🎬 Starting tier (new-PC budget) <button type="button" class="infobtn" title="How much AP a brand-new player character is handed to build with. Set it as “what level should they play at” plus how well-resourced a character of that level is in this campaign — Gritty 0.85×, Standard 1.0×, Heroic 1.15×. The level figure comes from YOUR budget curve above, so changing L1 or +per lvl moves this with it. Two effects: it pre-fills the “Starting AP” box when you generate a player invite (still editable per invite), AND it is the whole grant for anyone joining with the reusable Players code, which has no per-player box. Existing characters are never touched and a character is only granted it once. Set the level to “— none —” to grant nothing.">ⓘ</button></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <select id="ruleStartingTierPreset" class="field" style="flex:0 0 150px">
-                  <option value="prelude">Prelude (0.7×)</option>
+                <label style="font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px">Play at
+                  <select id="ruleStartingTierLevel" class="field" style="flex:0 0 120px"></select>
+                </label>
+                <select id="ruleStartingTierBand" class="field" style="flex:0 0 160px">
+                  <option value="gritty">Gritty (0.85×)</option>
                   <option value="standard" selected>Standard (1.0×)</option>
-                  <option value="veteran">Veteran (1.3×)</option>
-                  <option value="legendary">Legendary (1.6×)</option>
-                  <option value="custom">Custom</option>
+                  <option value="heroic">Heroic (1.15×)</option>
                 </select>
+                <span style="font-size:11px;color:var(--muted)">=</span>
                 <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
-                <span style="font-size:11px;color:var(--muted)">AP</span>
+                <span style="font-size:11px;color:var(--muted)">AP <span id="ruleStartingTierCustom" style="display:none;color:var(--warn,#b45309);font-weight:700">· overridden</span></span>
               </div>
-              <div class="grantnote">Used for <b>both</b> ways into the campaign: it pre-fills the &ldquo;Starting AP&rdquo; field when you generate a player invite (still editable per invite), <b>and</b> it is granted automatically to a character that joins with the Players code above &mdash; which previously arrived with no AP at all. Recomputed from the L1 above whenever either the tier or the curve changes.</div>
+              <div class="grantnote">Used for <b>both</b> ways into the campaign: it pre-fills the &ldquo;Starting AP&rdquo; field when you generate a player invite (still editable per invite), <b>and</b> it is granted automatically to a character that joins with the Players code above. Type over the AP figure to set your own number; changing either dropdown recomputes it. <b>&ldquo;&mdash; none &mdash;&rdquo; grants nothing</b>, and a campaign that has never saved a tier also grants nothing &mdash; players then join with 0 AP and cannot build until you award some.</div>
             </div>
               </div>
             </details>
@@ -1942,10 +1948,28 @@ document.addEventListener('campaign-ready', function () {
     var ap = r.awardPace || {};
     document.getElementById('ruleAwardPacePreset').value = ap.preset || 'average';
     document.getElementById('ruleAwardPaceCustom').value = ap.apPerSession != null ? ap.apPerSession : 7;
-    var st = r.startingTier || {};
-    document.getElementById('ruleStartingTierPreset').value = st.preset || 'standard';
-    document.getElementById('ruleStartingTierAp').value = st.ap != null ? st.ap : 79;
     _updateBudgetPreview();
+    // Starting tier. Three shapes reach this, because the model changed twice:
+    //   {level, band, ap}  — current
+    //   {preset, ap}       — pre-2026-08-04. The old ratios were levels in disguise off a Standard L1
+    //                        of 79 (prelude 55 = L0, standard 79 = L1, veteran 103 = L2, legendary
+    //                        126 ≈ L3), so they map across exactly rather than approximately.
+    //   absent             — never configured. Grants NOTHING, and the panel says so; it must not
+    //                        silently present 79 as though the DM had chosen it.
+    var st = r.startingTier || null;
+    var OLD_PRESET_LEVEL = { prelude: 0, standard: 1, veteran: 2, legendary: 3 };
+    if (!st) {
+      window._dmTierState.set(null, 'standard', 0, false);
+    } else if (st.level !== undefined || st.band !== undefined) {
+      window._dmTierState.set(st.level == null ? null : st.level, st.band || 'standard',
+                              st.ap != null ? st.ap : null, !!st.custom);
+    } else {
+      var lvl = OLD_PRESET_LEVEL[st.preset];
+      // 'custom', or any preset name we no longer know: keep the DM's number, flagged as an override
+      // rather than silently re-derived into something else.
+      if (lvl === undefined) window._dmTierState.set(1, 'standard', st.ap != null ? st.ap : 0, true);
+      else                   window._dmTierState.set(lvl, 'standard', st.ap != null ? st.ap : null, false);
+    }
     currentHouseRules = Object.assign({}, r.houseRules || {});
     renderHouseRules();
     ruleSaveStatus.textContent = '';
@@ -1958,37 +1982,124 @@ document.addEventListener('campaign-ready', function () {
     var inc = parseInt(document.getElementById('ruleBudgetInc').value, 10) || 24;
     document.getElementById('ruleBudgetL20Preview').textContent = l1 + 19 * inc;
   }
+
+  // ---- Starting tier: level × band -------------------------------------------------------------
+  // The old model was a single ratio off L1 (Prelude 0.7 / Standard 1.0 / Veteran 1.3 / Legendary 1.6),
+  // which quietly conflated two different questions: what LEVEL is this character, and how well-resourced
+  // is a character of that level here. It was also levels in disguise — off a Standard L1 of 79, Prelude's
+  // 55 IS level 0's budget and Veteran's 103 IS level 2's — so a DM picking "Veteran" was really picking
+  // "level 2" without being told. Splitting the axes says out loud what was already happening.
+  var TIER_BANDS = { gritty: 0.85, standard: 1.0, heroic: 1.15 };
+  /* AP for a complete level-L build on THIS campaign's curve. Same formula as js/ap-by-level.js's
+     budgetLadder (l1 + inc × (L−1)), deliberately — a campaign's tuned curve and the engine's fixed
+     ladder must agree by construction. Level 0 falls straight out at l1 − inc (the Guide's prelude tier). */
+  function _curveApAtLevel(level, l1, inc){ return Math.round(l1 + inc * (level - 1)); }
+  function _tierAp(level, band, l1, inc){
+    if(level === '' || level == null) return 0;            // '— none —' grants nothing
+    var mult = TIER_BANDS[band]; if(mult == null) mult = 1;
+    return Math.max(0, Math.round(_curveApAtLevel(parseInt(level,10), l1, inc) * mult));
+  }
+  function _curveFields(){
+    return { l1:  parseInt(document.getElementById('ruleBudgetL1').value, 10)  || 79,
+             inc: parseInt(document.getElementById('ruleBudgetInc').value, 10) || 24 };
+  }
+  /* Level options are rebuilt whenever the curve moves so each one shows what it is actually worth —
+     "Level 3 (127 AP)" answers the DM's question without them having to open the curve panel and do
+     arithmetic. '' is a real choice, not a placeholder: it means grant nothing. */
+  function _rebuildTierLevels(){
+    var sel = document.getElementById('ruleStartingTierLevel');
+    if(!sel) return;
+    var c = _curveFields(), band = document.getElementById('ruleStartingTierBand').value, keep = sel.value;
+    var html = '<option value="">— none —</option>';
+    for(var L = 0; L <= 20; L++){
+      html += '<option value="' + L + '">Level ' + L + ' (' + _tierAp(L, band, c.l1, c.inc) + ' AP)</option>';
+    }
+    sel.innerHTML = html;
+    sel.value = keep;
+  }
+  /* Live "what does the shared code hand out" line next to the code itself. Reads the SAVED rules, not
+     the unsaved form fields — the code grants what the server holds, and showing the form's pending value
+     here would state a number the database has not agreed to. */
+  function _renderPlayerCodeGrant(){
+    var el = document.getElementById('campPlayerCodeGrant');
+    if(!el) return;
+    var camp = currentCampaigns.find(function(c){ return c.id === currentCampId; });
+    var st = (camp && camp.rules && camp.rules.startingTier) || null;
+    var ap = (st && st.ap != null) ? parseInt(st.ap, 10) : null;
+    var jump = ' <a href="#" id="campJumpToTier" style="text-decoration:underline">change it</a>';
+    if(ap == null){
+      el.innerHTML = 'Joining with this code grants <b>0 AP</b> — no starting tier has been saved for this ' +
+                     'campaign, so players arrive unable to build anything.' + jump;
+    } else if(ap === 0){
+      el.innerHTML = 'Joining with this code grants <b>0 AP</b> — players arrive unable to build until you ' +
+                     'award some.' + jump;
+    } else {
+      el.innerHTML = 'Joining with this code grants <b>' + ap + ' AP</b>, once per character.' + jump;
+    }
+    var a = document.getElementById('campJumpToTier');
+    if(a) a.addEventListener('click', function(e){
+      e.preventDefault();
+      var d = document.getElementById('campAdvancementDetails');
+      if(d){ d.open = true; d.scrollIntoView({ behavior:'smooth', block:'center' }); }
+    });
+  }
   (function _wireAdvancementDials(){
     var bp=document.getElementById('ruleBudgetPreset'), bl1=document.getElementById('ruleBudgetL1'), binc=document.getElementById('ruleBudgetInc');
     var app=document.getElementById('ruleAwardPacePreset'), apc=document.getElementById('ruleAwardPaceCustom');
-    var stp=document.getElementById('ruleStartingTierPreset'), sta=document.getElementById('ruleStartingTierAp');
+    var stl=document.getElementById('ruleStartingTierLevel'), stb=document.getElementById('ruleStartingTierBand'),
+        sta=document.getElementById('ruleStartingTierAp'), stc=document.getElementById('ruleStartingTierCustom');
     bp.addEventListener('change', function(){
       var pz=(window.DATA&&DATA.levelBudgetCurves)||{standard:{l1:79,inc:24},generous:{l1:83,inc:28}};
       var c=pz[this.value]; if(c){ bl1.value=c.l1; binc.value=c.inc; } _updateBudgetPreview();
     });
-    // Starting tier is a RATIO of the curve's L1, so moving L1 has to move the tier AP with it —
-    // otherwise switching Standard(79) to Generous(83) silently leaves the invite prefill on 79, which
-    // is exactly what happened to the Amble campaign. Only recompute for a named tier preset: once the
-    // DM has typed their own tier figure ('custom'), it is theirs and must not be overwritten.
+    // The tier is derived from the CURVE, so moving L1 or +per-lvl has to move the tier AP with it —
+    // otherwise switching Standard(79) to Generous(83) silently leaves the grant on 79, which is exactly
+    // what happened to the Amble campaign. Once the DM types their own figure the value is theirs
+    // (_tierOverridden) and nothing recomputes over it until they touch a dropdown again.
+    var _tierOverridden = false;
     function _syncStartingTierAp(){
-      if(stp.value === 'custom') return;
-      var ratio=((window.DATA&&DATA.startingTierRatios)||{prelude:0.7,standard:1.0,veteran:1.3,legendary:1.6})[stp.value];
-      if(ratio==null) return;
-      sta.value = Math.round((parseInt(bl1.value,10)||79) * ratio);
+      _rebuildTierLevels();                       // option labels carry live AP, so they move with the curve
+      if(_tierOverridden) return;
+      var c = _curveFields();
+      sta.value = _tierAp(stl.value, stb.value, c.l1, c.inc);
     }
+    function _setOverridden(on){
+      _tierOverridden = !!on;
+      if(stc) stc.style.display = on ? '' : 'none';
+    }
+    window._dmTierState = {
+      // Reset by the rules loader when it switches campaigns — an override belongs to the campaign it
+      // was typed for, not to the panel.
+      set: function(level, band, ap, overridden){
+        _rebuildTierLevels();
+        stl.value = level == null ? '' : String(level);
+        stb.value = band || 'standard';
+        _setOverridden(overridden);
+        var c = _curveFields();
+        sta.value = ap != null ? ap : _tierAp(stl.value, stb.value, c.l1, c.inc);
+        _rebuildTierLevels();
+      },
+      read: function(){
+        return { level: stl.value === '' ? null : parseInt(stl.value, 10),
+                 band: stb.value,
+                 ap: _intOr(sta, 0),
+                 custom: _tierOverridden };
+      },
+    };
     bp.addEventListener('change', _syncStartingTierAp);
     bl1.addEventListener('input', function(){ bp.value='custom'; _updateBudgetPreview(); _syncStartingTierAp(); });
-    binc.addEventListener('input', function(){ bp.value='custom'; _updateBudgetPreview(); });
+    binc.addEventListener('input', function(){ bp.value='custom'; _updateBudgetPreview(); _syncStartingTierAp(); });
     app.addEventListener('change', function(){
       var m=((window.DATA&&DATA.awardPaces)||{slow:{apPerSession:5},average:{apPerSession:7},fast:{apPerSession:10}})[this.value];
       if(m){ apc.value=m.apPerSession; }
     });
     apc.addEventListener('input', function(){ app.value='custom'; });
-    stp.addEventListener('change', function(){
-      var ratio=((window.DATA&&DATA.startingTierRatios)||{prelude:0.7,standard:1.0,veteran:1.3,legendary:1.6})[this.value];
-      if(ratio!=null){ var l1=parseInt(bl1.value,10)||79; sta.value=Math.round(l1*ratio); }
-    });
-    sta.addEventListener('input', function(){ stp.value='custom'; });
+    // Touching either dropdown is an explicit re-derive: it clears a previous manual override, because
+    // the DM has just told us what they want in the model's own terms.
+    stl.addEventListener('change', function(){ _setOverridden(false); _syncStartingTierAp(); });
+    stb.addEventListener('change', function(){ _setOverridden(false); _syncStartingTierAp(); });
+    sta.addEventListener('input', function(){ _setOverridden(true); });
+    _rebuildTierLevels();
   })();
   document.getElementById('ruleAddHouseRule').addEventListener('click', function(){
     var name = (ruleHouseRuleName.value||'').trim();
@@ -2028,10 +2139,11 @@ document.addEventListener('campaign-ready', function () {
         preset: document.getElementById('ruleAwardPacePreset').value || 'average',
         apPerSession: parseInt(document.getElementById('ruleAwardPaceCustom').value, 10) || 7
       },
-      startingTier: {
-        preset: document.getElementById('ruleStartingTierPreset').value || 'standard',
-        ap: _intOr(document.getElementById('ruleStartingTierAp'), 79)
-      },
+      // {level, band, ap, custom} — `ap` stays the authoritative figure because it is what
+      // bind_character_to_campaign reads server-side; level/band record how it was arrived at so the
+      // panel can rebuild itself and follow the curve. Saving always writes an explicit `ap`, so a
+      // campaign whose rules have been saved once is never in the ambiguous "absent" state again.
+      startingTier: window._dmTierState.read(),
       // dmNotes lives in the same rules JSON but has its own "Save notes" button (DM notes tile)
       // — carry the live textarea value through here too so this save never clobbers it.
       dmNotes: dmNotesText.value
@@ -2042,6 +2154,7 @@ document.addEventListener('campaign-ready', function () {
       var camp = currentCampaigns.find(function(c){return c.id===currentCampId;});
       if(camp) camp.rules = rules;
       ruleSaveStatus.textContent = 'Saved.';
+      _renderPlayerCodeGrant();   // the code's advertised grant must follow the save that changed it
     } catch(err){
       ruleSaveStatus.textContent = 'Error: '+err.message;
     }
@@ -2180,6 +2293,7 @@ document.addEventListener('campaign-ready', function () {
     campCodes.style.display = 'block';
     document.getElementById('campPlayerCode').value = camp.invite_code||'';
     document.getElementById('campDmCode').value     = camp.dm_invite_code||'';
+    _renderPlayerCodeGrant();   // the grant figure belongs to the campaign, so it moves with the switch
     ignoreChk.checked = !!camp.ignore_player_ap;
     _setIgnoreLocked(true);   // every campaign switch lands locked
     campArchiveBlock.style.display = camp.isOwner ? '' : 'none';
