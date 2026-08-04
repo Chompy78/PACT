@@ -13,6 +13,19 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-04-species-pack-ledger-drift** — the frozen ledger drifts permanently from `compute()`:
+  for Anders Tealeaf, 15 vs 33 like-for-like. `compute()` derives pack cost from `b.species` **by design**,
+  so "the packs are never charged" is the symptom, not the mechanism — the four species traits were
+  committed to the LOG *before* the identity event, so `priceOf()`'s `compute(before)` saw traits with no
+  species, priced them as cross-race, and the identity delta **refunded a phantom 21 AP the log never
+  charged**. The durable finding: `priceOf()` computes deltas against `compute(build)` while recorded costs
+  are never held equal to it, so any divergence *compounds* rather than corrects. Decision **H2** (owner):
+  fix it by making recorded cost equal `compute()`'s delta by construction, not by the narrower
+  event-ordering fix. Also records **two confidently wrong diagnoses** made on the way and the rule that
+  prevents them — `compute()` on a truncated event log is not evidence, because intermediate folds are
+  states that never existed. Not built; scoped as `fix/species-pack-not-charged`.
+  Full record: `decisions/2026/D-GH-2026-08-04-species-pack-ledger-drift.md`.
+
 - **D-GH-2026-08-04-dm-console-dm-ap-budget** — DM Console priced every roster AP figure against player
   AP only: `dmAnalyze()` called `compute(b)` with no opts and reported `economy()`'s totals, but DM AP
   lives only on `characters.ap` and never in the log, so `economy()` structurally cannot see it. On a

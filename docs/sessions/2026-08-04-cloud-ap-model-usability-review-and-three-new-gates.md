@@ -104,3 +104,87 @@ rather than erroring.
 **A stale API is not a hung job.** `cloud-e2e` appeared stuck for 13 minutes; querying the job directly
 showed it had completed successfully in 4.5. The check-runs endpoint was serving cached data. Query the
 job, not the summary, before concluding something is wrong.
+
+---
+
+# Part two — v1.343 → v1.358 (same day, continued)
+
+The session kept going well past the point this note was first written. What follows is the second half.
+
+## The AP model, again — and the same shape as before
+
+The owner reported the DM Console roster flagging characters **"OVER BUDGET by 27 / 36 AP"** and correctly
+identified that the deficit was measured against player AP alone. It is the same "who owns a value"
+thread that ran through part one: `characters.ap` is server-owned and deliberately never written into the
+character's log, but `dmAnalyze()` called `compute(b)` with **no opts** and reported `economy()`'s totals
+— and `economy()` can only see the log. On a campaign running `ignore_player_ap`, the player pool is zero
+*by design*, so the entire budget was invisible. Fixed in v1.358; Anders −15 → 12, Cedric −36 → 0.
+
+**The diagnosis was nearly targeted at the wrong figure.** Cedric's −36 matches both the roster card's
+"AP left" *and* the OVER BUDGET warning, because his log has no awards. Anders' card reads **−15**, not
+−27. Only running the engine over both real logs showed the reported numbers were `compute().remaining`
+(the warning), not `economy().available` (the card). **Two different figures were wrong from one shared
+cause** — fixing the card alone would have left the warning intact and looked like a partial fix for no
+reason. Reproduce the number the human actually read, not the nearest plausible one.
+
+## Being wrong twice, in public, on the same bug
+
+The species-pack investigation (`D-GH-2026-08-04-species-pack-ledger-drift`) produced two confident wrong
+diagnoses in a row, both corrected by the owner:
+
+1. "The identity step should have cost +15" — read the *final* build's line items as if they were that
+   step's delta. The ideal delta was −4 against a recorded −5. It was fine.
+2. "CharGen recorded four species traits as free that the engine prices at 21" — derived by comparing
+   cumulative recorded cost against `compute()` on **truncated log prefixes**. Those are states that never
+   existed (species traits owned with no species set), so `compute()` prices them as cross-race. The
+   traits are pack-included and correctly 0, exactly as the owner said.
+
+The generalizable rule, and the thing worth carrying forward: **`compute()` on a truncated event log is
+not evidence.** The fold is order-dependent and intermediate states can be incoherent. Reason about the
+final build, or about deltas the tool actually computed — never about a prefix of somebody else's log.
+
+The real mechanism turned out to be more interesting than either guess, and is recorded in full in the
+decision: the identity delta *refunds a phantom 21 AP the log never charged*, because `priceOf()` computes
+against `compute(build)` while recorded costs are never held equal to it. Any divergence compounds.
+
+## Two numbers, both right, on one screen
+
+Fenwick Copperkettle exposed a genuine ambiguity rather than a bug: card "AP left" **−11** (frozen ledger,
+36 − 47 paid) versus AP Ledger **4 over** (repriced, 40 vs 36). The 7 AP gap is ~3 of real price drift and
+4 of drawback accounting. Both are correctly computed; they answer different questions.
+
+Decision **G1**: "AP left" uses the frozen figure, because that is what the Live Sheet's `buy()` gate
+enforces — it is the number that governs whether a player can actually spend. The divergence is accepted
+and documented on `feat/ap-model-reconcile` rather than papered over. **I should have surfaced the
+divergence before writing −11 into a table as if it were the answer**; the owner caught it by reading
+their own ledger.
+
+`apLevel` was deliberately left wrong (a fully DM-funded character reads "Earned Lv 0 · 0 earned"),
+because it is wrong *identically* in the Live Sheet — fixing it in one tool would have traded a shared bug
+for a new divergence between them.
+
+## Process notes
+
+**Stacked PRs do not auto-retarget.** #354–#357 were stacked and merged bottom-up on the assumption that
+each would retarget to `preview` as its base merged. GitHub only does that when the base branch is
+**deleted**. So #355, #356 and #357 each merged into their own stacked base and never reached `preview`,
+which sat with #354 alone. Caught by noticing the task board had 11 entries instead of 15 — *not* by any
+tooling. The recovery was clean because the deepest branch had accumulated all four, so one consolidating
+PR (#359) landed the lot. **Merge stacked PRs top-down, or delete each base as it merges.**
+
+**The local git proxy can serve a stale ref.** `git fetch` reported `preview` at the #354 merge for
+several minutes after three more merges had landed, and a `BUILD` bump was applied on top of that stale
+base before it was caught. When a merge's reported SHA and a local `git log` disagree, believe the API.
+
+**Playwright auto-dismisses dialogs.** Three checks in the archived-campaign gate passed whether their
+guard existed or not, because every `confirm()`-gated write took its cancel branch and never reached the
+RPC. Verified by deleting the guards and watching the suite stay green. This is the second time in two
+days the same trap has produced a vacuous pass — a Playwright check on a confirm-gated path should be
+presumed vacuous until shown red.
+
+**Production data work.** At the owner's direction: two `check-` diagnostic character copies, password
+resets for two accounts, player-AP zeroing on four characters, and removal of a duplicated +36 DM award.
+The one-character-per-campaign limit turned out to be a unique **index** that is also the TOCTOU race
+guard for `bind_character_to_campaign` — my first constraint query missed it because it is an index, not a
+constraint, and the insert failed rather than silently succeeding. Worth the reminder that
+`pg_constraint` is not the whole story.
