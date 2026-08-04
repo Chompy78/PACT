@@ -837,13 +837,25 @@ document.addEventListener('sync-ready', function () {
   // landing on a fresh/empty page.
   async function loadCloudChar(id, label) {
     var rec = await S.loadCharacter(id);
-    if (!rec || !rec.stats || !Array.isArray(rec.stats.LOG)) { alert('No character data found.'); return false; }
+    if (!rec || !rec.stats || !Array.isArray(rec.stats.LOG)) {
+      alert('Could not open “' + label + '”.\n\nNo character data came back. If you are offline or the '
+            + 'connection dropped, try again once you are back online — nothing has been changed.');
+      return false;
+    }
     if (rec.id) __charId = rec.id;   // bare assignment — __charId is a top-level `let`, so a window.X= write here would silently shadow-fail (see the Live Sheet's own cloud-load bug, fixed elsewhere in this change — deliberately not repeated here)
     _cgApplyEnvelope(rec.stats, { clearHistory: true });      // bare LOG/SEQ assignment inside — same reason
     cgCloudMenu.classList.remove('open');
     await _cgResolveDmApStatus(rec.ap, rec.campaign_id);
     render();
-    if (typeof flash === 'function') flash('☁ Loaded: ' + label);
+    // An empty LOG is a legitimate state (a saved-but-never-built character) AND exactly what a failed
+    // load looks like: a blank builder. Reported as "silently lands on a blank draft with no error".
+    // The load path above does raise on an actual failure, so the real ambiguity was empty-vs-broken --
+    // say which one this is instead of leaving the player to guess from an empty screen.
+    if (typeof flash === 'function') {
+      flash(rec.stats.LOG.length
+        ? '☁ Loaded: ' + label
+        : '☁ Loaded: ' + label + ' — this character has no build yet, so the sheet starts empty.');
+    }
     return true;
   }
 
@@ -921,7 +933,12 @@ document.addEventListener('sync-ready', function () {
     try{
       if(!session) session = await A.currentSession();
       if(!session){
-        showBanner('You’ve been invited to a campaign. Sign in to accept it — this link stays valid until you do. → ');
+        // Deliberately does NOT promise the invite is still good. Signed out we cannot know: reading
+        // campaign_invites requires the `authenticated` role (anon has no grant on it at all), and
+        // giving anon a validity probe would let anyone test tokens against the live database. So the
+        // copy stops asserting "this link stays valid" — which was shown identically for an invite the
+        // DM had already withdrawn — and says what is actually true: signing in is what checks it.
+        showBanner('You’ve been invited to a campaign. Sign in to check this invite and accept it. → ');
         if(banner){var a=document.createElement('a');a.href='../login.html';a.textContent='Sign in';a.style.color='#fff';a.style.fontWeight='700';banner.appendChild(a);}
         return;
       }

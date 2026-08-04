@@ -333,6 +333,11 @@
    reads as a cut-off number rather than an optional input — reported as "an oddly-truncated AC value"
    in the 2026-08-04 usability review. Dimmer separator plus a "+AC" placeholder makes it an
    affordance instead of a defect. */
+/* Collapsed <details> gave no hint whether there was anything inside, so "which invite did I send to
+   whom" and "what did I ban" were both unanswerable from the panel's landing state — a DM had to open
+   each one to find out it was empty. These badges put the answer on the closed row. */
+.dsum{text-transform:none;letter-spacing:0;font-weight:600;color:var(--blue);opacity:.9}
+.dsum:empty{display:none}
 .ac2sep{opacity:.3;font-weight:400;}
   .ac2-in{width:46px;font:inherit;font-size:13px;font-weight:700;text-align:center;border:1px solid #cdd9ee;border-radius:6px;padding:1px 2px;color:#1F3864;background:#fffdf2;vertical-align:baseline;}
   .ac2-in::-webkit-outer-spin-button,.ac2-in::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
@@ -540,7 +545,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 
           <div class="subtile" id="campInviteTile">
             <details id="campInviteDetails">
-              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Invite new player</summary>
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Invite new player <span class="dsum" id="campInviteSummary"></span></summary>
               <div style="margin-top:8px">
             <div class="codechip">
               <span class="lbl">Players:</span>
@@ -561,7 +566,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
               <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
                 <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
-                  <span>Starting AP <button type="button" class="infobtn" title="The AP this player begins with — one pool, granted as DM AP on the character record. They spend it building the character and it keeps funding purchases afterwards; it is exactly the same pool the “Award AP” action tops up later. Stored server-side and DM-only, so the player can’t edit or undo their own grant, and it is unaffected by the campaign’s “ignore player AP” switch. Pre-filled from “Starting tier” in the Level budget curve panel below; editable per invite. Worth matching to your curve’s L1 (Standard 79, Generous 83): a character stays on cheap creation pricing until spend passes that figure, so a matching grant lets them finish the build the campaign paid for before anything locks.">ⓘ</button></span>
+                  <span>Starting AP <button type="button" class="infobtn" title="The AP this player begins with — one pool, granted as DM AP on the character record. They spend it building the character and it keeps funding purchases afterwards; it is exactly the same pool the “Award AP” action tops up later. Stored server-side and DM-only, so the player can’t edit or undo their own grant, and it is unaffected by the campaign’s “ignore player AP” switch. Pre-filled from “Starting tier” in the Level budget curve panel below WHEN that campaign has one saved; if this box is empty it means none is set, and the invite will grant 0. Editable per invite either way. Worth matching to your curve’s L1 (Standard 79, Generous 83): a character stays on cheap creation pricing until spend passes that figure, so a matching grant lets them finish the build the campaign paid for before anything locks.">ⓘ</button></span>
                   <input class="field" type="number" id="inviteStartAp" placeholder="0" min="0" step="1" style="width:140px">
                 </label>
                 <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);flex:1 1 200px">
@@ -629,7 +634,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 
           <div class="subtile" id="campAdvancementTile">
             <details id="campAdvancementDetails">
-              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Level budget curve &middot; award pace &middot; starting tier</summary>
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Level budget curve &middot; award pace &middot; starting tier <span class="dsum" id="campRulesSummary"></span></summary>
               <div style="margin-top:8px">
             <div class="ruleblock">
               <div class="lbl">📈 Level budget curve <button type="button" class="infobtn" title="How much cumulative AP a COMPLETE character of each level is expected to have SPENT. L1 is the level-1 figure, “+per lvl” the step: Standard 79/+24 reaches 535 at L20, Generous 83/+28 reaches 615. Run the same formula at level 0 and both land on 55 — the Guide’s optional prelude/apprentice tier. Two things read this curve: the “Track-Level” label a player sees on their sheet (their AP spent, measured against it), and the creation-pricing lock stamped into new characters, which fires once spend passes L1. It never changes what any individual option costs to buy.">ⓘ</button></div>
@@ -1363,7 +1368,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     if(hasAny && !cardOn){ renderTable(); }
     if(_cloudRosterEl){
       if(cardOn){ renderCloudRoster(_cloudRosterEl); }
-      else { _cloudRosterEl.innerHTML = cloudRoster.length ? '<div class="camp-empty">Shown in the table below while Table view is on.</div>' : '<div class="camp-empty">No characters in this campaign yet.</div>'; }
+      else { _cloudRosterEl.innerHTML = cloudRoster.length ? '<div class="camp-empty">Shown in the table below while Table view is on.</div>' : '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; }
     }
   }
 
@@ -1638,7 +1643,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   }
   function renderCloudRoster(container){
     if(!container) return;
-    if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet.</div>'; return; }
+    if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; return; }
     container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
   }
   window._dmRenderCloudRoster = function(container, rows){
@@ -1982,6 +1987,23 @@ document.addEventListener('campaign-ready', function () {
     currentHouseRules = Object.assign({}, r.houseRules || {});
     renderHouseRules();
     ruleSaveStatus.textContent = '';
+    renderRulesSummary(r);
+  }
+  /* Badge on the collapsed advancement/rules row: how many bans and house rules are actually set, so a
+     DM can see at a glance whether this campaign has been configured at all. */
+  function renderRulesSummary(r){
+    var el = document.getElementById('campRulesSummary'); if(!el) return;
+    r = r || {};
+    var bans = ['bannedSpecies','bannedOriginSpecies','bannedOriginClasses','bannedMasteries',
+                'bannedBoons','bannedDrawbacks','bannedArts']
+      .reduce(function(n,k){ return n + ((r[k]||[]).length); }, 0);
+    var house = Object.keys(r.houseRules || {}).length;
+    var bits = [];
+    if(bans)  bits.push(bans + ' ban' + (bans===1?'':'s'));
+    if(house) bits.push(house + ' house rule' + (house===1?'':'s'));
+    var tier = r.startingTier && r.startingTier.ap;
+    bits.push(tier != null ? ('joins grant ' + tier + ' AP') : 'no starting AP set');
+    el.textContent = '· ' + bits.join(' · ');
   }
   // Test seam. loadRulesIntoPanel runs for every DM opening every campaign and has to cope with three
   // different startingTier shapes (current, pre-2026-08-04, absent), which is exactly the kind of
@@ -2389,6 +2411,16 @@ document.addEventListener('campaign-ready', function () {
     loadRoster(currentCampId);
     loadInvites();
   }
+  // The empty roster is the whole of a new campaign's visible state, and the way forward ("Invite new
+  // player") sits inside a <details> that is collapsed by default -- so the landing screen offered a
+  // dead end. Delegated because the empty state is re-rendered on every roster load.
+  document.addEventListener('click', function(e){
+    var b = e.target && e.target.closest && e.target.closest('#campEmptyInvite');
+    if(!b) return;
+    var d = document.getElementById('campInviteDetails');
+    if(d){ d.open = true; d.scrollIntoView({behavior:'smooth', block:'center'}); }
+    var f = document.getElementById('inviteNote'); if(f) setTimeout(function(){ try{f.focus();}catch(_){} }, 350);
+  });
   document.addEventListener('visibilitychange', refreshCampaignPanels);
   window.addEventListener('focus', refreshCampaignPanels);
 
@@ -2472,8 +2504,17 @@ document.addEventListener('campaign-ready', function () {
     return new URL('PACT-CharGen-Webtool.html?invite=' + encodeURIComponent(token), location.href).href;
   }
 
+  /* Badge on the collapsed "Invite new player" row. Counts only OUTSTANDING invites, because that is
+     the number a DM is deciding on -- redeemed and withdrawn ones are history, and including them
+     would make a fully-settled campaign look like it had pending work. */
+  function renderInviteSummary(){
+    var el = document.getElementById('campInviteSummary'); if(!el) return;
+    var open = _invites.filter(function(v){ return !v.redeemedAt && !v.revokedAt; }).length;
+    el.textContent = open ? ('· ' + open + ' outstanding') : (_invites.length ? '· none outstanding' : '');
+  }
   function renderInvites(){
     if(!inviteList) return;
+    renderInviteSummary();
     var showAll = !!(inviteShowAll && inviteShowAll.checked);
     var rows = _invites.filter(function(v){
       return showAll || (!v.redeemedAt && !v.revokedAt);
