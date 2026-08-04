@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · test(review): seeded review stack + usability/QoL review prompt** — `cloud-e2e` proves
+  the signed-in paths work but tears the stack down immediately, so a usability review had no way to
+  reach the cloud half of the app at all. `testing/scripts/seed-review-stack.mjs` seeds five accounts,
+  three campaigns (configured / no-rules / archived), invites in four states, two players joining by the
+  two different routes, awarded AP and DM notes — then serves the app and **stays up**. Deliberately
+  includes mess an all-happy-path stack hides: an archived character, a revoked invite, an empty
+  campaign, and a name carrying quotes, HTML tags and 60 chars of overflow to test `esc()` on every
+  surface that renders it. Default mode is a throwaway local stack; `--live` targets a hosted project
+  for when Docker isn't available, gated on three independent things, with `--reset` refused outright
+  and `--purge` removing only tagged rows. `docs/review-prompts/usability-qol-review.md` is the
+  paste-ready prompt. See `decisions/2026/D-GH-2026-08-04-review-stack-seed.md`.
+
 - **2026-08-04 · fix(campaign): five review findings on the join grant** (SQL migration
   `2026-08-04-join-grant-bounds-and-default.sql`) — a campaign with **no** `rules.startingTier` granted 0
   while DM Console displayed 79; since `rules` defaults to `'{}'` and `createCampaign` never writes a tier,
