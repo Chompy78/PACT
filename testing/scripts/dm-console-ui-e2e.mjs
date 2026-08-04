@@ -185,6 +185,31 @@ const grant = await page.evaluate(()=>{
 });
 check('players-code grant line element exists', grant.exists);
 
+// 7. The roster card must answer "how much AP does this character have" WITHOUT drilling in, and the
+//    DM-granted pool must not be labelled like a spendable total. Both are string/structure checks on
+//    the card builders, which is all that is reachable without a signed-in roster.
+const apUi = await page.evaluate(()=>{
+  const src = [...document.querySelectorAll('script')].map(s=>s.textContent).join('\n');
+  return {
+    stripHasAp:      /statCells\s*=\s*\[\s*\n?\s*\['AP left'/.test(src),
+    usesAvailable:   /\['AP left',\s*avail\]/.test(src),
+    oldLabelGone:    !/>Bonus DM AP</.test(src),
+    newLabelPresent: />DM-granted AP/.test(src),
+    labelExplained:  /PART OF their spendable total/.test(src),
+    autoRefresh:     /visibilitychange['"]?\s*,\s*refreshCampaignPanels/.test(src),
+    focusRefresh:    /['"]focus['"]\s*,\s*refreshCampaignPanels/.test(src),
+    debounced:       /_lastAutoRefresh/.test(src),
+  };
+});
+check('roster stat strip carries an AP figure', apUi.stripHasAp, JSON.stringify(apUi.stripHasAp));
+check('it uses the same s.available the player sees as "AP left"', apUi.usesAvailable);
+check('the misleading "Bonus DM AP" label is gone', apUi.oldLabelGone);
+check('replaced with "DM-granted AP"', apUi.newLabelPresent);
+check('and it explains it is part of, not extra to, the spendable total', apUi.labelExplained);
+check('roster auto-refreshes on tab visibility change', apUi.autoRefresh);
+check('and on window focus', apUi.focusRefresh);
+check('the auto-refresh is debounced (focus + visibilitychange both fire)', apUi.debounced);
+
 console.log(`\n[dm-console-ui] ${fail? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
 if (errors.length) console.log('\n(non-fatal errors seen: ' + errors.length + ')\n' + errors.slice(0,5).join('\n'));
 await browser.close(); server.close();
