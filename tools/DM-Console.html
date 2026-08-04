@@ -585,7 +585,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <b style="font-size:12px">Invites issued</b>
                   <label style="font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:5px;cursor:pointer">
-                    <input type="checkbox" id="inviteShowAll"> Show redeemed &amp; withdrawn
+                    <input type="checkbox" id="inviteShowAll"> Show redeemed &amp; withdrawn<span id="inviteHiddenCount"></span>
                   </label>
                   <button type="button" class="btn sm ghost" id="inviteRefresh" style="margin-left:auto">Refresh</button>
                 </div>
@@ -2508,9 +2508,18 @@ document.addEventListener('campaign-ready', function () {
      the number a DM is deciding on -- redeemed and withdrawn ones are history, and including them
      would make a fully-settled campaign look like it had pending work. */
   function renderInviteSummary(){
-    var el = document.getElementById('campInviteSummary'); if(!el) return;
+    var el = document.getElementById('campInviteSummary');
     var open = _invites.filter(function(v){ return !v.redeemedAt && !v.revokedAt; }).length;
-    el.textContent = open ? ('· ' + open + ' outstanding') : (_invites.length ? '· none outstanding' : '');
+    if(el) el.textContent = open ? ('· ' + open + ' outstanding') : (_invites.length ? '· none outstanding' : '');
+    // The list shows OPEN invites only by default, so "which invite did I send Sam" is unanswerable
+    // until a DM thinks to tick the box -- and nothing hinted there was anything behind it. A campaign
+    // with 1 open and 4 settled invites looked like a campaign with 1 invite, full stop. Put the count
+    // ON the toggle so the history announces itself.
+    var cnt = document.getElementById('inviteHiddenCount');
+    if(cnt){
+      var hidden = _invites.length - open;
+      cnt.textContent = hidden ? (' (' + hidden + ')') : '';
+    }
   }
   function renderInvites(){
     if(!inviteList) return;
