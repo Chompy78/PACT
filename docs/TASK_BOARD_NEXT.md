@@ -474,6 +474,49 @@ today's behaviour exactly, joining past the limit fails with a message naming th
 limit never removes an existing character, the race guard is demonstrably still closed at the new N,
 the advisor reports no new findings, and `cloud-e2e` covers limit=1, limit=2 and the refusal.
 
+## Password reset is broken end-to-end — the email link lands on the homepage — TODO
+Branch `fix/password-reset-flow`. Reported by the owner: clicking the reset link in the recovery email
+takes you to the main PACT homepage, not to anywhere you can set a new password. Confirmed in the code,
+and it is **two** defects, not one — fixing only the link would still leave the flow dead:
+
+1. **Wrong destination.** `js/auth.js:41-43` calls `resetPasswordForEmail(email, { redirectTo:
+   REDIRECT_BASE })`, and `REDIRECT_BASE` (`js/auth.js:12`) is `https://chompy78.github.io/PACT/` — the
+   app menu. `index.html` has no recovery handling, so the recovery session is established and then
+   silently discarded.
+2. **There is no reset page at all.** `setNewPassword()` exists (`js/auth.js:52`, calling
+   `supabase.auth.updateUser({password})`, with a comment noting Supabase has put the user in a
+   temporary recovery session by then) but **nothing anywhere calls it** — verified by grep across all
+   `.html`/`.js` outside `js/vendor/`. `login.html` has no recovery branch and no new-password form.
+   So even pointed at `login.html`, the link would land on a sign-in form the user can't use.
+
+**Effort:** medium · **Risk:** medium — auth flow on production, and the failure mode is a locked-out
+user rather than a visible error. Needs a real end-to-end test with a live recovery email; the happy
+path cannot be verified by unit-level checks alone. Not sweep-eligible.
+
+```text
+1. Add a recovery branch (a `?type=recovery` route on login.html, or a small reset.html) that listens
+   for Supabase's PASSWORD_RECOVERY auth event and shows a new-password form, then calls the existing
+   setNewPassword(). Prefer login.html — one auth page, one place service-worker caching has to be
+   right — unless the fragment handling makes a dedicated page materially simpler.
+2. Point resetPasswordForEmail's redirectTo at that page. Note REDIRECT_BASE is ALSO used by signUp's
+   emailRedirectTo (js/auth.js:25), where the homepage IS correct — so introduce a separate constant
+   rather than repointing the shared one.
+3. Add the new URL to the Supabase project's Auth → URL Configuration → Redirect URLs allow-list.
+   A redirect not on that list is silently rewritten to the Site URL — which is very likely the real
+   reason this lands on the homepage, so CHECK THIS FIRST: the allow-list may make step 2 a no-op
+   until it is fixed, and it is a dashboard setting, not a repo change.
+4. The recovery token arrives in the URL fragment/query and is consumed on load — make sure the page
+   reads it before anything (service worker, a redirect, a router) can drop it, and that the service
+   worker does not serve a cached copy of the page that misses the fragment handler.
+5. Handle the expired/already-used token case with a real message and a way to request a new email,
+   not a blank form.
+6. Confirm sign-UP confirmation emails still land on the homepage correctly after the constant split.
+```
+
+**Done when:** a real recovery email's link opens a page that accepts a new password, the new password
+works for sign-in, an expired link says so and offers a resend, the signup confirmation email is
+unaffected, and the redirect URL is on the Supabase allow-list.
+
 ---
 
 # Conventions
