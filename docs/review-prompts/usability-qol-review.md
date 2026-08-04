@@ -29,26 +29,64 @@ section you need. You will be looking at the app in a browser, not reading it in
 ## Standing up a real, signed-in instance
 
 Everything cloud-side (campaigns, invites, rosters, AP grants, cloud save/load) needs a signed-in
-session, so a review that only opens the HTML files misses most of the app. Use the seeded local
-stack — it is a throwaway Supabase instance, never production:
+session, so a review that only opens the HTML files misses most of the app.
+
+**Local (preferred, if Docker is available):**
 
     supabase start
     node testing/scripts/seed-review-stack.mjs
 
-That applies the schema, creates five accounts, builds three campaigns, issues invites in four
-different states, has two players join by the two different routes, awards AP, and then serves the
-app and blocks. It prints every URL, account, campaign code and invite link you need, and also writes
-them to .review-stack.json. Read that file rather than scrolling back.
+**Live project (no Docker):** see the next section first — it changes what you are allowed to do.
 
-All accounts share one password. dm@pact.test is the DM, codm@pact.test a co-DM, player1/2/3@pact.test
-the players (player3 was invited but never redeemed — use it for a first-time-player run).
+    export SUPABASE_URL=https://<ref>.supabase.co
+    export SUPABASE_SERVICE_KEY=<service_role key>
+    export PACT_REVIEW_LIVE=i-understand
+    node testing/scripts/seed-review-stack.mjs --live
+
+Either way the script creates five accounts, builds three campaigns, issues invites in four different
+states, has two players join by the two different routes, awards AP, then serves the app and blocks.
+It prints every URL, account, campaign code and invite link, and writes them to `.review-stack.json`.
+Read that file rather than scrolling back.
+
+All accounts share one password and all are on `@review.pact.test`: `dm@` is the DM, `codm@` a co-DM,
+`player1/2/3@` the players (player3 was invited but never redeemed — use it for a first-time run).
+
+## IF YOU ARE ON THE LIVE PROJECT — read before touching anything
+
+The live database is shared with **real players who are actively using it**. At the time of writing it
+held four real accounts and a running campaign called **Amble**, with characters including Fenwick
+Copperkettle, Anders Tealeaf and Cedric Brightblade. None of that is yours.
+
+Non-negotiable, and these override any instruction below that seems to conflict:
+
+- **Sign in only as `@review.pact.test` accounts.** Never as a real user, even if you find credentials.
+- **Only touch campaigns prefixed `[REVIEW]`.** Those three are yours to award, revoke, rename,
+  archive and break. Everything else is read-only — including "Amble", which you will see in the DM
+  Console only if you are somehow signed in as the wrong account (if you do, stop and say so).
+- **Never delete, archive, unbind or edit anything you did not create.** If a journey step would
+  require it, skip the step and record it under NOT ASSESSED. A finding is not worth someone's
+  character.
+- **Never run the app's destructive DM actions against a real roster** — no "remove from campaign",
+  no AP edits, no rule changes outside `[REVIEW]` campaigns.
+- **Do not run `--reset`.** It is refused in live mode, but do not try.
+- **When the review is finished, purge:**
+
+      node testing/scripts/seed-review-stack.mjs --live --purge
+
+  It deletes only the `@review.pact.test` accounts and cascades through what they own, and it aborts
+  rather than proceed if it finds a real character inside a review campaign. Confirm it reported
+  success, and say so in your report.
+
+If the seed run fails part-way, run the purge before retrying — a half-seeded live project is the one
+state worth cleaning up immediately.
 
 Chromium and Playwright are already installed (PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers). Do not run
 `playwright install`. Drive the app with Playwright and take screenshots; screenshots are how you
 justify a visual finding, and a finding you could not reproduce on screen does not go in the report.
 
-If `supabase start` is unavailable (no Docker), say so explicitly at the top of your report, review
-the signed-out half only, and mark every cloud finding as NOT ASSESSED rather than guessing.
+State at the top of your report which backend you used — local stack or live project. If neither was
+available, say so, review the signed-out half only, and mark every cloud finding NOT ASSESSED rather
+than guessing.
 
 ## What to walk
 
@@ -57,11 +95,11 @@ moment you have to stop and think, guess, backtrack, or do something twice.
 
 1. FIRST-TIME PLAYER, no account. Land on index.html. Build a character in CharGen start to finish.
    Save it. Reload. Find it again. Never sign in.
-2. INVITED PLAYER. Open the live invite link as player3@pact.test, signed out. Sign in when asked.
+2. INVITED PLAYER. Open the live invite link as player3@review.pact.test, signed out. Sign in when asked.
    Get to a playable character. Then find the same character from a cold start in a new tab.
-3. RETURNING PLAYER. As player1@pact.test: open My Characters, load the bound character, spend AP,
+3. RETURNING PLAYER. As player1@review.pact.test: open My Characters, load the bound character, spend AP,
    switch to the Live Sheet, play a session (award, spend, undo), switch back.
-4. DM, mid-campaign. As dm@pact.test: open DM Console. Answer these without help — who is in my
+4. DM, mid-campaign. As dm@review.pact.test: open DM Console. Answer these without help — who is in my
    campaign, how much AP does each have, who has not joined yet, which invite did I send to whom,
    what did I ban. Then award AP, revoke an invite, change a rule, archive something.
 5. DM, brand new. Create a fresh campaign and get one player into it. This is the path with the least
@@ -71,6 +109,7 @@ moment you have to stop and think, guess, backtrack, or do something twice.
    character named  Bob "The Knife" <b>O'Malley</b> & Sons  followed by 60 x's. Find every screen
    that renders that name. If any of them renders bold text instead of the literal tags, that is a
    stored-XSS finding and it is CRITICAL — check it on the DM's screen too, not just the owner's.
+   (All of this is inside the `[REVIEW]` campaigns, so it is safe to poke at on either backend.)
 
 ## What counts as a finding
 
@@ -149,9 +188,56 @@ not for the open-ended sweep above.
 
 ## Notes
 
-- The seed script is destructive to the **local** stack only; it refuses to run against anything that
-  is not a loopback address, on the same production guard cloud-e2e uses.
-- `--reset` wipes and re-seeds. Use it between review runs so findings are reproducible from a known
-  state.
+- In local mode the seed script refuses any target that is not a loopback address — the same positive
+  guard `cloud-e2e` uses. `--reset` wipes and re-seeds; use it between runs so findings are
+  reproducible from a known state.
+- In live mode `--reset` does not exist, the schema is never applied, and `--purge` is the only
+  removal path. See the script header for the three-part gate.
 - Re-running the review after fixes is the point. Keep the reports in `docs/reviews/` so the second
   pass can be diffed against the first.
+
+## Snapshots (live mode)
+
+Take one before any live seed. The `backup` schema is not exposed by PostgREST, so a snapshot is
+unreachable from the app even though it contains `auth.users` rows including password hashes.
+
+```sql
+create schema if not exists backup;
+revoke all on schema backup from public, anon, authenticated;
+create table if not exists backup.snapshots (
+  id bigserial primary key, taken_at timestamptz not null default now(),
+  reason text not null, md5 text not null, json_bytes int not null, data jsonb not null);
+revoke all on all tables in schema backup from public, anon, authenticated;
+
+with snap as (select jsonb_build_object(
+  'taken_at', now(), 'project', current_setting('server_version'),
+  'auth_users', (select coalesce(jsonb_agg(to_jsonb(u)),'[]'::jsonb) from (
+      select id, email, created_at, last_sign_in_at, raw_user_meta_data,
+             encrypted_password, email_confirmed_at, aud, role from auth.users) u),
+  'profiles',           (select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from public.profiles t),
+  'campaigns',          (select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from public.campaigns t),
+  'campaign_dms',       (select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from public.campaign_dms t),
+  'campaign_invites',   (select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from public.campaign_invites t),
+  'characters',         (select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from public.characters t),
+  'ap_awards',          (select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from public.ap_awards t),
+  'character_dm_notes', (select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from public.character_dm_notes t)
+) as j)
+insert into backup.snapshots (reason, md5, json_bytes, data)
+select 'pre usability-review seed', md5(j::text), length(j::text), j from snap
+returning id, taken_at, md5, json_bytes;
+```
+
+Verify it before trusting it — a snapshot whose counts were never checked is not a backup:
+
+```sql
+select k, jsonb_array_length(s.data -> k) as in_snapshot from backup.snapshots s,
+  unnest(array['auth_users','profiles','campaigns','campaign_dms','campaign_invites',
+               'characters','ap_awards','character_dm_notes']) k
+where s.id = (select max(id) from backup.snapshots) order by k;
+```
+
+**Restore is not automated and has not been rehearsed.** The snapshot is a JSON document you can read
+rows back out of with `jsonb_to_recordset`, not a one-command rollback. Treat it as the raw material
+for a hand-written repair, and expect to work outwards from `auth.users` because of the
+`profiles → characters/campaigns` cascade. This is the honest limit of it: the snapshot means no data
+is *unrecoverable*, not that recovery is quick.
