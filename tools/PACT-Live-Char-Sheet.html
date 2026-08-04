@@ -486,8 +486,13 @@ async function _lsResolveDmAp(campaignId){
   try{
     const S=window._syncBridge, C=window._campaignBridge;
     if(S&&C&&navigator.onLine){
-      const rec=await S.peekCharacter(currentCharId());   // pure read — never reconciles or pushes
-      if(rec&&typeof rec.ap==='number')window._dmAp=rec.ap;
+      // refreshServerAp, not peekCharacter: peek prefers the LOCAL copy, so the comment above ("reads
+      // the authoritative ap from the server") only held when this device had never cached the
+      // character. On a CharGen→Live Sheet handoff it usually HAS — and `ap` only ever changes
+      // server-side (a DM award, a join grant), so the cached number is stale by definition. Still a
+      // pure read: never reconciles or pushes, and touches only `ap` on the local record.
+      const srvAp=await S.refreshServerAp(currentCharId());
+      if(typeof srvAp==='number')window._dmAp=srvAp;
       const camp=await C.getCampaign(campaignId);
       if(camp){window._ignorePlayerAp=!!camp.ignore_player_ap;window._rulesStatus='active';}
     }
@@ -1573,11 +1578,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). Nothing above depends on it, so a failure here
   // costs cloud save, campaigns and DM AP, not the tool. Listeners gate on sync-ready, which simply
   // never fires; window._syncBridge etc. stay undefined and every consumer already null-checks them.
-  import { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
   import { listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { getAwardHistory } from '../js/dm.js';
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, listMyCharacters, newCharacterId, initSync };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync };
   window._authBridge = { currentSession, onAuthChange };
   window._campaignBridge = { listMyCampaigns, getCampaign };
   window._dmBridge = { getAwardHistory };

@@ -183,6 +183,29 @@ export async function peekCharacter(id) {
   return null;
 }
 
+/**
+ * Re-read the SERVER's `ap` for a character and fold it into the local record.
+ *
+ * Distinct from peekCharacter(), which prefers the local copy — correct for stats (this device's
+ * edits are the freshest) but wrong for `ap`, which is DM/server-authoritative and changes without
+ * this device doing anything (a DM award, or the starting-AP grant that bind_character_to_campaign
+ * pays on a successful join). After any such server-side event the local `ap` is stale by
+ * definition, so a caller that must show the true spendable total has to go to the server.
+ *
+ * Reads ONLY `ap` back into the record — never stats — so this can never clobber unsaved local
+ * work, and it does not push, so it's safe on a dirty record.
+ * @returns {Promise<number|null>} the server's ap, or null if it couldn't be read.
+ */
+export async function refreshServerAp(id) {
+  if (!id || !navigator.onLine || !(await currentUser())) return null;
+  const { data, error } = await supabase
+    .from('characters').select('ap').eq('id', id).maybeSingle();
+  if (error || !data || typeof data.ap !== 'number') return null;
+  const rec = lsGet(id);
+  if (rec) { rec.ap = data.ap; lsSet(rec); }
+  return data.ap;
+}
+
 /** Reconcile a single id between local and server (last-write-wins; ap = server). */
 async function reconcile(id) {
   if (lsDeletes().includes(id)) { await replayDelete(id); return; }

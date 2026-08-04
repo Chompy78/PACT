@@ -42,7 +42,21 @@
   Grants only on a genuine first bind, guarded against an unbind/rebind double-pay, additive so existing
   AP is topped up not clobbered, credited to the campaign's DM rather than the joining player, and a
   malformed rules blob grants nothing rather than blocking the join. Full record:
-  `decisions/2026/D-GH-2026-08-04-campaign-starting-ap.md`.
+  `decisions/2026/D-GH-2026-08-04-campaign-starting-ap.md`. **Corrected by
+  D-GH-2026-08-04-join-grant-followups below — read both.**
+
+- **D-GH-2026-08-04-join-grant-followups** — five defects an adversarial review found in the entry above,
+  all one shape: a value the SERVER owns, read or written as if the client owned it. `absent` was read as
+  `zero`, so 3 of 4 live campaigns granted nothing while the UI showed 79 (`rules` defaults to `'{}'` and
+  `createCampaign` never writes a tier) — absent now means 79. `'^[0-9]+$'` is not a range check: it
+  accepts `'2147483648'`, whose `::integer` cast overflows and aborts the join, the exact failure that
+  defensive read existed to prevent — now bounded to 7 digits. The `ap_awards` double-pay guard was never
+  executed by its own test (the rebind case hit the same-campaign early return), so deleting it would have
+  left every check green. DM Console's `parseInt(x,10) || 79` rewrote a DM's deliberate 0. And two paths
+  resolved DM AP through `peekCharacter()`, which prefers the LOCAL copy — right for stats, wrong for `ap`,
+  which only ever changes server-side; both now use a new `refreshServerAp()`, a sibling rather than a
+  change to peek because peek's local-first preference is correct for its own callers. Full record:
+  `decisions/2026/D-GH-2026-08-04-join-grant-followups.md`.
 
 - **D-GH-2026-08-03-invite-note-dm-only** — RLS is row-level, so the redeemer clause on
   `campaign_invites_select` let a player read the DM's `note` on their own invite. Withheld at the COLUMN
