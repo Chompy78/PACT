@@ -457,6 +457,21 @@
   .rulegrid label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap}
   .hrchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:3px 8px;margin:2px 4px 2px 0}
   .hrchip button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;padding:0}
+  /* ---- archived-campaign peek (feat/archived-campaign-peek) ----
+     An archived campaign is openable read-only, so the panel needs to say so loudly: greyed controls
+     alone read as "broken", not as "deliberately locked". The banner is the state's only unambiguous
+     signal — the disabled attributes are the enforcement, this is the explanation. */
+  #campPeekBanner{background:var(--warn-bg);border:1px solid var(--warn);border-radius:10px;
+    padding:9px 12px;margin-bottom:10px;font-size:12px;color:var(--ink);line-height:1.45}
+  #campPeekBanner b{color:var(--warn);text-transform:uppercase;letter-spacing:.5px;font-size:11px;
+    display:block;margin-bottom:2px}
+  #campPeekBanner .btn{margin-top:7px}
+  /* The archived row's NAME is the peek trigger. It has to look like a name you can click, not a
+     second button competing with "Unarchive" beside it. */
+  .archname{appearance:none;background:transparent;border:0;padding:0;margin:0;font:inherit;
+    font-size:12px;color:var(--ink);text-align:left;min-width:0;flex:1;cursor:pointer;
+    text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+  .archname:hover,.archname:focus-visible{color:var(--blue);text-decoration-style:solid}
   /* ---- history modal ---- */
   .hist-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center}
   .hist-modal .inner{background:#fff;border-radius:12px;max-width:640px;width:94%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:16px 20px}
@@ -530,6 +545,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       <div id="campControls" style="display:none">
         <select id="campSel"><option value="">— select campaign —</option></select>
         <div id="campCodes" style="display:none">
+
+          <div id="campPeekBanner" style="display:none" role="status">
+            <b>Archived — read-only</b>
+            <span>You are viewing &ldquo;<span id="campPeekName"></span>&rdquo;, an archived campaign. Its roster,
+            rules, invites and notes are shown for reference only &mdash; nothing here can be changed, and no
+            invite it lists is worth sharing. To edit it again, use <b style="display:inline;text-transform:none;letter-spacing:0;font-size:inherit;color:inherit">Unarchive</b>
+            under &ldquo;Archived campaigns&rdquo; below.</span>
+            <div><button type="button" class="btn sm ghost" id="campPeekExitBtn">Done viewing</button></div>
+          </div>
 
           <div class="subtile" id="campOwnerTile">
             <div class="stitle">Owner settings</div>
@@ -853,12 +877,17 @@ function foldBuild(uptoIdx){ return window._engineFold.foldBuild(eventsUpTo(upto
 function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)); }
 
 /* ===== PACT DM Console adapter — read-only, operates on a passed-in export ===== */
-function dmAnalyze(exported){
+// `apOpts` is compute()'s {dmAp, ignorePlayerAp} — the campaign's server-side AP pool and its
+// ignore-player-AP switch. DM AP is stored ONLY on characters.ap and is NEVER written into the
+// character's log (see the two-pool model on compute() in js/engine.js), so economy(), which can only
+// see the log, structurally cannot know about it. Omitted for a locally-imported .json file, which
+// has no campaign and therefore no DM AP.
+function dmAnalyze(exported, apOpts){
   LOG = (exported && exported.LOG) || [];
   SEQ = (exported && exported.SEQ) || (LOG.length+1);
   var b = foldBuild(null);
   var eco = economy(null);
-  var r = compute(b);
+  var r = compute(b, apOpts || {});
   // unnamed spell count (dabbler cantrips + innate spells; feats removed in v0.075)
   var unnamed=0;
   for(var i=0;i<(b.dabblerCantrips||0);i++){ if(!(((b.dabblerCantripNames||[])[i])||'').trim()) unnamed++; }
@@ -887,7 +916,16 @@ function dmAnalyze(exported){
     drawbacks: (b.drawbacks||[]).slice(), features: (b.features||[]).slice(),
     casting: casting,
     // ---- economy + flags ----
-    earned: eco.earned, spent: eco.spent, available: eco.available,
+    // `available` is the SAME quantity the player's own Live Sheet shows as "AP left", computed the
+    // same way: its _apRemaining(spendable, spent) — the composed ceiling minus the FROZEN ledger's
+    // spend, not compute()'s repriced `total` (D-GH30: what a build cost when it was bought is what
+    // was paid; a reprice at today's numbers is a different question and is never the AP-left figure).
+    // It was `eco.available` (= eco.earned − eco.spent), which is player-log AP only. For a campaign
+    // running ignore_player_ap with the whole budget granted as DM AP, that made every character's
+    // entire budget invisible and showed them all deeply overspent.
+    earned: eco.earned, spent: eco.spent, available: r.spendable - eco.spent,
+    // The two pools, surfaced so a DM can see where a budget came from rather than one opaque total.
+    playerAp: r.playerAp, dmAp: r.dmAp, spendable: r.spendable, ignoredPlayerAp: !!(apOpts && apOpts.ignorePlayerAp),
     purchases: LOG.filter(function(e){return e.type==='buy';}).length,
     awards: awards, unnamed: unnamed,
     warnings: (r.warnings||[]).length, warningList: (r.warnings||[]).slice(),
@@ -907,7 +945,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.351';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.358';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -977,8 +1015,8 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 
   /* ---------- import pipeline ---------- */
   // analyze + surface the proficiency arrays the analyzer doesn't return (engine untouched)
-  function analyzeAug(raw){
-    var a = dmAnalyze(raw);
+  function analyzeAug(raw, apOpts){
+    var a = dmAnalyze(raw, apOpts);
     try{ var b = foldBuild(null);
       a.skills=(b.skills||[]).slice(); a.tools=(b.tools||[]).slice(); a.instruments=(b.instruments||[]).slice();
       a.expertise=(b.expertise||[]).slice(); a.saves=(b.saves||[]).slice(); a.masteries=(b.masteries||[]).slice();
@@ -1145,8 +1183,16 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return kvRows(rows);
   }
   function pactBuildBody(s){
-    var h = kvRows([['AP earned', s.earned||0],['AP spent', s.spent||0],['AP available', s.available||0],
-                    ['Purchases', s.purchases||0],['Rules', s.rules||'?']]);
+    // Show the ceiling's two pools, not just the net. "AP available" is spendable − spent, and with
+    // ignore-player-AP on, a character's own log AP contributes nothing — a DM reading a bare
+    // "6 earned / 12 available" could not otherwise reconstruct where the 12 came from.
+    var rows = [['AP earned (own log)', s.earned||0]];
+    if(s.dmAp) rows.push(['DM-granted AP', s.dmAp]);
+    if(s.ignoredPlayerAp && s.playerAp) rows.push(['Player AP ignored (campaign setting)', s.playerAp]);
+    if(s.dmAp || s.ignoredPlayerAp) rows.push(['Spendable total', s.spendable||0]);
+    rows.push(['AP spent', s.spent||0], ['AP available', s.available||0],
+              ['Purchases', s.purchases||0], ['Rules', s.rules||'?']);
+    var h = kvRows(rows);
     if(s.warningList && s.warningList.length){
       h += '<div class="cglabel" style="margin-top:8px">Build warnings ('+s.warningList.length+')</div>';
       h += s.warningList.map(function(w){ return '<div class="warnitem">⚠ '+esc(w)+'</div>'; }).join('');
@@ -1242,7 +1288,9 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     // "How much AP does this character have" is the DM's most-asked roster question, and it was the one
     // stat NOT on this strip -- a DM had to expand DM tools, where the only number shown was the
     // DM-granted pool under a label ("Bonus DM AP") that reads like a spendable total and is not one.
-    // s.available is the same figure the player's own Live Sheet calls "AP left", from the same engine.
+    // s.available is the same figure the player's own Live Sheet calls "AP left", from the same engine
+    // AND the same formula (spendable − frozen spend) — including the DM-granted pool, which is why it
+    // now agrees with the player's sheet instead of showing a DM-funded character as deeply overspent.
     var statCells = [
       ['AP left', avail],
       ['HP', s.hp],
@@ -1610,7 +1658,14 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     var summary = null;
     if(hasData){
       try {
-        summary = analyzeAug({ LOG: log, SEQ: row.stats.SEQ || (log.length+1), rules: row.stats.rules, name: row.name });
+        // The character's AP ceiling is the campaign's business, not the log's: `row.ap` is the
+        // server-authoritative DM pool and _dmCampaignApRules carries the campaign's
+        // ignore_player_ap switch (set by selectCampaign() before the roster is fetched). Without
+        // both, every AP figure below is player-log-only — which is what made an entirely
+        // DM-funded roster read as universally overspent.
+        var _apr = window._dmCampaignApRules || {};
+        summary = analyzeAug({ LOG: log, SEQ: row.stats.SEQ || (log.length+1), rules: row.stats.rules, name: row.name },
+                             { dmAp: Number(row.ap) || 0, ignorePlayerAp: !!_apr.ignorePlayerAp });
       } catch(e){ hasData = false; summary = null; }
     }
     // Carry the `name` COLUMN through even when hasData is false. A player can name a character and
@@ -1670,6 +1725,16 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       var card = t.closest ? t.closest('.card') : null;
       var B = window._campBridge;
       if(!B) return;
+
+      // Archived-campaign peek (feat/archived-campaign-peek): the three write actions on a roster
+      // card are blocked at the handler, not just disabled on the button, so a card rendered before
+      // the lock was applied — or re-enabled by any means — still cannot write. Section toggles,
+      // "View sheet" and "AP history" are reads and fall through untouched.
+      if(window._dmPeekActive && t.closest &&
+         (t.closest('.award-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn'))){
+        if(window._dmPeekBlocks) window._dmPeekBlocks();
+        return;
+      }
 
       var awardBtn = t.closest ? t.closest('.award-btn') : null;
       if(awardBtn && card){
@@ -1890,6 +1955,78 @@ document.addEventListener('campaign-ready', function () {
   var currentCampId = null;
   var currentHouseRules = {};
   var _dmWasSignedIn = false;
+
+  /* ---- archived-campaign peek (feat/archived-campaign-peek) --------------------------------------
+     An archived campaign used to offer its name and an "Unarchive" button, nothing else: checking an
+     old campaign's roster or rules meant unarchiving it first — mutating state purely to look at it.
+     A peek reuses selectCampaign()'s render path verbatim and then locks the result down; the locked
+     state IS the feature, so it is enforced in two independent places rather than one:
+       1. `peekCamp` gates every write handler, so a stale/queued handler cannot fire against an
+          archived campaign even if its control were somehow re-enabled (devtools, a race, a future
+          re-render that forgets the sweep). This is the guard that actually matters.
+       2. _applyPeekLock() disables the controls, so the state is visible and unclickable rather than
+          clickable-then-silently-refused.
+     Only (2) can be defeated; (1) cannot, which is why the write paths are guarded and not merely
+     hidden. */
+  var peekCamp = null;
+  // Mirror onto window: the roster cards' award/notes/unbind handlers live in the earlier UI-layer
+  // IIFE, a separate closure that cannot see this one's vars (same seam as _dmRenderCloudRoster).
+  window._dmPeekActive = false;
+
+  // Campaign-scoped controls only. #campManageTile is deliberately absent — "+ Create campaign" and
+  // the Unarchive buttons belong to the DM, not to the campaign being peeked, and locking the way
+  // back out would be a trap.
+  var _PEEK_SCOPES = ['campOwnerTile','campInviteTile','campRulesTile','campAdvancementTile','dmNotesTile','campRoster'];
+
+  function _peekLockEls(){
+    var out = [];
+    _PEEK_SCOPES.forEach(function(id){
+      var root = document.getElementById(id);
+      if(root) out = out.concat(Array.prototype.slice.call(root.querySelectorAll('input,select,textarea,button')));
+    });
+    var save = document.getElementById('ruleSaveBtn');   // lives outside every tile, in a bare row
+    if(save) out.push(save);
+    return out.filter(function(el){
+      // ⓘ buttons only alert() their own title, and Copy/Refresh only read — but an archived
+      // campaign's invite codes are dead links, so copying one is a trap worth closing too. The sole
+      // exemption is the info buttons: they are the read-only explanation of what is being looked at.
+      return !el.classList.contains('infobtn');
+    });
+  }
+
+  /* Restores rather than blanket-enables on exit: several of these controls have their own disabled
+     state that predates the peek (ignorePlayerAp is disabled by its lock; award/save buttons disable
+     themselves mid-request), and clearing those would hand back a control the rest of the UI thinks
+     is locked. */
+  function _applyPeekLock(on){
+    _peekLockEls().forEach(function(el){
+      if(on){
+        if(!el.hasAttribute('data-peek-prev')) el.setAttribute('data-peek-prev', el.disabled ? '1' : '0');
+        el.disabled = true;
+      } else if(el.hasAttribute('data-peek-prev')){
+        el.disabled = el.getAttribute('data-peek-prev') === '1';
+        el.removeAttribute('data-peek-prev');
+      }
+    });
+  }
+
+  function _renderPeekState(){
+    var banner = document.getElementById('campPeekBanner');
+    var nameEl = document.getElementById('campPeekName');
+    if(banner) banner.style.display = peekCamp ? 'block' : 'none';
+    if(nameEl && peekCamp) nameEl.textContent = peekCamp.name || 'this campaign';
+    document.body.classList.toggle('camp-peeking', !!peekCamp);
+    _applyPeekLock(!!peekCamp);
+  }
+
+  /* The single gate every campaign write handler calls first. Returns true when the write must not
+     happen — callers `return` on true. */
+  function _peekBlocks(){
+    if(!peekCamp) return false;
+    if(typeof flash === 'function') flash('“' + (peekCamp.name || 'This campaign') + '” is archived — unarchive it to make changes.', 'warn');
+    return true;
+  }
+  window._dmPeekBlocks = _peekBlocks;
 
   // ---- Campaign Rules panel (D-GH14) ----
   var _D = (typeof DATA !== 'undefined') ? DATA : {};
@@ -2190,6 +2327,7 @@ document.addEventListener('campaign-ready', function () {
       // — carry the live textarea value through here too so this save never clobbers it.
       dmNotes: dmNotesText.value
     };
+    if(_peekBlocks()) return;
     ruleSaveStatus.textContent = 'Saving…';
     try {
       await B.setCampaignRules(currentCampId, rules);
@@ -2202,7 +2340,7 @@ document.addEventListener('campaign-ready', function () {
     }
   });
   document.getElementById('dmNotesSaveBtn').addEventListener('click', async function(){
-    if(!currentCampId) return;
+    if(!currentCampId || _peekBlocks()) return;
     var camp = currentCampaigns.find(function(c){return c.id===currentCampId;});
     var rules = Object.assign({}, (camp && camp.rules) || {}, { dmNotes: dmNotesText.value });
     dmNotesStatus.textContent = 'Saving…';
@@ -2275,6 +2413,12 @@ document.addEventListener('campaign-ready', function () {
       campControls.style.display = 'none';
       campSection.style.display = 'none';
       setImportPanelDimmed(false);
+      // Signing out must also drop any archived-campaign peek, so the next sign-in doesn't inherit a
+      // read-only lock (or a banner) belonging to the previous DM's campaign — and the AP rules with
+      // it, so a stale ignore-player-AP switch can't price the next DM's roster.
+      currentCampId = null; peekCamp = null; window._dmPeekActive = false;
+      window._dmCampaignApRules = null;
+      _renderPeekState();
       // Clear the cloud roster on sign-out — otherwise it stays in memory and Table view (which
       // merges cloud data into the shared local+cloud table regardless of #campSection's visibility)
       // would keep showing a signed-out DM's last-loaded campaign's characters.
@@ -2284,9 +2428,21 @@ document.addEventListener('campaign-ready', function () {
 
   function renderArchivedCampaigns(){
     campArchivedList.innerHTML = archivedCampaigns.length ? archivedCampaigns.map(function(c){
-      return '<div class="codechip"><span class="lbl" style="min-width:0;flex:1;font-size:12px;color:var(--ink)">'+esc(c.name)+'</span>'+
+      return '<div class="codechip">'+
+        '<button type="button" class="archname" data-peek="'+esc(c.id)+'" '+
+          'title="View this archived campaign’s roster, rules and notes — read-only">'+esc(c.name)+'</button>'+
         '<button type="button" class="btn sm ghost" data-unarchive="'+esc(c.id)+'">Unarchive</button></div>';
     }).join('') : '<div class="grantnote">No archived campaigns.</div>';
+    campArchivedList.querySelectorAll('button[data-peek]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        // The picker only ever lists live campaigns, so a peek must clear it — leaving a stale
+        // selection there would claim a different campaign is loaded than the one on screen.
+        campSel.value = '';
+        selectCampaign(btn.dataset.peek);
+        var banner = document.getElementById('campPeekBanner');
+        if(banner && banner.scrollIntoView) banner.scrollIntoView({block:'nearest'});
+      });
+    });
     campArchivedList.querySelectorAll('button[data-unarchive]').forEach(function(btn){
       btn.addEventListener('click', async function(){
         btn.disabled = true;
@@ -2323,9 +2479,16 @@ document.addEventListener('campaign-ready', function () {
   async function selectCampaign(id){
     currentCampId = id || null;
     var camp = currentCampaigns.find(function(c){return c.id===id;});
+    // Fall through to the archived list — same render path, then locked down. Order matters: a live
+    // campaign always wins, so a campaign that is somehow in both lists is never treated as archived.
+    peekCamp = camp ? null : (archivedCampaigns.find(function(c){return c.id===id;}) || null);
+    window._dmPeekActive = !!peekCamp;
+    if(peekCamp) camp = peekCamp;
     if(!camp){
       campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none';
       dmNotesText.value = ''; dmNotesStatus.textContent = '';
+      window._dmCampaignApRules = null;   // no campaign selected → no DM AP context to price against
+      _renderPeekState();   // clears the banner and releases the lock
       // Deselecting a campaign must also clear the cloud roster — see the sign-out branch above for why.
       if(window._dmRenderCloudRoster) window._dmRenderCloudRoster(campRoster, []);
       setImportPanelDimmed(false);
@@ -2338,7 +2501,14 @@ document.addEventListener('campaign-ready', function () {
     _renderPlayerCodeGrant();   // the grant figure belongs to the campaign, so it moves with the switch
     ignoreChk.checked = !!camp.ignore_player_ap;
     _setIgnoreLocked(true);   // every campaign switch lands locked
-    campArchiveBlock.style.display = camp.isOwner ? '' : 'none';
+    // The roster cards price each character's AP ceiling against this switch (cloudAnalyze, in the
+    // earlier UI-layer IIFE — a separate closure, hence the window seam). Set BEFORE loadRoster()
+    // below, so the first paint already has it; a campaign switch re-fetches the roster, so the two
+    // can't disagree.
+    window._dmCampaignApRules = { ignorePlayerAp: !!camp.ignore_player_ap, campaignId: camp.id };
+    // "Archive this campaign" is meaningless on one that already is — hide it outright rather than
+    // show a disabled danger button the DM has to reason about.
+    campArchiveBlock.style.display = (camp.isOwner && !peekCamp) ? '' : 'none';
     inviteLinkRow.style.display = 'none';
     inviteLinkOut.value = '';
     inviteStatus.textContent = '';
@@ -2352,12 +2522,21 @@ document.addEventListener('campaign-ready', function () {
     dmNotesStatus.textContent = '';
     renderRuleCopyOptions();
     campSection.style.display = 'block';
-    campRosterName.textContent = camp.name;
+    campRosterName.textContent = camp.name + (peekCamp ? ' (archived — read-only)' : '');
+    _renderPeekState();   // after the panel is populated, before anything can be clicked
     loadRoster(id);
     loadInvites();
   }
 
   campSel.addEventListener('change', function(){ selectCampaign(campSel.value); });
+
+  // Leaving the peek is pure client-side state — it deselects, which the "no campaign" branch of
+  // selectCampaign() already knows how to render. No RPC is involved in getting out.
+  if(document.getElementById('campPeekExitBtn'))
+    document.getElementById('campPeekExitBtn').addEventListener('click', function(){
+      campSel.value = '';
+      selectCampaign('');
+    });
 
   campNewBtn.addEventListener('click', async function(){
     var name = (campNewName.value||'').trim();
@@ -2378,7 +2557,7 @@ document.addEventListener('campaign-ready', function () {
   });
 
   campArchiveBtn.addEventListener('click', async function(){
-    if(!currentCampId) return;
+    if(!currentCampId || _peekBlocks()) return;
     var camp = currentCampaigns.find(function(c){return c.id===currentCampId;});
     var name = camp ? camp.name : 'this campaign';
     if(!confirm('Archive “'+name+'”?\n\nIt disappears from your active campaign list, but nothing is deleted — players keep their characters, and you can restore it anytime from “Archived campaigns” above.')) return;
@@ -2466,6 +2645,8 @@ document.addEventListener('campaign-ready', function () {
 
   ignoreChk.addEventListener('change', async function(){
     if(!currentCampId){ _setIgnoreLocked(true); return; }
+    // Put the box back before bailing — the change event fires after the DOM has already flipped it.
+    if(_peekBlocks()){ ignoreChk.checked = !ignoreChk.checked; _setIgnoreLocked(true); return; }
     var turningOn = ignoreChk.checked;
     var msg = turningOn
       ? 'Ignore player-entered AP?\n\nEvery character in this campaign will be able to spend ONLY the AP '
@@ -2475,6 +2656,14 @@ document.addEventListener('campaign-ready', function () {
     if(!confirm(msg)){ ignoreChk.checked = !turningOn; _setIgnoreLocked(true); return; }
     try {
       await B.setIgnorePlayerAp(currentCampId, ignoreChk.checked);
+      // This switch is half of every character's AP ceiling, so the roster now shows stale budgets.
+      // Update the rules the cards price against and re-fetch — the tooltip promises this "can change
+      // several players' budgets at once", and the DM should see that happen rather than take it on
+      // trust. Also update the local campaign record so a re-select doesn't revert to the old value.
+      window._dmCampaignApRules = { ignorePlayerAp: ignoreChk.checked, campaignId: currentCampId };
+      var _c = currentCampaigns.find(function(c){ return c.id === currentCampId; });
+      if(_c) _c.ignore_player_ap = ignoreChk.checked;
+      loadRoster(currentCampId);
     } catch(err){
       ignoreChk.checked = !turningOn;          // put the box back if the write failed
       alert('Could not change that setting: ' + (err && err.message ? err.message : err));
@@ -2589,9 +2778,11 @@ document.addEventListener('campaign-ready', function () {
     inviteList.querySelectorAll('[data-restore]').forEach(function(b){
       b.addEventListener('click', function(){ setRevoked(b.dataset.restore, false, b); });
     });
+    _renderPeekState();   // same reason as loadRoster(): this list rebuilds its own buttons
   }
 
   async function setRevoked(id, revoked, btn){
+    if(_peekBlocks()) return;
     if(revoked && !confirm('Withdraw this invite? The link stops working. Nothing already redeemed is affected.')) return;
     btn.disabled = true;
     try {
@@ -2610,7 +2801,7 @@ document.addEventListener('campaign-ready', function () {
   });
 
   createInviteBtn.addEventListener('click', async function(){
-    if(!currentCampId) return;
+    if(!currentCampId || _peekBlocks()) return;
     var ap = parseInt(inviteStartAp.value, 10); if(!(ap >= 0)) ap = 0;
     var note = (inviteNote && inviteNote.value || '').trim();
     createInviteBtn.disabled = true;
@@ -2638,12 +2829,52 @@ document.addEventListener('campaign-ready', function () {
   // Card rendering + all per-card interaction (award AP, history, DM notes, unbind) live in the
   // earlier "UI layer" IIFE, which shares cardHTML()/buildSections()/analyzeAug() with the local
   // import grid — see window._dmRenderCloudRoster there. This function is now just the fetch.
+  /* The roster replaces its own innerHTML, so freshly-built cards always arrive ENABLED — every
+     re-render (the tab-focus auto-refresh, the Refresh button, an award landing) has to re-apply the
+     peek lock over the new controls. Named so the paint and the re-lock cannot drift apart, and so
+     the gate can drive the same pair without a live Supabase roster. */
+  function _paintRoster(rows){
+    window._dmRenderCloudRoster(campRoster, rows);
+    _renderPeekState();
+  }
+
   async function loadRoster(campId){
     campRoster.innerHTML = '<div class="camp-empty">Loading…</div>';
     var rows;
     try { rows = await B.getRoster(campId); } catch(err){ campRoster.innerHTML='<div class="camp-empty">Error: '+esc(err.message)+'</div>'; return; }
-    window._dmRenderCloudRoster(campRoster, rows);
+    _paintRoster(rows);
   }
+
+  /* Test seam for the dm-console-ui gate, same pattern as window._dmRulesPanel above. The archived-peek
+     path needs a campaign list, which a signed-out page has no way to obtain — so seed the closure's own
+     arrays and let the REAL renderArchivedCampaigns()/selectCampaign() run against them. Nothing here
+     re-implements the feature; if the seam passes and the feature is broken, the seam is wrong. */
+  window._dmArchivedPeek = {
+    seed: function(live, archived){
+      currentCampaigns = live || [];
+      archivedCampaigns = archived || [];
+      campControls.style.display = '';
+      campSel.innerHTML = '<option value="">— select campaign —</option>';
+      currentCampaigns.forEach(function(c){
+        var o = document.createElement('option'); o.value = c.id; o.textContent = c.name; campSel.appendChild(o);
+      });
+      renderArchivedCampaigns();
+    },
+    select: function(id){ return selectCampaign(id); },
+    // The production re-render path, minus the fetch a signed-out page can't do. Drives the REAL
+    // _paintRoster(), so "cards come back enabled after a refresh" is a check that can actually fail.
+    paintRoster: function(rows){ return _paintRoster(rows); },
+    // Ditto for the invite list — its Withdraw buttons only exist once there are invites to render,
+    // and listCampaignInvites() needs a session. Seeds the closure's own array, then the real renderer.
+    seedInvites: function(list){ _invites = list || []; renderInvites(); },
+    state: function(){
+      return { peeking: !!peekCamp, peekId: peekCamp && peekCamp.id, currentCampId: currentCampId,
+               locked: _peekLockEls().filter(function(el){ return !el.disabled; }).map(function(el){ return el.id || el.className; }) };
+    },
+    // Exercises the guard itself, independently of whether the control is disabled — this is the half
+    // that a re-enabled button cannot get past.
+    blocks: function(){ return _peekBlocks(); }
+  };
 
   // onSessionChange (js/auth.js) takes only session, structurally ruling out the argument-order
   // bug this call site used to have (bound _session to the event STRING instead, crashing

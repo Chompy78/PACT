@@ -351,34 +351,6 @@ original wording, and parity still 24/0.
 
 ---
 
-## Read-only view of an archived campaign — TODO
-Branch feat/archived-campaign-peek. From the 2026-08-04 usability review (MEDIUM,
-`docs/reviews/2026-08-04-usability-qol.md`), recorded there as NOT DONE because it is a feature rather
-than a defect fix. An archived campaign in DM Console offers only its name and an "Unarchive" button, so
-a DM wanting to check an old campaign's roster, rules or notes must first put it back in their active
-list — mutating state purely to look at it.
-**Effort:** medium · **Risk:** low — ambiguity is low (reuse the existing campaign panel with controls
-disabled rather than building a second view); damage scale is low (additive, read-only, no write path);
-damage likelihood is low (`dm-console-ui` can assert the disabled state mechanically) — eligible for
-`/sweep-code-tasks`.
-
-```text
-1. Make an archived row's NAME clickable in DM Console's archived-campaign list (currently only the
-   "Unarchive" button is interactive).
-2. Open the existing campaign panel for it with every input, button and disclosure control disabled —
-   roster, rules, invites and DM notes readable, nothing editable. Reuse selectCampaign()'s render path;
-   the disabled state is the whole feature.
-3. Guard the write paths, do not merely hide them: archiveCampaign/setCampaignRules/awardAp/
-   createPlayerInvite must be unreachable while a peeked campaign is selected, so a stale handler
-   cannot fire against it.
-4. Make the read-only state obvious — a banner on the panel, not just greyed controls.
-5. UI-only. Display-only — do NOT bump DATA.version; log in CHANGELOG.
-```
-
-**Done when:** clicking an archived campaign's name shows its roster/rules/notes with all inputs and
-action buttons disabled, no write RPC is reachable from that view, unarchiving is still the only way to
-edit it, and `dm-console-ui` asserts the disabled state.
-
 ## Give the three ways to add a player an obvious hierarchy — TODO
 Branch fix/add-player-hierarchy. From the 2026-08-04 usability review (MEDIUM), recorded NOT DONE
 because which route to recommend is a product call rather than a mechanical fix. DM Console shows three
@@ -454,6 +426,274 @@ anon-callable functions — it already caught one this session) — **not** swee
 **Done when:** a token resolves to its campaign name without redeeming, its auth scope is recorded in
 DECISIONS.md, the confirm names the campaign, the signed-out banner distinguishes dead from live, the
 advisor reports no new findings, and `cloud-e2e` covers both token states.
+
+## DM sets how many characters one player may have in a campaign — TODO
+Branch `feat/campaign-character-limit`. Today the limit is hard-wired to exactly **one** character per
+player per campaign, and it is not a soft app rule: it is the unique index
+`idx_characters_owner_campaign_unique` on `characters(owner_id, campaign_id) where campaign_id is not
+null` (`sql/schema.sql`, added by `sql/migrations/2026-07-13-campaign-bind-character.sql`). Requested by
+the owner, who wanted two copies of a character in one campaign for a diagnosis and found the limit
+was a database invariant rather than a setting.
+
+**The trap that makes this bigger than "drop the index":** that index is not merely a limit, it is the
+**TOCTOU race guard** for `bind_character_to_campaign` — the RPC's `EXISTS`-then-write check cannot
+close the window on its own, which is exactly why the index exists (see its comment in `sql/schema.sql`
+and in `sql/migrations/2026-07-13-campaign-join-race-friendly-error.sql`, which added the friendly error
+for the duplicate-key it raises). Dropping it to allow N-per-player would silently reopen that race.
+A partial or expression index cannot express "at most N rows per (owner, campaign)" either, so the
+guard has to move — most likely into the RPC itself under a `select … for update` on the campaign row,
+or a count check inside a serializable transaction. **Get this design reviewed before implementing**
+(`/make-code-cold-plan-review`): it is a concurrency change to production data, and a wrong answer here
+is a duplicate-join bug that only shows up under real simultaneous joins.
+
+**Effort:** large · **Risk:** high — schema + RPC + RLS + UI; the failure mode is silent (a race that
+only bites under concurrency), and it touches the one invariant that currently makes double-joins
+impossible. **Not** sweep-eligible.
+
+```text
+1. Decide where the limit lives: `campaigns.rules.maxCharactersPerPlayer` (integer, default 1) is the
+   natural home — it rides the existing rules JSON, so no new column and DM Console already has a rules
+   panel and a save path.
+2. Replace the unique index with a guard that still closes the race at N. Do NOT simply drop it. The
+   count check has to be race-safe against two simultaneous redemptions of the same invite.
+3. Teach bind_character_to_campaign and redeem_player_invite the limit: the current one-per-campaign
+   EXISTS check becomes a count-against-limit check, and the friendly error message needs to state the
+   actual limit ("Amble allows 2 characters per player") rather than today's fixed wording.
+4. DM Console: a number input in the campaign rules panel, next to the starting tier. Default 1.
+   Lowering it below what players already hold must NOT delete or unbind anything — existing rosters
+   are grandfathered; the limit only gates new joins. Say so in the field's ⓘ.
+5. CharGen's join path shows the campaign's limit when a join is refused for hitting it.
+6. Migration under sql/migrations/, then run the Supabase advisor and skim get_logs (per-change
+   checklist step 4). Rules-only change to the DB — no DATA.version bump.
+7. cloud-e2e: cover limit=1 (today's behaviour, must not regress), limit=2 (second join succeeds), and
+   the refusal at the limit. A concurrency check for the race guard if one can be written cheaply.
+```
+
+**Done when:** a DM can set the per-player character limit on a campaign, the default of 1 reproduces
+today's behaviour exactly, joining past the limit fails with a message naming the limit, lowering the
+limit never removes an existing character, the race guard is demonstrably still closed at the new N,
+the advisor reports no new findings, and `cloud-e2e` covers limit=1, limit=2 and the refusal.
+
+## Password reset is broken end-to-end — the email link lands on the homepage — TODO
+Branch `fix/password-reset-flow`. Reported by the owner: clicking the reset link in the recovery email
+takes you to the main PACT homepage, not to anywhere you can set a new password. Confirmed in the code,
+and it is **two** defects, not one — fixing only the link would still leave the flow dead:
+
+1. **Wrong destination.** `js/auth.js:41-43` calls `resetPasswordForEmail(email, { redirectTo:
+   REDIRECT_BASE })`, and `REDIRECT_BASE` (`js/auth.js:12`) is `https://chompy78.github.io/PACT/` — the
+   app menu. `index.html` has no recovery handling, so the recovery session is established and then
+   silently discarded.
+2. **There is no reset page at all.** `setNewPassword()` exists (`js/auth.js:52`, calling
+   `supabase.auth.updateUser({password})`, with a comment noting Supabase has put the user in a
+   temporary recovery session by then) but **nothing anywhere calls it** — verified by grep across all
+   `.html`/`.js` outside `js/vendor/`. `login.html` has no recovery branch and no new-password form.
+   So even pointed at `login.html`, the link would land on a sign-in form the user can't use.
+
+**Effort:** medium · **Risk:** medium — auth flow on production, and the failure mode is a locked-out
+user rather than a visible error. Needs a real end-to-end test with a live recovery email; the happy
+path cannot be verified by unit-level checks alone. Not sweep-eligible.
+
+```text
+1. Add a recovery branch (a `?type=recovery` route on login.html, or a small reset.html) that listens
+   for Supabase's PASSWORD_RECOVERY auth event and shows a new-password form, then calls the existing
+   setNewPassword(). Prefer login.html — one auth page, one place service-worker caching has to be
+   right — unless the fragment handling makes a dedicated page materially simpler.
+2. Point resetPasswordForEmail's redirectTo at that page. Note REDIRECT_BASE is ALSO used by signUp's
+   emailRedirectTo (js/auth.js:25), where the homepage IS correct — so introduce a separate constant
+   rather than repointing the shared one.
+3. Add the new URL to the Supabase project's Auth → URL Configuration → Redirect URLs allow-list.
+   A redirect not on that list is silently rewritten to the Site URL — which is very likely the real
+   reason this lands on the homepage, so CHECK THIS FIRST: the allow-list may make step 2 a no-op
+   until it is fixed, and it is a dashboard setting, not a repo change.
+4. The recovery token arrives in the URL fragment/query and is consumed on load — make sure the page
+   reads it before anything (service worker, a redirect, a router) can drop it, and that the service
+   worker does not serve a cached copy of the page that misses the fragment handler.
+5. Handle the expired/already-used token case with a real message and a way to request a new email,
+   not a blank form.
+6. Confirm sign-UP confirmation emails still land on the homepage correctly after the constant split.
+```
+
+**Done when:** a real recovery email's link opens a page that accepts a new password, the new password
+works for sign-in, an expired link says so and offers a resend, the signup confirmation email is
+unaffected, and the redirect URL is on the Supabase allow-list.
+
+## Species/heritage packs are never charged as a purchase — the frozen ledger under-records — TODO
+Branch `fix/species-pack-not-charged`. Found while investigating a DM Console report that roster AP
+figures looked wrong. **This is the root defect behind that whole thread** — the display bugs were real
+but downstream of this.
+
+**Reproduction (Anders Tealeaf, live Amble character, built 2026-08-02 on v0.337).** The build is
+correct at **33 AP** and its species costs are correct — confirmed by the owner:
+
+| what `compute()` charges | AP |
+|---|---|
+| Heritage pack | 5 |
+| 2nd origin species (×2 pack) | 10 |
+| Species traits (Halfling: Naturally Stealthy) | 4 |
+| **species total** | **19** |
+
+The four traits *inside* the packs (Halfling Nimbleness, Gnome Darkvision, Gnome Gnomish Cunning,
+Halfling Luck) are correctly 0 — pack-included. But the LOG records, for the same 19 AP:
+
+| log event | recorded |
+|---|---|
+| `patch/identity` (set Halfling + Gnome + Forest + Rogue) | **−5** |
+| `racial` Naturally Stealthy | +4 |
+| four pack-included traits | 0 each |
+| **total** | **−1** |
+
+So the packs are **never charged**: ~20 AP of species cost missing, netted against categories where he
+overpaid at v0.337 prices (saves 8 vs 5 today, skills 4 vs 2) to leave the build's frozen spend **18 AP
+short** of what it costs — comparable like-for-like, frozen **15** vs `compute()` **33**.
+
+**Cause — sharper than "the packs aren't charged".** `compute()` derives the pack cost from `b.species`
+/ `b.species2` alone (`js/engine.js:177-178`), so a pack is never an event by design; it is priced as a
+consequence of the identity state. That is fine on its own. The defect is in how the identity event's
+delta was computed:
+
+- The four traits were **committed to the LOG before the identity event**, each recorded at **0**
+  (priced as pack-included — CharGen's form already knew the species even though no identity event had
+  been written yet).
+- `priceOf()` then priced the identity event as `compute(after) − compute(before)`. But
+  `compute(before)` sees traits owned with **no species set**, so it prices them as expensive
+  **cross-race** purchases — 21 AP that the log never actually charged.
+- The delta therefore *refunds* that phantom 21 while adding the real +15 of packs, landing at −5.
+
+Verified: `compute()` on the log truncated just before the identity event returns **21**, while the sum
+of recorded costs to that point is **0**. So the identity delta refunds AP that was never paid, and from
+that event onward the frozen ledger and `compute()` stay ~18 apart for the rest of the character's life.
+
+**The general failure:** `priceOf()` computes deltas against `compute(build)`, but recorded costs are
+not kept equal to `compute()`. Once the two diverge for any reason — here, ordering — every later delta
+compounds the error rather than correcting it. Any fix that only special-cases packs will leave this
+mechanism intact.
+
+**Owner's direction:** the packs are *real, allowable purchases* that grant those species abilities at a
+discount, so they must be recorded as purchases in their own right — their own log events with their own
+cost — not folded into an identity patch's net delta.
+
+**Effort:** large · **Risk:** high — rules-adjacent, changes what the frozen ledger contains, and every
+existing character is already under-recorded. **Get a cold plan review before implementing**
+(`/make-code-cold-plan-review`). Not sweep-eligible.
+
+```text
+0. DECIDED — the owner chose (b), the INVARIANT route, on 2026-08-04. Build that, not the narrower
+   ordering fix. The two options are kept below because the reasoning still matters:
+     (a) ORDERING: make CharGen commit the identity event BEFORE any trait that depends on it, so
+         compute(before) never sees traits-without-a-species and the delta has nothing phantom to
+         refund. Smallest change, fixes this reproduction, leaves priceOf()'s general fragility.
+     (b) INVARIANT: make the recorded cost of every event equal to compute()'s own delta by
+         construction, so the frozen ledger cannot drift from compute() no matter what order events
+         arrive in. Bigger, and the durable answer.
+   Chosen: (b). Packs are real purchases and must be visible as such, and (a) would leave the next
+   ordering accident free to reintroduce the same drift.
+1. If emitting pack events: a distinct `cat:'pack'` buy event per pack (heritage, 2nd-origin) carrying
+   its own cost. Keep the pack-included traits at 0; they are correct and the owner confirmed it.
+2. Whichever route, the identity patch must stop absorbing the pack cost, or the same AP is charged
+   twice. This is the part to get reviewed: priceOf() computes a WHOLE-BUILD delta, so splitting one
+   component out without double-counting needs care. compute() is the arbiter — after the change, the
+   sum of a character's frozen costs must equal compute().total for a character built entirely under
+   one rules version. That is the acceptance test, and it fails today: 15 vs 33.
+3. Changing species later (Halfling -> Elf) must refund/recharge the pack, not silently keep the old
+   entitlement. Cover the swap in both directions.
+4. MIGRATION — do not skip. Existing live characters (Anders 33 vs 21, Fenwick, Cedric, and any
+   already-built PCs) carry under-recorded ledgers. Options: leave them grandfathered (the app's stated
+   rule is that price drift is never refunded or charged), or emit a one-off reconciliation event.
+   This is a product decision for the owner, not an implementation detail — ask before writing it.
+5. engine-parity must stay 24/0. If compute() output moves, update testing/expected/ in the same PR and
+   bump DATA.version. If only CharGen's recorded costs change, DATA.version does NOT move.
+6. Add a gate asserting frozen-spend == compute().total for a freshly built character, which is the
+   invariant this task exists to restore.
+```
+
+**Done when:** buying a heritage/2nd-origin pack writes its own priced log event, a character built from
+scratch has frozen spend equal to `compute().total`, changing species re-prices the pack correctly, the
+migration decision is recorded in `DECISIONS.md`, and a gate covers the invariant.
+
+## Live Sheet history hides derived costs — it shows the traits but never the packs — TODO
+Branch `fix/history-shows-derived-lines`. Reported by the owner alongside the pack-charging defect
+above. **Sequenced after it** — much of this may resolve once packs are real events, so re-assess
+before starting.
+
+The Live Sheet's purchase history is **event-only**, so for Anders it renders:
+
+```text
+241  Species trait — Halfling: Halfling Nimbleness   v0.337   −0
+242  Species trait — Gnome: Darkvision 60 ft         v0.337   −0
+243  Species trait — Gnome: Gnomish Cunning          v0.337   −0
+244  Species trait — Halfling: Luck                  v0.337   −0
+```
+
+Four entries at −0 and **no sign of the 19 AP the species actually cost**, because Heritage pack and
+2nd origin species are *derived* lines from `compute()`, not log events. The AP Ledger panel does show
+them. So the tool presents two views of the same spend that don't reconcile, and the history — the one a
+player reads to answer "where did my AP go" — is the one that hides it.
+
+**Effort:** medium · **Risk:** low — display-only, no rules logic. Sweep-eligible **only after** the
+pack task lands and the remaining gap is re-measured.
+
+```text
+1. Re-measure first. If packs become real log events, the history may become complete on its own and
+   this task shrinks to a check.
+2. For whatever derived cost remains, make the history reconcile with the AP Ledger — either by showing
+   derived lines inline, or by grouping pack-included traits under their pack with the pack's price so
+   a −0 entry is visibly explained rather than looking free.
+3. A 0-cost entry should never read as "this was free" when it was paid for inside a bundle. That is
+   the actual user-facing complaint.
+4. Display-only — do NOT bump DATA.version; log in CHANGELOG.
+```
+
+**Done when:** the Live Sheet history accounts for every AP the AP Ledger charges, a pack-included trait
+is visibly attributed to the pack that paid for it, and the two views reconcile for Anders Tealeaf.
+
+## feat/ap-model-reconcile — "AP left" and the AP Ledger disagree on the same screen — TODO
+Branch `feat/ap-model-reconcile`. Long-deferred from D-GH30, now with a live worked example and a
+decision already taken, so it is ready to scope.
+
+**The decision (G1, owner, 2026-08-04):** DM Console's roster "AP left" uses the **frozen ledger** —
+`compute().spendable − economy().spent` — matching the Live Sheet's `_apRemaining()` and, critically,
+its `buy()` gate: the frozen figure is what actually governs whether a player can spend. Shipped in
+#355. The AP Ledger panel keeps showing `compute().total`, because repricing is that panel's subject.
+The consequence is accepted, not overlooked: the two can disagree on one screen.
+
+**Worked example — Fenwick Copperkettle (live, Amble):**
+
+| figure | value | source |
+|---|---|---|
+| DM AP (spendable, campaign ignores player AP) | 36 | `characters.ap` |
+| frozen spend | 47 | `economy().spent` |
+| repriced build cost | 40 | `compute().total` |
+| card "AP left" | **−11** | frozen |
+| AP Ledger | **4 over** | repriced |
+
+The 7 AP gap is two things: ~3 of genuine price drift (paid 8 for a DEX save that reprices to 5, etc.)
+and 4 of drawback accounting — the refund sits inside `compute().total` as −4 but is excluded from
+frozen `spent`, landing in `earned` instead.
+
+**Also unresolved here:** `apLevel` uses `trackLevel(eco.earned)`, so a fully DM-funded character reads
+**Earned Lv 0** with **0 earned** even when the DM granted 36 — because `economy().earned` cannot see DM
+AP. This is wrong identically in the Live Sheet and DM Console, which is why #355 deliberately did NOT
+fix it there alone (that would have traded a shared bug for a new divergence). Fixing it belongs here.
+
+**Effort:** large · **Risk:** high — decides what every AP number in the app means. Not sweep-eligible.
+**Sequence after `fix/species-pack-not-charged`**, which changes what the frozen ledger contains.
+
+```text
+1. Decide whether "earned" is a display composition (eco.earned + dmAp, honouring ignore_player_ap) or
+   whether the engine grows a frozen-ledger-aware remaining-AP export. The former keeps economy() pure
+   and log-only, which the anti-double-count invariant wants; the latter puts it in one place.
+2. Whatever is chosen, Earned Lv / "AP to reach Earned Lv N+1" / the header Track-Level must all read
+   from it, in BOTH tools, or the divergence just moves.
+3. Decide whether the card and the AP Ledger should ever be allowed to differ. If yes, label them so a
+   DM can tell which question each answers; if no, one of them changes.
+4. Note for scoping: Amble's starting tier is 36 AP while the Standard curve's L1 is 79 and its level 0
+   is 55 — so every character there reads below level 0 on the curve. Worth confirming with the owner
+   whether that is intended before treating low Track-Levels as a bug.
+```
+
+**Done when:** a DM-funded character shows an Earned Lv and an earned figure that account for DM AP, the
+card and the AP Ledger either agree or are labelled to explain why they differ, both tools read the same
+definition, and Fenwick's numbers are used as the regression fixture.
 
 ---
 

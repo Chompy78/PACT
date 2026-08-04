@@ -6,6 +6,43 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · chore(release): bump BUILD to v1.358 (PR #358)** — promotion of `preview` → `main`
+  carrying the archived-campaign peek and the DM-AP roster fix. `DATA.version` unchanged at **v0.338**:
+  `compute()` was not touched, only its caller was passing nothing. Two decisions recorded on the task
+  board in the same change — **G1**, DM Console's "AP left" uses the frozen ledger (matching the Live
+  Sheet's `buy()` gate) and the AP Ledger keeps the repriced total, with Fenwick Copperkettle as the
+  worked example on the new `feat/ap-model-reconcile` entry; and **H2**, the species-pack fix takes the
+  invariant route (recorded cost equals `compute()`'s delta by construction) rather than the narrower
+  event-ordering fix.
+
+- **2026-08-04 · fix(dm-console): roster priced every AP figure against player AP only, ignoring DM AP** —
+  reported from the live Amble campaign, where characters showed "OVER BUDGET by 27 / 36 AP". DM AP is
+  stored only on `characters.ap` and never in the character's log, but `dmAnalyze()` called `compute(b)`
+  with **no** opts and reported `economy()`'s totals — and `economy()` can only see the log. So the card's
+  "AP left", the table's "AP Avail", the ⚠ OVER BUDGET warning (`js/engine.js:423`) and the AP Ledger's
+  `total / budget` line were all player-log-only. Amble runs `ignore_player_ap` with the whole budget
+  granted as DM AP, so the entire budget was invisible and every character read as deeply overspent —
+  contradicting what those same players saw on their own Live Sheets. `{dmAp, ignorePlayerAp}` now flows
+  `dmAnalyze` → `analyzeAug` → `cloudAnalyze`, and `available` is `spendable − economy().spent` — the Live
+  Sheet's own `_apRemaining()`, i.e. the frozen ledger, not `compute()`'s repriced total (D-GH30). Anders
+  −15 → **12**, Cedric −36 → **0**, both bogus warnings gone. Toggling ignore-player-AP now re-fetches the
+  roster it just re-budgeted. `dm-console-ui` 73 → **79** checks; 4 mutants killed. Display-only; no
+  `DATA.version` bump. See `decisions/2026/D-GH-2026-08-04-dm-console-dm-ap-budget.md`.
+
+- **2026-08-04 · feat(dm-console): read-only view of an archived campaign** — an archived campaign offered
+  its name and an **Unarchive** button and nothing else, so checking an old campaign's roster, rules or
+  notes meant putting it back in the active list first — mutating state purely to look at it. Its name is
+  now a clickable control that opens the ordinary campaign panel, locked. Reuses `selectCampaign()`'s
+  render path (no second renderer to drift), and enforces the read-only state **twice**: `_peekBlocks()`
+  gates all eight write call sites — `setCampaignRules` ×2, `createPlayerInvite`, `setInviteRevoked`,
+  `setIgnorePlayerAp`, `archiveCampaign`, `awardAp`, `setCharacterDmNotes`, `unbindCharacter` — and
+  `_applyPeekLock()` disables the controls. Guarded, not hidden: the roster replaces its own `innerHTML`
+  on every refresh, so cards come back enabled and the handler guard is the half that can't be defeated.
+  A banner says why, `+ Create`/`Unarchive`/ⓘ stay live so the way out is never locked, and exiting
+  restores each control's prior disabled state rather than blanket-enabling. `dm-console-ui` 44 → **73**
+  checks; all 10 mutants killed. Display-only; no `DATA.version` bump.
+  See `decisions/2026/D-GH-2026-08-04-archived-campaign-peek.md`.
+
 - **2026-08-04 · fix(dm-console): three help strings still said the shared code grants no AP** — the
   Players-code tooltip claimed a code-join "gets a new character bound to this campaign, with no preset
   AP/budget", the invite note called it "a blank character with no preset AP", and the Starting-tier

@@ -13,6 +13,31 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-04-dm-console-dm-ap-budget** — DM Console priced every roster AP figure against player
+  AP only: `dmAnalyze()` called `compute(b)` with no opts and reported `economy()`'s totals, but DM AP
+  lives only on `characters.ap` and never in the log, so `economy()` structurally cannot see it. On a
+  campaign running `ignore_player_ap` the whole budget was invisible and every character read as
+  overspent. Records why the shallow "add `dm.ap` to the AP-left cell" fix is wrong three ways (leaves
+  the OVER BUDGET warning, the AP Ledger and the table column disagreeing, and over-counts when the
+  campaign counts both pools), why `available` uses the **frozen ledger** (`spendable − economy().spent`,
+  matching the Live Sheet's `_apRemaining()`) rather than `compute().remaining` — they disagree by 12 for
+  a real character — and why `apLevel` was deliberately left wrong, because it is wrong identically in
+  the Live Sheet and fixing it here alone would create a new divergence. Also records that the first
+  mechanism I reached for was wrong: the reported "27" is not the AP-left cell at all.
+  Full record: `decisions/2026/D-GH-2026-08-04-dm-console-dm-ap-budget.md`.
+
+- **D-GH-2026-08-04-archived-campaign-peek** — an archived campaign is now openable read-only by clicking
+  its name, reusing `selectCampaign()`'s render path rather than a second renderer that would drift. The
+  read-only state is enforced **twice on purpose**: `_peekBlocks()` gates all eight write call sites, and
+  `_applyPeekLock()` disables the controls. Disabling is the half that can be defeated — the roster
+  replaces its own `innerHTML` on every refresh, so cards routinely come back enabled — which is why the
+  write paths are guarded and not merely hidden. Records the deliberate deviation (disclosure toggles stay
+  usable, or the content would be unreadable), why `+ Create`/`Unarchive`/ⓘ stay live, and why exiting
+  *restores* prior disabled state instead of blanket-enabling. 21 new checks, 10 mutants killed — and the
+  fact that three of them were vacuous until `window.confirm` was stubbed, because **Playwright
+  auto-dismisses dialogs and silently routes every confirm-gated write down its cancel branch**.
+  Full record: `decisions/2026/D-GH-2026-08-04-archived-campaign-peek.md`.
+
 - **D-GH-2026-08-03-sw-cache-e2e** — added a returning-visitor gate: it installs the real service worker,
   changes a module so a network-first one imports a symbol only the fresh copy exports, and reloads
   without a hard refresh. Demonstrated red on the exact 2026-08-03 bug and green once fixed. Building it
