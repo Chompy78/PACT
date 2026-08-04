@@ -97,6 +97,20 @@ grant select, insert, update on public.profiles to authenticated;
 grant select on public.campaign_dms to authenticated;   -- writes via RPCs only
 grant select on public.ap_awards    to authenticated;   -- inserts via award_ap only
 
+-- service_role. The APP never uses this role — it is the browser client throughout, on the anon key
+-- under RLS — so nothing here was ever exercised and the omission stayed invisible. It surfaced on
+-- 2026-08-04 when testing/scripts/seed-review-stack.mjs became the first thing to authenticate as
+-- service_role and every call came back "permission denied": production had NO service_role table
+-- grants at all. Supabase's project defaults normally supply these, which is precisely why relying
+-- on them is the wrong call — this file's stated job is that "a fresh project works", and a database
+-- built from it must not depend on defaults that may or may not have been applied.
+--
+-- service_role bypasses RLS by design; these grants only give it the table access that assumes.
+-- Nothing player-facing can reach it: the key is never shipped to a browser (AGENTS.md's hard rule),
+-- and it exists so admin/seeding tooling run from a trusted shell can work.
+grant select, insert, update, delete on all tables in schema public to service_role;
+grant usage on schema public to service_role;
+
 -- ---------------------------------------------------------------------------
 -- profiles
 -- ---------------------------------------------------------------------------

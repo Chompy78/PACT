@@ -15,6 +15,14 @@
   Reported by the owner, who read the tooltip and could not tell what their campaign actually grants.
   Display-only; no `DATA.version` bump.
 
+- **2026-08-04 · fix(sql): grant `service_role` its table privileges in `rls-policies.sql`** — production
+  had **none**, and nothing noticed because the app never uses that role (it is the browser client
+  throughout, on the anon key under RLS). It surfaced when `seed-review-stack.mjs` became the first
+  thing to authenticate as `service_role` and every call returned "permission denied". Supabase's
+  project defaults normally supply these, which is exactly why depending on them was wrong: this file's
+  stated job is that a fresh project works. No widening — `service_role` already bypasses RLS by design
+  and its key never reaches a browser.
+
 - **2026-08-04 · fix(chargen): section-nav chips were mislabelled from 7 onward, one was dead, and Arts
   AP was shown on the wrong section** — found by the usability review. `SECTIONS` had **11** entries
   against the form's **10**: a standalone `Arts` entry survived after Arts & Techniques were merged into
