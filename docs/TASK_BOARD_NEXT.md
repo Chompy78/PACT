@@ -546,10 +546,27 @@ So the packs are **never charged**: ~20 AP of species cost missing, netted again
 overpaid at v0.337 prices (saves 8 vs 5 today, skills 4 vs 2) to leave the build's frozen spend **18 AP
 short** of what it costs — comparable like-for-like, frozen **15** vs `compute()` **33**.
 
-**Cause.** The identity step is priced by `priceOf()` as a whole-build delta, so the pack's real cost is
-netted against the repricing that setting a species does to already-owned traits. The delta is
-arithmetically defensible at that instant and still wrong as a ledger entry — it records −5 where a
-purchase of two packs happened.
+**Cause — sharper than "the packs aren't charged".** `compute()` derives the pack cost from `b.species`
+/ `b.species2` alone (`js/engine.js:177-178`), so a pack is never an event by design; it is priced as a
+consequence of the identity state. That is fine on its own. The defect is in how the identity event's
+delta was computed:
+
+- The four traits were **committed to the LOG before the identity event**, each recorded at **0**
+  (priced as pack-included — CharGen's form already knew the species even though no identity event had
+  been written yet).
+- `priceOf()` then priced the identity event as `compute(after) − compute(before)`. But
+  `compute(before)` sees traits owned with **no species set**, so it prices them as expensive
+  **cross-race** purchases — 21 AP that the log never actually charged.
+- The delta therefore *refunds* that phantom 21 while adding the real +15 of packs, landing at −5.
+
+Verified: `compute()` on the log truncated just before the identity event returns **21**, while the sum
+of recorded costs to that point is **0**. So the identity delta refunds AP that was never paid, and from
+that event onward the frozen ledger and `compute()` stay ~18 apart for the rest of the character's life.
+
+**The general failure:** `priceOf()` computes deltas against `compute(build)`, but recorded costs are
+not kept equal to `compute()`. Once the two diverge for any reason — here, ordering — every later delta
+compounds the error rather than correcting it. Any fix that only special-cases packs will leave this
+mechanism intact.
 
 **Owner's direction:** the packs are *real, allowable purchases* that grant those species abilities at a
 discount, so they must be recorded as purchases in their own right — their own log events with their own
@@ -560,14 +577,22 @@ existing character is already under-recorded. **Get a cold plan review before im
 (`/make-code-cold-plan-review`). Not sweep-eligible.
 
 ```text
-1. Decide the event shape: a distinct `cat:'pack'` buy event per pack (heritage, 2nd-origin) carrying
-   its own cost, emitted when the species/species2 selection creates the entitlement — rather than
-   letting the identity patch absorb it. Keep the pack-included traits at 0; they are correct.
-2. The identity patch must then stop absorbing the pack cost, or the same AP is charged twice. This is
-   the part to get reviewed: priceOf() computes a whole-build delta, so splitting one component out
-   without double-counting needs care. compute() is the arbiter — after the change, the sum of a
-   character's frozen costs should equal compute().total for a character built entirely under one
-   rules version (that is the acceptance test, and it fails today: 15 vs 33).
+0. FIRST, decide which of two fixes this is — they are different jobs and step 1 assumes the answer:
+     (a) ORDERING: make CharGen commit the identity event BEFORE any trait that depends on it, so
+         compute(before) never sees traits-without-a-species and the delta has nothing phantom to
+         refund. Smallest change, fixes this reproduction, leaves priceOf()'s general fragility.
+     (b) INVARIANT: make the recorded cost of every event equal to compute()'s own delta by
+         construction, so the frozen ledger cannot drift from compute() no matter what order events
+         arrive in. Bigger, and the durable answer.
+   The owner's stated intent — packs are real purchases that should be visible as such — argues for
+   emitting them as their own events, which is closer to (b). Confirm before building.
+1. If emitting pack events: a distinct `cat:'pack'` buy event per pack (heritage, 2nd-origin) carrying
+   its own cost. Keep the pack-included traits at 0; they are correct and the owner confirmed it.
+2. Whichever route, the identity patch must stop absorbing the pack cost, or the same AP is charged
+   twice. This is the part to get reviewed: priceOf() computes a WHOLE-BUILD delta, so splitting one
+   component out without double-counting needs care. compute() is the arbiter — after the change, the
+   sum of a character's frozen costs must equal compute().total for a character built entirely under
+   one rules version. That is the acceptance test, and it fails today: 15 vs 33.
 3. Changing species later (Halfling -> Elf) must refund/recharge the pack, not silently keep the old
    entitlement. Cover the swap in both directions.
 4. MIGRATION — do not skip. Existing live characters (Anders 33 vs 21, Fenwick, Cedric, and any
