@@ -15,6 +15,23 @@
   Reported by the owner, who read the tooltip and could not tell what their campaign actually grants.
   Display-only; no `DATA.version` bump.
 
+- **2026-08-04 · fix(live-sheet/chargen): orphaned duplicate on tool handoff, and a one-way-door invite
+  decline** — three findings from the usability review, triaged against the code rather than taken at
+  face value. **(1)** Every CharGen cloud save passes `campaignId`; the Live Sheet's never did. That
+  argument is the input to `saveCharacter`'s anti-fork guard: without it, an id that has drifted off the
+  UUID format makes the sync layer **mint a new id and insert a fresh row** instead of adopting the
+  campaign's existing one — stranding a campaign-less duplicate frozen at its pre-handoff state while the
+  real bound row stops updating. `js/sync.js`'s own comment already described this exact failure. **(2)**
+  Declining the invite prompt cleared the token and hid the banner, so a player who clicked Cancel lost
+  the invite with no explanation and no way back; the token is kept now and the banner offers "Accept
+  invite" / "Discard invite". **(3)** The "invite never shows as redeemed" report is **not a data bug** —
+  `redeem_player_invite` stamps `redeemed_at`, `list_campaign_invites` returns it, the row renders
+  "Redeemed", and 13 of 22 live invites carry it; verified end to end. The real problem was the roster and
+  invite list going stale independently, so either panel's Refresh now reloads both. New
+  `chargen-flows` gate (11 checks) covers handoff identity and decline recovery — verified RED against
+  the reverted decline behaviour (5 of 11 failed). See
+  `decisions/2026/D-GH-2026-08-04-handoff-identity-and-invite-decline.md`.
+
 - **2026-08-04 · fix(sql): grant `service_role` its table privileges in `rls-policies.sql`** — production
   had **none**, and nothing noticed because the app never uses that role (it is the browser client
   throughout, on the anon key under RLS). It surfaced when `seed-review-stack.mjs` became the first
