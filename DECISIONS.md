@@ -13,6 +13,18 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-04-archived-campaign-peek** — an archived campaign is now openable read-only by clicking
+  its name, reusing `selectCampaign()`'s render path rather than a second renderer that would drift. The
+  read-only state is enforced **twice on purpose**: `_peekBlocks()` gates all eight write call sites, and
+  `_applyPeekLock()` disables the controls. Disabling is the half that can be defeated — the roster
+  replaces its own `innerHTML` on every refresh, so cards routinely come back enabled — which is why the
+  write paths are guarded and not merely hidden. Records the deliberate deviation (disclosure toggles stay
+  usable, or the content would be unreadable), why `+ Create`/`Unarchive`/ⓘ stay live, and why exiting
+  *restores* prior disabled state instead of blanket-enabling. 21 new checks, 10 mutants killed — and the
+  fact that three of them were vacuous until `window.confirm` was stubbed, because **Playwright
+  auto-dismisses dialogs and silently routes every confirm-gated write down its cancel branch**.
+  Full record: `decisions/2026/D-GH-2026-08-04-archived-campaign-peek.md`.
+
 - **D-GH-2026-08-03-sw-cache-e2e** — added a returning-visitor gate: it installs the real service worker,
   changes a module so a network-first one imports a symbol only the fresh copy exports, and reloads
   without a hard refresh. Demonstrated red on the exact 2026-08-03 bug and green once fixed. Building it

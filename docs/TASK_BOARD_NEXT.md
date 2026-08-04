@@ -351,34 +351,6 @@ original wording, and parity still 24/0.
 
 ---
 
-## Read-only view of an archived campaign — TODO
-Branch feat/archived-campaign-peek. From the 2026-08-04 usability review (MEDIUM,
-`docs/reviews/2026-08-04-usability-qol.md`), recorded there as NOT DONE because it is a feature rather
-than a defect fix. An archived campaign in DM Console offers only its name and an "Unarchive" button, so
-a DM wanting to check an old campaign's roster, rules or notes must first put it back in their active
-list — mutating state purely to look at it.
-**Effort:** medium · **Risk:** low — ambiguity is low (reuse the existing campaign panel with controls
-disabled rather than building a second view); damage scale is low (additive, read-only, no write path);
-damage likelihood is low (`dm-console-ui` can assert the disabled state mechanically) — eligible for
-`/sweep-code-tasks`.
-
-```text
-1. Make an archived row's NAME clickable in DM Console's archived-campaign list (currently only the
-   "Unarchive" button is interactive).
-2. Open the existing campaign panel for it with every input, button and disclosure control disabled —
-   roster, rules, invites and DM notes readable, nothing editable. Reuse selectCampaign()'s render path;
-   the disabled state is the whole feature.
-3. Guard the write paths, do not merely hide them: archiveCampaign/setCampaignRules/awardAp/
-   createPlayerInvite must be unreachable while a peeked campaign is selected, so a stale handler
-   cannot fire against it.
-4. Make the read-only state obvious — a banner on the panel, not just greyed controls.
-5. UI-only. Display-only — do NOT bump DATA.version; log in CHANGELOG.
-```
-
-**Done when:** clicking an archived campaign's name shows its roster/rules/notes with all inputs and
-action buttons disabled, no write RPC is reachable from that view, unarchiving is still the only way to
-edit it, and `dm-console-ui` asserts the disabled state.
-
 ## Give the three ways to add a player an obvious hierarchy — TODO
 Branch fix/add-player-hierarchy. From the 2026-08-04 usability review (MEDIUM), recorded NOT DONE
 because which route to recommend is a product call rather than a mechanical fix. DM Console shows three
