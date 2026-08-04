@@ -76,3 +76,36 @@
   ```
 
 Fixtures in `fixtures/`; expected engine output in `expected/`.
+
+## Chromium can't reach the internet through a sandboxed session's proxy? `scripts/lib/chromium-relay.cjs`
+
+Found 2026-08-04 (usability/QoL review session, `docs/reviews/2026-08-04-usability-qol.md`): in some
+Claude Code sandboxed sessions, Chromium gets `net::ERR_CONNECTION_RESET` on **every** external
+HTTPS host it tries — not a Supabase-specific problem, confirmed against `https://example.com` too
+— while `curl`/Node's `fetch()` reach the exact same hosts through the exact same
+`HTTPS_PROXY`/`127.0.0.1:<port>` address without issue. Root cause: Chromium's BoringSSL always
+sends GREASE values in its TLS ClientHello (unrelated to and not disableable via the
+`EncryptedFlags`/`PostQuantumKyber` feature flags — verified those flags *did* reach Chromium's
+network-service subprocess via `ps`, and the reset still happened), and this particular session's
+policy-enforcing TLS-terminating egress proxy resets the connection on that ClientHello shape
+rather than tolerating the unrecognized values. Not fixable from the Chromium side.
+
+`scripts/lib/chromium-relay.cjs` + `scripts/lib/chromium-relay-shim.cjs` work around it: a tiny
+loopback relay that terminates Chromium's TLS locally (where Node's TLS stack tolerates GREASE
+fine) and re-issues the request as a normal `fetch()` — which, run with `NODE_USE_ENV_PROXY=1`,
+goes through the real sanctioned proxy with full certificate validation against the real
+destination. Nothing here disables TLS verification for the actual destination or bypasses the
+org's egress policy — only the local, loopback-only leg to Chromium is unverified (Chromium is
+launched with `--ignore-certificate-errors` to accept the relay's throwaway self-signed cert).
+
+Only relevant inside a sandboxed session with this exact incompatibility — on a normal machine or
+CI runner with direct internet access, don't use it; nothing here is otherwise wired into any
+script by default. To use it with an existing Playwright script with no edits to that script:
+
+```
+NODE_USE_ENV_PROXY=1 node --require ./testing/scripts/lib/chromium-relay-shim.cjs <script.mjs> [args...]
+```
+
+Requires `openssl` on `PATH` (self-signed cert generation, once per relay start) and Node ≥ 22.21
+(for `NODE_USE_ENV_PROXY`). See the header comment in `chromium-relay.cjs` for the full mechanism
+and the diagnostic evidence.
