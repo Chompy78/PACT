@@ -1,0 +1,44 @@
+name: CharGen flows
+
+# Tool-handoff identity and invite-decline recovery — both reported by the 2026-08-04 usability review,
+# both invisible to every other gate. Needs no Supabase stack (supabase-js is vendored, so the module
+# bridges load offline), which keeps it cheap enough to run on every PR touching these paths.
+
+on:
+  pull_request:
+    paths:
+      - "tools/PACT-CharGen-Webtool.html"
+      - "tools/PACT-Live-Char-Sheet.html"
+      - "js/character-store.js"
+      - "js/sync.js"
+      - "js/campaign.js"
+      - "js/engine.js"
+      - "testing/scripts/chargen-flows-e2e.mjs"
+      - "testing/package.json"
+      - "testing/package-lock.json"
+      - ".github/workflows/chargen-flows.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: chargen-flows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chargen-flows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+      - name: Install Chromium
+        working-directory: testing
+        run: npx playwright install --with-deps chromium
+      - name: CharGen flow checks
+        run: node testing/scripts/chargen-flows-e2e.mjs

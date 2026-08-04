@@ -45,6 +45,18 @@
   `decisions/2026/D-GH-2026-08-04-campaign-starting-ap.md`. **Corrected by
   D-GH-2026-08-04-join-grant-followups below — read both.**
 
+- **D-GH-2026-08-04-handoff-identity-and-invite-decline** — triage of three usability-review findings,
+  two real and one not. The CharGen⇄Live Sheet duplicate was real but NOT in the handoff (the id
+  round-trips cleanly): the Live Sheet's cloud save omitted `campaignId`, which is the input to
+  `saveCharacter`'s anti-fork guard, so a drifted id minted a new row instead of adopting the campaign's
+  existing one. Declining an invite was a genuine one-way door — token cleared, banner hidden, no
+  recovery. The third ("invites never show as redeemed") is NOT a data bug: the whole chain from
+  `redeem_player_invite` to `renderInvites()` was verified intact against live data; the real problem was
+  two panels going stale independently. Also records why Playwright's default `confirm()` dismissal
+  produced both a CRITICAL and a HIGH in that report, and why the fix belongs in the caller rather than
+  in `saveCharacter`. Full record:
+  `decisions/2026/D-GH-2026-08-04-handoff-identity-and-invite-decline.md`.
+
 - **D-GH-2026-08-04-starting-tier-level-band** — starting tier was one ratio doing two jobs; off a
   Standard L1 of 79 the presets were literally levels (55 = L0, 79 = L1, 103 = L2), so a DM picking
   "Veteran" was picking "level 2" without being told. Split into level 0–20 (priced off the campaign's

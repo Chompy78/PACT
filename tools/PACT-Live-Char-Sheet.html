@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.336.html**-->
+<!--**PACT-Live-Char-Sheet v1.338.html**-->
 
 <!doctype html>
 <!--
@@ -1876,7 +1876,16 @@ document.addEventListener('sync-ready', function () {
         // LOG,SEQ,id} shape as the local save()/exportJSON() (D-GH40), rather than a hand-built subset that
         // regressed this way. (Same window.X-doesn't-alias-a-let bug the Load handler above already fixed.)
         var stats = window.buildCharacterEnvelope({ name: b.name, rules: RULES, LOG: LOG, SEQ: SEQ, id: id, campaignId: window._lsCampaignId||null }, { sign: false });
-        var res   = await S.saveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet', stats: stats });
+        // campaignId is NOT optional here, even though the envelope above already carries it. It is the
+        // input to saveCharacter's anti-fork guard: when an id has drifted off the UUID format, the sync
+        // layer either adopts the campaign's existing server row (campaignId known) or MINTS A NEW ONE
+        // (campaignId absent) -- and minting inserts a brand-new, campaign-less duplicate while the real
+        // bound row stops receiving updates. Every CharGen save has always passed it; this one never did,
+        // so the CharGen->Live Sheet->CharGen round trip could silently strand an orphaned copy of a
+        // bound character, frozen at its pre-handoff state and invisible to the DM. See saveCharacter()
+        // in js/sync.js, whose own comment describes this exact failure.
+        var res   = await S.saveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet',
+                                            stats: stats, campaignId: window._lsCampaignId || null });
         // Adopt the id the sync layer used — it differs when a legacy pre-UUID id was migrated, and
         // not adopting it would migrate again on the next save and strand a second row. Bare
         // assignment: __charId is a top-level `let` (window.__charId= would shadow-fail).
