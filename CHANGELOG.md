@@ -6,6 +6,15 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · chore(release): bump BUILD to v1.358 (PR #358)** — promotion of `preview` → `main`
+  carrying the archived-campaign peek and the DM-AP roster fix. `DATA.version` unchanged at **v0.338**:
+  `compute()` was not touched, only its caller was passing nothing. Two decisions recorded on the task
+  board in the same change — **G1**, DM Console's "AP left" uses the frozen ledger (matching the Live
+  Sheet's `buy()` gate) and the AP Ledger keeps the repriced total, with Fenwick Copperkettle as the
+  worked example on the new `feat/ap-model-reconcile` entry; and **H2**, the species-pack fix takes the
+  invariant route (recorded cost equals `compute()`'s delta by construction) rather than the narrower
+  event-ordering fix.
+
 - **2026-08-04 · fix(dm-console): roster priced every AP figure against player AP only, ignoring DM AP** —
   reported from the live Amble campaign, where characters showed "OVER BUDGET by 27 / 36 AP". DM AP is
   stored only on `characters.ap` and never in the character's log, but `dmAnalyze()` called `compute(b)`

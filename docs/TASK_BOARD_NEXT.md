@@ -577,15 +577,16 @@ existing character is already under-recorded. **Get a cold plan review before im
 (`/make-code-cold-plan-review`). Not sweep-eligible.
 
 ```text
-0. FIRST, decide which of two fixes this is — they are different jobs and step 1 assumes the answer:
+0. DECIDED — the owner chose (b), the INVARIANT route, on 2026-08-04. Build that, not the narrower
+   ordering fix. The two options are kept below because the reasoning still matters:
      (a) ORDERING: make CharGen commit the identity event BEFORE any trait that depends on it, so
          compute(before) never sees traits-without-a-species and the delta has nothing phantom to
          refund. Smallest change, fixes this reproduction, leaves priceOf()'s general fragility.
      (b) INVARIANT: make the recorded cost of every event equal to compute()'s own delta by
          construction, so the frozen ledger cannot drift from compute() no matter what order events
          arrive in. Bigger, and the durable answer.
-   The owner's stated intent — packs are real purchases that should be visible as such — argues for
-   emitting them as their own events, which is closer to (b). Confirm before building.
+   Chosen: (b). Packs are real purchases and must be visible as such, and (a) would leave the next
+   ordering accident free to reintroduce the same drift.
 1. If emitting pack events: a distinct `cat:'pack'` buy event per pack (heritage, 2nd-origin) carrying
    its own cost. Keep the pack-included traits at 0; they are correct and the owner confirmed it.
 2. Whichever route, the identity patch must stop absorbing the pack cost, or the same AP is charged
@@ -644,6 +645,55 @@ pack task lands and the remaining gap is re-measured.
 
 **Done when:** the Live Sheet history accounts for every AP the AP Ledger charges, a pack-included trait
 is visibly attributed to the pack that paid for it, and the two views reconcile for Anders Tealeaf.
+
+## feat/ap-model-reconcile — "AP left" and the AP Ledger disagree on the same screen — TODO
+Branch `feat/ap-model-reconcile`. Long-deferred from D-GH30, now with a live worked example and a
+decision already taken, so it is ready to scope.
+
+**The decision (G1, owner, 2026-08-04):** DM Console's roster "AP left" uses the **frozen ledger** —
+`compute().spendable − economy().spent` — matching the Live Sheet's `_apRemaining()` and, critically,
+its `buy()` gate: the frozen figure is what actually governs whether a player can spend. Shipped in
+#355. The AP Ledger panel keeps showing `compute().total`, because repricing is that panel's subject.
+The consequence is accepted, not overlooked: the two can disagree on one screen.
+
+**Worked example — Fenwick Copperkettle (live, Amble):**
+
+| figure | value | source |
+|---|---|---|
+| DM AP (spendable, campaign ignores player AP) | 36 | `characters.ap` |
+| frozen spend | 47 | `economy().spent` |
+| repriced build cost | 40 | `compute().total` |
+| card "AP left" | **−11** | frozen |
+| AP Ledger | **4 over** | repriced |
+
+The 7 AP gap is two things: ~3 of genuine price drift (paid 8 for a DEX save that reprices to 5, etc.)
+and 4 of drawback accounting — the refund sits inside `compute().total` as −4 but is excluded from
+frozen `spent`, landing in `earned` instead.
+
+**Also unresolved here:** `apLevel` uses `trackLevel(eco.earned)`, so a fully DM-funded character reads
+**Earned Lv 0** with **0 earned** even when the DM granted 36 — because `economy().earned` cannot see DM
+AP. This is wrong identically in the Live Sheet and DM Console, which is why #355 deliberately did NOT
+fix it there alone (that would have traded a shared bug for a new divergence). Fixing it belongs here.
+
+**Effort:** large · **Risk:** high — decides what every AP number in the app means. Not sweep-eligible.
+**Sequence after `fix/species-pack-not-charged`**, which changes what the frozen ledger contains.
+
+```text
+1. Decide whether "earned" is a display composition (eco.earned + dmAp, honouring ignore_player_ap) or
+   whether the engine grows a frozen-ledger-aware remaining-AP export. The former keeps economy() pure
+   and log-only, which the anti-double-count invariant wants; the latter puts it in one place.
+2. Whatever is chosen, Earned Lv / "AP to reach Earned Lv N+1" / the header Track-Level must all read
+   from it, in BOTH tools, or the divergence just moves.
+3. Decide whether the card and the AP Ledger should ever be allowed to differ. If yes, label them so a
+   DM can tell which question each answers; if no, one of them changes.
+4. Note for scoping: Amble's starting tier is 36 AP while the Standard curve's L1 is 79 and its level 0
+   is 55 — so every character there reads below level 0 on the curve. Worth confirming with the owner
+   whether that is intended before treating low Track-Levels as a bug.
+```
+
+**Done when:** a DM-funded character shows an Earned Lv and an earned figure that account for DM AP, the
+card and the AP Ledger either agree or are labelled to explain why they differ, both tools read the same
+definition, and Fenwick's numbers are used as the regression fixture.
 
 ---
 
