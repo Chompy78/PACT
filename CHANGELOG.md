@@ -15,6 +15,20 @@
   Reported by the owner, who read the tooltip and could not tell what their campaign actually grants.
   Display-only; no `DATA.version` bump.
 
+- **2026-08-04 · fix(chargen/feedback): mobile clipping and the floating Feedback button** — two HIGHs
+  from the usability review, both with deeper causes than reported. The clipped class grid was **three**
+  stacked layout defects, not one: an **inline** `grid-template-columns` no media query could override;
+  the UA stylesheet's `fieldset{min-width:min-content}`, which stops a fieldset shrinking below its
+  content (section 7 sat at 596px inside a 362px form); and flex/grid children defaulting to
+  `min-width:auto`, so `1fr` and `.grow{flex:1}` floored tracks at content width. With
+  `body{overflow-x:hidden}` there was no scrollbar, so half the classes were simply invisible. Widening
+  the check found **section 9 clipped too** — the innate-spell table sizing its own parent, so its
+  `max-width:100%` resolved against a box it was itself inflating. The Feedback pill now measures the
+  host tool's fixed bottom bars at runtime and clears them (Live Sheet's `#lmobar` carries Undo/Redo
+  mid-play), rests semi-transparent, collapses to an icon under 520px, and can be dismissed for the
+  session. `chargen-flows` grows to **21 checks**, all four new mobile ones verified RED against the
+  reverted fixes.
+
 - **2026-08-04 · fix(live-sheet/chargen): orphaned duplicate on tool handoff, and a one-way-door invite
   decline** — three findings from the usability review, triaged against the code rather than taken at
   face value. **(1)** Every CharGen cloud save passes `campaignId`; the Live Sheet's never did. That

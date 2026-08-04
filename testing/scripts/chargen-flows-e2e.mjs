@@ -128,6 +128,103 @@ section('declining an invite is recoverable, not a one-way door');
   await ctx.close();
 }
 
+// -------------------------------------------------------------------------------------------------
+section('nothing is clipped off a 390px phone viewport');
+{
+  const ctx = await browser.newContext({ viewport:{width:390,height:844} });
+  const p = await ctx.newPage();
+  await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, {waitUntil:'load'});
+  await p.waitForTimeout(3000);
+
+  // Every section must be measured EXPANDED. A collapsed fieldset reports width 0 and every overflow
+  // assertion below passes vacuously -- which is exactly what the first version of this check did.
+  const wide = await p.evaluate(()=>{
+    document.querySelectorAll('fieldset').forEach(f=>f.classList.remove('collapsed'));
+    const out=[];
+    document.querySelectorAll('fieldset').forEach(f=>{
+      const r=f.getBoundingClientRect();
+      if(r.width < 50) return;                       // still hidden -> not a real measurement
+      if(f.scrollWidth > Math.ceil(r.width)+1 || r.right > 391)
+        out.push({id:f.id||'(none)', w:Math.round(r.width), scrollW:f.scrollWidth, right:Math.round(r.right)});
+    });
+    return { over: out, measured: [...document.querySelectorAll('fieldset')].filter(f=>f.getBoundingClientRect().width>=50).length };
+  });
+  check('sections were expanded and actually measured', wide.measured >= 8, `${wide.measured} fieldsets measured`);
+  check('no fieldset overflows the phone viewport', wide.over.length===0, JSON.stringify(wide.over).slice(0,180));
+
+  const body = await p.evaluate(()=>({ sw:document.documentElement.scrollWidth, cw:document.documentElement.clientWidth }));
+  check('the page does not scroll sideways', body.sw <= body.cw+1, `scrollW=${body.sw} clientW=${body.cw}`);
+
+  // The feedback pill must clear whatever fixed bottom bar the tool shows at this width.
+  const fb = await p.evaluate(()=>{
+    const b=document.querySelector('.pact-fb-btn'); if(!b) return {missing:true};
+    const f=b.getBoundingClientRect();
+    let worst=null;
+    document.querySelectorAll('*').forEach(el=>{
+      if(el===b || el.classList.contains('pact-fb-dismiss') || el.classList.contains('pact-fb-panel')) return;
+      const cs=getComputedStyle(el); if(cs.position!=='fixed'||cs.display==='none'||cs.visibility==='hidden') return;
+      const r=el.getBoundingClientRect(); if(!r.width||!r.height) return;
+      if(Math.abs(r.bottom-innerHeight)>4) return; if(r.height>innerHeight*0.5) return;
+      if(!(f.bottom<=r.top || f.top>=r.bottom || f.right<=r.left || f.left>=r.right))
+        worst = {id:el.id||el.className||el.tagName};
+    });
+    return { overlapping: worst };
+  });
+  check('feedback button clears every fixed bottom bar', !fb.missing && !fb.overlapping,
+        JSON.stringify(fb.overlapping||{}));
+  await ctx.close();
+}
+
+// -------------------------------------------------------------------------------------------------
+section('the feedback pill clears Live Sheet\'s fixed bottom bar at 390px');
+{
+  // Deliberately Live Sheet, not CharGen: CharGen has no fixed BOTTOM bar, so the same assertion there
+  // passes whether the fix is present or not. #lmobar carries Undo/Redo during play, and the pill sat
+  // directly on top of it -- the two controls most needed to correct a mis-tap.
+  const ctx = await browser.newContext({ viewport:{width:390,height:844} });
+  const p = await ctx.newPage();
+  await p.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, {waitUntil:'load'});
+  await p.waitForTimeout(3500);
+  const o = await p.evaluate(()=>{
+    const fb=document.querySelector('.pact-fb-btn'), bar=document.getElementById('lmobar');
+    if(!fb) return {noFb:true};
+    const f=fb.getBoundingClientRect();
+    const barVisible = bar && getComputedStyle(bar).display!=='none';
+    const r = barVisible ? bar.getBoundingClientRect() : null;
+    return { barVisible: !!barVisible,
+             overlap: r ? !(f.bottom<=r.top || f.top>=r.bottom || f.right<=r.left || f.left>=r.right) : null,
+             fbBottom: Math.round(f.bottom), barTop: r?Math.round(r.top):null,
+             clearance: getComputedStyle(document.documentElement).getPropertyValue('--pact-fb-bottom').trim(),
+             dismiss: !!document.querySelector('.pact-fb-dismiss') };
+  });
+  check('Live Sheet shows its fixed bottom bar at this width', o.barVisible, String(o.barVisible));
+  check('the feedback pill does NOT overlap it', o.barVisible && o.overlap===false,
+        `pill bottom=${o.fbBottom}, bar top=${o.barTop}`);
+  check('clearance was measured at runtime, not left at the default',
+        !!o.clearance && o.clearance !== '16px', o.clearance || '(unset)');
+  check('a dismiss control is offered', o.dismiss, String(o.dismiss));
+  await ctx.close();
+}
+
+// -------------------------------------------------------------------------------------------------
+section('the mobile fixes do not regress desktop');
+{
+  const ctx = await browser.newContext({ viewport:{width:1280,height:1000} });
+  const p = await ctx.newPage();
+  await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, {waitUntil:'load'});
+  await p.waitForTimeout(3000);
+  const d = await p.evaluate(()=>{
+    const el=document.getElementById('classpickgrid');
+    const f=el&&el.closest('fieldset'); if(f) f.classList.remove('collapsed');
+    const cs=el?getComputedStyle(el):null;
+    return { cols: cs?cs.gridTemplateColumns.split(' ').length:0,
+             sw:document.documentElement.scrollWidth, cw:document.documentElement.clientWidth };
+  });
+  check('class grid keeps TWO columns on desktop', d.cols===2, `${d.cols} column(s)`);
+  check('desktop does not scroll sideways', d.sw <= d.cw+1, `scrollW=${d.sw} clientW=${d.cw}`);
+  await ctx.close();
+}
+
 console.log(`\n[chargen-flows] ${fail ? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
 await browser.close(); server.close();
 process.exit(fail?1:0);
