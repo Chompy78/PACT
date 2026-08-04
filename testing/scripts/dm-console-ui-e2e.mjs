@@ -412,6 +412,61 @@ check('exiting RESTORES prior disabled state, not a blanket enable', peek.ignore
 check('a live campaign is never treated as a peek', peek.liveNotPeeked === true);
 check('and its Save rules button is enabled', peek.liveSaveEnabled === true);
 
+// 12. DM AP must reach the roster's AP figures. DM AP lives ONLY on characters.ap and is never written
+//     into the character's log, so economy() — which can only see the log — structurally cannot know
+//     about it. Before this, every AP figure on the roster was player-log-only: a campaign running
+//     ignore_player_ap with the whole budget granted as DM AP showed every character deeply overspent
+//     and flagged "OVER BUDGET by N AP" (js/engine.js:423). Real numbers from the live Amble campaign.
+const dmap = await page.evaluate(async ()=>{
+  const el = document.getElementById('campRoster');
+  // Anders: log awards 0, drawbacks +6 player AP, frozen spend 21, repriced total 33, DM AP 33.
+  const anders = { id:'a', name:'Anders', ap:33, stats:{ SEQ:9, LOG:[
+    {type:'buy',cat:'create',cost:0,seq:1,noLock:true,payload:{}},
+    {type:'buy',cat:'patch',cost:9,seq:2,_slot:'stats',payload:{patch:{stats:{CHA:12,CON:10,DEX:14,INT:8,STR:8,WIS:12}}}},
+    {type:'buy',cat:'save',cost:8,seq:3,payload:{v:'DEX'}},
+    {type:'buy',cat:'drawback',cost:-3,seq:4,payload:{v:'Compulsion'}},
+    {type:'buy',cat:'drawback',cost:-1,seq:5,payload:{v:'Forgetful'}},
+    {type:'buy',cat:'drawback',cost:-2,seq:6,payload:{v:'Affliction — Dull-Witted (INT)'}},
+    {type:'buy',cat:'skill',cost:2,seq:7,payload:{v:'Acrobatics'}},
+    {type:'buy',cat:'patch',cost:2,seq:8,_slot:'armour',payload:{patch:{armour:{heavy:false,light:true,medium:false,shield:false},wornArmour:''}}}
+  ]}};
+  const read = () => [...document.querySelectorAll('#campRoster .card')].map(c=>({
+    ap: c.querySelector('.stat .v')?.textContent,
+    k:  c.querySelector('.stat .k')?.textContent,
+    warn: c.querySelector('.warnicon')?.getAttribute('title') || ''
+  }));
+  const out = {};
+  // (a) campaign with ignore_player_ap ON — the ceiling is DM AP alone
+  window._dmCampaignApRules = { ignorePlayerAp: true };
+  window._dmRenderCloudRoster(el, [anders]);
+  await new Promise(r=>setTimeout(r,40));
+  out.ignoreOn = read()[0];
+  // (b) same character, ignore OFF — player's own +6 now counts on top of the 33
+  window._dmCampaignApRules = { ignorePlayerAp: false };
+  window._dmRenderCloudRoster(el, [anders]);
+  await new Promise(r=>setTimeout(r,40));
+  out.ignoreOff = read()[0];
+  // (c) no DM AP at all (a locally-imported file / unbound character) — unchanged from before
+  window._dmCampaignApRules = null;
+  window._dmRenderCloudRoster(el, [{...anders, ap:0}]);
+  await new Promise(r=>setTimeout(r,40));
+  out.noDm = read()[0];
+  return out;
+});
+check('the roster stat strip is still the AP cell', dmap.ignoreOn && dmap.ignoreOn.k === 'AP left', JSON.stringify(dmap.ignoreOn));
+// ignore_player_ap ON: spendable = 0 player + 33 DM = 33; frozen spend 21 -> 12 left.
+check('DM AP reaches "AP left" (33 DM − 21 spent = 12, was −15)', dmap.ignoreOn && dmap.ignoreOn.ap === '12', dmap.ignoreOn && dmap.ignoreOn.ap);
+check('and the bogus "OVER BUDGET" warning is gone', dmap.ignoreOn && !/OVER BUDGET/.test(dmap.ignoreOn.warn), dmap.ignoreOn && dmap.ignoreOn.warn);
+// ignore_player_ap OFF: spendable = 6 player + 33 DM = 39; 39 − 21 = 18. Proves the switch is read,
+// not hardcoded — a fix that always added dmAp would give 12 here too.
+check('the campaign\'s ignore-player-AP switch is honoured (6 player + 33 DM − 21 = 18)',
+      dmap.ignoreOff && dmap.ignoreOff.ap === '18', dmap.ignoreOff && dmap.ignoreOff.ap);
+// No DM AP and no campaign: ceiling is the player's own 6, spend 21 -> −15. Still correctly negative;
+// the fix must not paper over a genuinely overspent character.
+check('a character with no DM AP still shows a real deficit (6 − 21 = −15)',
+      dmap.noDm && dmap.noDm.ap === '-15', dmap.noDm && dmap.noDm.ap);
+check('and that one DOES still warn "OVER BUDGET"', dmap.noDm && /OVER BUDGET/.test(dmap.noDm.warn), dmap.noDm && dmap.noDm.warn);
+
 console.log(`\n[dm-console-ui] ${fail? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
 if (errors.length) console.log('\n(non-fatal errors seen: ' + errors.length + ')\n' + errors.slice(0,5).join('\n'));
 await browser.close(); server.close();
