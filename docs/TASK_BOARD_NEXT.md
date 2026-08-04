@@ -351,6 +351,110 @@ original wording, and parity still 24/0.
 
 ---
 
+## Read-only view of an archived campaign — TODO
+Branch feat/archived-campaign-peek. From the 2026-08-04 usability review (MEDIUM,
+`docs/reviews/2026-08-04-usability-qol.md`), recorded there as NOT DONE because it is a feature rather
+than a defect fix. An archived campaign in DM Console offers only its name and an "Unarchive" button, so
+a DM wanting to check an old campaign's roster, rules or notes must first put it back in their active
+list — mutating state purely to look at it.
+**Effort:** medium · **Risk:** low — ambiguity is low (reuse the existing campaign panel with controls
+disabled rather than building a second view); damage scale is low (additive, read-only, no write path);
+damage likelihood is low (`dm-console-ui` can assert the disabled state mechanically) — eligible for
+`/sweep-code-tasks`.
+
+```text
+1. Make an archived row's NAME clickable in DM Console's archived-campaign list (currently only the
+   "Unarchive" button is interactive).
+2. Open the existing campaign panel for it with every input, button and disclosure control disabled —
+   roster, rules, invites and DM notes readable, nothing editable. Reuse selectCampaign()'s render path;
+   the disabled state is the whole feature.
+3. Guard the write paths, do not merely hide them: archiveCampaign/setCampaignRules/awardAp/
+   createPlayerInvite must be unreachable while a peeked campaign is selected, so a stale handler
+   cannot fire against it.
+4. Make the read-only state obvious — a banner on the panel, not just greyed controls.
+5. UI-only. Display-only — do NOT bump DATA.version; log in CHANGELOG.
+```
+
+**Done when:** clicking an archived campaign's name shows its roster/rules/notes with all inputs and
+action buttons disabled, no write RPC is reachable from that view, unarchiving is still the only way to
+edit it, and `dm-console-ui` asserts the disabled state.
+
+## Give the three ways to add a player an obvious hierarchy — TODO
+Branch fix/add-player-hierarchy. From the 2026-08-04 usability review (MEDIUM), recorded NOT DONE
+because which route to recommend is a product call rather than a mechanical fix. DM Console shows three
+differently-scoped routes together with no guidance: the reusable **Players code** (binds a character the
+player has ALREADY built, grants the campaign's starting tier), a **single-use invite link** (creates a
+NEW character, grants a per-player amount), and the **local-file import** card. A DM meeting this for the
+first time cannot tell which fits their situation.
+**Effort:** small · **Risk:** low — ambiguity is MEDIUM and is the whole task (the decision, not the
+edit); damage scale is low (copy and ordering only); damage likelihood is low — **not** sweep-eligible,
+it needs a human decision first.
+
+```text
+1. DECIDE (human): which of the three is the default recommendation for a DM adding a player, and in
+   what order they should appear. Record it in DECISIONS.md — this is the actual deliverable.
+2. Add a one-line "use this when…" under each of the three, in the decided language.
+3. Mark one visually as the usual choice; de-emphasise the other two rather than hiding them.
+4. Copy-only. Display-only — do NOT bump DATA.version; log in CHANGELOG.
+```
+
+**Done when:** each of the three routes carries a one-line "use this when…", one is visibly the default,
+the ordering matches the decision, and the reasoning is in DECISIONS.md.
+
+## Reconcile the unnamed-character default across CharGen and DM Console — TODO
+Branch fix/unnamed-character-default. From the 2026-08-04 usability review (LOW), recorded NOT DONE
+because resolving it means changing a shared default rather than a display string. CharGen sets a real
+default NAME of `'New Character'`; DM Console shows `'Unnamed character'` as a fallback for a blank name.
+They describe **different states**, so they are not simply inconsistent — but a player sees one word and
+their DM sees another for what looks like the same character.
+**Effort:** small · **Risk:** medium — ambiguity is medium (the choice below is a real fork); damage
+scale is medium (`saveCharacter()`'s `name ?? prev?.name ?? 'New Character'` in `js/sync.js` is on every
+cloud write path, so getting it wrong renames characters); damage likelihood is low (`cloud-e2e` covers
+the save path) — **not** sweep-eligible.
+
+```text
+1. DECIDE (human): should an unnamed character carry a real default name at all, or be stored blank and
+   rendered with a fallback everywhere it is displayed? Record in DECISIONS.md.
+2. Apply it in ONE place: js/sync.js saveCharacter()'s name default, plus each tool's display fallback.
+   Do not leave two different literals in the codebase.
+3. Check the migration case: characters already stored as 'New Character' must not be renamed by this.
+4. Add a cloud-e2e assertion that the same state renders the same string in CharGen, DM Console and
+   My Characters.
+```
+
+**Done when:** one convention is documented in DECISIONS.md, all three surfaces render the same string
+for the same state, existing characters are unaffected, and `cloud-e2e` asserts it.
+
+## Let an invite link identify its campaign before it is redeemed — TODO
+Branch feat/invite-peek-campaign-name. Closes TWO 2026-08-04 review findings with one change: the
+campaign-join `confirm()` cannot name the campaign (LOW, recorded WON'T FIX for this reason), and a
+revoked invite link looks identical to a live one when opened signed out (MEDIUM, PARTIALLY FIXED —
+the banner stopped *promising* validity but still cannot check it). Both need the same missing thing: a
+way to resolve a token to `{campaignName, valid}` WITHOUT redeeming it. See
+`tools/PACT-CharGen-Webtool.html`'s `tryRedeem()`, where the constraint is already commented.
+**Effort:** medium · **Risk:** medium — ambiguity is medium (the auth scope below is a genuine security
+call); damage scale is medium (a new anon-reachable RPC widens the attack surface if scoped wrong);
+damage likelihood is low (`cloud-e2e` covers invite paths, and the Supabase advisor catches
+anon-callable functions — it already caught one this session) — **not** sweep-eligible.
+
+```text
+1. DECIDE (human): does the lookup require `authenticated`, or is it anon-callable?
+   - `authenticated` fixes the confirm() naming but NOT the signed-out banner.
+   - anon-callable fixes both, but lets anyone probe whether a token exists — needs rate limiting and a
+     deliberate decision that token-probing is acceptable. Record either way in DECISIONS.md.
+2. Add a SECURITY DEFINER RPC returning {campaign_name, valid} for a token, revoking EXECUTE from PUBLIC
+   explicitly (new functions inherit it — see D-GH-2026-08-03-invite-note-dm-only).
+3. Name the campaign in CharGen's accept confirm(), and remove the now-obsolete comment explaining why
+   it could not.
+4. Make the signed-out banner distinguish a dead invite from a live one.
+5. Run the Supabase advisor and skim get_logs before opening the PR (per AGENTS.md step 4).
+6. Add cloud-e2e coverage for a revoked token and a valid one.
+```
+
+**Done when:** a token resolves to its campaign name without redeeming, its auth scope is recorded in
+DECISIONS.md, the confirm names the campaign, the signed-out banner distinguishes dead from live, the
+advisor reports no new findings, and `cloud-e2e` covers both token states.
+
 ---
 
 # Conventions
