@@ -898,7 +898,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.338';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.341';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1179,7 +1179,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // {ap, player, playerLabel, dmNotes} — see cloudRoster in loadRoster().
   function dmToolsBody(id, dm){
     var h = '<div class="kvs"><div class="kvrow"><span class="kk">Player (account)</span><span class="vv">'+esc(dm.player||'—')+'</span></div>' +
-            '<div class="kvrow"><span class="kk">Bonus DM AP</span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
+            '<div class="kvrow"><span class="kk" title="AP you have granted this character (the characters.ap column). This is PART OF their spendable total, not extra on top of it — the strip above shows what they can actually spend. Labelled &quot;Bonus DM AP&quot; until 2026-08-04, which read as a spendable figure and was mistaken for one.">DM-granted AP <span style="opacity:.6">&#9432;</span></span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     h += '<div class="ruleblock" style="margin-top:8px"><div class="lbl">Player-name label</div>' +
          '<input type="text" class="field dm-label-in" data-cid="'+esc(id)+'" value="'+esc(dm.playerLabel||'')+'" placeholder="e.g. Jess (Saturday group)"></div>';
     h += '<div class="ruleblock"><div class="lbl">DM notes — private, the player never sees these</div>' +
@@ -1230,7 +1230,12 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     var warnIcon = warnN ? '<span class="warnicon" title="'+esc(warnTip.join('\n'))+'">⚠ '+(s.warnings||0)+(s.unnamed>0?('+'+s.unnamed):'')+'</span>' : '';
 
     // stat strip cells
+    // "How much AP does this character have" is the DM's most-asked roster question, and it was the one
+    // stat NOT on this strip -- a DM had to expand DM tools, where the only number shown was the
+    // DM-granted pool under a label ("Bonus DM AP") that reads like a spendable total and is not one.
+    // s.available is the same figure the player's own Live Sheet calls "AP left", from the same engine.
     var statCells = [
+      ['AP left', avail],
       ['HP', s.hp],
       ['AC', acCellHTML(s.ac, s.name), true],
       ['Speed', (s.speed!=null? s.speed+'′' : '—')],
@@ -2360,6 +2365,24 @@ document.addEventListener('campaign-ready', function () {
     }
     campArchiveBtn.disabled = false;
   });
+
+  // Auto-refresh on tab focus. A DM sends an invite, switches to the player's tab (or a chat app) to
+  // pass the link on, and comes back — at which point the roster still read "No characters in this
+  // campaign yet.", indistinguishable from the invite having failed, until they found the small
+  // Refresh button. Coming back to the tab is exactly the moment they want confirmation, so that is
+  // when it re-fetches. Deliberately NOT a poll or a realtime subscription: this needs no open socket,
+  // costs one round-trip per return-to-tab, and cannot spin in a background tab.
+  var _lastAutoRefresh = 0;
+  function refreshCampaignPanels(){
+    if(!currentCampId || document.hidden) return;
+    var now = (new Date()).getTime();
+    if(now - _lastAutoRefresh < 4000) return;   // debounce: focus+visibilitychange both fire on a tab switch
+    _lastAutoRefresh = now;
+    loadRoster(currentCampId);
+    loadInvites();
+  }
+  document.addEventListener('visibilitychange', refreshCampaignPanels);
+  window.addEventListener('focus', refreshCampaignPanels);
 
   // Refresh BOTH panels together. The roster and the "Invites issued" list describe overlapping facts
   // ("has this player joined?") from two different queries, and refreshing only one left them visibly
