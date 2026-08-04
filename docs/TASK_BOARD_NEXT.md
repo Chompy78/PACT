@@ -427,6 +427,53 @@ anon-callable functions — it already caught one this session) — **not** swee
 DECISIONS.md, the confirm names the campaign, the signed-out banner distinguishes dead from live, the
 advisor reports no new findings, and `cloud-e2e` covers both token states.
 
+## DM sets how many characters one player may have in a campaign — TODO
+Branch `feat/campaign-character-limit`. Today the limit is hard-wired to exactly **one** character per
+player per campaign, and it is not a soft app rule: it is the unique index
+`idx_characters_owner_campaign_unique` on `characters(owner_id, campaign_id) where campaign_id is not
+null` (`sql/schema.sql`, added by `sql/migrations/2026-07-13-campaign-bind-character.sql`). Requested by
+the owner, who wanted two copies of a character in one campaign for a diagnosis and found the limit
+was a database invariant rather than a setting.
+
+**The trap that makes this bigger than "drop the index":** that index is not merely a limit, it is the
+**TOCTOU race guard** for `bind_character_to_campaign` — the RPC's `EXISTS`-then-write check cannot
+close the window on its own, which is exactly why the index exists (see its comment in `sql/schema.sql`
+and in `sql/migrations/2026-07-13-campaign-join-race-friendly-error.sql`, which added the friendly error
+for the duplicate-key it raises). Dropping it to allow N-per-player would silently reopen that race.
+A partial or expression index cannot express "at most N rows per (owner, campaign)" either, so the
+guard has to move — most likely into the RPC itself under a `select … for update` on the campaign row,
+or a count check inside a serializable transaction. **Get this design reviewed before implementing**
+(`/make-code-cold-plan-review`): it is a concurrency change to production data, and a wrong answer here
+is a duplicate-join bug that only shows up under real simultaneous joins.
+
+**Effort:** large · **Risk:** high — schema + RPC + RLS + UI; the failure mode is silent (a race that
+only bites under concurrency), and it touches the one invariant that currently makes double-joins
+impossible. **Not** sweep-eligible.
+
+```text
+1. Decide where the limit lives: `campaigns.rules.maxCharactersPerPlayer` (integer, default 1) is the
+   natural home — it rides the existing rules JSON, so no new column and DM Console already has a rules
+   panel and a save path.
+2. Replace the unique index with a guard that still closes the race at N. Do NOT simply drop it. The
+   count check has to be race-safe against two simultaneous redemptions of the same invite.
+3. Teach bind_character_to_campaign and redeem_player_invite the limit: the current one-per-campaign
+   EXISTS check becomes a count-against-limit check, and the friendly error message needs to state the
+   actual limit ("Amble allows 2 characters per player") rather than today's fixed wording.
+4. DM Console: a number input in the campaign rules panel, next to the starting tier. Default 1.
+   Lowering it below what players already hold must NOT delete or unbind anything — existing rosters
+   are grandfathered; the limit only gates new joins. Say so in the field's ⓘ.
+5. CharGen's join path shows the campaign's limit when a join is refused for hitting it.
+6. Migration under sql/migrations/, then run the Supabase advisor and skim get_logs (per-change
+   checklist step 4). Rules-only change to the DB — no DATA.version bump.
+7. cloud-e2e: cover limit=1 (today's behaviour, must not regress), limit=2 (second join succeeds), and
+   the refusal at the limit. A concurrency check for the race guard if one can be written cheaply.
+```
+
+**Done when:** a DM can set the per-player character limit on a campaign, the default of 1 reproduces
+today's behaviour exactly, joining past the limit fails with a message naming the limit, lowering the
+limit never removes an existing character, the race guard is demonstrably still closed at the new N,
+the advisor reports no new findings, and `cloud-e2e` covers limit=1, limit=2 and the refusal.
+
 ---
 
 # Conventions
