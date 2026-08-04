@@ -1884,7 +1884,8 @@ document.addEventListener('sync-ready', function () {
 
     try {
       var chars = await S.listMyCharacters();
-      var live  = (chars||[]).filter(function(c){ return c.kind==='livesheet'; });
+      // Archived characters must not be loadable here — see the matching note in CharGen's menu.
+      var live  = (chars||[]).filter(function(c){ return c.kind==='livesheet' && !c.archived_at; });
       var listEl = document.getElementById('cloudCharList');
 
       // One row-template + one render pass, shared by the initial fetch-backed render and

@@ -265,8 +265,17 @@ export async function listMyCharacters() {
 // these orphans could not be removed at all. Local-only ids are handled entirely in localStorage.
 async function _setArchived(id, when) {
   if (isCloudCharId(id)) {
-    const { error } = await supabase.from('characters').update({ archived_at: when }).eq('id', id);
+    // .select() + a length check, not just `error`: a Supabase UPDATE that matches ZERO rows returns
+    // error:null, so a stale tab acting on a character that has since been deleted (or that RLS no
+    // longer exposes) reported "Archived" success while nothing changed. Same pattern pushCharacter()
+    // already uses in this file.
+    const { data, error } = await supabase
+      .from('characters').update({ archived_at: when }).eq('id', id).select('id');
     if (error) throw error;
+    if (!data || !data.length) {
+      throw new Error('That character could not be updated — it may have been deleted, or you may no '
+                    + 'longer have access to it. Reload and try again.');
+    }
   }
   const local = lsGet(id);
   if (local) lsSet({ ...local, archived_at: when });

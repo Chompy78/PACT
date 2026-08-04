@@ -703,7 +703,11 @@ document.addEventListener('sync-ready', function () {
     var chars;
     try { chars = await S.listMyCharacters(); } catch (err) { chars = []; }
     if (gen !== _cloudMenuGen) return;   // a newer open (or a close) superseded this fetch — discard it
-    var mine = (chars || []).filter(function (c) { return c.kind === 'chargen'; });
+    // Archived characters must not be loadable here. listMyCharacters() has always returned
+    // archived_at; this menu simply never looked at it, so archiving a character in "My Characters"
+    // left it fully playable in the tool where characters are actually used — the archive feature
+    // was defeated everywhere except the page that offers it. Matches how characters.html treats them.
+    var mine = (chars || []).filter(function (c) { return c.kind === 'chargen' && !c.archived_at; });
     var listEl = document.getElementById('cgCloudCharList');
     if (!listEl) return;   // menu closed while the list was loading
     if (!mine.length) { listEl.innerHTML = '<div style="padding:6px 10px;font-size:12px;color:var(--grey)">No saved characters yet.</div>'; return; }
