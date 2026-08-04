@@ -2361,8 +2361,16 @@ document.addEventListener('campaign-ready', function () {
     campArchiveBtn.disabled = false;
   });
 
+  // Refresh BOTH panels together. The roster and the "Invites issued" list describe overlapping facts
+  // ("has this player joined?") from two different queries, and refreshing only one left them visibly
+  // disagreeing on the same screen -- a DM seeing a joined character above an invite still marked Open
+  // cannot tell whether the invite is stale or genuinely unredeemed. (The underlying data was never
+  // wrong: redeem_player_invite stamps redeemed_at, list_campaign_invites returns it, and the row
+  // renders "Redeemed" -- verified end to end on 2026-08-04. This is a staleness fix, not a data fix.)
   document.getElementById('refreshRosterBtn').addEventListener('click', function(){
-    if(currentCampId) loadRoster(currentCampId);
+    if(!currentCampId) return;
+    loadRoster(currentCampId);
+    loadInvites();
   });
   document.getElementById('copyPlayerCode').addEventListener('click', function(){
     navigator.clipboard.writeText(document.getElementById('campPlayerCode').value);
@@ -2515,7 +2523,10 @@ document.addEventListener('campaign-ready', function () {
   }
 
   if(inviteShowAll) inviteShowAll.addEventListener('change', renderInvites);
-  if(inviteRefresh) inviteRefresh.addEventListener('click', loadInvites);
+  if(inviteRefresh) inviteRefresh.addEventListener('click', function(){
+    loadInvites();
+    if(currentCampId) loadRoster(currentCampId);   // symmetric with the roster's own Refresh, above
+  });
 
   createInviteBtn.addEventListener('click', async function(){
     if(!currentCampId) return;
