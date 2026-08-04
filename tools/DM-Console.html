@@ -156,12 +156,6 @@
   .codeRow{display:flex; gap:8px; margin-top:8px}
   .codeRow .field.ro{flex:1}
   .hiddenFile{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
-  .grantCharList{max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:4px 6px; margin:4px 0 8px}
-  .grantCharRow{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 2px; border-bottom:1px solid var(--line)}
-  .grantCharRow:last-child{border-bottom:none}
-  .grantCharRow label{display:flex; align-items:center; gap:7px; flex:1; min-width:0; font-size:13px; cursor:pointer; color:var(--ink)}
-  .grantCharRow .grantCharName{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-  .grantCharRow .grant-amt{width:76px; flex-shrink:0; min-height:32px; padding:0 8px; font-size:12px}
   #grantCodesOut{display:flex; flex-direction:column; gap:6px; margin-top:4px}
   #grantCodesOut .codeRow{margin-top:0}
   .grantCodeName{flex:0 0 150px; font-size:12px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -670,7 +664,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <input class="field" type="number" id="ruleStartingTierAp" min="0" max="600" step="1" style="width:70px" value="79">
                 <span style="font-size:11px;color:var(--muted)">AP</span>
               </div>
-              <div class="grantnote">Pre-fills the “Starting AP” field when you generate a player invite (still editable per invite). Recomputed from the L1 above whenever either the tier or the curve changes.</div>
+              <div class="grantnote">Used for <b>both</b> ways into the campaign: it pre-fills the &ldquo;Starting AP&rdquo; field when you generate a player invite (still editable per invite), <b>and</b> it is granted automatically to a character that joins with the Players code above &mdash; which previously arrived with no AP at all. Recomputed from the L1 above whenever either the tier or the curve changes.</div>
             </div>
               </div>
             </details>

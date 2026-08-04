@@ -3051,7 +3051,17 @@ function randomizeRoll(){
   // spuriously once spend passes the player budget. _cgDmOpts() is a no-op ({dmAp:0,ignorePlayerAp:false})
   // for a local build with no active campaign, so ordinary local randomize behaviour is unchanged.
   const _dmO=_cgDmOpts();
-  const budget=compute(b,_dmO).spendable||DATA.level1AP||79;
+  // A spendable of 0 is a REAL answer, not a missing one: a character that joined a campaign by code
+  // starts with no AP until the DM grants some. The old `spendable || DATA.level1AP || 79` treated it as
+  // missing and built a ~79 AP character the player couldn't afford, which then flagged itself OVER
+  // BUDGET the moment it finished. Refuse and say why — the problem is the empty budget, not the roll.
+  const _spendable=compute(b,_dmO).spendable;
+  if(!(_spendable>0)){
+    if(typeof flash==='function') flash('⚠ This character has no AP yet — ask your DM to grant some before randomising.');
+    else alert('This character has no AP yet — ask your DM to grant some before randomising.');
+    return;
+  }
+  const budget=_spendable;
   const C=x=>compute(x,_dmO);
   const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
   function tryAct(mut){ const snap=JSON.stringify(b);
