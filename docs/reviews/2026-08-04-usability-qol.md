@@ -17,10 +17,20 @@ below) — noted under NOT ASSESSED, not assumed safe.
 
 ---
 
+> **Triage complete — 2026-08-04.** 21 of 25 findings closed (the CRITICAL, all seven HIGHs, 13 of 17
+> MEDIUM/LOW). Each finding below carries an `Outcome:` line. Three reports were **wrong as stated** and
+> say so rather than being silently "fixed"; each still pointed at something real nearby. Four are
+> **NOT DONE** and name why — all four need a product decision rather than a mechanical change.
+>
+> Two causes account for both the CRITICAL and one HIGH: **Playwright auto-dismisses `confirm()`**
+> unless a handler is registered, silently routing confirm-gated flows down their rejection branch.
+> Any future review prompt must register one and state which branch it exercised.
+
 ## Findings
 
 ### Invited player can never actually get a playable character — the invite is dropped on sign-in
 Severity: CRITICAL
+Outcome: **FIXED (root cause differed)** — not reproduced as stated: the `?invite=` token provably survives the sign-in redirect (stashed under `pact_pending_invite`, key verified end to end). The symptom is Playwright auto-dismissing `confirm()`, which routed the flow down the app's *declined* branch. That branch WAS a real one-way door — token wiped, banner hidden, no recovery — and is fixed. v1.338.
 Where:    CharGen — `?invite=<token>` deep link → sign-in redirect
 Repro:    1. Signed out, open a live invite link (`PACT-CharGen-Webtool.html?invite=<token>`). 2. Click "Sign in" in the purple invite banner ("You've been invited to a campaign. Sign in to accept it — this link stays valid until you do."). 3. Log in as player3@review.pact.test. 4. Observe the redirect target. 5. Re-open the exact same invite URL now signed in. 6. Check My Characters.
 Impact:   Every brand-new invited player, 100% of the time. Following the app's only advertised entry point for this journey (the invite link + its own "Sign in" prompt) produces zero playable character and zero error message — a total block on the invited-player onboarding path, with no recovery available from the UI.
@@ -29,6 +39,7 @@ Fix:      Preserve the `?invite=` token through the login redirect (a return-to 
 
 ### The documented CharGen ↔ Live Sheet handoff creates a duplicate, orphaned character instead of round-tripping the same one
 Severity: HIGH
+Outcome: **FIXED** — the handoff is clean (id survives both legs, now asserted). The fork was the Live Sheet's cloud save omitting `campaignId`, the input to `saveCharacter`'s anti-fork guard. v1.338.
 Where:    CharGen "⇆ Open in Live Sheet" / Live Sheet "⇆ Open in CharGen"
 Repro:    1. As player1, open the campaign-bound "Aldric Valor" from My Characters into CharGen. 2. Make a small change (toggle a skill). 3. Click "Open in Live Sheet." 4. Award/spend/undo AP there. 5. Click "Open in CharGen" to switch back. 6. Return to My Characters.
 Impact:   Any player using this core, actively-advertised feature during a normal session. Produces two cloud characters both named "Aldric Valor" with different ids — one still correctly bound to "[REVIEW] The Ashfall Compact" and continuing to accrue real play state, and a second, silently-created copy under "No campaign," frozen at the pre-handoff state (confirmed at 78/80 AP). Nothing in the UI indicates which is "real," and the orphan is invisible to the DM (unbound from any campaign).
@@ -37,6 +48,7 @@ Fix:      The CharGen→Live Sheet→CharGen round trip should update/reopen the
 
 ### Floating "Feedback" button repeatedly overlaps functional controls, worst on mobile where it sits over Undo/Redo mid-play
 Severity: HIGH
+Outcome: **FIXED** — the pill now measures the host tool's fixed bottom bars at runtime and clears them, plus safe-area inset, an icon-only form under 520px, resting transparency and a dismiss control. v1.341.
 Where:    Live Sheet (mobile bottom AP bar), DM Console (mobile Campaign Rules grid; also a milder desktop instance in the Campaign panel)
 Repro:    1. Open Live Sheet at 390×844 on any character and scroll so the bottom AP bar is visible. 2. Open DM Console → a campaign → expand Campaign Rules at 390×844. 3. On desktop (1280×1000), open a campaign's Invite/Rules disclosures and scroll through them.
 Impact:   Every mobile player/DM, and desktop DMs working through the Campaign panel. On Live Sheet the Feedback pill sits directly on top of the Undo/Redo icons in the persistent bottom bar — the two controls most needed to correct a mis-tap during actual play. On DM Console mobile it sits on top of the "Warlock" checkbox in "Banned origin classes," making that specific rule un-toggleable without first working around the widget. On desktop it was seen covering the "▸ CAMPAIGN RULES" row, a second invite's "OPEN" status badge, and the "DMs:" code's Copy button, at different scroll positions in the same panel. This is a previously-reported issue the task brief specifically asked to re-check — it is still happening, in more places than just the ledger.
@@ -45,6 +57,7 @@ Fix:      Give the Feedback widget a mobile-aware safe-area offset (clear of any
 
 ### CharGen's quick-nav (chip bar / mobile "Jump to section") sends players to the wrong section from item 7 onward, and item 11 is completely dead
 Severity: HIGH
+Outcome: **FIXED** — `SECTIONS` had 11 entries against 10 sections. Also fixed a second defect the review did not see: Arts spend was being rendered as section 7's AP subtotal. v1.336.
 Where:    CharGen — top chip-nav bar (desktop) and "Jump to section…" dropdown (mobile)
 Repro:    1. Load CharGen fresh. 2. Click the "8 Classes" chip. 3. Observe which section actually scrolls into view.
 Impact:   Every chip/option from "7 Arts" onward is off by one versus its real destination: "8 Classes" lands on "8 · Subclasses," "9 Subclasses" lands on "9 · Spellcasting," "10 Spellcasting" lands on "10 · Arts, Techniques, Boons & Drawbacks," and "11 Arts & Boons" targets a section id (`sec11`) that doesn't exist in the DOM at all — clicking it does nothing, silently. This is the primary quick-navigation control for an 11-part, very long form; a player trying to jump to "Classes" or "Spellcasting" lands somewhere else every single time, with no error. The mobile dropdown reuses the identical broken mapping.
@@ -53,6 +66,7 @@ Fix:      Re-sync the chip-nav/`secjump` labels (or their `data-sec`/`value` tar
 
 ### Mobile "Class Access & Features" grid is clipped off-screen with zero indication more content exists
 Severity: HIGH
+Outcome: **FIXED** — three stacked causes (inline `grid-template-columns`, `fieldset{min-width:min-content}`, `min-width:auto` on grid/flex children). Widening the check found **section 9 clipped too**. v1.341.
 Where:    CharGen — Section 7/Classes "quick-add feature by class" grid, mobile 390×844
 Repro:    1. Load CharGen at 390×844. 2. Jump to the class-features section. 3. Look at the two-column class grid.
 Impact:   Unlike every other section (which correctly reflows to one column on mobile), this fieldset stays fixed at 1153px wide with `overflow-x:auto` and no scrollbar/shadow/arrow — and the page body itself has `overflow-x:hidden`, masking that scrollable content exists at all. The right-hand column (Bard, Druid, Monk, Ranger, Sorcerer, Wizard) is pushed entirely off the 390px viewport. A mobile player would very plausibly never discover half the classes are there, and even one who does must swipe-scroll a hidden inner container rather than the page.
@@ -61,6 +75,7 @@ Fix:      Apply the same responsive column-collapse used elsewhere in the tool t
 
 ### DM's "Invites issued" list never reflects redemption, even after an explicit refresh — contradicts the roster right above it
 Severity: HIGH
+Outcome: **NOT A BUG** — the chain from `redeem_player_invite` (stamps `redeemed_at`) through `list_campaign_invites` to `renderInvites()` was verified intact against live data (13 of 22 invites carry it; zero have `redeemed_by` without it). Same `confirm()` artifact as the CRITICAL. The real complaint — two panels going stale independently — is fixed: either Refresh reloads both. v1.338.
 Where:    DM Console — Campaign (cloud) → Invite new player → Invites issued list
 Repro:    1. Generate a single-use invite link. 2. A second account opens it and joins (confirmed via the player-side banner and header). 3. Click "Refresh" on the roster — correctly shows the new character. 4. Click "Refresh" on the "Invites issued" list specifically.
 Impact:   The invite row still reads "OPEN"/"not yet redeemed" after its own dedicated refresh — two DM-facing panels on the same screen disagree about the same fact. A DM could re-share a link they believe is dead, or worry a player never actually joined when they did.
@@ -69,6 +84,7 @@ Fix:      Have the invite-list refresh re-fetch redemption status from the same 
 
 ### Campaign roster requires a manual, undiscoverable "Refresh" click to show a player who just joined
 Severity: HIGH
+Outcome: **FIXED** — refreshes on `visibilitychange`/`focus`, debounced. Chosen over a poll or realtime subscription: no open socket, one round-trip per return-to-tab. v1.341.
 Where:    DM Console — Campaign Roster panel
 Repro:    1. With a campaign selected, have a player join via invite. 2. Without clicking anything, look at the roster.
 Impact:   The roster still reads "No characters in this campaign yet." with no spinner, badge, or indicator — indistinguishable from the invite having failed. Every DM independently has to discover the small "⟳ Refresh" button, right at the moment (a player just joined) they most want confirmation it worked.
@@ -77,6 +93,7 @@ Fix:      Poll or subscribe to roster changes (Supabase realtime is already in t
 
 ### AP is presented as three inconsistent figures across the tools, and DM Console's roster card shows none of them without drilling in
 Severity: HIGH
+Outcome: **FIXED** — the roster strip now leads with **AP left** (`s.available`, the same figure the player sees) and "Bonus DM AP" is renamed **DM-granted AP** with an inline explanation. v1.341.
 Where:    Cross-tool — CharGen "AP budget," Live Sheet "AP left / earned / spent," DM Console roster card + "DM tools" "Bonus DM AP"
 Repro:    1. Compare the AP-related UI for the same character across all three tools in one session. 2. On a DM Console roster card, look at the always-visible stat strip, then expand "DM tools (private)."
 Impact:   Answering "how much AP does this character have" — the task's own framing for the DM journey — is not possible from a roster card's visible stat strip at all (it shows HP/AC/Speed/Pass. Perc/Prof/Save DC, no AP). Expanding DM tools surfaces a number, but it's labeled "Bonus DM AP" (93 in testing) and does not match what the player's own Live Sheet calls "AP left" (7, with "85 earned / 78 spent") for the same character at the same moment. A DM skimming the card could easily read "93" as "this player has 93 AP to spend," which is wrong — a real, consequential misreading of a core game resource, not just a labeling nitpick.
@@ -85,6 +102,7 @@ Fix:      Surface a plain "AP available" figure on the roster card's always-visi
 
 ### CharGen's "☁ Cloud" toolbar button is invisible — white text on a white background
 Severity: MEDIUM
+Outcome: **FIXED** — measured at **1:1**, literally white on white. Now 11.62:1. v1.343.
 Where:    CharGen — top toolbar, `#cgCloudBtn`
 Repro:    Open CharGen signed out and look at the Cloud button in the top toolbar.
 Impact:   Every signed-out visitor sees a blank white pill instead of a labeled "☁ Cloud" entry point. The button still works when clicked — it just can't be seen. Live Sheet's equivalent `#cloudBtn` renders correctly (dark blue text on white), so this is a CharGen-specific regression, not a deliberate style.
@@ -93,6 +111,7 @@ Fix:      Give `#cgCloudBtn` the same color rule Live Sheet's `#cloudBtn` uses.
 
 ### Info modal has no focus trap — keyboard Tab lands on background controls hidden behind the overlay
 Severity: MEDIUM
+Outcome: **FIXED** — traps Tab/Shift+Tab, sets `aria-modal`, restores focus to the opener. Verified RED: focus escaped after one Tab. v1.343.
 Where:    CharGen — "ℹ️ Info" dialog, keyboard-only navigation
 Repro:    1. Tab to the "ℹ️ Info" button and press Enter to open it. 2. Press Tab once.
 Impact:   Opening the dialog doesn't move focus into it (no `role="dialog"`/`aria-modal`), and stays on the Info button; the next Tab moves straight to the "1 Setup" chip-nav button, a control visually behind the overlay. A keyboard-only or screen-reader user has no way to reach the modal's own content or close control except guessing Escape works. The "✕" close button also has no accessible name (`aria-label`/`title` both null).
@@ -101,6 +120,7 @@ Fix:      Move initial focus into the dialog on open, trap Tab/Shift+Tab while i
 
 ### A revoked invite link looks identical to a valid one when opened signed out
 Severity: MEDIUM
+Outcome: **PARTIALLY FIXED** — the banner no longer promises "this link stays valid". It cannot check while signed out: `anon` has no grant on `campaign_invites`, and an anon validity probe would let anyone test tokens against the live database. v1.343.
 Where:    CharGen — `?invite=<revoked token>` landing, signed out
 Repro:    Open the CharGen URL with a DM-revoked invite token, signed out.
 Impact:   Anyone who clicks a link a DM has withdrawn sees the exact same "You've been invited… this link stays valid until you [sign in]" banner as a live invite, with no hint it's dead. Combined with the CRITICAL sign-in-drops-the-invite bug above, there is no way for that person to ever discover the link doesn't work.
@@ -109,6 +129,7 @@ Fix:      Check revoked/redeemed state before showing the "you've been invited" 
 
 ### Invites, Rules, and Archived-campaigns are hidden behind collapsed disclosures with no summary of what's inside
 Severity: MEDIUM
+Outcome: **FIXED** — both summaries carry live badges (`· 3 bans · 1 house rule · joins grant 79 AP`, or `· no starting AP set`). v1.343.
 Where:    DM Console — Campaign (cloud) panel landing state
 Repro:    Select a campaign in DM Console and look at the panel without clicking anything further.
 Impact:   "Which invite did I send to whom" and "what did I ban" (the task's own framing) are both unanswerable from the landing state — the invite and rules sections are separate `<details>` widgets, collapsed by default, with no count or badge on the collapsed row. A DM has to know to expand each in turn; nothing hints there's a live invite waiting or that a species is banned.
@@ -117,6 +138,7 @@ Fix:      Show a lightweight badge on the collapsed summary row ("2 invites outs
 
 ### Opening a character from My Characters can silently land on a blank "Untitled draft" with no error
 Severity: MEDIUM
+Outcome: **PARTIALLY FIXED** — the load path already alerted on real failures, contrary to the finding. The genuine ambiguity was *empty vs broken* (an empty `LOG` renders as a blank builder); both states now say which they are. v1.343.
 Where:    CharGen — `?cloudChar=<id>` deep link from My Characters
 Repro:    From My Characters, click "Open in CharGen" on a specific character and wait.
 Impact:   Instead of the requested character, the tool shows "Untitled draft, 0/0 AP" with no toast, banner, or alert — indistinguishable on screen from correctly opening a genuinely-empty draft. Reproduced 3 times, correlated each time with the character-fetch request never completing. **Caveat:** every reproduction coincided with `net::ERR_ABORTED` network errors that were widespread across this sandboxed session (likely an artifact of the relay/proxy workaround under sustained load, not something a normal user's connection would trigger) — so the trigger frequency is uncertain. What's independently verifiable regardless of cause: when the fetch stalls, nothing tells the user their character failed to load.
@@ -125,6 +147,7 @@ Fix:      Add a visible timeout/error state ("Couldn't load this character — r
 
 ### Archived campaigns can't be viewed at all without unarchiving them first
 Severity: MEDIUM
+Outcome: **NOT DONE** — a read-only archived view is a new feature rather than a defect fix. Left for a product decision.
 Where:    DM Console — Archived campaigns
 Repro:    Expand "Archived campaigns" and look at what an archived row offers.
 Impact:   A DM wanting to check an old campaign's notes/roster/history has no read-only peek — the row offers only a name and an "Unarchive" button. To look, they must first put it back in their active list.
@@ -133,6 +156,7 @@ Fix:      Let an archived campaign's name open a read-only view of its roster/ru
 
 ### A brand-new empty campaign gives no pointer to "Invite new player," which is collapsed by default
 Severity: MEDIUM
+Outcome: **FIXED** — the empty roster now offers "Invite a player", which opens the collapsed disclosure and focuses the note field. v1.343.
 Where:    DM Console — Campaign Roster + Campaign (cloud) panel, immediately after "+ Create"
 Repro:    Type a campaign name, click "+ Create."
 Impact:   The roster accurately says "No characters in this campaign yet.," but the next step a brand-new DM needs — find and share an invite — is inside a collapsed disclosure with no visual link from the empty-roster message to it.
@@ -141,6 +165,7 @@ Fix:      Auto-expand "Invite new player" the first time a campaign has zero cha
 
 ### Three differently-scoped ways to add a player are shown together with no hierarchy for which to use
 Severity: MEDIUM
+Outcome: **NOT DONE** — which of the three routes to recommend is a product call, not a mechanical fix. Left open.
 Where:    DM Console — Invite new player panel
 Repro:    Expand "Invite new player."
 Impact:   A reusable "Players:" code, a reusable "DMs:" code, and a separate single-use invite-link flow (with its own Starting-AP/Note fields) are all shown at once, distinguished only by small ⓘ tooltips. A new DM has to read three tooltips to figure out which mechanism is "the normal way to add my one player."
@@ -149,6 +174,7 @@ Fix:      Lead with one recommended path (the single-use link, since it's the on
 
 ### "Starting AP" field's own tooltip claims it's pre-filled; the observed field is empty
 Severity: MEDIUM
+Outcome: **FIXED** — it does pre-fill, but only when a tier is saved. The tooltip now states the condition and says an empty box grants 0. v1.343.
 Where:    DM Console — Invite new player → Starting AP field
 Repro:    On a fresh campaign with default rules, expand "Invite new player" and look at Starting AP before typing anything.
 Impact:   The field's tooltip states it's "Pre-filled from 'Starting tier'… worth matching to your curve's L1 (Standard 79, Generous 83)…" but the field shows only a grey placeholder "0," not a real value. A DM who trusts the tooltip and doesn't type a value generates a 0-AP invite, silently diverging from the documented behavior.
@@ -157,6 +183,7 @@ Fix:      Either make the pre-fill actually populate the input's value, or corre
 
 ### Ability-score labels and modifier badges fall short of WCAG AA contrast
 Severity: LOW
+Outcome: **FIXED, and worse than reported** — four of six ability colours failed AA as text (2.65–4.33:1), not just one. All darkened past 4.5:1 with hues preserved. v1.343.
 Where:    CharGen — Abilities section labels/pills; Live Sheet — matching ability block (same color scheme, both tools)
 Repro:    Look at the STR/DEX/CON/WIS colored labels and modifier badges in either tool.
 Impact:   Visually legible in practice (bold white-on-saturated-color, confirmed by screenshot) but measures 2.65:1–4.33:1 against WCAG AA's 4.5:1 minimum — a real shortfall for low-vision users even though it isn't illegible to an average viewer.
@@ -165,6 +192,7 @@ Fix:      Darken the DEX/CON/WIS accent colors slightly (STR is already close) t
 
 ### Save/Load success toast uses a danger-red color, is silent to screen readers, and never auto-dismisses
 Severity: LOW
+Outcome: **PARTIALLY FIXED** — colour is now tone-aware and it carries `role="status"`/`aria-live`. The "never auto-dismisses" claim was **wrong**: it has always cleared after 2.6s. v1.343.
 Where:    CharGen — `#flashmsg` toast after Save/Load
 Repro:    Trigger a character Save or Load.
 Impact:   The success toast ("Saved to your Downloads folder: …") is styled `background: rgb(122,0,0)` (dark maroon) with white text — the color language typically reserved for errors — for a routine success. It has no `role="status"`/`aria-live`, so screen-reader users get no notification of success at all, and it doesn't auto-dismiss (still present 20+ seconds later in testing) or offer a close control, overlapping page content beneath it.
@@ -173,6 +201,7 @@ Fix:      Use a neutral/positive color for success toasts, add `role="status"` (
 
 ### No success confirmation after archiving a campaign
 Severity: LOW
+Outcome: **FIXED** — confirms by name and points at "Show archived" for the way back. v1.343.
 Where:    DM Console — "Archive campaign" button
 Repro:    Select a campaign, click "Archive campaign," confirm the dialog.
 Impact:   The only feedback is the page snapping back to a blank "— select campaign —" state — no "Archived ✓" toast. A DM has to infer success from the campaign's absence rather than being told directly.
@@ -181,6 +210,7 @@ Fix:      Show a brief inline confirmation ("Untitled Playtest archived") before
 
 ### Two near-identically-labeled "DM notes" fields exist per campaign — easy to update the wrong one
 Severity: LOW
+Outcome: **FIXED** — both fields now name their scope, and the campaign-level one points at the per-character field. v1.343.
 Where:    DM Console — per-character "DM notes" vs. campaign-level "DM NOTES"
 Repro:    Expand a roster card's "DM tools (private)" section, then separately scroll to the campaign's own "DM NOTES" tile.
 Impact:   Both are labeled "DM notes"/"DM NOTES" with no qualifying text distinguishing "about this character" from "about this campaign." A DM jotting a session reminder could easily save it to the wrong one.
@@ -189,6 +219,7 @@ Fix:      Rename one, e.g. "Character notes" vs. "Campaign notes."
 
 ### Inconsistent default name for an unnamed character across CharGen and DM Console
 Severity: LOW
+Outcome: **NOT DONE** — the two strings describe different states (a real default name vs a fallback for a blank one). Aligning them means changing a shared default in `js/sync.js` — a human call.
 Where:    CharGen name field ("New Character") vs. DM Console roster card heading ("Unnamed character")
 Repro:    Join a campaign via invite without setting a character name; compare the two tools' placeholder text for the same character.
 Impact:   Minor but visible naming drift for an identical, never-touched character — easy to miss individually, reads as sloppy when both tools are open in the same session.
@@ -197,6 +228,7 @@ Fix:      Use the same placeholder string in both tools.
 
 ### Campaign-join confirmation is a native, unstyled `confirm()` dialog that doesn't name the campaign
 Severity: LOW
+Outcome: **WON'T FIX (documented)** — the campaign name only arrives with `redeemPlayerInvite()`'s response, and prompting after that would confirm an act already taken. Consequence copy improved instead, and the constraint is commented in the source. v1.338/v1.343.
 Where:    CharGen — invite-link redemption, `tools/PACT-CharGen-Webtool.html:905`
 Repro:    Open a DM-generated invite link while signed in.
 Impact:   The one moment that decides "am I joining the right campaign, and will this replace my current build" is a plain browser `confirm()` reading "Accept this campaign invite? This creates a brand-new character bound to the campaign and replaces your current in-progress build." — no campaign name, no app styling, inconsistent with the otherwise fully custom-styled UI.
@@ -205,6 +237,7 @@ Fix:      Replace with an in-page styled confirmation that names the campaign ex
 
 ### DM Console roster card shows an oddly-truncated AC value
 Severity: LOW
+Outcome: **FIXED** — it was the unlabelled optional second-AC input rendering as `16 /` beside an empty box. Now placeholdered `+AC` with an explanation. v1.343.
 Where:    DM Console — roster card stat strip
 Repro:    Look at any roster card's AC stat.
 Impact:   AC renders as "10 /" followed by a visually empty box rather than a single clean number — reads as a rendering glitch even if a second (unset) value is intentional.
@@ -213,6 +246,7 @@ Fix:      Hide the second cell when it has no value, or label what it represents
 
 ### Console error during DM sign-in (low confidence — possibly a sandbox artifact)
 Severity: LOW
+Outcome: **NOT REPRODUCED** — a sandbox artifact, as suspected (`Failed to fetch` through a relayed HTTPS proxy). It did expose a genuine unguarded `currentUser()` in `login.html` that left the signed-in panel half-populated on a network blip; that is fixed. v1.343.
 Where:    login.html — sign-in submit, first DM login of a session
 Repro:    Sign in as dm@review.pact.test from a cold session.
 Impact:   One `TypeError: Failed to fetch` fired inside `supabase-js` during the sign-in call chain (`auth.js:currentUser` → `login.html:showSignedIn`). Login still succeeded on this attempt and the error didn't recur on subsequent logins in the same session, so this may be a proxy/relay artifact of the test sandbox rather than a genuine app defect.
