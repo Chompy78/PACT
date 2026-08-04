@@ -6,6 +6,15 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · docs(reviews): usability re-review pass 2 — 15 of 15 re-checked fixes held, two new
+  findings** — verified every previously-FIXED usability finding directly against the running app
+  (real Chromium via the sandbox's TLS-relay workaround, a registered dialog handler asserting every
+  `confirm()`/`prompt()`'s exact message and branch, both legs of the invite decline-then-accept flow
+  walked). Nothing regressed. Surfaced two new small findings — the "Invites issued" list hiding
+  redeemed/withdrawn invites by default with no count, and the Info dialog close button's missing
+  accessible name — both already fixed on `preview` by a separate concurrent session (see its #349).
+  Report: `docs/reviews/2026-08-04-usability-qol-2.md`. Live review stack purged and confirmed clean.
+
 - **2026-08-04 · fix(dm-console): three help strings still said the shared code grants no AP** — the
   Players-code tooltip claimed a code-join "gets a new character bound to this campaign, with no preset
   AP/budget", the invite note called it "a blank character with no preset AP", and the Starting-tier
