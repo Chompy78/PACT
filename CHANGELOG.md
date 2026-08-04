@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · feat(dm-console): collapsible invite/advancement cards; the AP-ignore toggle is
+  locked** — "Invite new player" and "Level budget curve · award pace · starting tier" are now
+  `<details>`, collapsed by default, matching the pattern Campaign Rules already used; the campaign
+  panel was a long unbroken scroll otherwise. **"Ignore player-entered AP" now sits behind a lock:** the
+  checkbox is disabled until you click 🔒 Locked, changing it asks for confirmation spelling out the
+  effect on every character in the campaign, and it re-locks immediately afterwards so an unlocked state
+  is never left lying around. Selecting a campaign always lands locked. That setting decides whether
+  every character's own log AP counts toward what they can spend — a stray click silently re-budgets the
+  whole table, which is exactly how the original invite-AP confusion started.
+
 - **2026-08-04 · fix(archive): archived characters and campaigns are actually hidden** — the archive
   feature (shipped 2026-07-25) was silently defeated outside the "My Characters" page: CharGen's and the
   Live Sheet's own cloud-load menus filtered on `kind` only and never looked at `archived_at`, so an

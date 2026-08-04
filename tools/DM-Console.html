@@ -530,13 +530,20 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 
           <div class="subtile" id="campOwnerTile">
             <div class="stitle">Owner settings</div>
-            <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);cursor:pointer">
-              <input type="checkbox" id="ignorePlayerAp"> Ignore player-entered AP
-            </label>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink)">
+                <input type="checkbox" id="ignorePlayerAp" disabled> Ignore player-entered AP
+              </label>
+              <button type="button" class="btn sm ghost" id="ignoreApLock" aria-pressed="true"
+                      title="This setting changes what every character in the campaign can spend. Click to unlock it.">&#128274; Locked</button>
+              <button type="button" class="infobtn" id="ignoreApInfo" title="When ON, AP a player granted themselves in their own character log is ignored — they can spend only AP you granted (characters.ap). Turning it OFF hands every character back whatever AP sits in their own log, which can change several players' budgets at once. Locked by default so it can't be toggled by a stray click.">&#9432;</button>
+            </div>
           </div>
 
           <div class="subtile" id="campInviteTile">
-            <div class="stitle">Invite new player</div>
+            <details id="campInviteDetails">
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Invite new player</summary>
+              <div style="margin-top:8px">
             <div class="codechip">
               <span class="lbl">Players:</span>
               <input class="field ro" id="campPlayerCode" readonly>
@@ -578,6 +585,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <div id="inviteList" style="margin-top:6px"></div>
               </div>
             </div>
+              </div>
+            </details>
           </div>
 
           <div class="subtile" id="campRulesTile">
@@ -617,7 +626,9 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
           </div>
 
           <div class="subtile" id="campAdvancementTile">
-            <div class="stitle">Level budget curve · award pace · starting tier</div>
+            <details id="campAdvancementDetails">
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Level budget curve &middot; award pace &middot; starting tier</summary>
+              <div style="margin-top:8px">
             <div class="ruleblock">
               <div class="lbl">📈 Level budget curve <button type="button" class="infobtn" title="How much cumulative AP a COMPLETE character of each level is expected to have SPENT. L1 is the level-1 figure, “+per lvl” the step: Standard 79/+24 reaches 535 at L20, Generous 83/+28 reaches 615. Run the same formula at level 0 and both land on 55 — the Guide’s optional prelude/apprentice tier. Two things read this curve: the “Track-Level” label a player sees on their sheet (their AP spent, measured against it), and the creation-pricing lock stamped into new characters, which fires once spend passes L1. It never changes what any individual option costs to buy.">ⓘ</button></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -661,6 +672,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               </div>
               <div class="grantnote">Pre-fills the “Starting AP” field when you generate a player invite (still editable per invite). Recomputed from the L1 above whenever either the tier or the curve changes.</div>
             </div>
+              </div>
+            </details>
           </div>
 
           <div style="display:flex;align-items:center;gap:8px;margin:2px 0 4px">
@@ -2165,6 +2178,7 @@ document.addEventListener('campaign-ready', function () {
     document.getElementById('campPlayerCode').value = camp.invite_code||'';
     document.getElementById('campDmCode').value     = camp.dm_invite_code||'';
     ignoreChk.checked = !!camp.ignore_player_ap;
+    _setIgnoreLocked(true);   // every campaign switch lands locked
     campArchiveBlock.style.display = camp.isOwner ? '' : 'none';
     inviteLinkRow.style.display = 'none';
     inviteLinkOut.value = '';
@@ -2230,9 +2244,43 @@ document.addEventListener('campaign-ready', function () {
   });
   document.getElementById('campPlayerCodeInfo').addEventListener('click', function(){ alert(this.title); });
   document.getElementById('campDmCodeInfo').addEventListener('click', function(){ alert(this.title); });
+  // "Ignore player-entered AP" decides whether every character's own log AP counts toward what they can
+  // spend, so a stray click silently re-budgets the whole table. It is disabled by default behind an
+  // explicit unlock, and confirms before writing — then re-locks, so the unlocked state can't be left
+  // lying around for the next accidental click.
+  var ignoreApLock = document.getElementById('ignoreApLock');
+  function _setIgnoreLocked(locked){
+    ignoreChk.disabled = locked;
+    if(!ignoreApLock) return;
+    ignoreApLock.setAttribute('aria-pressed', locked ? 'true' : 'false');
+    ignoreApLock.innerHTML = locked ? '&#128274; Locked' : '&#128275; Unlocked';
+    ignoreApLock.title = locked
+      ? 'This setting changes what every character in the campaign can spend. Click to unlock it.'
+      : 'Unlocked — the checkbox can be changed. It re-locks automatically after a change.';
+  }
+  // disabled === locked, so the new locked state is simply the inverse of the current one.
+  if(ignoreApLock) ignoreApLock.addEventListener('click', function(){
+    _setIgnoreLocked(!ignoreChk.disabled);
+  });
+  if(document.getElementById('ignoreApInfo'))
+    document.getElementById('ignoreApInfo').addEventListener('click', function(){ alert(this.title); });
+
   ignoreChk.addEventListener('change', async function(){
-    if(!currentCampId) return;
-    await B.setIgnorePlayerAp(currentCampId, ignoreChk.checked);
+    if(!currentCampId){ _setIgnoreLocked(true); return; }
+    var turningOn = ignoreChk.checked;
+    var msg = turningOn
+      ? 'Ignore player-entered AP?\n\nEvery character in this campaign will be able to spend ONLY the AP '
+        + 'you granted them. Any AP in their own character log stops counting toward their budget.'
+      : 'Stop ignoring player-entered AP?\n\nEvery character in this campaign gets back whatever AP sits '
+        + 'in their own log, on top of what you granted. This can change several players\' budgets at once.';
+    if(!confirm(msg)){ ignoreChk.checked = !turningOn; _setIgnoreLocked(true); return; }
+    try {
+      await B.setIgnorePlayerAp(currentCampId, ignoreChk.checked);
+    } catch(err){
+      ignoreChk.checked = !turningOn;          // put the box back if the write failed
+      alert('Could not change that setting: ' + (err && err.message ? err.message : err));
+    }
+    _setIgnoreLocked(true);                    // always re-lock
   });
 
   // ---- Invites issued -------------------------------------------------------------------------
