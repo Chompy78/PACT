@@ -45,6 +45,17 @@
   `decisions/2026/D-GH-2026-08-04-campaign-starting-ap.md`. **Corrected by
   D-GH-2026-08-04-join-grant-followups below — read both.**
 
+- **D-GH-2026-08-04-starting-tier-level-band** — starting tier was one ratio doing two jobs; off a
+  Standard L1 of 79 the presets were literally levels (55 = L0, 79 = L1, 103 = L2), so a DM picking
+  "Veteran" was picking "level 2" without being told. Split into level 0–20 (priced off the campaign's
+  own curve, same formula as `js/ap-by-level.js`) plus a narrow ±15% band named for campaign tone.
+  Records why bands are narrow, why old presets map across *exactly* rather than approximately, and why
+  `ap` stays the authoritative field. Also **reverses the `absent → 79` default** from
+  D-GH-2026-08-04-join-grant-followups: that 79 is a hardcoded input placeholder inside a collapsed
+  `<details>`, not a setting a DM chose, so "the UI already shows this number" was never an argument.
+  Absent now grants 0, made safe to ship by stating the grant on the code row itself. Full record:
+  `decisions/2026/D-GH-2026-08-04-starting-tier-level-band.md`.
+
 - **D-GH-2026-08-04-review-stack-seed** — a usability review had no way to reach the signed-in half of
   the app (`cloud-e2e` tears its stack down immediately), so added a seeded stack that stays up. Default
   is a local throwaway stack; `--live` targets a hosted project when Docker isn't available. Records why

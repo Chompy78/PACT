@@ -436,9 +436,11 @@ async function run() {
     // ---- 10. The join grant reads a real-world `rules` blob, not just a well-formed one ----
     // `campaigns.rules` is free-form jsonb a DM edits, and it is `not null default '{}'` while
     // createCampaign() inserts only {name, dm_id} — so "no startingTier at all" is the COMMON case,
-    // not an edge one. Both branches below were wrong before this PR: the absent case granted 0
-    // (while DM Console displayed 79), and an over-int32 figure passed the digits-only regex and then
-    // overflowed the ::integer cast, aborting the whole join transaction.
+    // not an edge one. It must grant NOTHING: a DM who never expanded the (collapsed) advancement
+    // panel has made no choice, and the 79 shown in that panel is a hardcoded input placeholder, not
+    // a saved setting. This briefly defaulted to 79 and was reversed the same day; the check below is
+    // what stops it drifting back. The other branch covers an over-int32 figure, which passed the
+    // digits-only regex and then overflowed the ::integer cast, aborting the whole join.
     section('the join grant survives a real-world rules blob');
     const oddCamps = await dmPage.evaluate(async () => {
       const c = await import('/PACT/js/campaign.js');
@@ -473,8 +475,11 @@ async function run() {
     const bareJoin = await joinAs('bare', oddCamps.bare);
     check('a campaign with no startingTier still lets a player join', bareJoin.ok, bareJoin.err);
     const bareRow = (sql(cfg, `select ap from characters where id = '${bareJoin.id}'`))[0];
-    check('and grants the default 79 the UI advertises', bareRow && bareRow.ap === 79,
+    check('and grants nothing, because no tier was ever saved', bareRow && bareRow.ap === 0,
           `ap=${bareRow && bareRow.ap}`);
+    const bareAward = sql(cfg, `select amount from ap_awards where character_id = '${bareJoin.id}'`);
+    check('and writes no ap_awards row for a zero grant', bareAward.length === 0,
+          JSON.stringify(bareAward));
 
     const hugeJoin = await joinAs('huge', oddCamps.huge);
     check('an out-of-range startingTier does not abort the join', hugeJoin.ok, hugeJoin.err);

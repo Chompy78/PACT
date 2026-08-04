@@ -91,3 +91,21 @@ number the database refused to pay. A DM who genuinely wants no grant can now ty
   the `ap_awards` guard for real), a campaign with no `startingTier` (expects 79), and an over-`int32` tier
   value (expects a clean join at 0). The suite goes 24 → 32 checks.
 - `engine-parity` 24/0, `audit` 28/0, `log-fuzz` 500/500 clean.
+
+---
+
+## Addendum, same day — the `absent -> 79` default was wrong and has been reversed
+
+See `D-GH-2026-08-04-starting-tier-level-band`. The reasoning in "1. ABSENT != ZERO" above does not
+hold: the 79 that DM Console displays is a hardcoded `value="79"` attribute on the input element — a
+placeholder the HTML ships with, not a saved setting — and the field sits inside a **collapsed**
+`<details>`. A DM who never expanded "Level budget curve · award pace · starting tier" had not seen
+the field, so there was no UI promise to keep, and paying out a full level-1 budget on the strength of
+a placeholder was the larger error.
+
+Absent now grants **0** (`2026-08-04-join-grant-absent-means-zero.sql`). Everything else in this
+record stands: the 7-digit bound, the `ap_awards` double-pay guard and its test, the DM Console
+falsy-zero fix, and `refreshServerAp`.
+
+Kept rather than rewritten because the mistake is the useful part: "the UI already shows this number"
+is only an argument when the number is something a human chose.

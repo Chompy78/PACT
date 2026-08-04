@@ -590,6 +590,48 @@ def check_rls(rep):
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+def check_chargen_section_nav(rep):
+    """CharGen's section-nav chips are bound to the form POSITIONALLY: SECTIONS[i] -> #sec(i+1).
+
+    The #secN elements are generated at runtime by buildForm()'s grp() helper off an incrementing
+    counter, so the binding is "Nth grp() call == SECTIONS[N-1]" with nothing asserting it. The two
+    drifted: a standalone 'Arts' entry survived after Arts & Techniques were merged into
+    'Arts & Boons', leaving SECTIONS one longer than the form. Every chip from 7 onward carried the
+    previous section's label, the 11th pointed at a #sec11 that never existed, and -- because
+    updateSections() breaks on the FIRST matching entry -- all Arts spend was rendered as section 7's
+    AP subtotal, i.e. against 'Class Access & Features'.
+
+    Counting catches the whole class: a length mismatch is the only way the positional binding can
+    break, and it is invisible in review.
+    """
+    rep.group("CharGen section nav (SECTIONS <-> buildForm grp() sections)")
+    src = (REPO / "tools" / "PACT-CharGen-Webtool.html").read_text(encoding="utf-8", errors="replace")
+
+    m = re.search(r"const SECTIONS\s*=\s*\[(.*?)\n\];", src, re.S)
+    if not m:
+        rep.fail("could not find the SECTIONS array in PACT-CharGen-Webtool.html")
+        return
+    # One entry per '{t:' opening a line in the array body; comment lines never match.
+    entries = re.findall(r"^\s*\{\s*t\s*:", m.group(1), re.M)
+
+    # Each grp('<title>', ...) call in buildForm() emits one <fieldset id="secN">.
+    sections = re.findall(r"(?<![A-Za-z0-9_])grp\(\s*'", src)
+
+    if not entries:
+        rep.fail("SECTIONS parsed as empty — the regex needs updating")
+        return
+    if not sections:
+        rep.fail("no grp('...') section calls found — the regex needs updating")
+        return
+
+    if len(entries) != len(sections):
+        rep.fail("SECTIONS has %d entries but buildForm() emits %d sections — chips from #%d onward "
+                 "will be mislabelled and any beyond #%d will be dead"
+                 % (len(entries), len(sections), min(len(entries), len(sections)) + 1, len(sections)))
+    else:
+        rep.ok("SECTIONS entries == buildForm() sections (%d)" % len(entries))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="PACT static health check (AUD-1) — stdlib only.")
@@ -607,6 +649,7 @@ def main(argv=None):
     check_engine_bridge(rep)
     check_build_version_sync(rep)
     check_sql_security_definer_search_path(rep)
+    check_chargen_section_nav(rep)
     check_large_assets(rep)
     if args.rls:
         check_rls(rep)
