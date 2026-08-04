@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · fix(dm-console): roster priced every AP figure against player AP only, ignoring DM AP** —
+  reported from the live Amble campaign, where characters showed "OVER BUDGET by 27 / 36 AP". DM AP is
+  stored only on `characters.ap` and never in the character's log, but `dmAnalyze()` called `compute(b)`
+  with **no** opts and reported `economy()`'s totals — and `economy()` can only see the log. So the card's
+  "AP left", the table's "AP Avail", the ⚠ OVER BUDGET warning (`js/engine.js:423`) and the AP Ledger's
+  `total / budget` line were all player-log-only. Amble runs `ignore_player_ap` with the whole budget
+  granted as DM AP, so the entire budget was invisible and every character read as deeply overspent —
+  contradicting what those same players saw on their own Live Sheets. `{dmAp, ignorePlayerAp}` now flows
+  `dmAnalyze` → `analyzeAug` → `cloudAnalyze`, and `available` is `spendable − economy().spent` — the Live
+  Sheet's own `_apRemaining()`, i.e. the frozen ledger, not `compute()`'s repriced total (D-GH30). Anders
+  −15 → **12**, Cedric −36 → **0**, both bogus warnings gone. Toggling ignore-player-AP now re-fetches the
+  roster it just re-budgeted. `dm-console-ui` 73 → **79** checks; 4 mutants killed. Display-only; no
+  `DATA.version` bump. See `decisions/2026/D-GH-2026-08-04-dm-console-dm-ap-budget.md`.
+
 - **2026-08-04 · feat(dm-console): read-only view of an archived campaign** — an archived campaign offered
   its name and an **Unarchive** button and nothing else, so checking an old campaign's roster, rules or
   notes meant putting it back in the active list first — mutating state purely to look at it. Its name is
