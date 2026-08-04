@@ -34,6 +34,16 @@
   third-party host blocked: all three tools now fire their cloud event, which previously never fired at
   all. Full record: `decisions/2026/D-GH-2026-08-03-vendor-supabase-js.md`.
 
+- **D-GH-2026-08-04-campaign-starting-ap** — the two routes into a campaign behaved differently: an
+  invite created a character with its AP grant, while joining by the shared code only set `campaign_id`,
+  so those players landed on 0 AP silently (what happened to Cedric Brightblade). `bind_character_to_
+  campaign` now grants the campaign's own `rules.startingTier.ap` — deliberately reusing the figure that
+  already pre-fills the invite, so one number governs both routes and they cannot drift apart again.
+  Grants only on a genuine first bind, guarded against an unbind/rebind double-pay, additive so existing
+  AP is topped up not clobbered, credited to the campaign's DM rather than the joining player, and a
+  malformed rules blob grants nothing rather than blocking the join. Full record:
+  `decisions/2026/D-GH-2026-08-04-campaign-starting-ap.md`.
+
 - **D-GH-2026-08-03-invite-note-dm-only** — RLS is row-level, so the redeemer clause on
   `campaign_invites_select` let a player read the DM's `note` on their own invite. Withheld at the COLUMN
   level; the DM still reads it through the SECURITY DEFINER `list_campaign_invites()`. Turned on a

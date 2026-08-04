@@ -6,6 +6,25 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · feat(campaign): joining by the shared code now grants the campaign's starting AP**
+  (SQL migration `2026-08-04-campaign-starting-ap-on-join.sql`) — an invite created a character with its
+  grant; joining by code only set `campaign_id`, so those players landed on **0 AP** with nothing saying
+  so. `bind_character_to_campaign` now grants `rules.startingTier.ap`, the same figure that already
+  pre-fills the invite, so one number governs both routes. Only on a genuine first bind, guarded against
+  an unbind/rebind double-pay, additive, credited to the DM not the joining player, and a malformed rules
+  blob grants nothing rather than blocking the join. Verified live (45 granted, provenance row written,
+  rebind no-ops, malformed value joins cleanly at 0) and gated by a new `cloud-e2e` scenario.
+
+- **2026-08-04 · fix(chargen): Randomize refuses instead of building an unaffordable character** — it used
+  `spendable || DATA.level1AP || 79`, treating a legitimate **0** as "missing", so a character with no AP
+  got a ~79 AP build it couldn't afford and was flagged OVER BUDGET the moment it finished. It now says
+  "This character has no AP yet — ask your DM to grant some" and stops. Last instance of the falsy-zero
+  bug class that caused the 79 AP conjured onto Cedric Brightblade.
+
+- **2026-08-04 · chore(dm-console): remove six orphaned CSS rules** — `.grantCharList` / `.grantCharRow`
+  and friends styled the per-character tick list deleted when grant codes stopped pretending to be
+  per-character. Nothing carries those class names any more.
+
 - **2026-08-04 · feat(dm-console): collapsible invite/advancement cards; the AP-ignore toggle is
   locked** — "Invite new player" and "Level budget curve · award pace · starting tier" are now
   `<details>`, collapsed by default, matching the pattern Campaign Rules already used; the campaign
