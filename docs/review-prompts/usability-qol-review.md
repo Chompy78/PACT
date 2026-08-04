@@ -241,3 +241,63 @@ rows back out of with `jsonb_to_recordset`, not a one-command rollback. Treat it
 for a hand-written repair, and expect to work outwards from `auth.users` because of the
 `profiles → characters/campaigns` cascade. This is the honest limit of it: the snapshot means no data
 is *unrecoverable*, not that recovery is quick.
+
+---
+
+## Second and later passes — read this before re-running
+
+A prior report exists at `docs/reviews/<date>-usability-qol.md` and **every finding in it carries an
+`Outcome:` line**. A re-run that ignores those wastes its whole budget re-listing decided work.
+
+Add this to the top of the prompt block for any pass after the first:
+
+```
+This is a RE-REVIEW. A previous report exists under docs/reviews/ and every finding in it has an
+Outcome: line saying what shipped, in which build, or why it was not done. Read that file FIRST.
+
+Your job this time, in priority order:
+  1. VERIFY. For each finding marked FIXED, confirm it is actually fixed in the running app. A fix
+     that regressed is worth more than a new LOW. Report these as VERIFIED or REGRESSED.
+  2. FIND WHAT IS NEW. The app moved several builds since that report; changed code is where new
+     defects live.
+  3. Do NOT re-report anything marked NOT DONE or WON'T FIX — those are recorded decisions, not
+     oversights. Do NOT re-report anything marked NOT A BUG unless you can show the earlier
+     verification was wrong, in which case say exactly which step of it fails.
+```
+
+## Environment traps that have already cost a report
+
+Both of these produced findings in the 2026-08-04 pass that were wrong. Put them in every prompt.
+
+```
+BEFORE ANY FINDING, PROVE THE ENVIRONMENT WORKS.
+Confirm the browser can actually reach the backend — sign in as a review account and confirm a real
+round-trip — and state at the top of your report that you did. A blocked or relayed HTTPS connection
+produces "Failed to fetch" errors that look exactly like product bugs. testing/scripts/lib/
+chromium-relay.cjs exists for this; if you need it, say so in the report.
+
+REGISTER A DIALOG HANDLER BEFORE TOUCHING ANY FLOW.
+Playwright AUTO-DISMISSES confirm() unless you handle it. Several flows here are confirm-gated, so an
+unhandled dialog silently routes you down the REJECTION branch — and the app then does exactly what a
+declined action should do. In the 2026-08-04 pass this single behaviour produced the report's only
+CRITICAL and one of its HIGHs, both wrong.
+  page.on('dialog', d => d.accept());   // or d.dismiss() — but CHOOSE, and say which
+State in every finding on a confirm-gated flow which branch you exercised, and assert the dialog count.
+
+SEPARATE OBSERVED FROM DIAGNOSED.
+Write what you SAW as the finding, and any theory about the cause under a separate "Suspected cause:"
+line. Three of four findings investigated from the last pass named a mechanism that turned out to be
+wrong while still pointing at a real problem nearby — that is useful, but only if the two are not
+presented as one claim. If you can check a cause cheaply (a SQL query, reading the function), do, and
+say what you checked.
+```
+
+## Known-open, do not re-report
+
+As of v1.343 these four are recorded decisions awaiting a product call, not defects:
+
+- read-only viewing of archived campaigns (a feature)
+- which of the three routes to add a player should be recommended
+- `"New Character"` vs `"Unnamed character"` (they describe different states; aligning them means
+  changing a shared default in `js/sync.js`)
+- the invite `confirm()` naming the campaign (the name only arrives with the redemption response)
