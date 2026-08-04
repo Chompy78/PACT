@@ -517,6 +517,134 @@ path cannot be verified by unit-level checks alone. Not sweep-eligible.
 works for sign-in, an expired link says so and offers a resend, the signup confirmation email is
 unaffected, and the redirect URL is on the Supabase allow-list.
 
+## Species/heritage packs are never charged as a purchase — the frozen ledger under-records — TODO
+Branch `fix/species-pack-not-charged`. Found while investigating a DM Console report that roster AP
+figures looked wrong. **This is the root defect behind that whole thread** — the display bugs were real
+but downstream of this.
+
+**Reproduction (Anders Tealeaf, live Amble character, built 2026-08-02 on v0.337).** The build is
+correct at **33 AP** and its species costs are correct — confirmed by the owner:
+
+| what `compute()` charges | AP |
+|---|---|
+| Heritage pack | 5 |
+| 2nd origin species (×2 pack) | 10 |
+| Species traits (Halfling: Naturally Stealthy) | 4 |
+| **species total** | **19** |
+
+The four traits *inside* the packs (Halfling Nimbleness, Gnome Darkvision, Gnome Gnomish Cunning,
+Halfling Luck) are correctly 0 — pack-included. But the LOG records, for the same 19 AP:
+
+| log event | recorded |
+|---|---|
+| `patch/identity` (set Halfling + Gnome + Forest + Rogue) | **−5** |
+| `racial` Naturally Stealthy | +4 |
+| four pack-included traits | 0 each |
+| **total** | **−1** |
+
+So the packs are **never charged**: ~20 AP of species cost missing, netted against categories where he
+overpaid at v0.337 prices (saves 8 vs 5 today, skills 4 vs 2) to leave the build's frozen spend **18 AP
+short** of what it costs — comparable like-for-like, frozen **15** vs `compute()` **33**.
+
+**Cause — sharper than "the packs aren't charged".** `compute()` derives the pack cost from `b.species`
+/ `b.species2` alone (`js/engine.js:177-178`), so a pack is never an event by design; it is priced as a
+consequence of the identity state. That is fine on its own. The defect is in how the identity event's
+delta was computed:
+
+- The four traits were **committed to the LOG before the identity event**, each recorded at **0**
+  (priced as pack-included — CharGen's form already knew the species even though no identity event had
+  been written yet).
+- `priceOf()` then priced the identity event as `compute(after) − compute(before)`. But
+  `compute(before)` sees traits owned with **no species set**, so it prices them as expensive
+  **cross-race** purchases — 21 AP that the log never actually charged.
+- The delta therefore *refunds* that phantom 21 while adding the real +15 of packs, landing at −5.
+
+Verified: `compute()` on the log truncated just before the identity event returns **21**, while the sum
+of recorded costs to that point is **0**. So the identity delta refunds AP that was never paid, and from
+that event onward the frozen ledger and `compute()` stay ~18 apart for the rest of the character's life.
+
+**The general failure:** `priceOf()` computes deltas against `compute(build)`, but recorded costs are
+not kept equal to `compute()`. Once the two diverge for any reason — here, ordering — every later delta
+compounds the error rather than correcting it. Any fix that only special-cases packs will leave this
+mechanism intact.
+
+**Owner's direction:** the packs are *real, allowable purchases* that grant those species abilities at a
+discount, so they must be recorded as purchases in their own right — their own log events with their own
+cost — not folded into an identity patch's net delta.
+
+**Effort:** large · **Risk:** high — rules-adjacent, changes what the frozen ledger contains, and every
+existing character is already under-recorded. **Get a cold plan review before implementing**
+(`/make-code-cold-plan-review`). Not sweep-eligible.
+
+```text
+0. FIRST, decide which of two fixes this is — they are different jobs and step 1 assumes the answer:
+     (a) ORDERING: make CharGen commit the identity event BEFORE any trait that depends on it, so
+         compute(before) never sees traits-without-a-species and the delta has nothing phantom to
+         refund. Smallest change, fixes this reproduction, leaves priceOf()'s general fragility.
+     (b) INVARIANT: make the recorded cost of every event equal to compute()'s own delta by
+         construction, so the frozen ledger cannot drift from compute() no matter what order events
+         arrive in. Bigger, and the durable answer.
+   The owner's stated intent — packs are real purchases that should be visible as such — argues for
+   emitting them as their own events, which is closer to (b). Confirm before building.
+1. If emitting pack events: a distinct `cat:'pack'` buy event per pack (heritage, 2nd-origin) carrying
+   its own cost. Keep the pack-included traits at 0; they are correct and the owner confirmed it.
+2. Whichever route, the identity patch must stop absorbing the pack cost, or the same AP is charged
+   twice. This is the part to get reviewed: priceOf() computes a WHOLE-BUILD delta, so splitting one
+   component out without double-counting needs care. compute() is the arbiter — after the change, the
+   sum of a character's frozen costs must equal compute().total for a character built entirely under
+   one rules version. That is the acceptance test, and it fails today: 15 vs 33.
+3. Changing species later (Halfling -> Elf) must refund/recharge the pack, not silently keep the old
+   entitlement. Cover the swap in both directions.
+4. MIGRATION — do not skip. Existing live characters (Anders 33 vs 21, Fenwick, Cedric, and any
+   already-built PCs) carry under-recorded ledgers. Options: leave them grandfathered (the app's stated
+   rule is that price drift is never refunded or charged), or emit a one-off reconciliation event.
+   This is a product decision for the owner, not an implementation detail — ask before writing it.
+5. engine-parity must stay 24/0. If compute() output moves, update testing/expected/ in the same PR and
+   bump DATA.version. If only CharGen's recorded costs change, DATA.version does NOT move.
+6. Add a gate asserting frozen-spend == compute().total for a freshly built character, which is the
+   invariant this task exists to restore.
+```
+
+**Done when:** buying a heritage/2nd-origin pack writes its own priced log event, a character built from
+scratch has frozen spend equal to `compute().total`, changing species re-prices the pack correctly, the
+migration decision is recorded in `DECISIONS.md`, and a gate covers the invariant.
+
+## Live Sheet history hides derived costs — it shows the traits but never the packs — TODO
+Branch `fix/history-shows-derived-lines`. Reported by the owner alongside the pack-charging defect
+above. **Sequenced after it** — much of this may resolve once packs are real events, so re-assess
+before starting.
+
+The Live Sheet's purchase history is **event-only**, so for Anders it renders:
+
+```text
+241  Species trait — Halfling: Halfling Nimbleness   v0.337   −0
+242  Species trait — Gnome: Darkvision 60 ft         v0.337   −0
+243  Species trait — Gnome: Gnomish Cunning          v0.337   −0
+244  Species trait — Halfling: Luck                  v0.337   −0
+```
+
+Four entries at −0 and **no sign of the 19 AP the species actually cost**, because Heritage pack and
+2nd origin species are *derived* lines from `compute()`, not log events. The AP Ledger panel does show
+them. So the tool presents two views of the same spend that don't reconcile, and the history — the one a
+player reads to answer "where did my AP go" — is the one that hides it.
+
+**Effort:** medium · **Risk:** low — display-only, no rules logic. Sweep-eligible **only after** the
+pack task lands and the remaining gap is re-measured.
+
+```text
+1. Re-measure first. If packs become real log events, the history may become complete on its own and
+   this task shrinks to a check.
+2. For whatever derived cost remains, make the history reconcile with the AP Ledger — either by showing
+   derived lines inline, or by grouping pack-included traits under their pack with the pack's price so
+   a −0 entry is visibly explained rather than looking free.
+3. A 0-cost entry should never read as "this was free" when it was paid for inside a bundle. That is
+   the actual user-facing complaint.
+4. Display-only — do NOT bump DATA.version; log in CHANGELOG.
+```
+
+**Done when:** the Live Sheet history accounts for every AP the AP Ledger charges, a pack-included trait
+is visibly attributed to the pack that paid for it, and the two views reconcile for Anders Tealeaf.
+
 ---
 
 # Conventions
