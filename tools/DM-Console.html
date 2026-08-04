@@ -877,12 +877,17 @@ function foldBuild(uptoIdx){ return window._engineFold.foldBuild(eventsUpTo(upto
 function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)); }
 
 /* ===== PACT DM Console adapter — read-only, operates on a passed-in export ===== */
-function dmAnalyze(exported){
+// `apOpts` is compute()'s {dmAp, ignorePlayerAp} — the campaign's server-side AP pool and its
+// ignore-player-AP switch. DM AP is stored ONLY on characters.ap and is NEVER written into the
+// character's log (see the two-pool model on compute() in js/engine.js), so economy(), which can only
+// see the log, structurally cannot know about it. Omitted for a locally-imported .json file, which
+// has no campaign and therefore no DM AP.
+function dmAnalyze(exported, apOpts){
   LOG = (exported && exported.LOG) || [];
   SEQ = (exported && exported.SEQ) || (LOG.length+1);
   var b = foldBuild(null);
   var eco = economy(null);
-  var r = compute(b);
+  var r = compute(b, apOpts || {});
   // unnamed spell count (dabbler cantrips + innate spells; feats removed in v0.075)
   var unnamed=0;
   for(var i=0;i<(b.dabblerCantrips||0);i++){ if(!(((b.dabblerCantripNames||[])[i])||'').trim()) unnamed++; }
@@ -911,7 +916,16 @@ function dmAnalyze(exported){
     drawbacks: (b.drawbacks||[]).slice(), features: (b.features||[]).slice(),
     casting: casting,
     // ---- economy + flags ----
-    earned: eco.earned, spent: eco.spent, available: eco.available,
+    // `available` is the SAME quantity the player's own Live Sheet shows as "AP left", computed the
+    // same way: its _apRemaining(spendable, spent) — the composed ceiling minus the FROZEN ledger's
+    // spend, not compute()'s repriced `total` (D-GH30: what a build cost when it was bought is what
+    // was paid; a reprice at today's numbers is a different question and is never the AP-left figure).
+    // It was `eco.available` (= eco.earned − eco.spent), which is player-log AP only. For a campaign
+    // running ignore_player_ap with the whole budget granted as DM AP, that made every character's
+    // entire budget invisible and showed them all deeply overspent.
+    earned: eco.earned, spent: eco.spent, available: r.spendable - eco.spent,
+    // The two pools, surfaced so a DM can see where a budget came from rather than one opaque total.
+    playerAp: r.playerAp, dmAp: r.dmAp, spendable: r.spendable, ignoredPlayerAp: !!(apOpts && apOpts.ignorePlayerAp),
     purchases: LOG.filter(function(e){return e.type==='buy';}).length,
     awards: awards, unnamed: unnamed,
     warnings: (r.warnings||[]).length, warningList: (r.warnings||[]).slice(),
@@ -1001,8 +1015,8 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 
   /* ---------- import pipeline ---------- */
   // analyze + surface the proficiency arrays the analyzer doesn't return (engine untouched)
-  function analyzeAug(raw){
-    var a = dmAnalyze(raw);
+  function analyzeAug(raw, apOpts){
+    var a = dmAnalyze(raw, apOpts);
     try{ var b = foldBuild(null);
       a.skills=(b.skills||[]).slice(); a.tools=(b.tools||[]).slice(); a.instruments=(b.instruments||[]).slice();
       a.expertise=(b.expertise||[]).slice(); a.saves=(b.saves||[]).slice(); a.masteries=(b.masteries||[]).slice();
@@ -1169,8 +1183,16 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return kvRows(rows);
   }
   function pactBuildBody(s){
-    var h = kvRows([['AP earned', s.earned||0],['AP spent', s.spent||0],['AP available', s.available||0],
-                    ['Purchases', s.purchases||0],['Rules', s.rules||'?']]);
+    // Show the ceiling's two pools, not just the net. "AP available" is spendable − spent, and with
+    // ignore-player-AP on, a character's own log AP contributes nothing — a DM reading a bare
+    // "6 earned / 12 available" could not otherwise reconstruct where the 12 came from.
+    var rows = [['AP earned (own log)', s.earned||0]];
+    if(s.dmAp) rows.push(['DM-granted AP', s.dmAp]);
+    if(s.ignoredPlayerAp && s.playerAp) rows.push(['Player AP ignored (campaign setting)', s.playerAp]);
+    if(s.dmAp || s.ignoredPlayerAp) rows.push(['Spendable total', s.spendable||0]);
+    rows.push(['AP spent', s.spent||0], ['AP available', s.available||0],
+              ['Purchases', s.purchases||0], ['Rules', s.rules||'?']);
+    var h = kvRows(rows);
     if(s.warningList && s.warningList.length){
       h += '<div class="cglabel" style="margin-top:8px">Build warnings ('+s.warningList.length+')</div>';
       h += s.warningList.map(function(w){ return '<div class="warnitem">⚠ '+esc(w)+'</div>'; }).join('');
@@ -1266,7 +1288,9 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     // "How much AP does this character have" is the DM's most-asked roster question, and it was the one
     // stat NOT on this strip -- a DM had to expand DM tools, where the only number shown was the
     // DM-granted pool under a label ("Bonus DM AP") that reads like a spendable total and is not one.
-    // s.available is the same figure the player's own Live Sheet calls "AP left", from the same engine.
+    // s.available is the same figure the player's own Live Sheet calls "AP left", from the same engine
+    // AND the same formula (spendable − frozen spend) — including the DM-granted pool, which is why it
+    // now agrees with the player's sheet instead of showing a DM-funded character as deeply overspent.
     var statCells = [
       ['AP left', avail],
       ['HP', s.hp],
@@ -1634,7 +1658,14 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     var summary = null;
     if(hasData){
       try {
-        summary = analyzeAug({ LOG: log, SEQ: row.stats.SEQ || (log.length+1), rules: row.stats.rules, name: row.name });
+        // The character's AP ceiling is the campaign's business, not the log's: `row.ap` is the
+        // server-authoritative DM pool and _dmCampaignApRules carries the campaign's
+        // ignore_player_ap switch (set by selectCampaign() before the roster is fetched). Without
+        // both, every AP figure below is player-log-only — which is what made an entirely
+        // DM-funded roster read as universally overspent.
+        var _apr = window._dmCampaignApRules || {};
+        summary = analyzeAug({ LOG: log, SEQ: row.stats.SEQ || (log.length+1), rules: row.stats.rules, name: row.name },
+                             { dmAp: Number(row.ap) || 0, ignorePlayerAp: !!_apr.ignorePlayerAp });
       } catch(e){ hasData = false; summary = null; }
     }
     // Carry the `name` COLUMN through even when hasData is false. A player can name a character and
@@ -2383,8 +2414,10 @@ document.addEventListener('campaign-ready', function () {
       campSection.style.display = 'none';
       setImportPanelDimmed(false);
       // Signing out must also drop any archived-campaign peek, so the next sign-in doesn't inherit a
-      // read-only lock (or a banner) belonging to the previous DM's campaign.
+      // read-only lock (or a banner) belonging to the previous DM's campaign — and the AP rules with
+      // it, so a stale ignore-player-AP switch can't price the next DM's roster.
       currentCampId = null; peekCamp = null; window._dmPeekActive = false;
+      window._dmCampaignApRules = null;
       _renderPeekState();
       // Clear the cloud roster on sign-out — otherwise it stays in memory and Table view (which
       // merges cloud data into the shared local+cloud table regardless of #campSection's visibility)
@@ -2454,6 +2487,7 @@ document.addEventListener('campaign-ready', function () {
     if(!camp){
       campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none';
       dmNotesText.value = ''; dmNotesStatus.textContent = '';
+      window._dmCampaignApRules = null;   // no campaign selected → no DM AP context to price against
       _renderPeekState();   // clears the banner and releases the lock
       // Deselecting a campaign must also clear the cloud roster — see the sign-out branch above for why.
       if(window._dmRenderCloudRoster) window._dmRenderCloudRoster(campRoster, []);
@@ -2467,6 +2501,11 @@ document.addEventListener('campaign-ready', function () {
     _renderPlayerCodeGrant();   // the grant figure belongs to the campaign, so it moves with the switch
     ignoreChk.checked = !!camp.ignore_player_ap;
     _setIgnoreLocked(true);   // every campaign switch lands locked
+    // The roster cards price each character's AP ceiling against this switch (cloudAnalyze, in the
+    // earlier UI-layer IIFE — a separate closure, hence the window seam). Set BEFORE loadRoster()
+    // below, so the first paint already has it; a campaign switch re-fetches the roster, so the two
+    // can't disagree.
+    window._dmCampaignApRules = { ignorePlayerAp: !!camp.ignore_player_ap, campaignId: camp.id };
     // "Archive this campaign" is meaningless on one that already is — hide it outright rather than
     // show a disabled danger button the DM has to reason about.
     campArchiveBlock.style.display = (camp.isOwner && !peekCamp) ? '' : 'none';
@@ -2617,6 +2656,14 @@ document.addEventListener('campaign-ready', function () {
     if(!confirm(msg)){ ignoreChk.checked = !turningOn; _setIgnoreLocked(true); return; }
     try {
       await B.setIgnorePlayerAp(currentCampId, ignoreChk.checked);
+      // This switch is half of every character's AP ceiling, so the roster now shows stale budgets.
+      // Update the rules the cards price against and re-fetch — the tooltip promises this "can change
+      // several players' budgets at once", and the DM should see that happen rather than take it on
+      // trust. Also update the local campaign record so a re-select doesn't revert to the old value.
+      window._dmCampaignApRules = { ignorePlayerAp: ignoreChk.checked, campaignId: currentCampId };
+      var _c = currentCampaigns.find(function(c){ return c.id === currentCampId; });
+      if(_c) _c.ignore_player_ap = ignoreChk.checked;
+      loadRoster(currentCampId);
     } catch(err){
       ignoreChk.checked = !turningOn;          // put the box back if the write failed
       alert('Could not change that setting: ' + (err && err.message ? err.message : err));
