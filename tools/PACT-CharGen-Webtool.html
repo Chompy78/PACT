@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.334.html**-->
+<!--**PACT-CharGen-Webtool v1.336.html**-->
 
 <!doctype html>
 <!--
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.334 · Rules v0.338</title><style>
+<title>PACT Character Generator — Web Tool v1.336 · Rules v0.338</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -416,7 +416,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.334</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.337</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Save this character to the cloud, or load one you saved before" style="color:#fff;border-color:rgba(255,255,255,.35)">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.336</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.337</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Save this character to the cloud, or load one you saved before" style="color:#fff;border-color:rgba(255,255,255,.35)">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
@@ -3466,7 +3466,14 @@ const SECTIONS=[
  {t:'Hit Dice & Saves',lines:['Hit Dice','Proficiency bonus','Vigor','Grit','Saving throws'],warns:['Vigor','Grit','Proficiency']},
  {t:'Skills',lines:['Skills','Tools & instruments','Expertise','Tool expertise','Languages'],warns:['Expertise','Tool expertise','skill']},
  {t:'Armour & Weapons',lines:['Armour proficiency','Weapon proficiency','Weapon masteries','Attunement slots','Starting gold'],warns:['armour','Armour','martial','master','Weapon','Strength 10']},
- {t:'Arts',lines:['Arts & Techniques'],warns:[]},
+ // NOTE: there is deliberately NO standalone 'Arts' entry here. Arts & Techniques were merged into the
+ // 'Arts & Boons' section (#sec10) long ago, but the old entry survived at this index — leaving SECTIONS
+ // one longer than the markup. Two consequences, both live until 2026-08-04: every chip from 7 onward
+ // was labelled with the previous section's name and the 11th pointed at a #sec11 that does not exist;
+ // and because updateSections() breaks on the FIRST matching entry, all 'Arts & Techniques' spend was
+ // attributed here and rendered as section 7's AP subtotal — i.e. on 'Class Access & Features'.
+ // This array is positionally bound to the #secN ids in the markup: entry i MUST be #sec(i+1).
+ // testing/scripts/audit.py asserts the two stay the same length.
  {t:'Classes',lines:['Class unlocks','2nd origin class','Class features','Ki / Focus points','Sorcery points'],warns:[]},
  {t:'Subclasses',lines:['Subclass abilities','Subclass unlocks'],warns:['subclass']},
  {t:'Spellcasting',lines:['Trad ','Cantrips (','Innate spells'],warns:['Rank','Foundation','Mystic','Warlock','antrip','spell','Spell','slots','known','gate','Discipline','Magically']},
@@ -3522,8 +3529,16 @@ function jumpToControl(id){const el=$(id);if(!el)return false;
 function jumpForWarning(w){const id=warnTarget(w);if(id&&$(id)){jumpToControl(id);return;}const s=sectionIdForWarning(w);if(s)jumpTo(s);}
 function jumpFirstWarning(){const ws=(window.__WARNS||[]);const hard=ws.filter(w=>!isAdvisory(w));const t=(hard[0]||ws[0]);if(t)jumpForWarning(t);}
 function buildSecNav(){const nav=$('secnav');if(!nav)return;
-  nav.innerHTML=SECTIONS.map((s,i)=>'<button class="chip-nav" data-sec="sec'+(i+1)+'" onclick="jumpTo(\'sec'+(i+1)+'\')">'+(i+1)+' '+s.t+'<span class="chsub"></span></button>').join('');
-  const js=$('secjump');if(js)js.innerHTML='<option value="">Jump to section…</option>'+SECTIONS.map((s,i)=>'<option value="sec'+(i+1)+'">'+(i+1)+' · '+s.t+'</option>').join('');}
+  // Chips are bound to the markup POSITIONALLY (entry i -> #sec(i+1)) with nothing asserting the two
+  // agree, which is how an 11-entry SECTIONS against 10 sections shipped a dead chip. Drop any entry
+  // whose target doesn't resolve and say so in the console: a missing chip is a far better failure
+  // than a button that silently does nothing when a player clicks it.
+  const live=SECTIONS.map((s,i)=>({s:s,i:i,id:'sec'+(i+1)})).filter(function(e){
+    if(document.getElementById(e.id))return true;
+    try{console.warn('CharGen section nav: "'+e.s.t+'" targets #'+e.id+', which does not exist — chip omitted. SECTIONS and the #secN markup have drifted.');}catch(_){}
+    return false;});
+  nav.innerHTML=live.map(e=>'<button class="chip-nav" data-sec="'+e.id+'" onclick="jumpTo(\''+e.id+'\')">'+(e.i+1)+' '+e.s.t+'<span class="chsub"></span></button>').join('');
+  const js=$('secjump');if(js)js.innerHTML='<option value="">Jump to section…</option>'+live.map(e=>'<option value="'+e.id+'">'+(e.i+1)+' · '+e.s.t+'</option>').join('');}
 function updateSections(r){
   const sub=SECTIONS.map(_=>0), wc=SECTIONS.map(_=>0);
   r.lines.forEach(l=>{for(let i=0;i<SECTIONS.length;i++){if(SECTIONS[i].lines.some(p=>l[0].indexOf(p)===0)){sub[i]+=l[1];break;}}});

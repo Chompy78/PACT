@@ -626,18 +626,17 @@ begin
 
   -- Starting AP. Read defensively: `rules` is free-form jsonb a DM edits, so the tier figure may be
   -- absent, empty, or a non-numeric string. Three cases, and the difference between them matters:
-  --   absent    -> 79. A campaign created before the advancement dials existed (or one whose DM never
-  --                opened that card) has NO rules.startingTier at all, and `rules` defaults to '{}'.
-  --                Granting 0 there meant most real campaigns silently paid nothing on join while the
-  --                DM Console's own field showed 79 — the UI promised a number the DB never honoured.
+  --   absent    -> 0. A campaign whose DM never opened the advancement card has NO rules.startingTier
+  --                at all ('rules' defaults to '{}'). This briefly defaulted to 79 on the reasoning that
+  --                DM Console displays 79 so granting 0 broke a UI promise — but that 79 is a hardcoded
+  --                `value="79"` on a field inside a COLLAPSED <details>. A DM who never expanded it made
+  --                no choice, and paying out a full level-1 budget on their behalf is the bigger error.
   --   numeric   -> that value, but LENGTH-BOUNDED. '^[0-9]+$' alone accepts '2147483648', and the
   --                ::integer cast then overflows, aborting the whole transaction — so a junk rules blob
   --                could hard-fail the join, the one thing this defensive read exists to prevent.
   --   malformed -> 0. Grant nothing; never block the join.
   v_start_txt := nullif(trim(coalesce(v_campaign.rules -> 'startingTier' ->> 'ap', '')), '');
-  if v_start_txt is null then
-    v_start := 79;
-  elsif v_start_txt ~ '^[0-9]{1,7}$' then
+  if v_start_txt is not null and v_start_txt ~ '^[0-9]{1,7}$' then
     v_start := v_start_txt::integer;
   else
     v_start := 0;

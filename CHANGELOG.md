@@ -6,6 +6,60 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · fix(dm-console): three help strings still said the shared code grants no AP** — the
+  Players-code tooltip claimed a code-join "gets a new character bound to this campaign, with no preset
+  AP/budget", the invite note called it "a blank character with no preset AP", and the Starting-tier
+  tooltip said its "only effect is to pre-fill" the invite box. All three predate #329/#331: a code-join
+  now grants `rules.startingTier.ap` (79 when unset), and it binds the character the player is
+  **currently building** rather than creating a blank one — the second thing all three got wrong.
+  Reported by the owner, who read the tooltip and could not tell what their campaign actually grants.
+  Display-only; no `DATA.version` bump.
+
+- **2026-08-04 · fix(sql): grant `service_role` its table privileges in `rls-policies.sql`** — production
+  had **none**, and nothing noticed because the app never uses that role (it is the browser client
+  throughout, on the anon key under RLS). It surfaced when `seed-review-stack.mjs` became the first
+  thing to authenticate as `service_role` and every call returned "permission denied". Supabase's
+  project defaults normally supply these, which is exactly why depending on them was wrong: this file's
+  stated job is that a fresh project works. No widening — `service_role` already bypasses RLS by design
+  and its key never reaches a browser.
+
+- **2026-08-04 · fix(chargen): section-nav chips were mislabelled from 7 onward, one was dead, and Arts
+  AP was shown on the wrong section** — found by the usability review. `SECTIONS` had **11** entries
+  against the form's **10**: a standalone `Arts` entry survived after Arts & Techniques were merged into
+  `Arts & Boons`. Because chips bind positionally (`SECTIONS[i]` → `#sec(i+1)`), every chip from 7 on
+  carried the previous section's name — "Arts" jumped to *Class Access*, "Spellcasting" to *Arts* — and
+  the 11th pointed at a `#sec11` that never existed. The quieter half: `updateSections()` breaks on the
+  first matching entry, so **all Arts & Techniques spend was rendered as section 7's AP subtotal**, on
+  *Class Access & Features*. Phantom entry removed; `buildSecNav()` now drops any chip whose target
+  doesn't resolve and warns, so a future drift loses a chip instead of shipping a dead button; and
+  `audit.py` gains a check (29 total) asserting `SECTIONS` and `buildForm()`'s `grp()` calls stay the
+  same length — verified RED against the reintroduced bug.
+
+- **2026-08-04 · test(dm-console): first automated UI coverage for the console** — `cloud-e2e` drives
+  `js/campaign.js`/`js/dm.js` directly and never opens DM Console, so the rules panel could break on any
+  change with every gate still green. `testing/scripts/dm-console-ui-e2e.mjs` (27 checks) covers the
+  starting-tier model, its override semantics, and all three `startingTier` shapes `loadRulesIntoPanel`
+  must survive. Needs no Supabase stack — supabase-js is vendored, so the module bridge loads offline and
+  fires `campaign-ready` — which keeps it cheap enough to run on every PR. Verified RED before being
+  committed (perturbing `TIER_BANDS.heroic` failed 2 checks), and it immediately caught a real one:
+  legacy `legendary` (1.6 × 79 = 126) does not land on level 3 (127), so a mapped legacy value now keeps
+  its saved number and shows as an override instead of displaying a level its figure doesn't match.
+
+- **2026-08-04 · feat(dm-console): starting tier is now a level + a band, and an unconfigured campaign
+  grants nothing** (SQL migration `2026-08-04-join-grant-absent-means-zero.sql`) — the old single ratio
+  (Prelude 0.7× / Standard 1.0× / Veteran 1.3× / Legendary 1.6×) conflated "what level is this
+  character" with "how well-resourced are they", and off a Standard L1 of 79 the presets were
+  *literally* levels: 55 = L0, 79 = L1, 103 = L2. Now two dropdowns — **level 0–20**, priced off the
+  campaign's own budget curve, and a band (**Gritty 0.85× / Standard 1.0× / Heroic 1.15×**) — with each
+  level option showing its live AP. Old `{preset, ap}` maps across exactly. The Players-code row now
+  states the grant where the code is copied ("grants **N AP**, once per character") with a link to
+  change it. And the `absent → 79` default from earlier the same day is **reversed**: that 79 was a
+  hardcoded input placeholder inside a collapsed panel, not a DM's choice, so an unconfigured campaign
+  now grants 0 and says so on screen. Amble and any campaign with a saved figure are unaffected. Also
+  fixes three help strings that still claimed the shared code granted no AP and created a blank
+  character — it binds the character the player is *currently building*. See
+  `decisions/2026/D-GH-2026-08-04-starting-tier-level-band.md`.
+
 - **2026-08-04 · test(review): seeded review stack + usability/QoL review prompt** — `cloud-e2e` proves
   the signed-in paths work but tears the stack down immediately, so a usability review had no way to
   reach the cloud half of the app at all. `testing/scripts/seed-review-stack.mjs` seeds five accounts,

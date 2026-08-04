@@ -1,0 +1,52 @@
+name: DM Console UI
+
+# DM Console had NO automated UI coverage: cloud-e2e drives js/campaign.js and js/dm.js directly and
+# never opens the console, and every other gate runs signed-out on a single page load. The rules panel —
+# the screen a DM configures a campaign from — could break on any change with every check still green.
+#
+# Deliberately cheap: no Supabase stack, no sign-in. supabase-js is vendored, so the module bridge loads
+# offline and fires campaign-ready; only network calls fail, which is irrelevant to wiring and arithmetic.
+# That keeps this runnable on every PR touching the console, unlike cloud-e2e's ~3-minute stack boot.
+
+on:
+  pull_request:
+    paths:
+      - "tools/DM-Console.html"
+      - "js/engine.js"
+      - "js/ap-by-level.js"
+      - "js/advancement.js"
+      - "js/campaign.js"
+      - "js/supabase-client.js"
+      - "testing/scripts/dm-console-ui-e2e.mjs"
+      - "testing/package.json"
+      - "testing/package-lock.json"
+      - ".github/workflows/dm-console-ui.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: dm-console-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dm-console-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: testing
+        run: npx playwright install --with-deps chromium
+
+      - name: DM Console UI checks
+        run: node testing/scripts/dm-console-ui-e2e.mjs
