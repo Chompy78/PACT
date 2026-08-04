@@ -113,8 +113,16 @@
       $('signedView').classList.remove('hidden');
       let name = '';
       try { name = (await myProfile())?.display_name || ''; } catch {}
-      const user = await currentUser();
-      $('whoami').textContent = 'Signed in as ' + (name || user?.email || 'unknown') + '.';
+      // currentUser() was unguarded while myProfile() above it was not. The view has ALREADY switched to
+      // the signed-in panel by this point, so a transient network failure here left that panel showing
+      // with its identity line never filled in -- signed in, apparently, as nobody. The 2026-08-04
+      // usability review caught one such "TypeError: Failed to fetch" on this exact line; the fetch
+      // failure itself was a sandbox artifact, but the missing guard was not.
+      let user = null;
+      try { user = await currentUser(); } catch {}
+      $('whoami').textContent = (name || user?.email)
+        ? 'Signed in as ' + (name || user.email) + '.'
+        : 'Signed in — could not load your account details just now. Reload to retry.';
     }
     function showSignedOut() {
       $('signedView').classList.add('hidden');

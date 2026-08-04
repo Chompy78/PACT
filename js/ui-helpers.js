@@ -27,16 +27,43 @@ function levelForThreshold(value, thresholdAt) {
   return lv;
 }
 
-function flash(msg) {
+/* One toast for every message the tools raise, so its default tone has to suit the common case. That
+   default used to be #7a0000 — danger red — which meant "Saved to cloud" and "Loaded: Aldric" were
+   announced in the same colour as a failure. Tone is now inferred from the leading glyph the callers
+   already use (⚠ warn, ✕/✗ error, everything else neutral), with an explicit `kind` override for a
+   caller that wants to be sure.
+
+   role=status + aria-live=polite: the toast was previously invisible to screen readers, so a
+   non-sighted player got no confirmation that a save had happened at all.
+
+   The bottom offset shares --pact-fb-bottom with the feedback widget (js/feedback.js measures it), so
+   the toast clears the same fixed bottom bars — Live Sheet's #lmobar sits exactly where this appears. */
+const _FLASH_TONES = {
+  ok:    '#14532d',   // deep green
+  warn:  '#7c4a03',   // amber-brown
+  error: '#7a0000',   // the old default, now reserved for actual failures
+};
+function _flashTone(msg, kind) {
+  if (kind && _FLASH_TONES[kind]) return _FLASH_TONES[kind];
+  const m = String(msg || '');
+  if (/^\s*[✕✗×]/.test(m) || /\bfailed\b|\berror\b/i.test(m)) return _FLASH_TONES.error;
+  if (/^\s*⚠/.test(m)) return _FLASH_TONES.warn;
+  return _FLASH_TONES.ok;
+}
+function flash(msg, kind) {
   let f = document.getElementById('flashmsg');
   if (!f) {
     f = document.createElement('div');
     f.id = 'flashmsg';
-    f.style.cssText = 'display:none;position:fixed;bottom:14px;left:50%;transform:translateX(-50%);' +
-      'background:#7a0000;color:#fff;padding:8px 14px;border-radius:8px;font-weight:700;' +
-      'z-index:10001;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+    f.setAttribute('role', 'status');
+    f.setAttribute('aria-live', 'polite');
+    f.style.cssText = 'display:none;position:fixed;left:50%;transform:translateX(-50%);' +
+      'bottom:calc(var(--pact-fb-bottom,14px) + env(safe-area-inset-bottom,0px));' +
+      'color:#fff;padding:8px 14px;border-radius:8px;font-weight:700;' +
+      'z-index:10001;box-shadow:0 2px 8px rgba(0,0,0,.3);max-width:calc(100vw - 28px)';
     document.body.appendChild(f);
   }
+  f.style.background = _flashTone(msg, kind);
   f.textContent = msg;
   f.style.display = 'block';
   clearTimeout(flash._t);

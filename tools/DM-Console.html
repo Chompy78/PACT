@@ -329,8 +329,17 @@
   .mtx tr.div td{background:#eaf0fb;font-weight:800;color:#1F3864;text-align:left;letter-spacing:.3px;text-transform:uppercase;font-size:10.5px;}
   .castslots{margin:2px 0 9px;display:flex;flex-wrap:wrap;gap:4px;}
   .slotpill{display:inline-block;background:#eef4ff;color:#2E5496;border:1px solid #cdddf6;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;}
-  .ac2sep{opacity:.45;font-weight:400;}
-  .ac2-in{width:40px;font:inherit;font-size:13px;font-weight:700;text-align:center;border:1px solid #cdd9ee;border-radius:6px;padding:1px 2px;color:#1F3864;background:#fffdf2;vertical-align:baseline;}
+  /* The separator + an empty second-AC box rendered as "16 /" followed by a small blank field, which
+   reads as a cut-off number rather than an optional input — reported as "an oddly-truncated AC value"
+   in the 2026-08-04 usability review. Dimmer separator plus a "+AC" placeholder makes it an
+   affordance instead of a defect. */
+/* Collapsed <details> gave no hint whether there was anything inside, so "which invite did I send to
+   whom" and "what did I ban" were both unanswerable from the panel's landing state — a DM had to open
+   each one to find out it was empty. These badges put the answer on the closed row. */
+.dsum{text-transform:none;letter-spacing:0;font-weight:600;color:var(--blue);opacity:.9}
+.dsum:empty{display:none}
+.ac2sep{opacity:.3;font-weight:400;}
+  .ac2-in{width:46px;font:inherit;font-size:13px;font-weight:700;text-align:center;border:1px solid #cdd9ee;border-radius:6px;padding:1px 2px;color:#1F3864;background:#fffdf2;vertical-align:baseline;}
   .ac2-in::-webkit-outer-spin-button,.ac2-in::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
   .ac2-in{-moz-appearance:textfield;}
   .chip.prof{background:#eef4ff;color:#2E5496;border-color:#cdddf6;}
@@ -536,7 +545,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 
           <div class="subtile" id="campInviteTile">
             <details id="campInviteDetails">
-              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Invite new player</summary>
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Invite new player <span class="dsum" id="campInviteSummary"></span></summary>
               <div style="margin-top:8px">
             <div class="codechip">
               <span class="lbl">Players:</span>
@@ -557,7 +566,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
               <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
                 <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
-                  <span>Starting AP <button type="button" class="infobtn" title="The AP this player begins with — one pool, granted as DM AP on the character record. They spend it building the character and it keeps funding purchases afterwards; it is exactly the same pool the “Award AP” action tops up later. Stored server-side and DM-only, so the player can’t edit or undo their own grant, and it is unaffected by the campaign’s “ignore player AP” switch. Pre-filled from “Starting tier” in the Level budget curve panel below; editable per invite. Worth matching to your curve’s L1 (Standard 79, Generous 83): a character stays on cheap creation pricing until spend passes that figure, so a matching grant lets them finish the build the campaign paid for before anything locks.">ⓘ</button></span>
+                  <span>Starting AP <button type="button" class="infobtn" title="The AP this player begins with — one pool, granted as DM AP on the character record. They spend it building the character and it keeps funding purchases afterwards; it is exactly the same pool the “Award AP” action tops up later. Stored server-side and DM-only, so the player can’t edit or undo their own grant, and it is unaffected by the campaign’s “ignore player AP” switch. Pre-filled from “Starting tier” in the Level budget curve panel below WHEN that campaign has one saved; if this box is empty it means none is set, and the invite will grant 0. Editable per invite either way. Worth matching to your curve’s L1 (Standard 79, Generous 83): a character stays on cheap creation pricing until spend passes that figure, so a matching grant lets them finish the build the campaign paid for before anything locks.">ⓘ</button></span>
                   <input class="field" type="number" id="inviteStartAp" placeholder="0" min="0" step="1" style="width:140px">
                 </label>
                 <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);flex:1 1 200px">
@@ -625,7 +634,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 
           <div class="subtile" id="campAdvancementTile">
             <details id="campAdvancementDetails">
-              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Level budget curve &middot; award pace &middot; starting tier</summary>
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Level budget curve &middot; award pace &middot; starting tier <span class="dsum" id="campRulesSummary"></span></summary>
               <div style="margin-top:8px">
             <div class="ruleblock">
               <div class="lbl">📈 Level budget curve <button type="button" class="infobtn" title="How much cumulative AP a COMPLETE character of each level is expected to have SPENT. L1 is the level-1 figure, “+per lvl” the step: Standard 79/+24 reaches 535 at L20, Generous 83/+28 reaches 615. Run the same formula at level 0 and both land on 55 — the Guide’s optional prelude/apprentice tier. Two things read this curve: the “Track-Level” label a player sees on their sheet (their AP spent, measured against it), and the creation-pricing lock stamped into new characters, which fires once spend passes L1. It never changes what any individual option costs to buy.">ⓘ</button></div>
@@ -683,8 +692,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
           <div class="grantnote" style="margin:0 0 10px">Saves the Campaign Rules and advancement settings above together.</div>
 
           <div class="subtile" id="dmNotesTile">
-            <div class="stitle">DM notes</div>
-            <textarea class="field" id="dmNotesText" placeholder="Private notes for this campaign — players never see these."></textarea>
+            <div class="stitle">DM notes about THIS CAMPAIGN</div>
+            <textarea class="field" id="dmNotesText" placeholder="Private notes for the campaign as a whole — session plans, plot threads. Players never see these. (Each character has its own separate notes field, under its roster card → DM tools.)"></textarea>
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
               <button type="button" class="btn sm" id="dmNotesSaveBtn">Save notes</button>
               <span id="dmNotesStatus" style="font-size:11px;color:var(--muted)"></span>
@@ -898,7 +907,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.341';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.343';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -920,7 +929,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   var ac2=(function(){ try{ var o=JSON.parse(localStorage.getItem(AC2_KEY)||'{}'); return (o&&typeof o==='object')?o:{}; }catch(e){ return {}; } })();
   function saveAc2(){ try{ localStorage.setItem(AC2_KEY, JSON.stringify(ac2)); }catch(e){} }
   function acCellHTML(ac, key){ var k=String(key||''); var val=(ac2[k]!=null?ac2[k]:'');
-    return (ac==null?'—':esc(ac))+' <span class="ac2sep">/</span> <input type="number" class="ac2-in" data-ac2key="'+esc(k)+'" value="'+esc(val)+'" placeholder="–" title="DM second AC" onclick="event.stopPropagation()">'; }
+    return (ac==null?'—':esc(ac))+' <span class="ac2sep">/</span> <input type="number" class="ac2-in" data-ac2key="'+esc(k)+'" value="'+esc(val)+'" placeholder="+AC" title="Optional second AC you control as DM — e.g. a shield spell or an alternate form. Blank means none; it never changes the AC the engine computes." onclick="event.stopPropagation()">'; }
   function passivePerc(s){ var pb=s.prof||0, wis=(s.mods&&s.mods.WIS)||0;
     var isP=(s.skills||[]).indexOf('Perception')>=0, isE=(s.expertise||[]).indexOf('Perception')>=0;
     return 10+wis+(isP?pb:0)+(isE?pb:0); }
@@ -1182,7 +1191,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
             '<div class="kvrow"><span class="kk" title="AP you have granted this character (the characters.ap column). This is PART OF their spendable total, not extra on top of it — the strip above shows what they can actually spend. Labelled &quot;Bonus DM AP&quot; until 2026-08-04, which read as a spendable figure and was mistaken for one.">DM-granted AP <span style="opacity:.6">&#9432;</span></span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     h += '<div class="ruleblock" style="margin-top:8px"><div class="lbl">Player-name label</div>' +
          '<input type="text" class="field dm-label-in" data-cid="'+esc(id)+'" value="'+esc(dm.playerLabel||'')+'" placeholder="e.g. Jess (Saturday group)"></div>';
-    h += '<div class="ruleblock"><div class="lbl">DM notes — private, the player never sees these</div>' +
+    h += '<div class="ruleblock"><div class="lbl">DM notes about THIS CHARACTER — private, the player never sees these</div>' +
          '<textarea class="field dm-notes-in" data-cid="'+esc(id)+'" placeholder="e.g. owes me a session recap; this is their 2nd character">'+esc(dm.dmNotes||'')+'</textarea></div>';
     h += '<div style="display:flex;align-items:center;gap:8px;margin:2px 0 10px">' +
          '<button type="button" class="btn sm dm-notes-save" data-cid="'+esc(id)+'">Save label &amp; notes</button>' +
@@ -1359,7 +1368,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     if(hasAny && !cardOn){ renderTable(); }
     if(_cloudRosterEl){
       if(cardOn){ renderCloudRoster(_cloudRosterEl); }
-      else { _cloudRosterEl.innerHTML = cloudRoster.length ? '<div class="camp-empty">Shown in the table below while Table view is on.</div>' : '<div class="camp-empty">No characters in this campaign yet.</div>'; }
+      else { _cloudRosterEl.innerHTML = cloudRoster.length ? '<div class="camp-empty">Shown in the table below while Table view is on.</div>' : '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; }
     }
   }
 
@@ -1634,7 +1643,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   }
   function renderCloudRoster(container){
     if(!container) return;
-    if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet.</div>'; return; }
+    if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; return; }
     container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
   }
   window._dmRenderCloudRoster = function(container, rows){
@@ -1978,6 +1987,23 @@ document.addEventListener('campaign-ready', function () {
     currentHouseRules = Object.assign({}, r.houseRules || {});
     renderHouseRules();
     ruleSaveStatus.textContent = '';
+    renderRulesSummary(r);
+  }
+  /* Badge on the collapsed advancement/rules row: how many bans and house rules are actually set, so a
+     DM can see at a glance whether this campaign has been configured at all. */
+  function renderRulesSummary(r){
+    var el = document.getElementById('campRulesSummary'); if(!el) return;
+    r = r || {};
+    var bans = ['bannedSpecies','bannedOriginSpecies','bannedOriginClasses','bannedMasteries',
+                'bannedBoons','bannedDrawbacks','bannedArts']
+      .reduce(function(n,k){ return n + ((r[k]||[]).length); }, 0);
+    var house = Object.keys(r.houseRules || {}).length;
+    var bits = [];
+    if(bans)  bits.push(bans + ' ban' + (bans===1?'':'s'));
+    if(house) bits.push(house + ' house rule' + (house===1?'':'s'));
+    var tier = r.startingTier && r.startingTier.ap;
+    bits.push(tier != null ? ('joins grant ' + tier + ' AP') : 'no starting AP set');
+    el.textContent = '· ' + bits.join(' · ');
   }
   // Test seam. loadRulesIntoPanel runs for every DM opening every campaign and has to cope with three
   // different startingTier shapes (current, pre-2026-08-04, absent), which is exactly the kind of
@@ -2360,6 +2386,10 @@ document.addEventListener('campaign-ready', function () {
     try {
       await B.archiveCampaign(currentCampId);
       await loadCampaigns();
+      // Archiving removes the campaign from the picker, so the ONLY visible result was the panel
+      // emptying — indistinguishable from the button having failed silently. Say what happened, and
+      // where it went, since "archived" is reversible and people look for the way back.
+      if(typeof flash==='function') flash('Archived “'+name+'” — find it under “Show archived” to restore it.');
     } catch(err){
       alert('Could not archive: '+(err&&err.message?err.message:err));
     }
@@ -2381,6 +2411,16 @@ document.addEventListener('campaign-ready', function () {
     loadRoster(currentCampId);
     loadInvites();
   }
+  // The empty roster is the whole of a new campaign's visible state, and the way forward ("Invite new
+  // player") sits inside a <details> that is collapsed by default -- so the landing screen offered a
+  // dead end. Delegated because the empty state is re-rendered on every roster load.
+  document.addEventListener('click', function(e){
+    var b = e.target && e.target.closest && e.target.closest('#campEmptyInvite');
+    if(!b) return;
+    var d = document.getElementById('campInviteDetails');
+    if(d){ d.open = true; d.scrollIntoView({behavior:'smooth', block:'center'}); }
+    var f = document.getElementById('inviteNote'); if(f) setTimeout(function(){ try{f.focus();}catch(_){} }, 350);
+  });
   document.addEventListener('visibilitychange', refreshCampaignPanels);
   window.addEventListener('focus', refreshCampaignPanels);
 
@@ -2464,8 +2504,17 @@ document.addEventListener('campaign-ready', function () {
     return new URL('PACT-CharGen-Webtool.html?invite=' + encodeURIComponent(token), location.href).href;
   }
 
+  /* Badge on the collapsed "Invite new player" row. Counts only OUTSTANDING invites, because that is
+     the number a DM is deciding on -- redeemed and withdrawn ones are history, and including them
+     would make a fully-settled campaign look like it had pending work. */
+  function renderInviteSummary(){
+    var el = document.getElementById('campInviteSummary'); if(!el) return;
+    var open = _invites.filter(function(v){ return !v.redeemedAt && !v.revokedAt; }).length;
+    el.textContent = open ? ('· ' + open + ' outstanding') : (_invites.length ? '· none outstanding' : '');
+  }
   function renderInvites(){
     if(!inviteList) return;
+    renderInviteSummary();
     var showAll = !!(inviteShowAll && inviteShowAll.checked);
     var rows = _invites.filter(function(v){
       return showAll || (!v.redeemedAt && !v.revokedAt);

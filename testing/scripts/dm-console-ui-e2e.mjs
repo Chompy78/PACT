@@ -210,6 +210,31 @@ check('roster auto-refreshes on tab visibility change', apUi.autoRefresh);
 check('and on window focus', apUi.focusRefresh);
 check('the auto-refresh is debounced (focus + visibilitychange both fire)', apUi.debounced);
 
+// 8. Collapsed <details> must advertise what is inside. "Which invite did I send to whom" and "what did
+//    I ban" were both unanswerable from the panel's landing state, so a DM had to open each disclosure
+//    to discover it was empty. Driven through the real loader, not a string check.
+const summaries = await page.evaluate(()=>{
+  const L = window._dmRulesPanel && window._dmRulesPanel.load;
+  const out = {};
+  if(L){
+    L({ bannedSpecies:['Dragonborn','Tiefling'], bannedMasteries:['Cleave'],
+        houseRules:{'Death saves in the open':true}, startingTier:{level:1,band:'standard',ap:79} });
+    out.configured = (document.getElementById('campRulesSummary')||{}).textContent || '';
+    L({});
+    out.bare = (document.getElementById('campRulesSummary')||{}).textContent || '';
+  }
+  out.inviteEl = !!document.getElementById('campInviteSummary');
+  out.rulesEl  = !!document.getElementById('campRulesSummary');
+  return out;
+});
+check('the invite disclosure has a summary badge slot', summaries.inviteEl);
+check('the rules disclosure has a summary badge slot', summaries.rulesEl);
+check('a configured campaign advertises its bans', /3 bans/.test(summaries.configured||''), summaries.configured);
+check('and its house rules', /1 house rule/.test(summaries.configured||''), summaries.configured);
+check('and what a code-join actually grants', /joins grant 79 AP/.test(summaries.configured||''), summaries.configured);
+check('an unconfigured campaign says so rather than staying blank',
+      /no starting AP set/.test(summaries.bare||''), summaries.bare);
+
 console.log(`\n[dm-console-ui] ${fail? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
 if (errors.length) console.log('\n(non-fatal errors seen: ' + errors.length + ')\n' + errors.slice(0,5).join('\n'));
 await browser.close(); server.close();
