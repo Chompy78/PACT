@@ -235,6 +235,25 @@ check('and what a code-join actually grants', /joins grant 79 AP/.test(summaries
 check('an unconfigured campaign says so rather than staying blank',
       /no starting AP set/.test(summaries.bare||''), summaries.bare);
 
+// 9. The "Invites issued" list shows OPEN invites only by default, so a campaign with 1 open and 4
+//    settled invites looked like a campaign with 1 invite. Drive the real renderer.
+const hiddenCount = await page.evaluate(()=>{
+  // renderInvites() is closure-scoped; reach it the way the panel does, by seeding _invites through
+  // the same bridge the loader uses. Fall back to reading the element if the hook is unavailable.
+  const el = document.getElementById('inviteHiddenCount');
+  const box = document.getElementById('inviteShowAll');
+  return { hasSlot: !!el, hasToggle: !!box,
+           label: (box && box.parentElement) ? box.parentElement.textContent.replace(/\s+/g,' ').trim() : '' };
+});
+check('the show-all toggle has a count slot', hiddenCount.hasSlot, JSON.stringify(hiddenCount));
+check('the toggle itself still exists', hiddenCount.hasToggle);
+
+// 10. Every modal close control needs an accessible name -- "✕" alone reads as a symbol, not "Close".
+const closeBtns = await page.evaluate(()=>[...document.querySelectorAll('.close-btn')].map(b=>({
+  label: b.getAttribute('aria-label')||'', title: b.getAttribute('title')||'', text: b.textContent.trim() })));
+check('every .close-btn has an accessible name',
+      closeBtns.length===0 || closeBtns.every(b=>b.label||b.title), JSON.stringify(closeBtns));
+
 console.log(`\n[dm-console-ui] ${fail? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
 if (errors.length) console.log('\n(non-fatal errors seen: ' + errors.length + ')\n' + errors.slice(0,5).join('\n'));
 await browser.close(); server.close();

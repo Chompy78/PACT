@@ -163,6 +163,16 @@ section('the info dialog traps keyboard focus');
   const back = await escapes('Shift+Tab');
   check('Shift+Tab x25 never leaves it either', !back, back || 'stayed inside');
 
+
+  // "✕" alone has no accessible name -- a screen reader announces a symbol, not "Close". The focus
+  // trap shipped; this half of the same original finding did not.
+  const closeName = await p.evaluate(()=>{
+    const b=document.querySelector('#infoBox .close-btn, .close-btn');
+    return b ? { label:b.getAttribute('aria-label')||'', title:b.getAttribute('title')||'' } : null;
+  });
+  check('the dialog close button has an accessible name',
+        !!closeName && !!(closeName.label || closeName.title), JSON.stringify(closeName));
+
   await p.keyboard.press('Escape');
   await p.waitForTimeout(250);
   const closed = await p.evaluate(()=>!document.getElementById('infoModal').classList.contains('open'));
