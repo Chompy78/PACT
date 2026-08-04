@@ -3466,7 +3466,14 @@ const SECTIONS=[
  {t:'Hit Dice & Saves',lines:['Hit Dice','Proficiency bonus','Vigor','Grit','Saving throws'],warns:['Vigor','Grit','Proficiency']},
  {t:'Skills',lines:['Skills','Tools & instruments','Expertise','Tool expertise','Languages'],warns:['Expertise','Tool expertise','skill']},
  {t:'Armour & Weapons',lines:['Armour proficiency','Weapon proficiency','Weapon masteries','Attunement slots','Starting gold'],warns:['armour','Armour','martial','master','Weapon','Strength 10']},
- {t:'Arts',lines:['Arts & Techniques'],warns:[]},
+ // NOTE: there is deliberately NO standalone 'Arts' entry here. Arts & Techniques were merged into the
+ // 'Arts & Boons' section (#sec10) long ago, but the old entry survived at this index — leaving SECTIONS
+ // one longer than the markup. Two consequences, both live until 2026-08-04: every chip from 7 onward
+ // was labelled with the previous section's name and the 11th pointed at a #sec11 that does not exist;
+ // and because updateSections() breaks on the FIRST matching entry, all 'Arts & Techniques' spend was
+ // attributed here and rendered as section 7's AP subtotal — i.e. on 'Class Access & Features'.
+ // This array is positionally bound to the #secN ids in the markup: entry i MUST be #sec(i+1).
+ // testing/scripts/audit.py asserts the two stay the same length.
  {t:'Classes',lines:['Class unlocks','2nd origin class','Class features','Ki / Focus points','Sorcery points'],warns:[]},
  {t:'Subclasses',lines:['Subclass abilities','Subclass unlocks'],warns:['subclass']},
  {t:'Spellcasting',lines:['Trad ','Cantrips (','Innate spells'],warns:['Rank','Foundation','Mystic','Warlock','antrip','spell','Spell','slots','known','gate','Discipline','Magically']},
@@ -3522,8 +3529,16 @@ function jumpToControl(id){const el=$(id);if(!el)return false;
 function jumpForWarning(w){const id=warnTarget(w);if(id&&$(id)){jumpToControl(id);return;}const s=sectionIdForWarning(w);if(s)jumpTo(s);}
 function jumpFirstWarning(){const ws=(window.__WARNS||[]);const hard=ws.filter(w=>!isAdvisory(w));const t=(hard[0]||ws[0]);if(t)jumpForWarning(t);}
 function buildSecNav(){const nav=$('secnav');if(!nav)return;
-  nav.innerHTML=SECTIONS.map((s,i)=>'<button class="chip-nav" data-sec="sec'+(i+1)+'" onclick="jumpTo(\'sec'+(i+1)+'\')">'+(i+1)+' '+s.t+'<span class="chsub"></span></button>').join('');
-  const js=$('secjump');if(js)js.innerHTML='<option value="">Jump to section…</option>'+SECTIONS.map((s,i)=>'<option value="sec'+(i+1)+'">'+(i+1)+' · '+s.t+'</option>').join('');}
+  // Chips are bound to the markup POSITIONALLY (entry i -> #sec(i+1)) with nothing asserting the two
+  // agree, which is how an 11-entry SECTIONS against 10 sections shipped a dead chip. Drop any entry
+  // whose target doesn't resolve and say so in the console: a missing chip is a far better failure
+  // than a button that silently does nothing when a player clicks it.
+  const live=SECTIONS.map((s,i)=>({s:s,i:i,id:'sec'+(i+1)})).filter(function(e){
+    if(document.getElementById(e.id))return true;
+    try{console.warn('CharGen section nav: "'+e.s.t+'" targets #'+e.id+', which does not exist — chip omitted. SECTIONS and the #secN markup have drifted.');}catch(_){}
+    return false;});
+  nav.innerHTML=live.map(e=>'<button class="chip-nav" data-sec="'+e.id+'" onclick="jumpTo(\''+e.id+'\')">'+(e.i+1)+' '+e.s.t+'<span class="chsub"></span></button>').join('');
+  const js=$('secjump');if(js)js.innerHTML='<option value="">Jump to section…</option>'+live.map(e=>'<option value="'+e.id+'">'+(e.i+1)+' · '+e.s.t+'</option>').join('');}
 function updateSections(r){
   const sub=SECTIONS.map(_=>0), wc=SECTIONS.map(_=>0);
   r.lines.forEach(l=>{for(let i=0;i<SECTIONS.length;i++){if(SECTIONS[i].lines.some(p=>l[0].indexOf(p)===0)){sub[i]+=l[1];break;}}});

@@ -15,6 +15,18 @@
   Reported by the owner, who read the tooltip and could not tell what their campaign actually grants.
   Display-only; no `DATA.version` bump.
 
+- **2026-08-04 · fix(chargen): section-nav chips were mislabelled from 7 onward, one was dead, and Arts
+  AP was shown on the wrong section** — found by the usability review. `SECTIONS` had **11** entries
+  against the form's **10**: a standalone `Arts` entry survived after Arts & Techniques were merged into
+  `Arts & Boons`. Because chips bind positionally (`SECTIONS[i]` → `#sec(i+1)`), every chip from 7 on
+  carried the previous section's name — "Arts" jumped to *Class Access*, "Spellcasting" to *Arts* — and
+  the 11th pointed at a `#sec11` that never existed. The quieter half: `updateSections()` breaks on the
+  first matching entry, so **all Arts & Techniques spend was rendered as section 7's AP subtotal**, on
+  *Class Access & Features*. Phantom entry removed; `buildSecNav()` now drops any chip whose target
+  doesn't resolve and warns, so a future drift loses a chip instead of shipping a dead button; and
+  `audit.py` gains a check (29 total) asserting `SECTIONS` and `buildForm()`'s `grp()` calls stay the
+  same length — verified RED against the reintroduced bug.
+
 - **2026-08-04 · test(dm-console): first automated UI coverage for the console** — `cloud-e2e` drives
   `js/campaign.js`/`js/dm.js` directly and never opens DM Console, so the rules panel could break on any
   change with every gate still green. `testing/scripts/dm-console-ui-e2e.mjs` (27 checks) covers the
