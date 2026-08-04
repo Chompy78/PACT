@@ -292,6 +292,67 @@ async function run() {
     }, second);
     check('a withdrawn invite cannot be redeemed', refused.redeemed === false,
           refused.err ? refused.err.slice(0, 70) : 'IT REDEEMED');
+    // ---- 6. Archiving must actually hide a character from the tools that load characters ----
+    // The task that produced this said "no automated gate catches this — pure reliance on someone
+    // noticing". listMyCharacters() always returned archived_at; CharGen's and the Live Sheet's own
+    // cloud-load menus simply never looked at it, so an archived character stayed fully playable in the
+    // two tools where characters are actually used.
+    section('archiving hides a character from the load menus');
+    const beforeArchive = await plPage.evaluate(async () => {
+      const s = await import('/PACT/js/sync.js');
+      return (await s.listMyCharacters()).length;
+    });
+    await plPage.evaluate(async (id) => {
+      const s = await import('/PACT/js/sync.js');
+      await s.archiveCharacter(id);
+    }, redeemed.characterId);
+
+    const arch = (sql(cfg, `select archived_at is not null as archived from characters
+                            where id = '${redeemed.characterId}'`))[0];
+    check('archiveCharacter sets archived_at', arch && arch.archived === true);
+
+    const menus = await plPage.evaluate(async () => {
+      const s = await import('/PACT/js/sync.js');
+      const all = await s.listMyCharacters();
+      // Exactly the filters the two cloud-load menus apply.
+      return {
+        total: all.length,
+        chargen:   all.filter(c => c.kind === 'chargen'   && !c.archived_at).length,
+        livesheet: all.filter(c => c.kind === 'livesheet' && !c.archived_at).length,
+        archivedStillListed: all.filter(c => c.archived_at).length,
+      };
+    });
+    check('the row is still returned (tagged), not dropped from the API', menus.archivedStillListed === 1,
+          `${menus.archivedStillListed} archived row(s) in listMyCharacters()`);
+    check('CharGen\'s load menu excludes it', menus.chargen === 0, `${menus.chargen} selectable`);
+    check('the character count is unchanged overall', menus.total === beforeArchive,
+          `${beforeArchive} -> ${menus.total}`);
+
+    // ---- 7. Archiving a campaign hides it from the pickers, but not from the DM's unarchive list ----
+    section('archiving a campaign hides it from the pickers');
+    await dmPage.evaluate(async (cid) => {
+      const c = await import('/PACT/js/campaign.js');
+      await c.archiveCampaign(cid);
+    }, made.campaignId);
+    const camps = await dmPage.evaluate(async (cid) => {
+      const c = await import('/PACT/js/campaign.js');
+      const dflt = await c.listMyCampaigns();
+      const incl = await c.listMyCampaigns({ includeArchived: true });
+      return { inDefault: dflt.some(x => x.id === cid), inIncluded: incl.some(x => x.id === cid) };
+    }, made.campaignId);
+    check('an archived campaign is gone from the default list', camps.inDefault === false);
+    check('it is still there with includeArchived (so it can be unarchived)', camps.inIncluded === true);
+
+    // ---- 8. A zero-row archive must fail loudly, not report false success ----
+    section('archiving a vanished character fails loudly');
+    const ghost = await plPage.evaluate(async () => {
+      const s = await import('/PACT/js/sync.js');
+      try { await s.archiveCharacter('00000000-0000-4000-8000-000000000000'); return { threw: false }; }
+      catch (e) { return { threw: true, msg: e.message }; }
+    });
+    check('archiving a non-existent character throws', ghost.threw === true,
+          ghost.threw ? ghost.msg.slice(0, 60) : 'reported success with nothing changed');
+
   } finally {
     await browser.close();
     server.close();
