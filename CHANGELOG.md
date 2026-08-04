@@ -6,6 +6,32 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · feat(dm-console): collapsible invite/advancement cards; the AP-ignore toggle is
+  locked** — "Invite new player" and "Level budget curve · award pace · starting tier" are now
+  `<details>`, collapsed by default, matching the pattern Campaign Rules already used; the campaign
+  panel was a long unbroken scroll otherwise. **"Ignore player-entered AP" now sits behind a lock:** the
+  checkbox is disabled until you click 🔒 Locked, changing it asks for confirmation spelling out the
+  effect on every character in the campaign, and it re-locks immediately afterwards so an unlocked state
+  is never left lying around. Selecting a campaign always lands locked. That setting decides whether
+  every character's own log AP counts toward what they can spend — a stray click silently re-budgets the
+  whole table, which is exactly how the original invite-AP confusion started.
+
+- **2026-08-04 · fix(archive): archived characters and campaigns are actually hidden** — the archive
+  feature (shipped 2026-07-25) was silently defeated outside the "My Characters" page: CharGen's and the
+  Live Sheet's own cloud-load menus filtered on `kind` only and never looked at `archived_at`, so an
+  archived character stayed fully loadable and playable in the two tools where characters are actually
+  used. Both menus now exclude them. `listMyCampaigns()` gained the archived filter **by default** — it
+  previously existed only as a local filter inside DM Console, so CharGen's campaign picker offered
+  archived campaigns as selectable binding targets; DM Console now opts in with `{includeArchived:true}`
+  because it needs them to offer Unarchive. `archiveCharacter()`/`unarchiveCharacter()` now check the
+  updated row count: a Supabase UPDATE matching zero rows returns `error:null`, so a stale tab reported
+  "Archived" success while nothing changed. DM Console's unarchive button escapes the campaign id, per
+  the codebase's hard `esc()` rule. **Now gated:** four new `cloud-e2e` scenarios cover exactly this —
+  the task noted "no automated gate catches this", and there is one now. Graduated off the 🔴 NOW board.
+  Note the task's step 1 was already stale: `listCharacters()` had been consolidated into
+  `listMyCharacters()` (which does select `archived_at`), so the duplication it described no longer
+  existed — the live defect was the tools ignoring the field, not the query omitting it.
+
 - **2026-08-03 · test(sw): a returning-visitor gate, and CharGen's dead service-worker registration** —
   new `testing/scripts/sw-cache-e2e.mjs` + CI workflow installs the real service worker, deploys a module
   change, and reloads *without* a hard refresh — the one state no other gate covers, and the only state in

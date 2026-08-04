@@ -27,61 +27,6 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## Automated coverage for the auth / campaign / cloud paths — TODO
-Branch `test/cloud-e2e`. Nothing in `testing/` exercises anything that needs a signed-in Supabase
-session, so the entire cloud half of the app ships ungated.
-**Effort:** high · **Risk:** high — ambiguity is high (disposable hosted test project vs. a local
-`supabase start` stack is a real trade-off on cost, CI secrets and fidelity, and only a human should
-pick); damage scale is high if the harness is ever pointed at the production project instead of a
-throwaway one; damage likelihood is medium.
-
-```text
-Why this exists: parity, audit.py, log-fuzz and the browser e2e all run against local files with no
-auth, so every cloud path — invites, redemption, campaign binding, cloud save/load, sync reconciliation,
-My Characters — has zero automated coverage. Two consecutive deploys went green through all five gates
-and still needed same-day hotfixes, both squarely in that gap:
-  * v1.309 — the invite's Creation budget was seeded into the character LOG as PLAYER AP, so every
-    campaign with ignore_player_ap silently discarded the whole grant
-    (D-GH-2026-08-03-invite-single-ap-grant).
-  * v1.311 — the UUID id migration minted a new id unconditionally, forking a campaign-bound character
-    into campaign-less duplicate rows. It read as data loss to the user and needed a manual production
-    repair (D-GH-2026-08-03-uuid-character-ids).
-Both were mechanical, deterministic failures that a single scripted round-trip would have caught.
-
-STEP 1 — decide the backend, and record it as D-GH-<date>-cloud-e2e before writing any harness:
-  A1  Local `supabase start` stack in CI. No hosted cost, no shared state between runs, schema comes
-      from sql/schema.sql + sql/migrations/. Needs Docker in the workflow and the migrations to be
-      genuinely replayable from scratch — verify that first, it is the load-bearing assumption.
-  A2  A separate disposable hosted Supabase project. Highest fidelity (real RLS, real auth), but adds
-      a second project to pay for and CI secrets to manage.
-  Whichever wins, the harness MUST refuse to run against the production project ref — assert on the
-  project ref/URL and hard-fail, do not merely default away from it.
-
-STEP 2 — cover at minimum, each as an independent scripted scenario:
-  1. Invite round-trip: DM creates an invite with a starting AP grant -> player redeems -> character
-     exists, bound to the campaign, ap == the grant, and compute()'s spendable matches BOTH with and
-     WITHOUT the campaign's ignore_player_ap set. This is the v1.309 regression.
-  2. Legacy-id migration: seed localStorage with a pre-UUID 'c…' id for a campaign-bound character,
-     save, and assert the row count for that owner+campaign is unchanged and the build landed on the
-     EXISTING bound row. This is the v1.311 regression.
-  3. Build -> cloud save -> reload -> the same LOG comes back; and the campaign-bound autosave path
-     actually writes without an explicit Save click.
-  4. My Characters renders cloud rows vs device-only rows correctly, and archive/delete work for both.
-
-STEP 3 — wire it into .github/workflows/ as its own job, path-filtered to js/sync.js, js/auth.js,
-js/campaign.js, js/dm.js, js/supabase-client.js, sql/** and tools/**. Keep it OFF the engine-parity
-workflow: that one is deliberately path-filtered to engine/fixture changes and must stay fast.
-
-Test-infrastructure only: no rules change, so do NOT bump DATA.version. Log in CHANGELOG.md and add the
-STEP 1 decision to DECISIONS.md.
-```
-
-**Done when:** a CI job runs the four scenarios above against a non-production Supabase backend and
-fails if any is broken; re-introducing either the v1.309 or the v1.311 defect locally makes it go red
-(demonstrate this, don't assume it); the harness hard-fails if pointed at the production project ref;
-and parity still 24/0.
-
----
 
 ## Port the AGENTS.md/skills scaffold to another repo — TODO
 Branch docs/port-agents-scaffold-skill. Generalize this session's manual copy-and-adapt work (porting

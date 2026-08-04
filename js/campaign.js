@@ -245,7 +245,16 @@ export async function getCampaignDms(campaignId) {
  * Every campaign you can see, tagged with your relationship to it.
  * @returns {Promise<Array<{...campaign, isOwner:boolean, isDm:boolean, isPlayer:boolean}>>}
  */
-export async function listMyCampaigns() {
+/**
+ * Campaigns you DM or play in. Archived ones are EXCLUDED by default.
+ *
+ * The filter used to live only in DM Console's own loadCampaigns(), so every other caller —
+ * CharGen's campaign picker, the Live Sheet's rules lookup — happily offered archived campaigns as
+ * selectable binding/rules targets, silently defeating the archive feature outside one tool. Filtering
+ * here makes the safe behaviour the default and the unsafe one explicit: DM Console passes
+ * `{ includeArchived: true }` because it needs the archived list to offer "Unarchive".
+ */
+export async function listMyCampaigns({ includeArchived = false } = {}) {
   const user = await currentUser();
   if (!user) return [];
   const [camps, dms, chars] = await Promise.all([
@@ -258,7 +267,9 @@ export async function listMyCampaigns() {
   if (chars.error) throw chars.error;
   const dmSet = new Set((dms.data || []).map(d => d.campaign_id));
   const playerSet = new Set((chars.data || []).map(c => c.campaign_id).filter(Boolean));
-  return (camps.data || []).map(c => ({
+  const rows = includeArchived ? (camps.data || [])
+                              : (camps.data || []).filter(c => !c.archived_at);
+  return rows.map(c => ({
     ...c,
     isOwner: c.dm_id === user.id,
     isDm: dmSet.has(c.id),
