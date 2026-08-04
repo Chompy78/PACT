@@ -329,8 +329,12 @@
   .mtx tr.div td{background:#eaf0fb;font-weight:800;color:#1F3864;text-align:left;letter-spacing:.3px;text-transform:uppercase;font-size:10.5px;}
   .castslots{margin:2px 0 9px;display:flex;flex-wrap:wrap;gap:4px;}
   .slotpill{display:inline-block;background:#eef4ff;color:#2E5496;border:1px solid #cdddf6;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;}
-  .ac2sep{opacity:.45;font-weight:400;}
-  .ac2-in{width:40px;font:inherit;font-size:13px;font-weight:700;text-align:center;border:1px solid #cdd9ee;border-radius:6px;padding:1px 2px;color:#1F3864;background:#fffdf2;vertical-align:baseline;}
+  /* The separator + an empty second-AC box rendered as "16 /" followed by a small blank field, which
+   reads as a cut-off number rather than an optional input — reported as "an oddly-truncated AC value"
+   in the 2026-08-04 usability review. Dimmer separator plus a "+AC" placeholder makes it an
+   affordance instead of a defect. */
+.ac2sep{opacity:.3;font-weight:400;}
+  .ac2-in{width:46px;font:inherit;font-size:13px;font-weight:700;text-align:center;border:1px solid #cdd9ee;border-radius:6px;padding:1px 2px;color:#1F3864;background:#fffdf2;vertical-align:baseline;}
   .ac2-in::-webkit-outer-spin-button,.ac2-in::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
   .ac2-in{-moz-appearance:textfield;}
   .chip.prof{background:#eef4ff;color:#2E5496;border-color:#cdddf6;}
@@ -920,7 +924,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   var ac2=(function(){ try{ var o=JSON.parse(localStorage.getItem(AC2_KEY)||'{}'); return (o&&typeof o==='object')?o:{}; }catch(e){ return {}; } })();
   function saveAc2(){ try{ localStorage.setItem(AC2_KEY, JSON.stringify(ac2)); }catch(e){} }
   function acCellHTML(ac, key){ var k=String(key||''); var val=(ac2[k]!=null?ac2[k]:'');
-    return (ac==null?'—':esc(ac))+' <span class="ac2sep">/</span> <input type="number" class="ac2-in" data-ac2key="'+esc(k)+'" value="'+esc(val)+'" placeholder="–" title="DM second AC" onclick="event.stopPropagation()">'; }
+    return (ac==null?'—':esc(ac))+' <span class="ac2sep">/</span> <input type="number" class="ac2-in" data-ac2key="'+esc(k)+'" value="'+esc(val)+'" placeholder="+AC" title="Optional second AC you control as DM — e.g. a shield spell or an alternate form. Blank means none; it never changes the AC the engine computes." onclick="event.stopPropagation()">'; }
   function passivePerc(s){ var pb=s.prof||0, wis=(s.mods&&s.mods.WIS)||0;
     var isP=(s.skills||[]).indexOf('Perception')>=0, isE=(s.expertise||[]).indexOf('Perception')>=0;
     return 10+wis+(isP?pb:0)+(isE?pb:0); }
