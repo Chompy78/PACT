@@ -45,6 +45,16 @@
   `decisions/2026/D-GH-2026-08-04-campaign-starting-ap.md`. **Corrected by
   D-GH-2026-08-04-join-grant-followups below — read both.**
 
+- **D-GH-2026-08-04-review-stack-seed** — a usability review had no way to reach the signed-in half of
+  the app (`cloud-e2e` tears its stack down immediately), so added a seeded stack that stays up. Default
+  is a local throwaway stack; `--live` targets a hosted project when Docker isn't available. Records why
+  live mode gives up its destructive paths rather than discouraging them (`schema.sql` never applied,
+  `--reset` refused outright), why it takes three independent gates instead of one flag, and why purge
+  works off tags plus the FK cascade graph — including the one cascade that isn't safe alone
+  (`characters.campaign_id` is ON DELETE SET NULL, so a real character inside a review campaign would be
+  silently unbound, not error). Also records that the seed path has NOT been run end to end, and why.
+  Full record: `decisions/2026/D-GH-2026-08-04-review-stack-seed.md`.
+
 - **D-GH-2026-08-04-join-grant-followups** — five defects an adversarial review found in the entry above,
   all one shape: a value the SERVER owns, read or written as if the client owned it. `absent` was read as
   `zero`, so 3 of 4 live campaigns granted nothing while the UI showed 79 (`rules` defaults to `'{}'` and
