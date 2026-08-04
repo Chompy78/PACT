@@ -353,6 +353,50 @@ async function run() {
     check('archiving a non-existent character throws', ghost.threw === true,
           ghost.threw ? ghost.msg.slice(0, 60) : 'reported success with nothing changed');
 
+    // ---- 9. Joining by the shared campaign code grants the campaign's starting AP ----
+    // Previously bind_character_to_campaign only set campaign_id, so a player who joined with the code
+    // landed on 0 AP silently — no error, nothing on screen, and a roster entry with no recorded reason.
+    section('joining by code grants the campaign starting AP');
+    const joinCamp = await dmPage.evaluate(async () => {
+      const c = await import('/PACT/js/campaign.js');
+      const camp = await c.createCampaign('E2E Join-Code Campaign');
+      await c.setCampaignRules(camp.id, { startingTier: { preset: 'custom', ap: 45 } });
+      const fresh = await c.listMyCampaigns();
+      return { id: camp.id, code: (fresh.find(x => x.id === camp.id) || camp).invite_code };
+    });
+
+    // A second player, so the one-character-per-campaign rule doesn't collide with scenario 1.
+    const pl2Email = `player2+${stamp}@pact.test`;
+    await createUser(cfg, pl2Email, PW);
+    const pl2Ctx = await browser.newContext();
+    const pl2Page = await pl2Ctx.newPage();
+    await signIn(pl2Page, base, pl2Email, PW);
+
+    const joined = await pl2Page.evaluate(async (code) => {
+      const s = await import('/PACT/js/sync.js');
+      const c = await import('/PACT/js/campaign.js');
+      const id = s.newCharacterId();
+      await s.saveCharacter({ id, name: 'Joined By Code', kind: 'chargen', stats: { LOG: [], SEQ: 1 } });
+      await c.bindCharacterToCampaign(id, code);
+      return id;
+    }, joinCamp.code);
+
+    const jrow = (sql(cfg, `select ap, campaign_id is not null as bound from characters
+                            where id = '${joined}'`))[0];
+    check('the joined character receives the tier AP', jrow && jrow.ap === 45, `ap=${jrow && jrow.ap}`);
+    check('and is bound to the campaign', jrow && jrow.bound === true);
+    const jaw = sql(cfg, `select amount, note from ap_awards where character_id = '${joined}'`);
+    check('the join grant has provenance in ap_awards',
+          jaw.length === 1 && jaw[0].amount === 45, JSON.stringify(jaw));
+
+    // Rebinding must not pay a second time.
+    await pl2Page.evaluate(async ({ id, code }) => {
+      const c = await import('/PACT/js/campaign.js');
+      await c.bindCharacterToCampaign(id, code);
+    }, { id: joined, code: joinCamp.code });
+    const again = (sql(cfg, `select ap from characters where id = '${joined}'`))[0];
+    check('rebinding does not grant twice', again && again.ap === 45, `ap=${again && again.ap}`);
+
   } finally {
     await browser.close();
     server.close();

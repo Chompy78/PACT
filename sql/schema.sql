@@ -583,11 +583,18 @@ create unique index if not exists idx_characters_owner_campaign_unique
 -- campaign via the shared invite_code. Rebind contract: bind only if unbound;
 -- same-campaign is an idempotent no-op; a different campaign is rejected.
 -- ---------------------------------------------------------------------------
+-- Binding also grants the campaign's `rules.startingTier.ap`, so joining by shared code and
+-- redeeming an invite now start a character the same way. Only on a genuine first bind, guarded
+-- against an unbind/rebind double-pay, and credited to the campaign's DM rather than the joining
+-- player. See sql/migrations/2026-08-04-campaign-starting-ap-on-join.sql and
+-- decisions/2026/D-GH-2026-08-04-campaign-starting-ap.md.
 create or replace function public.bind_character_to_campaign(p_character_id uuid, p_code text)
 returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_campaign campaigns%rowtype;
   v_char     characters%rowtype;
+  v_start_txt text;
+  v_start     integer;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
@@ -616,6 +623,22 @@ begin
   exception when unique_violation then
     raise exception 'You have already joined this campaign with another character';
   end;
+
+  -- Starting AP. Read defensively: `rules` is free-form jsonb a DM edits, so the tier figure may be
+  -- absent, empty, or a non-numeric string. Anything that isn't a plain non-negative integer grants
+  -- nothing rather than erroring the join — a malformed rules blob must not block a player joining.
+  v_start_txt := nullif(trim(coalesce(v_campaign.rules -> 'startingTier' ->> 'ap', '')), '');
+  if v_start_txt ~ '^[0-9]+$' then
+    v_start := v_start_txt::integer;
+    if v_start > 0
+       and not exists (select 1 from ap_awards
+                        where character_id = p_character_id and campaign_id = v_campaign.id) then
+      update characters set ap = ap + v_start where id = p_character_id;
+      insert into ap_awards (character_id, dm_id, campaign_id, amount, note)
+        values (p_character_id, v_campaign.dm_id, v_campaign.id, v_start,
+                'Starting AP (joined by campaign code)');
+    end if;
+  end if;
 
   return v_campaign.id;
 end;
