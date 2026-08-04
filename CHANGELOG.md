@@ -6,6 +6,15 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-04 · fix(dm-console): three help strings still said the shared code grants no AP** — the
+  Players-code tooltip claimed a code-join "gets a new character bound to this campaign, with no preset
+  AP/budget", the invite note called it "a blank character with no preset AP", and the Starting-tier
+  tooltip said its "only effect is to pre-fill" the invite box. All three predate #329/#331: a code-join
+  now grants `rules.startingTier.ap` (79 when unset), and it binds the character the player is
+  **currently building** rather than creating a blank one — the second thing all three got wrong.
+  Reported by the owner, who read the tooltip and could not tell what their campaign actually grants.
+  Display-only; no `DATA.version` bump.
+
 - **2026-08-04 · test(review): seeded review stack + usability/QoL review prompt** — `cloud-e2e` proves
   the signed-in paths work but tears the stack down immediately, so a usability review had no way to
   reach the cloud half of the app at all. `testing/scripts/seed-review-stack.mjs` seeds five accounts,

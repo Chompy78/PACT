@@ -542,7 +542,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <span class="lbl">Players:</span>
               <input class="field ro" id="campPlayerCode" readonly>
               <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
-              <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. Anyone who enters this code (CharGen's “Join campaign”) gets a new character bound to this campaign, with no preset AP/budget.">ⓘ</button>
+              <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. A player who enters this code (CharGen's “Join campaign”) binds the character they are CURRENTLY building to this campaign — it does not create a blank one — and is granted this campaign's Starting tier AP, set in “Level budget curve · award pace · starting tier” below (79 if you have never set one). Paid once per character: re-joining the same campaign does not grant it twice.">ⓘ</button>
             </div>
             <div class="codechip">
               <span class="lbl">DMs:</span>
@@ -567,7 +567,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
               </div>
               <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign, holding the Starting AP above as DM-granted AP. Distinct from the reusable Players code above, which creates a blank character with no preset AP.</div>
+              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign, holding the Starting AP above as DM-granted AP. The reusable Players code above is for a player who has already built a character: it binds that character and grants the campaign's own Starting tier AP instead of the per-invite figure set here. Both routes grant AP; this one lets you set a different amount for one specific player.</div>
               <div id="inviteListWrap" style="margin-top:10px">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <b style="font-size:12px">Invites issued</b>
@@ -652,7 +652,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <div class="grantnote">A documented baseline only — AP is still granted ad-hoc via the “+ Award AP” action. Nothing auto-awards.</div>
             </div>
             <div class="ruleblock" style="margin-bottom:0">
-              <div class="lbl">🎬 Starting tier (new-PC budget) <button type="button" class="infobtn" title="How much AP a brand-new player character is handed to build with, as a multiple of the L1 above — Prelude 0.7×, Standard 1.0×, Veteran 1.3×, Legendary 1.6×. Off a Standard L1 of 79 that gives 55 / 79 / 103 / 126 AP. Its only effect is to pre-fill the “Creation budget” box when you generate a player invite: existing characters are never touched, and you can still override the figure on any single invite.">ⓘ</button></div>
+              <div class="lbl">🎬 Starting tier (new-PC budget) <button type="button" class="infobtn" title="How much AP a brand-new player character is handed to build with, as a multiple of the L1 above — Prelude 0.7×, Standard 1.0×, Veteran 1.3×, Legendary 1.6×. Off a Standard L1 of 79 that gives 55 / 79 / 103 / 126 AP. Two effects: it pre-fills the “Starting AP” box when you generate a player invite (you can still override that per invite), AND it is the amount granted automatically to anyone who joins with the reusable Players code — that route has no per-player box, so this figure is the whole of it. Existing characters are never touched, and a character is only granted it once. Leave it unset and a code-join grants 79.">ⓘ</button></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                 <select id="ruleStartingTierPreset" class="field" style="flex:0 0 150px">
                   <option value="prelude">Prelude (0.7×)</option>
