@@ -499,12 +499,61 @@ async function _lsResolveDmAp(campaignId){
   }catch(e){ /* stays 'unavailable' — never silently 0 */ }
   try{render();}catch(e){}
 }
-// price a prospective change: frozen delta against the CURRENT committed build
+// ---- Pricing basis (D-GH-2026-08-05-pricing-model, D1) ---------------------------------------
+// A quote must charge for the THING BOUGHT, not for how much the whole character changed. Those two
+// differ exactly when the purchase also changes the pricing CONTEXT: compute() then re-prices things
+// the player ALREADY owns, and a whole-build diff sweeps that re-pricing into the quote — which is
+// then frozen into the log, so it is a permanent mis-record, not a display glitch.
+//
+// The distinction is direction in time, not category:
+//   * legitimate    — today's context applied to THIS purchase (a Wizard feature is cheaper when
+//                     Wizard is your origin class; that context predates the purchase);
+//   * contamination — today's context applied to PAST purchases.
+//
+// So a context change is priced from its own rules table. This table generalises the three escapes
+// that already existed here by hand — abil, mbound, dbound, the last two carrying a comment naming
+// "the refund bug" — and adds the two that were missing and live:
+//   * hd          — Level Up charged the hit-die step PLUS a full re-price of the existing Vigor and
+//                   Grit stacks at the new tier (both tier-scaled, js/engine.js:120,123).
+//   * unlockclass — unlocking a class quoted the unlock cost MINUS a retroactive discount on every
+//                   already-owned feature of that class (cross → stick, js/engine.js:234), reaching
+//                   zero or negative for a character holding several.
+//
+// Deliberately NOT in this table: `prof` moves caps (cantrip, pact-slot) that only raise warnings and
+// never a price, so the diff is already right for it. Species and origin class cannot be changed in
+// this tool at all. Epic boons don't contaminate either — MUT.boon never sets epicBoonAbil, so the
+// candidate build carries no stat bump (see fix/chargen-preserve-epicboonabil on the board).
+const _CTX_PRICERS={
+  // Ability raise: the ABIL ladder delta from the CURRENT score to the target. A build diff here would
+  // also re-price already-owned Grit, whose surcharge rides vgcap = CON mod (js/engine.js:119,123).
+  abil:function(cur,p){const from=(cur.stats&&cur.stats[p.ab])||10;
+    return (DATA.ABIL[Math.min(20,(+p.to))]||0)-(DATA.ABIL[Math.min(20,from)]||0);},
+  // Level up: the Hit Dice cumulative step, alone.
+  hd:function(cur,p){const to=Math.min(20,Math.max(1,Math.floor(+p.to)||1)),from=cur.hd||1;
+    return (((DATA.HD[to-1]||{}).cum)||0)-(((DATA.HD[from-1]||{}).cum)||0);},
+  // Class unlock: the "Class unlocks" ladder component alone, evaluated before vs after. Mirrors the
+  // engine's own cumulative window (js/engine.js:214-217) rather than re-deriving a rung, so a class
+  // that is already an origin class costs 0 here exactly as it does there — which matters because the
+  // buy list filters only originClass, so originClass2 is offered and the engine ignores it.
+  unlockclass:function(cur,p){
+    const rung=function(b){
+      const has2=(b.originClass2&&b.originClass2!=="(none)");
+      const start=(1+(has2?1:0))-1;
+      const xc=((b.unlockedClasses||[]).filter(function(c){return c!==b.originClass&&c!==b.originClass2;}).length)||(b.extraClasses||0);
+      return (DATA.unlockCum[start+xc]||0)-(DATA.unlockCum[start]||0);};
+    const after=clone(cur);(MUT.unlockclass||function(){})(after,p);
+    return rung(after)-rung(cur);},
+  // The two bonds: a flat +2 AP gain, one-way. A build diff would additionally hand back a retroactive
+  // discount on already-owned features/spells — the original refund bug these two were escaped for.
+  mbound:function(){return -2;},
+  dbound:function(){return -2;}
+};
+// price a prospective change: its own listed price for a context change, else a delta against the
+// CURRENT committed build (correct for an ordinary purchase, which changes nothing else's price)
 function priceOf(cat,payload,_cur){
   const cur=_cur||foldBuild(null);   // optional pre-folded build: callers already holding foldBuild(null) (e.g. buy()) pass it to avoid a redundant re-fold; omitted → fresh fold (identical result — the fold is deterministic on the current LOG)
-  if(cat==='abil'){var _fr=(cur.stats&&cur.stats[payload.ab])||10;
-    return (DATA.ABIL[Math.min(20,(+payload.to))]||0)-(DATA.ABIL[Math.min(20,_fr)]||0);}   // in-play: price the ability raise off its score
-  if(cat==='mbound'||cat==='dbound')return -2;   // flat +2 AP gain, one-way — a full recompute diff would also retroactively discount already-owned features/spells (the refund bug)
+  const _ctx=_CTX_PRICERS[cat];
+  if(_ctx)return _ctx(cur,payload||{});
   const before=compute(cur).total;
   const cand=clone(cur); (MUT[cat]||(()=>{}))(cand,payload);
   return compute(cand).total - before;
