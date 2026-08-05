@@ -870,6 +870,47 @@ How it works today, verified 2026-08-05 rather than assumed:
 one, a test in `random-manual-e2e.mjs` (or `tool-pricing-ci.mjs`) asserts them, and engine-parity still
 reports 24/0.
 
+## CharGen quotes a locked character's context changes as a whole-build delta — TODO
+Branch `fix/chargen-context-pricing`. D1 of `decisions/2026/D-GH-2026-08-05-pricing-model.md` — *a
+purchase that changes pricing context is quoted from its own rules table, never by whole-build diff* —
+was implemented for the Live Sheet's `priceOf()` only. CharGen's `replacePatchSlot()`
+(`tools/PACT-CharGen-Webtool.html`) still does `compute(after).total − compute(before).total`.
+
+**Effort:** medium · **Risk:** medium — ambiguity medium (D1 already fixes the rule and the Live Sheet's
+`_CTX_PRICERS` table is the pattern to copy, but CharGen prices whole patch SLOTS rather than single
+categories, so the mapping is not one-to-one); damage scale medium (one tool, but it writes frozen costs
+into saved logs); damage likelihood low (`tool-pricing-ci.mjs` gates it and is dependency-free).
+
+**Why it was survivable until now, and why it no longer is.** While a character is a draft,
+`repriceDraft()` overwrites whatever `replacePatchSlot()` quoted, so the bad quote never reached the
+ledger. Once the lock fires, re-pricing stops by design (D7) and the quote is what gets frozen.
+Reproduced 2026-08-05: a locked character with species Dwarf and four Halfling traits, switching to
+Halfling, is quoted **−4** — a refund — where the listed Halfling pack price is 7. The ledger keeps it.
+
+```text
+1. Read the Live Sheet's `_CTX_PRICERS` table first; it is the same rule already solved once, and the
+   two tools must not disagree about what a context change costs.
+2. The mismatch to design around: `_CTX_PRICERS` is keyed by event CATEGORY (abil, hd, unlockclass…),
+   but `replacePatchSlot` writes a whole SLOT (IDENTITY carries originClass, originClass2, species,
+   species2, size, lineage at once). Decide whether to price a slot field-by-field against its own
+   table, or to split the context-bearing fields out of the slot. Say which and why — this is the part
+   worth getting reviewed.
+3. Only the pricing basis changes. Do NOT reintroduce filter-and-append: replace-in-place is what keeps
+   the identity line in its own position in the ledger, and it is now also what keeps a locked
+   character's event indices stable.
+4. The draft path must stay unchanged — `repriceDraft()` still owns pre-lock pricing, and this quote
+   only ever reaches a ledger once the lock has fired. Assert both halves.
+5. Gate in `testing/scripts/tool-pricing-ci.mjs` alongside the existing "re-pricing stops dead once the
+   lock has fired" block, which already builds a suitable locked fixture. The assertion is that a locked
+   species change is quoted at the listed pack price, independent of what traits are already owned.
+6. Prices move, so if `compute()` output changes at all, bump `DATA.version` and refresh
+   `testing/expected/` in the same PR. If only CharGen's recorded costs change, it does NOT move.
+```
+
+**Done when:** a locked character's species/class change is quoted at its listed price regardless of what
+is already owned, CharGen and the Live Sheet agree on that price, draft re-pricing is unaffected, a gate
+asserts it, and engine-parity still reports 24/0.
+
 ---
 
 # Conventions
