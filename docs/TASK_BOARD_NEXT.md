@@ -1083,17 +1083,34 @@ think the app is broken.
 Worth deciding B-vs-C explicitly rather than drifting: B is a guard, C is the actual fix, and B does not
 block C later.
 
-### Still needing an answer
+### The DM does not remove drawbacks (owner, 2026-08-05)
 
-**Removing a drawback the PLAYER took.** The rules above cover DM-imposed drawbacks fully. This case is
-still open: the player originally banked (say) +2 AP for choosing the drawback. If the DM removes it, is
-that +2 clawed back, or kept? Keeping it means +2 AP for a weakness they no longer carry. Note the
-neutrality principle points at clawing it back — the DM edit should leave the wallet unchanged, and the
-player was paid for something that no longer exists.
+*"The DM should not remove drawbacks — instead they should just award the APs to let the player do it
+themselves."*
+
+This removes an operation from the design rather than specifying one, and it dissolves the open question
+that was here (whether removing a player-taken drawback should claw back the AP it originally paid): the
+DM never removes it, so nothing is clawed back.
+
+What the DM does instead is **award AP**, which already exists and needs no new mechanism. The player then
+uses the ordinary buy-off path at whatever price the drawback carries. Two consequences worth holding:
+
+- **The removal-cost setting becomes the DM's real lever.** Locked means never; unlocked at flat means the
+  player pays the drawback's value; unlocked at expensive means 3×. The DM decides the price and whether
+  to fund it — they do not reach in and delete.
+- **It composes cleanly.** A DM imposes a drawback worth 2 at cost 0, unlocked/flat. Later they decide the
+  character has earned their way out, so they award 2 AP; the player spends it buying the drawback off and
+  is exactly where they started. No special case anywhere in that sequence.
+
+**Scope now:** DM edits are ADD-only for drawbacks. Boons are still listed as "add or remove" in the
+owner's original framing — but note removal is NOT symmetric there, because a player has no way to sell a
+boon back, so "award AP and let them do it" has no player-side equivalent. Whether a DM can remove a boon
+(granted in error, or lost to a story beat) is still open and is the last scope question on this task.
 
 ```text
 1. DO NOT START until feat/chargen-dm-view has landed and the two open questions above (concurrency
-   route; removing a player-taken drawback) are answered.
+   route; whether a DM may remove a BOON) are answered. Drawback removal is settled: the DM cannot -
+   they award AP and the player buys it off, so build no DM-side removal for drawbacks at all.
 2. Implement neutrality as ONE invariant - a dmEdit event contributes 0 to spendable AP - not as two
    separate rules for boons and drawbacks. Assert it directly: for any DM edit, economy().available
    before == economy().available after.
