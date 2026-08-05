@@ -881,6 +881,21 @@ was implemented for the Live Sheet's `priceOf()` only. CharGen's `replacePatchSl
 categories, so the mapping is not one-to-one); damage scale medium (one tool, but it writes frozen costs
 into saved logs); damage likelihood low (`tool-pricing-ci.mjs` gates it and is dependency-free).
 
+**Re-measured 2026-08-05 (after the Grit correction and the Vigor per-rank stamp): this is now the LAST
+remaining disagreement between the two tools.** Nine pricing categories were compared on identical logs;
+eight agree. The survivor:
+
+| case | Live Sheet | CharGen |
+|---|---:|---:|
+| unlock Wizard owning 4 Wizard features | 7 | **−6** |
+| unlock Wizard owning none (control) | 7 | 7 |
+
+CharGen *pays the player 6 AP* to unlock a class they already have features in, because the whole-build
+delta sweeps in the retroactive discount those features get once the class is unlocked. The fix has the
+same shape as the two that landed: stamp each feature with whether its class was unlocked when it was
+bought (as `_raceTraitLocked` does for species traits and `_vigorRankTier` now does for Vigor), so an
+already-owned feature keeps the cross-class price it was actually bought at.
+
 **Why it was survivable until now, and why it no longer is.** While a character is a draft,
 `repriceDraft()` overwrites whatever `replacePatchSlot()` quoted, so the bad quote never reached the
 ledger. Once the lock fires, re-pricing stops by design (D7) and the quote is what gets frozen.
