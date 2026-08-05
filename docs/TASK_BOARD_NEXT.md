@@ -727,7 +727,15 @@ corpus is small and known, and the invariant is checkable afterwards) — worst-
 sweep-eligible.
 
 ```text
-0. Both blockers have LANDED (fix/livesheet-context-pricing and fix/species-pack-not-charged, 2026-08-05),
+0. SCOPE HAS SHRUNK — re-measure before planning a big inventory. Verified 2026-08-05: no tool emits
+   `campaignBound` or `creationLocked` (grep across tools/ and js/ outside the engine returns nothing),
+   and a character saved before feat/creation-lock-wiring carries no `creationLockConfig` either — so
+   `_autoArmed` is false and `isCreationDraft()` returns TRUE for every pre-existing character. They are
+   all drafts. CharGen now reprices a draft on LOAD (_cgApplyEnvelope), so every one of them self-heals
+   the moment it is opened in CharGen. What is left for this pass is therefore narrower than written
+   below: characters that are only ever opened in the LIVE SHEET, which does not reprice at all pending
+   the rules answer in fix/livesheet-draft-reconcile. Confirm this still holds before starting.
+0b. Both pricing blockers have LANDED (fix/livesheet-context-pricing and fix/species-pack-not-charged, 2026-08-05),
    but one question they raised has not been answered: fix/livesheet-draft-reconcile above decides whether
    a pre-lock Live Sheet character reconciles at all. Settle that FIRST — it changes what "correct" means
    for exactly the characters this pass rewrites. Reconciling against a moving definition is how this began.
