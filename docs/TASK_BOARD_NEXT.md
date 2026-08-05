@@ -926,6 +926,102 @@ Halfling, is quoted **−4** — a refund — where the listed Halfling pack pri
 is already owned, CharGen and the Live Sheet agree on that price, draft re-pricing is unaffected, a gate
 asserts it, and engine-parity still reports 24/0.
 
+## DM: view a campaign character in CharGen (read-only) — TODO
+Branch `feat/chargen-dm-view`. Owner, 2026-08-05: *"it's only for looking at this stage… first step is
+just the view as this is most useful during start of a campaign."* Stage 2 (DM editing) is the separate
+entry below; build this one first and do not let its scope drift into editing.
+
+**Today there is no route at all.** DM Console's roster card offers only "View in Live Sheet"
+(`tools/DM-Console.html:1762` → `PACT-Live-Char-Sheet.html?viewChar=<id>`). CharGen has **no `viewChar`
+handler** — zero matches in the file. The obvious workaround was deliberately closed: the Live Sheet's
+"Open in CharGen" button is hidden in read-only mode (`_lsApplyViewOnlyUi`, ~:1901), because CharGen has
+no read-only concept and would happily edit and persist another player's character.
+
+**Copy the Live Sheet's shape, which already solved this.** Its `VIEW_ONLY` flag no-ops emit/save/undo/
+redo — *that* is the safety; hiding buttons is cosmetic, so a control missed off the hide-list silently
+does nothing rather than becoming a data risk. Keep that split, it is the reason the Live Sheet version
+is robust.
+
+**CharGen's guard surface is larger than the Live Sheet's** — every one of these mutates the LOG or
+persists it, and all need gating:
+`emit()` · `replacePatchSlot()` · `retractFlatEvent()` · `replaceWholeLogFromBuild()` ·
+`_cgSyncSingletonEvent()` · `undo()` · `redo()` · `resetBuild()` · the local autosave · and the **three**
+`S.saveCharacter(...)` call sites (~:770, ~:800, ~:1011).
+
+**Two traps specific to CharGen:**
+1. **Its boot REGENERATES the log from the DOM** (`applyBuild` → `replaceWholeLogFromBuild`) and, since
+   `fix/species-pack-not-charged`, re-prices a draft ledger via `repriceDraft()`. So a DM viewing a
+   player's character would see a *reconciled* ledger, not the frozen one the player sees in the Live
+   Sheet. That is not wrong exactly — it is "what this costs today" — but two tools showing a DM
+   different totals for the same character will read as a bug. Decide whether the DM view labels this,
+   suppresses the re-price, or shows both. Worth settling before coding.
+2. **Use `peekCharacter()`, not `loadCharacter()`.** `loadCharacter()` caches whatever it fetches into
+   localStorage with no ownership check — the exact mechanism of
+   `D-GH-2026-08-02-listmycharacters-local-cache-leak`. Note `peekCharacter()` (`js/sync.js:172`) prefers
+   an existing local copy, so confirm it cannot serve the DM a stale one.
+
+**Effort:** medium · **Risk:** high — ambiguity is high (trap 1 is a genuine design call about what the
+DM should be shown); damage scale high (a wrong guard means a DM's browser silently overwrites a player's
+character, and it touches the cloud write path); damage likelihood medium (no automated cover — the
+dependency-free gate cannot sign in). Not sweep-eligible.
+
+```text
+1. Settle trap 1 with the owner before writing code: should the DM's CharGen view show the player's
+   frozen ledger or today's reconciled one?
+2. Add a CG_VIEW_ONLY flag and gate all twelve entry points listed above. Gate at the function head, as
+   the Live Sheet does, so anything added later no-ops by default rather than needing a list kept current.
+3. Add the ?viewChar=<id> handler, loading via peekCharacter(). Mirror the Live Sheet's banner naming
+   whose character it is.
+4. Add "View in CharGen" to the DM Console roster card beside the existing Live Sheet button.
+5. Hide the visibly-editable controls, but treat that as cosmetic only - never as the safety.
+6. Cover what can be covered without credentials: that CG_VIEW_ONLY makes each entry point a no-op is
+   assertable in testing/scripts/tool-pricing-ci.mjs with no sign-in. The cloud half will need a manual
+   check - say so in the PR rather than implying it was tested.
+7. engine-parity must stay 27/0; no DATA.version change (no rules move).
+```
+
+**Done when:** a DM can open a roster character in CharGen from the DM Console, nothing in that view can
+alter or persist the character (verified by trying each entry point), the character is fetched without
+being cached into the DM's local storage, and a gate asserts the no-op behaviour.
+
+## DM: edit a campaign character, recorded in the log as a DM edit — TODO
+Branch `feat/dm-edit-events`. Owner, 2026-08-05: *"I want to be able to eventually edit, particularly with
+adding or removing boons and drawbacks. But I think this should be an edit to the save file log that
+states it is a DM edit."* **Blocked on `feat/chargen-dm-view` above** — build the read-only view first.
+
+**The design idea is the good part and should not be lost:** a DM's change is not a silent overwrite, it
+is *an event in the character's log marked as having come from the DM*. That falls straight out of the
+event-sourced model — the log already records what happened and in what order, so a `dmEdit` marker (plus
+who and when) makes the ledger show the player exactly what their DM changed, and keeps it undoable and
+auditable like anything else. This is strictly better than a DM editing the character's raw state.
+
+**Scope named by the owner:** adding and removing boons and drawbacks first. Not a general editor.
+
+**Effort:** high · **Risk:** high — ambiguity high (several open questions below, all rules/product
+calls); damage scale high (writes to another user's character through the cloud). Not sweep-eligible.
+
+```text
+1. DO NOT START until feat/chargen-dm-view has landed and the owner has answered the questions below.
+2. Open questions, all for the owner:
+   - What happens if the player has the character open at the same time? Last-write-wins would lose
+     their work silently.
+   - Does a DM edit respect affordability, or is a DM granting a boon exempt from the AP check?
+   - Can the player undo a DM edit? The engine's undo is LOG replay, so a marked event is undoable by
+     construction unless something stops it - which is a decision, not an accident.
+   - Removing a drawback: is that a buy-off (3x refund, per the existing rule) or a free DM removal?
+     These give very different AP outcomes.
+3. Marker shape: a field on the event rather than a new event type, so every existing replay path keeps
+   working untouched. Check it against economy()/_replay() before committing to it.
+4. Both tools' ledgers must render a DM-marked event distinctly - the point is that the player can see it.
+5. RLS: a DM writing to a character they do not own is a policy change. Run the Supabase advisor
+   (get_advisors) and check the logs afterwards - this project has been bitten twice by grant/RLS drift
+   (D-GH15, D-GH12).
+```
+
+**Done when:** a DM can add/remove boons and drawbacks on a roster character, each change is recorded in
+the log as a DM edit and rendered as such in both tools, the open questions above are answered in a
+decision record, and the RLS change passes the advisor.
+
 ---
 
 # Conventions
