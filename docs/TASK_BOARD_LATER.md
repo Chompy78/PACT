@@ -19,6 +19,51 @@ Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page 
 prune, PWA stale-version reload-prompt fix, Live Sheet mobile density/collapse) has landed and graduated
 to `CHANGELOG.md`.
 
+## Merge concurrent character edits instead of refusing them — TODO
+Branch `feat/character-log-merge`. The deep fix behind `fix/optimistic-character-save` (NOW), which only
+*refuses* a stale write. Do that one first; this supersedes its behaviour rather than conflicting with it.
+
+**Why this is the right end state for THIS data model.** A PACT character is not an opaque document — it
+is an append-only event log (`{schema, rules, name, LOG, SEQ, id}`). Two people editing the same character
+are usually appending different events, not overwriting the same field, so the "conflict" is an artefact
+of storing the log inside a single `stats` JSONB blob and writing the blob whole. Reconcile the two logs
+by `seq`/`ts` and most conflicts stop existing.
+
+That is a genuinely better outcome than the NOW task's refusal: a DM adding a boon while the player buys a
+skill should end with the character having both, not with one of them being told to reload and redo.
+
+**What makes it non-trivial:**
+- The merge has to happen client-side, before the write, because the server stores one blob. So both
+  logs must be fetched, merged and pushed — with the guard from the NOW task still protecting the push.
+- Event order matters for pricing. The engine replays in log order, and `_replay`'s creation-lock and
+  per-purchase stamps depend on that order. Two logs interleaved by timestamp could price differently
+  than either did alone. Check this against `repriceDraft()` and `_vigorRankTier` before trusting a merge.
+- Singleton events (`name`, `award`, patch slots) do not append — they replace. A naive union would
+  produce two `name` events, or double an award. These need per-type merge rules, not one rule.
+- Genuinely conflicting edits still exist (both sides change species) and need a human answer.
+
+**Effort:** high · **Risk:** high — ambiguity high (the per-event-type merge rules are a real design
+problem, and the ordering interaction with pricing is subtle); damage scale high (sync layer, all three
+tools, player data); damage likelihood high (untestable without a live signed-in session). Not
+sweep-eligible. Wants a cold plan review before implementation.
+
+```text
+1. DO NOT START until fix/optimistic-character-save has landed - refusing a stale write is the safety
+   net this builds on, and it stays as the fallback whenever a merge cannot be resolved automatically.
+2. Classify every event type as append-mergeable or singleton-replace BEFORE writing merge code. The
+   list is in js/engine.js's event documentation plus CharGen's PATCH_SLOTS.
+3. Prove the ordering question with the fuzzer rather than by reasoning: merge two randomly generated
+   logs, then assert the merged log still satisfies the invariants log-fuzz.mjs already checks
+   (idempotent reprice, no NaN, ledger reconciles for a draft).
+4. Anything that cannot be merged automatically falls back to the NOW task's refusal + reload, with the
+   conflicting field named. Never guess between two human intentions.
+5. engine-parity must stay at its current count; this is a sync-layer change and must not move compute().
+```
+
+**Done when:** two independent edits to the same character both survive a save, singleton events merge
+correctly rather than duplicating, the fuzzer confirms merged logs satisfy the same invariants as
+authored ones, and anything unmergeable still falls back to a clear refusal.
+
 ---
 
 > **Format note (2026-07-28):** split from a single `docs/TASK_BOARD.md` into `TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md` by the existing NOW/NEXT/LATER bands — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`. Same rules apply to all three files.
