@@ -2025,7 +2025,25 @@ function _cgWireUndoKeys(){
 }
 
 // ---- LOG mutation API — the ONLY functions permitted to change LOG (no handler pushes/splices/reassigns it directly) ----
-function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);render();}
+// Arm the automatic creation lock for a local character (D-GH-2026-08-05-pricing-model, D3). Unlike the
+// Live Sheet — which seeds a fresh log in seedNew() and can arm there — CharGen has no discrete "new
+// character" moment: the form IS the character and LOG starts empty (see `let LOG=[]` above). So this
+// arms lazily, on the first write to an unarmed log. Landing late is harmless: _replay accumulates
+// _spent from event 0 regardless of where the config event sits, so a log armed late is still measured
+// against its full spend to date, and a character already past the threshold locks on the arming event.
+// Two deliberate choices:
+//   * no commitHistory() — the arming must not be undoable, or undo would silently disarm the lock;
+//   * APPEND only — never route a config event through replacePatchSlot()/_cgSyncSingletonEvent(),
+//     whose filter-and-append would move it and apply it retroactively, un-tripping a lock that had
+//     already fired (D4). That is the house pattern for editable fields, hence this warning.
+function _cgEnsureLockArmed(){
+  const armed=LOG.some(function(e){return e&&e.type==='creationLockConfig'&&e.payload&&
+    Object.prototype.hasOwnProperty.call(e.payload,'auto');});
+  if(armed)return;
+  LOG.push({seq:SEQ++,ts:Date.now(),type:'creationLockConfig',payload:{auto:true},
+    label:'Creation lock armed (default '+DATA.level1AP+' AP)',rules:DATA.version});
+}
+function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);render();}
 
 function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
@@ -2036,6 +2054,7 @@ function retractFlatEvent(cat,predicate){
 
 function replacePatchSlot(slot,patch,label){
   if(!Object.values(PATCH_SLOTS).includes(slot))throw new Error("replacePatchSlot: '"+slot+"' is not a canonical PATCH_SLOTS value");
+  _cgEnsureLockArmed();   // this path bypasses emit(), so arm here too — see _cgEnsureLockArmed()
   // price against the build with this slot's OWN PRIOR event removed, not the current full LOG (which
   // still holds the old contribution and would double-count it) — see the plan's "Coalescing patch cost delta"
   const withoutSlot=LOG.filter(function(e){return !(e.type==='buy'&&e.cat==='patch'&&e._slot===slot);});
@@ -2062,6 +2081,7 @@ function replaceWholeLogFromBuild(b,opts){
 // guard, so this is automatically correct; noLock:true additionally keeps the award out of the engine's
 // creation-pricing lock (a no-op for awards, but matches the export burst's convention).
 function _cgSyncSingletonEvent(type,makeEvent){
+  _cgEnsureLockArmed();   // bypasses emit() as well — see _cgEnsureLockArmed()
   const without=LOG.filter(function(e){return e.type!==type;});
   const cur=LOG.find(function(e){return e.type===type;});
   const next=makeEvent();
