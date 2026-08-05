@@ -47,6 +47,28 @@ chore is gone.
 It's a PWA with ES modules and a service worker, so **`file://` will not work** — you need a local HTTP
 server, and the paths assume the **`/PACT/` base** (that's how GitHub Pages serves it).
 
+**The easy way — one command, from anywhere in the repo:**
+```
+node testing/scripts/serve.mjs            # serves + opens the menu in your browser
+node testing/scripts/serve.mjs live       # …or jump straight to a tool
+node testing/scripts/serve.mjs chargen | dm | test
+node testing/scripts/serve.mjs --no-open --port 9000
+```
+It mounts the repo at `/PACT/` no matter where you run it from, prints **which branch and commit you are
+looking at** (the point of the whole exercise when checking unmerged work), sends `Cache-Control:
+no-store` so the service worker is far less likely to serve you stale files after a branch switch, and
+lists every tool's URL. Needs only Node — the same one the test gates already require.
+
+**Checking out a branch to look at it** — a branch has no URL of its own (Pages serves `main`; `preview`
+isn't deployed), so this is the only way to see unmerged work:
+```
+git fetch origin <branch> && git checkout <branch>
+node testing/scripts/serve.mjs live
+# when you're done:  git checkout preview
+```
+
+<details><summary>The manual way (equivalent, if you'd rather not use the script)</summary>
+
 **Serve the folder that *contains* your PACT repo, then open the `/PACT/` URL** (no npm needed):
 ```
 # run this in the PARENT folder of your PACT repo:
@@ -61,6 +83,8 @@ behaviour won't match production.
 
 > Tip: when testing service-worker or cache changes, use a private/incognito window or DevTools →
 > Application → Service Workers → "Update on reload" so you're not served a stale worker.
+
+</details>
 
 ---
 
