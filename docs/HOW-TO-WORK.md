@@ -47,6 +47,34 @@ chore is gone.
 It's a PWA with ES modules and a service worker, so **`file://` will not work** — you need a local HTTP
 server, and the paths assume the **`/PACT/` base** (that's how GitHub Pages serves it).
 
+**The easiest way (Windows, no terminal at all):** double-click **`run-pact.cmd`** in the repo root. It
+shows which branch you're on, lets you paste another branch name to switch to it, then starts the server
+and opens your browser. It also checks Git and Node are installed and explains what to do if not. The
+sequencing lives inside the file deliberately — Windows PowerShell 5.1 rejects `&&`, which is what trips
+people up running the steps by hand.
+
+**The easy way — one command, from anywhere in the repo:**
+```
+node testing/scripts/serve.mjs            # serves + opens the menu in your browser
+node testing/scripts/serve.mjs live       # …or jump straight to a tool
+node testing/scripts/serve.mjs chargen | dm | test
+node testing/scripts/serve.mjs --no-open --port 9000
+```
+It mounts the repo at `/PACT/` no matter where you run it from, prints **which branch and commit you are
+looking at** (the point of the whole exercise when checking unmerged work), sends `Cache-Control:
+no-store` so the service worker is far less likely to serve you stale files after a branch switch, and
+lists every tool's URL. Needs only Node — the same one the test gates already require.
+
+**Checking out a branch to look at it** — a branch has no URL of its own (Pages serves `main`; `preview`
+isn't deployed), so this is the only way to see unmerged work:
+```
+git fetch origin <branch> && git checkout <branch>
+node testing/scripts/serve.mjs live
+# when you're done:  git checkout preview
+```
+
+<details><summary>The manual way (equivalent, if you'd rather not use the script)</summary>
+
 **Serve the folder that *contains* your PACT repo, then open the `/PACT/` URL** (no npm needed):
 ```
 # run this in the PARENT folder of your PACT repo:
@@ -61,6 +89,8 @@ behaviour won't match production.
 
 > Tip: when testing service-worker or cache changes, use a private/incognito window or DevTools →
 > Application → Service Workers → "Update on reload" so you're not served a stale worker.
+
+</details>
 
 ---
 
@@ -77,6 +107,28 @@ node testing/scripts/engine-parity-ci.mjs
 It prints a PASS/FAIL line per fixture and exits non-zero on any failure — this is also what
 `.github/workflows/engine-parity.yml` runs on every PR touching `js/engine.js` or `testing/**`, so a
 regression fails CI automatically, not just when a human remembers to open the browser page.
+
+### The second gate: pricing that lives inside the tools
+`engine-parity` asserts what `compute()` returns. It cannot see `priceOf()` in
+`tools/PACT-Live-Char-Sheet.html`, which decides what a player is **charged** and freezes that number
+into their log — a defect there is in `compute()`'s *caller*, so parity stays green while players are
+billed wrongly (this happened: see `D-GH-2026-08-05-pricing-model`). That is what the second gate covers:
+
+```
+node testing/scripts/tool-pricing-ci.mjs      # expect 16 passed / 0 failed
+```
+
+It needs **no npm install and no dev server**. It serves the repo itself on a loopback port and drives
+whatever Chrome/Chromium is already present over the DevTools protocol, using only Node built-ins —
+which is why it runs where the `playwright`-based e2e scripts here (`chargen-flows-e2e.mjs`,
+`cloud-e2e.mjs`, …) cannot, since `AGENTS.md` forbids npm in this repo. Point it at a specific browser
+with `CHROME_BIN=/path/to/chrome` if it can't find one. CI runs it via
+`.github/workflows/tool-pricing.yml` on any PR touching the two tools or the budget-curve files.
+
+> Writing new assertions for it: poll a **bridged** symbol (`window._engineFold`, `window.DATA`) for
+> readiness, never a classic-script function like `priceOf` — those exist before the deferred module
+> bridge has run, so probing them races. And read rendered text from the real container
+> (`#guide`, `#tray`), never `document.body.innerHTML`, which also matches the inline `<script>` source.
 
 For a one-off spot-check of a single fixture (e.g. while iterating on a pricing change before the full
 gate matters), importing the engine directly in Node still works:

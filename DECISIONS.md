@@ -13,6 +13,18 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-05-pricing-model** — prices freeze at purchase; the **creation lock**, not the tool, decides
+  how a purchase is quoted. **Supersedes H2 below** — making recorded cost equal `compute()`'s delta is the
+  defect restated as a goal, since that delta is exactly what `priceOf()` already returns. The real defect is
+  that `priceOf()` quotes a *whole-build delta*, so any purchase that changes pricing context bills the player
+  for re-pricing everything they already own — already patched by hand three times (`abil`, `mbound`, `dbound`)
+  and still live for Level Up, class unlock and species. Before the lock a character is a draft (whole-build
+  re-pricing is *correct*); after it, prices freeze and context changes take listed prices. Lock trigger =
+  first spend past a threshold, stored as a `creationLockConfig` **event** (so it persists offline and online
+  with no schema change) defaulting to `DATA.level1AP` = 79; engine-side already built and fixture-covered,
+  emit-side missing entirely. Undo reverses the lock by design; frozen prices do not reverse with it.
+  Full record: `decisions/2026/D-GH-2026-08-05-pricing-model.md`.
+
 - **D-GH-2026-08-04-species-pack-ledger-drift** — the frozen ledger drifts permanently from `compute()`:
   for Anders Tealeaf, 15 vs 33 like-for-like. `compute()` derives pack cost from `b.species` **by design**,
   so "the packs are never charged" is the symptom, not the mechanism — the four species traits were

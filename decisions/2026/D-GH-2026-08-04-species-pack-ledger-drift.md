@@ -52,6 +52,17 @@ will not be the only one.
 
 ## Decision
 
+> **⚠ Addendum (2026-08-05) — H2 below is SUPERSEDED by `D-GH-2026-08-05-pricing-model`. Do not build it.**
+> H2 aimed to make each event's recorded cost equal `compute()`'s delta by construction. That delta is
+> *exactly* what `priceOf()` already returns — the contaminated number — so H2 formalises the defect rather
+> than fixing it. The acceptance test below is likewise wrong as a general property: prices freeze at
+> purchase while `compute()` re-prices at today's context, so the two are *meant* to diverge for any
+> character who has levelled or unlocked a class. It holds only for a character built entirely at one
+> context, which is what its own "freshly built character" wording actually scoped. Everything **above**
+> this line — the reproduction, the two wrong diagnoses, the mechanism — still stands and is the right
+> starting point. Two rounds of external cold review (9 reviewers) preceded the reversal; artefacts under
+> `zUser-Uploads/`.
+
 **H2 — the invariant route** (owner, 2026-08-04), over H1 (make CharGen commit the identity event before
 any trait that depends on it).
 

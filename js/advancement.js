@@ -23,16 +23,27 @@
  */
 
 // Level budget curve presets — how much cumulative AP a level "costs" to build.
-// Cumulative AP at level N = l1 + inc × (N-1). Standard L20 = 535, Generous = 615;
-// at N=0 both give 55, the Guide's optional Level 0 prelude tier.
-// Per PACT Players Guide v0.332 §3/§18 ("Level 1 = 79 standard or 83 generous;
-// optional Level 0 prelude = 55").
+// Cumulative AP at level N = l1 + inc × (N-1). Lean L20 = 455, Standard = 535, Generous = 615;
+// at N=0 all three give 55, the Guide's optional Level 0 prelude tier. That shared level-0
+// figure is the design property a new curve must satisfy — it falls out of the formula rather
+// than being special-cased, so a curve whose l1 − inc ≠ 55 would silently disagree with the
+// Guide's prelude tier.
+// PROVENANCE DIFFERS, and matters when reconciling against the rules text:
+//   * `standard` and `generous` are the Guide's own two tracks — PACT Players Guide v0.332
+//     §3/§18 ("Level 1 = 79 standard or 83 generous; optional Level 0 prelude = 55"), and §3
+//     states the increments and endpoints separately (24/+535, 28/+615) as a cross-check.
+//   * `lean` (2026-08-05) was added here FIRST, ahead of the rules text — same concept, tighter
+//     budget, for tables wanting characters a little short of a complete build for their level.
+//     The Guide is to be updated to document it as a third track; until that lands, this file is
+//     the source and a reader finding no `lean` in the Guide has found a pending doc update, not
+//     a transcription error.
 // `standard` is ALSO the engine's fixed default ladder (js/ap-by-level.js expands it
 // into AP_BY_LEVEL → DATA.level1AP / DATA.defaultAp) — see the mechanics note in this
-// file's header before editing it. `generous` remains a per-campaign preset only:
+// file's header before editing it. `generous` and `lean` remain per-campaign presets only:
 // picking it tunes the Live Sheet's "track level" label and a character's
 // creationLockConfig threshold, never a purchase price.
 export const LEVEL_BUDGET_CURVES = {
+  lean:     { l1: 75, inc: 20 },   // L20 = 75 + 19×20 = 455
   standard: { l1: 79, inc: 24 },   // L20 = 79 + 19×24 = 535
   generous: { l1: 83, inc: 28 },   // L20 = 83 + 19×28 = 615
 };

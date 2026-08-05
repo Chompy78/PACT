@@ -27,6 +27,29 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
+## epicBoonAbil is silently dropped on a CharGen round-trip — TODO
+Branch `fix/chargen-preserve-epicboonabil`. Found while auditing the pricing model
+(`decisions/2026/D-GH-2026-08-05-pricing-model.md`); unrelated to it. Filed NOW because it is silent
+data loss on a supported path, not a display bug.
+**Effort:** low · **Risk:** low — ambiguity low (one obviously-right fix: carry the field through the
+two places that already carry its siblings); damage scale low (one field on one character); damage
+likelihood low (additive, and the parity gate plus a round-trip fixture check it) — worst-of lands at low.
+
+```text
+1. Only the Live Sheet ever SETS epicBoonAbil, via the `names` event (tools/PACT-Live-Char-Sheet.html
+   :1499-1509), applied by MUT.names (js/engine.js:485).
+2. CharGen never reads it: _domReadBuild() has no such field, and CG_NAMES (tools/PACT-CharGen-Webtool
+   .html:2842) is built as {dab,inn,feat,lang,grants,tr} with no `eb`. So the `names` event emitted by
+   _buildEventBurst omits it, and replaceWholeLogFromBuild() rebuilds a log without it.
+3. Net: open a Live-Sheet character with epic boons in CharGen and its ability choices vanish. The
+   character then permanently shows "<boon>: choose an ability to raise (+2)" (js/engine.js:110).
+4. Fix: carry epicBoonAbil through _domReadBuild() and CG_NAMES so a round-trip preserves it. It is a
+   display/entitlement field, not a price — compute() reads it only via the stat bump at :110.
+5. DATA.version does NOT move (no rules or compute() change).
+```
+**Done when:** a Live-Sheet character with epicBoonAbil set is opened in CharGen, saved, reopened in the
+Live Sheet, and still has its ability choices; a fixture covers the round-trip; engine-parity 24/0.
+
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.

@@ -57,13 +57,13 @@
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PACT Character Generator — Web Tool v1.358 · Rules v0.338</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
---good:#2E7D32;--bad:#C00000;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
+--good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
 /* ---- alternate themes (set via data-theme on <body>) ---- */
 body[data-theme="dark"]{--navy:#0e1117;--blue:#6ea8ff;--teal:#5bb39f;--lt:#2d3340;--ink:#e7e9ee;--grey:#9aa3b2;
---line:#3a4150;--good:#5fce6a;--bad:#e08585;--inp:#2f3542;--badbg:#532230;--bg:#15181e;--card:#252a33;--navytx:#9fc0ff;}
+--line:#3a4150;--good:#5fce6a;--bad:#e08585;--warn:#e0a458;--warnbg:#3d3320;--inp:#2f3542;--badbg:#532230;--bg:#15181e;--card:#252a33;--navytx:#9fc0ff;}
 body[data-theme="dnd"]{--navy:#5a1e1b;--blue:#7a2a23;--teal:#6a5520;--lt:#e7d8b6;--ink:#2b2018;--grey:#6e5d44;
---line:#c9b489;--good:#3f6f2a;--bad:#9c2b1e;--inp:#efe4c8;--badbg:#e6c2b0;--bg:#efe6d2;--card:#f8f2e2;
+--line:#c9b489;--good:#3f6f2a;--bad:#9c2b1e;--warn:#8a5a12;--warnbg:#ecd9ae;--inp:#efe4c8;--badbg:#e6c2b0;--bg:#efe6d2;--card:#f8f2e2;
 --font:Georgia,'Palatino Linotype','Book Antiqua',serif;--head:'Trajan Pro',Georgia,serif;}
 body[data-theme="royal"]{--navy:#3b2a6b;--blue:#5a3fa0;--teal:#3f7a8c;--lt:#e4dcf4;--ink:#241a3a;--grey:#6a5d86;
 --line:#cbbfe8;--good:#2E7D32;--bad:#b3245b;--inp:#efeafb;--badbg:#f3c9d8;--bg:#f3f0fa;--card:#fff;}
@@ -154,11 +154,17 @@ table.sl th{background:var(--lt)}
 .statusline{margin:7px 0;font-weight:700;padding:6px;border-radius:6px;text-align:center}
 .statusline.good{background:#CDEAD3;color:#14501f}.statusline.bad{background:var(--badbg);color:#7a0000}
 .warns{margin:6px 0;padding:0;list-style:none}.warns li{color:var(--bad);font-size:11.5px;font-weight:600;margin:2px 0}
+/* Orange title for the warnings block, mirroring the teal <h4>s that head Guide / stats / ledger. Hidden
+   by render() when there is nothing to warn about, so a clean character shows no empty heading. */
+h4.warnhead{color:var(--warn)}
 .warns li.wlink{cursor:pointer;text-decoration:underline dotted}.warns li.wlink:hover{color:#7a0000}
 .warnbanner{padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
 .warnbanner.bad{background:var(--badbg);color:#7a0000}.warnbanner.good{background:#CDEAD3;color:#14501f}
 .warnbanner.info{background:var(--lt);color:var(--blue)}
-.warns li.adv{color:var(--grey);font-weight:600;text-decoration:none}
+/* Advisory banner: caution, not error. Amber rather than the blue `info` it replaces, so it reads as
+   "look at this" at a glance while staying clearly distinct from the red rules-violation banner. */
+.warnbanner.warn{background:var(--warnbg);color:var(--warn)}
+.warns li.adv{color:var(--warn);font-weight:600;text-decoration:none}
 .warnbanner .wb-act{margin-left:auto;font-weight:600;font-size:11px;opacity:.8}
 @keyframes flashhl{0%{box-shadow:0 0 0 3px rgba(192,0,0,.0)}15%{box-shadow:0 0 0 3px rgba(192,0,0,.55)}100%{box-shadow:0 0 0 3px rgba(192,0,0,0)}}
 .flashhl{animation:flashhl 1.7s ease-out;border-radius:6px}
@@ -483,6 +489,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
     <div class="bigtot" id="total">—</div><div class="hint">total / budget · <b id="eqlvl" style="color:var(--blue)">—</b></div><div class="hint" id="apSourceLine" style="position:relative"></div>
     <div class="meter"><div class="meterfill mok" id="meterfill"></div></div>
     <div class="statusline good" id="status">—</div>
+    <h4 class="warnhead" id="warnsHead" style="display:none">Warnings</h4>
     <ul class="warns" id="warns"></ul>
     <button class="btn ghost sumtoggle" type="button" onclick="document.querySelector('.summary').classList.toggle('sumcollapsed')">▾ Guide / stats / ledger</button>
     <div id="sumdetails">
@@ -2025,7 +2032,72 @@ function _cgWireUndoKeys(){
 }
 
 // ---- LOG mutation API — the ONLY functions permitted to change LOG (no handler pushes/splices/reassigns it directly) ----
-function emit(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);render();}
+// Arm the automatic creation lock for a local character (D-GH-2026-08-05-pricing-model, D3). Unlike the
+// Live Sheet — which seeds a fresh log in seedNew() and can arm there — CharGen has no discrete "new
+// character" moment: the form IS the character and LOG starts empty (see `let LOG=[]` above). So this
+// arms lazily, on the first write to an unarmed log. Landing late is harmless: _replay accumulates
+// _spent from event 0 regardless of where the config event sits, so a log armed late is still measured
+// against its full spend to date, and a character already past the threshold locks on the arming event.
+// Two deliberate choices:
+//   * no commitHistory() — the arming must not be undoable, or undo would silently disarm the lock;
+//   * APPEND only — never route a config event through replacePatchSlot()/_cgSyncSingletonEvent(),
+//     whose filter-and-append would move it and apply it retroactively, un-tripping a lock that had
+//     already fired (D4). That is the house pattern for editable fields, hence this warning.
+function _cgEnsureLockArmed(){
+  const armed=LOG.some(function(e){return e&&e.type==='creationLockConfig'&&e.payload&&
+    Object.prototype.hasOwnProperty.call(e.payload,'auto');});
+  if(armed)return;
+  LOG.push({seq:SEQ++,ts:Date.now(),type:'creationLockConfig',payload:{auto:true},
+    label:'Creation lock armed (default '+DATA.level1AP+' AP)',rules:DATA.version});
+}
+function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);render();}
+
+// Creation-AP confirmation (D-GH-2026-08-05-pricing-model, D3) — the Live Sheet carries a byte-equivalent
+// pair of these; keep them in step. "Confirmed" is not a separate flag: it is whether the log carries a
+// creationLockConfig with an explicit `threshold`. An unconfirmed character still locks (the arming event
+// stamps no threshold, so _replay falls back to DATA.level1AP), so this prompts to customise, never gates.
+function _creationLockState(){
+  let armed=false,thr=null;
+  (LOG||[]).forEach(function(e){
+    if(!e||e.type!=='creationLockConfig'||!e.payload)return;
+    if(Object.prototype.hasOwnProperty.call(e.payload,'auto'))armed=!!e.payload.auto;
+    if(Object.prototype.hasOwnProperty.call(e.payload,'threshold'))thr=e.payload.threshold;   // last write wins, as _replay does
+  });
+  const def=DATA.level1AP;
+  return {armed:armed,confirmed:thr!=null,threshold:(thr!=null?thr:def),defaultThr:def,spent:economy(LOG).spent};
+}
+// Options read from DATA.levelBudgetCurves, so a curve added in js/advancement.js (lean, 2026-08-05)
+// appears with no edit here. Goes through emit(), which APPENDS — never route a config event through
+// replacePatchSlot()/_cgSyncSingletonEvent(), whose filter-and-append would apply it retroactively and
+// could un-trip a lock that already fired (D4).
+// Name the track a given AP figure corresponds to, so the notice can say "Standard 79" rather than a
+// bare number. Returns null for a custom figure that matches no track.
+function _apTrackName(ap){const c=DATA.levelBudgetCurves||{};
+  for(const k in c){if(c[k]&&c[k].l1===ap)return k.charAt(0).toUpperCase()+k.slice(1);}return null;}
+// Written for a player who has never met this concept: say what the number IS before saying what it
+// does, name the consequence in concrete terms ("costs more to add later"), and make clear it is
+// changeable. Kept plain-language deliberately — "creation pricing locks" means nothing to a new player.
+function _creationApPromptText(curves,names){
+  const menu=names.map(function(k){return '   '+k+' — '+curves[k].l1+' AP';}).join('\n');
+  return 'CREATION AP — how many points you get to build a brand-new character.\n\n'
+    +'While your total spending is under this number you are still building. You can change your mind '
+    +'freely, and everything re-prices as you go.\n\n'
+    +'Once you spend past it, your character counts as finished being built. Anything you already '
+    +'bought keeps the price you paid for it, and a few things — traits from your own species — cost '
+    +'more to add from then on.\n\n'
+    +'You can change this figure at any time until you pass it.\n\n'
+    +'Most tables use Standard. Ask your DM if you are not sure.\n\n'+menu+'\n\n'
+    +'Type a track name, or enter your own number of AP:';
+}
+function setCreationAp(){
+  const st=_creationLockState(),curves=(DATA.levelBudgetCurves||{}),names=Object.keys(curves);
+  const raw=prompt(_creationApPromptText(curves,names),String(st.threshold));
+  if(raw===null)return;
+  const key=String(raw).trim().toLowerCase();
+  const v=curves[key]?curves[key].l1:parseInt(raw,10);
+  if(!isFinite(v)||v<=0){alert('That wasn\'t a track name or a number.\n\nType one of: '+names.join(', ')+'\nor enter a whole number of AP, e.g. 79.');return;}
+  emit({type:'creationLockConfig',payload:{threshold:v},label:'Creation AP confirmed ('+v+' AP)'});
+}
 
 function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
@@ -2036,6 +2108,7 @@ function retractFlatEvent(cat,predicate){
 
 function replacePatchSlot(slot,patch,label){
   if(!Object.values(PATCH_SLOTS).includes(slot))throw new Error("replacePatchSlot: '"+slot+"' is not a canonical PATCH_SLOTS value");
+  _cgEnsureLockArmed();   // this path bypasses emit(), so arm here too — see _cgEnsureLockArmed()
   // price against the build with this slot's OWN PRIOR event removed, not the current full LOG (which
   // still holds the old contribution and would double-count it) — see the plan's "Coalescing patch cost delta"
   const withoutSlot=LOG.filter(function(e){return !(e.type==='buy'&&e.cat==='patch'&&e._slot===slot);});
@@ -2048,7 +2121,13 @@ function replacePatchSlot(slot,patch,label){
 }
 
 function replaceWholeLogFromBuild(b,opts){
-  commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);render();
+  // Arm AFTER the reassignment, not via emit(): this replaces LOG wholesale, so it bypasses all three
+  // mutation-API hooks. Found in a real browser — a fresh CharGen boot ends here (applyBuild's last
+  // line) with a 9-event log that was never armed, leaving the character un-lockable until its first
+  // user edit. A character saved in that window would carry no arming event, and the Live Sheet would
+  // not add one either (it arms only in seedNew(), which runs on an EMPTY log). SEQ is set first
+  // because _cgEnsureLockArmed() consumes one.
+  commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);_cgEnsureLockArmed();render();
 }
 
 // ---- Phase 2 Step 5: name + budget as first-class LOG events (retire the readBuild DOM shims) ----
@@ -2062,6 +2141,7 @@ function replaceWholeLogFromBuild(b,opts){
 // guard, so this is automatically correct; noLock:true additionally keeps the award out of the engine's
 // creation-pricing lock (a no-op for awards, but matches the export burst's convention).
 function _cgSyncSingletonEvent(type,makeEvent){
+  _cgEnsureLockArmed();   // bypasses emit() as well — see _cgEnsureLockArmed()
   const without=LOG.filter(function(e){return e.type!==type;});
   const cur=LOG.find(function(e){return e.type===type;});
   const next=makeEvent();
@@ -3733,11 +3813,29 @@ function _cgRenderInner(){
   const mf=$('meterfill');if(mf){mf.style.width=Math.max(0,Math.min(100,pct))+'%';mf.className='meterfill '+(over?'mover':near?'mnear':'mok');}
   const sl=$('status');sl.textContent=r.status;sl.className='statusline '+(r.remaining<0?'bad':'good');
   window.__WARNS=r.warnings;
-  $('warns').innerHTML=r.warnings.map((w,i)=>{var adv=isAdvisory(w);return '<li class="wlink'+(adv?' adv':'')+'" title="'+(adv?'Informational note':'Jump to the control that caused this')+'" onclick="jumpForWarning(__WARNS['+i+'])">'+(adv?'ⓘ':'⚠')+' '+w+'</li>';}).join('');
-  // top banner: count only HARD issues; informational notes are shown softly and NOT counted as issues
-  {const issues=r.warnings.filter(w=>!isAdvisory(w)).length; const advs=r.warnings.filter(isAdvisory).length; const wb=$('warnbanner');
+  {var _wr=r.warnings.map((w,i)=>{var adv=isAdvisory(w);return '<li class="wlink'+(adv?' adv':'')+'" title="'+(adv?'Informational note':'Jump to the control that caused this')+'" onclick="jumpForWarning(__WARNS['+i+'])">'+(adv?'ⓘ':'⚠')+' '+w+'</li>';});
+   // Unconfirmed creation AP (D-GH-2026-08-05-pricing-model, D3) belongs with the other advisories ABOVE
+   // the Guide, not inside it — it is a "something needs your attention" note like the Ki one, not a
+   // build suggestion. Clears on confirmation, or once spend passes the default (past that the question
+   // is moot: the lock has already fired at the default figure). Rendered here rather than pushed into
+   // r.warnings because that array is compute()'s output — the engine must not learn about a tool's UI.
+   var _apNoticeShown=false;
+   {var _cl=_creationLockState();
+    if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr){var _tn=_apTrackName(_cl.defaultThr);
+      _apNoticeShown=true;   // read by the top banner below — var, so it is function-scoped, not block
+      _wr.unshift('<li class="adv" title="Informational note">ⓘ Creation AP not confirmed — using <b>'+(_tn?_tn+' ':'')+_cl.defaultThr+' AP</b>, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a></li>');}}
+   $('warns').innerHTML=_wr.join('');
+   {var _wh=$('warnsHead'); if(_wh)_wh.style.display=_wr.length?'':'none';}}
+  // Top banner. HARD issues (rules violations) stay red and keep their own count; advisories get an
+  // amber caution banner rather than the old blue "info" one, so a note that wants acting on is
+  // visible from the header instead of only once the summary panel is scrolled to. The creation-AP
+  // notice counts as an advisory here — it is not in r.warnings (see the #warns render above), so it
+  // is added explicitly; forgetting that is why it did not appear in the banner at first.
+  {const issues=r.warnings.filter(w=>!isAdvisory(w)).length;
+   const advs=r.warnings.filter(isAdvisory).length+(_apNoticeShown?1:0);
+   const wb=$('warnbanner');
    if(wb){ if(issues>0){wb.style.display='flex';wb.className='warnbanner bad';wb.innerHTML='⚠ '+issues+' issue'+(issues>1?'s':'')+' to review<span class="wb-act">click to jump →</span>';}
-     else if(advs>0){wb.style.display='flex';wb.className='warnbanner info';wb.innerHTML='ⓘ '+advs+' note'+(advs>1?'s':'')+'<span class="wb-act">informational</span>';}
+     else if(advs>0){wb.style.display='flex';wb.className='warnbanner warn';wb.innerHTML='⚠ '+advs+' note'+(advs>1?'s':'')+' to check<span class="wb-act">click to jump →</span>';}
      else{wb.style.display='none';}}}
   $('statsbox').innerHTML=sheetStats(r,b);
   renderLedger(r,b); updateSections(r); buildGuide(b,r);

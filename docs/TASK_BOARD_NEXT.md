@@ -577,16 +577,21 @@ existing character is already under-recorded. **Get a cold plan review before im
 (`/make-code-cold-plan-review`). Not sweep-eligible.
 
 ```text
-0. DECIDED — the owner chose (b), the INVARIANT route, on 2026-08-04. Build that, not the narrower
-   ordering fix. The two options are kept below because the reasoning still matters:
-     (a) ORDERING: make CharGen commit the identity event BEFORE any trait that depends on it, so
-         compute(before) never sees traits-without-a-species and the delta has nothing phantom to
-         refund. Smallest change, fixes this reproduction, leaves priceOf()'s general fragility.
-     (b) INVARIANT: make the recorded cost of every event equal to compute()'s own delta by
-         construction, so the frozen ledger cannot drift from compute() no matter what order events
-         arrive in. Bigger, and the durable answer.
-   Chosen: (b). Packs are real purchases and must be visible as such, and (a) would leave the next
-   ordering accident free to reintroduce the same drift.
+0. SUPERSEDED — H2 (the INVARIANT route) was REVERSED on 2026-08-05 after two rounds of external cold
+   review (5 reviewers, then 4). DO NOT BUILD IT. See decisions/2026/D-GH-2026-08-05-pricing-model.md.
+   Why it was wrong: H2 said "make each event's recorded cost equal compute()'s own delta by
+   construction" — but that delta is EXACTLY what priceOf() already returns, i.e. the contaminated
+   number that produced the -5. H2 formalises the defect rather than fixing it.
+   The real defect is priceOf()'s whole-build-delta quoting basis (tools/PACT-Live-Char-Sheet.html
+   :503-511): any purchase that changes pricing context bills the player for re-pricing everything
+   they already own. Already escaped by hand three times (abil, mbound, dbound).
+   The acceptance test below is also wrong as a general property — prices freeze at purchase while
+   compute() re-prices at today's context, so the two are MEANT to diverge for any character who has
+   levelled or unlocked a class. It holds only for a character built entirely at one context, which is
+   what its own "freshly built character" wording actually scoped.
+   THIS TASK IS NOW LAST OF FOUR and reduces to CharGen draft reconciliation. Prerequisites, in order:
+   (1) docs/pricing-model-decisions — DONE; (2) feat/creation-lock-wiring — DONE; both landed on
+   branch claude/get-ready-i52ojw. (3) fix/livesheet-context-pricing — NOT STARTED, must land first.
 1. If emitting pack events: a distinct `cat:'pack'` buy event per pack (heritage, 2nd-origin) carrying
    its own cost. Keep the pack-included traits at 0; they are correct and the owner confirmed it.
 2. Whichever route, the identity patch must stop absorbing the pack cost, or the same AP is charged
@@ -614,6 +619,8 @@ migration decision is recorded in `DECISIONS.md`, and a gate covers the invarian
 Branch `fix/history-shows-derived-lines`. Reported by the owner alongside the pack-charging defect
 above. **Sequenced after it** — much of this may resolve once packs are real events, so re-assess
 before starting.
+**⚠ Inherits the reversed H2** — re-read this entry against `decisions/2026/D-GH-2026-08-05-pricing-model.md`
+before scoping; the pack-charging task it sits behind has changed shape and is now last of four.
 
 The Live Sheet's purchase history is **event-only**, so for Anders it renders:
 
@@ -649,6 +656,10 @@ is visibly attributed to the pack that paid for it, and the two views reconcile 
 ## feat/ap-model-reconcile — "AP left" and the AP Ledger disagree on the same screen — TODO
 Branch `feat/ap-model-reconcile`. Long-deferred from D-GH30, now with a live worked example and a
 decision already taken, so it is ready to scope.
+**⚠ Inherits the reversed H2** — re-read this entry against `decisions/2026/D-GH-2026-08-05-pricing-model.md`
+before scoping. In particular, "AP left" vs the AP Ledger disagreeing is EXPECTED, not a defect, wherever
+the character's context has changed since a purchase: the ledger records what was paid, `compute()` prices
+what it would cost today. The bug is only where the two disagree for a reason other than that.
 
 **The decision (G1, owner, 2026-08-04):** DM Console's roster "AP left" uses the **frozen ledger** —
 `compute().spendable − economy().spent` — matching the Live Sheet's `_apRemaining()` and, critically,
@@ -694,6 +705,123 @@ fix it there alone (that would have traded a shared bug for a new divergence). F
 **Done when:** a DM-funded character shows an Earned Lv and an earned figure that account for DM AP, the
 card and the AP Ledger either agree or are labelled to explain why they differ, both tools read the same
 definition, and Fenwick's numbers are used as the regression fixture.
+
+## buyManeuver() emits without an affordability check — TODO
+Branch `fix/maneuver-afford-gate`. Found while auditing the pricing model
+(`decisions/2026/D-GH-2026-08-05-pricing-model.md`); unrelated to it.
+**Effort:** low · **Risk:** low — ambiguity low (route it through the existing gate, an exact pattern to
+copy); damage scale low (one buy path); damage likelihood low (the guard either fires or it doesn't, and
+it is trivially checkable in a browser) — worst-of lands at low.
+
+```text
+1. tools/PACT-Live-Char-Sheet.html:1497 emits the mvbuy event directly:
+     emit({type:'buy',cat:'mvbuy',payload:{},cost:4+(b.maneuverBuys||0),...})
+   bypassing buy() and therefore the `cost>avail` gate at :537-538.
+2. A player with 0 AP available can buy maneuvers indefinitely — the only unguarded purchase path in
+   the tool. (setWornArmour and takeDrawback also bypass buy(), but are cost 0 and negative-cost
+   respectively, so both are intentionally exempt; leave them alone.)
+3. Fix: route the maneuver purchase through buy(), or replicate the affordability guard at the emit
+   site if buy()'s dup/legality checks don't apply cleanly to this category.
+4. Note the OVER BUDGET warning is deliberately NOT a gate (see the comment at :515) — do not "fix"
+   this by hard-blocking on that warning; the gate is the frozen-economy check in buy().
+```
+**Done when:** buying a maneuver with insufficient AP is refused with the same flash as any other
+purchase, and buying one with sufficient AP still works; engine-parity 24/0.
+
+## Epic boons are hard-blocked on their first purchase in the Live Sheet — TODO
+Branch `fix/epic-boon-first-buy-block`. Found while auditing the pricing model
+(`decisions/2026/D-GH-2026-08-05-pricing-model.md`); unrelated to it. A whole category of boon (12 of
+them, all `epic:true`) currently cannot be bought at all in the Live Sheet.
+**Effort:** low · **Risk:** low — ambiguity low (add the pattern to the existing SOFT_WARN regex, an
+exact pattern to copy); damage scale low (one warning's classification); damage likelihood low —
+worst-of lands at low. Care needed only in not widening SOFT_WARN so far that real violations slip
+through, so match the specific wording.
+
+```text
+1. MUT.boon (js/engine.js:489) only pushes the label; it does not set epicBoonAbil. So compute() on the
+   candidate build takes the else-branch at js/engine.js:110 and raises
+     "<boon>: choose an ability to raise (+2)"
+2. legalCheck() surfaces that as a NEW warning, and it does not match SOFT_WARN
+   (tools/PACT-Live-Char-Sheet.html:523), so buy() classifies it as a hard rules violation and refuses
+   the purchase with "⛔ Purchase blocked" at :543.
+3. But the warning is expected, not a violation: the ability is chosen afterwards, in the Names dialog
+   (:1414, :1499-1509). The purchase is legal; the prompt is guidance.
+4. Fix: add the "choose an ability to raise" wording to SOFT_WARN (or exempt it explicitly), so it
+   becomes a confirm-through advisory rather than a block.
+5. Sequencing note: fix/chargen-preserve-epicboonabil (NOW) touches the same feature from the other
+   end. Neither blocks the other, but do them in either order aware of the other.
+```
+**Done when:** an epic boon can be bought in the Live Sheet, the "choose an ability to raise" prompt
+still appears as guidance, a genuinely illegal purchase is still hard-blocked; engine-parity 24/0.
+
+## One-off reconciliation pass for characters built before the pricing fixes — TODO
+Branch `fix/ledger-reconciliation-pass`. **Sequence LAST — after all four pricing branches have landed**
+(see `decisions/2026/D-GH-2026-08-05-pricing-model.md`, D6, where the owner decided this on 2026-08-05).
+Characters built before that work carry ledgers frozen from a contaminated quoting basis: Anders is 15
+against `compute()`'s 33, and every Level Up or class unlock recorded an over- or under-charge. They are
+grandfathered until this runs; do not bolt a partial migration onto any individual fix.
+**Effort:** medium · **Risk:** high — ambiguity high (what "correct" means for a character whose purchases
+were made at contexts that no longer reproduce is a genuine judgement call, not a lookup); damage scale
+high (rewrites frozen ledgers, the app's own record of what a player paid); damage likelihood medium (the
+corpus is small and known, and the invariant is checkable afterwards) — worst-of lands at high. Not
+sweep-eligible.
+
+```text
+0. DO NOT START until fix/livesheet-context-pricing and fix/species-pack-not-charged have both landed.
+   Reconciling against a definition of "correct" that is still moving is how this drift began.
+1. Inventory first, decide second. Replay every saved character (local + cloud) and produce a table of
+   frozen-sum vs compute().total, per character, with the per-event deltas that explain the gap. Do not
+   write anything on this pass — the owner needs the numbers before authorising any rewrite.
+2. Expect at least three distinct causes and report them separately: species packs never charged; Level
+   Up over-charged by the Vigor/Grit re-price; class unlock under-charged (it could go NEGATIVE, i.e. it
+   paid AP out) — so some characters are over-budget under corrected pricing and some are under.
+3. Decide the shape WITH the owner: a correcting event appended per character (auditable, keeps the
+   append-only property, shows in the ledger as a visible adjustment), or a rewrite of the frozen costs
+   (cleaner-looking, destroys the record of what was actually paid). Default to the appended event.
+4. Characters that are over-budget after correction are a product question, not an implementation one —
+   ask before trimming, refunding, or granting AP to cover the difference.
+5. Gate: after the pass, a corrected character's frozen sum must equal compute().total where the rules
+   say it should. Add that assertion to testing/scripts/tool-pricing-ci.mjs rather than checking by hand.
+6. engine-parity must stay 24/0 and DATA.version must not move — this rewrites data, not rules.
+```
+**Done when:** the inventory table exists and has been reviewed by the owner, the agreed correction has
+been applied to every affected saved character, over-budget outcomes have an owner decision recorded, and
+a gate asserts the invariant for corrected characters.
+
+## AP ledger: drawbacks don't list what was taken, unlike every other itemised line — TODO
+Branch `feat/ledger-itemise-drawbacks`. In CharGen's AP ledger the `Drawbacks (refund)` line shows only a
+lump sum, so a character with three drawbacks shows one number and no way to see which three. Every
+comparable line already expands into named third-level rows — Arts & Techniques, Species traits, Class
+features, Subclass abilities and **Boons** all do.
+**Effort:** low · **Risk:** low — ambiguity low (four existing `addItems()` calls to copy exactly, and
+the ledger already renders `itemize` generically so no UI work is needed); damage scale low (display
+only — no AP total moves); damage likelihood low (the parity gate plus an eyeball in the ledger) —
+worst-of lands at low.
+
+```text
+1. compute() already returns `itemize` (js/engine.js:454), a map of ledger-line label -> [[name, ap], …],
+   populated by addItems(). It is called for exactly five lines: "Arts & Techniques" (js/engine.js:160),
+   "Species traits" (:205), "Class features" (:237), "Subclass abilities" (:268) and "Boons" (:398).
+   The drawbacks loop (~:404) collects nothing.
+2. Both tools' ledgers already render itemize generically — CharGen at
+   tools/PACT-CharGen-Webtool.html:3705,3708 walks (r.itemize||{})[lineLabel] for EVERY line. So adding
+   the engine-side collection is the whole job; no renderer change.
+3. In the drawbacks loop, build the pairs alongside the existing `drawGain` tally and call
+   addItems("Drawbacks (refund)", …) — the key must match the ledger line's label EXACTLY or it renders
+   nothing and fails silently. Note the values are refunds: decide and state whether each row shows the
+   drawback's AP as positive (matching the label's "(refund)") or negative (matching the line total's
+   sign), and be consistent with how "Boons" presents its rows.
+4. House-ruled drawbacks (b.houseRules.draws) override the printed AP — itemise the value actually
+   charged, not the printed one, or the rows won't sum to the line.
+5. Check whether testing/expected/ captures `itemize`. Totals do NOT change, so this should be a
+   display-only change with NO DATA.version bump — but confirm rather than assume, and if the fixtures
+   do capture it, refresh them in the same PR and say so.
+6. While here: confirm "Boons" rows actually appear in the ledger. The engine populates them, but it is
+   worth an eyeball that the label matches, since that is the exact failure mode described in step 3.
+```
+**Done when:** a character with two or more drawbacks shows each one as its own named row under
+`Drawbacks (refund)` in CharGen's AP ledger, the rows sum to the line total, house-ruled values are
+respected, and engine-parity still reports 24/0.
 
 ---
 
