@@ -1579,7 +1579,22 @@ function buildForm(F){
     '<div class="namelab">Name flavour</div><div class="namesty">'+styleChips+'</div>'+
     '<div class="namelab">Influence</div><div class="namesty influ">'+influChips+'</div>'+
     '<div class="hint" style="margin:2px 0 4px 218px">Tick flavours and/or influence toggles — the generator blends every chosen pool. Species/Class-linked pull from your origin species &amp; class. Leave the name as-is to keep it.</div>'+
-    rNum('budget','AP budget',79,0,750,'0 = none of your own (a campaign character spends DM-granted AP) · ≈ level shown in the list · L0 55 · L1 79 · L5 175 · L10 295 · L15 415 · L20 535 (+24/level)')+
+    // Level + curve, not a 751-option AP dropdown (feat/creation-vs-awarded-ap). Picking the level you
+    // are building and the table's budget track derives everything else: the total AP, the creation-AP
+    // threshold the lock measures against, and the award event that carries the remainder. `budget`
+    // stays in the DOM as a number input because the whole tool reads val('budget') and _cgSyncAward()
+    // writes the award from it — it is now DERIVED from the two selectors, and editable directly for a
+    // table running a figure no curve produces.
+    '<div class="row"><label class="l">Building level</label><select id="buildLevel">'+
+      Array.from({length:21},function(_,L){return '<option value="'+L+'"'+(L===1?' selected':'')+'>'+(L===0?'0 — prelude':'Level '+L)+'</option>';}).join('')+
+      '</select><select id="buildCurve" style="margin-left:6px">'+
+      Object.keys(DATA.levelBudgetCurves||{standard:0}).map(function(k){
+        var c=(DATA.levelBudgetCurves||{})[k]||{};
+        return '<option value="'+k+'"'+(k==='standard'?' selected':'')+'>'+k.charAt(0).toUpperCase()+k.slice(1)+(c.l1?' ('+c.l1+'/+'+c.inc+')':'')+'</option>';}).join('')+
+      '</select><span class="hint" id="buildLevel_hint"></span></div>'+
+    '<div class="row"><label class="l">AP budget</label><input type="number" id="budget" min="0" max="9999" step="1" value="79" style="width:96px">'+
+      '<span class="warn" id="budget_w"></span>'+
+      '<span class="hint" id="budget_hint">Set by the level and track above · edit directly for a custom figure · 0 = none of your own (a campaign character spends DM-granted AP)</span></div>'+
 '<div class="sublab">DM Calls &mdash; what is permitted at this table</div>'+
     '<div class="row" style="gap:20px;flex-wrap:wrap;padding:4px 0">'+
       '<label class="ck" title="Allow Martially Bound and Magically Bound options"><input type="checkbox" id="dm_bound" checked onchange="updateDmToggles()"> ⚔✦ Bound (martial &amp; magical)</label>'+
@@ -2106,6 +2121,73 @@ function _creationApPromptText(curves,names){
     +'Most tables use Standard. Ask your DM if you are not sure.\n\n'+menu+'\n\n'
     +'Type a track name, or enter your own number of AP:';
 }
+// ---- Building level + budget track (feat/creation-vs-awarded-ap) ----------------------------------
+// Two selectors replace the old 751-option AP dropdown. Picking the level you are building and the
+// table's track derives all three numbers the rest of the tool needs:
+//
+//   total AP    = the curve's cumulative figure for that level (l1 + inc x (L-1); level 0 = l1 - inc)
+//   creation AP = min(total, l1) — the LEVEL-1 figure, which is what the creation lock measures against
+//   awarded AP  = total - creation AP — implicitly post-creation, exactly like a DM award in play
+//
+// So a level-5 Standard character starts with 175 AP: the first 79 is spent under creation pricing with
+// the usual warnings, and the remaining 96 behaves as awarded AP. That split is the owner's design
+// (2026-08-05) and it is why creation AP is NOT simply the whole budget — a character who begins at
+// level 5 has, in rules terms, already advanced, and should not get creation prices for all of it.
+//
+// Level 0 is the exception the formula handles on its own: its total (55) is below l1, so creation AP
+// clamps to the total and the whole prelude budget is creation spending.
+function _cgBudgetFor(level,curveKey){
+  const c=(DATA.levelBudgetCurves||{})[curveKey]||(DATA.levelBudgetCurves||{}).standard||{l1:DATA.level1AP,inc:24};
+  const L=Math.max(0,Math.min(20,Math.floor(+level)||0));
+  const total=(L===0)?(c.l1-c.inc):(c.l1+c.inc*(L-1));
+  const creation=Math.min(total,c.l1);
+  return {total:total,creation:creation,awarded:Math.max(0,total-creation),l1:c.l1,inc:c.inc,level:L};
+}
+// Writes the derived budget into the DOM and the LOG. The threshold goes through emit(), which APPENDS —
+// never route a config event through replacePatchSlot()/_cgSyncSingletonEvent(), whose filter-and-append
+// would move it and could un-trip a lock that had already fired (D4).
+let _cgApplyingBuildLevel=false;
+function _cgApplyBuildLevel(){
+  // Re-entrancy guard: this writes the budget and then emits, and emit() renders. Without it a render
+  // triggered mid-apply can re-enter here on a half-updated budget.
+  if(_cgApplyingBuildLevel)return;
+  _cgApplyingBuildLevel=true;
+  try{ _cgApplyBuildLevelInner(); } finally { _cgApplyingBuildLevel=false; }
+  _cgSyncBuildLevelDisplay();
+}
+function _cgApplyBuildLevelInner(){
+  const b=_cgBudgetFor(val('buildLevel'),val('buildCurve'));
+  const hint=$('buildLevel_hint');
+  if(hint)hint.textContent=b.total+' AP total · '+b.creation+' creation'+(b.awarded?(' + '+b.awarded+' awarded'):'');
+  const bi=$('budget'); if(bi&&+bi.value!==b.total){bi.value=b.total;_cgSyncAward();}
+  const st=_creationLockState();
+  if(st.threshold!==b.creation)
+    emit({type:'creationLockConfig',payload:{threshold:b.creation},
+      label:'Creation AP — level '+b.level+' '+val('buildCurve')+' ('+b.creation+' of '+b.total+' AP)'});
+  else render();
+}
+
+// Repaint the two selectors FROM the character's current budget + threshold, without emitting anything.
+// Called on load/render: the budget and the creation-AP threshold live in the LOG (they are the truth),
+// so the selectors are a view onto them, not a second source. If no curve/level pair reproduces the
+// character's budget exactly — a custom figure, or a campaign-granted one — the level select shows the
+// closest match and the hint states the real numbers, so the two never silently disagree.
+// Update the hint ONLY. This deliberately does not write to the two selectors.
+//
+// An earlier version repainted them from the budget on every render, and it fought the user: render()
+// runs mid-apply (emit -> render), reads a budget that has not finished updating, and snaps the level
+// back. It also could not pick a level unambiguously — Lean level 6 and Standard level 5 both total
+// 175 AP, so "derive the level from the budget" has no single right answer. The selectors are INPUTS;
+// the budget and the creation-AP threshold in the LOG are the outputs. Their initial values are set
+// once on load (see applyBuild), not continuously.
+function _cgSyncBuildLevelDisplay(){
+  const bi=$('budget'), hint=$('buildLevel_hint');
+  if(!bi||!hint)return;
+  const cur=Number(bi.value)||0, thr=_creationLockState().threshold;
+  const awarded=cur-thr;
+  hint.textContent=cur+' AP total · '+Math.min(cur,thr)+' creation'+(awarded>0?(' + '+awarded+' awarded'):'');
+}
+
 function setCreationAp(){
   const st=_creationLockState(),curves=(DATA.levelBudgetCurves||{}),names=Object.keys(curves);
   const raw=prompt(_creationApPromptText(curves,names),String(st.threshold));
@@ -2546,6 +2628,8 @@ function onPatchFieldChange(el){
   // set for these textish fields, so keystrokes collapse into one undo step.
   if(id==='cname'){_cgSyncName();return;}
   if(id==='budget'){_cgSyncAward();return;}
+  // Level/track drive the budget AND the creation-AP threshold (feat/creation-vs-awarded-ap).
+  if(id==='buildLevel'||id==='buildCurve'){_cgApplyBuildLevel();return;}
   const slot=_cgPatchSlotForId(id);if(!slot)return;
   _cgSyncPatchSlot(slot);
   // The ARMOUR slot's STR<10 guard depends on STATS — without this cascade, dropping STR below 10 via a
@@ -3363,7 +3447,7 @@ function randomizeRoll(){
   if(typeof flash==='function') flash(_changed?('🎲 Rolled a random character — '+spent+' / '+budget+' AP spent'+(trad?' (incl. a starter spell kit)':'')+'.'):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');
 }
 
-function relabel(sel,fn){if(!sel)return;for(const o of sel.options)o.textContent=fn(+o.value);}
+function relabel(sel,fn){if(!sel||!sel.options)return;for(const o of sel.options)o.textContent=fn(+o.value);}
 function stepDesc(label,n){const nm=(label.split(': ')[1]||'').toLowerCase();
   if(nm.indexOf('die')>=0)return (['d6','d8','d10','d12'][n-1]||('step '+n));
   if(nm.indexOf('sneak attack')>=0)return '+'+n+'d6';
@@ -3827,7 +3911,7 @@ function buildGuide(b,r){const tips=[];
 // inside _cgRenderInner). _cgRenderInner's armour/cross-race DOM corrections are LOG_SYNC_GUARD writers:
 // they only make the controls reflect already-determined LOG legality; they emit no events and mutate no
 // LOG. b here is readBuild()=foldBuild(LOG)+name/budget shim.
-function render(){ _cgRenderInner(); }
+function render(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){} }
 function _cgRenderInner(){
   const b=readBuild();
   // Medium/Heavy armour require STR 10 — auto-deselect if Strength drops below 10

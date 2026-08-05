@@ -6,6 +6,27 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-05 · feat(chargen): pick a building level and budget track instead of an AP number** —
+  the AP budget was a **751-option `<select>`** (`numOpts(0,750)`), which the owner called clunky, and the
+  creation lock always measured against a flat `DATA.level1AP` of 79 no matter what the character's budget
+  was. Two selectors — **building level (0–20)** and **budget track (lean / standard / generous)** — now
+  derive all three numbers the tools need: **total AP** from the curve, **creation AP** (the track's
+  level-1 figure, which is what the lock measures), and the remainder, which behaves as **awarded AP** at
+  post-creation prices. A level-5 Standard character starts with 175 AP: the first 79 spends under creation
+  pricing with the usual warnings, the other 96 as awards — which is the right shape, since a character
+  beginning at level 5 has in rules terms already advanced (owner's design). Level 0 is handled by the same
+  formula rather than a special case: its 55 AP total is below the level-1 figure, so creation AP clamps to
+  the total and the whole prelude budget is creation spending. The threshold is written as an **appended**
+  `creationLockConfig` event (D4 — never replaced or moved), so it persists in the save file with no schema
+  change. `#budget` remains as a plain number input, derived from the two selectors but still directly
+  editable for a table running a figure no curve produces. Two bugs found and fixed while building it: a
+  render-time helper repainted the selectors from the budget and fought the user's own edit (the level
+  snapped back before the new total landed); and "derive the level from the budget" has no unique answer at
+  all — Lean level 6 and Standard level 5 both total 175 AP — so the selectors are now inputs only, with a
+  hint line reporting the real figures. `relabel()` also gained an `options` guard, since it assumed a
+  `<select>`. Gate: `tool-pricing-ci.mjs` 34 → 42, covering all three tracks, level 0 and level 20, the
+  event-not-DOM threshold, and that the control is no longer a dropdown. Parity 26/0, log-fuzz 500/500,
+  `DATA.version` unchanged — no `compute()` output moves.
 - **2026-08-05 · fix(engine): Grit is priced by which purchase it is, not by your character tier** —
   **rules correction (owner), `DATA.version` v0.338 → v0.339.** `js/engine.js` indexed the Grit ladder
   (2/4/6/9/12/15/18) by the character's **tier**, so every Grit purchase cost the same and that cost rose

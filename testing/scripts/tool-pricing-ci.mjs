@@ -325,6 +325,34 @@ try {
         {seq:4,type:'buy',cat:'patch',payload:{patch:{species:'Halfling'}},cost:0,_slot:'identity'}];
       _cgApplyEnvelope({schema:'pact-character/1',rules:DATA.version,name:'Stale',LOG:LOGIN,SEQ:5});
       return economy(LOG).spent - compute(foldBuild(LOG)).total;})()`), 0);
+
+  // ---- building level + budget track (feat/creation-vs-awarded-ap) ---------------------------
+  // The old control was a 751-option AP dropdown. Level + track now derives all three numbers:
+  // total AP from the curve, creation AP (the level-1 figure, which is what the lock measures),
+  // and the remainder, which behaves as awarded AP bought at post-creation prices.
+  console.log('\nCharGen — level + track derives budget, creation AP and the lock threshold');
+  const pick = (lvl, curve) => `(()=>{const c=document.getElementById('buildCurve');
+    c.value=${JSON.stringify('')}||c.value;c.value=${JSON.stringify(curve)};
+    c.dispatchEvent(new Event('change',{bubbles:true}));
+    const l=document.getElementById('buildLevel');l.value=${JSON.stringify(String(lvl))};
+    l.dispatchEvent(new Event('change',{bubbles:true}));
+    return [Number(document.getElementById('budget').value), _creationLockState().threshold];})()`;
+  check('level 1 standard = 79 total, 79 creation', await cg.evaluate(pick(1, 'standard')), [79, 79]);
+  check('level 5 standard = 175 total, 79 creation (96 awarded)', await cg.evaluate(pick(5, 'standard')), [175, 79]);
+  check('level 5 lean = 155 total, 75 creation', await cg.evaluate(pick(5, 'lean')), [155, 75]);
+  check('level 5 generous = 195 total, 83 creation', await cg.evaluate(pick(5, 'generous')), [195, 83]);
+  // Level 0 is the case the formula has to get right on its own: the prelude total (55) is BELOW the
+  // curve's level-1 figure, so creation AP clamps to the total and the whole budget is creation spending.
+  check('level 0 prelude = 55 total, 55 creation (nothing awarded)', await cg.evaluate(pick(0, 'standard')), [55, 55]);
+  check('level 20 standard = 535 total, 79 creation', await cg.evaluate(pick(20, 'standard')), [535, 79]);
+  // The threshold is a creationLockConfig event, so it must survive being written to the LOG and read
+  // back — this is the half that the old flat DATA.level1AP could never express.
+  check('the threshold is carried by an appended config event, not a DOM value',
+    await cg.evaluate(`(()=>{const cfg=LOG.filter(e=>e.type==='creationLockConfig'&&e.payload&&e.payload.threshold!=null);
+      return cfg.length>0 && cfg[cfg.length-1].payload.threshold===_creationLockState().threshold;})()`), true);
+  check('the budget control is a number input, not a 751-option dropdown',
+    await cg.evaluate(`(()=>{const b=document.getElementById('budget');
+      return [b.tagName, b.options?b.options.length:0];})()`), ['INPUT', 0]);
   await cg.close();
 } catch (e) {
   fail++; console.log(`  FAIL harness — ${e.message}`);
