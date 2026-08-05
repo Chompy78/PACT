@@ -17,16 +17,23 @@
   33. Fixed in two independent halves: new `repriceDraft(log)` export in `js/engine.js` re-derives every
   pre-lock purchase's cost as its own sequential delta (riding `_replay`, which gained one optional
   callback, so racial `_raceTraitLocked` stamping and the lock bookkeeping stay single-source), called
-  from every LOG-mutating path in CharGen; and `replacePatchSlot()` now replaces in place instead of
+  from CharGen's mutation paths **and from `_cgApplyEnvelope`** — the load path (file, `?handoff=`,
+  autosave restore) that a pre-existing under-recorded ledger actually arrives by; and `replacePatchSlot()` now replaces in place instead of
   filter-and-appending, which had been moving a slot's event to the end of the log on every edit so the
   identity line priced traits that came *before* it. Post-lock purchases keep their frozen price
   (D5), and drawbacks are untouched — their recorded cost is income, not spend. The pass runs to a fixed
-  point because re-pricing and the threshold lock are mutually recursive. `DATA.version` unchanged:
+  point because re-pricing and the threshold lock are mutually recursive — the decision is made once for
+  the whole log (`isCreationDraft()`, also exported), never per event, so it settles in one pass and a
+  locked character's frozen prices are never re-derived. `DATA.version` unchanged:
   `compute()` output does not move, only what the ledger records. Gate: `tool-pricing-ci.mjs` 20→27,
   verified by reintroducing each half (reproduces −11 and −4 exactly); `log-fuzz.mjs` gained four
   `repriceDraft` invariants (non-mutating, idempotent, build-preserving, draft-reconciling) — those
   caught the non-idempotence, the drawback-income bug, and a duplicate-purchase mispricing that also
-  hardened `_replay`'s proficiency dedupe. 500/500 clean across five seeds; parity 24/0.
+  hardened `_replay`'s proficiency dedupe. Code review then caught four more, all fixed here: the
+  per-event lock decision needed O(events) passes to settle and could re-price a purchase frozen at 6 AP
+  down to 2 (a D5 violation); the load path never re-priced at all; and the fuzz invariant's scope
+  excluded every CharGen-shaped log, since `_cgEnsureLockArmed()` stamps `{auto:true}` into all of them.
+  Gate 20→32; fuzz 500/500 clean across five fixed seeds and at 80 events/log; parity 24/0.
 - **2026-08-05 · docs(decisions): reverse H2 — the species-pack fix is a `priceOf()` quoting-basis bug, not
   a ledger-accounting one** — two rounds of external cold review (5 reviewers, then 4) refuted the planned
   approach, and two code audits moved the diagnosis to `priceOf()`

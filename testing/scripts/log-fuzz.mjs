@@ -232,6 +232,12 @@ function findNaN(obj, pathStr = '$', seen = new Set()) {
 // Runs every check against one LOG; returns [{tag, note}] (empty = clean). Each tag is a
 // stable string so shrink() can target "the same failure", not just "any failure", while
 // removing events from a candidate LOG.
+// How many logs actually exercised the draft-reconciliation invariant. Reported at the end: this
+// invariant is necessarily scoped (see its comment), and a scope that quietly narrows to nothing is
+// how the previous version passed while asserting almost nothing. shrink() re-runs runChecks() many
+// times, so this over-counts — it is a coverage signal, not an exact tally.
+let driftChecked = 0;
+
 function runChecks(ENGINE, LOG) {
   const failures = [];
 
@@ -317,27 +323,29 @@ function runChecks(ENGINE, LOG) {
       failures.push({ tag: 'repriceChangesBuild', note: 'repriceDraft() changed compute() output — it must only rewrite costs' });
 
     // The invariant the whole fix exists for: a draft has ONE pricing context, so its ledger must
-    // equal what the build costs today. Three exclusions, each a DELIBERATE divergence rather than a
-    // gap in the fix — every one of them is AP the player really spent on something compute() cannot
-    // see by design, so a gate demanding they reconcile would be asserting the wrong thing:
-    //   * the lock firing at all — post-lock prices are frozen at purchase and are MEANT to diverge (D5);
+    // equal what the build costs today. Scoped by ENGINE.isCreationDraft(), which asks whether the lock
+    // ACTUALLY fired. An earlier version asked whether it COULD fire — any log carrying
+    // creationLockConfig{auto} — which silently excluded every CharGen-shaped log, since
+    // _cgEnsureLockArmed() stamps exactly that into all of them. The invariant was then being asserted
+    // almost entirely on shapes the app never produces.
+    //
+    // Three further exclusions, each a DELIBERATE divergence rather than a gap in the fix — every one
+    // is AP the player really spent on something compute() cannot see by design, so a gate demanding
+    // they reconcile would be asserting the wrong thing:
     //   * `buyoff` — costs 3x the refund to undo a drawback, leaving no trace in the build;
     //   * `names` with a cost — the Live Sheet charges for paid spell swaps there
-    //     (PACT-Live-Char-Sheet.html, `cost:_st.paid`), and a swap is like-for-like, so the build is
-    //     unchanged by construction.
-    // Drawbacks are not excluded but must be added back: economy() reports their AP under `earned`,
-    // never `spent`, while compute().total carries them as a negative — so the two agree only once
-    // drawbackEarned is restored to the spend side.
+    //     (PACT-Live-Char-Sheet.html, `cost:_st.paid`), and a swap is like-for-like by construction;
+    //   * a drawback recorded at anything other than its table value — repriceDraft() leaves income
+    //     alone (see its comment) while compute() reads the table. Both tools record it from that
+    //     table, so this shape is reachable only by generating events directly.
+    // Drawbacks are otherwise in scope but must be added back: economy() reports their AP under
+    // `earned`, never `spent`, while compute().total carries them as a negative.
     const hasBuyoff = rp.some(e => e.type === 'buyoff');
     const hasPaidNames = rp.some(e => e.type === 'names' && (Number(e.cost) || 0) !== 0);
-    const lockCanFire = rp.some(e => e.type === 'creationLocked' || e.type === 'campaignBound'
-      || (e.type === 'creationLockConfig' && e.payload && e.payload.auto));
-    // A drawback recorded at anything other than its table value cannot reconcile, because
-    // repriceDraft() leaves income alone (see its comment) while compute() reads the table. Both
-    // tools record it from that table, so this shape is reachable only by generating events directly.
     const staleDrawback = rp.some(e => e.type === 'buy' && e.cat === 'drawback'
       && -(Number(e.cost) || 0) !== (ENGINE.DATA.drawbacks[e.payload && e.payload.v] || 0));
-    if (!hasBuyoff && !hasPaidNames && !lockCanFire && !staleDrawback) {
+    if (!hasBuyoff && !hasPaidNames && !staleDrawback && ENGINE.isCreationDraft(rp)) {
+      driftChecked++;
       const ec = ENGINE.economy(rp);
       const total = ENGINE.compute(ENGINE.foldBuild(rp)).total;
       if (ec.spent - ec.drawbackEarned !== total)
@@ -401,6 +409,7 @@ async function main() {
 
   if (failedRuns.length === 0) {
     log(`${ITERATIONS}/${ITERATIONS} iterations clean — no throws, no NaN, no self-disagreement`);
+    log(`draft-reconciliation invariant asserted on ${driftChecked} log(s)`);
     process.exit(0);
   }
 

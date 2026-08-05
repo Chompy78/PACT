@@ -251,6 +251,56 @@ try {
   check('repriceDraft does not mutate the log it is given',
     await cg.evaluate(`(()=>{const l=[{seq:1,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:123}];
       const r=repriceDraft(l);return l[0].cost===123 && r[0]!==l[0];})()`), true);
+
+  // ---- regressions found by code review of the first version of this fix ----------------------
+  // Re-pricing is all-or-nothing per log, because the auto-lock's POSITION is a function of the very
+  // costs it rewrites. The first version decided per event and broke both ways: the numbers kept
+  // moving on repeated calls, and a locked character's frozen prices got re-derived.
+  console.log('\nCharGen — re-pricing stops dead once the lock has fired');
+  const lockedLog = `[{seq:1,type:'creationLockConfig',payload:{auto:true,threshold:6}},
+    {seq:2,type:'buy',cat:'patch',payload:{patch:{species:'Dwarf'}},cost:7,_slot:'identity'},
+    {seq:3,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:6},
+    {seq:4,type:'buy',cat:'racial',payload:{v:'Halfling: Luck'},cost:6},
+    {seq:5,type:'buy',cat:'racial',payload:{v:'Halfling: Naturally Stealthy'},cost:6},
+    {seq:6,type:'buy',cat:'racial',payload:{v:'Halfling: Halfling Nimbleness'},cost:6}]`;
+  // Four traits, not two, and that matters: the edit below drops the identity cost to -4, so cumulative
+  // spend only passes the threshold partway through the traits. With two, the lock fires on the LAST
+  // event, nothing is flagged locked, and the log is correctly still a draft — which is a true result
+  // but not the case this assertion is about.
+  check('isCreationDraft: armed but under threshold is still a draft',
+    await cg.evaluate(`isCreationDraft([{seq:1,type:'creationLockConfig',payload:{auto:true}},
+      {seq:2,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:2}])`), true);
+  check('isCreationDraft: spend past the threshold is not',
+    await cg.evaluate(`isCreationDraft(${lockedLog})`), false);
+  // The exact regression: editing species on a locked character wrote the new quote at the old index,
+  // which sits BEFORE the lock — so the pass treated it as draft state and re-derived purchases made
+  // while locked. `Halfling: Brave`, frozen at 6, silently became 2.
+  check('a locked log is returned untouched, even after a species edit',
+    await cg.evaluate(`(()=>{const l=${lockedLog};
+      l[1]={...l[1],payload:{patch:{species:'Halfling'}},cost:-4};
+      const r=repriceDraft(l);
+      return r.filter(e=>e.type==='buy').map(e=>e.cost);})()`), [-4, 6, 6, 6, 6]);
+  check('re-pricing a draft is a fixed point after ONE pass',
+    await cg.evaluate(`(()=>{const l=[{seq:1,type:'creationLockConfig',payload:{auto:true}},
+      {seq:2,type:'buy',cat:'patch',payload:{patch:{species:'Halfling'}},cost:0,_slot:'identity'},
+      {seq:3,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:0},
+      {seq:4,type:'buy',cat:'racial',payload:{v:'Halfling: Naturally Stealthy'},cost:0}];
+      const a=repriceDraft(l), b=repriceDraft(a);
+      return JSON.stringify(a.map(e=>e.cost))===JSON.stringify(b.map(e=>e.cost));})()`), true);
+
+  // Loading a saved character is the path a pre-existing under-recorded ledger actually arrives by.
+  // _cgApplyEnvelope reinstates the saved LOG verbatim AFTER applyBuild(), discarding the reprice that
+  // replaceWholeLogFromBuild had just done — so a loaded file kept its stale ledger until some later,
+  // unrelated edit made it jump.
+  console.log('\nCharGen — loading a saved character reconciles its ledger');
+  check('a stale under-recorded ledger reconciles on load, not on the next edit',
+    await cg.evaluate(`(()=>{
+      const LOGIN=[{seq:1,type:'creationLockConfig',payload:{auto:true}},
+        {seq:2,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:0},
+        {seq:3,type:'buy',cat:'racial',payload:{v:'Halfling: Naturally Stealthy'},cost:0},
+        {seq:4,type:'buy',cat:'patch',payload:{patch:{species:'Halfling'}},cost:0,_slot:'identity'}];
+      _cgApplyEnvelope({schema:'pact-character/1',rules:DATA.version,name:'Stale',LOG:LOGIN,SEQ:5});
+      return economy(LOG).spent - compute(foldBuild(LOG)).total;})()`), 0);
   await cg.close();
 } catch (e) {
   fail++; console.log(`  FAIL harness — ${e.message}`);

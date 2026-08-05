@@ -638,12 +638,10 @@ export function economy(events) {
 // changes what the build COSTS, so a re-pricing caller has nothing to do for them. foldBuild() and
 // rebuildStateFromEvents() pass two arguments, so this is inert for every existing caller.
 //
-// It may return an AP adjustment, which is added to the running `_spent`. A caller that rewrites
-// `e.cost` needs this: the spend line above already consumed the event's OLD cost, so without it the
-// automatic threshold lock would be evaluated against prices the caller has just replaced, and would
-// land in a different place on the next pass over the same log. The adjustment applies from the NEXT
-// event onward — this event's own lock check has already run — which is the same one-event lag the
-// existing code has for any purchase whose own cost crosses the threshold.
+// It is a pure observer: the return value is ignored, and `_spent` keeps accumulating the costs the
+// log arrived with. That is deliberate and load-bearing for repriceDraft() — the lock position must be
+// read from what was actually paid, never from what a caller is in the middle of rewriting, or the two
+// chase each other (see repriceDraft's "ALL-OR-NOTHING" note for what that cost the first time).
 function _replay(b, log, onApplied) {
   const ae = activeEvents(log);
   const { evs, boughtOff } = ae;
@@ -684,7 +682,7 @@ function _replay(b, log, onApplied) {
     if (e.cat === 'racial' && e.payload && e.payload.v)
       (b._raceTraitLocked = b._raceTraitLocked || {})[e.payload.v] = _wasLocked;
     (MUT[e.cat] || (() => {}))(b, e.payload || {});
-    if (onApplied) { const _adj = onApplied(e, b, _wasLocked); if (_adj) _spent += _adj; }
+    if (onApplied) onApplied(e, b, _wasLocked);
   }
   // single-instance proficiency lists never hold duplicates. Factored into _dedupeProfLists() (just
   // above baseBuild()) so repriceDraft() can apply the SAME nine lists mid-walk — see its call site.
@@ -739,83 +737,92 @@ export function foldBuild(events) {
   return b;
 }
 
-// repriceDraft(events): re-derive the frozen `cost` of every purchase made BEFORE the creation lock
-// fired, so a draft character's ledger telescopes back to compute().total.
+// isCreationDraft(events): has the creation lock fired at any point in this log?
+//
+// "Draft" is the whole basis on which repriceDraft() decides whether it may touch anything, and it is
+// derived state (D5) rather than a stored flag, so it belongs here next to _replay rather than being
+// re-derived by each caller from spend and thresholds. Exported so gates can assert the reconciliation
+// invariant on exactly the logs it applies to — an earlier version of the fuzzer approximated this as
+// "could the lock fire", which excluded every CharGen-shaped log, since _cgEnsureLockArmed() stamps
+// creationLockConfig{auto:true} into all of them.
+export function isCreationDraft(events) {
+  const log = (Array.isArray(events) ? events : []).filter(Boolean);
+  let anyLocked = false;
+  _replay(baseBuild(), log, (e, build, wasLocked) => { if (wasLocked) anyLocked = true; });
+  return !anyLocked;
+}
+
+// repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so
+// its ledger telescopes back to compute().total.
 //
 // WHY THIS EXISTS (D-GH-2026-08-05-pricing-model, D2). Before the lock a character is a draft: there is
 // only one pricing context, so "what was paid" and "what it costs to build today" must agree. After the
 // lock, prices freeze per purchase and the two are MEANT to diverge. Nothing enforced the draft half —
 // a purchase's cost was frozen at the moment it was made, and a LATER change to pricing context left it
-// stale. Measured in a real browser at the previous commit: buy four Halfling traits (ledger 13,
-// compute 13), then switch species to Dwarf — the traits become cross-race and compute jumps to 24
-// while the ledger stays 13; switch back and the identity patch quotes -4, taking the ledger to 2
-// against compute's 13. That negative quote is the same mechanism that left Anders Tealeaf's log
-// summing to 15 against a compute() of 33.
+// stale. Measured in a real browser: buy four Halfling traits (ledger 13, compute 13), then switch
+// species to Dwarf — the traits become cross-race and compute jumps to 24 while the ledger stays 13;
+// switch back and the identity patch quotes -4, taking the ledger to 2 against compute's 13. That
+// negative quote is the same mechanism that left Anders Tealeaf's log summing to 15 against a
+// compute() of 33.
 //
-// HOW. One pass over the log with a running build, re-pricing each pre-lock purchase as its own
-// sequential delta on everything before it. That is the basis CharGen's own import burst
-// (_buildEventBurst) already uses, so the two agree by construction. Riding on _replay() rather than
-// walking the log here is load-bearing: racial-trait pricing depends on the per-trait
-// `_raceTraitLocked` map that _replay stamps, and the lock bookkeeping is subtle enough (see the
-// PRECEDENCE block above) that a second copy would drift — which is exactly how D-GH36 got its
-// `found`/`dbound` bug.
+// ALL-OR-NOTHING, AND THAT IS THE POINT. Either the log is a draft, in which case every purchase in it
+// re-prices, or the lock has fired somewhere, in which case NOTHING is touched and the function returns
+// its input. There is deliberately no per-event "this one was pre-lock, that one wasn't" mode.
 //
-// WHAT IT WILL NOT TOUCH:
-//   * anything bought while locked (`wasLocked`) — that is the freeze-at-purchase guarantee, and it
-//     survives a later return to unlocked (D5);
-//   * drawbacks, whose recorded cost is income rather than spend (see the note at the assignment);
-//   * buy-off, award and name events, which _replay never routes here in the first place.
+// The first version had one, and it was wrong in two ways that a code review caught (see D7):
+//   * The auto-lock's position is a function of cumulative spend — i.e. of the very costs this function
+//     rewrites. Re-pricing moved the lock point, which changed which events were re-pricable, which
+//     moved it again: the numbers kept shifting on repeated calls over the same log. A fixed-point loop
+//     hid that rather than fixing it, and needed O(events after the lock) passes to settle.
+//   * Worse, it broke the guarantee it claimed to keep. Edit a locked character's species and the new
+//     quote lands at the old event's index, which sits BEFORE the lock — so the pass treated it as
+//     draft state and re-priced downstream purchases that were bought while locked. Reproduced: a trait
+//     frozen at 6 AP silently became 2.
+// Deciding once, for the whole log, removes both: the lock position is read from what was actually
+// paid, never from what this pass is about to write, so a second call cannot move anything. Where a
+// re-price pushes a draft past its own threshold the new costs stand as that draft's final
+// reconciliation, and the next call sees a locked log and leaves it alone — a fixed point after one
+// pass, by construction rather than by iteration.
+//
+// HOW. One pass with a running build, pricing each purchase as its own sequential delta on everything
+// before it. That is the basis CharGen's import burst (_buildEventBurst) already uses, so the two agree
+// by construction. Riding on _replay() rather than walking the log here is load-bearing: racial-trait
+// pricing depends on the per-trait `_raceTraitLocked` map that _replay stamps, and the lock bookkeeping
+// is subtle enough (see the PRECEDENCE block above) that a second copy would drift — which is exactly
+// how D-GH36 got its `found`/`dbound` bug.
+//
+// WHAT IT WILL NOT TOUCH: anything at all once the lock has fired; drawbacks, whose recorded cost is
+// income rather than spend (economy() reports it under `earned`, and foldBuild feeds that into
+// b.budget, so rewriting it would change how much AP the character HAS — caught by the fuzzer);
+// and buy-off, award and name events, which _replay never routes here in the first place.
+//
 // Non-mutating: the returned log is a fresh array of fresh event objects. Callers assign the result.
 //
 // A log containing a buy-off will NOT telescope exactly, and that is correct rather than a gap: buying
 // a drawback off costs 3x its refund (a table price for undoing something), so the AP is genuinely
 // spent on nothing compute() can see. Gates asserting ledger==compute must scope to buy-off-free logs.
-//
-// WHY IT ITERATES. Re-pricing and the automatic lock are mutually dependent: a purchase's new cost
-// changes cumulative spend, spend decides where the threshold lock fires, and the lock decides which
-// purchases may be re-priced at all. One pass can therefore land on a different lock point than the
-// one its own output implies, and running it again would move the numbers a second time — a ledger
-// that drifts with no edit behind it. So it runs to a fixed point instead: repeat until a pass changes
-// nothing, which makes the result idempotent by construction rather than by argument. In practice this
-// settles on the first or second pass (every log the fuzzer generates, and every flow the tool-pricing
-// gate drives, converges within two); the cap only bounds a pathological oscillation, and returning the
-// last pass there is deliberate — a ledger one pass off beats one that never stops moving.
-const REPRICE_MAX_PASSES = 8;
-
 export function repriceDraft(events) {
-  let log = (Array.isArray(events) ? events : []).filter(Boolean).map(e => clone(e));
-  const costs = l => JSON.stringify(l.map(e => (e.type === 'buy' ? e.cost : null)));
-  for (let pass = 0; pass < REPRICE_MAX_PASSES; pass++) {
-    const before = costs(log);
-    const next = log.map(e => clone(e));
-    const b = baseBuild();
-    let prev = 0;
-    _replay(b, next, (e, build, wasLocked) => {
-      // Dedupe BEFORE pricing. _replay only collapses the proficiency lists once, at the very end, so
-      // mid-walk a duplicate purchase is still sitting in the array and inflates compute() — while the
-      // final build has it collapsed away. Pricing off that gap charges real AP for a purchase the
-      // character never receives (the fuzzer's minimal repro: buy the CON save twice, ledger 13 against
-      // a compute() of 5). Both tools guard against emitting duplicates, so this is a degenerate shape
-      // rather than a routine one, but _replay repairs it silently and the pricer has to agree.
-      _dedupeProfLists(build);
-      const now = compute(build).total;
-      let adj = 0;
-      // Drawbacks are deliberately NOT re-priced. Their recorded cost is INCOME, not spend: economy()
-      // reports it under `earned` (never `spent`) and foldBuild() feeds that straight into `b.budget`.
-      // Rewriting it would therefore change how much AP the character has to spend at all — verified
-      // by the fuzzer, which caught an earlier version of this doing exactly that and moving compute()
-      // output with it. Re-pricing answers "what was paid"; it has no business restating what was earned.
-      if (!wasLocked && e.type === 'buy' && e.cat !== 'drawback') {
-        const old = Number(e.cost) || 0;
-        e.cost = now - prev;
-        if (!e.noLock) adj = e.cost - old;   // keep _spent honest, so the lock lands where these prices put it
-      }
-      prev = now;
-      return adj;
-    });
-    log = next;
-    if (before === costs(log)) break;        // this pass changed nothing: fixed point reached
-  }
+  const log = (Array.isArray(events) ? events : []).filter(Boolean).map(e => clone(e));
+  const b = baseBuild();
+  let prev = 0, anyLocked = false;
+  const priced = [];
+  _replay(b, log, (e, build, wasLocked) => {
+    if (wasLocked) anyLocked = true;
+    // Dedupe BEFORE pricing. _replay only collapses the proficiency lists once, at the very end, so
+    // mid-walk a duplicate purchase is still sitting in the array and inflates compute() — while the
+    // final build has it collapsed away. Pricing off that gap charges real AP for a purchase the
+    // character never receives (the fuzzer's minimal repro: buy the CON save twice, ledger 13 against
+    // a compute() of 5). Both tools guard against emitting duplicates, so this is a degenerate shape
+    // rather than a routine one, but _replay repairs it silently and the pricer has to agree.
+    _dedupeProfLists(build);
+    const now = compute(build).total;
+    if (e.type === 'buy' && e.cat !== 'drawback') priced.push([e, now - prev]);
+    prev = now;
+  });
+  // Costs are collected first and written only here, so a lock firing late in the log still protects
+  // the events before it — the decision is made on the whole log, never event by event.
+  if (anyLocked) return log;
+  for (const [e, cost] of priced) e.cost = cost;
   return log;
 }
 

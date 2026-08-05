@@ -211,12 +211,23 @@ way rather than reasoned out:
   stamping (racial pricing depends on it) and its lock bookkeeping. A tool-local copy is exactly the
   duplication that produced D-GH36's `found`/`dbound` drift. `_replay` gained one optional callback
   parameter; `foldBuild`/`rebuildStateFromEvents` pass two arguments and are unaffected.
-- **Re-pricing and the lock are mutually recursive, so the pass iterates to a fixed point.** A new cost
-  changes cumulative spend, spend decides where the threshold lock fires, and the lock decides what may
-  be re-priced. A single pass is therefore not idempotent — the fuzzer caught it moving numbers on a
-  second run over the same log, i.e. a ledger drifting with no edit behind it. It now repeats until a
-  pass changes nothing. `_replay`'s callback returns a spend adjustment so the lock lands where the
-  new prices put it rather than where the old ones did.
+- **Re-pricing is all-or-nothing per log, because the lock's POSITION is a function of the costs being
+  rewritten.** Either the log is a draft and every purchase re-prices, or the lock has fired somewhere
+  and nothing is touched. There is deliberately no per-event mode.
+
+  The first version had one, and a code review showed it broke both ways. It was not idempotent — the
+  lock point advanced one event per pass, so convergence was O(events after the lock), not the one or
+  two passes claimed; user-visibly, `economy(LOG).spent` read 86 after one call and 67 after the next
+  unrelated edit, a 19 AP jump with no purchase behind it, autosaved in that state. And it broke the
+  very guarantee it claimed to keep: editing a locked character's species put the new quote at the old
+  event's index, which sits *before* the lock, so the pass treated it as draft state and re-derived
+  purchases made while locked — a trait frozen at 6 AP silently became 2, straight against D5.
+
+  Deciding once for the whole log removes both. The lock position is read from what was actually paid,
+  never from what the pass is about to write, so a second call cannot move anything. Where a re-price
+  pushes a draft past its own threshold, the new costs stand as that draft's final reconciliation and
+  the next call sees a locked log and leaves it alone — a fixed point after one pass, by construction.
+  Exported as `isCreationDraft(log)` so callers and gates ask the engine rather than re-deriving it.
 - **Drawbacks are excluded, because their recorded cost is income.** `economy()` reports it under
   `earned`, never `spent`, and `foldBuild` feeds that into `b.budget`. An earlier version re-priced them
   and moved `compute()` output as a result. Re-pricing answers "what was paid" and must not restate what
@@ -233,6 +244,17 @@ event, which replace-in-place guarantees.
 The two are genuinely separable: re-pricing alone fixes the ledger *sum* but leaves the negative line;
 in-place replacement alone fixes the line but not the sum. The gate asserts both, and was verified by
 reintroducing each half independently.
+
+Two further review findings, both fixed: `_cgApplyEnvelope` reinstates a saved LOG verbatim *after*
+`applyBuild()` and so discarded the re-price that `replaceWholeLogFromBuild` had just done — meaning a
+loaded file kept its stale ledger until some later unrelated edit made it jump, which is precisely the
+path a pre-existing under-recorded character arrives by. And the fuzzer's reconciliation invariant was
+scoped on whether the lock *could* fire rather than whether it *did*, which excluded every
+CharGen-shaped log, since `_cgEnsureLockArmed()` stamps `creationLockConfig{auto:true}` into all of them.
+
+**Still open after this branch:** CharGen's `replacePatchSlot()` still quotes a context change as a
+whole-build delta, so a *locked* character editing species is quoted at −4 rather than the pack's listed
+price. D1 was implemented for the Live Sheet's `priceOf()` only. Tracked as `fix/chargen-context-pricing`.
 
 ## Open question — should a PRE-LOCK Live Sheet character reconcile? (raised 2026-08-05, part 4)
 
