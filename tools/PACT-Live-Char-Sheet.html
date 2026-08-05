@@ -701,14 +701,32 @@ function _creationLockState(){
 // 2026-08-05) appears here with no edit to this function. APPENDS a config event and must keep doing so:
 // replacing/moving one applies the new threshold retroactively and can un-trip a lock that already
 // fired (D4) — which is exactly what routing this through a coalescing helper would do.
+// Name the track a given AP figure corresponds to, so the notice can say "Standard 79" rather than a
+// bare number. Returns null for a custom figure that matches no track.
+function _apTrackName(ap){const c=DATA.levelBudgetCurves||{};
+  for(const k in c){if(c[k]&&c[k].l1===ap)return k.charAt(0).toUpperCase()+k.slice(1);}return null;}
+// Written for a player who has never met this concept: say what the number IS before saying what it
+// does, name the consequence in concrete terms ("costs more to add later"), and make clear it is
+// changeable. Kept plain-language deliberately — "creation pricing locks" means nothing to a new player.
+function _creationApPromptText(curves,names){
+  const menu=names.map(function(k){return '   '+k+' — '+curves[k].l1+' AP';}).join('\n');
+  return 'CREATION AP — how many points you get to build a brand-new character.\n\n'
+    +'While your total spending is under this number you are still building. You can change your mind '
+    +'freely, and everything re-prices as you go.\n\n'
+    +'Once you spend past it, your character counts as finished being built. Anything you already '
+    +'bought keeps the price you paid for it, and a few things — traits from your own species — cost '
+    +'more to add from then on.\n\n'
+    +'You can change this figure at any time until you pass it.\n\n'
+    +'Most tables use Standard. Ask your DM if you are not sure.\n\n'+menu+'\n\n'
+    +'Type a track name, or enter your own number of AP:';
+}
 function setCreationAp(){
   const st=_creationLockState(),curves=(DATA.levelBudgetCurves||{}),names=Object.keys(curves);
-  const menu=names.map(function(k){return '  '+k+' — '+curves[k].l1+' AP';}).join('\n');
-  const raw=prompt('Creation AP for a complete level-1 character.\n\nCreation pricing locks once you spend past this figure — before it, changing your mind re-prices freely.\n\n'+menu+'\n\nEnter a track name or a number of AP:',String(st.threshold));
+  const raw=prompt(_creationApPromptText(curves,names),String(st.threshold));
   if(raw===null)return;
   const key=String(raw).trim().toLowerCase();
   const v=curves[key]?curves[key].l1:parseInt(raw,10);
-  if(!isFinite(v)||v<=0){alert('Enter one of: '+names.join(', ')+' — or a whole number of AP.');return;}
+  if(!isFinite(v)||v<=0){alert('That wasn\'t a track name or a number.\n\nType one of: '+names.join(', ')+'\nor enter a whole number of AP, e.g. 79.');return;}
   emit({type:'creationLockConfig',payload:{threshold:v},label:'Creation AP confirmed ('+v+' AP)'});
   flash('Creation AP set to '+v+' AP — pricing locks once you spend past it.');
 }
@@ -717,8 +735,8 @@ function validate(){
   // Unconfirmed creation AP. Clears on confirmation, or once spend passes the default — past that the
   // question is moot because the lock has already fired at the default figure.
   {const _cl=_creationLockState();
-   if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr)
-     issues.push('Creation AP not confirmed — using the default '+_cl.defaultThr+' AP. Creation pricing locks once you spend past it. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>');}
+   if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr){const _tn=_apTrackName(_cl.defaultThr);
+     issues.push('Creation AP not confirmed — using '+(_tn?_tn+' ':'')+_cl.defaultThr+' AP, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>');}}
   if(loadedRules && loadedRules!==RULES) issues.push('Loaded under '+loadedRules+' rules; now running '+RULES+'. Past prices are frozen (kept); new buys use '+RULES+' prices. Any cost change shows as "locked / reprice" drift.');
   // committed items that no longer exist / are no longer buyable in current rules
   LOG.filter(e=>e.type==='buy').forEach(e=>{
