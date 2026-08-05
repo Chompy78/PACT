@@ -78,6 +78,28 @@ It prints a PASS/FAIL line per fixture and exits non-zero on any failure — thi
 `.github/workflows/engine-parity.yml` runs on every PR touching `js/engine.js` or `testing/**`, so a
 regression fails CI automatically, not just when a human remembers to open the browser page.
 
+### The second gate: pricing that lives inside the tools
+`engine-parity` asserts what `compute()` returns. It cannot see `priceOf()` in
+`tools/PACT-Live-Char-Sheet.html`, which decides what a player is **charged** and freezes that number
+into their log — a defect there is in `compute()`'s *caller*, so parity stays green while players are
+billed wrongly (this happened: see `D-GH-2026-08-05-pricing-model`). That is what the second gate covers:
+
+```
+node testing/scripts/tool-pricing-ci.mjs      # expect 16 passed / 0 failed
+```
+
+It needs **no npm install and no dev server**. It serves the repo itself on a loopback port and drives
+whatever Chrome/Chromium is already present over the DevTools protocol, using only Node built-ins —
+which is why it runs where the `playwright`-based e2e scripts here (`chargen-flows-e2e.mjs`,
+`cloud-e2e.mjs`, …) cannot, since `AGENTS.md` forbids npm in this repo. Point it at a specific browser
+with `CHROME_BIN=/path/to/chrome` if it can't find one. CI runs it via
+`.github/workflows/tool-pricing.yml` on any PR touching the two tools or the budget-curve files.
+
+> Writing new assertions for it: poll a **bridged** symbol (`window._engineFold`, `window.DATA`) for
+> readiness, never a classic-script function like `priceOf` — those exist before the deferred module
+> bridge has run, so probing them races. And read rendered text from the real container
+> (`#guide`, `#tray`), never `document.body.innerHTML`, which also matches the inline `<script>` source.
+
 For a one-off spot-check of a single fixture (e.g. while iterating on a pricing change before the full
 gate matters), importing the engine directly in Node still works:
 
