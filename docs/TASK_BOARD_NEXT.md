@@ -1021,6 +1021,46 @@ made before an award can't be undone"*). A DM-marked event should behave the sam
 undo is snapshot-based rather than LIFO, so it needs its own guard — the two tools do not share a
 mechanism here.
 
+### Drawbacks — settled 2026-08-05
+
+**Imposing a drawback gives the player no AP, and their power level still drops.** The owner's worry was
+that a drawback with no points attached would be invisible when comparing characters. Measured — it is
+not, because the two figures come from different sources: `compute().total` prices the drawback from the
+character's `drawbacks` list against the rules table, while spendable AP comes from the recorded event
+cost. Recording a DM-imposed drawback at **cost 0** therefore gives both halves at once, with **no engine
+change**:
+
+| drawback worth 2 | spendable AP | power level | drawback ledger line |
+|---|---:|---:|---:|
+| player takes it normally | 81 (+2) | −2 | −2 |
+| DM imposes it (cost 0) | 79 (unchanged) | −2 | −2 |
+
+This makes the model symmetric with boons, and the whole thing states in one line: **a DM edit moves the
+character's power level without touching their wallet.** A granted boon raises it (the DM supplies the AP
+to pay for it); an imposed drawback lowers it (the DM withholds the AP it would normally pay).
+
+**Removal has two INDEPENDENT settings** (owner: *"There are actually two states. One state is locked or
+unlocked for removal. The second is the actual removal cost which is either flat or expensive."*):
+
+1. **Locked / unlocked** — can this drawback be removed at all?
+2. **Removal cost, when unlocked** — **flat** (the drawback's table value, e.g. 2) or **expensive**
+   (3× the table value, e.g. 6 — the rate players already pay). **Flat is the default.**
+
+Even when unlocked, the player always spends AP to remove it; there is no free removal.
+
+**Why flat is the right default**, since it differs from today's rule and someone will ask. The existing 3×
+exists to deter treating a drawback as a cheap AP loan and then buying out. That deterrent does not apply
+to a drawback the DM imposed — no loan was made. Under a flat 3× the arithmetic actually inverts:
+
+| drawback worth 2 | got | pays to remove | net AP |
+|---|---:|---:|---:|
+| chose it, then bought out | +2 | −6 | **−4** |
+| DM imposed it, removed at 3× | 0 | −6 | **−6** |
+
+— i.e. the punished player ends up worse off than the one who gamed the system. Flat removes that: you
+lost 2 AP of power, you spend 2 to get it back, one-for-one. Expensive stays available for a DM who wants
+the drawback to bite.
+
 **The DM chooses whether a drawback can be bought off.** `buyoffDrawback(v)` (Live Sheet ~:603) currently
 takes only the drawback name and prices it from `DATA.drawbacks` — there is nowhere to express "this one
 is locked". The flag therefore belongs on the drawback **event**, and `buyoffDrawback()` must consult the
@@ -1045,10 +1085,11 @@ block C later.
 
 ### Still needing an answer
 
-**Removing a drawback the PLAYER took.** The neutrality rule covers DM-added drawbacks cleanly. It does
-not cover this: the player originally gained (say) +4 AP for taking the drawback. If the DM removes it,
-is that +4 clawed back, or does the player keep it? Keeping it means a net +4 for a drawback they no
-longer carry — which is the one case where "neutral" is ambiguous.
+**Removing a drawback the PLAYER took.** The rules above cover DM-imposed drawbacks fully. This case is
+still open: the player originally banked (say) +2 AP for choosing the drawback. If the DM removes it, is
+that +2 clawed back, or kept? Keeping it means +2 AP for a weakness they no longer carry. Note the
+neutrality principle points at clawing it back — the DM edit should leave the wallet unchanged, and the
+player was paid for something that no longer exists.
 
 ```text
 1. DO NOT START until feat/chargen-dm-view has landed and the two open questions above (concurrency
@@ -1060,8 +1101,13 @@ longer carry — which is the one case where "neutral" is ambiguous.
    working untouched. Check it against economy()/_replay()/_spendCost() before committing to it.
 4. Undo barrier: copy the award-event pattern in the Live Sheet; give CharGen its own guard, since its
    undo restores whole-LOG snapshots rather than popping the last event.
-5. The buy-off lock flag lives on the drawback event; buyoffDrawback() reads the LOG for it. Refuse with
-   a stated reason rather than hiding the button.
+5. TWO flags on the drawback event, not one: locked/unlocked, and flat/expensive removal cost.
+   buyoffDrawback() (Live Sheet ~:603) currently reads only DATA.drawbacks and hardcodes refund*3, so it
+   must consult the LOG for both. A locked drawback refuses with a stated reason rather than hiding the
+   button - a hidden control reads as a broken app.
+5b. Impose a drawback by recording the buy event at cost 0. Verified this needs no engine change: the
+   power-level hit comes from the drawback being in the build, the AP handout from the event cost, and
+   the two are already independent. Assert both in the same test, or a later refactor will merge them.
 6. Both tools' ledgers must render a DM-marked event distinctly - the whole point is that the player can
    see what their DM changed.
 7. RLS: a DM writing to a character they do not own is a policy change. Run the Supabase advisor
