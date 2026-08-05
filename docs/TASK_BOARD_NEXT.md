@@ -754,6 +754,41 @@ through, so match the specific wording.
 **Done when:** an epic boon can be bought in the Live Sheet, the "choose an ability to raise" prompt
 still appears as guidance, a genuinely illegal purchase is still hard-blocked; engine-parity 24/0.
 
+## AP ledger: drawbacks don't list what was taken, unlike every other itemised line — TODO
+Branch `feat/ledger-itemise-drawbacks`. In CharGen's AP ledger the `Drawbacks (refund)` line shows only a
+lump sum, so a character with three drawbacks shows one number and no way to see which three. Every
+comparable line already expands into named third-level rows — Arts & Techniques, Species traits, Class
+features, Subclass abilities and **Boons** all do.
+**Effort:** low · **Risk:** low — ambiguity low (four existing `addItems()` calls to copy exactly, and
+the ledger already renders `itemize` generically so no UI work is needed); damage scale low (display
+only — no AP total moves); damage likelihood low (the parity gate plus an eyeball in the ledger) —
+worst-of lands at low.
+
+```text
+1. compute() already returns `itemize` (js/engine.js:454), a map of ledger-line label -> [[name, ap], …],
+   populated by addItems(). It is called for exactly five lines: "Arts & Techniques" (js/engine.js:160),
+   "Species traits" (:205), "Class features" (:237), "Subclass abilities" (:268) and "Boons" (:398).
+   The drawbacks loop (~:404) collects nothing.
+2. Both tools' ledgers already render itemize generically — CharGen at
+   tools/PACT-CharGen-Webtool.html:3705,3708 walks (r.itemize||{})[lineLabel] for EVERY line. So adding
+   the engine-side collection is the whole job; no renderer change.
+3. In the drawbacks loop, build the pairs alongside the existing `drawGain` tally and call
+   addItems("Drawbacks (refund)", …) — the key must match the ledger line's label EXACTLY or it renders
+   nothing and fails silently. Note the values are refunds: decide and state whether each row shows the
+   drawback's AP as positive (matching the label's "(refund)") or negative (matching the line total's
+   sign), and be consistent with how "Boons" presents its rows.
+4. House-ruled drawbacks (b.houseRules.draws) override the printed AP — itemise the value actually
+   charged, not the printed one, or the rows won't sum to the line.
+5. Check whether testing/expected/ captures `itemize`. Totals do NOT change, so this should be a
+   display-only change with NO DATA.version bump — but confirm rather than assume, and if the fixtures
+   do capture it, refresh them in the same PR and say so.
+6. While here: confirm "Boons" rows actually appear in the ledger. The engine populates them, but it is
+   worth an eyeball that the label matches, since that is the exact failure mode described in step 3.
+```
+**Done when:** a character with two or more drawbacks shows each one as its own named row under
+`Drawbacks (refund)` in CharGen's AP ledger, the rows sum to the line total, house-ruled values are
+respected, and engine-parity still reports 24/0.
+
 ---
 
 # Conventions
