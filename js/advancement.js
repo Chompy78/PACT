@@ -32,8 +32,11 @@
 //   * `standard` and `generous` are the Guide's own two tracks — PACT Players Guide v0.332
 //     §3/§18 ("Level 1 = 79 standard or 83 generous; optional Level 0 prelude = 55"), and §3
 //     states the increments and endpoints separately (24/+535, 28/+615) as a cross-check.
-//   * `lean` (2026-08-05) is a HOUSE addition, not in the Guide. Same concept, tighter budget,
-//     for tables wanting characters a little short of a complete build for their level.
+//   * `lean` (2026-08-05) was added here FIRST, ahead of the rules text — same concept, tighter
+//     budget, for tables wanting characters a little short of a complete build for their level.
+//     The Guide is to be updated to document it as a third track; until that lands, this file is
+//     the source and a reader finding no `lean` in the Guide has found a pending doc update, not
+//     a transcription error.
 // `standard` is ALSO the engine's fixed default ladder (js/ap-by-level.js expands it
 // into AP_BY_LEVEL → DATA.level1AP / DATA.defaultAp) — see the mechanics note in this
 // file's header before editing it. `generous` and `lean` remain per-campaign presets only:

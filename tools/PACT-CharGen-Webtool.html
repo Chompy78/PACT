@@ -2045,6 +2045,35 @@ function _cgEnsureLockArmed(){
 }
 function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);render();}
 
+// Creation-AP confirmation (D-GH-2026-08-05-pricing-model, D3) — the Live Sheet carries a byte-equivalent
+// pair of these; keep them in step. "Confirmed" is not a separate flag: it is whether the log carries a
+// creationLockConfig with an explicit `threshold`. An unconfirmed character still locks (the arming event
+// stamps no threshold, so _replay falls back to DATA.level1AP), so this prompts to customise, never gates.
+function _creationLockState(){
+  let armed=false,thr=null;
+  (LOG||[]).forEach(function(e){
+    if(!e||e.type!=='creationLockConfig'||!e.payload)return;
+    if(Object.prototype.hasOwnProperty.call(e.payload,'auto'))armed=!!e.payload.auto;
+    if(Object.prototype.hasOwnProperty.call(e.payload,'threshold'))thr=e.payload.threshold;   // last write wins, as _replay does
+  });
+  const def=DATA.level1AP;
+  return {armed:armed,confirmed:thr!=null,threshold:(thr!=null?thr:def),defaultThr:def,spent:economy(LOG).spent};
+}
+// Options read from DATA.levelBudgetCurves, so a curve added in js/advancement.js (lean, 2026-08-05)
+// appears with no edit here. Goes through emit(), which APPENDS — never route a config event through
+// replacePatchSlot()/_cgSyncSingletonEvent(), whose filter-and-append would apply it retroactively and
+// could un-trip a lock that already fired (D4).
+function setCreationAp(){
+  const st=_creationLockState(),curves=(DATA.levelBudgetCurves||{}),names=Object.keys(curves);
+  const menu=names.map(function(k){return '  '+k+' — '+curves[k].l1+' AP';}).join('\n');
+  const raw=prompt('Creation AP for a complete level-1 character.\n\nCreation pricing locks once you spend past this figure — before it, changing your mind re-prices freely.\n\n'+menu+'\n\nEnter a track name or a number of AP:',String(st.threshold));
+  if(raw===null)return;
+  const key=String(raw).trim().toLowerCase();
+  const v=curves[key]?curves[key].l1:parseInt(raw,10);
+  if(!isFinite(v)||v<=0){alert('Enter one of: '+names.join(', ')+' — or a whole number of AP.');return;}
+  emit({type:'creationLockConfig',payload:{threshold:v},label:'Creation AP confirmed ('+v+' AP)'});
+}
+
 function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
   const i=LOG.findIndex(function(e){return e.type==='buy'&&e.cat===cat&&predicate(e);});
@@ -3699,6 +3728,11 @@ function explainCost(label){const o=explainParas(label);
 // plain-text version for the hover tooltip (strip the inline HTML)
 function explainText(label,b,r){try{return explainParas(label,b,r).body.join('  ').replace(/<[^>]+>/g,'').replace(/&amp;/g,'&');}catch(e){return '';}}
 function buildGuide(b,r){const tips=[];
+  // Unconfirmed creation AP (D3). Clears on confirmation, or once spend passes the default — past that
+  // the question is moot, because the lock has already fired at the default figure.
+  {const _cl=_creationLockState();
+   if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr)
+     tips.push('Creation AP not confirmed — using the default <b>'+_cl.defaultThr+' AP</b>. Creation pricing locks once you spend past it. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>');}
   if(r.remaining<0)tips.push('You are <b>'+(-r.remaining)+' AP over budget</b> — trim something or raise the budget.');
   if(b.hd>=5&&b.profBonus<3)tips.push('Level '+b.hd+': you can buy <b>Proficiency +3</b> — it lifts attacks, saves, skills & spell DC at once.');
   else if(b.hd>=9&&b.profBonus<4)tips.push('Level '+b.hd+': <b>Proficiency +4</b> is now available.');

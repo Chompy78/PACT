@@ -683,8 +683,42 @@ function resetAll(){ if(confirm('Wipe this character and its whole history? This
   save();render();} }
 
 // ---------------- validation tray ----------------
+// Creation-AP confirmation (D-GH-2026-08-05-pricing-model, D3). "Confirmed" is not a separate flag: it
+// is simply whether the log carries a creationLockConfig with an explicit `threshold`. An UNCONFIRMED
+// character still locks — the arming event stamps no threshold, so _replay falls back to DATA.level1AP —
+// which is why this is a prompt to customise and never a gate. Dismissing it forever is safe.
+function _creationLockState(){
+  let armed=false,thr=null;
+  (LOG||[]).forEach(function(e){
+    if(!e||e.type!=='creationLockConfig'||!e.payload)return;
+    if(Object.prototype.hasOwnProperty.call(e.payload,'auto'))armed=!!e.payload.auto;
+    if(Object.prototype.hasOwnProperty.call(e.payload,'threshold'))thr=e.payload.threshold;   // last write wins, as _replay does
+  });
+  const def=DATA.level1AP;
+  return {armed:armed,confirmed:thr!=null,threshold:(thr!=null?thr:def),defaultThr:def,spent:economy(null).spent};
+}
+// Track options are read from DATA.levelBudgetCurves, so a curve added in js/advancement.js (lean, added
+// 2026-08-05) appears here with no edit to this function. APPENDS a config event and must keep doing so:
+// replacing/moving one applies the new threshold retroactively and can un-trip a lock that already
+// fired (D4) — which is exactly what routing this through a coalescing helper would do.
+function setCreationAp(){
+  const st=_creationLockState(),curves=(DATA.levelBudgetCurves||{}),names=Object.keys(curves);
+  const menu=names.map(function(k){return '  '+k+' — '+curves[k].l1+' AP';}).join('\n');
+  const raw=prompt('Creation AP for a complete level-1 character.\n\nCreation pricing locks once you spend past this figure — before it, changing your mind re-prices freely.\n\n'+menu+'\n\nEnter a track name or a number of AP:',String(st.threshold));
+  if(raw===null)return;
+  const key=String(raw).trim().toLowerCase();
+  const v=curves[key]?curves[key].l1:parseInt(raw,10);
+  if(!isFinite(v)||v<=0){alert('Enter one of: '+names.join(', ')+' — or a whole number of AP.');return;}
+  emit({type:'creationLockConfig',payload:{threshold:v},label:'Creation AP confirmed ('+v+' AP)'});
+  flash('Creation AP set to '+v+' AP — pricing locks once you spend past it.');
+}
 function validate(){
   const b=foldBuild(null); const issues=[];
+  // Unconfirmed creation AP. Clears on confirmation, or once spend passes the default — past that the
+  // question is moot because the lock has already fired at the default figure.
+  {const _cl=_creationLockState();
+   if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr)
+     issues.push('Creation AP not confirmed — using the default '+_cl.defaultThr+' AP. Creation pricing locks once you spend past it. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>');}
   if(loadedRules && loadedRules!==RULES) issues.push('Loaded under '+loadedRules+' rules; now running '+RULES+'. Past prices are frozen (kept); new buys use '+RULES+' prices. Any cost change shows as "locked / reprice" drift.');
   // committed items that no longer exist / are no longer buyable in current rules
   LOG.filter(e=>e.type==='buy').forEach(e=>{
@@ -706,7 +740,7 @@ function validate(){
 // same way. The ignore_player_ap grandfather notice is a NORMAL, expected state ("purchases are kept,
 // it never gates anything"), so it must render as a calm ⓘ note, not inflate the ⚠ "Needs review (N)"
 // count the way every other issue does (feat/campaign-ap-model review follow-up).
-function _lsIsAdvisory(w){return /switched off player-entered AP/.test(w)||/no Ki-using ability/.test(w);}
+function _lsIsAdvisory(w){return /switched off player-entered AP/.test(w)||/no Ki-using ability/.test(w)||/^Creation AP not confirmed/.test(w);}
 
 // ---------------- buy panel builders ----------------
 function opt(v){return '<option value="'+String(v).replace(/"/g,'&quot;')+'">'+v+'</option>';}
