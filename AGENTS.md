@@ -268,16 +268,24 @@ Before finishing a task / opening a PR, update what applies (newest on top):
   `CHANGELOG.md` in the same change — the task board holds only open work.
 
 ## Multiple sessions
-More than one agent may be active. **The task board (`docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md`)
-has a single writer** — don't append to it.
-If you have new tasks, output them in **this exact format** for the human to fold in, then carry on:
+More than one agent may be active, so the task board (`docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md`)
+is **single-writer** — no agent hand-edits it ad hoc.
 
-**Carve-out: `/add-code-task` and `/sweep-code-tasks`.** These two skills are the sole exception to the
-single-writer rule above — both commit directly to the task board on `preview`, no human
-fold-in step, by design (see each skill's own file for exactly which step — don't hardcode step
-numbers here, they've already drifted once). `/sweep-code-tasks` similarly commits directly to
-`docs/sweep-log.md`. No other skill or agent should commit to the task board directly — the
-format-and-output-for-a-human pattern below still applies everywhere else.
+**To add a task, use `/add-code-task`. That is the normal path, not an exception.** The skill commits the
+entry directly to the board on `preview` — no branch, no PR, no human step. `/sweep-code-tasks` does the
+same and also commits directly to `docs/sweep-log.md`. Reach for the skill whenever you have a task to
+record, including one you surface incidentally while doing something else. (See each skill's own file for
+exactly which step does the commit — don't hardcode step numbers here, they've already drifted once.)
+
+**Fallback — only when the skill genuinely cannot be used**, i.e. it isn't available in the session, or
+the session is barred from pushing to `preview`. Then, and only then, output the entry in the *Task
+format* below and say plainly that it still needs adding, naming the reason the skill was unusable.
+Never hand-edit the board instead.
+
+> **This paragraph replaced a version that led with "output them for the human to fold in" and buried
+> `/add-code-task` below it as a "carve-out".** Agents read the general rule, stopped, and dutifully
+> pasted task text into chat for a human to copy — the exact manual step the skill exists to remove.
+> If you catch yourself about to do that, check whether `/add-code-task` is available first.
 
 **`D-GH-<date>-<slug>` numbering (see D-GH49).** The old sequential `D-GH<N>` scheme is retired — it
 collided repeatedly (see the "Addendum" notes throughout `DECISIONS.md` for the full trail, at least
@@ -291,6 +299,8 @@ task's own branch slug (the part after `type/`, e.g. `feat/ap-by-level` → `ap-
 collision-proof **by construction**: the one-task-per-branch rule already guarantees no two tasks share a
 branch slug, so no live-remote check or renumbering step is ever needed. (In the near-impossible case the
 exact same slug is reused on the exact same date — e.g. a same-day redo — append `-2`, `-3`, etc.)
+
+**Task format** (used by `/add-code-task`, and by the fallback above):
 
 ````
 ## <short title> — TODO

@@ -577,16 +577,21 @@ existing character is already under-recorded. **Get a cold plan review before im
 (`/make-code-cold-plan-review`). Not sweep-eligible.
 
 ```text
-0. DECIDED — the owner chose (b), the INVARIANT route, on 2026-08-04. Build that, not the narrower
-   ordering fix. The two options are kept below because the reasoning still matters:
-     (a) ORDERING: make CharGen commit the identity event BEFORE any trait that depends on it, so
-         compute(before) never sees traits-without-a-species and the delta has nothing phantom to
-         refund. Smallest change, fixes this reproduction, leaves priceOf()'s general fragility.
-     (b) INVARIANT: make the recorded cost of every event equal to compute()'s own delta by
-         construction, so the frozen ledger cannot drift from compute() no matter what order events
-         arrive in. Bigger, and the durable answer.
-   Chosen: (b). Packs are real purchases and must be visible as such, and (a) would leave the next
-   ordering accident free to reintroduce the same drift.
+0. SUPERSEDED — H2 (the INVARIANT route) was REVERSED on 2026-08-05 after two rounds of external cold
+   review (5 reviewers, then 4). DO NOT BUILD IT. See decisions/2026/D-GH-2026-08-05-pricing-model.md.
+   Why it was wrong: H2 said "make each event's recorded cost equal compute()'s own delta by
+   construction" — but that delta is EXACTLY what priceOf() already returns, i.e. the contaminated
+   number that produced the -5. H2 formalises the defect rather than fixing it.
+   The real defect is priceOf()'s whole-build-delta quoting basis (tools/PACT-Live-Char-Sheet.html
+   :503-511): any purchase that changes pricing context bills the player for re-pricing everything
+   they already own. Already escaped by hand three times (abil, mbound, dbound).
+   The acceptance test below is also wrong as a general property — prices freeze at purchase while
+   compute() re-prices at today's context, so the two are MEANT to diverge for any character who has
+   levelled or unlocked a class. It holds only for a character built entirely at one context, which is
+   what its own "freshly built character" wording actually scoped.
+   THIS TASK IS NOW LAST OF FOUR and reduces to CharGen draft reconciliation. Prerequisites, in order:
+   (1) docs/pricing-model-decisions — DONE; (2) feat/creation-lock-wiring — DONE; both landed on
+   branch claude/get-ready-i52ojw. (3) fix/livesheet-context-pricing — NOT STARTED, must land first.
 1. If emitting pack events: a distinct `cat:'pack'` buy event per pack (heritage, 2nd-origin) carrying
    its own cost. Keep the pack-included traits at 0; they are correct and the owner confirmed it.
 2. Whichever route, the identity patch must stop absorbing the pack cost, or the same AP is charged
@@ -614,6 +619,8 @@ migration decision is recorded in `DECISIONS.md`, and a gate covers the invarian
 Branch `fix/history-shows-derived-lines`. Reported by the owner alongside the pack-charging defect
 above. **Sequenced after it** — much of this may resolve once packs are real events, so re-assess
 before starting.
+**⚠ Inherits the reversed H2** — re-read this entry against `decisions/2026/D-GH-2026-08-05-pricing-model.md`
+before scoping; the pack-charging task it sits behind has changed shape and is now last of four.
 
 The Live Sheet's purchase history is **event-only**, so for Anders it renders:
 
@@ -649,6 +656,10 @@ is visibly attributed to the pack that paid for it, and the two views reconcile 
 ## feat/ap-model-reconcile — "AP left" and the AP Ledger disagree on the same screen — TODO
 Branch `feat/ap-model-reconcile`. Long-deferred from D-GH30, now with a live worked example and a
 decision already taken, so it is ready to scope.
+**⚠ Inherits the reversed H2** — re-read this entry against `decisions/2026/D-GH-2026-08-05-pricing-model.md`
+before scoping. In particular, "AP left" vs the AP Ledger disagreeing is EXPECTED, not a defect, wherever
+the character's context has changed since a purchase: the ledger records what was paid, `compute()` prices
+what it would cost today. The bug is only where the two disagree for a reason other than that.
 
 **The decision (G1, owner, 2026-08-04):** DM Console's roster "AP left" uses the **frozen ledger** —
 `compute().spendable − economy().spent` — matching the Live Sheet's `_apRemaining()` and, critically,
@@ -694,6 +705,54 @@ fix it there alone (that would have traded a shared bug for a new divergence). F
 **Done when:** a DM-funded character shows an Earned Lv and an earned figure that account for DM AP, the
 card and the AP Ledger either agree or are labelled to explain why they differ, both tools read the same
 definition, and Fenwick's numbers are used as the regression fixture.
+
+## buyManeuver() emits without an affordability check — TODO
+Branch `fix/maneuver-afford-gate`. Found while auditing the pricing model
+(`decisions/2026/D-GH-2026-08-05-pricing-model.md`); unrelated to it.
+**Effort:** low · **Risk:** low — ambiguity low (route it through the existing gate, an exact pattern to
+copy); damage scale low (one buy path); damage likelihood low (the guard either fires or it doesn't, and
+it is trivially checkable in a browser) — worst-of lands at low.
+
+```text
+1. tools/PACT-Live-Char-Sheet.html:1497 emits the mvbuy event directly:
+     emit({type:'buy',cat:'mvbuy',payload:{},cost:4+(b.maneuverBuys||0),...})
+   bypassing buy() and therefore the `cost>avail` gate at :537-538.
+2. A player with 0 AP available can buy maneuvers indefinitely — the only unguarded purchase path in
+   the tool. (setWornArmour and takeDrawback also bypass buy(), but are cost 0 and negative-cost
+   respectively, so both are intentionally exempt; leave them alone.)
+3. Fix: route the maneuver purchase through buy(), or replicate the affordability guard at the emit
+   site if buy()'s dup/legality checks don't apply cleanly to this category.
+4. Note the OVER BUDGET warning is deliberately NOT a gate (see the comment at :515) — do not "fix"
+   this by hard-blocking on that warning; the gate is the frozen-economy check in buy().
+```
+**Done when:** buying a maneuver with insufficient AP is refused with the same flash as any other
+purchase, and buying one with sufficient AP still works; engine-parity 24/0.
+
+## Epic boons are hard-blocked on their first purchase in the Live Sheet — TODO
+Branch `fix/epic-boon-first-buy-block`. Found while auditing the pricing model
+(`decisions/2026/D-GH-2026-08-05-pricing-model.md`); unrelated to it. A whole category of boon (12 of
+them, all `epic:true`) currently cannot be bought at all in the Live Sheet.
+**Effort:** low · **Risk:** low — ambiguity low (add the pattern to the existing SOFT_WARN regex, an
+exact pattern to copy); damage scale low (one warning's classification); damage likelihood low —
+worst-of lands at low. Care needed only in not widening SOFT_WARN so far that real violations slip
+through, so match the specific wording.
+
+```text
+1. MUT.boon (js/engine.js:489) only pushes the label; it does not set epicBoonAbil. So compute() on the
+   candidate build takes the else-branch at js/engine.js:110 and raises
+     "<boon>: choose an ability to raise (+2)"
+2. legalCheck() surfaces that as a NEW warning, and it does not match SOFT_WARN
+   (tools/PACT-Live-Char-Sheet.html:523), so buy() classifies it as a hard rules violation and refuses
+   the purchase with "⛔ Purchase blocked" at :543.
+3. But the warning is expected, not a violation: the ability is chosen afterwards, in the Names dialog
+   (:1414, :1499-1509). The purchase is legal; the prompt is guidance.
+4. Fix: add the "choose an ability to raise" wording to SOFT_WARN (or exempt it explicitly), so it
+   becomes a confirm-through advisory rather than a block.
+5. Sequencing note: fix/chargen-preserve-epicboonabil (NOW) touches the same feature from the other
+   end. Neither blocks the other, but do them in either order aware of the other.
+```
+**Done when:** an epic boon can be bought in the Live Sheet, the "choose an ability to raise" prompt
+still appears as guidance, a genuinely illegal purchase is still hard-blocked; engine-parity 24/0.
 
 ---
 
