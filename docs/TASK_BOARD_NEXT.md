@@ -1000,20 +1000,71 @@ auditable like anything else. This is strictly better than a DM editing the char
 **Effort:** high · **Risk:** high — ambiguity high (several open questions below, all rules/product
 calls); damage scale high (writes to another user's character through the cloud). Not sweep-eligible.
 
+### Owner's answers, 2026-08-05
+
+**A DM edit must leave the player's available AP unchanged.** The owner gave this as two rules and asked
+whether they conflict. They do not — they are one rule applied to opposite signs, which is worth stating
+plainly because it makes the implementation a single invariant rather than two special cases:
+
+| DM action | normally | so, to stay neutral |
+|---|---|---|
+| adds a boon | costs AP | grant matching **bonus AP** — net 0 |
+| adds a drawback | *grants* AP | **suppress** the AP grant — net 0 |
+
+A player is never richer or poorer for a DM edit: they simply have the boon, or they simply have the
+drawback. Implement it as the invariant "a `dmEdit` event contributes 0 to the player's spendable AP" and
+both rows fall out of it.
+
+**The player cannot undo a DM edit.** There is already a working precedent to copy rather than invent:
+an `award` event acts as an undo barrier in the Live Sheet (~:611, *"AP awards lock your history — buys
+made before an award can't be undone"*). A DM-marked event should behave the same way. Note CharGen's
+undo is snapshot-based rather than LIFO, so it needs its own guard — the two tools do not share a
+mechanism here.
+
+**The DM chooses whether a drawback can be bought off.** `buyoffDrawback(v)` (Live Sheet ~:603) currently
+takes only the drawback name and prices it from `DATA.drawbacks` — there is nowhere to express "this one
+is locked". The flag therefore belongs on the drawback **event**, and `buyoffDrawback()` must consult the
+LOG rather than `DATA` alone. Buy-off must be refused with a reason, not silently hidden, or a player will
+think the app is broken.
+
+**Concurrent edits — still open, owner unsure.** Four routes, cheapest first:
+
+- **A. Last-write-wins** (today's behaviour). Free, and silently destroys whichever side saved first.
+  Not acceptable for a DM writing to a character its owner may have open.
+- **B. Optimistic check on `updated_at`.** The column already exists and is already selected
+  (`js/sync.js:172`). Read it on open, send it with the write, reject if it moved, tell the DM to reload.
+  Cheap, no silent loss, needs a retry path. **Recommended as the first implementation.**
+- **C. Merge the two logs.** The right answer for this data model — a character IS an event log, so two
+  independent appends usually reconcile by `seq`/`ts` rather than conflicting at all. More work, and the
+  `stats` column being a single blob means the merge has to happen tool-side before the write.
+- **D. Lock the character while a DM has it open.** Needs presence tracking and a way to break a stale
+  lock; heaviest, and it fails badly offline.
+
+Worth deciding B-vs-C explicitly rather than drifting: B is a guard, C is the actual fix, and B does not
+block C later.
+
+### Still needing an answer
+
+**Removing a drawback the PLAYER took.** The neutrality rule covers DM-added drawbacks cleanly. It does
+not cover this: the player originally gained (say) +4 AP for taking the drawback. If the DM removes it,
+is that +4 clawed back, or does the player keep it? Keeping it means a net +4 for a drawback they no
+longer carry — which is the one case where "neutral" is ambiguous.
+
 ```text
-1. DO NOT START until feat/chargen-dm-view has landed and the owner has answered the questions below.
-2. Open questions, all for the owner:
-   - What happens if the player has the character open at the same time? Last-write-wins would lose
-     their work silently.
-   - Does a DM edit respect affordability, or is a DM granting a boon exempt from the AP check?
-   - Can the player undo a DM edit? The engine's undo is LOG replay, so a marked event is undoable by
-     construction unless something stops it - which is a decision, not an accident.
-   - Removing a drawback: is that a buy-off (3x refund, per the existing rule) or a free DM removal?
-     These give very different AP outcomes.
+1. DO NOT START until feat/chargen-dm-view has landed and the two open questions above (concurrency
+   route; removing a player-taken drawback) are answered.
+2. Implement neutrality as ONE invariant - a dmEdit event contributes 0 to spendable AP - not as two
+   separate rules for boons and drawbacks. Assert it directly: for any DM edit, economy().available
+   before == economy().available after.
 3. Marker shape: a field on the event rather than a new event type, so every existing replay path keeps
-   working untouched. Check it against economy()/_replay() before committing to it.
-4. Both tools' ledgers must render a DM-marked event distinctly - the point is that the player can see it.
-5. RLS: a DM writing to a character they do not own is a policy change. Run the Supabase advisor
+   working untouched. Check it against economy()/_replay()/_spendCost() before committing to it.
+4. Undo barrier: copy the award-event pattern in the Live Sheet; give CharGen its own guard, since its
+   undo restores whole-LOG snapshots rather than popping the last event.
+5. The buy-off lock flag lives on the drawback event; buyoffDrawback() reads the LOG for it. Refuse with
+   a stated reason rather than hiding the button.
+6. Both tools' ledgers must render a DM-marked event distinctly - the whole point is that the player can
+   see what their DM changed.
+7. RLS: a DM writing to a character they do not own is a policy change. Run the Supabase advisor
    (get_advisors) and check the logs afterwards - this project has been bitten twice by grant/RLS drift
    (D-GH15, D-GH12).
 ```
