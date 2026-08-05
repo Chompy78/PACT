@@ -1125,8 +1125,22 @@ function _bondLadder(src,hd){
 function pickBond(kind,name){var o=_bondGet();o[kind]=name||'';_bondSet(o);
   try{var both=[o.mag,o.mar].filter(Boolean).join(' · ');csSave(currentCharId(),'bondSource',both);}catch(e){}
   _bondRender();}
-function seedNew(){ const c=compute(baseBuild()).total;
-  LOG.push({seq:SEQ++,ts:Date.now(),type:'award',amount:50,note:'Level 1 starting AP',label:'Award — Level 1 (50 AP)',rules:RULES});
+// Starting AP and the creation-lock threshold are the SAME figure by construction: both are
+// DATA.defaultAp / DATA.level1AP, expanded from LEVEL_BUDGET_CURVES.standard in js/advancement.js, so
+// editing that one file moves both (D-GH-2026-08-05-pricing-model). The 50 this used to hardcode was
+// the Guide's pregen-roster total rather than a curve — the trap js/ap-by-level.js documents at length —
+// and it never picked up the 2026-08-03 correction to 79, so a Live-Sheet-born character was the one
+// place that tweak didn't reach. It was also below the level-0 prelude figure of 55, i.e. not enough to
+// afford a complete level-1 build.
+// creationLockConfig{auto:true} arms the automatic lock for a local character with no campaign: leave it
+// off and _cfgAuto stays undefined, which falls back to campaignBound (nothing emits it), so the
+// character never leaves creation pricing. No threshold is stamped, so the engine falls back to
+// DATA.level1AP — one number, one source. Config events score 0 in _spendCost(), so arming can't trip
+// the lock it arms. This MUST stay an append: a replaced/moved config event applies retroactively and
+// can un-trip a lock that already fired (D4).
+function seedNew(){ const c=compute(baseBuild()).total; const ap=DATA.defaultAp;
+  LOG.push({seq:SEQ++,ts:Date.now(),type:'creationLockConfig',payload:{auto:true},label:'Creation lock armed (default '+DATA.level1AP+' AP)',rules:RULES});
+  LOG.push({seq:SEQ++,ts:Date.now(),type:'award',amount:ap,note:'Level 1 starting AP',label:'Award — Level 1 ('+ap+' AP)',rules:RULES});
   LOG.push({seq:SEQ++,ts:Date.now(),type:'buy',cat:'create',payload:{},cost:c,level:1,label:'Level 1 character (Hit Die + base)',rules:RULES});
   save(); }
 // init
