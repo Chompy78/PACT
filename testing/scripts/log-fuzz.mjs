@@ -294,6 +294,59 @@ function runChecks(ENGINE, LOG) {
     failures.push({ tag: 'throw', note: `rebuildStateFromEvents(null, LOG) threw where foldBuild()/compute() did not: ${e && e.message}` });
   }
 
+  // repriceDraft() — draft-ledger reconciliation (D-GH-2026-08-05-pricing-model, D2).
+  // Fuzzing this is worth more than fixtures: it re-derives a cost for EVERY pre-lock purchase, so
+  // it meets event shapes and orderings no hand-written case would think to combine.
+  try {
+    const src = deepClone(LOG);
+    const rp = ENGINE.repriceDraft(LOG);
+    nanScan('$.repriced', rp);
+
+    // Non-mutating. The tools assign the result (`LOG = repriceDraft(LOG)`), so a version that
+    // also edited the input in place would appear to work while quietly corrupting undo snapshots.
+    if (!deepEqualJSON(src, LOG))
+      failures.push({ tag: 'repriceMutates', note: 'repriceDraft() mutated the log it was given' });
+
+    // Idempotent. Every LOG-mutating path in CharGen calls it, so it runs repeatedly over the same
+    // events; a pass that moved the numbers each time would drift a ledger with no edit at all.
+    if (!deepEqualJSON(rp.map(e => e.cost), ENGINE.repriceDraft(rp).map(e => e.cost)))
+      failures.push({ tag: 'repriceIdempotent', note: 'repriceDraft() is not idempotent (a second pass moved the costs)' });
+
+    // It must never change what the character IS — only what the ledger says was paid for it.
+    if (!deepEqualJSON(ENGINE.compute(ENGINE.foldBuild(rp)), result))
+      failures.push({ tag: 'repriceChangesBuild', note: 'repriceDraft() changed compute() output — it must only rewrite costs' });
+
+    // The invariant the whole fix exists for: a draft has ONE pricing context, so its ledger must
+    // equal what the build costs today. Three exclusions, each a DELIBERATE divergence rather than a
+    // gap in the fix — every one of them is AP the player really spent on something compute() cannot
+    // see by design, so a gate demanding they reconcile would be asserting the wrong thing:
+    //   * the lock firing at all — post-lock prices are frozen at purchase and are MEANT to diverge (D5);
+    //   * `buyoff` — costs 3x the refund to undo a drawback, leaving no trace in the build;
+    //   * `names` with a cost — the Live Sheet charges for paid spell swaps there
+    //     (PACT-Live-Char-Sheet.html, `cost:_st.paid`), and a swap is like-for-like, so the build is
+    //     unchanged by construction.
+    // Drawbacks are not excluded but must be added back: economy() reports their AP under `earned`,
+    // never `spent`, while compute().total carries them as a negative — so the two agree only once
+    // drawbackEarned is restored to the spend side.
+    const hasBuyoff = rp.some(e => e.type === 'buyoff');
+    const hasPaidNames = rp.some(e => e.type === 'names' && (Number(e.cost) || 0) !== 0);
+    const lockCanFire = rp.some(e => e.type === 'creationLocked' || e.type === 'campaignBound'
+      || (e.type === 'creationLockConfig' && e.payload && e.payload.auto));
+    // A drawback recorded at anything other than its table value cannot reconcile, because
+    // repriceDraft() leaves income alone (see its comment) while compute() reads the table. Both
+    // tools record it from that table, so this shape is reachable only by generating events directly.
+    const staleDrawback = rp.some(e => e.type === 'buy' && e.cat === 'drawback'
+      && -(Number(e.cost) || 0) !== (ENGINE.DATA.drawbacks[e.payload && e.payload.v] || 0));
+    if (!hasBuyoff && !hasPaidNames && !lockCanFire && !staleDrawback) {
+      const ec = ENGINE.economy(rp);
+      const total = ENGINE.compute(ENGINE.foldBuild(rp)).total;
+      if (ec.spent - ec.drawbackEarned !== total)
+        failures.push({ tag: 'repriceDrift', note: `draft ledger does not reconcile: spent=${ec.spent} - drawbackEarned=${ec.drawbackEarned} vs compute().total=${total}` });
+    }
+  } catch (e) {
+    failures.push({ tag: 'throw', note: `repriceDraft(LOG) threw where foldBuild()/compute() did not: ${e && e.message}` });
+  }
+
   return failures;
 }
 

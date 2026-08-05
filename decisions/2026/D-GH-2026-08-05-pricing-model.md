@@ -198,7 +198,61 @@ One task per branch, in dependency order. Parts 2–4 do nothing until part 1 ex
 2. `feat/creation-lock-wiring` — emit `creationLockConfig {auto:true}` at creation; the confirm prompt;
    the unconfirmed warning. **Append-only** config events.
 3. `fix/livesheet-context-pricing` — listed prices for context changes; two new `DATA` keys.
-4. `fix/species-pack-not-charged` — CharGen draft reconciliation; closes Anders (15 vs 33).
+4. `fix/species-pack-not-charged` — CharGen draft reconciliation; closes Anders (15 vs 33). **DONE**
+   2026-08-05 — shipped as `repriceDraft()` plus in-place patch-slot replacement; see D7.
+
+### D7 — Draft reconciliation runs as an engine pass, not a tool pricer (2026-08-05, part 4)
+
+Part 4 shipped as `repriceDraft(log)` in `js/engine.js`, called from every LOG-mutating path in CharGen.
+Three things about it were not obvious from D2 and are worth recording, because each was found the hard
+way rather than reasoned out:
+
+- **It lives in the engine, not the tool.** The walk needs `_replay`'s per-trait `_raceTraitLocked`
+  stamping (racial pricing depends on it) and its lock bookkeeping. A tool-local copy is exactly the
+  duplication that produced D-GH36's `found`/`dbound` drift. `_replay` gained one optional callback
+  parameter; `foldBuild`/`rebuildStateFromEvents` pass two arguments and are unaffected.
+- **Re-pricing and the lock are mutually recursive, so the pass iterates to a fixed point.** A new cost
+  changes cumulative spend, spend decides where the threshold lock fires, and the lock decides what may
+  be re-priced. A single pass is therefore not idempotent — the fuzzer caught it moving numbers on a
+  second run over the same log, i.e. a ledger drifting with no edit behind it. It now repeats until a
+  pass changes nothing. `_replay`'s callback returns a spend adjustment so the lock lands where the
+  new prices put it rather than where the old ones did.
+- **Drawbacks are excluded, because their recorded cost is income.** `economy()` reports it under
+  `earned`, never `spent`, and `foldBuild` feeds that into `b.budget`. An earlier version re-priced them
+  and moved `compute()` output as a result. Re-pricing answers "what was paid" and must not restate what
+  was earned.
+
+A second, independent defect was fixed alongside it: `replacePatchSlot()` filter-and-appended, so
+editing any patch slot moved its event to the END of the log. Changing species therefore re-sorted the
+ledger to put the identity line *after* the traits it prices, which is what made that line come out
+negative. It now replaces in place, keeping the original `seq`. Safe because `PATCH_FIELD_SLOT` maps
+each field to exactly one slot, so no two patch events write the same field and their relative order
+cannot change the folded build. This is **not** the D4 rule in reverse — D4 forbids *moving* a config
+event, which replace-in-place guarantees.
+
+The two are genuinely separable: re-pricing alone fixes the ledger *sum* but leaves the negative line;
+in-place replacement alone fixes the line but not the sum. The gate asserts both, and was verified by
+reintroducing each half independently.
+
+## Open question — should a PRE-LOCK Live Sheet character reconcile? (raised 2026-08-05, part 4)
+
+D1 and D2 conflict for one case that neither anticipated, and part 4 deliberately did not resolve it.
+
+Measured in a real browser on a fresh Live Sheet character, well under the 79 AP threshold and therefore
+a draft by D2's definition: buy CON 16, Vigor 2, Grit 3 — ledger and `compute()` agree at 32. Then level
+1→2 and 2→5. Listed pricing (D1) charges the Hit-Die steps, 2 and 10; `compute()` re-prices the whole
+Vigor/Grit stack at the new tier. The ledger ends at **44 against a `compute()` of 83**.
+
+Neither rule is being violated — that is the problem:
+
+- **D2 says a draft reconciles**, which would mean the Live Sheet needs `repriceDraft` too.
+- **D1 says a context change takes its listed price**, and levelling up is a real context change even
+  during creation, which would mean the divergence is correct and D2's wording ("the ledger reconciles
+  to `compute()` at one context") needs narrowing to *"while no context change has occurred"*.
+
+CharGen is unaffected either way: it builds a character at one level, and its edits are revisions of a
+single draft rather than progression. The question only bites where a pre-lock character levels up.
+Tracked as `fix/livesheet-draft-reconcile` on the task board; it needs a rules answer before code.
 
 ## Open question — campaign vs player threshold precedence
 

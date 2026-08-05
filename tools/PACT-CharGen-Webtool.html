@@ -504,11 +504,12 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild, validate, RULE_BAN_FIELDS, creationLockThreshold } from '../js/engine.js';
+  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild, repriceDraft, validate, RULE_BAN_FIELDS, creationLockThreshold } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (CharGen); never read by compute()
   window.DATA = DATA; window.compute = compute; window.MUT = MUT; window.foldBuild = foldBuild;
   window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild;
+  window.repriceDraft = repriceDraft;   // draft-ledger reconciliation (D-GH-2026-08-05-pricing-model, D2)
   window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs; window.recordAutosave = recordAutosave;
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
@@ -2050,7 +2051,23 @@ function _cgEnsureLockArmed(){
   LOG.push({seq:SEQ++,ts:Date.now(),type:'creationLockConfig',payload:{auto:true},
     label:'Creation lock armed (default '+DATA.level1AP+' AP)',rules:DATA.version});
 }
-function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);render();}
+// Draft reconciliation (D-GH-2026-08-05-pricing-model, D2; branch fix/species-pack-not-charged).
+// Called from EVERY path that mutates LOG, immediately before its render(). While the character is
+// still a draft there is only one pricing context, so the ledger must agree with compute() — and it
+// stops agreeing the moment a change to context leaves an earlier purchase's frozen cost stale. The
+// case that shipped: buy four Halfling traits, switch species to Dwarf, and the traits silently become
+// cross-race purchases that the ledger still records at own-species prices; switch back and the
+// identity patch quotes a NEGATIVE cost, because it is a whole-build delta against a build whose other
+// events are mispriced. Same mechanism as Anders Tealeaf's 15-vs-33.
+//
+// It is safe to call unconditionally: repriceDraft() leaves every post-lock purchase alone (the
+// freeze-at-purchase guarantee), is idempotent, and is non-mutating — hence the reassignment. It also
+// makes the pre-lock half of the DOM-vs-LOG pricing split moot without touching either pricer:
+// onChecklistToggle() quotes against _domReadBuild() while replacePatchSlot() quotes against
+// foldBuild(LOG), and whenever those two disagree the deltas stopped telescoping. Post-lock they must
+// still agree on their own, which is what fix/livesheet-context-pricing's listed-price rule is for.
+function _cgRepriceDraft(){LOG=repriceDraft(LOG);}
+function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);_cgRepriceDraft();render();}
 
 // Creation-AP confirmation (D-GH-2026-08-05-pricing-model, D3) — the Live Sheet carries a byte-equivalent
 // pair of these; keep them in step. "Confirmed" is not a separate flag: it is whether the log carries a
@@ -2103,7 +2120,7 @@ function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
   const i=LOG.findIndex(function(e){return e.type==='buy'&&e.cat===cat&&predicate(e);});
   if(i===-1)return;
-  commitHistory();LOG.splice(i,1);render();
+  commitHistory();LOG.splice(i,1);_cgRepriceDraft();render();
 }
 
 function replacePatchSlot(slot,patch,label){
@@ -2115,9 +2132,25 @@ function replacePatchSlot(slot,patch,label){
   const before=compute(foldBuild(withoutSlot)).total;
   const candidate=withoutSlot.concat([{type:'buy',cat:'patch',payload:{patch:patch},_slot:slot}]);
   const after=compute(foldBuild(candidate)).total;
+  // REPLACE IN PLACE — do not filter-and-append (fix/species-pack-not-charged). Appending moved the
+  // slot's event to the END of the log on every edit, so changing species re-sorted the ledger to put
+  // the identity line AFTER the species traits it is supposed to price. The traits then priced as if no
+  // species were set (cross-race, dear) and identity absorbed the correction as a NEGATIVE line — the
+  // "-5 identity patch" from Anders Tealeaf's log, and still reproducible as -4 after the ledger sum
+  // itself was fixed. Position is what makes a ledger readable, so an edit must not move the line.
+  //   * Safe because each field maps to exactly ONE slot (PATCH_FIELD_SLOT), so no two patch events
+  //     ever write the same field and their relative order cannot change the folded build.
+  //   * The original `seq` is kept, not reissued, so seq order and array order stay in agreement —
+  //     a fresh seq at an old index would make the two disagree for anything that sorts by seq.
+  //   * This is NOT the D4 config-event rule in reverse: D4 forbids MOVING a creationLockConfig,
+  //     which is exactly what replace-in-place guarantees. Config events still must not come through
+  //     here at all — they are not slots, and replacePatchSlot rejects anything outside PATCH_SLOTS.
+  const at=LOG.findIndex(function(e){return e.type==='buy'&&e.cat==='patch'&&e._slot===slot;});
   const newEvent={type:'buy',cat:'patch',payload:{patch:patch},cost:after-before,label:label,_slot:slot,
-    seq:SEQ++,ts:Date.now(),rules:DATA.version};
-  commitHistory();LOG=withoutSlot.concat([newEvent]);render();
+    seq:(at===-1?SEQ++:LOG[at].seq),ts:Date.now(),rules:DATA.version};
+  commitHistory();
+  if(at===-1)LOG=LOG.concat([newEvent]); else {LOG=LOG.slice();LOG[at]=newEvent;}
+  _cgRepriceDraft();render();
 }
 
 function replaceWholeLogFromBuild(b,opts){
@@ -2127,7 +2160,7 @@ function replaceWholeLogFromBuild(b,opts){
   // user edit. A character saved in that window would carry no arming event, and the Live Sheet would
   // not add one either (it arms only in seedNew(), which runs on an EMPTY log). SEQ is set first
   // because _cgEnsureLockArmed() consumes one.
-  commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);_cgEnsureLockArmed();render();
+  commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);_cgEnsureLockArmed();_cgRepriceDraft();render();
 }
 
 // ---- Phase 2 Step 5: name + budget as first-class LOG events (retire the readBuild DOM shims) ----
@@ -2149,6 +2182,11 @@ function _cgSyncSingletonEvent(type,makeEvent){
   if(cur&&norm(cur)===norm(next))return;   // no-op: same value → no event churn, no undo step
   commitHistory();
   LOG=without.concat([Object.assign({},next,{seq:SEQ++,ts:Date.now(),rules:DATA.version})]);
+  // Deliberately NOT calling _cgRepriceDraft() here, unlike every other LOG-mutating path. This helper
+  // only ever writes `name` and `award` singletons: neither is a purchase and neither can change what
+  // anything costs, so a re-price would be a guaranteed no-op — and this one runs on every keystroke in
+  // the name field, where the whole-log pass is the difference between typing feeling instant and not.
+  // If a third singleton type is ever routed through here, check that before reusing this exemption.
   render();
 }
 function _cgSyncName(){const nm=val('cname')||'';

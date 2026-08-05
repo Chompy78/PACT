@@ -6,6 +6,27 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-05 · fix(chargen): a draft character's AP ledger now reconciles to `compute()`** — closes
+  `fix/species-pack-not-charged`, the last of the four pricing branches. Before the creation lock fires a
+  character is a draft with one pricing context, so what was paid must equal what the build costs today —
+  but a purchase's cost was frozen when it was made and a *later* change to context left it stale.
+  Measured in a real browser: buy four Halfling traits (ledger 13, `compute()` 13), switch species to
+  Dwarf and the traits become cross-race purchases the ledger still records at own-species prices
+  (13 vs 24); switch back and the identity patch quotes **−4**, taking the ledger to 2 against 13. That
+  negative line is the same mechanism behind Anders Tealeaf's log summing to 15 against a `compute()` of
+  33. Fixed in two independent halves: new `repriceDraft(log)` export in `js/engine.js` re-derives every
+  pre-lock purchase's cost as its own sequential delta (riding `_replay`, which gained one optional
+  callback, so racial `_raceTraitLocked` stamping and the lock bookkeeping stay single-source), called
+  from every LOG-mutating path in CharGen; and `replacePatchSlot()` now replaces in place instead of
+  filter-and-appending, which had been moving a slot's event to the end of the log on every edit so the
+  identity line priced traits that came *before* it. Post-lock purchases keep their frozen price
+  (D5), and drawbacks are untouched — their recorded cost is income, not spend. The pass runs to a fixed
+  point because re-pricing and the threshold lock are mutually recursive. `DATA.version` unchanged:
+  `compute()` output does not move, only what the ledger records. Gate: `tool-pricing-ci.mjs` 20→27,
+  verified by reintroducing each half (reproduces −11 and −4 exactly); `log-fuzz.mjs` gained four
+  `repriceDraft` invariants (non-mutating, idempotent, build-preserving, draft-reconciling) — those
+  caught the non-idempotence, the drawback-income bug, and a duplicate-purchase mispricing that also
+  hardened `_replay`'s proficiency dedupe. 500/500 clean across five seeds; parity 24/0.
 - **2026-08-05 · docs(decisions): reverse H2 — the species-pack fix is a `priceOf()` quoting-basis bug, not
   a ledger-accounting one** — two rounds of external cold review (5 reviewers, then 4) refuted the planned
   approach, and two code audits moved the diagnosis to `priceOf()`

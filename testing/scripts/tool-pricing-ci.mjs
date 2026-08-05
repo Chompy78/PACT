@@ -201,6 +201,56 @@ try {
       const s=_creationLockState();
       return LOG.length===n+1 && s.threshold===75 && s.confirmed===true
         && !/Creation AP not confirmed/.test(document.getElementById('warns').innerText);})()`), true);
+
+  // ---- draft reconciliation (fix/species-pack-not-charged) ----------------------------------
+  // While the character is a draft there is ONE pricing context, so "what was paid" must equal "what
+  // it costs to build today". It stopped doing so as soon as a context change left an earlier
+  // purchase's frozen cost stale. Driven through the real controls, because the two pricers involved
+  // read different sources — onChecklistToggle() quotes against _domReadBuild(), replacePatchSlot()
+  // against foldBuild(LOG) — and only the live page exercises both.
+  console.log('\nCharGen — a draft ledger reconciles to compute() through a species change');
+  const setSpec = (v) => `(()=>{const s=document.getElementById('spec');s.value=${JSON.stringify(v)};
+    s.dispatchEvent(new Event('change',{bubbles:true}));})()`;
+  const tick = (v) => `(()=>{const e=[...document.querySelectorAll('.racck')].find(x=>x.value===${JSON.stringify(v)});
+    if(!e)throw new Error('no trait checkbox for '+${JSON.stringify(v)});
+    if(!e.checked){e.checked=true;e.dispatchEvent(new Event('change',{bubbles:true}));}})()`;
+  const drift = `(economy(LOG).spent - compute(foldBuild(LOG)).total)`;
+  const identityCost = `LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e._slot==='identity').map(e=>e.cost)`;
+
+  await cg.evaluate(`(()=>{try{localStorage.clear()}catch(e){}})()`);
+  await cg.evaluate(`location.reload()`);
+  if (!(await cg.evaluate(READY(`window.DATA&&typeof repriceDraft==='function'&&LOG.length>0`))))
+    throw new Error('CharGen never became ready after reload');
+
+  await cg.evaluate(setSpec('Halfling'));
+  for (const t of ['Halfling: Brave', 'Halfling: Luck', 'Halfling: Naturally Stealthy',
+                   'Halfling: Halfling Nimbleness']) await cg.evaluate(tick(t));
+  check('Halfling + 4 traits: ledger == compute', await cg.evaluate(drift), 0);
+  // Before the fix this was 13 vs 24: the traits became cross-race purchases and the ledger kept
+  // charging own-species prices for them.
+  await cg.evaluate(setSpec('Dwarf'));
+  check('after switching species to Dwarf: ledger == compute', await cg.evaluate(drift), 0);
+  // ...and back. Before the fix the ledger read 2 against a compute() of 13.
+  await cg.evaluate(setSpec('Halfling'));
+  check('after switching back to Halfling: ledger == compute', await cg.evaluate(drift), 0);
+  // The sum being right is not enough — the per-line breakdown has to be readable too. The identity
+  // line quoted -4 here until replacePatchSlot() stopped filter-and-appending, which moved the line
+  // to the end of the log on every edit and left it pricing traits that came BEFORE it. That negative
+  // identity line is the visible symptom the bug was reported as (Anders Tealeaf's -5).
+  check('the identity line is the pack price, not a negative correction',
+    await cg.evaluate(identityCost), [7]);
+  check('editing a slot does not move its ledger line to the end',
+    await cg.evaluate(`(()=>{const i=LOG.findIndex(e=>e.type==='buy'&&e.cat==='patch'&&e._slot==='identity');
+      return i>-1 && i<LOG.findIndex(e=>e.type==='buy'&&e.cat==='racial');})()`), true);
+  // The freeze-at-purchase guarantee is the other half of the model: re-pricing must stop at the lock.
+  check('a purchase made while locked keeps its frozen price',
+    await cg.evaluate(`(()=>{const l=[{seq:1,type:'creationLockConfig',payload:{auto:true,threshold:5}},
+      {seq:2,type:'buy',cat:'patch',payload:{patch:{species:'Halfling'}},cost:7,_slot:'identity'},
+      {seq:3,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:999}];
+      const r=repriceDraft(l);return [r[1].cost,r[2].cost];})()`), [7, 999]);
+  check('repriceDraft does not mutate the log it is given',
+    await cg.evaluate(`(()=>{const l=[{seq:1,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:123}];
+      const r=repriceDraft(l);return l[0].cost===123 && r[0]!==l[0];})()`), true);
   await cg.close();
 } catch (e) {
   fail++; console.log(`  FAIL harness — ${e.message}`);
