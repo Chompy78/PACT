@@ -974,7 +974,16 @@ function awardToNext(){const b=foldBuild(null);const d=levelDelta(b.hd);if(d>0)a
 function buildBuyPanel(b,r,eco,head){
   const buyEl=$('buy'); if(!head){buyEl.innerHTML='<p class="hint">'+(VIEW_ONLY?'👁 Read-only DM view — purchases are disabled.':'Viewing history — return to <b>live</b> to make purchases.')+'</p>';return;}
   // a buyable button: greys out (with the reason) when not allowed; tap a greyed one to hear why
-  function racialWhy(r){if(!r)return '';if(r.minHD&&b.hd<r.minHD)return 'needs '+r.minHD+' Hit Dice (level '+r.minHD+')';if(r.reqRace){var _o=DATA.racial[r.reqRace];var owns=b.racialTraits.indexOf(r.reqRace)>=0||!!(_o&&_o.pack&&(_o.race===b.species||_o.race===b.species2));if(!owns)return 'requires '+((r.reqRace.split(': ')[1])||r.reqRace);}return '';}function ib(label,cat,payload,reasonExtra,descr){
+  // A trait's TIER gates it by Hit Dice, exactly as it does for class features a few sections below
+  // (DATA.tierHD: T4 needs 5 HD, T5 needs 9, …). This check was missing here, so a trait whose only gate
+  // is its tier could be bought at any level in the Live Sheet while CharGen correctly refused it —
+  // reported against "Dragonborn: Draconic flight" (T4, and it carries no minHD field), which CharGen
+  // blocks at line ~3405 via `b.hd>=DATA.tierHD[rr.tier]` and this tool did not. minHD stays as a
+  // separate, stricter override for traits naming an explicit level (breath-dice steps, Large Form).
+  function racialWhy(r){if(!r)return '';
+    var _need=(DATA.tierHD&&DATA.tierHD[r.tier])||1;
+    if(b.hd<_need)return 'needs '+_need+' Hit Dice (T'+r.tier+')';
+    if(r.minHD&&b.hd<r.minHD)return 'needs '+r.minHD+' Hit Dice (level '+r.minHD+')';if(r.reqRace){var _o=DATA.racial[r.reqRace];var owns=b.racialTraits.indexOf(r.reqRace)>=0||!!(_o&&_o.pack&&(_o.race===b.species||_o.race===b.species2));if(!owns)return 'requires '+((r.reqRace.split(': ')[1])||r.reqRace);}return '';}function ib(label,cat,payload,reasonExtra,descr){
     if(buyQuery && label.toLowerCase().indexOf(buyQuery)<0) return '';
     const cost=priceOf(cat,payload); const warns=legalCheck(cat,payload);
     const unaff = cat!=='drawback' && cat!=='mbound' && cat!=='dbound' && cost>eco.available;

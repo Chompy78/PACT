@@ -151,6 +151,30 @@ try {
   check('unlock a class that is already the 2nd origin == 0',
     await ls.evaluate(`priceOf('unlockclass',{v:'Rogue'},(()=>{const b=foldBuild(null);b.originClass2='Rogue';return b;})())`), 0);
 
+  // Reported by the owner: a racial trait gated only by its TIER (no explicit minHD) could be bought at
+  // any level here, while CharGen correctly refused it. Draconic flight is T4, so it needs 5 Hit Dice.
+  console.log('\nLive Sheet — a racial trait is gated by its tier, as CharGen already gates it');
+  check('Draconic flight (T4) is refused at 1 HD',
+    await ls.evaluate(`(()=>{const r=DATA.racial['Dragonborn: Draconic flight'];
+      const need=DATA.tierHD[r.tier];
+      return [r.tier, need, r.minHD===undefined];})()`), [4, 5, true]);
+  // Drives the real buy panel (#buy) for a Dragonborn, so it proves the gate is WIRED, not just that
+  // the numbers exist in DATA. At 1 HD the row must carry the reason; at 5 HD it must not.
+  // Drives the real buy panel for a Dragonborn, so this proves the gate is WIRED, not merely that the
+  // numbers exist in DATA. setBuyQuery() forces every collapsed section to render (buy panel line ~1148).
+  // At 1 HD the row must carry the reason; at 5 HD it must not.
+  check('the buy panel gates Draconic flight at 1 HD and releases it at 5 HD',
+    await ls.evaluate(`(()=>{const saved=LOG.map(e=>JSON.parse(JSON.stringify(e)));
+      const at=(hd)=>{LOG.length=0;saved.forEach(e=>LOG.push(e));
+        LOG.push({seq:9e6,type:'buy',cat:'patch',payload:{patch:{species:'Dragonborn'}},cost:0});
+        LOG.push({seq:9e6+1,type:'buy',cat:'hd',payload:{to:hd},cost:0});
+        setBuyQuery('Draconic'); render();
+        const el=[...document.querySelectorAll('#buy *')].find(n=>/Draconic flight/i.test(n.textContent||''));
+        return el ? /needs 5 Hit Dice/.test(el.textContent) : 'ROW NOT FOUND';};
+      const r=[at(1), at(5)];
+      LOG.length=0;saved.forEach(e=>LOG.push(e));setBuyQuery(''); render();
+      return r;})()`), [true, false]);
+
   console.log('\nLive Sheet — categories that were already correct must not move');
   check('ability raise still prices off the ABIL ladder',
     await ls.evaluate(`priceOf('abil',{ab:'CON',to:17},(()=>{const b=foldBuild(null);b.stats.CON=16;b.tough=3;return b;})())`), 5);
