@@ -161,6 +161,11 @@ try {
   check('prof is genuinely non-contaminating (diff == ladder step)',
     await ls.evaluate(`(()=>{const b=foldBuild(null);b.hd=5;b.tough=3;const d=priceOf('prof',{to:3},b);
       return d===(DATA.profCum[3]-DATA.profCum[2]);})()`), true);
+  // Regression guard: `#tray li{color:var(--bad)}` is a blanket rule that painted every advisory the
+  // same red as a rules violation, overriding the grey on the containing <ul>. Advisories now carry
+  // .adv and must stay amber, matching CharGen.
+  check('advisories in the tray are amber, not red',
+    await ls.evaluate(`getComputedStyle(document.querySelector('#tray li.adv')).color`), 'rgb(178, 106, 0)');
   await ls.close();
 
   // ============================ CharGen ============================
@@ -182,6 +187,14 @@ try {
       && !/Creation AP not confirmed/.test(document.getElementById('guide').innerText)`), true);
   check('the orange Warnings heading is visible while it shows',
     await cg.evaluate(`getComputedStyle(document.getElementById('warnsHead')).display!=='none'`), true);
+  // The notice is not in r.warnings, so the banner has to count it explicitly — it silently didn't at
+  // first. Assert the count AND the amber state, so a regression to the old blue `info` banner fails.
+  check('top banner counts the notice, in the amber caution state',
+    await cg.evaluate(`(()=>{const wb=document.getElementById('warnbanner');
+      return wb.className==='warnbanner warn' && /1 note to check/.test(wb.innerText)
+        && getComputedStyle(wb).display!=='none';})()`), true);
+  check('advisories are amber, not the red used for rules violations',
+    await cg.evaluate(`getComputedStyle(document.querySelector('#warns li.adv')).color`), 'rgb(178, 106, 0)');
   check('confirming appends a config event and clears the notice',
     await cg.evaluate(`(()=>{const n=LOG.length;
       emit({type:'creationLockConfig',payload:{threshold:75},label:'test'});render();

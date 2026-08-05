@@ -57,13 +57,13 @@
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PACT Character Generator — Web Tool v1.358 · Rules v0.338</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
---good:#2E7D32;--bad:#C00000;--warn:#B26A00;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
+--good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
 /* ---- alternate themes (set via data-theme on <body>) ---- */
 body[data-theme="dark"]{--navy:#0e1117;--blue:#6ea8ff;--teal:#5bb39f;--lt:#2d3340;--ink:#e7e9ee;--grey:#9aa3b2;
---line:#3a4150;--good:#5fce6a;--bad:#e08585;--warn:#e0a458;--inp:#2f3542;--badbg:#532230;--bg:#15181e;--card:#252a33;--navytx:#9fc0ff;}
+--line:#3a4150;--good:#5fce6a;--bad:#e08585;--warn:#e0a458;--warnbg:#3d3320;--inp:#2f3542;--badbg:#532230;--bg:#15181e;--card:#252a33;--navytx:#9fc0ff;}
 body[data-theme="dnd"]{--navy:#5a1e1b;--blue:#7a2a23;--teal:#6a5520;--lt:#e7d8b6;--ink:#2b2018;--grey:#6e5d44;
---line:#c9b489;--good:#3f6f2a;--bad:#9c2b1e;--warn:#8a5a12;--inp:#efe4c8;--badbg:#e6c2b0;--bg:#efe6d2;--card:#f8f2e2;
+--line:#c9b489;--good:#3f6f2a;--bad:#9c2b1e;--warn:#8a5a12;--warnbg:#ecd9ae;--inp:#efe4c8;--badbg:#e6c2b0;--bg:#efe6d2;--card:#f8f2e2;
 --font:Georgia,'Palatino Linotype','Book Antiqua',serif;--head:'Trajan Pro',Georgia,serif;}
 body[data-theme="royal"]{--navy:#3b2a6b;--blue:#5a3fa0;--teal:#3f7a8c;--lt:#e4dcf4;--ink:#241a3a;--grey:#6a5d86;
 --line:#cbbfe8;--good:#2E7D32;--bad:#b3245b;--inp:#efeafb;--badbg:#f3c9d8;--bg:#f3f0fa;--card:#fff;}
@@ -161,7 +161,10 @@ h4.warnhead{color:var(--warn)}
 .warnbanner{padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
 .warnbanner.bad{background:var(--badbg);color:#7a0000}.warnbanner.good{background:#CDEAD3;color:#14501f}
 .warnbanner.info{background:var(--lt);color:var(--blue)}
-.warns li.adv{color:var(--grey);font-weight:600;text-decoration:none}
+/* Advisory banner: caution, not error. Amber rather than the blue `info` it replaces, so it reads as
+   "look at this" at a glance while staying clearly distinct from the red rules-violation banner. */
+.warnbanner.warn{background:var(--warnbg);color:var(--warn)}
+.warns li.adv{color:var(--warn);font-weight:600;text-decoration:none}
 .warnbanner .wb-act{margin-left:auto;font-weight:600;font-size:11px;opacity:.8}
 @keyframes flashhl{0%{box-shadow:0 0 0 3px rgba(192,0,0,.0)}15%{box-shadow:0 0 0 3px rgba(192,0,0,.55)}100%{box-shadow:0 0 0 3px rgba(192,0,0,0)}}
 .flashhl{animation:flashhl 1.7s ease-out;border-radius:6px}
@@ -3816,15 +3819,23 @@ function _cgRenderInner(){
    // build suggestion. Clears on confirmation, or once spend passes the default (past that the question
    // is moot: the lock has already fired at the default figure). Rendered here rather than pushed into
    // r.warnings because that array is compute()'s output — the engine must not learn about a tool's UI.
+   var _apNoticeShown=false;
    {var _cl=_creationLockState();
     if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr){var _tn=_apTrackName(_cl.defaultThr);
+      _apNoticeShown=true;   // read by the top banner below — var, so it is function-scoped, not block
       _wr.unshift('<li class="adv" title="Informational note">ⓘ Creation AP not confirmed — using <b>'+(_tn?_tn+' ':'')+_cl.defaultThr+' AP</b>, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a></li>');}}
    $('warns').innerHTML=_wr.join('');
    {var _wh=$('warnsHead'); if(_wh)_wh.style.display=_wr.length?'':'none';}}
-  // top banner: count only HARD issues; informational notes are shown softly and NOT counted as issues
-  {const issues=r.warnings.filter(w=>!isAdvisory(w)).length; const advs=r.warnings.filter(isAdvisory).length; const wb=$('warnbanner');
+  // Top banner. HARD issues (rules violations) stay red and keep their own count; advisories get an
+  // amber caution banner rather than the old blue "info" one, so a note that wants acting on is
+  // visible from the header instead of only once the summary panel is scrolled to. The creation-AP
+  // notice counts as an advisory here — it is not in r.warnings (see the #warns render above), so it
+  // is added explicitly; forgetting that is why it did not appear in the banner at first.
+  {const issues=r.warnings.filter(w=>!isAdvisory(w)).length;
+   const advs=r.warnings.filter(isAdvisory).length+(_apNoticeShown?1:0);
+   const wb=$('warnbanner');
    if(wb){ if(issues>0){wb.style.display='flex';wb.className='warnbanner bad';wb.innerHTML='⚠ '+issues+' issue'+(issues>1?'s':'')+' to review<span class="wb-act">click to jump →</span>';}
-     else if(advs>0){wb.style.display='flex';wb.className='warnbanner info';wb.innerHTML='ⓘ '+advs+' note'+(advs>1?'s':'')+'<span class="wb-act">informational</span>';}
+     else if(advs>0){wb.style.display='flex';wb.className='warnbanner warn';wb.innerHTML='⚠ '+advs+' note'+(advs>1?'s':'')+' to check<span class="wb-act">click to jump →</span>';}
      else{wb.style.display='none';}}}
   $('statsbox').innerHTML=sheetStats(r,b);
   renderLedger(r,b); updateSections(r); buildGuide(b,r);
