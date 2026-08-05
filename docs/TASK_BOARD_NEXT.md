@@ -754,6 +754,40 @@ through, so match the specific wording.
 **Done when:** an epic boon can be bought in the Live Sheet, the "choose an ability to raise" prompt
 still appears as guidance, a genuinely illegal purchase is still hard-blocked; engine-parity 24/0.
 
+## One-off reconciliation pass for characters built before the pricing fixes — TODO
+Branch `fix/ledger-reconciliation-pass`. **Sequence LAST — after all four pricing branches have landed**
+(see `decisions/2026/D-GH-2026-08-05-pricing-model.md`, D6, where the owner decided this on 2026-08-05).
+Characters built before that work carry ledgers frozen from a contaminated quoting basis: Anders is 15
+against `compute()`'s 33, and every Level Up or class unlock recorded an over- or under-charge. They are
+grandfathered until this runs; do not bolt a partial migration onto any individual fix.
+**Effort:** medium · **Risk:** high — ambiguity high (what "correct" means for a character whose purchases
+were made at contexts that no longer reproduce is a genuine judgement call, not a lookup); damage scale
+high (rewrites frozen ledgers, the app's own record of what a player paid); damage likelihood medium (the
+corpus is small and known, and the invariant is checkable afterwards) — worst-of lands at high. Not
+sweep-eligible.
+
+```text
+0. DO NOT START until fix/livesheet-context-pricing and fix/species-pack-not-charged have both landed.
+   Reconciling against a definition of "correct" that is still moving is how this drift began.
+1. Inventory first, decide second. Replay every saved character (local + cloud) and produce a table of
+   frozen-sum vs compute().total, per character, with the per-event deltas that explain the gap. Do not
+   write anything on this pass — the owner needs the numbers before authorising any rewrite.
+2. Expect at least three distinct causes and report them separately: species packs never charged; Level
+   Up over-charged by the Vigor/Grit re-price; class unlock under-charged (it could go NEGATIVE, i.e. it
+   paid AP out) — so some characters are over-budget under corrected pricing and some are under.
+3. Decide the shape WITH the owner: a correcting event appended per character (auditable, keeps the
+   append-only property, shows in the ledger as a visible adjustment), or a rewrite of the frozen costs
+   (cleaner-looking, destroys the record of what was actually paid). Default to the appended event.
+4. Characters that are over-budget after correction are a product question, not an implementation one —
+   ask before trimming, refunding, or granting AP to cover the difference.
+5. Gate: after the pass, a corrected character's frozen sum must equal compute().total where the rules
+   say it should. Add that assertion to testing/scripts/tool-pricing-ci.mjs rather than checking by hand.
+6. engine-parity must stay 24/0 and DATA.version must not move — this rewrites data, not rules.
+```
+**Done when:** the inventory table exists and has been reviewed by the owner, the agreed correction has
+been applied to every affected saved character, over-budget outcomes have an owner decision recorded, and
+a gate asserts the invariant for corrected characters.
+
 ## AP ledger: drawbacks don't list what was taken, unlike every other itemised line — TODO
 Branch `feat/ledger-itemise-drawbacks`. In CharGen's AP ledger the `Drawbacks (refund)` line shows only a
 lump sum, so a character with three drawbacks shows one number and no way to see which three. Every

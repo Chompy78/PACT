@@ -162,6 +162,34 @@ Two consequences to hold:
 - **An explicit lock action would be undoable** like any other event, if a "finish character" button is
   ever added.
 
+### D6 — Migration: grandfather now, one reconciliation pass later (owner, 2026-08-05)
+
+Every character built before this work carries an under-recorded ledger — Anders is 15 against
+`compute()`'s 33 — and the Live Sheet's `priceOf()` had been freezing contaminated figures into logs for
+every context change (Level Up, class unlock). Two routes were open: leave them permanently
+grandfathered under the app's stated "prices freeze, never retroactively corrected" rule, or correct them.
+
+**Decided: neither of the pricing branches touches existing characters.** They are grandfathered *for
+now*, deliberately as a holding position rather than a permanent one. A separate one-off reconciliation
+pass comes later and fixes everything about these characters in one go, rather than each fix carrying its
+own partial migration.
+
+Why this way round:
+
+- It keeps the four pricing branches to one job each. A migration bolted onto `fix/species-pack-not-charged`
+  would correct pack accounting while leaving the Level Up and class-unlock over/under-charges in the same
+  logs untouched — a half-corrected ledger is harder to reason about than an uncorrected one.
+- By the time all four have landed there is exactly one definition of "correct" to reconcile against.
+  Reconciling against a moving target is how the drift got here.
+- Pre-launch, so the corpus is small and known (Anders, Fenwick, Cedric and a handful of others). The cost
+  of waiting is low and the cost of getting it wrong twice is not.
+
+**Consequence to hold on to:** until that pass runs, a pre-existing character's frozen ledger will not
+equal `compute().total` even where the new rules say it should, and no gate should assert that it does.
+The invariant applies to characters built *after* this work, which is what the acceptance test scopes.
+
+Tracked as `fix/ledger-reconciliation-pass` on the task board.
+
 ## Work split
 
 One task per branch, in dependency order. Parts 2–4 do nothing until part 1 exists.
