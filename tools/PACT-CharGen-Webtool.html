@@ -2114,7 +2114,13 @@ function replacePatchSlot(slot,patch,label){
 }
 
 function replaceWholeLogFromBuild(b,opts){
-  commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);render();
+  // Arm AFTER the reassignment, not via emit(): this replaces LOG wholesale, so it bypasses all three
+  // mutation-API hooks. Found in a real browser — a fresh CharGen boot ends here (applyBuild's last
+  // line) with a 9-event log that was never armed, leaving the character un-lockable until its first
+  // user edit. A character saved in that window would carry no arming event, and the Live Sheet would
+  // not add one either (it arms only in seedNew(), which runs on an EMPTY log). SEQ is set first
+  // because _cgEnsureLockArmed() consumes one.
+  commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);_cgEnsureLockArmed();render();
 }
 
 // ---- Phase 2 Step 5: name + budget as first-class LOG events (retire the readBuild DOM shims) ----
