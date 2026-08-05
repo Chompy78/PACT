@@ -174,16 +174,20 @@ try {
   check('armed at boot, before any user edit', await cg.evaluate(`_creationLockState().armed`), true);
   check('unconfirmed, defaulting to DATA.level1AP',
     await cg.evaluate(`_creationLockState().confirmed===false&&_creationLockState().threshold===DATA.level1AP`), true);
-  // Read the real tips container: document.body.innerHTML also matches the inline <script> SOURCE that
-  // contains this same string, which produced a false positive during development.
-  check('notice rendered in the tips panel',
-    await cg.evaluate(`/Creation AP not confirmed/.test(document.getElementById('guide').innerText)`), true);
+  // Read the real container: document.body.innerHTML also matches the inline <script> SOURCE that
+  // contains this same string, which produced a false positive during development. The notice lives in
+  // the warnings list ABOVE the Guide, alongside the other advisories — not in the Guide's tips.
+  check('notice rendered in the warnings list, not the Guide',
+    await cg.evaluate(`/Creation AP not confirmed/.test(document.getElementById('warns').innerText)
+      && !/Creation AP not confirmed/.test(document.getElementById('guide').innerText)`), true);
+  check('the orange Warnings heading is visible while it shows',
+    await cg.evaluate(`getComputedStyle(document.getElementById('warnsHead')).display!=='none'`), true);
   check('confirming appends a config event and clears the notice',
     await cg.evaluate(`(()=>{const n=LOG.length;
       emit({type:'creationLockConfig',payload:{threshold:75},label:'test'});render();
       const s=_creationLockState();
       return LOG.length===n+1 && s.threshold===75 && s.confirmed===true
-        && !/Creation AP not confirmed/.test(document.getElementById('guide').innerText);})()`), true);
+        && !/Creation AP not confirmed/.test(document.getElementById('warns').innerText);})()`), true);
   await cg.close();
 } catch (e) {
   fail++; console.log(`  FAIL harness — ${e.message}`);
