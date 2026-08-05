@@ -347,7 +347,7 @@ listed there under "Caveats and follow-ups".
 **Done when:** `grep -rn "pace curve\|PACE curve" --include=*.md --include=*.js --include=*.html .`
 returns no hit that presents the term as current fact outside `docs/history/` and the changelog archive
 (hits inside an explicit correction note are fine and expected), every edited record still contains its
-original wording, and parity still 24/0.
+original wording, and parity still 26/0.
 
 ---
 
@@ -684,7 +684,7 @@ resulting ledger were sent to the owner.
    this by hard-blocking on that warning; the gate is the frozen-economy check in buy().
 ```
 **Done when:** buying a maneuver with insufficient AP is refused with the same flash as any other
-purchase, and buying one with sufficient AP still works; engine-parity 24/0.
+purchase, and buying one with sufficient AP still works; engine-parity 26/0.
 
 ## Epic boons are hard-blocked on their first purchase in the Live Sheet — TODO
 Branch `fix/epic-boon-first-buy-block`. Found while auditing the pricing model
@@ -712,7 +712,7 @@ through, so match the specific wording.
    end. Neither blocks the other, but do them in either order aware of the other.
 ```
 **Done when:** an epic boon can be bought in the Live Sheet, the "choose an ability to raise" prompt
-still appears as guidance, a genuinely illegal purchase is still hard-blocked; engine-parity 24/0.
+still appears as guidance, a genuinely illegal purchase is still hard-blocked; engine-parity 26/0.
 
 ## One-off reconciliation pass for characters built before the pricing fixes — TODO
 Branch `fix/ledger-reconciliation-pass`. **Sequence LAST — after all four pricing branches have landed**
@@ -752,7 +752,7 @@ sweep-eligible.
    ask before trimming, refunding, or granting AP to cover the difference.
 5. Gate: after the pass, a corrected character's frozen sum must equal compute().total where the rules
    say it should. Add that assertion to testing/scripts/tool-pricing-ci.mjs rather than checking by hand.
-6. engine-parity must stay 24/0 and DATA.version must not move — this rewrites data, not rules.
+6. engine-parity must stay 26/0 and DATA.version must not move — this rewrites data, not rules.
 ```
 **Done when:** the inventory table exists and has been reviewed by the owner, the agreed correction has
 been applied to every affected saved character, over-budget outcomes have an owner decision recorded, and
@@ -797,7 +797,7 @@ worst-of lands at low.
 ```
 **Done when:** a character with two or more drawbacks shows each one as its own named row under
 `Drawbacks (refund)` in CharGen's AP ledger, the rows sum to the line total, house-ruled values are
-respected, and engine-parity still reports 24/0.
+respected, and engine-parity still reports 26/0.
 
 ## Tune CharGen's random character generator — TODO
 Branch `feat/randomize-tuning`. `randomizeRoll()` (`tools/PACT-CharGen-Webtool.html:3232`) rolls a

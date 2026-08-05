@@ -96,7 +96,7 @@ behaviour won't match production.
 
 ## Verifying the engine without a browser (the gate)
 The regression gate is **`testing/tests/engine-parity.html`** — a browser page that must report
-**24 passed / 0 failed**. A CLI agent has no browser, so run the headless port instead
+**26 passed / 0 failed**. A CLI agent has no browser, so run the headless port instead
 (**`testing/scripts/engine-parity-ci.mjs`**, REV-11) — same fixtures, same `expected-results.csv`, same
 assertions, just Node instead of a `<script type="module">` in a page:
 
@@ -171,7 +171,7 @@ ever do it by hand:
 1. **Branch:** `git checkout -b feat/<short-slug>` (one task per branch; use `type/slug` — `feat/`, `fix/`, `docs/`).
 2. **Paste one task** from the task board (`docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md`). No need to re-describe the architecture — `AGENTS.md` is the standing context.
 3. **Review the diff** the agent proposes; accept or push back (`/code-review` for an adversarial pass).
-4. **Verify:** run the gate (browser page, or the headless Node check above) → expect **24 passed / 0 failed**.
+4. **Verify:** run the gate (browser page, or the headless Node check above) → expect **26 passed / 0 failed**.
 5. **Log it:** confirm `CHANGELOG.md` is updated (+ `DECISIONS.md` / a `docs/sessions/` note if it applies);
    graduate the task off the task board into the changelog if it's done.
 6. **Commit** as `type(scope): summary`, open a PR, merge → GitHub Pages redeploys.

@@ -13,6 +13,15 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-05-grit-ladder-correction** — Grit is priced by **which purchase it is** (2/4/6/9/12/15/18,
+  then steps of 2/4/6/8/10), not by the character's tier, and is level-independent: three Grit cost 12 whether
+  you buy them at level 1 or level 9 (it was 6 / 27 / 36 at levels 1 / 5 / 9). Past-CON-mod surcharge is a flat
+  +1 per purchase. **Vigor deliberately stays tier-locked** — buying early really is cheaper there. A rules
+  *correction*: guide and code agreed with each other and were both wrong, so the guide needs rewording.
+  Previously **untested entirely** — every fixture had `tough: 0`; CG-010/CG-011 now pin it. `DATA.version`
+  v0.339, parity 26/0.
+  Full record: `decisions/2026/D-GH-2026-08-05-grit-ladder-correction.md`.
+
 - **D-GH-2026-08-05-pricing-model** — prices freeze at purchase; the **creation lock**, not the tool, decides
   how a purchase is quoted. **Supersedes H2 below** — making recorded cost equal `compute()`'s delta is the
   defect restated as a goal, since that delta is exactly what `priceOf()` already returns. The real defect is

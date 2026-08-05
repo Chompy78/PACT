@@ -94,6 +94,31 @@ const clone = o => (o == null ? o : JSON.parse(JSON.stringify(o)));
  *     discInfo, tradInfo, size, status, ... }
  * `total` is the total AP cost (read by the parity runner as totalCost).
  * ========================================================================== */
+// What the Nth Grit purchase costs, before the past-CON surcharge.
+//
+// RULES CORRECTION (owner, 2026-08-05). This ladder is indexed by WHICH PURCHASE it is — your first Grit
+// costs 2, your second 4, your third 6 — and does not depend on character level at all. It was previously
+// indexed by the character's TIER, so every Grit cost the same and that cost rose as you levelled: three
+// Grit cost 6 AP at level 1 but 27 at level 5 and 36 at level 9. The owner confirmed that is wrong, and
+// that the Players Guide's "Situational by tier" wording (which the old code implemented faithfully) is
+// the thing that needs rewording, not the intent. Grit is now level-independent: three Grit cost 12,
+// whenever you buy them.
+//
+// This is deliberately NOT how Vigor works. Vigor really is tier-locked — "each rank costs the Passive
+// band of your current Hit-Dice tier" — so with Vigor, buying early is cheaper and waiting costs more.
+// The two are priced differently on purpose; do not "tidy" them into a shared helper.
+//
+// Past the seven-entry table the steps run 2, 4, 6, 8, 10… (each 2 more than the last), so the 8th costs
+// 20, the 9th 24, then 30, 38, 48. The sum of the first m such steps is m*(m+1), which is where that
+// closed form comes from. The table needs extending because both tools let a player buy well past 7
+// (CharGen's dropdown goes to 12, and the Live Sheet's buy panel has no ceiling at all).
+const _GRIT_LADDER = [2,4,6,9,12,15,18];
+function _gritPrice(n){
+  if (n <= _GRIT_LADDER.length) return _GRIT_LADDER[n-1];
+  const m = n - _GRIT_LADDER.length;
+  return _GRIT_LADDER[_GRIT_LADDER.length-1] + m*(m+1);
+}
+
 export function compute(b, opts){
   b=Object.assign({},b);
   ['saves','skills','expertise','feats','masteries','racialTraits','features','drawbacks','traditions','subAbilities','arts','boons','innate','tools','instruments','customProfs','unlockedClasses','dabblerCantripNames','innateNames','toolExpertise','racialSpells','subSpellBundles'].forEach(k=>{if(!Array.isArray(b[k]))b[k]=[];});
@@ -116,11 +141,13 @@ export function compute(b, opts){
   for(let pb=3;pb<=wantPB;pb++){ if(hd>=PG[pb]) prof=pb; else { W.push("Proficiency +"+pb+" needs "+PG[pb]+" Hit Dice"); break; } }
   add("Proficiency bonus (+"+prof+")",DATA.profCum[prof]||0);
   // Vigor: +1 HP/HD per rank, cost 4/5/6/7…; cap = CON modifier (v66)
+  // Vigor IS tier-locked and stays so — each rank costs the Passive band of your CURRENT Hit-Dice tier,
+  // so buying early is genuinely cheaper. Grit is NOT; see _gritPrice() above compute().
   const cm=mod.CON; const vgcap=Math.max(0,cm);   // floor at 0 so a negative CON mod never flags Vigor 0 as over-cap
   const hardy=b.hardy||0; let hardyAP=hardy*[5,8,11,14,17,21,25][tier-1]; add("Vigor",hardyAP);
   if(hardy>vgcap) W.push("Vigor "+hardy+" exceeds cap (max = CON mod = "+vgcap+")");
-  // Grit: flat 2 up to CON mod, then +1 each beyond (v66)
-  const tough=b.tough||0; let toughAP=0;for(let n=1;n<=tough;n++)toughAP+=[2,4,6,9,12,15,18][tier-1]+Math.max(0,n-vgcap); add("Grit",toughAP);
+  // Grit: priced by WHICH purchase it is, plus a flat +1 for each purchase past the CON modifier.
+  const tough=b.tough||0; let toughAP=0;for(let n=1;n<=tough;n++)toughAP+=_gritPrice(n)+(n>vgcap?1:0); add("Grit",toughAP);
   const hp=row.baseHP + hd*(cm+hardy) + tough*4;
   // saves by stat
   const saveList=(b.saves||[]); add("Saving throws",DATA.saves[saveList.length]||0);

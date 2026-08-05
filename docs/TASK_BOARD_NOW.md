@@ -335,7 +335,7 @@ likelihood low (additive, and the parity gate plus a round-trip fixture check it
 5. DATA.version does NOT move (no rules or compute() change).
 ```
 **Done when:** a Live-Sheet character with epicBoonAbil set is opened in CharGen, saved, reopened in the
-Live Sheet, and still has its ability choices; a fixture covers the round-trip; engine-parity 24/0.
+Live Sheet, and still has its ability choices; a fixture covers the round-trip; engine-parity 26/0.
 
 
 # Conventions

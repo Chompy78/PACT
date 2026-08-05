@@ -1638,9 +1638,9 @@ function buildForm(F){
     '<div class="row"><label class="l">Hit Dice (= level)</label><select id="hd">'+hdopts+'</select><span class="price" id="hdp"></span><span class="hint">prof <b id="profcell">—</b> · tier <b id="tiercell">—</b></span></div>'+
     '<div class="row"><label class="l">Proficiency bonus</label><select id="profBonus">'+[2,3,4,5,6].map(pb=>'<option value="'+pb+'"'+(pb===2?' selected':'')+'>+'+pb+'</option>').join('')+'</select><span class="price" id="profp"></span><span class="warn" id="profb_w"></span><span class="hint">start +2 free · +3 @5 HD, +4 @9, +5 @13, +6 @17</span></div>'+
     '<div class="row"><label class="l">Vigor ranks</label><select id="hardy">'+numOpts(0,12,0)+'</select><span class="price" id="hardyp"></span><span class="warn" id="hardy_w"></span><span class="hint">+1 HP/HD each · cap = CON mod (<b id="hardycap">—</b>)</span></div>'+
-    '<div class="row"><label class="l">Grit (+5 HP)</label><select id="tough">'+numOpts(0,12,0)+'</select><span class="price" id="toughp"></span><span class="hint">flat 2 up to CON mod (<b id="toughcap">—</b>), then +1 each beyond</span></div>'+
+    '<div class="row"><label class="l">Grit (+4 HP)</label><select id="tough">'+numOpts(0,12,0)+'</select><span class="price" id="toughp"></span><span class="hint">2 / 4 / 6 / 9 / 12… by purchase, any level · +1 each past CON mod (<b id="toughcap">—</b>)</span></div>'+
     '<div class="row"><label class="l">Hit Points</label><b id="hpcell" style="font-size:16px">—</b><span class="hint" id="hpcalc"></span><span class="hint" id="basehp" style="margin-left:6px;color:var(--muted,#888)"></span></div>'+
-    '<div class="hint" style="margin-left:218px">HP = base + (CON mod + Hardy)×Hit Dice + Toughness×5</div>'+
+    '<div class="hint" style="margin-left:218px">HP = base + (CON mod + Hardy)×Hit Dice + Grit×4</div>'+
     '<div class="sublab">Saving throws  (1st 5 / 2nd 8 / 3rd 11 …)</div>'+
     sv+'<div class="row"><span class="price" id="savesp"></span></div>');
 
