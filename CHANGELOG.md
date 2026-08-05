@@ -6,6 +6,22 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-05 · docs(decisions): reverse H2 — the species-pack fix is a `priceOf()` quoting-basis bug, not
+  a ledger-accounting one** — two rounds of external cold review (5 reviewers, then 4) refuted the planned
+  approach, and two code audits moved the diagnosis to `priceOf()`
+  (`tools/PACT-Live-Char-Sheet.html:503-511`), which quotes a purchase as a **whole-build delta** and freezes
+  that number into the log — so any purchase that changes pricing context bills the player for re-pricing
+  everything they already own. Already escaped by hand three times (`abil`, `mbound`, `dbound`, the last two
+  with an inline comment naming "the refund bug") and still live for **Level Up** (charges the hit-die step
+  plus a full re-price of the existing Vigor/Grit stacks) and **class unlock** (quotes the unlock cost minus a
+  retroactive discount on already-owned features of that class; can go negative). New model recorded as
+  **D-GH-2026-08-05-pricing-model**: prices freeze at purchase, `compute().total` and the ledger sum are
+  *meant* to diverge, and the **creation lock** — not which tool is open — decides whether a purchase is
+  quoted by draft re-pricing or at listed price. Lock trigger = first spend past a threshold, stored as a
+  `creationLockConfig` event (persists offline and online with no schema change), default `DATA.level1AP` = 79.
+  Engine side is already built and fixture-covered; nothing in any tool emits the events, so `_locked` is
+  `false` for every character today. `DATA.version` unchanged — no rules or `compute()` change, docs only.
+
 - **2026-08-04 · chore(release): bump BUILD to v1.358 (PR #358)** — promotion of `preview` → `main`
   carrying the archived-campaign peek and the DM-AP roster fix. `DATA.version` unchanged at **v0.338**:
   `compute()` was not touched, only its caller was passing nothing. Two decisions recorded on the task
