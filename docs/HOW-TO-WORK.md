@@ -47,6 +47,12 @@ chore is gone.
 It's a PWA with ES modules and a service worker, so **`file://` will not work** — you need a local HTTP
 server, and the paths assume the **`/PACT/` base** (that's how GitHub Pages serves it).
 
+**The easiest way (Windows, no terminal at all):** double-click **`run-pact.cmd`** in the repo root. It
+shows which branch you're on, lets you paste another branch name to switch to it, then starts the server
+and opens your browser. It also checks Git and Node are installed and explains what to do if not. The
+sequencing lives inside the file deliberately — Windows PowerShell 5.1 rejects `&&`, which is what trips
+people up running the steps by hand.
+
 **The easy way — one command, from anywhere in the repo:**
 ```
 node testing/scripts/serve.mjs            # serves + opens the menu in your browser
