@@ -112,6 +112,16 @@ const clone = o => (o == null ? o : JSON.parse(JSON.stringify(o)));
 // 20, the 9th 24, then 30, 38, 48. The sum of the first m such steps is m*(m+1), which is where that
 // closed form comes from. The table needs extending because both tools let a player buy well past 7
 // (CharGen's dropdown goes to 12, and the Live Sheet's buy panel has no ceiling at all).
+// Character tier from Hit Dice, via DATA.tierHD's gates (T4 needs 5 HD, T5 needs 9, …). compute()
+// derives the same figure inline; this exists so _replay() can stamp a purchase with the tier in force
+// when it happened, without compute()'s whole build in hand.
+function _tierForHD(hd){
+  const g = DATA.tierHD || {};
+  let t = 1;
+  for (let k = 1; k <= 7; k++) if ((Number(hd) || 1) >= (g[k] || 1)) t = k;
+  return t;
+}
+
 const _GRIT_LADDER = [2,4,6,9,12,15,18];
 function _gritPrice(n){
   if (n <= _GRIT_LADDER.length) return _GRIT_LADDER[n-1];
@@ -144,7 +154,17 @@ export function compute(b, opts){
   // Vigor IS tier-locked and stays so — each rank costs the Passive band of your CURRENT Hit-Dice tier,
   // so buying early is genuinely cheaper. Grit is NOT; see _gritPrice() above compute().
   const cm=mod.CON; const vgcap=Math.max(0,cm);   // floor at 0 so a negative CON mod never flags Vigor 0 as over-cap
-  const hardy=b.hardy||0; let hardyAP=hardy*[5,8,11,14,17,21,25][tier-1]; add("Vigor",hardyAP);
+  // Vigor is priced per RANK at the tier that rank was bought at — see _vigorRankTier below. A stamped
+  // build reproduces what the player actually paid; an unstamped one falls back to today's tier, which is
+  // the old whole-stack behaviour. Presence, not truthiness, is the signal, exactly as _raceTraitLocked
+  // does it: rank tiers are legitimately 1, so a 0-vs-missing test would misread a real entry.
+  const hardy=b.hardy||0; const _vt=b._vigorRankTier;
+  let hardyAP=0;
+  for(let n=1;n<=hardy;n++){
+    const _rt=(Array.isArray(_vt)&&_vt[n-1]!=null)?_vt[n-1]:tier;
+    hardyAP+=[5,8,11,14,17,21,25][Math.min(7,Math.max(1,_rt))-1];
+  }
+  add("Vigor",hardyAP);
   if(hardy>vgcap) W.push("Vigor "+hardy+" exceeds cap (max = CON mod = "+vgcap+")");
   // Grit: priced by WHICH purchase it is, plus a flat +1 for each purchase past the CON modifier.
   const tough=b.tough||0; let toughAP=0;for(let n=1;n<=tough;n++)toughAP+=_gritPrice(n)+(n>vgcap?1:0); add("Grit",toughAP);
@@ -708,6 +728,17 @@ function _replay(b, log, onApplied) {
     if (e.cat === 'drawback' && boughtOff[e.payload && e.payload.v]) continue; // bought off: removed
     if (e.cat === 'racial' && e.payload && e.payload.v)
       (b._raceTraitLocked = b._raceTraitLocked || {})[e.payload.v] = _wasLocked;
+    // Stamp each NEW Vigor rank with the tier it was bought at, so compute() can price it at what the
+    // player actually paid instead of re-pricing the whole stack at today's tier. Same idea as
+    // _raceTraitLocked just above — record the purchase context on the purchase — but Vigor is a COUNT
+    // rather than a list of named items, so the stamp is an array indexed by rank. Read before the
+    // mutator runs, which is the only point where the previous rank total is still visible.
+    if (e.cat === 'vigor' && e.payload) {
+      const _from = b.hardy || 0, _to = Math.max(0, Math.floor(Number(e.payload.to)) || 0);
+      const _tier = _tierForHD(b.hd || 1);
+      b._vigorRankTier = (b._vigorRankTier || []).slice(0, _to);
+      for (let n = _from + 1; n <= _to; n++) b._vigorRankTier[n-1] = _tier;
+    }
     (MUT[e.cat] || (() => {}))(b, e.payload || {});
     if (onApplied) onApplied(e, b, _wasLocked);
   }

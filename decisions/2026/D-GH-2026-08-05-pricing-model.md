@@ -256,7 +256,38 @@ CharGen-shaped log, since `_cgEnsureLockArmed()` stamps `creationLockConfig{auto
 whole-build delta, so a *locked* character editing species is quoted at −4 rather than the pack's listed
 price. D1 was implemented for the Live Sheet's `priceOf()` only. Tracked as `fix/chargen-context-pricing`.
 
-## Open question — should a PRE-LOCK Live Sheet character reconcile? (raised 2026-08-05, part 4)
+### D8 — Vigor is stamped per rank; the pre-lock reconciliation question closes (2026-08-05)
+
+The open question below asked whether a pre-lock Live Sheet character should reconcile, because levelling
+1→5 with a Vigor/Grit stack left the ledger at 44 against a `compute()` of 83. It is answered, and not by
+picking a side: **both numbers were right and the model was wrong.** `compute()` had no way to know *when*
+a Vigor rank was bought, so it re-priced the whole stack at today's tier.
+
+Vigor now carries `b._vigorRankTier`, an array stamping each rank with the tier in force when it was
+bought — the same idea as `_raceTraitLocked`, which has always priced species traits at the lock state at
+purchase. `_replay` fills it just before the mutator runs (the only point where the previous rank total is
+still visible), and `compute()` prices each rank from its own stamp, falling back to today's tier for an
+unstamped build. Presence, not truthiness, is the signal, exactly as the species code does it — a rank
+tier of 1 is legitimate, so a 0-vs-missing test would misread a real entry.
+
+The result is that the ledger and `compute()` agree by construction rather than by convention, and the
+owner's rule — *buying early really is cheaper* — becomes a permanent property of the character instead
+of something two pricers have to remember separately. In one build: two ranks bought at tier 1 stay at 10
+AP after levelling to tier 4, while a third rank bought after the level-up costs the tier-4 rate of 14.
+Both halves of the asymmetry, pinned by fixture EV-015.
+
+Combined with the Grit correction (`D-GH-2026-08-05-grit-ladder-correction`), the CharGen-vs-Live-Sheet
+levelling divergence is gone: levelling 1→5 with Vigor 2 / Grit 3 now quotes **12 in both tools**, where
+CharGen quoted 51. One divergence remains — `unlockclass`, where CharGen quotes **−6** against the Live
+Sheet's 7 for a character owning four features of that class. Same root cause (a whole-build delta
+sweeping in a retroactive discount), same shape of fix (stamp each feature with whether its class was
+unlocked when it was bought). Tracked as `fix/chargen-context-pricing`.
+
+**Coverage note.** Vigor was, like Grit, entirely ungated — every fixture carried `hardy: 0` and no event
+fixture bought Vigor at all. Two rules mechanics in a row turned out to have no test touching them; that
+is worth treating as a pattern rather than two coincidences when deciding what to gate next.
+
+## Open question (ANSWERED — see D8) — should a PRE-LOCK Live Sheet character reconcile? (raised 2026-08-05)
 
 D1 and D2 conflict for one case that neither anticipated, and part 4 deliberately did not resolve it.
 

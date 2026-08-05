@@ -1,0 +1,53 @@
+{
+  "description": "Vigor is priced per RANK at the tier that rank was bought at (feat/vigor-rank-stamp, 2026-08-05), the same way species traits are priced per trait at the lock state in force when bought. Two ranks are bought at 1 Hit Die (tier 1, 5 AP each = 10), then the character levels to 5 Hit Dice (tier 4). Vigor must STAY at 10; before the per-rank stamp it re-priced the whole stack at the new tier (2 x 14 = 28), so a player was charged 18 AP for Vigor they already owned, purely for levelling. The third rank, bought AFTER the level-up, correctly costs the tier-4 rate (14) in the same build - which is the asymmetry the fixture exists to pin.",
+  "baseSnapshot": {},
+  "events": [
+    {
+      "type": "award",
+      "amount": 200,
+      "note": "Test budget",
+      "label": "Award \u2014 Test budget (200 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "abil",
+      "payload": {
+        "ab": "CON",
+        "to": 16
+      },
+      "cost": 16,
+      "level": 1,
+      "label": "Ability \u2014 CON 16"
+    },
+    {
+      "type": "buy",
+      "cat": "vigor",
+      "payload": {
+        "to": 2
+      },
+      "cost": 10,
+      "level": 1,
+      "label": "Vigor 2 (at tier 1)"
+    },
+    {
+      "type": "buy",
+      "cat": "hd",
+      "payload": {
+        "to": 5
+      },
+      "cost": 12,
+      "level": 1,
+      "label": "Level up \u2192 5 Hit Dice"
+    },
+    {
+      "type": "buy",
+      "cat": "vigor",
+      "payload": {
+        "to": 3
+      },
+      "cost": 14,
+      "level": 5,
+      "label": "Vigor 3 (at tier 4)"
+    }
+  ]
+}

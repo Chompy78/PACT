@@ -6,6 +6,22 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-05 · feat(engine): Vigor is priced per rank at the tier it was bought at** — closes the
+  pre-lock reconciliation question (D8). `compute()` had no way to know *when* a Vigor rank was bought, so
+  it re-priced the whole stack at today's tier: buy Vigor 2 at level 1 for 10 AP, level to 5, and the sheet
+  said it cost 28 — charging 18 AP for Vigor already owned, purely for levelling. Vigor now carries
+  `b._vigorRankTier`, stamping each rank with the tier in force when bought — the same mechanism
+  `_raceTraitLocked` has always used for species traits. `_replay` fills it just before the mutator runs
+  (the only point where the previous rank total is still visible); `compute()` prices each rank from its
+  own stamp and falls back to today's tier for an unstamped build, so nothing changes for callers that
+  don't replay a LOG. Two ranks bought at tier 1 stay at 10 after levelling, while a third bought after the
+  level-up costs the tier-4 rate of 14 — both halves in one build. **This closes the tool divergence**:
+  levelling 1→5 with Vigor 2 / Grit 3 now quotes 12 in *both* tools, where CharGen quoted 51. One
+  divergence remains, `unlockclass` (CharGen −6 vs Live Sheet 7), tracked as `fix/chargen-context-pricing`.
+  Like Grit, Vigor was **entirely ungated** — every fixture had `hardy: 0` and no event fixture bought it.
+  New fixture EV-015 pins both halves; parity 26/0 → 27/0, verified by reverting the stamp (EV-015 fails,
+  the other 26 pass). `DATA.version` unchanged: no price table moved, and an unstamped build computes
+  exactly as before.
 - **2026-08-05 · feat(chargen): pick a building level and budget track instead of an AP number** —
   the AP budget was a **751-option `<select>`** (`numOpts(0,750)`), which the owner called clunky, and the
   creation lock always measured against a flat `DATA.level1AP` of 79 no matter what the character's budget
