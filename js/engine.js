@@ -45,7 +45,7 @@ import { AP_BY_LEVEL, DEFAULT_LEVEL } from './ap-by-level.js';
 // Per-campaign advancement dials (display/config-only; never read by compute()/_replay()).
 import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advancement.js';
 
-export const BUILD = "v1.358";
+export const BUILD = "v1.365";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -94,6 +94,41 @@ const clone = o => (o == null ? o : JSON.parse(JSON.stringify(o)));
  *     discInfo, tradInfo, size, status, ... }
  * `total` is the total AP cost (read by the parity runner as totalCost).
  * ========================================================================== */
+// What the Nth Grit purchase costs, before the past-CON surcharge.
+//
+// RULES CORRECTION (owner, 2026-08-05). This ladder is indexed by WHICH PURCHASE it is — your first Grit
+// costs 2, your second 4, your third 6 — and does not depend on character level at all. It was previously
+// indexed by the character's TIER, so every Grit cost the same and that cost rose as you levelled: three
+// Grit cost 6 AP at level 1 but 27 at level 5 and 36 at level 9. The owner confirmed that is wrong, and
+// that the Players Guide's "Situational by tier" wording (which the old code implemented faithfully) is
+// the thing that needs rewording, not the intent. Grit is now level-independent: three Grit cost 12,
+// whenever you buy them.
+//
+// This is deliberately NOT how Vigor works. Vigor really is tier-locked — "each rank costs the Passive
+// band of your current Hit-Dice tier" — so with Vigor, buying early is cheaper and waiting costs more.
+// The two are priced differently on purpose; do not "tidy" them into a shared helper.
+//
+// Past the seven-entry table the steps run 2, 4, 6, 8, 10… (each 2 more than the last), so the 8th costs
+// 20, the 9th 24, then 30, 38, 48. The sum of the first m such steps is m*(m+1), which is where that
+// closed form comes from. The table needs extending because both tools let a player buy well past 7
+// (CharGen's dropdown goes to 12, and the Live Sheet's buy panel has no ceiling at all).
+// Character tier from Hit Dice, via DATA.tierHD's gates (T4 needs 5 HD, T5 needs 9, …). compute()
+// derives the same figure inline; this exists so _replay() can stamp a purchase with the tier in force
+// when it happened, without compute()'s whole build in hand.
+function _tierForHD(hd){
+  const g = DATA.tierHD || {};
+  let t = 1;
+  for (let k = 1; k <= 7; k++) if ((Number(hd) || 1) >= (g[k] || 1)) t = k;
+  return t;
+}
+
+const _GRIT_LADDER = [2,4,6,9,12,15,18];
+function _gritPrice(n){
+  if (n <= _GRIT_LADDER.length) return _GRIT_LADDER[n-1];
+  const m = n - _GRIT_LADDER.length;
+  return _GRIT_LADDER[_GRIT_LADDER.length-1] + m*(m+1);
+}
+
 export function compute(b, opts){
   b=Object.assign({},b);
   ['saves','skills','expertise','feats','masteries','racialTraits','features','drawbacks','traditions','subAbilities','arts','boons','innate','tools','instruments','customProfs','unlockedClasses','dabblerCantripNames','innateNames','toolExpertise','racialSpells','subSpellBundles'].forEach(k=>{if(!Array.isArray(b[k]))b[k]=[];});
@@ -116,11 +151,23 @@ export function compute(b, opts){
   for(let pb=3;pb<=wantPB;pb++){ if(hd>=PG[pb]) prof=pb; else { W.push("Proficiency +"+pb+" needs "+PG[pb]+" Hit Dice"); break; } }
   add("Proficiency bonus (+"+prof+")",DATA.profCum[prof]||0);
   // Vigor: +1 HP/HD per rank, cost 4/5/6/7…; cap = CON modifier (v66)
+  // Vigor IS tier-locked and stays so — each rank costs the Passive band of your CURRENT Hit-Dice tier,
+  // so buying early is genuinely cheaper. Grit is NOT; see _gritPrice() above compute().
   const cm=mod.CON; const vgcap=Math.max(0,cm);   // floor at 0 so a negative CON mod never flags Vigor 0 as over-cap
-  const hardy=b.hardy||0; let hardyAP=hardy*[5,8,11,14,17,21,25][tier-1]; add("Vigor",hardyAP);
+  // Vigor is priced per RANK at the tier that rank was bought at — see _vigorRankTier below. A stamped
+  // build reproduces what the player actually paid; an unstamped one falls back to today's tier, which is
+  // the old whole-stack behaviour. Presence, not truthiness, is the signal, exactly as _raceTraitLocked
+  // does it: rank tiers are legitimately 1, so a 0-vs-missing test would misread a real entry.
+  const hardy=b.hardy||0; const _vt=b._vigorRankTier;
+  let hardyAP=0;
+  for(let n=1;n<=hardy;n++){
+    const _rt=(Array.isArray(_vt)&&_vt[n-1]!=null)?_vt[n-1]:tier;
+    hardyAP+=[5,8,11,14,17,21,25][Math.min(7,Math.max(1,_rt))-1];
+  }
+  add("Vigor",hardyAP);
   if(hardy>vgcap) W.push("Vigor "+hardy+" exceeds cap (max = CON mod = "+vgcap+")");
-  // Grit: flat 2 up to CON mod, then +1 each beyond (v66)
-  const tough=b.tough||0; let toughAP=0;for(let n=1;n<=tough;n++)toughAP+=[2,4,6,9,12,15,18][tier-1]+Math.max(0,n-vgcap); add("Grit",toughAP);
+  // Grit: priced by WHICH purchase it is, plus a flat +1 for each purchase past the CON modifier.
+  const tough=b.tough||0; let toughAP=0;for(let n=1;n<=tough;n++)toughAP+=_gritPrice(n)+(n>vgcap?1:0); add("Grit",toughAP);
   const hp=row.baseHP + hd*(cm+hardy) + tough*4;
   // saves by stat
   const saveList=(b.saves||[]); add("Saving throws",DATA.saves[saveList.length]||0);
@@ -402,9 +449,16 @@ export function compute(b, opts){
      _tb(DATA.features,b.features);_tb(DATA.boons,b.boons);_tb(DATA.arts,b.arts);}}
   // drawbacks
   // §14: drawbacks grant AP, but no more than 14 AP total across a character
-  let drawGain=0;for(const lab of (b.drawbacks||[])){const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;
+  // Skip unknowns, as all five sibling itemised loops do (:247 :275 :312 :441). Behaviour-identical for
+  // the total (an unknown scores v=0) and for warnings (drawbackMaxStats[unknown] is {}), but it stops a
+  // drawback retired from the rules rendering a phantom "<name> 0" row, and stops an all-unknown list
+  // producing an itemize key with no matching ledger line (add() suppresses a zero line).
+  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){if(!HRd[lab]&&DATA.drawbacks[lab]===undefined)continue;const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
     const _dmx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{};for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push(lab+': drawback requires '+_da+' '+_dm+' or lower');} }
-  add("Drawbacks (refund)",-drawGain);
+  // Rows are NEGATIVE so they sum to the line total (-drawGain), the same relationship the other five
+  // itemised lines have with theirs. `v` is the value actually charged, so a house-ruled drawback
+  // (b.houseRules.draws) itemises at its overridden AP, not the printed one.
+  add("Drawbacks (refund)",-drawGain);addItems("Drawbacks (refund)",_DI);
   if(drawGain>14) W.push("Drawbacks grant "+drawGain+" AP — note most tables cap at 14 AP (check with your DM)");
   if((b.drawbacks||[]).length>3) W.push((b.drawbacks||[]).length+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
   add("Starting gold",b.gold||0);
@@ -468,6 +522,15 @@ export function compute(b, opts){
  *   { type:'names',  ...spell/feat name payload, cost } - folds in names
  *   { type:'name',   name }                             - sets character name
  * ========================================================================== */
+
+// The nine single-instance proficiency lists, which never hold duplicates. Applied at the end of
+// _replay() (the historical home of this code) and again per-event by repriceDraft(). Idempotent, and
+// deduping early reaches the same final build as deduping once at the end — a later duplicate push
+// still appends and is collapsed on the next call.
+const _PROF_LISTS = ['saves','skills','expertise','toolExpertise','tools','instruments','masteries','racialTraits','racialSpells'];
+function _dedupeProfLists(b) {
+  for (const k of _PROF_LISTS) if (Array.isArray(b[k]) && b[k].length > 1) b[k] = [...new Set(b[k])];
+}
 
 export function baseBuild() { return {name:'',budget:0,originClass:'Fighter',originClass2:'(none)',species:'Human',species2:'(none)',
  stats:{STR:10,DEX:10,CON:10,INT:10,WIS:10,CHA:10},hd:1,profBonus:2,hardy:0,tough:0,saves:[],skills:[],expertise:[],toolExpertise:[],
@@ -621,7 +684,19 @@ export function economy(events) {
 // Single pass: the lock/spend bookkeeping for event i never depends on anything the build-mutation
 // half of the loop does, so both run interleaved per-event rather than as two separate passes over
 // `evs` — `_wasLocked` is captured before advancing state for this event, same as before.
-function _replay(b, log) {
+//
+// `onApplied` (optional) fires once per event that actually reached the build mutators, as the last
+// thing in the loop body, with (event, build, wasLocked). It exists for repriceDraft() below and is
+// deliberately placed AFTER the MUT call so a caller sees the build with that event applied. Events
+// `_replay` short-circuits past (name/names/non-buy/bought-off drawback) never fire it — none of them
+// changes what the build COSTS, so a re-pricing caller has nothing to do for them. foldBuild() and
+// rebuildStateFromEvents() pass two arguments, so this is inert for every existing caller.
+//
+// It is a pure observer: the return value is ignored, and `_spent` keeps accumulating the costs the
+// log arrived with. That is deliberate and load-bearing for repriceDraft() — the lock position must be
+// read from what was actually paid, never from what a caller is in the middle of rewriting, or the two
+// chase each other (see repriceDraft's "ALL-OR-NOTHING" note for what that cost the first time).
+function _replay(b, log, onApplied) {
   const ae = activeEvents(log);
   const { evs, boughtOff } = ae;
   let _locked = false, _spent = 0, _campaignBound = false;
@@ -660,9 +735,22 @@ function _replay(b, log) {
     if (e.cat === 'drawback' && boughtOff[e.payload && e.payload.v]) continue; // bought off: removed
     if (e.cat === 'racial' && e.payload && e.payload.v)
       (b._raceTraitLocked = b._raceTraitLocked || {})[e.payload.v] = _wasLocked;
+    // Stamp each NEW Vigor rank with the tier it was bought at, so compute() can price it at what the
+    // player actually paid instead of re-pricing the whole stack at today's tier. Same idea as
+    // _raceTraitLocked just above — record the purchase context on the purchase — but Vigor is a COUNT
+    // rather than a list of named items, so the stamp is an array indexed by rank. Read before the
+    // mutator runs, which is the only point where the previous rank total is still visible.
+    if (e.cat === 'vigor' && e.payload) {
+      const _from = b.hardy || 0, _to = Math.max(0, Math.floor(Number(e.payload.to)) || 0);
+      const _tier = _tierForHD(b.hd || 1);
+      b._vigorRankTier = (b._vigorRankTier || []).slice(0, _to);
+      for (let n = _from + 1; n <= _to; n++) b._vigorRankTier[n-1] = _tier;
+    }
     (MUT[e.cat] || (() => {}))(b, e.payload || {});
+    if (onApplied) onApplied(e, b, _wasLocked);
   }
-  // single-instance proficiency lists never hold duplicates.
+  // single-instance proficiency lists never hold duplicates. Factored into _dedupeProfLists() (just
+  // above baseBuild()) so repriceDraft() can apply the SAME nine lists mid-walk — see its call site.
   // Set-based dedupe keeps the same first-occurrence-wins ORDER as the previous
   // `filter((v,i) => arr.indexOf(v) === i)` form (Set iteration order is insertion order) but runs in
   // O(n) instead of O(n²) — the old form re-scanned the whole array once per element, which dominated
@@ -670,8 +758,7 @@ function _replay(b, log) {
   // Equivalent here because these lists hold STRINGS: the one case where the two forms differ is NaN
   // (indexOf can never match it, so the old form dropped every NaN; Set's SameValueZero keeps one),
   // which a proficiency-name list cannot contain.
-  ['saves','skills','expertise','toolExpertise','tools','instruments','masteries','racialTraits','racialSpells']
-    .forEach(k => { if (Array.isArray(b[k])) b[k] = [...new Set(b[k])]; });
+  _dedupeProfLists(b);
   // half-casters can't hold cantrips
   (b.traditions || []).forEach(t => (t.disciplines || []).forEach(d => {
     if (d && (DATA.noCantrip || []).indexOf(d.name) >= 0) { d.cantrips = 0; d.cantripNames = []; }
@@ -713,6 +800,95 @@ export function foldBuild(events) {
   const ae = _replay(b, log);        // reuse _replay's snapshot instead of re-deriving it via economy(log)
   b.budget = _economyFrom(ae.evs, ae.boughtOff).earned;
   return b;
+}
+
+// isCreationDraft(events): has the creation lock fired at any point in this log?
+//
+// "Draft" is the whole basis on which repriceDraft() decides whether it may touch anything, and it is
+// derived state (D5) rather than a stored flag, so it belongs here next to _replay rather than being
+// re-derived by each caller from spend and thresholds. Exported so gates can assert the reconciliation
+// invariant on exactly the logs it applies to — an earlier version of the fuzzer approximated this as
+// "could the lock fire", which excluded every CharGen-shaped log, since _cgEnsureLockArmed() stamps
+// creationLockConfig{auto:true} into all of them.
+export function isCreationDraft(events) {
+  const log = (Array.isArray(events) ? events : []).filter(Boolean);
+  let anyLocked = false;
+  _replay(baseBuild(), log, (e, build, wasLocked) => { if (wasLocked) anyLocked = true; });
+  return !anyLocked;
+}
+
+// repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so
+// its ledger telescopes back to compute().total.
+//
+// WHY THIS EXISTS (D-GH-2026-08-05-pricing-model, D2). Before the lock a character is a draft: there is
+// only one pricing context, so "what was paid" and "what it costs to build today" must agree. After the
+// lock, prices freeze per purchase and the two are MEANT to diverge. Nothing enforced the draft half —
+// a purchase's cost was frozen at the moment it was made, and a LATER change to pricing context left it
+// stale. Measured in a real browser: buy four Halfling traits (ledger 13, compute 13), then switch
+// species to Dwarf — the traits become cross-race and compute jumps to 24 while the ledger stays 13;
+// switch back and the identity patch quotes -4, taking the ledger to 2 against compute's 13. That
+// negative quote is the same mechanism that left Anders Tealeaf's log summing to 15 against a
+// compute() of 33.
+//
+// ALL-OR-NOTHING, AND THAT IS THE POINT. Either the log is a draft, in which case every purchase in it
+// re-prices, or the lock has fired somewhere, in which case NOTHING is touched and the function returns
+// its input. There is deliberately no per-event "this one was pre-lock, that one wasn't" mode.
+//
+// The first version had one, and it was wrong in two ways that a code review caught (see D7):
+//   * The auto-lock's position is a function of cumulative spend — i.e. of the very costs this function
+//     rewrites. Re-pricing moved the lock point, which changed which events were re-pricable, which
+//     moved it again: the numbers kept shifting on repeated calls over the same log. A fixed-point loop
+//     hid that rather than fixing it, and needed O(events after the lock) passes to settle.
+//   * Worse, it broke the guarantee it claimed to keep. Edit a locked character's species and the new
+//     quote lands at the old event's index, which sits BEFORE the lock — so the pass treated it as
+//     draft state and re-priced downstream purchases that were bought while locked. Reproduced: a trait
+//     frozen at 6 AP silently became 2.
+// Deciding once, for the whole log, removes both: the lock position is read from what was actually
+// paid, never from what this pass is about to write, so a second call cannot move anything. Where a
+// re-price pushes a draft past its own threshold the new costs stand as that draft's final
+// reconciliation, and the next call sees a locked log and leaves it alone — a fixed point after one
+// pass, by construction rather than by iteration.
+//
+// HOW. One pass with a running build, pricing each purchase as its own sequential delta on everything
+// before it. That is the basis CharGen's import burst (_buildEventBurst) already uses, so the two agree
+// by construction. Riding on _replay() rather than walking the log here is load-bearing: racial-trait
+// pricing depends on the per-trait `_raceTraitLocked` map that _replay stamps, and the lock bookkeeping
+// is subtle enough (see the PRECEDENCE block above) that a second copy would drift — which is exactly
+// how D-GH36 got its `found`/`dbound` bug.
+//
+// WHAT IT WILL NOT TOUCH: anything at all once the lock has fired; drawbacks, whose recorded cost is
+// income rather than spend (economy() reports it under `earned`, and foldBuild feeds that into
+// b.budget, so rewriting it would change how much AP the character HAS — caught by the fuzzer);
+// and buy-off, award and name events, which _replay never routes here in the first place.
+//
+// Non-mutating: the returned log is a fresh array of fresh event objects. Callers assign the result.
+//
+// A log containing a buy-off will NOT telescope exactly, and that is correct rather than a gap: buying
+// a drawback off costs 3x its refund (a table price for undoing something), so the AP is genuinely
+// spent on nothing compute() can see. Gates asserting ledger==compute must scope to buy-off-free logs.
+export function repriceDraft(events) {
+  const log = (Array.isArray(events) ? events : []).filter(Boolean).map(e => clone(e));
+  const b = baseBuild();
+  let prev = 0, anyLocked = false;
+  const priced = [];
+  _replay(b, log, (e, build, wasLocked) => {
+    if (wasLocked) anyLocked = true;
+    // Dedupe BEFORE pricing. _replay only collapses the proficiency lists once, at the very end, so
+    // mid-walk a duplicate purchase is still sitting in the array and inflates compute() — while the
+    // final build has it collapsed away. Pricing off that gap charges real AP for a purchase the
+    // character never receives (the fuzzer's minimal repro: buy the CON save twice, ledger 13 against
+    // a compute() of 5). Both tools guard against emitting duplicates, so this is a degenerate shape
+    // rather than a routine one, but _replay repairs it silently and the pricer has to agree.
+    _dedupeProfLists(build);
+    const now = compute(build).total;
+    if (e.type === 'buy' && e.cat !== 'drawback') priced.push([e, now - prev]);
+    prev = now;
+  });
+  // Costs are collected first and written only here, so a lock firing late in the log still protects
+  // the events before it — the decision is made on the whole log, never event by event.
+  if (anyLocked) return log;
+  for (const [e, cost] of priced) e.cost = cost;
+  return log;
 }
 
 // Seed a working build from baseBuild() defaults, overlaying any provided

@@ -661,9 +661,10 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Level budget curve &middot; award pace &middot; starting tier <span class="dsum" id="campRulesSummary"></span></summary>
               <div style="margin-top:8px">
             <div class="ruleblock">
-              <div class="lbl">📈 Level budget curve <button type="button" class="infobtn" title="How much cumulative AP a COMPLETE character of each level is expected to have SPENT. L1 is the level-1 figure, “+per lvl” the step: Standard 79/+24 reaches 535 at L20, Generous 83/+28 reaches 615. Run the same formula at level 0 and both land on 55 — the Guide’s optional prelude/apprentice tier. Two things read this curve: the “Track-Level” label a player sees on their sheet (their AP spent, measured against it), and the creation-pricing lock stamped into new characters, which fires once spend passes L1. It never changes what any individual option costs to buy.">ⓘ</button></div>
+              <div class="lbl">📈 Level budget curve <button type="button" class="infobtn" title="How much cumulative AP a COMPLETE character of each level is expected to have SPENT. L1 is the level-1 figure, “+per lvl” the step: Lean 75/+20 reaches 455 at L20, Standard 79/+24 reaches 535, Generous 83/+28 reaches 615. Run the same formula at level 0 and all three land on 55 — the Guide’s optional prelude/apprentice tier. Two things read this curve: the “Track-Level” label a player sees on their sheet (their AP spent, measured against it), and the creation-pricing lock stamped into new characters, which fires once spend passes L1. It never changes what any individual option costs to buy.">ⓘ</button></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                 <select id="ruleBudgetPreset" class="field" style="flex:0 0 140px">
+                  <option value="lean">Lean (75/+20)</option>
                   <option value="standard">Standard (79/+24)</option>
                   <option value="generous">Generous (83/+28)</option>
                   <option value="custom">Custom</option>
@@ -945,7 +946,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.358';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.365';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -2222,7 +2223,9 @@ document.addEventListener('campaign-ready', function () {
     var stl=document.getElementById('ruleStartingTierLevel'), stb=document.getElementById('ruleStartingTierBand'),
         sta=document.getElementById('ruleStartingTierAp'), stc=document.getElementById('ruleStartingTierCustom');
     bp.addEventListener('change', function(){
-      var pz=(window.DATA&&DATA.levelBudgetCurves)||{standard:{l1:79,inc:24},generous:{l1:83,inc:28}};
+      // Fallback mirrors js/advancement.js LEVEL_BUDGET_CURVES and is only reached by a stale cached
+      // engine that predates a preset; keep the two in step when adding one.
+      var pz=(window.DATA&&DATA.levelBudgetCurves)||{lean:{l1:75,inc:20},standard:{l1:79,inc:24},generous:{l1:83,inc:28}};
       var c=pz[this.value]; if(c){ bl1.value=c.l1; binc.value=c.inc; } _updateBudgetPreview();
     });
     // The tier is derived from the CURVE, so moving L1 or +per-lvl has to move the tier AP with it —

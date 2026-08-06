@@ -31,7 +31,7 @@ is staging and promotes into `main`).
   `/pick-code-task` → `/run-code-task`; for big/risky work draft a plan for cold review first (see Agent guidance below).
 - **Avoid:** re-implementing rules logic anywhere but `engine.js`; patching `undo()` with tool-local state
   instead of LOG replay; bumping `DATA.version` for display-only changes; reading large files wholesale.
-- **Verification expectations:** `testing/tests/engine-parity.html` → **24/0**; if `compute()` output changed,
+- **Verification expectations:** `testing/tests/engine-parity.html` → **26/0**; if `compute()` output changed,
   update `testing/expected/` in the same PR and bump `DATA.version`; mirror build/version numbers per
   `docs/VERSION-SYNC.md`.
 
@@ -201,7 +201,7 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   `service_role`/secret key** or any private credential.
 - **Target:** modern evergreen browsers on phones and desktops (current Chrome/Edge/Firefox/Safari, incl.
   iOS Safari). Prefer widely-supported JS/CSS; no legacy/IE shims.
-- After any change, `testing/tests/engine-parity.html` must report **24 passed / 0 failed** (how to run it —
+- After any change, `testing/tests/engine-parity.html` must report **26 passed / 0 failed** (how to run it —
   browser or headless — is in `docs/HOW-TO-WORK.md`). Keep `engine.js`'s public API stable if you touch it.
 - **Every player-controlled value that reaches innerHTML/an attribute must pass through `esc()`** (or the
   tool's equivalent escaping helper) before it's rendered — character names, campaign names, free-text
@@ -268,16 +268,24 @@ Before finishing a task / opening a PR, update what applies (newest on top):
   `CHANGELOG.md` in the same change — the task board holds only open work.
 
 ## Multiple sessions
-More than one agent may be active. **The task board (`docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md`)
-has a single writer** — don't append to it.
-If you have new tasks, output them in **this exact format** for the human to fold in, then carry on:
+More than one agent may be active, so the task board (`docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md`)
+is **single-writer** — no agent hand-edits it ad hoc.
 
-**Carve-out: `/add-code-task` and `/sweep-code-tasks`.** These two skills are the sole exception to the
-single-writer rule above — both commit directly to the task board on `preview`, no human
-fold-in step, by design (see each skill's own file for exactly which step — don't hardcode step
-numbers here, they've already drifted once). `/sweep-code-tasks` similarly commits directly to
-`docs/sweep-log.md`. No other skill or agent should commit to the task board directly — the
-format-and-output-for-a-human pattern below still applies everywhere else.
+**To add a task, use `/add-code-task`. That is the normal path, not an exception.** The skill commits the
+entry directly to the board on `preview` — no branch, no PR, no human step. `/sweep-code-tasks` does the
+same and also commits directly to `docs/sweep-log.md`. Reach for the skill whenever you have a task to
+record, including one you surface incidentally while doing something else. (See each skill's own file for
+exactly which step does the commit — don't hardcode step numbers here, they've already drifted once.)
+
+**Fallback — only when the skill genuinely cannot be used**, i.e. it isn't available in the session, or
+the session is barred from pushing to `preview`. Then, and only then, output the entry in the *Task
+format* below and say plainly that it still needs adding, naming the reason the skill was unusable.
+Never hand-edit the board instead.
+
+> **This paragraph replaced a version that led with "output them for the human to fold in" and buried
+> `/add-code-task` below it as a "carve-out".** Agents read the general rule, stopped, and dutifully
+> pasted task text into chat for a human to copy — the exact manual step the skill exists to remove.
+> If you catch yourself about to do that, check whether `/add-code-task` is available first.
 
 **`D-GH-<date>-<slug>` numbering (see D-GH49).** The old sequential `D-GH<N>` scheme is retired — it
 collided repeatedly (see the "Addendum" notes throughout `DECISIONS.md` for the full trail, at least
@@ -291,6 +299,8 @@ task's own branch slug (the part after `type/`, e.g. `feat/ap-by-level` → `ap-
 collision-proof **by construction**: the one-task-per-branch rule already guarantees no two tasks share a
 branch slug, so no live-remote check or renumbering step is ever needed. (In the near-impossible case the
 exact same slug is reused on the exact same date — e.g. a same-day redo — append `-2`, `-3`, etc.)
+
+**Task format** (used by `/add-code-task`, and by the fallback above):
 
 ````
 ## <short title> — TODO
@@ -318,7 +328,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-code-
   `docs/PACT-Players-Guide.html`.
 - **Engine support:** `js/` — `supabase-client.js`, `auth.js`, `sync.js`, `campaign.js`, `dm.js`;
   root — `manifest.json`, `service-worker.js`, `404.html`; `sql/` — `schema.sql`, `rls-policies.sql`, `migrations/`.
-- **Testing:** run `testing/tests/engine-parity.html` (expect **24/0**); fixtures in `testing/fixtures/`,
+- **Testing:** run `testing/tests/engine-parity.html` (expect **26/0**); fixtures in `testing/fixtures/`,
   expected output in `testing/expected/` (see `testing/README.md`).
 - **Docs:** `docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md` (open work) · `docs/HOW-TO-WORK.md` (app/test mechanics) ·
   `docs/SKILLS.md` (skills + workflow, human-readable) · `docs/sessions/` ·
@@ -330,7 +340,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-code-
 ## Per-change checklist
 1. One task, one branch — name it `type/short-slug` (e.g. `feat/…`, `fix/…`, `docs/…`).
 2. Touch `js/engine.js` only if the task targets the engine; else treat its API as fixed.
-3. `testing/tests/engine-parity.html` → **24/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
+3. `testing/tests/engine-parity.html` → **26/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
    `compute()` output, update `testing/expected/` in the same change and say so.
    For a release-shaped PR (not every doc/small fix), also run the pre-release manual QA checklist in
    `docs/HOW-TO-WORK.md`.

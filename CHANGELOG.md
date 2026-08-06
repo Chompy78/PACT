@@ -6,6 +6,188 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · chore(release): `BUILD` → `v1.365` (PR #365), and CharGen's stale rules labels resynced**
+  — promotion of `preview` → `main`, 49 non-merge commits since `v1.358`. Major carried forward at `1`;
+  per `docs/VERSION-SYNC.md` that is a named human decision, never inferred from the size of a promotion.
+  `BUILD` mirrored from `js/engine.js` into CharGen's line-1 comment, `<title>` and header `.sub`, the
+  Live Sheet's line-1 comment, and DM Console's `TOOL_VERSION`; `index.html` untouched (it reads `BUILD`
+  live). `DATA.version` stays at **v0.339** — it moved once this window, for the Grit and Vigor pricing
+  corrections, and nothing since changed `compute()` output. **Also resynced two user-visible *rules*
+  labels that had drifted**, which the version-sync one-liner tells you not to touch during a promotion:
+  CharGen's `<title>` read *Rules v0.338* and its `#cgPactver` chip read *PACT rules · v0.337* while
+  `DATA.version` was v0.339 — CharGen hardcodes both, unlike the Live Sheet and DM Console which read
+  `DATA.version` live, and the file's own comment says to resync them on a rules bump. The bump that
+  should have done it was in this same window. Fixing a stale mirror to the already-current value is not
+  a rules-version change, and shipping *"PACT rules · v0.337"* to `main` would have been a wrong fact in
+  front of users; the same comment's own stale examples (`v0.337`, `v0.202`) were corrected with it.
+- **2026-08-06 · feat(engine): the `Drawbacks (refund)` ledger line itemises what was taken** — owner-
+  confirmed: a character with three drawbacks showed one lump sum and no way to see which three, while
+  *Arts & Techniques*, *Species traits*, *Class features*, *Subclass abilities* and *Boons* all expanded
+  into named rows. The drawbacks loop now collects pairs and calls `addItems("Drawbacks (refund)", …)`
+  with the key matching the ledger line's label exactly — both tools already walk `itemize` generically,
+  so there is no renderer change. Rows are **negative**, so they sum to the line total (`-drawGain`), the
+  same relationship the other five itemised lines have with theirs; the value itemised is the one
+  actually charged, so a house-ruled drawback shows its overridden AP, not the printed one. Unknown
+  drawbacks are skipped, as all five sibling itemised loops already do — a drawback retired from the rules
+  scores 0, and without the guard it rendered a phantom `<name> 0` row and could leave an `itemize` key
+  with no matching ledger line (`add()` suppresses a zero total). `compute()` totals do not move and
+  `testing/expected/` captures only totals and warnings (checked, not assumed), so **`DATA.version` is
+  unmoved**. Note the rows are visible in **CharGen and DM Console** only — the Live Sheet's AP ledger
+  maps `r.lines` and does not read `itemize` at all. Gate +11 assertions across the three fixes; every one
+  that guards a specific behaviour was confirmed red against a deliberately reverted guard before being
+  trusted, and step 6's check that *Boons* rows still render is in there too. **Not in this change:** the
+  2026-08-05 scope extension — showing what was *lost* (a bought-off
+  drawback, its buy-off cost, and a DM-removed boon) appears in no ledger line at all, and needs an owner
+  decision on whether historical spend belongs in `compute()`'s ledger (`feat/ap-model-reconcile`) plus a
+  line shape for a DM-edit feature that isn't built yet. The task stays on `docs/TASK_BOARD_NEXT.md`.
+- **2026-08-06 · fix(livesheet): buying an extra maneuver goes through the affordability gate** —
+  `buyManeuver()` called `emit()` directly, making it the one purchase path in the tool that skipped
+  `buy()`'s frozen-economy check. Measured on a Fighter with *Combat Superiority* and **0 AP available**:
+  four clicks charged 4, 5, 6 and 7 AP and took the character to **−22**, with no refusal and no warning.
+  Now routed through `buy()`. Pricing needed an escape first — `maneuverBuys` is read only by the ✎ Names
+  dialog's slot count and by no ledger line, so `compute()`'s build diff prices the purchase at 0 and the
+  gate would have been a no-op; `mvbuy` therefore joins `_CTX_PRICERS` quoting its own rung
+  (`4 + maneuverBuys`), the same escape `hd`, `abil` and `unlockclass` already use. The dialog now
+  redraws only when the purchase lands, so a refusal leaves it open showing the flash. Verified: at 0 AP
+  all four clicks are refused with *"Not enough AP: needs 4, have 0"*; at 15 AP the ladder still charges
+  4, 5, 6 and then refuses the 7 with *"needs 7, have 0"*. Review then found the escape was in the wrong
+  table: `_CTX_PRICERS` means *"the diff over-charges because this purchase changes the pricing context"*,
+  and adding a fourth entry contradicts `D-GH-2026-08-05-pricing-model` **D1** outright. `mvbuy` now lives
+  in its own `_UNCHARGED_PRICERS` — *"the diff is 0 because `compute()` charges nothing"* — which keeps D1's
+  planned retirement of `_CTX_PRICERS` safe to carry out; folding an uncharged purchase in would have made
+  maneuvers free again the day it happened. The rung itself moved into **`DATA.maneuverBuy`**
+  (`{base:4, step:1}`), following D1's own finding that *"the escapes exist where the data was missing"* —
+  it had never been in `DATA` at all. `DATA.version` deliberately unmoved (value unchanged, `compute()`
+  never reads the key, parity 27/0); reasoning recorded in
+  `decisions/2026/D-GH-2026-08-06-maneuver-afford-gate.md`.
+- **2026-08-06 · fix(livesheet): epic boons can be bought again — an expected follow-up is no longer a
+  hard block** — owner-confirmed: all 12 `epic:true` boons were unbuyable in the Live Sheet. `MUT.boon`
+  pushes the label but cannot set `epicBoonAbil`, so `compute()` on the candidate build always raised
+  *"&lt;boon&gt;: choose an ability to raise (+2)"*; that string matched neither `SOFT_WARN` nor anything
+  else, so `buy()` classified it as a rules violation and refused with *⛔ Purchase blocked*. The warning
+  is guidance, not a violation — the ability is chosen afterwards in the ✎ Names dialog. Added a third
+  class, `EXPECTED_FOLLOWUP`, rather than widening `SOFT_WARN`: soft warnings mean "allowed but flagged,
+  confirm through", and asking a player to confirm a warning that isn't one is the wrong prompt. `buy()`
+  now flashes a pointer to the dialog instead. Measured on a HD-17 character with 804 AP: 12 of 12 epic
+  boons blocked before, 12 of 12 bought after, with the guidance still raised on the build and
+  *"Crossbow Expert: requires DEX 14+"* still hard-blocked. Two follow-on defects found in review and
+  fixed here: the event was still storing the **unfiltered** `warns`, and the history ledger paints any
+  row carrying one red — so an epic boon would have looked like a rules breach forever, including after
+  the ability was chosen, and `warns` travels inside the saved envelope; `buy()` now stores `rest`. And
+  `ib()` built its own classification with no knowledge of `EXPECTED_FOLLOWUP`, so every epic-boon tile
+  stayed amber `.warn` while clicking it bought cleanly — the panel and `buy()` disagreeing about the
+  same string. The tile keeps the guidance text and drops the styling. No engine change, so
+  `DATA.version` unmoved.
+- **2026-08-05 · fix(livesheet): a racial trait is gated by its tier, as CharGen already gated it** — owner
+  report: *"Draconic flight requires T4, which works in CharGen but not the Live Sheet."* A trait's tier
+  gates it by Hit Dice via `DATA.tierHD` (T4 needs 5 HD), and CharGen enforced that on its trait
+  checkboxes. The Live Sheet used `DATA.tierHD` for class features, Eldritch Invocations and cross-class
+  features but **not** for racial traits — `racialWhy()` checked only `minHD` and `reqRace`, and
+  *Dragonborn: Draconic flight* is T4 with no `minHD` field at all, so nothing stopped it being bought at
+  level 1. `racialWhy()` now checks the tier gate first; `minHD` stays as a stricter override for traits
+  naming an explicit level (the breath-dice steps, Goliath's Large Form). Gate +2 assertions, the second
+  driving the real buy panel for a Dragonborn so it proves the gate is wired rather than that the numbers
+  exist in `DATA`. No `compute()` change, so `DATA.version` unmoved.
+- **2026-08-05 · feat(engine): Vigor is priced per rank at the tier it was bought at** — closes the
+  pre-lock reconciliation question (D8). `compute()` had no way to know *when* a Vigor rank was bought, so
+  it re-priced the whole stack at today's tier: buy Vigor 2 at level 1 for 10 AP, level to 5, and the sheet
+  said it cost 28 — charging 18 AP for Vigor already owned, purely for levelling. Vigor now carries
+  `b._vigorRankTier`, stamping each rank with the tier in force when bought — the same mechanism
+  `_raceTraitLocked` has always used for species traits. `_replay` fills it just before the mutator runs
+  (the only point where the previous rank total is still visible); `compute()` prices each rank from its
+  own stamp and falls back to today's tier for an unstamped build, so nothing changes for callers that
+  don't replay a LOG. Two ranks bought at tier 1 stay at 10 after levelling, while a third bought after the
+  level-up costs the tier-4 rate of 14 — both halves in one build. **This closes the tool divergence**:
+  levelling 1→5 with Vigor 2 / Grit 3 now quotes 12 in *both* tools, where CharGen quoted 51. One
+  divergence remains, `unlockclass` (CharGen −6 vs Live Sheet 7), tracked as `fix/chargen-context-pricing`.
+  Like Grit, Vigor was **entirely ungated** — every fixture had `hardy: 0` and no event fixture bought it.
+  New fixture EV-015 pins both halves; parity 26/0 → 27/0, verified by reverting the stamp (EV-015 fails,
+  the other 26 pass). `DATA.version` unchanged: no price table moved, and an unstamped build computes
+  exactly as before.
+- **2026-08-05 · feat(chargen): pick a building level and budget track instead of an AP number** —
+  the AP budget was a **751-option `<select>`** (`numOpts(0,750)`), which the owner called clunky, and the
+  creation lock always measured against a flat `DATA.level1AP` of 79 no matter what the character's budget
+  was. Two selectors — **building level (0–20)** and **budget track (lean / standard / generous)** — now
+  derive all three numbers the tools need: **total AP** from the curve, **creation AP** (the track's
+  level-1 figure, which is what the lock measures), and the remainder, which behaves as **awarded AP** at
+  post-creation prices. A level-5 Standard character starts with 175 AP: the first 79 spends under creation
+  pricing with the usual warnings, the other 96 as awards — which is the right shape, since a character
+  beginning at level 5 has in rules terms already advanced (owner's design). Level 0 is handled by the same
+  formula rather than a special case: its 55 AP total is below the level-1 figure, so creation AP clamps to
+  the total and the whole prelude budget is creation spending. The threshold is written as an **appended**
+  `creationLockConfig` event (D4 — never replaced or moved), so it persists in the save file with no schema
+  change. `#budget` remains as a plain number input, derived from the two selectors but still directly
+  editable for a table running a figure no curve produces. Two bugs found and fixed while building it: a
+  render-time helper repainted the selectors from the budget and fought the user's own edit (the level
+  snapped back before the new total landed); and "derive the level from the budget" has no unique answer at
+  all — Lean level 6 and Standard level 5 both total 175 AP — so the selectors are now inputs only, with a
+  hint line reporting the real figures. `relabel()` also gained an `options` guard, since it assumed a
+  `<select>`. Gate: `tool-pricing-ci.mjs` 34 → 42, covering all three tracks, level 0 and level 20, the
+  event-not-DOM threshold, and that the control is no longer a dropdown. Parity 26/0, log-fuzz 500/500,
+  `DATA.version` unchanged — no `compute()` output moves.
+- **2026-08-05 · fix(engine): Grit is priced by which purchase it is, not by your character tier** —
+  **rules correction (owner), `DATA.version` v0.338 → v0.339.** `js/engine.js` indexed the Grit ladder
+  (2/4/6/9/12/15/18) by the character's **tier**, so every Grit purchase cost the same and that cost rose
+  as you levelled: three Grit cost 6 AP at level 1, **27 at level 5, 36 at level 9**. It is now indexed by
+  **purchase number** and is level-independent — three Grit cost 12, whenever you buy them. Past the
+  seven-entry table the steps run 2/4/6/8/10 (8th = 20, 9th = 24, then 30, 38, 48); both tools let a player
+  buy well past 7, so the table had to extend. The past-CON-mod surcharge is now a **flat +1 per purchase**
+  rather than the escalating `max(0, n − CONmod)` the code applied. Vigor is deliberately untouched: it
+  really is tier-locked ("each rank costs the Passive band of your current Hit-Dice tier"), so with Vigor
+  buying early is genuinely cheaper — the two are priced differently on purpose.
+  **The Players Guide needs rewording to match** — it says "Situational by tier" in three places
+  (`docs/PACT-Players-Guide.html` lines 671 and 675 ×2), which is what the old code implemented faithfully.
+  Also corrected two plainly wrong CharGen labels found alongside: the control read "Grit (+5 HP)" and the
+  HP formula "Toughness×5" where the engine and guide both say **+4**.
+  **Test coverage: this was previously ungated entirely** — all 23 fixtures had `tough: 0`, so no parity
+  test touched Grit pricing and none could have caught either the tier indexing or a regression. Added
+  CG-010/CG-011: the same Grit-10 build at HD 1 and HD 9, whose Grit lines must both read 147, spanning the
+  table and the extrapolation. Parity **24/0 → 26/0**; verified by reverting the fix (both new fixtures
+  fail, the other 24 pass). tool-pricing 32/0, log-fuzz 500/500.
+- **2026-08-05 · fix(chargen): a draft character's AP ledger now reconciles to `compute()`** — closes
+  `fix/species-pack-not-charged`, the last of the four pricing branches. Before the creation lock fires a
+  character is a draft with one pricing context, so what was paid must equal what the build costs today —
+  but a purchase's cost was frozen when it was made and a *later* change to context left it stale.
+  Measured in a real browser: buy four Halfling traits (ledger 13, `compute()` 13), switch species to
+  Dwarf and the traits become cross-race purchases the ledger still records at own-species prices
+  (13 vs 24); switch back and the identity patch quotes **−4**, taking the ledger to 2 against 13. That
+  negative line is the same mechanism behind Anders Tealeaf's log summing to 15 against a `compute()` of
+  33. Fixed in two independent halves: new `repriceDraft(log)` export in `js/engine.js` re-derives every
+  pre-lock purchase's cost as its own sequential delta (riding `_replay`, which gained one optional
+  callback, so racial `_raceTraitLocked` stamping and the lock bookkeeping stay single-source), called
+  from CharGen's mutation paths **and from `_cgApplyEnvelope`** — the load path (file, `?handoff=`,
+  autosave restore) that a pre-existing under-recorded ledger actually arrives by; and `replacePatchSlot()` now replaces in place instead of
+  filter-and-appending, which had been moving a slot's event to the end of the log on every edit so the
+  identity line priced traits that came *before* it. Post-lock purchases keep their frozen price
+  (D5), and drawbacks are untouched — their recorded cost is income, not spend. The pass runs to a fixed
+  point because re-pricing and the threshold lock are mutually recursive — the decision is made once for
+  the whole log (`isCreationDraft()`, also exported), never per event, so it settles in one pass and a
+  locked character's frozen prices are never re-derived. `DATA.version` unchanged:
+  `compute()` output does not move, only what the ledger records. Gate: `tool-pricing-ci.mjs` 20→27,
+  verified by reintroducing each half (reproduces −11 and −4 exactly); `log-fuzz.mjs` gained four
+  `repriceDraft` invariants (non-mutating, idempotent, build-preserving, draft-reconciling) — those
+  caught the non-idempotence, the drawback-income bug, and a duplicate-purchase mispricing that also
+  hardened `_replay`'s proficiency dedupe. Code review then caught four more, all fixed here: the
+  per-event lock decision needed O(events) passes to settle and could re-price a purchase frozen at 6 AP
+  down to 2 (a D5 violation); the load path never re-priced at all; and the fuzz invariant's scope
+  excluded every CharGen-shaped log, since `_cgEnsureLockArmed()` stamps `{auto:true}` into all of them.
+  Gate 20→32; fuzz 500/500 clean across five fixed seeds and at 80 events/log; parity 24/0.
+- **2026-08-05 · docs(decisions): reverse H2 — the species-pack fix is a `priceOf()` quoting-basis bug, not
+  a ledger-accounting one** — two rounds of external cold review (5 reviewers, then 4) refuted the planned
+  approach, and two code audits moved the diagnosis to `priceOf()`
+  (`tools/PACT-Live-Char-Sheet.html:503-511`), which quotes a purchase as a **whole-build delta** and freezes
+  that number into the log — so any purchase that changes pricing context bills the player for re-pricing
+  everything they already own. Already escaped by hand three times (`abil`, `mbound`, `dbound`, the last two
+  with an inline comment naming "the refund bug") and still live for **Level Up** (charges the hit-die step
+  plus a full re-price of the existing Vigor/Grit stacks) and **class unlock** (quotes the unlock cost minus a
+  retroactive discount on already-owned features of that class; can go negative). New model recorded as
+  **D-GH-2026-08-05-pricing-model**: prices freeze at purchase, `compute().total` and the ledger sum are
+  *meant* to diverge, and the **creation lock** — not which tool is open — decides whether a purchase is
+  quoted by draft re-pricing or at listed price. Lock trigger = first spend past a threshold, stored as a
+  `creationLockConfig` event (persists offline and online with no schema change), default `DATA.level1AP` = 79.
+  Engine side is already built and fixture-covered; nothing in any tool emits the events, so `_locked` is
+  `false` for every character today. `DATA.version` unchanged — no rules or `compute()` change, docs only.
+
 - **2026-08-04 · chore(release): bump BUILD to v1.358 (PR #358)** — promotion of `preview` → `main`
   carrying the archived-campaign peek and the DM-AP roster fix. `DATA.version` unchanged at **v0.338**:
   `compute()` was not touched, only its caller was passing nothing. Two decisions recorded on the task

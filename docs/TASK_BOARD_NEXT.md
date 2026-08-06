@@ -347,7 +347,7 @@ listed there under "Caveats and follow-ups".
 **Done when:** `grep -rn "pace curve\|PACE curve" --include=*.md --include=*.js --include=*.html .`
 returns no hit that presents the term as current fact outside `docs/history/` and the changelog archive
 (hits inside an explicit correction note are fine and expected), every edited record still contains its
-original wording, and parity still 24/0.
+original wording, and parity still 26/0.
 
 ---
 
@@ -517,103 +517,55 @@ path cannot be verified by unit-level checks alone. Not sweep-eligible.
 works for sign-in, an expired link says so and offers a resend, the signup confirmation email is
 unaffected, and the redirect URL is on the Supabase allow-list.
 
-## Species/heritage packs are never charged as a purchase — the frozen ledger under-records — TODO
-Branch `fix/species-pack-not-charged`. Found while investigating a DM Console report that roster AP
-figures looked wrong. **This is the root defect behind that whole thread** — the display bugs were real
-but downstream of this.
+## Live Sheet: should a PRE-LOCK character reconcile to compute()? — TODO
+Branch `fix/livesheet-draft-reconcile`. Surfaced by `fix/species-pack-not-charged` (2026-08-05) while
+verifying that CharGen's draft reconciliation had not left the same hole in the other tool. It had not —
+this is a different question, and it needs a **rules answer before any code**.
 
-**Reproduction (Anders Tealeaf, live Amble character, built 2026-08-02 on v0.337).** The build is
-correct at **33 AP** and its species costs are correct — confirmed by the owner:
+`decisions/2026/D-GH-2026-08-05-pricing-model.md` D1 and D2 conflict for one case neither anticipated.
+Measured in a real browser on a fresh Live Sheet character, well under the 79 AP threshold and so a draft
+by D2's definition:
 
-| what `compute()` charges | AP |
-|---|---|
-| Heritage pack | 5 |
-| 2nd origin species (×2 pack) | 10 |
-| Species traits (Halfling: Naturally Stealthy) | 4 |
-| **species total** | **19** |
+| step | ledger | `compute()` |
+|---|---|---|
+| CON 16, Vigor 2, Grit 3 | 32 | 32 |
+| level 1→2 | 34 | 46 |
+| level 2→5 | **44** | **83** |
 
-The four traits *inside* the packs (Halfling Nimbleness, Gnome Darkvision, Gnome Gnomish Cunning,
-Halfling Luck) are correctly 0 — pack-included. But the LOG records, for the same 19 AP:
+Ordinary purchases reconcile exactly; only the level-ups diverge. Neither rule is being broken, which is
+the problem: **D2** says a draft reconciles (so the Live Sheet would need `repriceDraft` too), while **D1**
+says a context change takes its listed price and levelling is a real context change even during creation
+(so the divergence is correct and D2's wording needs narrowing to *"while no context change has occurred"*).
 
-| log event | recorded |
-|---|---|
-| `patch/identity` (set Halfling + Gnome + Forest + Rogue) | **−5** |
-| `racial` Naturally Stealthy | +4 |
-| four pack-included traits | 0 each |
-| **total** | **−1** |
+CharGen is unaffected either way — it builds at one level, and its edits are revisions of a single draft
+rather than progression. This bites only where a pre-lock character levels up.
 
-So the packs are **never charged**: ~20 AP of species cost missing, netted against categories where he
-overpaid at v0.337 prices (saves 8 vs 5 today, skills 4 vs 2) to leave the build's frozen spend **18 AP
-short** of what it costs — comparable like-for-like, frozen **15** vs `compute()` **33**.
-
-**Cause — sharper than "the packs aren't charged".** `compute()` derives the pack cost from `b.species`
-/ `b.species2` alone (`js/engine.js:177-178`), so a pack is never an event by design; it is priced as a
-consequence of the identity state. That is fine on its own. The defect is in how the identity event's
-delta was computed:
-
-- The four traits were **committed to the LOG before the identity event**, each recorded at **0**
-  (priced as pack-included — CharGen's form already knew the species even though no identity event had
-  been written yet).
-- `priceOf()` then priced the identity event as `compute(after) − compute(before)`. But
-  `compute(before)` sees traits owned with **no species set**, so it prices them as expensive
-  **cross-race** purchases — 21 AP that the log never actually charged.
-- The delta therefore *refunds* that phantom 21 while adding the real +15 of packs, landing at −5.
-
-Verified: `compute()` on the log truncated just before the identity event returns **21**, while the sum
-of recorded costs to that point is **0**. So the identity delta refunds AP that was never paid, and from
-that event onward the frozen ledger and `compute()` stay ~18 apart for the rest of the character's life.
-
-**The general failure:** `priceOf()` computes deltas against `compute(build)`, but recorded costs are
-not kept equal to `compute()`. Once the two diverge for any reason — here, ordering — every later delta
-compounds the error rather than correcting it. Any fix that only special-cases packs will leave this
-mechanism intact.
-
-**Owner's direction:** the packs are *real, allowable purchases* that grant those species abilities at a
-discount, so they must be recorded as purchases in their own right — their own log events with their own
-cost — not folded into an identity patch's net delta.
-
-**Effort:** large · **Risk:** high — rules-adjacent, changes what the frozen ledger contains, and every
-existing character is already under-recorded. **Get a cold plan review before implementing**
-(`/make-code-cold-plan-review`). Not sweep-eligible.
+**Effort:** medium · **Risk:** high — it decides what a pre-lock ledger means, and the wrong answer here
+would be re-litigated by `fix/ledger-reconciliation-pass`. Not sweep-eligible; needs an owner decision.
 
 ```text
-0. DECIDED — the owner chose (b), the INVARIANT route, on 2026-08-04. Build that, not the narrower
-   ordering fix. The two options are kept below because the reasoning still matters:
-     (a) ORDERING: make CharGen commit the identity event BEFORE any trait that depends on it, so
-         compute(before) never sees traits-without-a-species and the delta has nothing phantom to
-         refund. Smallest change, fixes this reproduction, leaves priceOf()'s general fragility.
-     (b) INVARIANT: make the recorded cost of every event equal to compute()'s own delta by
-         construction, so the frozen ledger cannot drift from compute() no matter what order events
-         arrive in. Bigger, and the durable answer.
-   Chosen: (b). Packs are real purchases and must be visible as such, and (a) would leave the next
-   ordering accident free to reintroduce the same drift.
-1. If emitting pack events: a distinct `cat:'pack'` buy event per pack (heritage, 2nd-origin) carrying
-   its own cost. Keep the pack-included traits at 0; they are correct and the owner confirmed it.
-2. Whichever route, the identity patch must stop absorbing the pack cost, or the same AP is charged
-   twice. This is the part to get reviewed: priceOf() computes a WHOLE-BUILD delta, so splitting one
-   component out without double-counting needs care. compute() is the arbiter — after the change, the
-   sum of a character's frozen costs must equal compute().total for a character built entirely under
-   one rules version. That is the acceptance test, and it fails today: 15 vs 33.
-3. Changing species later (Halfling -> Elf) must refund/recharge the pack, not silently keep the old
-   entitlement. Cover the swap in both directions.
-4. MIGRATION — do not skip. Existing live characters (Anders 33 vs 21, Fenwick, Cedric, and any
-   already-built PCs) carry under-recorded ledgers. Options: leave them grandfathered (the app's stated
-   rule is that price drift is never refunded or charged), or emit a one-off reconciliation event.
-   This is a product decision for the owner, not an implementation detail — ask before writing it.
-5. engine-parity must stay 24/0. If compute() output moves, update testing/expected/ in the same PR and
-   bump DATA.version. If only CharGen's recorded costs change, DATA.version does NOT move.
-6. Add a gate asserting frozen-spend == compute().total for a freshly built character, which is the
-   invariant this task exists to restore.
+1. OWNER DECISION FIRST, no code until it is recorded: does a pre-lock character who levels up keep
+   listed prices (divergence correct), or re-price to one context (ledger reconciles)?
+2. Record it as an amendment to D-GH-2026-08-05-pricing-model — it narrows either D1 or D2, so the
+   record must say which, or the next agent will read the two rules as still conflicting.
+3. If "reconcile": call the engine's repriceDraft() from the Live Sheet's emit path, exactly as CharGen
+   does. The export already exists and is fuzz-covered; this is wiring, not new logic.
+4. If "listed prices are correct": narrow D2's wording, and add the measured table above to the record
+   as the worked example — an undocumented 44-vs-83 will be re-reported as a bug otherwise.
+5. Either way add the case to testing/scripts/tool-pricing-ci.mjs so the chosen answer is asserted
+   rather than remembered.
 ```
 
-**Done when:** buying a heritage/2nd-origin pack writes its own priced log event, a character built from
-scratch has frozen spend equal to `compute().total`, changing species re-prices the pack correctly, the
-migration decision is recorded in `DECISIONS.md`, and a gate covers the invariant.
+**Done when:** the owner's answer is recorded in the decision record as an explicit narrowing of D1 or D2,
+the Live Sheet matches it, and a gate asserts the pre-lock level-up case.
 
 ## Live Sheet history hides derived costs — it shows the traits but never the packs — TODO
-Branch `fix/history-shows-derived-lines`. Reported by the owner alongside the pack-charging defect
-above. **Sequenced after it** — much of this may resolve once packs are real events, so re-assess
-before starting.
+Branch `fix/history-shows-derived-lines`. Reported by the owner alongside the pack-charging defect.
+**Its blocker has now landed** — `fix/species-pack-not-charged` shipped 2026-08-05, so re-assess before
+starting: a draft's ledger now reconciles to `compute()`, which may already resolve part of this.
+**⚠ Re-read against `decisions/2026/D-GH-2026-08-05-pricing-model.md` (D7) before scoping.** Note the fix
+did NOT make packs into their own events — `compute()` derives pack cost from `b.species`/`b.species2`,
+so the pack is priced into the identity patch's line, which now shows the correct positive figure.
 
 The Live Sheet's purchase history is **event-only**, so for Anders it renders:
 
@@ -649,6 +601,10 @@ is visibly attributed to the pack that paid for it, and the two views reconcile 
 ## feat/ap-model-reconcile — "AP left" and the AP Ledger disagree on the same screen — TODO
 Branch `feat/ap-model-reconcile`. Long-deferred from D-GH30, now with a live worked example and a
 decision already taken, so it is ready to scope.
+**⚠ Inherits the reversed H2** — re-read this entry against `decisions/2026/D-GH-2026-08-05-pricing-model.md`
+before scoping. In particular, "AP left" vs the AP Ledger disagreeing is EXPECTED, not a defect, wherever
+the character's context has changed since a purchase: the ledger records what was paid, `compute()` prices
+what it would cost today. The bug is only where the two disagree for a reason other than that.
 
 **The decision (G1, owner, 2026-08-04):** DM Console's roster "AP left" uses the **frozen ledger** —
 `compute().spendable − economy().spent` — matching the Live Sheet's `_apRemaining()` and, critically,
@@ -695,7 +651,532 @@ fix it there alone (that would have traded a shared bug for a new divergence). F
 card and the AP Ledger either agree or are labelled to explain why they differ, both tools read the same
 definition, and Fenwick's numbers are used as the regression fixture.
 
+## One-off reconciliation pass for characters built before the pricing fixes — TODO
+Branch `fix/ledger-reconciliation-pass`. **Sequence LAST — after all four pricing branches have landed**
+(see `decisions/2026/D-GH-2026-08-05-pricing-model.md`, D6, where the owner decided this on 2026-08-05).
+Characters built before that work carry ledgers frozen from a contaminated quoting basis: Anders is 15
+against `compute()`'s 33, and every Level Up or class unlock recorded an over- or under-charge. They are
+grandfathered until this runs; do not bolt a partial migration onto any individual fix.
+**Effort:** medium · **Risk:** high — ambiguity high (what "correct" means for a character whose purchases
+were made at contexts that no longer reproduce is a genuine judgement call, not a lookup); damage scale
+high (rewrites frozen ledgers, the app's own record of what a player paid); damage likelihood medium (the
+corpus is small and known, and the invariant is checkable afterwards) — worst-of lands at high. Not
+sweep-eligible.
+
+```text
+0. SCOPE HAS SHRUNK — re-measure before planning a big inventory. Verified 2026-08-05: no tool emits
+   `campaignBound` or `creationLocked` (grep across tools/ and js/ outside the engine returns nothing),
+   and a character saved before feat/creation-lock-wiring carries no `creationLockConfig` either — so
+   `_autoArmed` is false and `isCreationDraft()` returns TRUE for every pre-existing character. They are
+   all drafts. CharGen now reprices a draft on LOAD (_cgApplyEnvelope), so every one of them self-heals
+   the moment it is opened in CharGen. What is left for this pass is therefore narrower than written
+   below: characters that are only ever opened in the LIVE SHEET, which does not reprice at all pending
+   the rules answer in fix/livesheet-draft-reconcile. Confirm this still holds before starting.
+0b. Both pricing blockers have LANDED (fix/livesheet-context-pricing and fix/species-pack-not-charged, 2026-08-05),
+   but one question they raised has not been answered: fix/livesheet-draft-reconcile above decides whether
+   a pre-lock Live Sheet character reconciles at all. Settle that FIRST — it changes what "correct" means
+   for exactly the characters this pass rewrites. Reconciling against a moving definition is how this began.
+1. Inventory first, decide second. Replay every saved character (local + cloud) and produce a table of
+   frozen-sum vs compute().total, per character, with the per-event deltas that explain the gap. Do not
+   write anything on this pass — the owner needs the numbers before authorising any rewrite.
+2. Expect at least three distinct causes and report them separately: species packs never charged; Level
+   Up over-charged by the Vigor/Grit re-price; class unlock under-charged (it could go NEGATIVE, i.e. it
+   paid AP out) — so some characters are over-budget under corrected pricing and some are under.
+3. Decide the shape WITH the owner: a correcting event appended per character (auditable, keeps the
+   append-only property, shows in the ledger as a visible adjustment), or a rewrite of the frozen costs
+   (cleaner-looking, destroys the record of what was actually paid). Default to the appended event.
+4. Characters that are over-budget after correction are a product question, not an implementation one —
+   ask before trimming, refunding, or granting AP to cover the difference.
+5. Gate: after the pass, a corrected character's frozen sum must equal compute().total where the rules
+   say it should. Add that assertion to testing/scripts/tool-pricing-ci.mjs rather than checking by hand.
+6. engine-parity must stay 26/0 and DATA.version must not move — this rewrites data, not rules.
+```
+**Done when:** the inventory table exists and has been reviewed by the owner, the agreed correction has
+been applied to every affected saved character, over-budget outcomes have an owner decision recorded, and
+a gate asserts the invariant for corrected characters.
+
+## AP ledger doesn't show what was LOST — bought-off drawbacks, removed boons — TODO
+Branch `feat/ledger-show-lost-purchases`. Successor to `feat/ledger-itemise-drawbacks`, whose
+active-drawback half shipped 2026-08-06 (PR #364): `Drawbacks (refund)` now expands into named rows that
+sum to the line, house-rule values included. What remains is the 2026-08-05 owner scope extension — the
+ledger must also show what was **lost**, not only what is currently held.
+**Effort:** medium · **Risk:** high — ambiguity high (whether historical spend belongs in `compute()`'s
+ledger at all is a model call only the owner can make, and it collides head-on with
+`feat/ap-model-reconcile`); damage scale high (would touch `compute()`'s `lines`/`total`, the app's own
+record of what a player paid); damage likelihood low (the parity gate catches any total movement) —
+worst-of lands at high. **NOT sweep-eligible** — this needs the owner's decision first, not an
+implementation.
+
+```text
+0. MEASURED 2026-08-05: a drawback taken for 2 and then bought off for 6 appears in NO ledger line.
+   The categorised lines sum to 0 while economy() reports 6 spent. compute() is a pure function of the
+   BUILD, and a bought-off drawback is no longer on the build — the buy-off cost lives only in the LOG,
+   on the `buyoff` event. So this cannot be fixed by another addItems() call the way the taken-drawback
+   half was; the information is not in compute()'s input.
+1. THE DECISION COMES FIRST, and it is the owner's: should historical spend appear in compute()'s
+   ledger? Three shapes, none obviously right —
+   a) a new ledger line ("Drawbacks bought off") that ADDS to compute().total. Simplest to render, but
+      it changes compute() output — bump DATA.version, refresh testing/expected/, and expect it to
+      double-count in any tool that already adds economy().spent separately.
+   b) a new top-level field on compute()'s return (e.g. `lost`) that no ledger LINE reads, rendered as
+      its own section by each tool. Leaves total untouched, but needs a renderer change in CharGen and
+      the Live Sheet, so it is no longer the display-only job the taken-drawback half was.
+   c) leave compute() alone and derive the section from activeEvents()/the LOG at the tool layer. Fastest,
+      but re-implements ledger logic outside the engine — AGENTS.md forbids exactly this.
+   This is the same question as `feat/ap-model-reconcile` (compute() vs the frozen ledger). Settle it
+   ONCE, there, and let this task follow — do not answer it twice in two places.
+2. Design the line shape for all three cases at once, per the owner's 2026-08-05 note: a bought-off
+   drawback (bought, then bought off, then possibly re-taken), a DM-removed boon, and a re-purchase.
+   The ledger must show that the player DID buy it and then lost it — the event is never deleted.
+3. BLOCKED ON feat/dm-edit-events for the boon half: DM-removed boons do not exist yet, so their line
+   shape cannot be verified against anything. Either sequence this after that feature, or scope this
+   task to the drawback half alone and say so explicitly.
+4. Gate: whatever shape is chosen, assert that the categorised ledger lines reconcile with
+   economy().spent for a character who has bought off a drawback — that identity failing is the bug.
+   testing/scripts/tool-pricing-ci.mjs already drives renderLedger() directly (see the three
+   drawback-itemisation checks added by PR #364) and is the right place for it.
+5. If compute() output moves, bump DATA.version and refresh testing/expected/ in the same PR; if it does
+   not, say so explicitly rather than leaving it unstated. engine-parity must stay 27/0 either way.
+```
+**Done when:** the owner's decision from step 1 is recorded as a `D-GH-<date>-ledger-show-lost-purchases`
+record, a character who bought a drawback and then bought it off shows both the purchase and the buy-off
+in the ledger, the categorised lines reconcile with `economy().spent` for that character, a gate asserts
+that identity, and engine-parity still reports 27/0.
+
+## Tune CharGen's random character generator — TODO
+Branch `feat/randomize-tuning`. `randomizeRoll()` (`tools/PACT-CharGen-Webtool.html:3232`) rolls a
+character but nobody has written down what a *good* roll looks like.
+
+**⚠ Acceptance criteria are deliberately unset.** The owner asked for "tuning" without naming a
+complaint, so step 1 is to capture what is actually wrong — not to guess. Do not start implementing
+against invented criteria.
+
+**Effort:** medium · **Risk:** high — ambiguity is high (what counts as a good roll is a design/taste
+call only the owner can make); damage scale is low (single tool, no rules logic, `git revert` undoes it)
+and damage likelihood low (`random-manual-e2e.mjs` already gates it in a real browser). Not
+sweep-eligible until the owner has named concrete criteria — then re-rate.
+
+How it works today, verified 2026-08-05 rather than assumed:
+- `randomizeBuild()` confirms, then `randomizeRoll()` deep-clones `readBuild()` (= `foldBuild(LOG)`,
+  cloned because the fold's nested arrays ALIAS the LOG event payloads).
+- It **keeps anything already chosen** — species, class, name, budget — and fills only what is unset,
+  biased toward the chosen class and species.
+- The ceiling is `compute(b, _cgDmOpts()).spendable`, i.e. player AP **plus** DM-granted AP when a
+  campaign is active — not the raw player budget.
+- A spendable of 0 is treated as a real answer, not a missing one: it refuses with "ask your DM to
+  grant some" rather than building an unaffordable ~79 AP character.
+
+```text
+1. FIRST, and before any code: get the owner to name what a bad roll looks like. Concrete examples beat
+   adjectives — "rolled 3 Vigor and no skills", "spent 12 of 79 AP", "took cross-race traits it can't
+   use", "every roll looks the same". Without this the task cannot be judged done.
+2. Write those down IN THIS ENTRY as the acceptance criteria, then re-rate Risk (it is high only
+   because they are missing) and note whether it has become sweep-eligible.
+3. Only then implement. Keep the four behaviours listed above unless a criterion explicitly overrides
+   one — each is a deliberate fix for a real bug, not an accident, and the spendable-of-0 refusal in
+   particular has its own comment explaining what it replaced.
+4. Assert the agreed criteria in `testing/scripts/random-manual-e2e.mjs`, which already drives randomize
+   in a real browser against an independent oracle (D-GH-2026-07-13-random-e2e-real-oracle). Note it
+   needs Playwright and so cannot run in a CLI session — if the criteria are checkable without UI
+   interaction, prefer `testing/scripts/tool-pricing-ci.mjs`, which is dependency-free CDP.
+5. Budget-adherence checks must read the RECONCILED ledger. `fix/species-pack-not-charged` (2026-08-05)
+   changed what randomize's resulting log contains — a draft's frozen costs are now re-derived by
+   `repriceDraft()` to equal `compute().total` — so asserting against the old frozen figures would be
+   testing a state that no longer exists.
+6. Display/UX only — randomize writes a build, it does not change rules. Do NOT bump `DATA.version`.
+```
+
+**Done when:** the owner's concrete criteria are written into this entry, the generator satisfies each
+one, a test in `random-manual-e2e.mjs` (or `tool-pricing-ci.mjs`) asserts them, and engine-parity still
+reports 24/0.
+
+## CharGen quotes a locked character's context changes as a whole-build delta — TODO
+Branch `fix/chargen-context-pricing`. D1 of `decisions/2026/D-GH-2026-08-05-pricing-model.md` — *a
+purchase that changes pricing context is quoted from its own rules table, never by whole-build diff* —
+was implemented for the Live Sheet's `priceOf()` only. CharGen's `replacePatchSlot()`
+(`tools/PACT-CharGen-Webtool.html`) still does `compute(after).total − compute(before).total`.
+
+**Effort:** medium · **Risk:** medium — ambiguity medium (D1 already fixes the rule and the Live Sheet's
+`_CTX_PRICERS` table is the pattern to copy, but CharGen prices whole patch SLOTS rather than single
+categories, so the mapping is not one-to-one); damage scale medium (one tool, but it writes frozen costs
+into saved logs); damage likelihood low (`tool-pricing-ci.mjs` gates it and is dependency-free).
+
+**Re-measured 2026-08-05 (after the Grit correction and the Vigor per-rank stamp): this is now the LAST
+remaining disagreement between the two tools.** Nine pricing categories were compared on identical logs;
+eight agree. The survivor:
+
+| case | Live Sheet | CharGen |
+|---|---:|---:|
+| unlock Wizard owning 4 Wizard features | 7 | **−6** |
+| unlock Wizard owning none (control) | 7 | 7 |
+
+CharGen *pays the player 6 AP* to unlock a class they already have features in, because the whole-build
+delta sweeps in the retroactive discount those features get once the class is unlocked. The fix has the
+same shape as the two that landed: stamp each feature with whether its class was unlocked when it was
+bought (as `_raceTraitLocked` does for species traits and `_vigorRankTier` now does for Vigor), so an
+already-owned feature keeps the cross-class price it was actually bought at.
+
+**Why it was survivable until now, and why it no longer is.** While a character is a draft,
+`repriceDraft()` overwrites whatever `replacePatchSlot()` quoted, so the bad quote never reached the
+ledger. Once the lock fires, re-pricing stops by design (D7) and the quote is what gets frozen.
+Reproduced 2026-08-05: a locked character with species Dwarf and four Halfling traits, switching to
+Halfling, is quoted **−4** — a refund — where the listed Halfling pack price is 7. The ledger keeps it.
+
+```text
+1. Read the Live Sheet's `_CTX_PRICERS` table first; it is the same rule already solved once, and the
+   two tools must not disagree about what a context change costs.
+2. The mismatch to design around: `_CTX_PRICERS` is keyed by event CATEGORY (abil, hd, unlockclass…),
+   but `replacePatchSlot` writes a whole SLOT (IDENTITY carries originClass, originClass2, species,
+   species2, size, lineage at once). Decide whether to price a slot field-by-field against its own
+   table, or to split the context-bearing fields out of the slot. Say which and why — this is the part
+   worth getting reviewed.
+3. Only the pricing basis changes. Do NOT reintroduce filter-and-append: replace-in-place is what keeps
+   the identity line in its own position in the ledger, and it is now also what keeps a locked
+   character's event indices stable.
+4. The draft path must stay unchanged — `repriceDraft()` still owns pre-lock pricing, and this quote
+   only ever reaches a ledger once the lock has fired. Assert both halves.
+5. Gate in `testing/scripts/tool-pricing-ci.mjs` alongside the existing "re-pricing stops dead once the
+   lock has fired" block, which already builds a suitable locked fixture. The assertion is that a locked
+   species change is quoted at the listed pack price, independent of what traits are already owned.
+6. Prices move, so if `compute()` output changes at all, bump `DATA.version` and refresh
+   `testing/expected/` in the same PR. If only CharGen's recorded costs change, it does NOT move.
+```
+
+**Done when:** a locked character's species/class change is quoted at its listed price regardless of what
+is already owned, CharGen and the Live Sheet agree on that price, draft re-pricing is unaffected, a gate
+asserts it, and engine-parity still reports 24/0.
+
+## DM: view a campaign character in CharGen (read-only) — TODO
+Branch `feat/chargen-dm-view`. Owner, 2026-08-05: *"it's only for looking at this stage… first step is
+just the view as this is most useful during start of a campaign."* Stage 2 (DM editing) is the separate
+entry below; build this one first and do not let its scope drift into editing.
+
+**Today there is no route at all.** DM Console's roster card offers only "View in Live Sheet"
+(`tools/DM-Console.html:1762` → `PACT-Live-Char-Sheet.html?viewChar=<id>`). CharGen has **no `viewChar`
+handler** — zero matches in the file. The obvious workaround was deliberately closed: the Live Sheet's
+"Open in CharGen" button is hidden in read-only mode (`_lsApplyViewOnlyUi`, ~:1901), because CharGen has
+no read-only concept and would happily edit and persist another player's character.
+
+### Preferred approach — hand the DM a COPY, not a locked view (owner, 2026-08-05)
+
+*"Have a duplicate of the character automatically created in the background that the DM can look at and
+view as if it was their own character. This way the DM can play with a character if they really want and
+there's no risk of damaging the actual original."*
+
+**This is better than the read-only route below on every axis that matters, and it should be built first.**
+
+- **Safe by construction rather than by vigilance.** The read-only route needs twelve mutation entry
+  points gated correctly, and stays correct only while every future edit path remembers to check the flag.
+  A copy with its own id cannot touch the original no matter what CharGen does to it.
+- **Much less code.** No `CG_VIEW_ONLY`, no guards, no hide-list. CharGen works exactly as it does today.
+- **More useful.** "What if I gave them this boon?" is a question a DM actually has at campaign start, and
+  a locked view cannot answer it.
+- **It also sidesteps the re-pricing trap** noted below: a scratch copy showing today's reconciled ledger
+  is unremarkable, whereas the same numbers presented as "the player's character" would read as a bug.
+
+**THE ONE HAZARD, and it is severe: the copy MUST get a fresh `genCharId()`.** The handoff envelope
+carries the original's `id`, and CharGen adopts whatever id it is handed (`currentCharId()`,
+`_cgApplyEnvelope`). A copy that keeps the original id is not a copy — it is the DM's browser autosaving
+and cloud-saving over the player's character. Assert the new id differs from the source id in the gate;
+this is the single thing most likely to be got wrong, and it destroys player data when it is.
+
+**Housekeeping to decide before building:**
+- Where does the copy live — the DM's local storage only, or their cloud character list? Cloud means it
+  shows up among their own characters and needs clear labelling; local-only means it vanishes on another
+  device, which for a scratch copy is probably fine.
+- Naming: something unmistakable, e.g. *"Anders Tealeaf (DM copy)"*, so it is never mistaken for the real
+  character in a roster.
+- It must NOT be campaign-bound, or a save could write into the campaign's roster.
+- Do copies accumulate? A DM checking six characters gets six copies. Overwrite-per-source, or let them
+  pile up and prune manually?
+- It is a **snapshot**: if the player edits afterwards the copy is stale. Fine for "look at it at campaign
+  start", worth stating in the UI so nobody treats it as live.
+
+**The read-only route below is retained as the fallback**, for the case where the DM genuinely needs to
+see the character *as it currently is* rather than a point-in-time copy. Do not build both up front.
+
+**Copy the Live Sheet's shape, which already solved this.** Its `VIEW_ONLY` flag no-ops emit/save/undo/
+redo — *that* is the safety; hiding buttons is cosmetic, so a control missed off the hide-list silently
+does nothing rather than becoming a data risk. Keep that split, it is the reason the Live Sheet version
+is robust.
+
+**CharGen's guard surface is larger than the Live Sheet's** — every one of these mutates the LOG or
+persists it, and all need gating:
+`emit()` · `replacePatchSlot()` · `retractFlatEvent()` · `replaceWholeLogFromBuild()` ·
+`_cgSyncSingletonEvent()` · `undo()` · `redo()` · `resetBuild()` · the local autosave · and the **three**
+`S.saveCharacter(...)` call sites (~:770, ~:800, ~:1011).
+
+**Two traps specific to CharGen:**
+1. **Its boot REGENERATES the log from the DOM** (`applyBuild` → `replaceWholeLogFromBuild`) and, since
+   `fix/species-pack-not-charged`, re-prices a draft ledger via `repriceDraft()`. So a DM viewing a
+   player's character would see a *reconciled* ledger, not the frozen one the player sees in the Live
+   Sheet. That is not wrong exactly — it is "what this costs today" — but two tools showing a DM
+   different totals for the same character will read as a bug. Decide whether the DM view labels this,
+   suppresses the re-price, or shows both. Worth settling before coding.
+2. **Use `peekCharacter()`, not `loadCharacter()`.** `loadCharacter()` caches whatever it fetches into
+   localStorage with no ownership check — the exact mechanism of
+   `D-GH-2026-08-02-listmycharacters-local-cache-leak`. Note `peekCharacter()` (`js/sync.js:172`) prefers
+   an existing local copy, so confirm it cannot serve the DM a stale one.
+
+**Effort:** medium · **Risk:** high — ambiguity is high (trap 1 is a genuine design call about what the
+DM should be shown); damage scale high (a wrong guard means a DM's browser silently overwrites a player's
+character, and it touches the cloud write path); damage likelihood medium (no automated cover — the
+dependency-free gate cannot sign in). Not sweep-eligible.
+
+```text
+1. Build the COPY approach first (see above) - it is safer, smaller and more useful than the read-only
+   route, and it makes trap 1 moot. The steps below describe the read-only fallback; do them only if the
+   copy approach is rejected.
+1b. For the copy: mint a fresh genCharId(), assert in the gate that it differs from the source id, drop
+   the campaign binding, and label the character unmistakably as a DM copy.
+2. Add a CG_VIEW_ONLY flag and gate all twelve entry points listed above. Gate at the function head, as
+   the Live Sheet does, so anything added later no-ops by default rather than needing a list kept current.
+3. Add the ?viewChar=<id> handler, loading via peekCharacter(). Mirror the Live Sheet's banner naming
+   whose character it is.
+4. Add "View in CharGen" to the DM Console roster card beside the existing Live Sheet button.
+5. Hide the visibly-editable controls, but treat that as cosmetic only - never as the safety.
+6. Cover what can be covered without credentials: that CG_VIEW_ONLY makes each entry point a no-op is
+   assertable in testing/scripts/tool-pricing-ci.mjs with no sign-in. The cloud half will need a manual
+   check - say so in the PR rather than implying it was tested.
+7. engine-parity must stay 27/0; no DATA.version change (no rules move).
+```
+
+**Done when:** a DM can open a roster character in CharGen from the DM Console, nothing in that view can
+alter or persist the character (verified by trying each entry point), the character is fetched without
+being cached into the DM's local storage, and a gate asserts the no-op behaviour.
+
+## DM: edit a campaign character, recorded in the log as a DM edit — TODO
+Branch `feat/dm-edit-events`. Owner, 2026-08-05: *"I want to be able to eventually edit, particularly with
+adding or removing boons and drawbacks. But I think this should be an edit to the save file log that
+states it is a DM edit."* **Blocked on `feat/chargen-dm-view` above** — build the read-only view first.
+
+**The design idea is the good part and should not be lost:** a DM's change is not a silent overwrite, it
+is *an event in the character's log marked as having come from the DM*. That falls straight out of the
+event-sourced model — the log already records what happened and in what order, so a `dmEdit` marker (plus
+who and when) makes the ledger show the player exactly what their DM changed, and keeps it undoable and
+auditable like anything else. This is strictly better than a DM editing the character's raw state.
+
+**Scope named by the owner:** adding and removing boons and drawbacks first. Not a general editor.
+
+**Effort:** high · **Risk:** high — ambiguity high (several open questions below, all rules/product
+calls); damage scale high (writes to another user's character through the cloud). Not sweep-eligible.
+
+### Owner's answers, 2026-08-05
+
+**A DM edit must leave the player's available AP unchanged.** The owner gave this as two rules and asked
+whether they conflict. They do not — they are one rule applied to opposite signs, which is worth stating
+plainly because it makes the implementation a single invariant rather than two special cases:
+
+| DM action | normally | so, to stay neutral |
+|---|---|---|
+| adds a boon | costs AP | grant matching **bonus AP** — net 0 |
+| adds a drawback | *grants* AP | **suppress** the AP grant — net 0 |
+
+A player is never richer or poorer for a DM edit: they simply have the boon, or they simply have the
+drawback. Implement it as the invariant "a `dmEdit` event contributes 0 to the player's spendable AP" and
+both rows fall out of it.
+
+**The player cannot undo a DM edit.** There is already a working precedent to copy rather than invent:
+an `award` event acts as an undo barrier in the Live Sheet (~:611, *"AP awards lock your history — buys
+made before an award can't be undone"*). A DM-marked event should behave the same way. Note CharGen's
+undo is snapshot-based rather than LIFO, so it needs its own guard — the two tools do not share a
+mechanism here.
+
+### Drawbacks — settled 2026-08-05
+
+**Imposing a drawback gives the player no AP, and their power level still drops.** The owner's worry was
+that a drawback with no points attached would be invisible when comparing characters. Measured — it is
+not, because the two figures come from different sources: `compute().total` prices the drawback from the
+character's `drawbacks` list against the rules table, while spendable AP comes from the recorded event
+cost. Recording a DM-imposed drawback at **cost 0** therefore gives both halves at once, with **no engine
+change**:
+
+| drawback worth 2 | spendable AP | power level | drawback ledger line |
+|---|---:|---:|---:|
+| player takes it normally | 81 (+2) | −2 | −2 |
+| DM imposes it (cost 0) | 79 (unchanged) | −2 | −2 |
+
+This makes the model symmetric with boons, and the whole thing states in one line: **a DM edit moves the
+character's power level without touching their wallet.** A granted boon raises it (the DM supplies the AP
+to pay for it); an imposed drawback lowers it (the DM withholds the AP it would normally pay).
+
+**Removal has two INDEPENDENT settings** (owner: *"There are actually two states. One state is locked or
+unlocked for removal. The second is the actual removal cost which is either flat or expensive."*):
+
+1. **Locked / unlocked** — can this drawback be removed at all?
+2. **Removal cost, when unlocked** — **flat** (the drawback's table value, e.g. 2) or **expensive**
+   (3× the table value, e.g. 6 — the rate players already pay). **Flat is the default.**
+
+Even when unlocked, the player always spends AP to remove it; there is no free removal.
+
+**Why flat is the right default**, since it differs from today's rule and someone will ask. The existing 3×
+exists to deter treating a drawback as a cheap AP loan and then buying out. That deterrent does not apply
+to a drawback the DM imposed — no loan was made. Under a flat 3× the arithmetic actually inverts:
+
+| drawback worth 2 | got | pays to remove | net AP |
+|---|---:|---:|---:|
+| chose it, then bought out | +2 | −6 | **−4** |
+| DM imposed it, removed at 3× | 0 | −6 | **−6** |
+
+— i.e. the punished player ends up worse off than the one who gamed the system. Flat removes that: you
+lost 2 AP of power, you spend 2 to get it back, one-for-one. Expensive stays available for a DM who wants
+the drawback to bite.
+
+**The DM chooses whether a drawback can be bought off.** `buyoffDrawback(v)` (Live Sheet ~:603) currently
+takes only the drawback name and prices it from `DATA.drawbacks` — there is nowhere to express "this one
+is locked". The flag therefore belongs on the drawback **event**, and `buyoffDrawback()` must consult the
+LOG rather than `DATA` alone. Buy-off must be refused with a reason, not silently hidden, or a player will
+think the app is broken.
+
+**Concurrent edits — still open, owner unsure.** Four routes, cheapest first:
+
+- **A. Last-write-wins** (today's behaviour). Free, and silently destroys whichever side saved first.
+  Not acceptable for a DM writing to a character its owner may have open.
+- **B. Optimistic check on `updated_at`.** The column already exists and is already selected
+  (`js/sync.js:172`). Read it on open, send it with the write, reject if it moved, tell the DM to reload.
+  Cheap, no silent loss, needs a retry path. **Recommended as the first implementation.**
+- **C. Merge the two logs.** The right answer for this data model — a character IS an event log, so two
+  independent appends usually reconcile by `seq`/`ts` rather than conflicting at all. More work, and the
+  `stats` column being a single blob means the merge has to happen tool-side before the write.
+- **D. Lock the character while a DM has it open.** Needs presence tracking and a way to break a stale
+  lock; heaviest, and it fails badly offline.
+
+Worth deciding B-vs-C explicitly rather than drifting: B is a guard, C is the actual fix, and B does not
+block C later.
+
+### The DM does not remove drawbacks (owner, 2026-08-05)
+
+*"The DM should not remove drawbacks — instead they should just award the APs to let the player do it
+themselves."*
+
+This removes an operation from the design rather than specifying one, and it dissolves the open question
+that was here (whether removing a player-taken drawback should claw back the AP it originally paid): the
+DM never removes it, so nothing is clawed back.
+
+What the DM does instead is **award AP**, which already exists and needs no new mechanism. The player then
+uses the ordinary buy-off path at whatever price the drawback carries. Two consequences worth holding:
+
+- **The removal-cost setting becomes the DM's real lever.** Locked means never; unlocked at flat means the
+  player pays the drawback's value; unlocked at expensive means 3×. The DM decides the price and whether
+  to fund it — they do not reach in and delete.
+- **It composes cleanly.** A DM imposes a drawback worth 2 at cost 0, unlocked/flat. Later they decide the
+  character has earned their way out, so they award 2 AP; the player spends it buying the drawback off and
+  is exactly where they started. No special case anywhere in that sequence.
+
+**Scope now:** DM edits are ADD-only for drawbacks — the DM awards AP and the player buys the drawback
+off. Boons are different, because a player has no way to sell a boon back, so there is no player-side
+route to hand it to.
+
+### Removing a boon (owner, 2026-08-05) — the DM can, and the player loses the AP
+
+*"The DM can remove the player-bought boon and the player effectively loses the AP."* No refund, whether
+the DM granted the boon or the player paid for it themselves.
+
+**This is consistent with the neutrality invariant rather than an exception to it.** The player already
+spent the AP; not refunding it means their spendable total does not move, while their power level drops
+by the boon's value. Same one-line rule as everything else here: *a DM edit moves the character's power
+level without touching their wallet.*
+
+**The mechanism matters, and the obvious implementation is wrong.** Removal must NOT delete the original
+buy event. Measured on a 25 AP boon:
+
+| | spent | available | power |
+|---|---:|---:|---:|
+| player bought it | 25 | 75 | 25 |
+| **if the buy event were deleted** | 0 | **100** | 0 |
+
+Deleting refunds the AP — exactly what the owner said must not happen. Removal has to **suppress the boon
+in the fold while leaving its cost in `spent`**.
+
+There is already a mechanism shaped like this: `buyoff`. `activeEvents()` collects `boughtOff[refVal]`,
+`_replay()` skips the matching drawback buy, and `_economyFrom()` drops its earned AP. A boon removal
+wants the same *shape* with a different economy rule — skip it in `_replay`, but leave `_spendCost()`
+alone so the AP stays spent. Note that is genuinely different from `buyoff`, which removes both the build
+effect and the AP; do not reuse the drawback branch verbatim.
+
+**There is no boon-removal path in the engine today** — `MUT.boon` only pushes, and `boughtOff` handles
+drawbacks alone. This needs a new event type or marker plus a skip in `_replay`, which makes it the one
+part of stage 2 that touches `js/engine.js`.
+
+**The event is never deleted, and the boon can be bought again** (owner, 2026-08-05): *"it should not
+delete the event, it should always show they did buy it, but then they lost it. They can buy it back
+again."* So the log reads as a history — bought, lost, bought again — and each purchase is paid for
+separately. Removal suppresses one specific purchase; it does not blacklist the boon.
+
+**That last word is load-bearing, and the existing drawback mechanism gets it wrong.** `boughtOff` is
+keyed by the drawback's NAME, so it suppresses every purchase of that value including later ones —
+measured: buy a drawback, buy it off, take it again, and the retake is silently dropped from the build
+and earns no AP. Filed separately as `fix/buyoff-keyed-by-event` (NOW), and **it must land before this
+task**, because a boon removal keyed by name would inherit the identical bug against an explicit
+requirement that re-buying works.
+
+**Both must show in the ledger** (owner): the purchase, the loss or buy-off, and the re-purchase. The
+Live Sheet's event history already renders a bought-off drawback struck through with its buy-off as a
+separate refund row (`~:928-933`) — but the **AP ledger does not**: measured, a drawback bought for 2 and
+bought off for 6 produces NO ledger line for the 6 AP, so the categorised breakdown and `spent` disagree
+by the whole buy-off. Fold this into `feat/ledger-show-lost-purchases` rather than solving it twice —
+that task now carries exactly this half (the taken-drawback itemisation it used to be bundled with
+shipped separately on 2026-08-06, PR #364).
+
+```text
+1. DO NOT START until feat/chargen-dm-view has landed. Scope is now fully settled: drawbacks are
+   ADD-only (the DM awards AP, the player buys off); boons can be added AND removed, with no refund on
+   removal. Concurrency is handled by its own tasks - fix/optimistic-character-save (NOW) and
+   feat/character-log-merge (LATER) - so this one does not need to solve it, only to not fight it.
+1b. Boon removal is the ONLY part of this task that touches js/engine.js: it needs an event that skips
+   the boon in _replay() while leaving its cost in _spendCost(). Verify against a fixture that spent and
+   available are UNCHANGED by the removal and only the power level moves - that is the whole point, and
+   the naive implementation (deleting the buy event) gets it backwards.
+2. Implement neutrality as ONE invariant - a dmEdit event contributes 0 to spendable AP - not as two
+   separate rules for boons and drawbacks. Assert it directly: for any DM edit, economy().available
+   before == economy().available after.
+3. Marker shape: a field on the event rather than a new event type, so every existing replay path keeps
+   working untouched. Check it against economy()/_replay()/_spendCost() before committing to it.
+4. Undo barrier: copy the award-event pattern in the Live Sheet; give CharGen its own guard, since its
+   undo restores whole-LOG snapshots rather than popping the last event.
+5. TWO flags on the drawback event, not one: locked/unlocked, and flat/expensive removal cost.
+   buyoffDrawback() (Live Sheet ~:603) currently reads only DATA.drawbacks and hardcodes refund*3, so it
+   must consult the LOG for both. A locked drawback refuses with a stated reason rather than hiding the
+   button - a hidden control reads as a broken app.
+5b. Impose a drawback by recording the buy event at cost 0. Verified this needs no engine change: the
+   power-level hit comes from the drawback being in the build, the AP handout from the event cost, and
+   the two are already independent. Assert both in the same test, or a later refactor will merge them.
+6. Both tools' ledgers must render a DM-marked event distinctly - the whole point is that the player can
+   see what their DM changed.
+7. RLS: a DM writing to a character they do not own is a policy change. Run the Supabase advisor
+   (get_advisors) and check the logs afterwards - this project has been bitten twice by grant/RLS drift
+   (D-GH15, D-GH12).
+```
+
+**Done when:** a DM can add/remove boons and drawbacks on a roster character, each change is recorded in
+the log as a DM edit and rendered as such in both tools, the open questions above are answered in a
+decision record, and the RLS change passes the advisor.
+
 ---
+
+## Gate counts in AGENTS.md and HOW-TO-WORK.md are stale — TODO
+Branch `docs/refresh-gate-counts`. Every agent reads these numbers as the pass bar before running
+anything, so a stale one either masks a real failure or triggers a false hunt for a regression.
+**Effort:** low · **Risk:** low — ambiguity low (run the gate, write down what it says); damage scale low
+(docs only, `git revert` undoes it); damage likelihood low (the numbers are checkable by running the
+command in the same sentence) — all three low. Sweep-eligible.
+
+```text
+1. MEASURED 2026-08-06 on preview: `node testing/scripts/engine-parity-ci.mjs` reports 27 passed / 0
+   failed. Four places still say 26 — AGENTS.md:34, :204, :331, :343 — and two more in
+   docs/HOW-TO-WORK.md:99 and :174.
+2. docs/HOW-TO-WORK.md:118 says tool-pricing is "16 passed / 0 failed". It was already 42 on preview
+   before PR #364 and is 54 after. RE-MEASURE before writing a number; do not copy 54 from this task.
+3. Prefer wording that cannot rot: "run it and expect 0 failed" plus "the current baseline lives in
+   testing/expected/expected-results.csv", rather than a hardcoded pass count repeated in six places.
+   If a number is kept, keep it in ONE place and have the others point at it.
+4. Grep for other stale counts before finishing — testing/README.md, docs/VERSION-SYNC.md, the task
+   board's own "Done when" lines, and .github/workflows/ all mention gates.
+5. Docs-only — no DATA.version bump, no code change. Log in CHANGELOG.
+```
+**Done when:** every gate count in the repo either matches a freshly-run gate or has been replaced by a
+"expect 0 failed" form, `grep -rn "26 passed\|26/0"` returns nothing stale, and engine-parity still
+reports 27/0.
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.

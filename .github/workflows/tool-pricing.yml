@@ -1,0 +1,42 @@
+name: Tool pricing gate
+
+# Headless gate for pricing that lives INSIDE the tools rather than in js/engine.js — principally
+# priceOf() in tools/PACT-Live-Char-Sheet.html, which decides what a player is CHARGED and freezes that
+# figure into their log. engine-parity.yml cannot see any of it: it asserts compute()'s output, and this
+# defect class is in compute()'s *caller*. See D-GH-2026-08-05-pricing-model and
+# testing/scripts/tool-pricing-ci.mjs.
+#
+# Unlike character-gen-e2e.yml this needs no browser INSTALL step and no npm package: the script drives
+# whatever Chrome/Chromium the runner already has, over the DevTools protocol, using only Node built-ins
+# (AGENTS.md forbids npm in this repo, which is why the playwright-based e2e scripts can't run in a CLI
+# session at all). It serves the repo itself on a loopback port, so no dev server is needed either.
+
+on:
+  pull_request:
+    paths:
+      - "tools/PACT-Live-Char-Sheet.html"
+      - "tools/PACT-CharGen-Webtool.html"
+      - "js/engine.js"
+      - "js/advancement.js"
+      - "js/ap-by-level.js"
+      - "testing/scripts/tool-pricing-ci.mjs"
+      - ".github/workflows/tool-pricing.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: tool-pricing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pricing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the tool-pricing gate
+        run: node testing/scripts/tool-pricing-ci.mjs
