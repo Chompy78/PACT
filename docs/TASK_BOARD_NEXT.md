@@ -1275,6 +1275,49 @@ lock through the app or by a direct row update (verified signed-in, both roles),
 campaign cannot be DM-locked, the detach and export answers from step 4 are recorded in a
 `D-GH-<date>-dm-creation-lock` record, the Supabase advisor is clean, and engine-parity is unchanged.
 
+## Randomize (and shared links) build in canonical order, not purchase order — TODO
+Branch `feat/randomize-emits-in-order`. Successor to the ordering half of `feat/creation-vs-awarded-ap`,
+after the interactive and undo/redo paths were fixed (2026-08-06, PR #373 and the addendum in
+`decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md`).
+**Effort:** medium · **Risk:** medium — ambiguity medium (mapping ~30 randomizer mutations to event shapes
+is mechanical but each needs the right category and cost, and a wrong one mis-prices a character); damage
+scale medium (one tool, revertable, but it rewrites how a whole character is constructed); damage
+likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers the engine) — medium.
+
+```text
+0. SCOPE — read this before assuming there is more to do than there is. Purchase order is ALREADY correct
+   for the paths that matter, verified 2026-08-06:
+     - interactive building: emit() appends in click order and does NOT tag noLock, so the creation lock
+       lands exactly where cumulative spend crossed the threshold.
+     - native save/load: _cgApplyEnvelope reinstates the saved LOG verbatim (D-GH40), so order survives.
+     - undo/redo: restoreFrame() now reinstates the frame's LOG verbatim too.
+   What is LEFT are the paths where the character arrives whole and no click order ever existed:
+     randomize, the shared "#b=" link, and legacy flat-file import.
+1. Only RANDOMIZE can be fixed honestly. A shared link and a legacy file carry a flat build with no
+   sequence in it - there is nothing to recover, and inventing one would be a lie dressed as data. Decide
+   explicitly whether those two keep today's behaviour (whole build creation-priced, lock appended after)
+   and SAY SO in the record rather than leaving it implied.
+2. randomizeRoll() (~tools/PACT-CharGen-Webtool.html:3407) already HAS a real sequence: it applies ~30
+   mutator lambdas in a random order until the budget is spent. That order is as genuine as a generated
+   character can have. The work is emitting one event per applied mutator instead of mutating a flat
+   build and bursting at the end.
+3. The actual cost is the mapping. Each lambda mutates the build directly - x.skills.push(s),
+   x.stats[a]+=2, x.traditions.push(...) - and each needs the matching event shape and cost
+   ({cat:'skill',payload:{v:s}}, {cat:'abil',payload:{ab:a,to:N}}, ...). Roughly 30 of them. Do not
+   guess a category: check each against MUT in js/engine.js.
+4. PERFORMANCE - measure before and after. emit() calls _cgRepriceDraft(), which replays the whole log;
+   doing that per event across ~50 events is O(n^2). If it is slow, batch the repricing to the end rather
+   than abandoning the ordering.
+5. Gate it in testing/scripts/tool-pricing-ci.mjs: after a randomize that spends past the threshold, the
+   creation lock must sit at the purchase where cumulative spend crossed it, not at the end. Prove the
+   assertion fails against the current burst-based implementation before trusting it.
+6. Display/state only - no compute() change expected, so do NOT bump DATA.version; confirm rather than
+   assume, and keep engine-parity at its current count.
+```
+**Done when:** a randomized character over the creation threshold has its `creationLocked` event at the
+purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
+answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
