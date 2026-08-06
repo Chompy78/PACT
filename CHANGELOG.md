@@ -6,6 +6,22 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(livesheet): the footer reads `DATA.version` live instead of a hardcoded literal** —
+  found by checking the claim *"all tools show v0.339 now"* after the v1.365 promotion rather than
+  asserting it. They didn't: the Live Sheet's footer read **`PACT v0.309`** while the rules were v0.339 —
+  30 versions behind, and the only place that tool states a rules version at all (it has no *"PACT rules"*
+  chip like CharGen). It was missed because `docs/VERSION-SYNC.md`'s mirror list doesn't name it. The
+  footer now carries `#lsRulesVer` and `_lsBoot()` paints it from the `RULES` value it *already* read from
+  `DATA.version` — the same live read DM Console uses — so it cannot drift again; the literal in the HTML
+  is only the no-engine fallback. This also makes CharGen's header comment true for the first time: it
+  claims the Live Sheet reads `DATA.version` live, which until now it did not. The two agent-facing
+  `AI SESSION CONTEXT` headers were resynced with it (CharGen v0.337, Live Sheet v0.309 → v0.339).
+  **Deliberately untouched:** the *Players Guide* provenance strings (*"verbatim from the v0.309 Players
+  Guide"*, *"PACT-Players-Guide-v0.303.docx"*) — those record which edition the quoted text came from, so
+  bumping them would assert a re-check that hasn't happened; and the `// v0.314:`-style annotations that
+  mark when a feature landed. Gate +1 assertion comparing the footer to `DATA.version` itself rather than
+  a fixed string, so it never needs updating at a rules bump; confirmed red against the reverted wiring
+  (returns `v0.309`). Display-only — `DATA.version` and `BUILD` both unmoved.
 - **2026-08-06 · chore(release): `BUILD` → `v1.365` (PR #365), and CharGen's stale rules labels resynced**
   — promotion of `preview` → `main`, 49 non-merge commits since `v1.358`. Major carried forward at `1`;
   per `docs/VERSION-SYNC.md` that is a named human decision, never inferred from the size of a promotion.
