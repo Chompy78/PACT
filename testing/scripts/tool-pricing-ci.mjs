@@ -292,7 +292,11 @@ try {
   // unreachable: the buy panel showed a permanently-disabled "Bought off" tile (ibOwned never fires
   // takeDrawback), and every history row for that value — including the retake's — rendered "dead".
   console.log('\nLive Sheet — a bought-off drawback can be taken again');
-  const DB_SETUP = `${LS_SETUP} const v='Asthmatic';`;
+  // buyoffDrawback() has its own affordability gate (cost=refund*3 > available -> refuse). A drawback
+  // buy alone only earns its own refund (2 AP), well under the 6 AP a buy-off costs, so an award is
+  // required here or buyoffDrawback() silently no-ops and the whole scenario never happens.
+  const DB_SETUP = `${LS_SETUP} const v='Asthmatic';
+    LOG.push({type:'award',amount:60,label:'AP award',seq:SEQ++,ts:Date.now()});`;
   check('the retake is on the build, earns its AP, and only the FIRST row is dead in the ledger',
     await ls.evaluate(`(()=>{${DB_SETUP}
       takeDrawback(v); buyoffDrawback(v); takeDrawback(v);

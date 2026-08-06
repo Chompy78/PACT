@@ -65,20 +65,28 @@ in isolation, but it solves a problem plain ordering already solves for free, at
 engine to understand a field that belongs to the tools. Preferring the option that needs less machinery
 to reach the same correctness is the more durable choice, not merely the smaller diff.
 
-## Verification note — this session's environment had no browser
+## Verification note — this session's environment had no browser, and it caught a real gap
 
-Every other fix landed this session was mutation-tested against a real headless Chromium (revert the
-guard, confirm the new assertion goes red, restore, confirm green). This one could not be: the machine
-this task ran on has no Chromium installed, apt's only candidate (`chromium-browser`) is a snap-wrapper
-package, and `sudo snap install` requires an interactive terminal this session doesn't have. The engine
-half is fully verified — direct Node execution against the real repro, the common-case regression check,
-and `EV-017` mutation-tested by reverting `js/engine.js` itself (no browser needed for any of that, since
-`engine-parity-ci.mjs` and `log-fuzz.mjs` are pure Node). The two Live Sheet UI assertions added to
-`testing/scripts/tool-pricing-ci.mjs` were traced carefully against the actual DOM-producing code
-(`db()`'s class string, `ibOwned()`'s non-firing `onclick`, the ledger row's `cls` construction) but were
-**not executed locally** — GitHub Actions' `pricing` workflow, which has a working browser, is the first
-real run of them. Flagged explicitly rather than silently claiming the same verification bar as every
-other change in this branch.
+Every other fix landed this session was mutation-tested against a real headless Chromium before being
+trusted (revert the guard, confirm the new assertion goes red, restore, confirm green). This task's
+machine has no Chromium installed, apt's only candidate (`chromium-browser`) is a snap-wrapper package,
+and `sudo snap install` requires an interactive terminal this session doesn't have — so the two new Live
+Sheet UI assertions in `testing/scripts/tool-pricing-ci.mjs` were written by careful tracing of the real
+DOM-producing code, not by execution, and pushed flagged as unverified.
+
+**GitHub Actions' `pricing` check caught a genuine bug on the first real run — in the test, not the
+fix.** Both assertions failed: `drawbackEarned` came back `4` instead of `2`, and a supposedly-cancelled
+drawback was still on the build. The cause was `buyoffDrawback()`'s own affordability gate
+(`cost=refund*3 > available` → silently refuse): the test's only AP income was the drawback's own +2
+refund, well under the 6 AP a buy-off costs, so `buyoffDrawback()` no-opped on every call and no
+`buyoff` event was ever appended — the engine fix was never actually exercised. Fixed by funding the
+scenario with an `award` event before the buy-off. Re-verified against the real CI browser; see the PR
+for the corrected run.
+
+This is the exact failure mode the "not executed locally" flag exists to catch, and it worked as
+intended: the gap was caught by CI rather than shipped silently as a passing-but-untested assertion. The
+engine half was never in question — it was fully verified via direct Node execution and mutation testing
+against `js/engine.js` itself throughout, independent of any browser.
 
 ## Related
 

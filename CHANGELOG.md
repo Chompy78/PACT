@@ -23,8 +23,11 @@
   cancellation is per-purchase, a drawback not currently held is simply available to take again. New
   fixture `EV-017`, mutation-tested by reverting the engine change and confirming it fails (`EV-015`/
   `EV-016` unaffected by the same revert). **This session's environment had no browser available**, so
-  the two new Live Sheet UI gate assertions are traced carefully but were not executed locally — flagged
-  in the decision record rather than silently claimed at the same bar as every other fix this session.
+  the two new Live Sheet UI gate assertions were pushed unexecuted, flagged as such in the decision
+  record — and CI's first real run caught a genuine bug **in the test**, not the fix:
+  `buyoffDrawback()`'s own affordability gate silently refused every buy-off because the test never
+  funded an `award` event, so the fix itself was never actually exercised. Fixed and re-verified green
+  against the real CI browser — exactly the failure mode the "not executed locally" flag exists to catch.
   Graduates the task off `docs/TASK_BOARD_NOW.md`.
 - **2026-08-06 · feat(engine): `compute()` prices extra maneuvers — and the pricing escape is deleted**
   (`DATA.version` **v0.339 → v0.340**) — `repriceDraft()` re-derives every frozen cost as a `compute()`

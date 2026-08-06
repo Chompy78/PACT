@@ -21,9 +21,11 @@
   `takeDrawback()`). Resolved by matching each buyoff to the oldest not-yet-cancelled purchase in one
   forward pass (FIFO by array position) — no `seq` field, no schema change, unlike the task's own
   suggested fix; existing single-buy/single-buyoff characters are unaffected. `DATA.version` v0.340 →
-  v0.341. **This session's environment had no browser available** (no Chromium, `snap install` needs
-  an interactive terminal); the engine fix is Node-verified and mutation-tested, but the two Live Sheet
-  UI gate assertions were not executed locally — flagged rather than silently held to a lower bar.
+  v0.341. **This session's environment had no browser** (no Chromium, `snap install` needs an interactive
+  terminal), so the two Live Sheet UI gate assertions were pushed unexecuted, flagged as such — and CI's
+  first real run caught a genuine bug **in the test**, not the fix: `buyoffDrawback()`'s own
+  affordability gate silently refused every buy-off because the test never funded an `award` event.
+  Fixed and re-verified against the real CI browser.
   Full record: `decisions/2026/D-GH-2026-08-06-buyoff-keyed-by-event.md`.
 
 - **D-GH-2026-08-06-reprice-preserves-uncharged-costs** — **`compute()` now prices `maneuverBuys`**, and the
