@@ -449,9 +449,13 @@ export function compute(b, opts){
      _tb(DATA.features,b.features);_tb(DATA.boons,b.boons);_tb(DATA.arts,b.arts);}}
   // drawbacks
   // §14: drawbacks grant AP, but no more than 14 AP total across a character
-  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
+  // Skip unknowns, as all five sibling itemised loops do (:247 :275 :312 :441). Behaviour-identical for
+  // the total (an unknown scores v=0) and for warnings (drawbackMaxStats[unknown] is {}), but it stops a
+  // drawback retired from the rules rendering a phantom "<name> 0" row, and stops an all-unknown list
+  // producing an itemize key with no matching ledger line (add() suppresses a zero line).
+  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){if(!HRd[lab]&&DATA.drawbacks[lab]===undefined)continue;const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
     const _dmx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{};for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push(lab+': drawback requires '+_da+' '+_dm+' or lower');} }
-  // Rows are NEGATIVE so they sum to the line total (-drawGain), the same relationship the other four
+  // Rows are NEGATIVE so they sum to the line total (-drawGain), the same relationship the other five
   // itemised lines have with theirs. `v` is the value actually charged, so a house-ruled drawback
   // (b.houseRules.draws) itemises at its overridden AP, not the printed one.
   add("Drawbacks (refund)",-drawGain);addItems("Drawbacks (refund)",_DI);

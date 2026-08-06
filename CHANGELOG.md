@@ -13,11 +13,16 @@
   with the key matching the ledger line's label exactly — both tools already walk `itemize` generically,
   so there is no renderer change. Rows are **negative**, so they sum to the line total (`-drawGain`), the
   same relationship the other five itemised lines have with theirs; the value itemised is the one
-  actually charged, so a house-ruled drawback shows its overridden AP, not the printed one. `compute()`
-  totals do not move and `testing/expected/` captures only totals and warnings (checked, not assumed), so
-  **`DATA.version` is unmoved**. Gate +5 assertions across the three fixes, all five confirmed red against
-  a deliberately reverted guard before being trusted; step 6's check that *Boons* rows still render is in
-  there too. **Not in this change:** the 2026-08-05 scope extension — showing what was *lost* (a bought-off
+  actually charged, so a house-ruled drawback shows its overridden AP, not the printed one. Unknown
+  drawbacks are skipped, as all five sibling itemised loops already do — a drawback retired from the rules
+  scores 0, and without the guard it rendered a phantom `<name> 0` row and could leave an `itemize` key
+  with no matching ledger line (`add()` suppresses a zero total). `compute()` totals do not move and
+  `testing/expected/` captures only totals and warnings (checked, not assumed), so **`DATA.version` is
+  unmoved**. Note the rows are visible in **CharGen and DM Console** only — the Live Sheet's AP ledger
+  maps `r.lines` and does not read `itemize` at all. Gate +11 assertions across the three fixes; every one
+  that guards a specific behaviour was confirmed red against a deliberately reverted guard before being
+  trusted, and step 6's check that *Boons* rows still render is in there too. **Not in this change:** the
+  2026-08-05 scope extension — showing what was *lost* (a bought-off
   drawback, its buy-off cost, and a DM-removed boon) appears in no ledger line at all, and needs an owner
   decision on whether historical spend belongs in `compute()`'s ledger (`feat/ap-model-reconcile`) plus a
   line shape for a DM-edit feature that isn't built yet. The task stays on `docs/TASK_BOARD_NEXT.md`.
@@ -42,7 +47,14 @@
   confirm through", and asking a player to confirm a warning that isn't one is the wrong prompt. `buy()`
   now flashes a pointer to the dialog instead. Measured on a HD-17 character with 804 AP: 12 of 12 epic
   boons blocked before, 12 of 12 bought after, with the guidance still raised on the build and
-  *"Crossbow Expert: requires DEX 14+"* still hard-blocked. No engine change, so `DATA.version` unmoved.
+  *"Crossbow Expert: requires DEX 14+"* still hard-blocked. Two follow-on defects found in review and
+  fixed here: the event was still storing the **unfiltered** `warns`, and the history ledger paints any
+  row carrying one red — so an epic boon would have looked like a rules breach forever, including after
+  the ability was chosen, and `warns` travels inside the saved envelope; `buy()` now stores `rest`. And
+  `ib()` built its own classification with no knowledge of `EXPECTED_FOLLOWUP`, so every epic-boon tile
+  stayed amber `.warn` while clicking it bought cleanly — the panel and `buy()` disagreeing about the
+  same string. The tile keeps the guidance text and drops the styling. No engine change, so
+  `DATA.version` unmoved.
 - **2026-08-05 · fix(livesheet): a racial trait is gated by its tier, as CharGen already gated it** — owner
   report: *"Draconic flight requires T4, which works in CharGen but not the Live Sheet."* A trait's tier
   gates it by Hit Dice via `DATA.tierHD` (T4 needs 5 HD), and CharGen enforced that on its trait

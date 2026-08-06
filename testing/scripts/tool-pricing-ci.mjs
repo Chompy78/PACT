@@ -214,6 +214,37 @@ try {
     await ls.evaluate(`(()=>{window.__a=[];const n=LOG.length;
       buy('art',{v:'Crossbow Expert'},'Crossbow Expert');
       return [LOG.length===n, /Purchase blocked/.test(window.__a[0]||'')];})()`), [true, true]);
+  // The event's `warns` array is the record of what was flagged and clicked through, and the history
+  // ledger paints any row carrying one red (.warnrow). A follow-up is a to-do, not a violation, so it
+  // must NOT be frozen into the LOG — it would mark the boon a rules breach forever, including after
+  // the ability is chosen, and `warns` travels inside the saved envelope.
+  check('the follow-up is not frozen into the event, and its history row is not a warn row',
+    await ls.evaluate(`(()=>{const ev=LOG.filter(e=>e.cat==='boon').pop(); render();
+      const row=[...document.querySelectorAll('.led tr')].find(tr=>/Boon of Fate/.test(tr.innerText||''));
+      return [ev.warns, row?row.className:'(row not found)'];})()`), [[], '']);
+  // …but a REAL soft warning must still be stored, or "always emit []" would pass the check above.
+  check('a genuinely soft-warned purchase still records its warning on the event',
+    await ls.evaluate(`(()=>{const names=Object.keys(DATA.features).filter(k=>/: Extra Attack$/.test(k));
+      buy('feature',{v:names[0]},names[0]); buy('feature',{v:names[1]},names[1]);
+      const ev=LOG[LOG.length-1];
+      return [ev.cat, (ev.warns||[]).length, /add no benefit/.test((ev.warns||[])[0]||'')];})()`),
+    ['feature', 1, true]);
+  // The buy panel builds its own classification in ib(); before the fix it had no knowledge of
+  // EXPECTED_FOLLOWUP, so all 12 epic boons were the only permanently amber-warned tiles in the panel
+  // while clicking them bought cleanly — the panel and buy() disagreeing about the same string.
+  // Rebuild the character first: the block above already bought all 12 epic boons, and an owned item
+  // renders through ibOwned() as "ib dis" with the boon's effect text — which would pass a laxer
+  // assertion for entirely the wrong reason. The tile under test must be an UNOWNED, affordable one.
+  check('the epic-boon tile keeps its guidance text but drops the amber warning styling',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'award',amount:900,label:'AP award',seq:SEQ++,ts:Date.now()});
+      for(let h=2;h<=17;h++){const b=foldBuild(null);
+        LOG.push({type:'buy',cat:'hd',payload:{to:h},cost:priceOf('hd',{to:h},b),label:'Level up',seq:SEQ++,ts:Date.now(),level:b.hd});}
+      render(); setBuyQuery('boon of truesight');
+      const t=[...document.querySelectorAll('#buy button.ib')].find(x=>/Boon of Truesight/.test(x.innerText||''));
+      const r=t?[t.className,(t.querySelector('.why')||{}).innerText||'']:['(tile not found)',''];
+      setBuyQuery(''); return r;})()`),
+    ['ib', 'Boon of Truesight: choose an ability to raise (+2)']);
 
   // buyManeuver() used to emit() straight past buy()'s affordability gate — the one unguarded buy
   // path in the tool. Measured before the fix: 0 AP -> -22 over four clicks at 4/5/6/7.
@@ -420,6 +451,19 @@ try {
       renderLedger(compute(b),b);const d=sect('Drawbacks (refund)');
       return [d.items[0],d.sum,d.line];})()`), [['Asthmatic', -99], -108, -108]);
   // Step 6 of the task: the same failure mode would silently empty the Boons rows too.
+  // A drawback retired from the rules scores 0, so before the unknown-guard it rendered a phantom
+  // "<name> 0" row that no sibling itemised line would produce — and an all-unknown list produced an
+  // itemize key with no matching ledger line, since add() suppresses a zero total.
+  check('a drawback no longer in the rules renders no row and leaves no orphan itemize key',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const b=readBuild();b.drawbacks=['Asthmatic','Retired Drawback From v0.1'];
+      const r=compute(b);renderLedger(r,b);const d=sect('Drawbacks (refund)');
+      const b2=readBuild();b2.drawbacks=['Retired Drawback From v0.1'];
+      const r2=compute(b2);
+      return [d.items.length,d.sum,d.line,
+              r2.lines.some(l=>l[0]==='Drawbacks (refund)'),
+              (r2.itemize||{})['Drawbacks (refund)']===undefined];})()`),
+    [1, -2, -2, false, true]);
   check('the Boons line still itemises, and its rows sum to it',
     await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
       const b=readBuild();b.hd=17;b.boons=DATA.boonList.filter(x=>!DATA.boons[x].epic).slice(0,2);

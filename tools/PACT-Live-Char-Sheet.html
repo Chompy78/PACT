@@ -580,7 +580,7 @@ function award(amount,note,disc){ if(amount===null||amount===undefined||String(a
 const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability/i;
 // EXPECTED FOLLOW-UP = not a warning at all. The purchase is legal and complete; a choice that belongs
 // to it is made afterwards, in the ✎ Names dialog. Epic boons are the only case today: MUT.boon pushes
-// the label but cannot set epicBoonAbil (js/engine.js:489), so compute() on the candidate build always
+// the label but cannot set epicBoonAbil (js/engine.js:545), so compute() on the candidate build always
 // raises "<boon>: choose an ability to raise (+2)" (js/engine.js:145). Classified as neither hard nor
 // soft — blocking it made all 12 epic boons unbuyable, and confirm()ing it would ask the player to
 // approve a rules warning that isn't one. buy() points at the dialog instead.
@@ -609,7 +609,11 @@ function buy(cat,payload,label){
   if(hard.length){ alert('⛔ Purchase blocked — it breaks a rules limit:\n\n• '+hard.join('\n• ')); return; }
   if(soft.length && !confirm('This purchase raises a rules warning:\n• '+soft.join('\n• ')+'\n\nBuy anyway (it will be flagged for review)?')) return;
   var _preSwap=(cat==='hd')?_swapAvailFrom((b0.hd)||1,LOG):null;
-  emit({type:'buy',cat,payload,cost,label:label||(cat+' '+JSON.stringify(payload)),level:b0.hd,warns});
+  // Store `rest`, NOT `warns`: the event's warns array is the record of what was flagged and clicked
+  // through, and the history ledger paints any row carrying one red (:947, .warnrow). A follow-up is a
+  // to-do, not a violation — storing it would mark every epic boon as a rules breach forever, including
+  // after the player picks the ability. (hard is empty by here: it returns above.)
+  emit({type:'buy',cat,payload,cost,label:label||(cat+' '+JSON.stringify(payload)),level:b0.hd,warns:rest});
   if(followup.length)flash('✎ Now open Names and pick the ability — '+followup.join('; '));
   if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
 }
@@ -1005,13 +1009,19 @@ function buildBuyPanel(b,r,eco,head){
     // HARD block (flash only): unmet prerequisite (reasonExtra) or not enough AP.
     // SOFT warning: the purchase is allowed — buy() asks to confirm and flags it for review. Don't dead-end it.
     const hardReason = reasonExtra || (unaff?('needs '+cost+' AP — you have '+eco.available):'');
-    const soft = (!hardReason && warns.length)?warns[0]:'';
+    // Same three-way split buy() makes: an expected follow-up still shows its text as guidance, but must
+    // NOT take the amber .warn styling — that slot means "this raises a rules warning", and all 12 epic
+    // boons would otherwise be the only permanently-warned tiles in the panel.
+    const _fu   = warns.filter(function(w){return  EXPECTED_FOLLOWUP.test(w);});
+    const _rest = warns.filter(function(w){return !EXPECTED_FOLLOWUP.test(w);});
+    const soft = (!hardReason && _rest.length)?_rest[0]:'';
+    const followup = (!hardReason && !soft && _fu.length)?_fu[0]:'';
     const blocked=!!hardReason;
     if(hideUnavail && blocked) return '';   // "Hide unavailable": drop the greyed can't-buy tiles (default off → shown greyed+clickable with the reason)
     const costlbl = (cat==='drawback'||cat==='mbound'||cat==='dbound')?('+'+(-cost)):(''+cost);
     const pay='buy(&quot;'+cat+'&quot;,'+esc(JSON.stringify(payload))+',&quot;'+esc(label)+'&quot;)';
     const click = blocked ? ('flash(&quot;'+esc(hardReason)+'&quot;)') : pay;
-    const note = hardReason || soft;
+    const note = hardReason || soft || followup;
     const _pg=(['feature','subabil','racial'].indexOf(cat)>=0&&typeof FEAT_PG!=='undefined'&&payload&&FEAT_PG[payload.v])?('PHB p.'+FEAT_PG[payload.v]):'';
     const _ttl=[note,descr,_pg].filter(Boolean).join(' · ');
     return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'"><span class="ibhead">'+label+' <em>'+costlbl+'</em></span>'+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
