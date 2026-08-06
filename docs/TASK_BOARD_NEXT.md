@@ -758,46 +758,53 @@ sweep-eligible.
 been applied to every affected saved character, over-budget outcomes have an owner decision recorded, and
 a gate asserts the invariant for corrected characters.
 
-## AP ledger: drawbacks don't list what was taken, unlike every other itemised line — TODO
-Branch `feat/ledger-itemise-drawbacks`. In CharGen's AP ledger the `Drawbacks (refund)` line shows only a
-lump sum, so a character with three drawbacks shows one number and no way to see which three. Every
-comparable line already expands into named third-level rows — Arts & Techniques, Species traits, Class
-features, Subclass abilities and **Boons** all do.
-**Effort:** low · **Risk:** low — ambiguity low (four existing `addItems()` calls to copy exactly, and
-the ledger already renders `itemize` generically so no UI work is needed); damage scale low (display
-only — no AP total moves); damage likelihood low (the parity gate plus an eyeball in the ledger) —
-worst-of lands at low.
+## AP ledger doesn't show what was LOST — bought-off drawbacks, removed boons — TODO
+Branch `feat/ledger-show-lost-purchases`. Successor to `feat/ledger-itemise-drawbacks`, whose
+active-drawback half shipped 2026-08-06 (PR #364): `Drawbacks (refund)` now expands into named rows that
+sum to the line, house-rule values included. What remains is the 2026-08-05 owner scope extension — the
+ledger must also show what was **lost**, not only what is currently held.
+**Effort:** medium · **Risk:** high — ambiguity high (whether historical spend belongs in `compute()`'s
+ledger at all is a model call only the owner can make, and it collides head-on with
+`feat/ap-model-reconcile`); damage scale high (would touch `compute()`'s `lines`/`total`, the app's own
+record of what a player paid); damage likelihood low (the parity gate catches any total movement) —
+worst-of lands at high. **NOT sweep-eligible** — this needs the owner's decision first, not an
+implementation.
 
 ```text
-0a. OWNER-CONFIRMED 2026-08-05: the drawback rows do not appear in the ledger.
-0. SCOPE EXTENDED 2026-08-05 (owner): the ledger must also show what was LOST, not just what was taken.
-   A bought-off drawback and its buy-off cost currently appear in NO ledger line at all - measured, a
-   drawback bought for 2 and bought off for 6 leaves the categorised lines summing to 0 while economy()
-   reports 6 spent. The same applies to a DM-removed boon (feat/dm-edit-events): bought, lost, and any
-   re-purchase should each be visible. Design the line shape for all three cases at once.
-1. compute() already returns `itemize` (js/engine.js:454), a map of ledger-line label -> [[name, ap], …],
-   populated by addItems(). It is called for exactly five lines: "Arts & Techniques" (js/engine.js:160),
-   "Species traits" (:205), "Class features" (:237), "Subclass abilities" (:268) and "Boons" (:398).
-   The drawbacks loop (~:404) collects nothing.
-2. Both tools' ledgers already render itemize generically — CharGen at
-   tools/PACT-CharGen-Webtool.html:3705,3708 walks (r.itemize||{})[lineLabel] for EVERY line. So adding
-   the engine-side collection is the whole job; no renderer change.
-3. In the drawbacks loop, build the pairs alongside the existing `drawGain` tally and call
-   addItems("Drawbacks (refund)", …) — the key must match the ledger line's label EXACTLY or it renders
-   nothing and fails silently. Note the values are refunds: decide and state whether each row shows the
-   drawback's AP as positive (matching the label's "(refund)") or negative (matching the line total's
-   sign), and be consistent with how "Boons" presents its rows.
-4. House-ruled drawbacks (b.houseRules.draws) override the printed AP — itemise the value actually
-   charged, not the printed one, or the rows won't sum to the line.
-5. Check whether testing/expected/ captures `itemize`. Totals do NOT change, so this should be a
-   display-only change with NO DATA.version bump — but confirm rather than assume, and if the fixtures
-   do capture it, refresh them in the same PR and say so.
-6. While here: confirm "Boons" rows actually appear in the ledger. The engine populates them, but it is
-   worth an eyeball that the label matches, since that is the exact failure mode described in step 3.
+0. MEASURED 2026-08-05: a drawback taken for 2 and then bought off for 6 appears in NO ledger line.
+   The categorised lines sum to 0 while economy() reports 6 spent. compute() is a pure function of the
+   BUILD, and a bought-off drawback is no longer on the build — the buy-off cost lives only in the LOG,
+   on the `buyoff` event. So this cannot be fixed by another addItems() call the way the taken-drawback
+   half was; the information is not in compute()'s input.
+1. THE DECISION COMES FIRST, and it is the owner's: should historical spend appear in compute()'s
+   ledger? Three shapes, none obviously right —
+   a) a new ledger line ("Drawbacks bought off") that ADDS to compute().total. Simplest to render, but
+      it changes compute() output — bump DATA.version, refresh testing/expected/, and expect it to
+      double-count in any tool that already adds economy().spent separately.
+   b) a new top-level field on compute()'s return (e.g. `lost`) that no ledger LINE reads, rendered as
+      its own section by each tool. Leaves total untouched, but needs a renderer change in CharGen and
+      the Live Sheet, so it is no longer the display-only job the taken-drawback half was.
+   c) leave compute() alone and derive the section from activeEvents()/the LOG at the tool layer. Fastest,
+      but re-implements ledger logic outside the engine — AGENTS.md forbids exactly this.
+   This is the same question as `feat/ap-model-reconcile` (compute() vs the frozen ledger). Settle it
+   ONCE, there, and let this task follow — do not answer it twice in two places.
+2. Design the line shape for all three cases at once, per the owner's 2026-08-05 note: a bought-off
+   drawback (bought, then bought off, then possibly re-taken), a DM-removed boon, and a re-purchase.
+   The ledger must show that the player DID buy it and then lost it — the event is never deleted.
+3. BLOCKED ON feat/dm-edit-events for the boon half: DM-removed boons do not exist yet, so their line
+   shape cannot be verified against anything. Either sequence this after that feature, or scope this
+   task to the drawback half alone and say so explicitly.
+4. Gate: whatever shape is chosen, assert that the categorised ledger lines reconcile with
+   economy().spent for a character who has bought off a drawback — that identity failing is the bug.
+   testing/scripts/tool-pricing-ci.mjs already drives renderLedger() directly (see the three
+   drawback-itemisation checks added by PR #364) and is the right place for it.
+5. If compute() output moves, bump DATA.version and refresh testing/expected/ in the same PR; if it does
+   not, say so explicitly rather than leaving it unstated. engine-parity must stay 27/0 either way.
 ```
-**Done when:** a character with two or more drawbacks shows each one as its own named row under
-`Drawbacks (refund)` in CharGen's AP ledger, the rows sum to the line total, house-ruled values are
-respected, and engine-parity still reports 26/0.
+**Done when:** the owner's decision from step 1 is recorded as a `D-GH-<date>-ledger-show-lost-purchases`
+record, a character who bought a drawback and then bought it off shows both the purchase and the buy-off
+in the ledger, the categorised lines reconcile with `economy().spent` for that character, a gate asserts
+that identity, and engine-parity still reports 27/0.
 
 ## Tune CharGen's random character generator — TODO
 Branch `feat/randomize-tuning`. `randomizeRoll()` (`tools/PACT-CharGen-Webtool.html:3232`) rolls a
