@@ -799,6 +799,11 @@ only — no AP total moves); damage likelihood low (the parity gate plus an eyeb
 worst-of lands at low.
 
 ```text
+0. SCOPE EXTENDED 2026-08-05 (owner): the ledger must also show what was LOST, not just what was taken.
+   A bought-off drawback and its buy-off cost currently appear in NO ledger line at all - measured, a
+   drawback bought for 2 and bought off for 6 leaves the categorised lines summing to 0 while economy()
+   reports 6 spent. The same applies to a DM-removed boon (feat/dm-edit-events): bought, lost, and any
+   re-purchase should each be visible. Design the line shape for all three cases at once.
 1. compute() already returns `itemize` (js/engine.js:454), a map of ledger-line label -> [[name, ap], …],
    populated by addItems(). It is called for exactly five lines: "Arts & Techniques" (js/engine.js:160),
    "Species traits" (:205), "Class features" (:237), "Subclass abilities" (:268) and "Boons" (:398).
@@ -1177,6 +1182,24 @@ effect and the AP; do not reuse the drawback branch verbatim.
 **There is no boon-removal path in the engine today** — `MUT.boon` only pushes, and `boughtOff` handles
 drawbacks alone. This needs a new event type or marker plus a skip in `_replay`, which makes it the one
 part of stage 2 that touches `js/engine.js`.
+
+**The event is never deleted, and the boon can be bought again** (owner, 2026-08-05): *"it should not
+delete the event, it should always show they did buy it, but then they lost it. They can buy it back
+again."* So the log reads as a history — bought, lost, bought again — and each purchase is paid for
+separately. Removal suppresses one specific purchase; it does not blacklist the boon.
+
+**That last word is load-bearing, and the existing drawback mechanism gets it wrong.** `boughtOff` is
+keyed by the drawback's NAME, so it suppresses every purchase of that value including later ones —
+measured: buy a drawback, buy it off, take it again, and the retake is silently dropped from the build
+and earns no AP. Filed separately as `fix/buyoff-keyed-by-event` (NOW), and **it must land before this
+task**, because a boon removal keyed by name would inherit the identical bug against an explicit
+requirement that re-buying works.
+
+**Both must show in the ledger** (owner): the purchase, the loss or buy-off, and the re-purchase. The
+Live Sheet's event history already renders a bought-off drawback struck through with its buy-off as a
+separate refund row (`~:928-933`) — but the **AP ledger does not**: measured, a drawback bought for 2 and
+bought off for 6 produces NO ledger line for the 6 AP, so the categorised breakdown and `spent` disagree
+by the whole buy-off. Fold this into `feat/ledger-itemise-drawbacks` rather than solving it twice.
 
 ```text
 1. DO NOT START until feat/chargen-dm-view has landed. Scope is now fully settled: drawbacks are
