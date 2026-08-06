@@ -547,20 +547,31 @@ const _CTX_PRICERS={
       return (DATA.unlockCum[start+xc]||0)-(DATA.unlockCum[start]||0);};
     const after=clone(cur);(MUT.unlockclass||function(){})(after,p);
     return rung(after)-rung(cur);},
-  // Extra Battle Master maneuver: an escalating rung (4, 5, 6, …) that compute() never charges for.
-  // `maneuverBuys` only widens the Names dialog's slot count — no ledger line reads it — so a build
-  // diff prices this at 0 and the affordability gate would be a no-op. Its own rung is the price.
-  mvbuy:function(cur){return 4+(cur.maneuverBuys||0);},
   // The two bonds: a flat +2 AP gain, one-way. A build diff would additionally hand back a retroactive
   // discount on already-owned features/spells — the original refund bug these two were escaped for.
   mbound:function(){return -2;},
   dbound:function(){return -2;}
 };
+// A SECOND, DISTINCT escape — deliberately not folded into _CTX_PRICERS above, and it must stay that way.
+// Those entries exist because the build diff is WRONG: the purchase changes the pricing context, so the
+// diff drags a re-price of everything already owned into the quote. This one exists for the opposite
+// reason — compute() never charges for the thing at all, so the diff is 0 and any affordability gate
+// built on it is a silent no-op. The distinction is load-bearing: D-GH-2026-08-05-pricing-model D1 plans
+// to retire _CTX_PRICERS into one general context-change rule, and folding an uncharged purchase into
+// that table would quietly restore free maneuvers the day it happens.
+const _UNCHARGED_PRICERS={
+  // Extra Battle Master maneuver: an escalating rung (4, 5, 6, …). `maneuverBuys` only widens the ✎ Names
+  // dialog's slot count; no ledger line reads it. The rung lives in DATA rather than as a literal here —
+  // D1's own finding is that "the escapes exist where the data was missing", and this price had never
+  // been in DATA at all. Falls back to the historical 4/+1 if an older dataset lacks the key.
+  mvbuy:function(cur){const _m=(typeof DATA!=='undefined'&&DATA.maneuverBuy)||{base:4,step:1};
+    return (+_m.base||0)+(+_m.step||0)*(cur.maneuverBuys||0);}
+};
 // price a prospective change: its own listed price for a context change, else a delta against the
 // CURRENT committed build (correct for an ordinary purchase, which changes nothing else's price)
 function priceOf(cat,payload,_cur){
   const cur=_cur||foldBuild(null);   // optional pre-folded build: callers already holding foldBuild(null) (e.g. buy()) pass it to avoid a redundant re-fold; omitted → fresh fold (identical result — the fold is deterministic on the current LOG)
-  const _ctx=_CTX_PRICERS[cat];
+  const _ctx=_CTX_PRICERS[cat]||_UNCHARGED_PRICERS[cat];
   if(_ctx)return _ctx(cur,payload||{});
   const before=compute(cur).total;
   const cand=clone(cur); (MUT[cat]||(()=>{}))(cand,payload);

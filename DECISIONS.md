@@ -13,6 +13,19 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-06-maneuver-afford-gate** — a purchase `compute()` never charges for gets its **own**
+  pricing escape, kept separate from `_CTX_PRICERS`, and its price moves into `DATA`. Routing
+  `buyManeuver()` through `buy()` was not enough on its own: `compute()` doesn't read `maneuverBuys`, so
+  the build diff is 0 and the affordability gate would have been a silent no-op. Adding a fourth
+  `_CTX_PRICERS` entry was rejected — it contradicts D-GH-2026-08-05-pricing-model **D1** ("retired into
+  that rule rather than joined by a fourth") and miscategorises the reason: those entries exist because
+  the diff over-charges via context contamination, this one because nothing is charged at all. The
+  distinction is load-bearing, since D1 plans to retire `_CTX_PRICERS` and the task board already tells
+  the next agent to port it into CharGen — folding `mvbuy` in would silently restore free maneuvers.
+  `DATA.maneuverBuy = {base:4, step:1}` is new; `DATA.version` deliberately **not** bumped (value
+  unchanged, `compute()` never reads it, parity 27/0) — recorded as a judgement call, not an obvious one.
+  Full record: `decisions/2026/D-GH-2026-08-06-maneuver-afford-gate.md`.
+
 - **D-GH-2026-08-05-creation-vs-awarded-ap** — starting AP splits into **creation AP** (the track's level-1
   figure, which is what the creation lock measures) and **awarded AP** (everything above it, priced as
   post-creation). CharGen now derives both from a building-level + budget-track pair, replacing a

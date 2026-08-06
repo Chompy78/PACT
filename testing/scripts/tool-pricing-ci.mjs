@@ -258,6 +258,20 @@ try {
       for(let i=0;i<4;i++)buyManeuver();
       return [foldBuild(null).maneuverBuys||0, avail(), window.__f[0]||''];})()`),
     [0, 0, 'Not enough AP: needs 4, have 0']);
+  // The rung must come from DATA, not a literal in the tool — D1's finding is that the pricing escapes
+  // exist precisely where the price was never in DATA. Perturbing DATA.maneuverBuy and watching the
+  // quote move is what distinguishes "reads the dataset" from "happens to agree with it today".
+  check('the maneuver rung is read from DATA, not hardcoded in the tool',
+    await ls.evaluate(`(()=>{${MV}
+      const q=n=>{const b=foldBuild(null);b.maneuverBuys=n;return priceOf('mvbuy',{},b);};
+      const real=[q(0),q(1),q(2)];
+      const keep=JSON.parse(JSON.stringify(DATA.maneuverBuy));
+      DATA.maneuverBuy={base:10,step:3};
+      const moved=[q(0),q(1),q(2)];
+      DATA.maneuverBuy=keep;
+      const restored=[q(0),q(1),q(2)];
+      return [real,moved,restored];})()`),
+    [[4, 5, 6], [10, 13, 16], [4, 5, 6]]);
   check('with 15 AP the rungs still charge 4, 5, 6 and then refuse the 7',
     await ls.evaluate(`(()=>{${MV}
       LOG.push({type:'award',amount:15,label:'AP award',disc:true,seq:SEQ++,ts:Date.now()});

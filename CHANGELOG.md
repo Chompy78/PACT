@@ -36,7 +36,16 @@
   (`4 + maneuverBuys`), the same escape `hd`, `abil` and `unlockclass` already use. The dialog now
   redraws only when the purchase lands, so a refusal leaves it open showing the flash. Verified: at 0 AP
   all four clicks are refused with *"Not enough AP: needs 4, have 0"*; at 15 AP the ladder still charges
-  4, 5, 6 and then refuses the 7 with *"needs 7, have 0"*. No engine change, so `DATA.version` unmoved.
+  4, 5, 6 and then refuses the 7 with *"needs 7, have 0"*. Review then found the escape was in the wrong
+  table: `_CTX_PRICERS` means *"the diff over-charges because this purchase changes the pricing context"*,
+  and adding a fourth entry contradicts `D-GH-2026-08-05-pricing-model` **D1** outright. `mvbuy` now lives
+  in its own `_UNCHARGED_PRICERS` — *"the diff is 0 because `compute()` charges nothing"* — which keeps D1's
+  planned retirement of `_CTX_PRICERS` safe to carry out; folding an uncharged purchase in would have made
+  maneuvers free again the day it happened. The rung itself moved into **`DATA.maneuverBuy`**
+  (`{base:4, step:1}`), following D1's own finding that *"the escapes exist where the data was missing"* —
+  it had never been in `DATA` at all. `DATA.version` deliberately unmoved (value unchanged, `compute()`
+  never reads the key, parity 27/0); reasoning recorded in
+  `decisions/2026/D-GH-2026-08-06-maneuver-afford-gate.md`.
 - **2026-08-06 · fix(livesheet): epic boons can be bought again — an expected follow-up is no longer a
   hard block** — owner-confirmed: all 12 `epic:true` boons were unbuyable in the Live Sheet. `MUT.boon`
   pushes the label but cannot set `epicBoonAbil`, so `compute()` on the candidate build always raised
