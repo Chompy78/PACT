@@ -1224,6 +1224,45 @@ render path, a gate asserts it by comparing against `DATA.version` itself and wa
 the reverted wiring, `docs/VERSION-SYNC.md` lists every rules-version display site marked live or manual,
 and engine-parity still reports 27/0.
 
+## A DM-applied creation lock a player cannot undo — TODO
+Branch `feat/dm-creation-lock`. Owner, 2026-08-06 — explicitly *"ideally but not critical"*. Today
+`creationUnlocked` clears **any** `creationLocked` regardless of who issued it, so a DM lock and a player
+lock are indistinguishable to the engine and either can be undone by either.
+**Effort:** medium · **Risk:** medium — ambiguity medium (the event shape is obvious, but "who counts as a
+DM" is campaign/auth state the engine deliberately knows nothing about, so where the check lives is a real
+call); damage scale medium (touches `_replay`'s lock resolution, which prices every purchase after it);
+damage likelihood medium (nothing automated can cover the auth half without credentials) — worst-of lands
+at medium.
+
+```text
+0. CONTEXT. Read decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md first — its Outstanding
+   section is this task, and it explains why the lock is recorded as an event rather than re-derived.
+1. THE CRUX is not the lock, it is provenance. js/engine.js:749-756 resolves creationLocked /
+   creationUnlocked in LOG order, last-write-wins, with no notion of an author. Give the event an
+   authored field (e.g. `by:'dm'` vs `by:'player'`) and make the rule asymmetric: a player-issued
+   unlock must NOT clear a DM-issued lock; a DM unlock clears either.
+2. The engine must stay ignorant of auth. It has no session, no roles, and must not gain them —
+   `by` arrives on the event, stamped by whichever tool wrote it. The engine only compares values.
+   That keeps js/engine.js pure and testable with hand-written fixtures.
+3. Trust boundary — state it explicitly in the decision record: a `by:'dm'` stamp written client-side is
+   NOT a security control, since a determined player can edit their own local LOG. It is an
+   accident-prevention affordance. If it must be enforceable, that is a server-side (RLS) question about
+   the cloud `characters` row, not a LOG question — decide which of the two this is BEFORE coding.
+4. Back-compat: every existing creationLocked/creationUnlocked event has no `by`. Treat an unstamped
+   event as player-issued, which reproduces today's symmetric behaviour exactly for every existing
+   character. Say so in a comment.
+5. CharGen's auto-emit (_cgEnsureLockFired) should stamp by:'player' — it fires on the player's own
+   spending. A DM lock needs a control in DM Console, which today has no lock UI at all (grep:
+   creationLocked appears 0 times in tools/DM-Console.html).
+6. Fixture + gate: a player unlock after a DM lock must leave the character locked; after a player lock
+   it must unlock. Assert both, and prove they fail before the fix.
+7. compute() output changes for any log where a player unlock currently clears a DM lock — bump
+   DATA.version and refresh testing/expected/ in the same PR if so.
+```
+**Done when:** a DM-issued `creationLocked` is not cleared by a player-issued `creationUnlocked`, an
+unstamped legacy event still behaves exactly as it does today, the trust boundary is recorded in a
+`D-GH-<date>-dm-creation-lock` record, and a fixture plus gate assert both directions.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
