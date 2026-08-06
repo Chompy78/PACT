@@ -3,7 +3,7 @@
 <!doctype html>
 <!--
 ═══════════════════════════════════════════════════════════════════════════════
- AI SESSION CONTEXT — READ FIRST  (PACT tools · v0.309)
+ AI SESSION CONTEXT — READ FIRST  (PACT tools · v0.339)
  Purpose: a fresh AI session can orient from this block alone, no re-briefing.
  Full detail: see  PACT-CONTEXT.md  (authoritative — archive/ is history, do not act on it)
  Rules source of truth:  PACT-Players-Guide-v0.303.docx
@@ -34,7 +34,7 @@
    RULE: any change to the engine or DATA must be mirrored in the other file.
 
  VERSIONING
-   DATA.version (currently "v0.309") is CANONICAL: stamped onto saved/exported JSON
+   DATA.version (currently "v0.339") is CANONICAL: stamped onto saved/exported JSON
    and compared on import (loadedRules vs RULES) to drive the "frozen prices /
    reprice drift" banner. Keep any cosmetic version label matching DATA.version.
 
@@ -1295,6 +1295,10 @@ function seedNew(){ const c=compute(baseBuild()).total; const ap=DATA.defaultAp;
 // init
 function _lsBoot(){
 RULES=(window.DATA&&window.DATA.version)||RULES;
+// Paint the footer's rules version from the value we just read, so it can never drift again. This was
+// a hardcoded literal and had fallen 30 versions behind (v0.309 vs v0.339) — the same trap CharGen's
+// own comment warns about for its two hardcoded labels.
+try{var _rv=document.getElementById('lsRulesVer'); if(_rv)_rv.textContent=RULES;}catch(e){}
 try{sweepExpiredHandoffs();}catch(e){}   // D-GH38: clear orphaned handoff keys from interrupted switches
 let _lsFromHandoff=false;
 try{_lsFromHandoff=_lsConsumeHandoff();}catch(e){}   // D-GH38: a character arriving from CharGen wins over the local save
@@ -1714,7 +1718,10 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   </ul>
   <h3>Version notes</h3>
   <p>If you import a file built under an older rules version, the sheet warns you and keeps those prices frozen &mdash; future purchases use the current price list.</p>
-  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT v0.309 &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
+  <!-- The rules version is painted from DATA.version in _lsBoot(), the same live read DM Console uses.
+       It was hardcoded until 2026-08-06 and had drifted to v0.309 while the rules were v0.339. The
+       literal below is only what shows if the engine bridge never fires. -->
+  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.339</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
 
 <script type="module">
