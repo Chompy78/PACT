@@ -30,10 +30,6 @@
     .msg.err { color:#f87171; }
     .msg.ok  { color:#4ade80; }
     .hidden { display:none; }
-    .signed { background:#1e293b; border:1px solid #334155; border-radius:.75rem; padding:1.25rem; }
-    .signed a.card { display:block; text-decoration:none; color:inherit; background:#0f172a;
-                     border:1px solid #334155; border-radius:.5rem; padding:.7rem 1rem; margin-top:.6rem; }
-    .signed a.card:hover { border-color:#38bdf8; }
   </style>
 </head>
 <body>
@@ -64,19 +60,12 @@
       <div id="msg" class="msg"></div>
     </div>
 
-    <!-- Signed-in -->
-    <div id="signedView" class="signed hidden">
-      <div id="whoami"></div>
-      <a class="card" href="index.html">Open PACT tools</a>
-      <a class="card" href="tools/PACT-Live-Char-Sheet.html">Live Character Sheet</a>
-      <button id="logoutBtn" class="link">Log out</button>
-    </div>
   </div>
 
   <script type="module">
     import {
-      register, login, forgotPassword, logout,
-      currentUser, onAuthChange, myProfile
+      register, login, forgotPassword,
+      currentUser
     } from './js/auth.js';
     import { PENDING_INVITE_KEY } from './js/campaign.js';
 
@@ -108,26 +97,10 @@
     }
     function msg(text, kind) { const el = $('msg'); el.textContent = text; el.className = 'msg ' + (kind || ''); }
 
-    async function showSignedIn() {
-      $('authView').classList.add('hidden');
-      $('signedView').classList.remove('hidden');
-      let name = '';
-      try { name = (await myProfile())?.display_name || ''; } catch {}
-      // currentUser() was unguarded while myProfile() above it was not. The view has ALREADY switched to
-      // the signed-in panel by this point, so a transient network failure here left that panel showing
-      // with its identity line never filled in -- signed in, apparently, as nobody. The 2026-08-04
-      // usability review caught one such "TypeError: Failed to fetch" on this exact line; the fetch
-      // failure itself was a sandbox artifact, but the missing guard was not.
-      let user = null;
-      try { user = await currentUser(); } catch {}
-      $('whoami').textContent = (name || user?.email)
-        ? 'Signed in as ' + (name || user.email) + '.'
-        : 'Signed in — could not load your account details just now. Reload to retry.';
-    }
-    function showSignedOut() {
-      $('signedView').classList.add('hidden');
-      $('authView').classList.remove('hidden');
-    }
+    // A signed-in visitor has nothing to do on this page — index.html's own header already shows
+    // "Signed in as X · Log out" (see index.html's authBtn wiring). Send them straight there instead of
+    // showing a redundant "you're signed in" panel with its own duplicate tool links / log-out button.
+    function goToIndex() { location.href = 'index.html'; }
 
     $('tabLogin').onclick = () => setMode('login');
     $('tabRegister').onclick = () => setMode('register');
@@ -142,7 +115,7 @@
         if (mode === 'register') {
           await register(email, password, $('displayName').value.trim());
           // If email confirmation is OFF, a session exists immediately.
-          if (await currentUser()) { if (!resumePendingInvite()) await showSignedIn(); }
+          if (await currentUser()) { if (!resumePendingInvite()) goToIndex(); }
           else { msg('Account created — check your email to confirm, then sign in.', 'ok'); setMode('login'); }
         } else {
           await login(email, password);
@@ -150,7 +123,7 @@
           // later boot-time "already signed in" check below -- otherwise a stale token left
           // over from a declined/failed invite (see js/campaign.js PENDING_INVITE_KEY) would
           // hijack any unrelated future visit to this page in the same tab.
-          if (!resumePendingInvite()) await showSignedIn();
+          if (!resumePendingInvite()) goToIndex();
         }
       } catch (err) {
         msg(err.message || String(err), 'err');
@@ -165,8 +138,6 @@
       try { await forgotPassword(email); msg('Reset email sent to ' + email + '.', 'ok'); }
       catch (err) { msg(err.message || String(err), 'err'); }
     };
-
-    $('logoutBtn').onclick = async () => { await logout(); showSignedOut(); };
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/PACT/service-worker.js').then(function (reg) {
@@ -188,9 +159,8 @@
       });
     }
 
-    // Reflect the current session on load and on any auth change.
-    onAuthChange((event) => { if (event === 'SIGNED_OUT') showSignedOut(); });
-    (async () => { if (await currentUser()) showSignedIn(); else showSignedOut(); })();
+    // Already signed in (bookmark, back button, etc.) — nothing to do here either; bounce to index.html.
+    (async () => { if (await currentUser()) goToIndex(); })();
   </script>
 </body>
 </html>
