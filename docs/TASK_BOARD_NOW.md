@@ -67,13 +67,13 @@ tools read); damage likelihood low (parity + tool-pricing gates cover the number
    self-trigger the lock on its own total. That is the whole point of doing this task first.
 5. Gate it in testing/scripts/tool-pricing-ci.mjs: a character with creation AP 79 + 170 awarded must show
    creation pricing for the first 79 and post-lock pricing after, AND still be locked after a reload.
-6. engine-parity must stay 26/0. If compute() output moves, update testing/expected/ and bump DATA.version
+6. engine-parity must stay at 0 failed. If compute() output moves, update testing/expected/ and bump DATA.version
    in the same PR.
 ```
 
 **Done when:** starting AP is split into creation AP and awarded AP, CharGen can set both, its budget
 control is no longer a dropdown, a 5th-level starting character gets creation pricing only for the
-creation-AP portion, the lock survives a reload, and engine-parity still reports 26/0.
+creation-AP portion, the lock survives a reload, and engine-parity still reports 0 failed.
 
 ## Campaign binding is lost on refresh, and on the Live Sheet → CharGen switch — TODO
 Branch `fix/campaign-binding-survives-reload`. Reported by the owner from real use, 2026-08-05: "when the
@@ -139,7 +139,7 @@ the cloud paths cannot run in the dependency-free gate). Not sweep-eligible.
    engine-ready, or re-run it when that event arrives.
 5. Add whatever cover is possible without credentials: the envelope-shape half (does save()'s envelope
    carry campaignId?) is assertable in testing/scripts/tool-pricing-ci.mjs with no sign-in at all.
-6. engine-parity must stay 27/0.
+6. engine-parity must stay at 0 failed.
 ```
 
 **Done when:** refreshing a campaign-bound character keeps its campaign and AP without reloading, the

@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · docs: gate counts replaced with wording that cannot go stale** — `AGENTS.md` (×4),
+  `docs/HOW-TO-WORK.md` (×3) and `testing/README.md` all told agents to expect **26 passed**, and
+  HOW-TO-WORK put tool-pricing at **16**. Measured today: **29** and **67**. A stale pass count is worse
+  than none — it either masks a real failure or sends someone hunting a regression that isn't there.
+  Rather than typing in a seventh copy of a number that moves every time a fixture is added, all of them
+  now say **"expect 0 failed"** and point at `testing/expected/expected-results.csv` as the live baseline.
+  The same treatment applied to the forward-looking `Done when:` lines on the task boards — including
+  five `27/0` I wrote myself earlier today, which had already gone stale within hours, which is the
+  argument for the change in miniature. **Deliberately left alone:** `CHANGELOG`, the changelog archive
+  and `DECISIONS.md` records. *"parity 27/0"* in a decision record is accurate history of what was true
+  when it shipped, not an instruction to anyone.
 - **2026-08-06 · fix(chargen): the creation lock is recorded, so it survives a reload** — owner report:
   *"the higher character generation lock doesn't seem to fire."* It never could. **Both** of the engine's
   lock paths were dead in CharGen: the automatic one (`_spent > threshold`) is suppressed because

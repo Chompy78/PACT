@@ -347,7 +347,7 @@ listed there under "Caveats and follow-ups".
 **Done when:** `grep -rn "pace curve\|PACE curve" --include=*.md --include=*.js --include=*.html .`
 returns no hit that presents the term as current fact outside `docs/history/` and the changelog archive
 (hits inside an explicit correction note are fine and expected), every edited record still contains its
-original wording, and parity still 26/0.
+original wording, and parity still reports 0 failed.
 
 ---
 
@@ -689,7 +689,7 @@ sweep-eligible.
    ask before trimming, refunding, or granting AP to cover the difference.
 5. Gate: after the pass, a corrected character's frozen sum must equal compute().total where the rules
    say it should. Add that assertion to testing/scripts/tool-pricing-ci.mjs rather than checking by hand.
-6. engine-parity must stay 26/0 and DATA.version must not move — this rewrites data, not rules.
+6. engine-parity must stay at 0 failed and DATA.version must not move — this rewrites data, not rules.
 ```
 **Done when:** the inventory table exists and has been reviewed by the owner, the agreed correction has
 been applied to every affected saved character, over-budget outcomes have an owner decision recorded, and
@@ -736,12 +736,12 @@ implementation.
    testing/scripts/tool-pricing-ci.mjs already drives renderLedger() directly (see the three
    drawback-itemisation checks added by PR #364) and is the right place for it.
 5. If compute() output moves, bump DATA.version and refresh testing/expected/ in the same PR; if it does
-   not, say so explicitly rather than leaving it unstated. engine-parity must stay 27/0 either way.
+   not, say so explicitly rather than leaving it unstated. engine-parity must stay at 0 failed either way.
 ```
 **Done when:** the owner's decision from step 1 is recorded as a `D-GH-<date>-ledger-show-lost-purchases`
 record, a character who bought a drawback and then bought it off shows both the purchase and the buy-off
 in the ledger, the categorised lines reconcile with `economy().spent` for that character, a gate asserts
-that identity, and engine-parity still reports 27/0.
+that identity, and engine-parity still reports 0 failed.
 
 ## Tune CharGen's random character generator — TODO
 Branch `feat/randomize-tuning`. `randomizeRoll()` (`tools/PACT-CharGen-Webtool.html:3232`) rolls a
@@ -938,7 +938,7 @@ dependency-free gate cannot sign in). Not sweep-eligible.
 6. Cover what can be covered without credentials: that CG_VIEW_ONLY makes each entry point a no-op is
    assertable in testing/scripts/tool-pricing-ci.mjs with no sign-in. The cloud half will need a manual
    check - say so in the PR rather than implying it was tested.
-7. engine-parity must stay 27/0; no DATA.version change (no rules move).
+7. engine-parity must stay at 0 failed; no DATA.version change (no rules move).
 ```
 
 **Done when:** a DM can open a roster character in CharGen from the DM Console, nothing in that view can
@@ -1154,30 +1154,6 @@ decision record, and the RLS change passes the advisor.
 
 ---
 
-## Gate counts in AGENTS.md and HOW-TO-WORK.md are stale — TODO
-Branch `docs/refresh-gate-counts`. Every agent reads these numbers as the pass bar before running
-anything, so a stale one either masks a real failure or triggers a false hunt for a regression.
-**Effort:** low · **Risk:** low — ambiguity low (run the gate, write down what it says); damage scale low
-(docs only, `git revert` undoes it); damage likelihood low (the numbers are checkable by running the
-command in the same sentence) — all three low. Sweep-eligible.
-
-```text
-1. MEASURED 2026-08-06 on preview: `node testing/scripts/engine-parity-ci.mjs` reports 27 passed / 0
-   failed. Four places still say 26 — AGENTS.md:34, :204, :331, :343 — and two more in
-   docs/HOW-TO-WORK.md:99 and :174.
-2. docs/HOW-TO-WORK.md:118 says tool-pricing is "16 passed / 0 failed". It was already 42 on preview
-   before PR #364 and is 54 after. RE-MEASURE before writing a number; do not copy 54 from this task.
-3. Prefer wording that cannot rot: "run it and expect 0 failed" plus "the current baseline lives in
-   testing/expected/expected-results.csv", rather than a hardcoded pass count repeated in six places.
-   If a number is kept, keep it in ONE place and have the others point at it.
-4. Grep for other stale counts before finishing — testing/README.md, docs/VERSION-SYNC.md, the task
-   board's own "Done when" lines, and .github/workflows/ all mention gates.
-5. Docs-only — no DATA.version bump, no code change. Log in CHANGELOG.
-```
-**Done when:** every gate count in the repo either matches a freshly-run gate or has been replaced by a
-"expect 0 failed" form, `grep -rn "26 passed\|26/0"` returns nothing stale, and engine-parity still
-reports 27/0.
-
 ## CharGen's rules label is hardcoded, and VERSION-SYNC doesn't list the rules mirrors — TODO
 Branch `fix/chargen-rules-label-live`. CharGen's own header comment says *"See the follow-up task to make
 this one live too"* — **that task has never existed on the board** (grep found nothing on 2026-08-06). This
@@ -1222,7 +1198,7 @@ low (the copied assertion catches a wrong wiring) — all three low. Sweep-eligi
 **Done when:** CharGen's `#cgPactver` chip renders `DATA.version` with no hardcoded rules value in the
 render path, a gate asserts it by comparing against `DATA.version` itself and was confirmed red against
 the reverted wiring, `docs/VERSION-SYNC.md` lists every rules-version display site marked live or manual,
-and engine-parity still reports 27/0.
+and engine-parity still reports 0 failed.
 
 ## A DM-applied creation lock a player cannot undo (cloud campaign characters only) — TODO
 Branch `feat/dm-creation-lock`. Owner, 2026-08-06 — *"ideally but not critical"*, and scoped 2026-08-06 to
