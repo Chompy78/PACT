@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(livesheet): buying an extra maneuver goes through the affordability gate** —
+  `buyManeuver()` called `emit()` directly, making it the one purchase path in the tool that skipped
+  `buy()`'s frozen-economy check. Measured on a Fighter with *Combat Superiority* and **0 AP available**:
+  four clicks charged 4, 5, 6 and 7 AP and took the character to **−22**, with no refusal and no warning.
+  Now routed through `buy()`. Pricing needed an escape first — `maneuverBuys` is read only by the ✎ Names
+  dialog's slot count and by no ledger line, so `compute()`'s build diff prices the purchase at 0 and the
+  gate would have been a no-op; `mvbuy` therefore joins `_CTX_PRICERS` quoting its own rung
+  (`4 + maneuverBuys`), the same escape `hd`, `abil` and `unlockclass` already use. The dialog now
+  redraws only when the purchase lands, so a refusal leaves it open showing the flash. Verified: at 0 AP
+  all four clicks are refused with *"Not enough AP: needs 4, have 0"*; at 15 AP the ladder still charges
+  4, 5, 6 and then refuses the 7 with *"needs 7, have 0"*. No engine change, so `DATA.version` unmoved.
 - **2026-08-06 · fix(livesheet): epic boons can be bought again — an expected follow-up is no longer a
   hard block** — owner-confirmed: all 12 `epic:true` boons were unbuyable in the Live Sheet. `MUT.boon`
   pushes the label but cannot set `epicBoonAbil`, so `compute()` on the candidate build always raised

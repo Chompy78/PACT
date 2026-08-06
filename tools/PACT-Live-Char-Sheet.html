@@ -547,6 +547,10 @@ const _CTX_PRICERS={
       return (DATA.unlockCum[start+xc]||0)-(DATA.unlockCum[start]||0);};
     const after=clone(cur);(MUT.unlockclass||function(){})(after,p);
     return rung(after)-rung(cur);},
+  // Extra Battle Master maneuver: an escalating rung (4, 5, 6, …) that compute() never charges for.
+  // `maneuverBuys` only widens the Names dialog's slot count — no ledger line reads it — so a build
+  // diff prices this at 0 and the affordability gate would be a no-op. Its own rung is the price.
+  mvbuy:function(cur){return 4+(cur.maneuverBuys||0);},
   // The two bonds: a flat +2 AP gain, one-way. A build diff would additionally hand back a retroactive
   // discount on already-owned features/spells — the original refund bug these two were escaped for.
   mbound:function(){return -2;},
@@ -1632,7 +1636,11 @@ function toggleMore(e){if(e)e.stopPropagation();var m=document.getElementById('m
 function closeMore(){var m=document.getElementById('moremenu');if(m)m.classList.remove('open');}
 function toggleDM(){var c=document.getElementById('dmcontent'),t=document.getElementById('dmtoggle');if(!c)return;var op=(c.style.display==='none');c.style.display=op?'inline':'none';if(t)t.textContent='🛠 DM tools '+(op?'▾':'▸');}
 function closeNames(){var ov=document.getElementById('namesOv');if(ov)ov.style.display='none';}
-function buyManeuver(){var b=foldBuild(null);emit({type:'buy',cat:'mvbuy',payload:{},cost:4+(b.maneuverBuys||0),label:'Extra Battle Master maneuver'});closeNames();openNames();}
+// Routed through buy() so the frozen-economy affordability gate applies, same as every other purchase.
+// It used to emit() directly, which made it the one unguarded buy path in the tool: a player with 0 AP
+// could keep buying maneuvers indefinitely (measured: 0 → −22 over four clicks at 4/5/6/7 AP).
+// Only redraw the dialog when the purchase actually landed — on a refusal buy() has already flashed why.
+function buyManeuver(){var n=LOG.length;buy('mvbuy',{},'Extra Battle Master maneuver');if(LOG.length>n){closeNames();openNames();}}
 function saveNames(){var dab=[],inn=[[],[],[],[],[],[],[],[],[]],feat={},trMap={},lang=[],fs=[],fsc={},mm=[],mv=[],grants={},eb={},GR=_ownedGrants(foldBuild(null));
   document.querySelectorAll('#namesBox .nmf').forEach(function(e){var p=e.dataset.k.split('::'),v=e.value;
     if(p[0]==='grant'){var _gk=GR[+p[1]]&&GR[+p[1]].key;if(_gk){(grants[_gk]=grants[_gk]||[])[+p[2]]=v;}}

@@ -651,41 +651,6 @@ fix it there alone (that would have traded a shared bug for a new divergence). F
 card and the AP Ledger either agree or are labelled to explain why they differ, both tools read the same
 definition, and Fenwick's numbers are used as the regression fixture.
 
-## buyManeuver() emits without an affordability check — TODO
-Branch `fix/maneuver-afford-gate`. Found while auditing the pricing model
-(`decisions/2026/D-GH-2026-08-05-pricing-model.md`); unrelated to it.
-**Effort:** low · **Risk:** low — ambiguity low (route it through the existing gate, an exact pattern to
-copy); damage scale low (one buy path); damage likelihood low (the guard either fires or it doesn't, and
-it is trivially checkable in a browser) — worst-of lands at low.
-
-**OWNER-CONFIRMED 2026-08-05, and reproduced with numbers.** Note the control is NOT in the buy panel —
-that is why it is hard to find. It lives in the **Names dialog**, under the *"Battle Master maneuvers"*
-heading, and renders only for a character holding **`Fighter: Combat Superiority (maneuvers)`**. Measured
-on a character with **0 AP available**:
-
-| | AP available | costs charged |
-|---|---:|---|
-| before | 0 | — |
-| after four clicks | **−22** | 4, 5, 6, 7 |
-
-It never refuses, never warns, and keeps offering the next rung. Screenshots of the control and the
-resulting ledger were sent to the owner.
-
-```text
-1. tools/PACT-Live-Char-Sheet.html:1497 emits the mvbuy event directly:
-     emit({type:'buy',cat:'mvbuy',payload:{},cost:4+(b.maneuverBuys||0),...})
-   bypassing buy() and therefore the `cost>avail` gate at :537-538.
-2. A player with 0 AP available can buy maneuvers indefinitely — the only unguarded purchase path in
-   the tool. (setWornArmour and takeDrawback also bypass buy(), but are cost 0 and negative-cost
-   respectively, so both are intentionally exempt; leave them alone.)
-3. Fix: route the maneuver purchase through buy(), or replicate the affordability guard at the emit
-   site if buy()'s dup/legality checks don't apply cleanly to this category.
-4. Note the OVER BUDGET warning is deliberately NOT a gate (see the comment at :515) — do not "fix"
-   this by hard-blocking on that warning; the gate is the frozen-economy check in buy().
-```
-**Done when:** buying a maneuver with insufficient AP is refused with the same flash as any other
-purchase, and buying one with sufficient AP still works; engine-parity 26/0.
-
 ## One-off reconciliation pass for characters built before the pricing fixes — TODO
 Branch `fix/ledger-reconciliation-pass`. **Sequence LAST — after all four pricing branches have landed**
 (see `decisions/2026/D-GH-2026-08-05-pricing-model.md`, D6, where the owner decided this on 2026-08-05).
