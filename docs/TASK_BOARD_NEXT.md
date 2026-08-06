@@ -713,6 +713,19 @@ Branch `fix/maneuver-afford-gate`. Found while auditing the pricing model
 copy); damage scale low (one buy path); damage likelihood low (the guard either fires or it doesn't, and
 it is trivially checkable in a browser) — worst-of lands at low.
 
+**OWNER-CONFIRMED 2026-08-05, and reproduced with numbers.** Note the control is NOT in the buy panel —
+that is why it is hard to find. It lives in the **Names dialog**, under the *"Battle Master maneuvers"*
+heading, and renders only for a character holding **`Fighter: Combat Superiority (maneuvers)`**. Measured
+on a character with **0 AP available**:
+
+| | AP available | costs charged |
+|---|---:|---|
+| before | 0 | — |
+| after four clicks | **−22** | 4, 5, 6, 7 |
+
+It never refuses, never warns, and keeps offering the next rung. Screenshots of the control and the
+resulting ledger were sent to the owner.
+
 ```text
 1. tools/PACT-Live-Char-Sheet.html:1497 emits the mvbuy event directly:
      emit({type:'buy',cat:'mvbuy',payload:{},cost:4+(b.maneuverBuys||0),...})
@@ -732,6 +745,8 @@ purchase, and buying one with sufficient AP still works; engine-parity 24/0.
 Branch `fix/epic-boon-first-buy-block`. Found while auditing the pricing model
 (`decisions/2026/D-GH-2026-08-05-pricing-model.md`); unrelated to it. A whole category of boon (12 of
 them, all `epic:true`) currently cannot be bought at all in the Live Sheet.
+**OWNER-CONFIRMED 2026-08-05** — reproduced in the app: an epic boon cannot be bought in the Live Sheet.
+
 **Effort:** low · **Risk:** low — ambiguity low (add the pattern to the existing SOFT_WARN regex, an
 exact pattern to copy); damage scale low (one warning's classification); damage likelihood low —
 worst-of lands at low. Care needed only in not widening SOFT_WARN so far that real violations slip
@@ -799,6 +814,7 @@ only — no AP total moves); damage likelihood low (the parity gate plus an eyeb
 worst-of lands at low.
 
 ```text
+0a. OWNER-CONFIRMED 2026-08-05: the drawback rows do not appear in the ledger.
 0. SCOPE EXTENDED 2026-08-05 (owner): the ledger must also show what was LOST, not just what was taken.
    A bought-off drawback and its buy-off cost currently appear in NO ledger line at all - measured, a
    drawback bought for 2 and bought off for 6 leaves the categorised lines summing to 0 while economy()
