@@ -6,6 +6,21 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · feat(engine): `compute()` prices extra maneuvers — and the pricing escape is deleted**
+  (`DATA.version` **v0.339 → v0.340**) — `repriceDraft()` re-derives every frozen cost as a `compute()`
+  delta, and `compute()` never read `maneuverBuys`, so three maneuvers bought for 4+5+6 were rewritten to
+  **0/0/0 while the maneuvers were kept** — 15 AP silently handed back on a CharGen round-trip, and since
+  every pre-lock character is a draft, that reached all of them. `compute()` now charges the rung already
+  in `DATA.maneuverBuy` (`base + step×n`, so three cost 15) on a new **`Extra maneuvers`** ledger line.
+  The pleasing part: `priceOf()`'s ordinary whole-build diff now returns the right rung on its own
+  (deltas verified 4, 5, 6, 7), so the Live Sheet's `_UNCHARGED_PRICERS` was **deleted, not updated** —
+  the fourth escape `D-GH-2026-08-05-pricing-model` **D1** warned against is gone rather than relocated,
+  which is what D1 meant by *"retired into that rule"*. One number now serves the affordability gate, the
+  ledger and reprice, which previously disagreed by construction. New fixture `EV-016` — no fixture
+  carried `maneuverBuys` at all, so the category had **zero coverage** while the suite read green, the
+  same blind spot that had hidden Grit and Vigor. Parity 27/0 → **28/0**. Supersedes the pricing half of
+  `D-GH-2026-08-06-maneuver-afford-gate`; recorded in
+  `decisions/2026/D-GH-2026-08-06-reprice-preserves-uncharged-costs.md`.
 - **2026-08-06 · fix(chargen): house-rule names and descriptions can no longer inject markup** — a DM's
   custom boon/drawback name and description are user-typed, and `houseRules` rides inside the saved
   `pact-character/1` envelope and the cloud `stats` column — so they render in **another user's** browser.

@@ -13,6 +13,17 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-06-reprice-preserves-uncharged-costs** — **`compute()` now prices `maneuverBuys`**, and the
+  Live Sheet's pricing escape is **deleted rather than kept**. `repriceDraft()` re-derives each frozen cost
+  as a `compute()` delta, and `compute()` never read `maneuverBuys`, so three maneuvers bought for 4+5+6
+  were rewritten to 0/0/0 while the maneuvers were kept — 15 AP handed back on a CharGen round-trip, and
+  every pre-lock character is a draft. Pricing it in the engine fixes that *and* makes `priceOf()`'s
+  ordinary build diff return the right rung by itself (verified: deltas 4, 5, 6, 7), so the fourth escape
+  D-GH-2026-08-05-pricing-model **D1** warned against is gone rather than relocated — which is what D1
+  meant by "retired into that rule". `DATA.version` v0.339 → **v0.340**; cheap only because the app is
+  pre-launch (D-GH37). Supersedes the pricing half of D-GH-2026-08-06-maneuver-afford-gate.
+  Full record: `decisions/2026/D-GH-2026-08-06-reprice-preserves-uncharged-costs.md`.
+
 - **D-GH-2026-08-06-maneuver-afford-gate** — a purchase `compute()` never charges for gets its **own**
   pricing escape, kept separate from `_CTX_PRICERS`, and its price moves into `DATA`. Routing
   `buyManeuver()` through `buy()` was not enough on its own: `compute()` doesn't read `maneuverBuys`, so

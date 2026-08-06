@@ -314,46 +314,6 @@ existing characters' totals are unchanged, a fixture pins it, and engine-parity 
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## repriceDraft() refunds every mvbuy cost — a CharGen round-trip zeroes paid maneuvers — TODO
-Branch `fix/reprice-preserves-uncharged-costs`. Found by adversarial review of PR #364 and reproduced
-directly; **pre-existing**, not introduced there. Recorded as *Outstanding* in
-`decisions/2026/D-GH-2026-08-06-maneuver-afford-gate.md`.
-**Effort:** medium · **Risk:** high — ambiguity high (the durable fix is whether `compute()` should price
-`maneuverBuys` at all, which is a model call only the owner can make and lands in
-`feat/ap-model-reconcile`); damage scale high (touches `compute()` output and/or players' frozen ledgers);
-damage likelihood low (parity + tool-pricing gates catch a wrong implementation) — worst-of lands at high.
-**NOT sweep-eligible.**
-
-```text
-0. REPRODUCED 2026-08-06, exactly this:
-     LOG = award 60, buy Fighter: Combat Superiority, then three mvbuy at cost 4, 5, 6
-     economy(LOG).spent === 15
-     repriceDraft(LOG) -> mvbuy costs become [0,0,0]; economy().spent === 14
-     foldBuild(out).maneuverBuys === 3   <- the maneuvers are KEPT, the AP is handed back
-1. CAUSE: repriceDraft() (js/engine.js, `repriceDraft`) re-derives each buy's frozen `cost` as the
-   compute().total delta across that event. compute() never reads `maneuverBuys` — MUT.mvbuy
-   (js/engine.js:545) is its only appearance in the engine — so the delta is 0 for every mvbuy.
-2. WHY IT BITES: CharGen calls _cgRepriceDraft() from every LOG-mutating path including the LOAD path
-   (_cgApplyEnvelope). Since D-GH40 both tools share one save envelope, so a Live Sheet character that
-   correctly paid 4+5+6 for maneuvers, opened in CharGen and edited once, silently gets 15 AP back and
-   keeps the maneuvers. Only pre-lock drafts are affected — isCreationDraft() gates the repricing —
-   but that is currently EVERY existing character (see fix/ledger-reconciliation-pass step 0).
-3. THE DECISION COMES FIRST. Two shapes:
-   a) Make compute() price maneuverBuys. Fixes the gate, the ledger and repriceDraft together and is
-      the honest model. Costs: changes compute() output -> bump DATA.version, refresh
-      testing/expected/, and decide what happens to characters whose frozen ledgers predate it.
-   b) Make repriceDraft PRESERVE the frozen cost for any category compute() does not price, rather
-      than rewriting it to 0. Narrow and safe, but it entrenches a category the ledger can't explain.
-   Settle this together with feat/ap-model-reconcile — do not answer it twice in two places.
-4. Whichever shape wins, add the invariant to testing/scripts/tool-pricing-ci.mjs: a log containing
-   paid mvbuy events must not lose AP across repriceDraft(). Assert it fails before the fix.
-5. If compute() output moves, bump DATA.version and refresh testing/expected/ in the same PR; if it
-   does not, say so explicitly. engine-parity must stay 27/0 either way.
-```
-**Done when:** the owner's choice from step 3 is recorded as a
-`D-GH-<date>-reprice-preserves-uncharged-costs` record, a log with paid mvbuy events survives
-`repriceDraft()` with its AP intact, a gate asserts that invariant, and engine-parity still reports 27/0.
-
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.

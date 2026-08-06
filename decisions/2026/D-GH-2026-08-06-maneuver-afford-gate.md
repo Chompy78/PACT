@@ -1,6 +1,9 @@
 # D-GH-2026-08-06-maneuver-afford-gate — a purchase `compute()` never charges for needs its own pricing escape, and its price belongs in `DATA`
 
-Status: Active. Shipped 2026-08-06 (PR #364).
+Status: **Superseded in part**, 2026-08-06, by `D-GH-2026-08-06-reprice-preserves-uncharged-costs`.
+The affordability gate and the `DATA.maneuverBuy` key stand. The pricing-escape half does NOT: option B
+below (make `compute()` price `maneuverBuys`) was taken after all, which deleted `_UNCHARGED_PRICERS`
+entirely rather than keeping it. The *Outstanding* section is closed. Originally shipped in PR #364.
 
 ## Context
 
@@ -81,8 +84,9 @@ not introduced here, but this decision is what makes `mvbuy` a properly gated pr
 inconsistency is now worth closing. CharGen reprices a draft on load, so a Live Sheet character opened
 in CharGen and edited silently refunds the AP.
 
-Option **B** above is the real fix and would close it. Until then the gate holds at purchase time and
-only a CharGen round-trip can undo it. Tracked as its own task.
+**CLOSED 2026-08-06** — option B was taken. `compute()` now prices `maneuverBuys`, so `repriceDraft()`
+re-derives 4/5/6 instead of zeroing them, and the escape this record created was deleted. See
+`D-GH-2026-08-06-reprice-preserves-uncharged-costs`.
 
 ## Related
 
