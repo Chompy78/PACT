@@ -347,7 +347,7 @@ listed there under "Caveats and follow-ups".
 **Done when:** `grep -rn "pace curve\|PACE curve" --include=*.md --include=*.js --include=*.html .`
 returns no hit that presents the term as current fact outside `docs/history/` and the changelog archive
 (hits inside an explicit correction note are fine and expected), every edited record still contains its
-original wording, and parity still 26/0.
+original wording, and parity still reports 0 failed.
 
 ---
 
@@ -689,7 +689,7 @@ sweep-eligible.
    ask before trimming, refunding, or granting AP to cover the difference.
 5. Gate: after the pass, a corrected character's frozen sum must equal compute().total where the rules
    say it should. Add that assertion to testing/scripts/tool-pricing-ci.mjs rather than checking by hand.
-6. engine-parity must stay 26/0 and DATA.version must not move — this rewrites data, not rules.
+6. engine-parity must stay at 0 failed and DATA.version must not move — this rewrites data, not rules.
 ```
 **Done when:** the inventory table exists and has been reviewed by the owner, the agreed correction has
 been applied to every affected saved character, over-budget outcomes have an owner decision recorded, and
@@ -736,12 +736,12 @@ implementation.
    testing/scripts/tool-pricing-ci.mjs already drives renderLedger() directly (see the three
    drawback-itemisation checks added by PR #364) and is the right place for it.
 5. If compute() output moves, bump DATA.version and refresh testing/expected/ in the same PR; if it does
-   not, say so explicitly rather than leaving it unstated. engine-parity must stay 27/0 either way.
+   not, say so explicitly rather than leaving it unstated. engine-parity must stay at 0 failed either way.
 ```
 **Done when:** the owner's decision from step 1 is recorded as a `D-GH-<date>-ledger-show-lost-purchases`
 record, a character who bought a drawback and then bought it off shows both the purchase and the buy-off
 in the ledger, the categorised lines reconcile with `economy().spent` for that character, a gate asserts
-that identity, and engine-parity still reports 27/0.
+that identity, and engine-parity still reports 0 failed.
 
 ## Tune CharGen's random character generator — TODO
 Branch `feat/randomize-tuning`. `randomizeRoll()` (`tools/PACT-CharGen-Webtool.html:3232`) rolls a
@@ -938,7 +938,7 @@ dependency-free gate cannot sign in). Not sweep-eligible.
 6. Cover what can be covered without credentials: that CG_VIEW_ONLY makes each entry point a no-op is
    assertable in testing/scripts/tool-pricing-ci.mjs with no sign-in. The cloud half will need a manual
    check - say so in the PR rather than implying it was tested.
-7. engine-parity must stay 27/0; no DATA.version change (no rules move).
+7. engine-parity must stay at 0 failed; no DATA.version change (no rules move).
 ```
 
 **Done when:** a DM can open a roster character in CharGen from the DM Console, nothing in that view can
@@ -1154,30 +1154,6 @@ decision record, and the RLS change passes the advisor.
 
 ---
 
-## Gate counts in AGENTS.md and HOW-TO-WORK.md are stale — TODO
-Branch `docs/refresh-gate-counts`. Every agent reads these numbers as the pass bar before running
-anything, so a stale one either masks a real failure or triggers a false hunt for a regression.
-**Effort:** low · **Risk:** low — ambiguity low (run the gate, write down what it says); damage scale low
-(docs only, `git revert` undoes it); damage likelihood low (the numbers are checkable by running the
-command in the same sentence) — all three low. Sweep-eligible.
-
-```text
-1. MEASURED 2026-08-06 on preview: `node testing/scripts/engine-parity-ci.mjs` reports 27 passed / 0
-   failed. Four places still say 26 — AGENTS.md:34, :204, :331, :343 — and two more in
-   docs/HOW-TO-WORK.md:99 and :174.
-2. docs/HOW-TO-WORK.md:118 says tool-pricing is "16 passed / 0 failed". It was already 42 on preview
-   before PR #364 and is 54 after. RE-MEASURE before writing a number; do not copy 54 from this task.
-3. Prefer wording that cannot rot: "run it and expect 0 failed" plus "the current baseline lives in
-   testing/expected/expected-results.csv", rather than a hardcoded pass count repeated in six places.
-   If a number is kept, keep it in ONE place and have the others point at it.
-4. Grep for other stale counts before finishing — testing/README.md, docs/VERSION-SYNC.md, the task
-   board's own "Done when" lines, and .github/workflows/ all mention gates.
-5. Docs-only — no DATA.version bump, no code change. Log in CHANGELOG.
-```
-**Done when:** every gate count in the repo either matches a freshly-run gate or has been replaced by a
-"expect 0 failed" form, `grep -rn "26 passed\|26/0"` returns nothing stale, and engine-parity still
-reports 27/0.
-
 ## CharGen's rules label is hardcoded, and VERSION-SYNC doesn't list the rules mirrors — TODO
 Branch `fix/chargen-rules-label-live`. CharGen's own header comment says *"See the follow-up task to make
 this one live too"* — **that task has never existed on the board** (grep found nothing on 2026-08-06). This
@@ -1222,7 +1198,101 @@ low (the copied assertion catches a wrong wiring) — all three low. Sweep-eligi
 **Done when:** CharGen's `#cgPactver` chip renders `DATA.version` with no hardcoded rules value in the
 render path, a gate asserts it by comparing against `DATA.version` itself and was confirmed red against
 the reverted wiring, `docs/VERSION-SYNC.md` lists every rules-version display site marked live or manual,
-and engine-parity still reports 27/0.
+and engine-parity still reports 0 failed.
+
+## A DM-applied creation lock a player cannot undo (cloud campaign characters only) — TODO
+Branch `feat/dm-creation-lock`. Owner, 2026-08-06 — *"ideally but not critical"*, and scoped 2026-08-06 to
+**cloud characters that are in a campaign**. That scoping is the whole design, not a detail: a DM lock only
+exists where there is a DM, a campaign only exists in the cloud, and a cloud character's row is
+server-mediated — so this can be **genuinely enforced** rather than merely honoured by the client.
+**Effort:** medium · **Risk:** high — ambiguity medium (the enforcement point is now clear, but the
+detach/export edge cases below are genuine judgement calls); damage scale HIGH (it is an RLS/authorization
+change on the `characters` table, the app's only real security boundary, and a wrong policy either locks
+players out of their own characters or lets them through); damage likelihood medium (the advisor catches
+policy shape, nothing catches intent) — worst-of lands at high. **NOT sweep-eligible.**
+
+```text
+0. READ FIRST: decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md — its Outstanding section
+   is this task. Note its trust-boundary worry is RESOLVED BY THE SCOPING, not by argument: the concern
+   was "a player can edit their own local LOG", which does not apply to a character whose authoritative
+   copy is a server row the player cannot write freely.
+1. THE SERVER IS THE ENFORCEMENT POINT, not the LOG. Per AGENTS.md, RLS is the only real security
+   boundary; a client-written flag is decoration. So the rule belongs in sql/rls-policies.sql:
+   an UPDATE by the character's OWNER must not be able to clear a DM-applied lock while the row's
+   campaign_id is set; the campaign's DM must be able to set and clear it.
+2. Decide WHERE the lock lives on the row before writing any policy. Two shapes:
+   a) a dedicated column (e.g. characters.dm_locked boolean) - trivially checkable in a policy, and
+      independent of the LOG's contents. Preferred: an RLS policy cannot reasonably inspect a JSON LOG.
+   b) inside the stats envelope - keeps everything in one place but makes the policy parse JSON to
+      enforce it, which is fragile and slow. Expect to reject this; say why in the record.
+3. The LOG event is then a MIRROR for display, not the source of truth. The tools still want a
+   creationLocked event so pricing behaves (js/engine.js:749), but the engine must stay ignorant of
+   auth - it compares values, it does not know who a DM is. Stamp provenance on the event for the UI's
+   benefit and say plainly in the record that the event is not what enforces anything.
+4. EDGE CASES that need an owner answer, not a guess:
+   - a DM-locked character is REMOVED from the campaign (campaign_id cleared). Does the lock survive as
+     an ordinary lock, or clear? Both are defensible; pick one and record it.
+   - a player EXPORTS a DM-locked character to a file and re-imports it locally. The local copy has no
+     server row, so nothing enforces it. Is that acceptable (it is now a different, standalone
+     character) or must the export refuse/strip? Note the existing precedent:
+     D-GH-2026-07-11-clone-campaign-character-standalone deliberately severs the campaign on clone.
+   - a character with no campaign_id can never be DM-locked. Confirm the UI never offers it.
+5. DM Console has NO lock UI at all today (grep: creationLocked appears 0 times in tools/DM-Console.html).
+   That is the whole player-facing half of this task.
+6. Back-compat: no existing character has the column/flag, so default it false and every existing
+   character behaves exactly as it does now.
+7. After any RLS/migration change, run the Supabase advisor (get_advisors) and skim get_logs BEFORE
+   opening the PR - AGENTS.md step 4. This project has been bitten twice by grant/RLS drift.
+8. Verification needs a signed-in campaign with a DM and a player account; it cannot be covered by the
+   dependency-free gate. Say in the PR exactly what was exercised by hand.
+```
+**Done when:** a DM can lock a campaign character from DM Console, the owning player cannot clear that
+lock through the app or by a direct row update (verified signed-in, both roles), a character with no
+campaign cannot be DM-locked, the detach and export answers from step 4 are recorded in a
+`D-GH-<date>-dm-creation-lock` record, the Supabase advisor is clean, and engine-parity is unchanged.
+
+## Randomize (and shared links) build in canonical order, not purchase order — TODO
+Branch `feat/randomize-emits-in-order`. Successor to the ordering half of `feat/creation-vs-awarded-ap`,
+after the interactive and undo/redo paths were fixed (2026-08-06, PR #373 and the addendum in
+`decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md`).
+**Effort:** medium · **Risk:** medium — ambiguity medium (mapping ~30 randomizer mutations to event shapes
+is mechanical but each needs the right category and cost, and a wrong one mis-prices a character); damage
+scale medium (one tool, revertable, but it rewrites how a whole character is constructed); damage
+likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers the engine) — medium.
+
+```text
+0. SCOPE — read this before assuming there is more to do than there is. Purchase order is ALREADY correct
+   for the paths that matter, verified 2026-08-06:
+     - interactive building: emit() appends in click order and does NOT tag noLock, so the creation lock
+       lands exactly where cumulative spend crossed the threshold.
+     - native save/load: _cgApplyEnvelope reinstates the saved LOG verbatim (D-GH40), so order survives.
+     - undo/redo: restoreFrame() now reinstates the frame's LOG verbatim too.
+   What is LEFT are the paths where the character arrives whole and no click order ever existed:
+     randomize, the shared "#b=" link, and legacy flat-file import.
+1. Only RANDOMIZE can be fixed honestly. A shared link and a legacy file carry a flat build with no
+   sequence in it - there is nothing to recover, and inventing one would be a lie dressed as data. Decide
+   explicitly whether those two keep today's behaviour (whole build creation-priced, lock appended after)
+   and SAY SO in the record rather than leaving it implied.
+2. randomizeRoll() (~tools/PACT-CharGen-Webtool.html:3407) already HAS a real sequence: it applies ~30
+   mutator lambdas in a random order until the budget is spent. That order is as genuine as a generated
+   character can have. The work is emitting one event per applied mutator instead of mutating a flat
+   build and bursting at the end.
+3. The actual cost is the mapping. Each lambda mutates the build directly - x.skills.push(s),
+   x.stats[a]+=2, x.traditions.push(...) - and each needs the matching event shape and cost
+   ({cat:'skill',payload:{v:s}}, {cat:'abil',payload:{ab:a,to:N}}, ...). Roughly 30 of them. Do not
+   guess a category: check each against MUT in js/engine.js.
+4. PERFORMANCE - measure before and after. emit() calls _cgRepriceDraft(), which replays the whole log;
+   doing that per event across ~50 events is O(n^2). If it is slow, batch the repricing to the end rather
+   than abandoning the ordering.
+5. Gate it in testing/scripts/tool-pricing-ci.mjs: after a randomize that spends past the threshold, the
+   creation lock must sit at the purchase where cumulative spend crossed it, not at the end. Prove the
+   assertion fails against the current burst-based implementation before trusting it.
+6. Display/state only - no compute() change expected, so do NOT bump DATA.version; confirm rather than
+   assume, and keep engine-parity at its current count.
+```
+**Done when:** a randomized character over the creation threshold has its `creationLocked` event at the
+purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
+answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.

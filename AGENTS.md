@@ -31,7 +31,9 @@ is staging and promotes into `main`).
   `/pick-code-task` → `/run-code-task`; for big/risky work draft a plan for cold review first (see Agent guidance below).
 - **Avoid:** re-implementing rules logic anywhere but `engine.js`; patching `undo()` with tool-local state
   instead of LOG replay; bumping `DATA.version` for display-only changes; reading large files wholesale.
-- **Verification expectations:** `testing/tests/engine-parity.html` → **26/0**; if `compute()` output changed,
+- **Verification expectations:** `testing/tests/engine-parity.html` → **0 failed** (the pass count grows as
+  fixtures are added — the live baseline is `testing/expected/expected-results.csv`, never a number typed
+  into a doc); if `compute()` output changed,
   update `testing/expected/` in the same PR and bump `DATA.version`; mirror build/version numbers per
   `docs/VERSION-SYNC.md`.
 
@@ -86,7 +88,20 @@ for one. Frame options wherever a real decision with distinct paths exists, even
 as a choice — don't wait to be asked "what are my options" before surfacing one. Do **not** use this
 format for simple clarification questions, factual confirmations, or requests for missing information —
 regular lists or single-fact answers never use this format. A follow-up decision point gets the next
-letter, not a nested sub-tier. Letters reset each new chat.
+letter, not a nested sub-tier.
+
+**Letters run for the whole session, not per message.** They reset only on a new chat. If A–H are used,
+the next decision is **I** — never restart at A because a message feels like a fresh start. Before
+writing a lettered block, check what the session has already used.
+
+> **The failure this rule keeps hitting, named so it can be caught.** The format gets applied to things
+> *shaped like a question* and dropped from things *shaped like a status report* — the closing "where we
+> are / what's outstanding" summary at the end of a work block, which routinely contains two or three
+> real decisions written as a bare numbered list. **A status summary, a wrap-up, a "still on you" list
+> and a `/close-code-session` action list are all covered by this rule.** If a line in one of them asks
+> the human to choose or approve something, it is an option and it gets a letter. Observed repeatedly on
+> 2026-08-06, including immediately after the human raised it — and in the same session the letters were
+> restarted at A when A–H were already spent, which is what prompted this paragraph.
 
 This applies whether the decision is presented in prose or via the `AskUserQuestion` tool: give every
 option — not only the recommended one — a one-line reason in its `description` field, not a bare label.
@@ -201,7 +216,7 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   `service_role`/secret key** or any private credential.
 - **Target:** modern evergreen browsers on phones and desktops (current Chrome/Edge/Firefox/Safari, incl.
   iOS Safari). Prefer widely-supported JS/CSS; no legacy/IE shims.
-- After any change, `testing/tests/engine-parity.html` must report **26 passed / 0 failed** (how to run it —
+- After any change, `testing/tests/engine-parity.html` must report **0 failed** (how to run it —
   browser or headless — is in `docs/HOW-TO-WORK.md`). Keep `engine.js`'s public API stable if you touch it.
 - **Every player-controlled value that reaches innerHTML/an attribute must pass through `esc()`** (or the
   tool's equivalent escaping helper) before it's rendered — character names, campaign names, free-text
@@ -328,7 +343,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-code-
   `docs/PACT-Players-Guide.html`.
 - **Engine support:** `js/` — `supabase-client.js`, `auth.js`, `sync.js`, `campaign.js`, `dm.js`;
   root — `manifest.json`, `service-worker.js`, `404.html`; `sql/` — `schema.sql`, `rls-policies.sql`, `migrations/`.
-- **Testing:** run `testing/tests/engine-parity.html` (expect **26/0**); fixtures in `testing/fixtures/`,
+- **Testing:** run `testing/tests/engine-parity.html` (expect **0 failed**); fixtures in `testing/fixtures/`,
   expected output in `testing/expected/` (see `testing/README.md`).
 - **Docs:** `docs/TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md` (open work) · `docs/HOW-TO-WORK.md` (app/test mechanics) ·
   `docs/SKILLS.md` (skills + workflow, human-readable) · `docs/sessions/` ·
@@ -340,7 +355,7 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-code-
 ## Per-change checklist
 1. One task, one branch — name it `type/short-slug` (e.g. `feat/…`, `fix/…`, `docs/…`).
 2. Touch `js/engine.js` only if the task targets the engine; else treat its API as fixed.
-3. `testing/tests/engine-parity.html` → **26/0** (run it per `docs/HOW-TO-WORK.md`). If you changed
+3. `testing/tests/engine-parity.html` → **0 failed** (run it per `docs/HOW-TO-WORK.md`). If you changed
    `compute()` output, update `testing/expected/` in the same change and say so.
    For a release-shaped PR (not every doc/small fix), also run the pre-release manual QA checklist in
    `docs/HOW-TO-WORK.md`.

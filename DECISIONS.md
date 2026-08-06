@@ -13,6 +13,44 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-06-creation-lock-survives-reload** — creation ends by being **recorded**, not re-derived.
+  Both of the engine's lock paths were dead in CharGen: the automatic one is suppressed by the burst's
+  blanket `noLock` (which fixes D-GH34 and must stay), and no tool had ever emitted the explicit
+  `creationLocked` the engine calls *"the primary intended trigger"*. Since `_locked` is derived state
+  rebuilt on every replay, nothing survived a reload. `_cgRepriceDraft()` now appends `creationLocked`
+  once spend passes the threshold, mirroring `_replay()`'s own resolution — armed-only, strictly-over,
+  and never against an explicit unlock. Chosen over removing `noLock` (owner, H2): the burst's order is
+  synthetic, so that would put the lock at an arbitrary point in it. Measured on an imported over-budget
+  character — lock is the **last** event, 12 buys before it, 0 after, racial traits still pre-lock. Does
+  **not** deliver per-portion pricing inside an import; that half stays open. No `DATA.version` change.
+  Full record: `decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md`.
+
+- **D-GH-2026-08-06-buyoff-keyed-by-event** — a `buyoff` cancels the specific purchase it targets, not
+  every purchase of that drawback value ever. `activeEvents()`'s `boughtOff` map was keyed by value, so
+  any buyoff for a drawback suppressed every buy of that value forever — a bought-off drawback could
+  never be taken again, silently dropped from the build with no AP and no warning, and the buy panel
+  made retaking it structurally unreachable (a permanently disabled tile whose `onclick` never calls
+  `takeDrawback()`). Resolved by matching each buyoff to the oldest not-yet-cancelled purchase in one
+  forward pass (FIFO by array position) — no `seq` field, no schema change, unlike the task's own
+  suggested fix; existing single-buy/single-buyoff characters are unaffected. `DATA.version` v0.340 →
+  v0.341. **This session's environment had no browser** (no Chromium, `snap install` needs an interactive
+  terminal), so the two Live Sheet UI gate assertions were pushed unexecuted, flagged as such — and CI's
+  first real run caught a genuine bug **in the test**, not the fix: `buyoffDrawback()`'s own
+  affordability gate silently refused every buy-off because the test never funded an `award` event.
+  Fixed and re-verified against the real CI browser.
+  Full record: `decisions/2026/D-GH-2026-08-06-buyoff-keyed-by-event.md`.
+
+- **D-GH-2026-08-06-reprice-preserves-uncharged-costs** — **`compute()` now prices `maneuverBuys`**, and the
+  Live Sheet's pricing escape is **deleted rather than kept**. `repriceDraft()` re-derives each frozen cost
+  as a `compute()` delta, and `compute()` never read `maneuverBuys`, so three maneuvers bought for 4+5+6
+  were rewritten to 0/0/0 while the maneuvers were kept — 15 AP handed back on a CharGen round-trip, and
+  every pre-lock character is a draft. Pricing it in the engine fixes that *and* makes `priceOf()`'s
+  ordinary build diff return the right rung by itself (verified: deltas 4, 5, 6, 7), so the fourth escape
+  D-GH-2026-08-05-pricing-model **D1** warned against is gone rather than relocated — which is what D1
+  meant by "retired into that rule". `DATA.version` v0.339 → **v0.340**; cheap only because the app is
+  pre-launch (D-GH37). Supersedes the pricing half of D-GH-2026-08-06-maneuver-afford-gate.
+  Full record: `decisions/2026/D-GH-2026-08-06-reprice-preserves-uncharged-costs.md`.
+
 - **D-GH-2026-08-06-maneuver-afford-gate** — a purchase `compute()` never charges for gets its **own**
   pricing escape, kept separate from `_CTX_PRICERS`, and its price moves into `DATA`. Routing
   `buyManeuver()` through `buy()` was not enough on its own: `compute()` doesn't read `maneuverBuys`, so

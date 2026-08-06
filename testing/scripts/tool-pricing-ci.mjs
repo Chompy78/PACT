@@ -205,6 +205,26 @@ try {
     window.flash=m=>window.__f.push(String(m));
     LOG.length=0;SEQ=1;REDO.length=0;`;
 
+  // The campaign binding is written into the autosave envelope but load() used to drop it, so every
+  // page refresh detached a campaign-bound character until an async cloud round-trip re-resolved it —
+  // and that round-trip minted a fresh id when none was set, queried a character that had never
+  // existed, and nulled the binding again. The local half needs no sign-in, so it is coverable here.
+  console.log('\nLive Sheet — a campaign binding survives the autosave round-trip');
+  check('save() writes campaignId and load() restores it, with a stable character id',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'award',amount:50,label:'AP award',seq:SEQ++,ts:Date.now()});
+      window._lsCampaignId='camp-test-1'; const idBefore=currentCharId(); save();
+      const stored=JSON.parse(localStorage.getItem(KEY));
+      window._lsCampaignId=null; LOG.length=0; SEQ=1; __charId=null;   // as a fresh boot would
+      load();
+      return [stored.campaignId||null, window._lsCampaignId||null, peekCharId()===idBefore];})()`),
+    ['camp-test-1', 'camp-test-1', true]);
+  // currentCharId() mints on read — right for a genuinely new character, a hazard in a lookup.
+  check('peekCharId() answers "have we an id" without minting one',
+    await ls.evaluate(`(()=>{const keep=__charId; __charId=null;
+      const peeked=peekCharId(); const stillNone=(__charId===null);
+      __charId=keep; return [peeked, stillNone];})()`), [null, true]);
+
   // An epic boon's "choose an ability to raise" prompt is a follow-up, not a rules violation. Before
   // the fix buy() classified it as hard and all 12 epic:true boons were unbuyable.
   console.log('\nLive Sheet — an expected follow-up neither blocks a purchase nor asks to confirm it');
@@ -285,6 +305,39 @@ try {
       const costs=[];for(let i=0;i<4;i++){const n=LOG.length;buyManeuver();if(LOG.length>n)costs.push(LOG[LOG.length-1].cost);}
       return [costs, avail(), window.__f[window.__f.length-1]||''];})()`),
     [[4, 5, 6], 0, 'Not enough AP: needs 7, have 0']);
+
+  // activeEvents() used to key its boughtOff map by drawback VALUE, so any buyoff for a drawback
+  // suppressed EVERY buy of that value forever — including a retake AFTER the buyoff. The retake was
+  // silently dropped from the build, its AP never counted, and the UI made it structurally
+  // unreachable: the buy panel showed a permanently-disabled "Bought off" tile (ibOwned never fires
+  // takeDrawback), and every history row for that value — including the retake's — rendered "dead".
+  console.log('\nLive Sheet — a bought-off drawback can be taken again');
+  // buyoffDrawback() has its own affordability gate (cost=refund*3 > available -> refuse). A drawback
+  // buy alone only earns its own refund (2 AP), well under the 6 AP a buy-off costs, so an award is
+  // required here or buyoffDrawback() silently no-ops and the whole scenario never happens.
+  const DB_SETUP = `${LS_SETUP} const v='Asthmatic';
+    LOG.push({type:'award',amount:60,label:'AP award',seq:SEQ++,ts:Date.now()});`;
+  check('the retake is on the build, earns its AP, and only the FIRST row is dead in the ledger',
+    await ls.evaluate(`(()=>{${DB_SETUP}
+      takeDrawback(v); buyoffDrawback(v); takeDrawback(v);
+      render();
+      const rows=[...document.querySelectorAll('.led tr')].filter(tr=>/Drawback . Asthmatic/.test(tr.innerText||''));
+      return [foldBuild(null).drawbacks.includes(v), economy(null).drawbackEarned,
+              rows.length, rows.map(tr=>/\\bdead\\b/.test(tr.className))];})()`),
+    [true, 2, 2, [true, false]]);
+  check('the buy panel offers a normal, clickable buy — not a permanently-disabled "Bought off" tile',
+    await ls.evaluate(`(()=>{${DB_SETUP}
+      takeDrawback(v); buyoffDrawback(v);   // bought off, NOT retaken — build must not hold it
+      render();
+      setBuyQuery('asthmatic');
+      const t=[...document.querySelectorAll('#buy button.ib')].find(x=>/Asthmatic/.test(x.innerText||''));
+      const before=foldBuild(null).drawbacks.includes(v);
+      const clickable=t?!t.className.includes(' dis'):false;
+      if(t)t.click();
+      const after=foldBuild(null).drawbacks.includes(v);
+      setBuyQuery('');
+      return [before, clickable, after];})()`),
+    [false, true, true]);
   await ls.close();
 
   // ============================ CharGen ============================
@@ -411,6 +464,59 @@ try {
   // _cgApplyEnvelope reinstates the saved LOG verbatim AFTER applyBuild(), discarding the reprice that
   // replaceWholeLogFromBuild had just done — so a loaded file kept its stale ledger until some later,
   // unrelated edit made it jump.
+  // H2 (owner, 2026-08-06): creation ends by RECORDING it. Both lock paths were dead in CharGen — the
+  // automatic one is suppressed by the burst's blanket noLock (which fixes D-GH34 and must stay), and
+  // no tool had ever emitted the explicit creationLocked the engine calls "the primary intended
+  // trigger". So the lock never fired, and being derived state it was gone again after every reload.
+  console.log('\nCharGen — the creation lock is recorded, so it survives a reload');
+  const OVER_THRESHOLD = `LOG.length=0;SEQ=1;_cgEnsureLockArmed();
+    LOG.push({type:'award',amount:600,note:'Budget',label:'Award',seq:SEQ++,ts:1});
+    ['STR','DEX','CON','INT','WIS','CHA'].forEach(a=>LOG.push(
+      {type:'buy',cat:'abil',payload:{ab:a,to:18},cost:0,label:a+' 18',seq:SEQ++,ts:1,level:1}));
+    _cgRepriceDraft();`;
+  check('spending past the threshold appends creationLocked, once, and ends the draft',
+    await cg.evaluate(`(()=>{${OVER_THRESHOLD}
+      const n=()=>LOG.filter(e=>e&&e.type==='creationLocked').length;
+      const first=n(); _cgRepriceDraft(); _cgRepriceDraft();
+      return [_creationLockState().spent>_creationLockState().threshold, first, n(), isCreationDraft(LOG)];})()`),
+    [true, 1, 1, false]);
+  // The whole point: replaying the SAVED log still sees it. Before this the lock was re-derived from
+  // noLock-tagged spend, so it evaluated to false on every fresh boot.
+  check('a fresh replay of the saved log is still locked',
+    await cg.evaluate(`(()=>{const saved=JSON.parse(JSON.stringify(LOG));
+      return [isCreationDraft(saved), saved.some(e=>e.type==='creationLocked')];})()`), [false, true]);
+  // D-GH32: a character that opted out must never auto-lock, however much it spends.
+  check('a disarmed character never auto-locks',
+    await cg.evaluate(`(()=>{LOG.length=0;SEQ=1;
+      LOG.push({type:'creationLockConfig',payload:{auto:false},label:'disarmed',seq:SEQ++,ts:1});
+      LOG.push({type:'award',amount:600,note:'Budget',label:'Award',seq:SEQ++,ts:1});
+      ['STR','DEX','CON','INT','WIS','CHA'].forEach(a=>LOG.push(
+        {type:'buy',cat:'abil',payload:{ab:a,to:18},cost:0,label:a+' 18',seq:SEQ++,ts:1,level:1}));
+      _cgRepriceDraft();
+      return [_creationLockState().armed, LOG.some(e=>e.type==='creationLocked'), isCreationDraft(LOG)];})()`),
+    [false, false, true]);
+  // A DM's explicit unlock must not be undone on the next keystroke by a character already sitting over
+  // the threshold — that is exactly why _explicitUnlocked exists in the engine. Measured without the
+  // guard: [creationLocked, creationUnlocked, creationLocked].
+  check('an explicit unlock is not immediately re-locked',
+    await cg.evaluate(`(()=>{${OVER_THRESHOLD}
+      LOG.push({type:'creationUnlocked',label:'DM unlocked',seq:SEQ++,ts:1});
+      _cgRepriceDraft(); _cgRepriceDraft();
+      return LOG.filter(e=>e&&/^creation(Locked|Unlocked)$/.test(e.type)).map(e=>e.type);})()`),
+    ['creationLocked', 'creationUnlocked']);
+  // D-GH34 must stay fixed: the burst's events keep noLock, so the lock lands AFTER the whole burst
+  // rather than at an arbitrary point in its synthetic serialization order.
+  check('an imported over-budget character locks after the burst, not inside it',
+    await cg.evaluate(`(()=>{const b=_domReadBuild();
+      b.budget=600; b.species='Dwarf'; b.hd=5;
+      b.stats={STR:18,DEX:18,CON:18,INT:16,WIS:16,CHA:14};
+      replaceWholeLogFromBuild(b);
+      const i=LOG.findIndex(e=>e&&e.type==='creationLocked');
+      const buys=LOG.filter(e=>e&&e.type==='buy');
+      return [i>=0, i===LOG.length-1, buys.every(e=>e.noLock===true),
+              LOG.slice(i+1).filter(e=>e&&e.type==='buy').length];})()`),
+    [true, true, true, 0]);
+
   console.log('\nCharGen — loading a saved character reconciles its ledger');
   check('a stale under-recorded ledger reconciles on load, not on the next edit',
     await cg.evaluate(`(()=>{
@@ -452,6 +558,48 @@ try {
   // The ledger renders (r.itemize||{})[lineLabel] generically, so the whole fix is engine-side —
   // and it fails SILENTLY if the addItems() key ever stops matching the ledger line's label exactly.
   // Assert on the rendered DOM rather than on compute() so a label drift is caught here.
+  // epicBoonAbil is set only by the Live Sheet's Names dialog and has no CharGen control, so a build
+  // read from the DOM never carries it. The whole-log rewrite used to drop it silently, leaving the
+  // character with a permanent "choose an ability to raise" warning and no way to clear it.
+  console.log('\nCharGen — an epic boon\'s ability choice survives a whole-log rewrite');
+  check('epicBoonAbil survives load -> DOM rebuild, and the warning clears',
+    await cg.evaluate(`(()=>{
+      const L=[{type:'award',amount:900,label:'AP award',seq:1,ts:1}]; let s=2;
+      for(let h=2;h<=17;h++)L.push({type:'buy',cat:'hd',payload:{to:h},cost:0,label:'lvl',seq:s++,ts:1,level:h-1});
+      L.push({type:'buy',cat:'boon',payload:{v:'Boon of Fate'},cost:25,label:'Boon of Fate',seq:s++,ts:1,level:17});
+      L.push({type:'names',eb:{'Boon of Fate':'STR'},label:'Named spells & languages',seq:s++,ts:1});
+      _cgApplyEnvelope({schema:'pact-character/1',rules:DATA.version,name:'EB',LOG:L,SEQ:s},{clearHistory:true});
+      replaceWholeLogFromBuild(_domReadBuild());
+      const b=foldBuild(LOG);
+      return [(b.epicBoonAbil||{})['Boon of Fate']||null,
+              compute(b).warnings.filter(w=>/choose an ability to raise/.test(w)).length];})()`),
+    ['STR', 0]);
+
+  // A house-rule name and description are user-typed and ride inside the saved envelope and the cloud
+  // `stats` column, so they render in ANOTHER user's browser — this is stored XSS, not a display bug.
+  // AGENTS.md makes esc() on every player-controlled value reaching innerHTML a hard invariant.
+  console.log('\nCharGen — a house-rule name cannot inject markup, and its controls still work');
+  check('an HTML payload in a house-rule name renders as text and executes nothing',
+    await cg.evaluate(`(()=>{window.__pwned=0;
+      const PAY='<img src=x onerror="window.__pwned=1">', NAME='Cursed '+PAY;
+      HOUSE.draws[NAME]={ap:2,fx:'desc '+PAY}; HOUSE.boons[NAME]={hd:1,ap:2,fx:'desc '+PAY};
+      buildDrawGrid(); buildBoonGrid(); buildDmList();
+      return [window.__pwned,
+              document.querySelectorAll('#drawgrid img,#boongrid img,#dmlist img').length,
+              (document.getElementById('drawgrid').innerText||'').includes(PAY)];})()`),
+    [0, 0, true]);
+  // esc() alone would stop the XSS but leave onclick="fn("a"b")" — a syntax error that silently breaks
+  // the control. The handler needs JSON.stringify() underneath it, so assert the button actually works.
+  check('the DM-list controls still parse and fire for a quote-bearing name',
+    await cg.evaluate(`(()=>{const dl=document.getElementById('dmlist');
+      const btn=dl.querySelector('button.dmctl'); let parses=false;
+      try{ new Function(btn.getAttribute('onclick').replace(/dmToggleDisable/,'window.__got=')); parses=true; }catch(e){}
+      const before=/\\boff\\b/.test(dl.querySelector('.dmrow').className);
+      btn.click(); buildDmList();
+      const after=/\\boff\\b/.test(document.querySelector('#dmlist .dmrow').className);
+      return [parses, before!==after];})()`),
+    [true, true]);
+
   console.log('\nCharGen — the drawbacks ledger line itemises what was taken');
   const LEDGER_ROWS = `(sel)=>{const rows=[...document.getElementById('ledger').querySelectorAll('tr')].map(tr=>
       ({cls:tr.className,label:(tr.cells[0]||{}).innerText||'',val:Number((tr.cells[1]||{}).innerText)}));

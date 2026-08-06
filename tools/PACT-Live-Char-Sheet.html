@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.367.html**-->
+<!--**PACT-Live-Char-Sheet v1.376.html**-->
 
 <!doctype html>
 <!--
@@ -426,6 +426,11 @@ let REDO=[];       // popped events for redo
 let SEQ=1;
 let __charId=null;                                   // stable per-character id for hand-typed sheet fields
 function currentCharId(){if(!__charId)__charId=genCharId();return __charId;}
+// Read-only companion: answers "do we have an id yet?" WITHOUT minting one. currentCharId() mints on
+// read, which is load-bearing for genuinely new characters but a hazard in a lookup — asking the
+// server for a freshly-minted id returns nothing, and the tab is then holding a different id than the
+// character it is showing. Use this anywhere the answer feeds a query rather than a write.
+function peekCharId(){return __charId||null;}
 let viewAt=null;   // time-travel: render state as-of this many events (null = head)
 // DM read-only view (?viewChar=<id>, see _lsConsumeViewChar below): true whenever this tab is
 // showing a character it doesn't own, loaded via peekCharacter() (never writes localStorage) rather
@@ -552,26 +557,11 @@ const _CTX_PRICERS={
   mbound:function(){return -2;},
   dbound:function(){return -2;}
 };
-// A SECOND, DISTINCT escape — deliberately not folded into _CTX_PRICERS above, and it must stay that way.
-// Those entries exist because the build diff is WRONG: the purchase changes the pricing context, so the
-// diff drags a re-price of everything already owned into the quote. This one exists for the opposite
-// reason — compute() never charges for the thing at all, so the diff is 0 and any affordability gate
-// built on it is a silent no-op. The distinction is load-bearing: D-GH-2026-08-05-pricing-model D1 plans
-// to retire _CTX_PRICERS into one general context-change rule, and folding an uncharged purchase into
-// that table would quietly restore free maneuvers the day it happens.
-const _UNCHARGED_PRICERS={
-  // Extra Battle Master maneuver: an escalating rung (4, 5, 6, …). `maneuverBuys` only widens the ✎ Names
-  // dialog's slot count; no ledger line reads it. The rung lives in DATA rather than as a literal here —
-  // D1's own finding is that "the escapes exist where the data was missing", and this price had never
-  // been in DATA at all. Falls back to the historical 4/+1 if an older dataset lacks the key.
-  mvbuy:function(cur){const _m=(typeof DATA!=='undefined'&&DATA.maneuverBuy)||{base:4,step:1};
-    return (+_m.base||0)+(+_m.step||0)*(cur.maneuverBuys||0);}
-};
 // price a prospective change: its own listed price for a context change, else a delta against the
 // CURRENT committed build (correct for an ordinary purchase, which changes nothing else's price)
 function priceOf(cat,payload,_cur){
   const cur=_cur||foldBuild(null);   // optional pre-folded build: callers already holding foldBuild(null) (e.g. buy()) pass it to avoid a redundant re-fold; omitted → fresh fold (identical result — the fold is deterministic on the current LOG)
-  const _ctx=_CTX_PRICERS[cat]||_UNCHARGED_PRICERS[cat];
+  const _ctx=_CTX_PRICERS[cat];
   if(_ctx)return _ctx(cur,payload||{});
   const before=compute(cur).total;
   const cand=clone(cur); (MUT[cat]||(()=>{}))(cand,payload);
@@ -654,7 +644,13 @@ function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localS
   // Feed the shared recent-characters store (landing "Continue" list). Best-effort + guarded so it can
   // never break the real save above; window.recordAutosave arrives with the engine bridge (engine-ready).
   try{if(window.recordAutosave)window.recordAutosave({tool:'livesheet',id:currentCharId(),name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ});}catch(e){} }
-function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
+// Restores the campaign BINDING as well as the log. save() has written campaignId into the autosave
+// envelope since PR #312, but load() called _lsResetCloudApState() (which nulls _lsCampaignId) and then
+// never read it back — so every page refresh dropped the binding and could only recover it via the
+// async cloud round-trip in refreshCloudCampaignRules(). That is the owner's "refresh loses the
+// connection to campaign" report. This is the tab's OWN autosave, so adopting its binding is just
+// restoring what this tab already had; it grants no access the server's RLS doesn't already allow.
+function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;if(d.campaignId)window._lsCampaignId=d.campaignId;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
 // Feature-detect Web Share (files) rather than sniffing the user agent — this is the reliable
 // save path on iOS Safari/PWA, where a plain blob+<a download> is known to silently fail (it
 // often just opens the JSON in a new tab instead of saving a file). Falls back to the existing
@@ -950,12 +946,15 @@ function render(){
   $('sheet').innerHTML=sh;
   // --- ledger / history ---
   let led='<table class="led"><tr><th>#</th><th>Event</th><th>AP</th><th></th></tr>';
+  // boff is a Set of INDICES into this same (idx==null?LOG:LOG.slice(0,idx)) array — activeEvents()
+  // resolves cancellation per purchase EVENT, not per drawback value, so a retaken drawback's row is
+  // not "dead" even though an earlier buyoff for the same value exists (D-GH-2026-08-06-buyoff-keyed-by-event).
   const boff=activeEvents(idx).boughtOff;
-  (idx==null?LOG:LOG.slice(0,idx)).forEach(e=>{
+  (idx==null?LOG:LOG.slice(0,idx)).forEach((e,_li)=>{
     if(e&&e.type==='rulesSnapshot')return;   // offline campaign-rules metadata — not an AP-ledger action (still audit-visible in the raw LOG/export)
     let ap='', cls='', act='';
     if(e.type==='award'){ap='+'+e.amount;cls='aw';}
-    else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff[e.payload&&e.payload.v]);
+    else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li));
       ap=(e.cost<0?'+'+(-e.cost):'−'+e.cost); cls=dead?'dead':'';
       if(!dead && e.cat==='drawback') act='<button class="x" onclick="buyoffDrawback(\''+(e.payload.v||'').replace(/'/g,"\\'")+'\')">buy off 3×</button>';
       if((e.warns||[]).length) cls+=' warnrow'; }
@@ -1096,14 +1095,19 @@ function buildBuyPanel(b,r,eco,head){
    }],
    ['Drawbacks (gain AP)',()=>{
      const DRAW_ORDER=['Body','Mind','Social','Magic','Wild & Story','DM custom','Other'];
-     const {boughtOff:_bo}=activeEvents(null);
+     // No "already bought off, can't retake" branch here on purpose. `boughtOff` (from activeEvents())
+     // is per-PURCHASE now, not per-value (D-GH-2026-08-06-buyoff-keyed-by-event) — a drawback that was
+     // bought off and is not currently held is simply not held, and buying it again is a normal,
+     // ordinary take. The old code blocked exactly this via a value-keyed `boughtOff[x]` lookup, which
+     // was the literal UI manifestation of the underlying engine bug: once bought off, the tile went
+     // permanently grey (ibOwned renders a disabled button) and `takeDrawback()` was never reachable
+     // again through the panel, regardless of what the build actually held.
      const avail=DATA.drawbackList.filter(x=>(b.drawbacks.includes(x)||!cloudRuleBarred('draws',x)));
      const byCat={};avail.forEach(x=>{const c=(DATA.drawbackCat&&DATA.drawbackCat[x])||'Other';(byCat[c]=byCat[c]||[]).push(x);});
      const cats=DRAW_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>DRAW_ORDER.indexOf(c)<0).sort());
      return cats.map(c=>{
        const items=byCat[c].slice().sort((a,d)=>a.localeCompare(d));
        const html=items.map(x=>{
-         if(_bo[x])return ibOwned(x,'Bought off (3× cost paid)');
          if(b.drawbacks.includes(x))return ibOwned(x,'Active drawback');
          return db(x);
        }).join('');
@@ -1856,7 +1860,14 @@ document.addEventListener('sync-ready', function () {
     // local-cache-leak. The view-only path already resolves window._dmAp/_rulesStatus/etc. itself.
     if(VIEW_ONLY || !_session || typeof window.currentCharId !== 'function') { renderCloudStatusBadge(); return; }
     try {
-      var rec = await S.loadCharacter(window.currentCharId());
+      // peekCharId, NOT currentCharId: the latter MINTS a fresh random id when none is set, so this
+      // would query for a character that has never existed, get nothing, and fall through to
+      // `_lsCampaignId = null` — wiping the binding load() had just restored from the autosave, which
+      // is the second half of the "refresh loses the campaign" report. No id means no cloud record to
+      // resolve against, so there is nothing to do here.
+      var _cid = (typeof window.peekCharId === 'function') ? window.peekCharId() : window.currentCharId();
+      if(!_cid){ renderCloudStatusBadge(); return; }
+      var rec = await S.loadCharacter(_cid);
       window._dmAp = rec ? (rec.ap || 0) : 0;
       window._ignorePlayerAp = false;
       window._lsCampaignId = (rec && rec.campaign_id) || null;   // binding only — see buildCharacterEnvelope

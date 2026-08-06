@@ -19,62 +19,6 @@ Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page 
 prune, PWA stale-version reload-prompt fix, Live Sheet mobile density/collapse) has landed and graduated
 to `CHANGELOG.md`.
 
-## The creation lock un-fires on every reload — a CharGen character can never stay locked — TODO
-Branch `fix/creation-lock-survives-reload`. Reported by the owner ("the higher character generation lock
-doesn't seem to fire in solo mode"). Measured in a real browser 2026-08-05, fresh solo CharGen character,
-default 79 AP threshold:
-
-| step | `economy().spent` | lock fired? | `noLock` events |
-|---|---:|---|---|
-| fresh boot | 0 | no | 8 of 9 |
-| three stats to 20 | 120 | **yes** | 8 of 11 |
-| HD 9, Vigor 5, Grit 10 | 382 | **yes** | 8 of 13 |
-| **after a reload** | 382 | **NO** | 10 of 11 |
-
-So it is not that the lock never fires — it fires, and then a reload launders it away.
-
-**Cause.** `_buildEventBurst` tags every event it emits `noLock:true` (the `const ev=o=>{…o.noLock=true;…}`
-line in `tools/PACT-CharGen-Webtool.html`), and `_replay` only accumulates the lock's spend counter for
-events *without* that tag (`js/engine.js`: `else if (!e.noLock) _spent += _spendCost(e)`).
-`replaceWholeLogFromBuild()` regenerates the ENTIRE log through that burst on boot / load /
-autosave-restore, so after any reload the lock-relevant spend is ~0 again — while `economy().spent` still
-reports the real figure. The two deliberately disagree, and only one drives the lock.
-
-**Why the tagging exists — do not simply delete it.** D-GH34: a synthetic import burst is a whole finished
-character fabricated in one pass, not an editing history, and a character who legitimately *starts* above
-level 1 can exceed the anchor without creation being over. Blanket-tagging stopped imports self-triggering
-the lock. The defect is that the same mechanism also erases a lock that had genuinely fired.
-
-**This is a retroactive-unlock hole** — the exact hazard D4 guards against
-(`decisions/2026/D-GH-2026-08-05-pricing-model.md`), reached by a different route: not by moving a config
-event, but by re-tagging every purchase on reload. Post-lock prices are meant to be frozen and dearer;
-laundering back to draft makes them cheap again.
-
-**Effort:** medium · **Risk:** high — ambiguity is high (it needs a rules answer about what ends creation
-for a character who legitimately starts at level 5, which is what D-GH34 was protecting); damage scale
-medium (tool/engine interaction, no data loss); damage likelihood medium. Not sweep-eligible.
-
-```text
-1. ANSWERED by the owner 2026-08-05 - see "Split starting AP into creation AP + awarded AP" below, which
-   supersedes the three candidates originally listed here. Creation AP stays the DEFAULT figure and is
-   what the lock measures; anything above it is awarded AP. Build that first: it removes the reason the
-   noLock blanket-tagging exists, so this bug goes away rather than being patched.
-2. Do NOT persist a fired lock as an event as a shortcut - that conflicts with D5, where the automatic
-   lock is deliberately DERIVED and reversible so undo can un-fire it. The split above keeps that intact.
-3. Whatever is chosen, add the reload case to testing/scripts/tool-pricing-ci.mjs: a character taken past
-   its threshold must still read as locked after replaceWholeLogFromBuild() has run. That one assertion
-   is the whole gap.
-4. While here: nothing tells the player the lock HAS fired. The "Creation AP not confirmed" notice clears
-   at exactly that moment (by design), so the only signal is prices quietly getting dearer. Consider a
-   short positive notice - "creation pricing has ended" - so the transition is legible.
-5. engine-parity must stay 26/0. If compute() output moves, update testing/expected/ and bump
-   DATA.version in the same PR.
-```
-
-**Done when:** a character taken past its creation threshold is still locked after a reload, the rules
-answer for above-level-1 starts is recorded under `decisions/2026/`, a gate asserts the reload case, and
-engine-parity still reports 26/0.
-
 ## Split starting AP into creation AP + awarded AP (and fix CharGen's clunky budget entry) — TODO
 Branch `feat/creation-vs-awarded-ap`. Owner's design, 2026-08-05. **Do this before
 `fix/creation-lock-survives-reload`** — it removes that bug's cause instead of patching it.
@@ -123,13 +67,13 @@ tools read); damage likelihood low (parity + tool-pricing gates cover the number
    self-trigger the lock on its own total. That is the whole point of doing this task first.
 5. Gate it in testing/scripts/tool-pricing-ci.mjs: a character with creation AP 79 + 170 awarded must show
    creation pricing for the first 79 and post-lock pricing after, AND still be locked after a reload.
-6. engine-parity must stay 26/0. If compute() output moves, update testing/expected/ and bump DATA.version
+6. engine-parity must stay at 0 failed. If compute() output moves, update testing/expected/ and bump DATA.version
    in the same PR.
 ```
 
 **Done when:** starting AP is split into creation AP and awarded AP, CharGen can set both, its budget
 control is no longer a dropdown, a 5th-level starting character gets creation pricing only for the
-creation-AP portion, the lock survives a reload, and engine-parity still reports 26/0.
+creation-AP portion, the lock survives a reload, and engine-parity still reports 0 failed.
 
 ## Campaign binding is lost on refresh, and on the Live Sheet → CharGen switch — TODO
 Branch `fix/campaign-binding-survives-reload`. Reported by the owner from real use, 2026-08-05: "when the
@@ -195,7 +139,7 @@ the cloud paths cannot run in the dependency-free gate). Not sweep-eligible.
    engine-ready, or re-run it when that event arrives.
 5. Add whatever cover is possible without credentials: the envelope-shape half (does save()'s envelope
    carry campaignId?) is assertable in testing/scripts/tool-pricing-ci.mjs with no sign-in at all.
-6. engine-parity must stay 27/0.
+6. engine-parity must stay at 0 failed.
 ```
 
 **Done when:** refreshing a campaign-bound character keeps its campaign and AP without reloading, the
@@ -256,56 +200,6 @@ means either silent data loss continues or nothing syncs at all). Not sweep-elig
 user is told, a record with no known base value still saves as it does today, and the two-tab case has
 been manually verified with a real session.
 
-## A bought-off drawback can never be taken again — TODO
-Branch `fix/buyoff-keyed-by-event`. Found 2026-08-05 while designing DM edits; **it is a live engine bug
-in its own right and needs no part of that feature.**
-
-`activeEvents()` builds `boughtOff[e.refVal]` keyed by the drawback's **name**, and `_replay()` then skips
-*every* buy of that drawback — including ones that happen AFTER the buy-off. `_economyFrom()` skips its
-AP the same way. Measured:
-
-```
-buy "Asthmatic" (+2 AP) -> buy it off (-6 AP) -> take "Asthmatic" again
-  build has the drawback?  false      <- silently dropped
-  drawbackEarned:          0          <- no AP for it either
-  power level:             0          <- invisible in every number
-```
-
-The second purchase is accepted by the UI, written to the log, and then ignored by the engine. Nothing
-warns. The character simply does not have a drawback they just took.
-
-**Fix: key the suppression to the specific EVENT, not the value.** A buy-off cancels the purchase it was
-issued against (by `seq`), leaving later purchases of the same thing untouched. `refVal` can stay for
-display, but the matching has to be identity-based.
-
-**This shape is about to be repeated.** `feat/dm-edit-events` needs boon removal with the explicit
-requirement that the player can buy the boon back afterwards (owner, 2026-08-05). If that removal is keyed
-by boon name it inherits this exact bug. Fixing the mechanism here first means the boon case gets it right
-for free — so do this one before that one.
-
-**Effort:** medium · **Risk:** high — ambiguity low (event-identity matching is the obvious fix); damage
-scale HIGH (it edits `_replay`/`activeEvents`, the engine's replay core, and changes `compute()` output
-for any character that ever re-took a bought-off drawback); damage likelihood low (the parity gate plus a
-new fixture cover it). Worst-of lands at high. Not sweep-eligible.
-
-```text
-1. Match buy-offs to the purchase they cancel by seq, not by refVal. Check both call sites:
-   activeEvents() builds the map, _replay() and _economyFrom() consume it.
-2. Back-compat: existing logs' buyoff events carry refVal and no target seq. Treat a seq-less buyoff as
-   cancelling the FIRST un-cancelled purchase of that value - that reproduces today's behaviour for every
-   existing character while letting new events be precise. Say so in a comment; a future reader will
-   otherwise "tidy" the fallback away.
-3. New fixture: buy a drawback, buy it off, take it again - assert the second one IS in the build and
-   DOES contribute its AP. Verify by reverting the fix (the fixture must fail).
-4. This changes compute() output for affected logs, so bump DATA.version and refresh testing/expected/
-   in the same PR.
-5. Check the tools' UI too: buyoffDrawback() and CharGen's drawback checkboxes should allow re-taking,
-   and the ledger should show both the original, the buy-off, and the retake as separate rows.
-```
-
-**Done when:** a drawback taken again after being bought off appears in the build and contributes its AP,
-existing characters' totals are unchanged, a fixture pins it, and engine-parity passes at its new count.
-
 ---
 
 > **Format note (2026-07-28):** split from a single `docs/TASK_BOARD.md` into `TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md` by the existing NOW/NEXT/LATER bands — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`. Same rules apply to all three files.
@@ -313,97 +207,6 @@ existing characters' totals are unchanged, a fixture pins it, and engine-parity 
 ---
 
 # 🔴 NOW — high-severity fixes + cleanup
-
-## epicBoonAbil is silently dropped on a CharGen round-trip — TODO
-Branch `fix/chargen-preserve-epicboonabil`. Found while auditing the pricing model
-(`decisions/2026/D-GH-2026-08-05-pricing-model.md`); unrelated to it. Filed NOW because it is silent
-data loss on a supported path, not a display bug.
-**Effort:** low · **Risk:** low — ambiguity low (one obviously-right fix: carry the field through the
-two places that already carry its siblings); damage scale low (one field on one character); damage
-likelihood low (additive, and the parity gate plus a round-trip fixture check it) — worst-of lands at low.
-
-```text
-1. Only the Live Sheet ever SETS epicBoonAbil, via the `names` event (tools/PACT-Live-Char-Sheet.html
-   :1499-1509), applied by MUT.names (js/engine.js:485).
-2. CharGen never reads it: _domReadBuild() has no such field, and CG_NAMES (tools/PACT-CharGen-Webtool
-   .html:2842) is built as {dab,inn,feat,lang,grants,tr} with no `eb`. So the `names` event emitted by
-   _buildEventBurst omits it, and replaceWholeLogFromBuild() rebuilds a log without it.
-3. Net: open a Live-Sheet character with epic boons in CharGen and its ability choices vanish. The
-   character then permanently shows "<boon>: choose an ability to raise (+2)" (js/engine.js:110).
-4. Fix: carry epicBoonAbil through _domReadBuild() and CG_NAMES so a round-trip preserves it. It is a
-   display/entitlement field, not a price — compute() reads it only via the stat bump at :110.
-5. DATA.version does NOT move (no rules or compute() change).
-```
-**Done when:** a Live-Sheet character with epicBoonAbil set is opened in CharGen, saved, reopened in the
-Live Sheet, and still has its ability choices; a fixture covers the round-trip; engine-parity 26/0.
-
-
-## repriceDraft() refunds every mvbuy cost — a CharGen round-trip zeroes paid maneuvers — TODO
-Branch `fix/reprice-preserves-uncharged-costs`. Found by adversarial review of PR #364 and reproduced
-directly; **pre-existing**, not introduced there. Recorded as *Outstanding* in
-`decisions/2026/D-GH-2026-08-06-maneuver-afford-gate.md`.
-**Effort:** medium · **Risk:** high — ambiguity high (the durable fix is whether `compute()` should price
-`maneuverBuys` at all, which is a model call only the owner can make and lands in
-`feat/ap-model-reconcile`); damage scale high (touches `compute()` output and/or players' frozen ledgers);
-damage likelihood low (parity + tool-pricing gates catch a wrong implementation) — worst-of lands at high.
-**NOT sweep-eligible.**
-
-```text
-0. REPRODUCED 2026-08-06, exactly this:
-     LOG = award 60, buy Fighter: Combat Superiority, then three mvbuy at cost 4, 5, 6
-     economy(LOG).spent === 15
-     repriceDraft(LOG) -> mvbuy costs become [0,0,0]; economy().spent === 14
-     foldBuild(out).maneuverBuys === 3   <- the maneuvers are KEPT, the AP is handed back
-1. CAUSE: repriceDraft() (js/engine.js, `repriceDraft`) re-derives each buy's frozen `cost` as the
-   compute().total delta across that event. compute() never reads `maneuverBuys` — MUT.mvbuy
-   (js/engine.js:545) is its only appearance in the engine — so the delta is 0 for every mvbuy.
-2. WHY IT BITES: CharGen calls _cgRepriceDraft() from every LOG-mutating path including the LOAD path
-   (_cgApplyEnvelope). Since D-GH40 both tools share one save envelope, so a Live Sheet character that
-   correctly paid 4+5+6 for maneuvers, opened in CharGen and edited once, silently gets 15 AP back and
-   keeps the maneuvers. Only pre-lock drafts are affected — isCreationDraft() gates the repricing —
-   but that is currently EVERY existing character (see fix/ledger-reconciliation-pass step 0).
-3. THE DECISION COMES FIRST. Two shapes:
-   a) Make compute() price maneuverBuys. Fixes the gate, the ledger and repriceDraft together and is
-      the honest model. Costs: changes compute() output -> bump DATA.version, refresh
-      testing/expected/, and decide what happens to characters whose frozen ledgers predate it.
-   b) Make repriceDraft PRESERVE the frozen cost for any category compute() does not price, rather
-      than rewriting it to 0. Narrow and safe, but it entrenches a category the ledger can't explain.
-   Settle this together with feat/ap-model-reconcile — do not answer it twice in two places.
-4. Whichever shape wins, add the invariant to testing/scripts/tool-pricing-ci.mjs: a log containing
-   paid mvbuy events must not lose AP across repriceDraft(). Assert it fails before the fix.
-5. If compute() output moves, bump DATA.version and refresh testing/expected/ in the same PR; if it
-   does not, say so explicitly. engine-parity must stay 27/0 either way.
-```
-**Done when:** the owner's choice from step 3 is recorded as a
-`D-GH-<date>-reprice-preserves-uncharged-costs` record, a log with paid mvbuy events survives
-`repriceDraft()` with its AP intact, a gate asserts that invariant, and engine-parity still reports 27/0.
-
-## A user-typed house-rule drawback name reaches innerHTML unescaped in CharGen — TODO
-Branch `fix/chargen-houserule-name-escaping`. Found by adversarial review of PR #364; **pre-existing** and
-unrelated to that diff. Breaches AGENTS.md's hard `esc()` invariant (REV-12).
-**Effort:** low · **Risk:** high — damage scale high (a security/trust boundary: `houseRules` travels
-inside the saved `pact-character/1` envelope and the cloud `stats` column, so the string crosses users);
-ambiguity low (wrap it in the tool's existing `esc()`, an exact pattern used everywhere else); damage
-likelihood medium (nothing automated gates escaping today) — worst-of lands at high. **NOT
-sweep-eligible** — security fixes get a human's eyes even when the diff is one call.
-
-```text
-1. tools/PACT-CharGen-Webtool.html — dmAdd() (~:1513) puts an arbitrary user-typed name straight into
-   HOUSE.draws[name]; buildDrawGrid() (~:1507) then interpolates that key raw into innerHTML
-   ('> '+k+'<span class="c">'). Only the value= attribute is quote-escaped, not the visible text.
-2. Confirm the reach before fixing: houseRules is part of the saved envelope (js/character-store.js
-   buildCharacterEnvelope) and therefore of characters.stats, so a DM's house-rule name renders in
-   another signed-in user's browser. That is what makes this stored XSS rather than a display bug.
-3. Fix: route the name through the tool's existing esc() at every render site, not just this one —
-   grep buildDrawGrid and its siblings for other raw interpolations of a HOUSE.* key.
-4. While here, check the same pattern for house-ruled BOONS (HOUSE.boons) — the drawback grid was
-   found by review, the boon grid was not audited.
-5. Display-only — do NOT bump DATA.version; log in CHANGELOG.
-6. Add a gate assertion: a house-rule named with an HTML payload must render as text, not markup.
-   testing/scripts/tool-pricing-ci.mjs already drives CharGen over CDP and is the cheapest home for it.
-```
-**Done when:** a house-rule drawback (and boon) named `<img src=x onerror=alert(1)>` renders as literal
-text in CharGen with no script execution, a gate asserts it, and engine-parity still reports 27/0.
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.

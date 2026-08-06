@@ -45,7 +45,7 @@ import { AP_BY_LEVEL, DEFAULT_LEVEL } from './ap-by-level.js';
 // Per-campaign advancement dials (display/config-only; never read by compute()/_replay()).
 import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advancement.js';
 
-export const BUILD = "v1.367";
+export const BUILD = "v1.376";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -443,6 +443,15 @@ export function compute(b, opts){
     const _bms=bo.minStats||{};for(const [_ba,_bm] of Object.entries(_bms)){if((st[_ba]||10)<_bm) W.push(lab+': boon requires '+_ba+' '+_bm+'+');}
     const _bbmsa=bo.minStatsAny;if(_bbmsa&&_bbmsa.stats){const _banyMet=_bbmsa.stats.some(function(_bba){return (st[_bba]||10)>=_bbmsa.val;});if(!_banyMet)W.push(lab+': boon requires '+_bbmsa.stats.join(' or ')+' '+_bbmsa.val+'+');} }
   add("Boons",boonAP);addItems("Boons",_BI);
+  // Extra Battle Master maneuvers: an escalating rung — base + step*n for the nth extra purchase, so
+  // three cost 4+5+6. Priced HERE as of D-GH-2026-08-06-maneuver-afford-gate (which supersedes its own
+  // first answer) so that the affordability gate, the ledger and repriceDraft() all agree on one number.
+  // Before this, compute() charged nothing for maneuverBuys: the Live Sheet needed a pricing escape for
+  // its gate to work at all, the ledger could not explain the spend, and repriceDraft() rewrote the
+  // frozen cost to 0 while keeping the maneuvers — handing the AP back on a CharGen round-trip.
+  {const _mv=b.maneuverBuys||0;
+   if(_mv>0){const _mb=DATA.maneuverBuy||{base:4,step:1},_mbB=+_mb.base||0,_mbS=+_mb.step||0;
+     add("Extra maneuvers",_mv*_mbB+_mbS*(_mv*(_mv-1)/2));}}
   // v0.086: DM "Tasha" house-rule — bar abilities sourced from Tasha (flagged tasha:true). Default allowed; warns only when explicitly barred.
   {const _da=(b.houseRules&&b.houseRules.dmAllows)||{};
    if(_da.tasha===false){const _tb=(coll,owned)=>{(owned||[]).forEach(k=>{const it=coll[k];if(it&&it.noncore)W.push("⛔ "+(String(k).split(": ")[1]||k)+": non-core (DM-gated) ability barred by DM house rules");});};
@@ -573,8 +582,35 @@ export const MUT = {
 
 export function activeEvents(events) {
   const evs = (Array.isArray(events) ? events : []).filter(Boolean);
-  const boughtOff = {};
-  evs.forEach(e => { if (e.type === 'buyoff') boughtOff[e.refVal] = 1; });
+  // boughtOff: the SET of purchase-event INDICES (position within `evs`) a buyoff has cancelled — not a
+  // per-VALUE flag. The old shape (`{[value]: 1}`) made ANY buyoff for a drawback suppress EVERY buy of
+  // that value forever, including ones taken AFTER the buyoff, so a bought-off drawback could never be
+  // taken again: the retake was silently dropped from the build and its AP never counted. See
+  // D-GH-2026-08-06-buyoff-keyed-by-event.
+  //
+  // Resolved in one forward pass, matching each buyoff to the OLDEST not-yet-cancelled purchase of that
+  // value (FIFO) — no new event field, no schema change. `seq` was considered as the match key instead
+  // of array position, but the engine has no concept of `seq` at all (it's tool-side bookkeeping;
+  // fixtures never carry one) — plain FIFO-by-position needs no identifier and fully covers every case
+  // this bug can construct:
+  //   - one buy + one buyoff (the overwhelming existing case): matches the sole open entry, reproducing
+  //     today's outcome exactly — this is why existing characters' totals are unaffected.
+  //   - buy, buyoff, buy again: the buyoff consumes the first entry while the queue is non-empty; the
+  //     second buy arrives to a now-empty queue and stays open, uncancelled — the fix.
+  //   - two buys then one buyoff: cancels the older of the two, leaving the newer active — a reasonable,
+  //     deterministic default for an edge case the task doesn't require a specific answer to.
+  // Do not "fix" this into a seq lookup without checking the fixtures first — they'd all lack the field.
+  const boughtOff = new Set();
+  const _openDraws = {};   // drawback value -> queue of still-open purchase indices, oldest first
+  evs.forEach((e, i) => {
+    if (e.type === 'buy' && e.cat === 'drawback') {
+      const v = e.payload && e.payload.v;
+      (_openDraws[v] = _openDraws[v] || []).push(i);
+    } else if (e.type === 'buyoff') {
+      const q = _openDraws[e.refVal];
+      if (q && q.length) boughtOff.add(q.shift());
+    }
+  });
   return { evs, boughtOff };
 }
 
@@ -606,13 +642,13 @@ function _spendCost(e) {
 // resolved before the replay is identical to one resolved after it.
 function _economyFrom(evs, boughtOff) {
   let earned = 0, spent = 0, drawbackEarned = 0;
-  for (const e of evs) {
+  evs.forEach((e, i) => {
     if (e.type === 'award') earned += Number(e.amount) || 0;
     else if (e.type === 'buy' && e.cat === 'drawback') {
-      if (!boughtOff[e.payload && e.payload.v]) drawbackEarned += (-(Number(e.cost) || 0));
+      if (!boughtOff.has(i)) drawbackEarned += (-(Number(e.cost) || 0));
     }
     else spent += _spendCost(e);
-  }
+  });
   earned += drawbackEarned;
   // drawbackEarned exposed (D-GH41) so a caller can isolate "raw award total" from "total earned" without
   // re-deriving drawback-bought-off filtering itself — purely additive, existing {earned,spent,available}
@@ -732,7 +768,7 @@ function _replay(b, log, onApplied) {
     if (e.type === 'name') { b.name = e.name; continue; }
     if (e.type === 'names') { MUT.names(b, e); continue; }   // names take the whole event
     if (e.type !== 'buy') continue;                          // award/buyoff affect economy only
-    if (e.cat === 'drawback' && boughtOff[e.payload && e.payload.v]) continue; // bought off: removed
+    if (e.cat === 'drawback' && boughtOff.has(_i)) continue;   // bought off: removed (this specific purchase, not the value)
     if (e.cat === 'racial' && e.payload && e.payload.v)
       (b._raceTraitLocked = b._raceTraitLocked || {})[e.payload.v] = _wasLocked;
     // Stamp each NEW Vigor rank with the tier it was bought at, so compute() can price it at what the

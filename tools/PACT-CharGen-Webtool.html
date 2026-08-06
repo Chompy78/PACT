@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.367.html**-->
+<!--**PACT-CharGen-Webtool v1.376.html**-->
 
 <!doctype html>
 <!--
@@ -35,7 +35,7 @@
  VERSIONING
    DATA.version (currently "v0.339") is CANONICAL: stamped onto saved/exported JSON
    and compared on import to drive the "frozen prices / reprice drift" logic.
-   The <title> and header "Web Tool" label show the cosmetic web-tool build (v1.367);
+   The <title> and header "Web Tool" label show the cosmetic web-tool build (v1.376);
    the "PACT rules" label mirrors DATA.version — but is HARDCODED here (resync it on a
    rules bump), unlike Live Sheet / DM Console, which read DATA.version live at
    engine-ready. See the follow-up task to make this one live too.
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.367 · Rules v0.339</title><style>
+<title>PACT Character Generator — Web Tool v1.376 · Rules v0.339</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -445,7 +445,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.367</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Save this character to the cloud, or load one you saved before" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35)">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.376</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Save this character to the cloud, or load one you saved before" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35)">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
@@ -1462,15 +1462,15 @@ function buildArtGrid(){
       if(!hdOk) tip='Needs '+(+ar.hd||1)+' Hit Dice';
       else if(!statOk) tip='Requires '+statBlock;
       else if(prereq) tip='Prereq: '+prereq+' ✓ (met)';
-      const esc=nm.replace(/"/g,'&quot;');
+      const _nmAttr=esc(nm);   // was `const esc=…`, which shadowed the global esc() helper in this scope
       const prereqBadge=(!blocked&&prereq)?('<span style="font-size:9px;color:#a06000;background:#fff8e1;border:1px solid #e0b000;border-radius:3px;padding:1px 4px;margin-left:4px" title="'+prereq+' is required">'+prereq+'</span>'):'';
       // Boon-identical layout: [checkbox] name [AP] [HD>1?] [prereq?] [description]
       var hdLabel=ar.hd>1?' · <span style="font-size:10px;font-weight:700;color:'+(hdOk?'#888':'#C00000')+'">'+(hdOk?'':'⚠ ')+'HD '+ar.hd+'+</span>':'';
       var prereqLabel=(!blocked&&prereq)?' <span style="font-size:9.5px;color:#a06000" title="'+prereq+'">· '+prereq+'</span>':'';
       var dscSpan='<span class="dsc">'+(ar.fx||'')+'</span>';  // blocked items greyed by CSS :disabled
       return '<label class="ck">'+
-        '<input type="checkbox" class="artck" value="'+esc+'"'+(owned?' checked':'')+'>'+
-        ' '+nm+'<span class="c">'+ar.ap+' AP</span>'+hdLabel+_reqSpan(_reqP.join(', '),!statOk)+prereqLabel+
+        '<input type="checkbox" class="artck" value="'+_nmAttr+'"'+(owned?' checked':'')+'>'+
+        ' '+esc(nm)+'<span class="c">'+ar.ap+' AP</span>'+hdLabel+_reqSpan(_reqP.join(', '),!statOk)+prereqLabel+
         dscSpan+'</label>';
     }).join('');
     html+='</div>';
@@ -1491,8 +1491,8 @@ function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=b
   cats.forEach(c=>byCat[c].sort((a,b)=>((B[a].hd||1)-(B[b].hd||1))||a.localeCompare(b)));   // within a category: by HD requirement, then alphabetical
   let html='';cats.forEach(cat=>{
     html+='<div class="sublab">'+cat+'</div><div class="gridck zebra" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(max(280px,calc((100% - 6px)/4)),1fr));gap:2px">'+byCat[cat].map(k=>{const bo=B[k];var _rp=[],_ru=false;var _ms=bo.minStats||{};for(var _k in _ms){_rp.push(_k+' '+_ms[_k]+'+');if((st[_k]||10)<_ms[_k])_ru=true;}var _msa=bo.minStatsAny;if(_msa&&_msa.stats){_rp.push(_msa.stats.join('/')+' '+_msa.val+'+');if(!_msa.stats.some(function(a){return (st[a]||10)>=_msa.val;}))_ru=true;}
-      return '<label class="ck'+(bo.custom?' hr':'')+'"><input type="checkbox" class="boonck" value="'+k.replace(/"/g,'&quot;')+'"'+(chk.includes(k)?' checked':'')+'> '+k+'<span class="c">'+bo.ap+' AP</span>'+(bo.hd>1?'<span class="req" style="font-size:10px;color:var(--grey)"> · HD '+bo.hd+'+</span>':'')+_reqSpan(_rp.join(', '),_ru)+(bo.custom?'<span class="dmtag">DM</span>':'')+
-        '<span class="dsc">'+(bo.fx||'')+'</span></label>';}).join('')+'</div>';});
+      return '<label class="ck'+(bo.custom?' hr':'')+'"><input type="checkbox" class="boonck" value="'+esc(k)+'"'+(chk.includes(k)?' checked':'')+'> '+esc(k)+'<span class="c">'+bo.ap+' AP</span>'+(bo.hd>1?'<span class="req" style="font-size:10px;color:var(--grey)"> · HD '+bo.hd+'+</span>':'')+_reqSpan(_rp.join(', '),_ru)+(bo.custom?'<span class="dmtag">DM</span>':'')+
+        '<span class="dsc">'+esc(bo.fx||'')+'</span></label>';}).join('')+'</div>';});
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
 function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=_db.drawbacks||[];const q=_bdFilter('drawfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
   const byCat={};Object.keys(D).forEach(k=>{if(isDisabled('draws',k)&&!chk.includes(k))return;
@@ -1504,8 +1504,8 @@ function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild(
   cats.forEach(c=>byCat[c].sort((a,b)=>a.localeCompare(b)));   // within a category: alphabetical
   let html='';cats.forEach(cat=>{
     html+='<div class="sublab">'+cat+'</div><div class="gridck zebra" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(max(280px,calc((100% - 6px)/4)),1fr));gap:2px">'+byCat[cat].map(k=>{const dr=D[k];var _rp=[],_ru=false;var _mx=(DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k])||{};for(var _k in _mx){_rp.push(_k+' ≤ '+_mx[_k]);if((st[_k]||10)>_mx[_k])_ru=true;}
-    return '<label class="ck'+(dr.custom?' hr':'')+'"><input type="checkbox" class="drawck" value="'+k.replace(/"/g,'&quot;')+'"'+(chk.includes(k)?' checked':'')+'> '+k+'<span class="c">+'+dr.ap+' AP</span>'+_reqSpan(_rp.join(', '),_ru)+(dr.custom?'<span class="dmtag">DM</span>':'')+
-      '<span class="dsc">'+(dr.fx||'')+'</span></label>';}).join('')+'</div>';});
+    return '<label class="ck'+(dr.custom?' hr':'')+'"><input type="checkbox" class="drawck" value="'+esc(k)+'"'+(chk.includes(k)?' checked':'')+'> '+esc(k)+'<span class="c">+'+dr.ap+' AP</span>'+_reqSpan(_rp.join(', '),_ru)+(dr.custom?'<span class="dmtag">DM</span>':'')+
+      '<span class="dsc">'+esc(dr.fx||'')+'</span></label>';}).join('')+'</div>';});
   html=html||'<span class="hint">No drawbacks match your filter.</span>';
   g.innerHTML=html;}
 function dmAdd(){const kind=val('dmkind');const name=(val('dmname')||'').trim();if(!name){flash('Enter a name first.');return;}
@@ -1540,9 +1540,14 @@ function dmToggleDisable(kind,name){const dk=kind==='boon'?'boons':'draws';HOUSE
   render();}
 function buildDmList(){const el=$('dmlist');if(!el)return;const rows=[];
   const add=(kind,name,meta)=>{const off=isDisabled(kind==='boon'?'boons':'draws',name);
-    rows.push('<div class="dmrow'+(off?' off':'')+'"><span class="nm">'+name+'</span><span class="meta">'+meta+'</span>'+
-      '<button class="dmctl" type="button" onclick="dmToggleDisable(\''+kind+'\',\''+name.replace(/'/g,"\\\\'")+'\')">'+(off?'enable':'disable')+'</button>'+
-      '<button class="btn x" type="button" onclick="dmRemove(\''+kind+'\',\''+name.replace(/'/g,"\\\\'")+'\')">✕</button></div>');};
+    // A house-rule name is user-typed and rides in the saved envelope, so it crosses users: esc() it
+    // everywhere it reaches the DOM. The handlers need TWO layers, not one — JSON.stringify() escapes
+    // quotes at the JS level, then esc() escapes the result for the attribute. esc() alone stops the
+    // XSS but leaves `onclick="fn("a"b")"`, a syntax error that silently breaks the button for any
+    // name containing a quote.
+    rows.push('<div class="dmrow'+(off?' off':'')+'"><span class="nm">'+esc(name)+'</span><span class="meta">'+esc(meta)+'</span>'+
+      '<button class="dmctl" type="button" onclick="'+esc('dmToggleDisable('+JSON.stringify(kind)+','+JSON.stringify(name)+')')+'">'+(off?'enable':'disable')+'</button>'+
+      '<button class="btn x" type="button" onclick="'+esc('dmRemove('+JSON.stringify(kind)+','+JSON.stringify(name)+')')+'">✕</button></div>');};
   // custom boons/draws
   for(const k in (HOUSE.boons||{}))add('boon',k,'boon · HD '+(HOUSE.boons[k].hd||1)+'+ · '+(HOUSE.boons[k].ap||0)+' AP');
   for(const k in (HOUSE.draws||{}))add('draw',k,'drawback · +'+(HOUSE.draws[k].ap||0)+' AP');
@@ -2081,7 +2086,41 @@ function _cgEnsureLockArmed(){
 // onChecklistToggle() quotes against _domReadBuild() while replacePatchSlot() quotes against
 // foldBuild(LOG), and whenever those two disagree the deltas stopped telescoping. Post-lock they must
 // still agree on their own, which is what fix/livesheet-context-pricing's listed-price rule is for.
-function _cgRepriceDraft(){LOG=repriceDraft(LOG);}
+// H2 (owner, 2026-08-06): creation ends by RECORDING it, not by re-deriving it. CharGen tags every
+// burst event noLock:true so an imported character can't self-trigger the automatic threshold mid-burst
+// (D-GH34) — but that also meant the automatic lock could never fire here at all, and since `_locked` is
+// derived state reset on every replay, a CharGen character was un-locked again by the next page load.
+// Nothing in any tool ever emitted the explicit `creationLocked` event either, though js/engine.js:671
+// calls it "the primary intended trigger". Both paths were dead.
+//
+// So: append the event once total spend passes the threshold. Because it is a LOG entry it survives a
+// reload by construction, and because the burst events stay noLock the lock lands AFTER the burst rather
+// than at an arbitrary point in its synthetic serialization order — D-GH34 stays fixed.
+//
+// Mirrors _replay()'s own resolution exactly (js/engine.js:749-756): creationLocked sets locked and
+// clears the unlock, creationUnlocked sets the unlock, and creationLockConfig re-arms by clearing it.
+// Respecting an explicit unlock matters — otherwise a DM's unlock would be undone on the next keystroke
+// by a character already sitting over the threshold, which is the whole reason _explicitUnlocked exists.
+function _cgEnsureLockFired(){
+  const st=_creationLockState();
+  if(!st.armed)return;                      // never auto-lock a character that isn't armed (D-GH32)
+  if(!(st.spent>st.threshold))return;       // strictly greater, matching the engine's `_spent > _thr`
+  let locked=false,explicitUnlocked=false;
+  for(const e of (LOG||[])){
+    if(!e)continue;
+    if(e.type==='creationLocked'){locked=true;explicitUnlocked=false;}
+    else if(e.type==='creationUnlocked'){locked=false;explicitUnlocked=true;}
+    else if(e.type==='creationLockConfig')explicitUnlocked=false;
+  }
+  if(locked||explicitUnlocked)return;
+  LOG.push({seq:SEQ++,ts:Date.now(),type:'creationLocked',rules:DATA.version,
+    label:'Creation locked — '+st.spent+' AP spent, past the '+st.threshold+' AP creation budget'});
+}
+// Reprice FIRST, then decide: the lock must be judged on reconciled costs, and appending the event makes
+// isCreationDraft() false, which is what correctly stops any further repricing. Both live in here rather
+// than at each call site for the same reason the burst tags noLock uniformly — a future LOG-mutating path
+// cannot forget one.
+function _cgRepriceDraft(){LOG=repriceDraft(LOG);_cgEnsureLockFired();}
 function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);_cgRepriceDraft();render();}
 
 // Creation-AP confirmation (D-GH-2026-08-05-pricing-model, D3) — the Live Sheet carries a byte-equivalent
@@ -2242,6 +2281,11 @@ function replaceWholeLogFromBuild(b,opts){
   // user edit. A character saved in that window would carry no arming event, and the Live Sheet would
   // not add one either (it arms only in seedNew(), which runs on an EMPTY log). SEQ is set first
   // because _cgEnsureLockArmed() consumes one.
+  // epicBoonAbil has no CharGen control, so a build read from the DOM never carries it and the
+  // rewritten log used to drop it: a Live Sheet character with epic boons, opened here and
+  // re-saved, lost its ability choices and kept a permanent "choose an ability to raise" warning.
+  // Recover it from the log we are about to replace and hand it to the burst on the build.
+  try{ if(b&&!b.epicBoonAbil){ var _pv=foldBuild(LOG); if(_pv&&_pv.epicBoonAbil&&Object.keys(_pv.epicBoonAbil).length)b.epicBoonAbil=_pv.epicBoonAbil; } }catch(e){}
   commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);_cgEnsureLockArmed();_cgRepriceDraft();render();
 }
 
@@ -3044,6 +3088,18 @@ function saveNames(){var _dup=_cgNameDupes();if(_dup.length){flash('⛔ “'+_du
   CG_NAMES={dab:dab,inn:inn,feat:feat,lang:lang,grants:grants,tr:Object.keys(trMap).map(function(k){return trMap[k];})};closeNames();flash('Spell & language names saved — they will export with your Live Sheet file.');}
 // ---- bridge: convert the current build into a Live-Sheet event log (frozen per-step prices) ----
 function _buildEventBurst(b){
+  // epicBoonAbil has NO CharGen control — only the Live Sheet's ✎ Names dialog sets it — so
+  // _domReadBuild() cannot see it and the rewritten log used to drop it silently. A Live Sheet
+  // character with epic boons, opened in CharGen and re-saved, came back with its ability choices
+  // gone and a permanent "<boon>: choose an ability to raise (+2)" warning.
+  // Recover it from the log we are about to REPLACE: replaceWholeLogFromBuild() assigns the new LOG
+  // only after this returns, so the global LOG here is still the previous one. Prefer the passed
+  // build if it happens to carry the field (the export path hands over a folded build).
+  // The caller attaches this (see replaceWholeLogFromBuild) — it CANNOT be recovered here. This
+  // function declares its own `let LOG=[]` below, so a bare `LOG` is in that binding's temporal dead
+  // zone, and the top-level `LOG` is a `let` too, so it is not on `window` either. Both were tried.
+  var _cgEB=(b&&b.epicBoonAbil)||null;
+  if(_cgEB&&!Object.keys(_cgEB).length)_cgEB=null;
   // Shared "flat build -> canonically-serialized noLock:true event burst" builder (Phase 2 Step 3,
   // Chunk 0). Originally lived only inside buildToLiveLog() (the CharGen->Live-Sheet export path);
   // factored out here so buildToEventLog() (used by replaceWholeLogFromBuild() for all whole-build-
@@ -3102,7 +3158,10 @@ function _buildEventBurst(b){
   (b.drawbacks||[]).forEach(v=>evItem('Drawback — '+v,'drawback',v, -(DATA.drawbacks[v])));
   emitPatch('Attunement',{attune:b.attune});emitPatch('Ki & Sorcery points',{ki:b.ki,sorcery:b.sorcery});emitPatch('Martially Bound',{martiallyBound:b.martiallyBound});
   emitPatch('Character size',{size:b.size});emitPatch('Starting gold',{gold:b.gold});
-  if(CG_NAMES&&((CG_NAMES.lang&&CG_NAMES.lang.length)||(CG_NAMES.dab&&CG_NAMES.dab.length)||(CG_NAMES.inn&&CG_NAMES.inn.some(function(a){return a&&a.length;}))||(CG_NAMES.tr&&CG_NAMES.tr.length)||(CG_NAMES.grants&&Object.keys(CG_NAMES.grants).length)||(CG_NAMES.feat&&Object.keys(CG_NAMES.feat).length)))ev({type:'names',dab:CG_NAMES.dab||[],inn:CG_NAMES.inn||[[],[],[],[],[],[],[],[],[]],feat:CG_NAMES.feat||{},lang:CG_NAMES.lang||[],grants:CG_NAMES.grants||{},tr:CG_NAMES.tr||[],label:'Named spells & languages'});
+  // A character can carry an epic-boon ability choice with no other named spells/languages, so this
+  // fires on _cgEB alone. Read through a local alias rather than mutating the CG_NAMES global.
+  var _cgN=CG_NAMES||{};
+  if((_cgN.lang&&_cgN.lang.length)||(_cgN.dab&&_cgN.dab.length)||(_cgN.inn&&_cgN.inn.some(function(a){return a&&a.length;}))||(_cgN.tr&&_cgN.tr.length)||(_cgN.grants&&Object.keys(_cgN.grants).length)||(_cgN.feat&&Object.keys(_cgN.feat).length)||_cgEB)ev({type:'names',eb:_cgEB||{},dab:_cgN.dab||[],inn:_cgN.inn||[[],[],[],[],[],[],[],[],[]],feat:_cgN.feat||{},lang:_cgN.lang||[],grants:_cgN.grants||{},tr:_cgN.tr||[],label:'Named spells & languages'});
   return LOG;
 }
 // Phase 2 Step 3 (Chunk 0): the LOG-mutation-API's whole-build-replacement helper. opts is currently

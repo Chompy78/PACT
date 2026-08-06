@@ -10,13 +10,13 @@
   "CG-007": [
     "Expertise in Athletics needs the skill bought first",
     "Weapon masteries need any weapon proficiency first (Simple is enough)",
-    "Second Wind: already bought \u2014 can only be taken once (not a stepped feature)",
-    "\u26d4 Medium armour requires Strength 10 (STR is 8)"
+    "Second Wind: already bought — can only be taken once (not a stepped feature)",
+    "⛔ Medium armour requires Strength 10 (STR is 8)"
   ],
   "CG-008": [],
   "CG-009": [],
   "LS-001": [
-    "You have 2 Ki / Focus points but no Ki-using ability yet \u2014 buy a Ki feature, or refund the points if you won't use them."
+    "You have 2 Ki / Focus points but no Ki-using ability yet — buy a Ki feature, or refund the points if you won't use them."
   ],
   "EV-001": [],
   "EV-002": [],
@@ -34,5 +34,7 @@
   "EV-014": [],
   "CG-010": [],
   "CG-011": [],
-  "EV-015": []
+  "EV-015": [],
+  "EV-016": [],
+  "EV-017": []
 }

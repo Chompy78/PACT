@@ -6,6 +6,148 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · docs(agents): name the failure the A/B/A1/A2 convention keeps hitting, instead of
+  restating the rule** — the owner asked why the lettered-options format keeps getting lost. It isn't
+  lost: `AGENTS.md` is auto-imported every session and the rule was already there. The failure is
+  narrower — the format gets applied to things *shaped like a question* and dropped from things *shaped
+  like a status report*, and a closing "where we are / what's outstanding" summary routinely carries two
+  or three real decisions as a bare numbered list. The section now says explicitly that status summaries,
+  wrap-ups, "still on you" lists and `/close-code-session` action lists are all covered, and that
+  **letters run for the whole session** rather than resetting per message — both failures observed on
+  2026-08-06, the second when the letters restarted at A with A–H already spent. Written as a named
+  trap with the date rather than a louder restatement, on the same reasoning as `H-039` in
+  `ai-lessons-learned`: a preference that keeps slipping needs its trigger made unmissable, not repeated.
+- **2026-08-06 · docs: gate counts replaced with wording that cannot go stale** — `AGENTS.md` (×4),
+  `docs/HOW-TO-WORK.md` (×3) and `testing/README.md` all told agents to expect **26 passed**, and
+  HOW-TO-WORK put tool-pricing at **16**. Measured today: **29** and **67**. A stale pass count is worse
+  than none — it either masks a real failure or sends someone hunting a regression that isn't there.
+  Rather than typing in a seventh copy of a number that moves every time a fixture is added, all of them
+  now say **"expect 0 failed"** and point at `testing/expected/expected-results.csv` as the live baseline.
+  The same treatment applied to the forward-looking `Done when:` lines on the task boards — including
+  five `27/0` I wrote myself earlier today, which had already gone stale within hours, which is the
+  argument for the change in miniature. **Deliberately left alone:** `CHANGELOG`, the changelog archive
+  and `DECISIONS.md` records. *"parity 27/0"* in a decision record is accurate history of what was true
+  when it shipped, not an instruction to anyone.
+- **2026-08-06 · fix(chargen): the creation lock is recorded, so it survives a reload** — owner report:
+  *"the higher character generation lock doesn't seem to fire."* It never could. **Both** of the engine's
+  lock paths were dead in CharGen: the automatic one (`_spent > threshold`) is suppressed because
+  `_buildEventBurst` tags every event `noLock:true`, and the explicit `creationLocked` event — which
+  `js/engine.js:671` calls *"the primary intended trigger"* — **had never been emitted by any tool**;
+  CharGen's only mention of it was inside a comment. And since `_locked` is derived state rebuilt on
+  every `_replay()`, there was nothing to survive a page load even had it fired. `_cgRepriceDraft()` now
+  appends `creationLocked` once `economy(LOG).spent` passes the threshold, mirroring `_replay()`'s own
+  resolution (`js/engine.js:749-756`): armed-only (D-GH32 preserved), strictly-over, once, and never
+  while an explicit unlock is in force. Chosen (owner, H2) over the task board's step 4 of *removing* the
+  blanket `noLock` — that would have reopened **D-GH34**, since the burst's order is synthetic and the
+  lock would land at an arbitrary point inside it. Measured on an imported over-budget character (140 AP
+  against a 79 threshold): the lock is the **last** event, **12** buys precede it and **0** follow, every
+  burst buy still carries `noLock`, and every racial trait is still stamped pre-lock. Gate +5 assertions;
+  the firing, persistence and burst-ordering ones confirmed red against a reverted fire, and the
+  unlock guard against its own revert (which produced `[creationLocked, creationUnlocked,
+  creationLocked]` — a DM's unlock undone on the next keystroke). **Not delivered:** per-portion pricing
+  inside an import (first 79 at creation prices, the rest post-lock) — the burst emits in canonical, not
+  purchase, order, so there is no honest place to draw that line; `feat/creation-vs-awarded-ap` stays
+  open for it. Engine untouched, so `DATA.version` is unmoved. Recorded in
+  `decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md`.
+- **2026-08-06 · fix(login): sign-in now lands back on index.html instead of a redundant "signed in"
+  panel** — `login.html` used to show its own post-auth screen ("Signed in as X.", "Open PACT tools",
+  "Live Character Sheet", "Log out") after a successful sign-in, or when a signed-in visitor loaded the
+  page directly. That panel duplicated `index.html`'s header, which already renders "Signed in as X ·
+  Log out" via `js/auth.js` (`currentSession`/`myProfile`/`logout`). Replaced it with a redirect to
+  `index.html`, checked in the same three places the old panel was shown: after login, after register
+  (when email confirmation is off and a session exists immediately), and on page load for an already
+  signed-in visitor — each still defers to `resumePendingInvite()` first, so the campaign-invite
+  round-trip (CharGen → login.html → CharGen) is unaffected. Removed the now-dead `#signedView` markup/CSS
+  and the `logout`/`myProfile` imports that only it used. Display only; `BUILD`/`DATA.version` unmoved.
+- **2026-08-06 · fix(index): "Continue where you left off" moved into the For players section** — the
+  resume-cards module (`#continueSection`) previously rendered as its own top-level section above the
+  Player's Guide hero; it now nests at the bottom of the existing "For players" `tools-group`, below the
+  three tool cards. Layout/markup-only move — the recent-characters module still finds its elements by id
+  and its icon lookup still matches on tool-card `href`, both unaffected by DOM position. Display only;
+  `BUILD`/`DATA.version` unmoved.
+- **2026-08-06 · fix(livesheet): a refresh keeps the campaign binding, and a lookup no longer mints a
+  character id** — owner report: *"when the page is refreshed, it loses the connection to campaign and I
+  need to reload the character."* **The task board's diagnosis was wrong and is worth correcting:** it
+  blamed `save()` for not passing `campaignId`, but `save()` has carried it since PR #312. The defect is
+  on the **load** side — `load()` calls `_lsResetCloudApState()` (which nulls `_lsCampaignId`) and then
+  restores `LOG`, `SEQ`, `rules` and `__charId` but never `d.campaignId`. The envelope had it all along;
+  the restore threw it away. Now restored — and it is the tab's own autosave, so adopting its binding
+  grants nothing the server's RLS wouldn't. Second half: the async fallback meant to recover the binding
+  called `S.loadCharacter(currentCharId())`, and **`currentCharId()` mints a fresh random id when none is
+  set** — so it queried a character that had never existed, got nothing, and set `_lsCampaignId = null`,
+  wiping the binding again. Added `peekCharId()`, a read-only companion answering *"have we an id yet"*
+  without minting, and the round-trip now bails when there is none. Gate +2 assertions covering the whole
+  local save → wipe → load cycle, both confirmed red against reverts (binding → `null`; peek → mints an
+  id). **Not addressed:** the Live Sheet → CharGen half, which the board flags as an unconfirmed
+  boot-order hypothesis and which needs a signed-in browser to verify — the task stays open for it.
+  Display/state only; `DATA.version` unmoved.
+- **2026-08-06 · fix(engine): a bought-off drawback can be taken again** (`DATA.version` **v0.340 →
+  v0.341**) — `activeEvents()` keyed its `boughtOff` map by drawback **value**, so any buyoff suppressed
+  *every* buy of that value forever, including ones taken **after** the buyoff. Measured (the task's own
+  repro): buy "Asthmatic", buy it off, take it again → build has no Asthmatic, `drawbackEarned:0`. The
+  retake was accepted by the UI and silently ignored by the engine, with no warning. Worse, the Live
+  Sheet's buy panel read the same value-keyed map to decide whether to *offer* a drawback at all, so a
+  bought-off drawback rendered as a permanently disabled *"Bought off (3× cost paid)"* tile whose
+  `onclick` only flashes a message — the retake wasn't just dropped if attempted, the UI made attempting
+  it structurally unreachable. `boughtOff` now resolves per-**purchase**, not per-value: one forward pass
+  matches each buyoff to the oldest not-yet-cancelled purchase of that value (FIFO by array position) —
+  no `seq` field, no schema change, which is a deliberate departure from the task board's own suggested
+  fix (the engine has no concept of `seq`; see `decisions/2026/D-GH-2026-08-06-buyoff-keyed-by-event.md`
+  for why plain ordering covers every case without it). Existing single-buy/single-buyoff characters are
+  unaffected — verified directly. The buy panel's blocking "Bought off" branch is removed outright: once
+  cancellation is per-purchase, a drawback not currently held is simply available to take again. New
+  fixture `EV-017`, mutation-tested by reverting the engine change and confirming it fails (`EV-015`/
+  `EV-016` unaffected by the same revert). **This session's environment had no browser available**, so
+  the two new Live Sheet UI gate assertions were pushed unexecuted, flagged as such in the decision
+  record — and CI's first real run caught a genuine bug **in the test**, not the fix:
+  `buyoffDrawback()`'s own affordability gate silently refused every buy-off because the test never
+  funded an `award` event, so the fix itself was never actually exercised. Fixed and re-verified green
+  against the real CI browser — exactly the failure mode the "not executed locally" flag exists to catch.
+  Graduates the task off `docs/TASK_BOARD_NOW.md`.
+- **2026-08-06 · feat(engine): `compute()` prices extra maneuvers — and the pricing escape is deleted**
+  (`DATA.version` **v0.339 → v0.340**) — `repriceDraft()` re-derives every frozen cost as a `compute()`
+  delta, and `compute()` never read `maneuverBuys`, so three maneuvers bought for 4+5+6 were rewritten to
+  **0/0/0 while the maneuvers were kept** — 15 AP silently handed back on a CharGen round-trip, and since
+  every pre-lock character is a draft, that reached all of them. `compute()` now charges the rung already
+  in `DATA.maneuverBuy` (`base + step×n`, so three cost 15) on a new **`Extra maneuvers`** ledger line.
+  The pleasing part: `priceOf()`'s ordinary whole-build diff now returns the right rung on its own
+  (deltas verified 4, 5, 6, 7), so the Live Sheet's `_UNCHARGED_PRICERS` was **deleted, not updated** —
+  the fourth escape `D-GH-2026-08-05-pricing-model` **D1** warned against is gone rather than relocated,
+  which is what D1 meant by *"retired into that rule"*. One number now serves the affordability gate, the
+  ledger and reprice, which previously disagreed by construction. New fixture `EV-016` — no fixture
+  carried `maneuverBuys` at all, so the category had **zero coverage** while the suite read green, the
+  same blind spot that had hidden Grit and Vigor. Parity 27/0 → **28/0**. Supersedes the pricing half of
+  `D-GH-2026-08-06-maneuver-afford-gate`; recorded in
+  `decisions/2026/D-GH-2026-08-06-reprice-preserves-uncharged-costs.md`.
+- **2026-08-06 · fix(chargen): house-rule names and descriptions can no longer inject markup** — a DM's
+  custom boon/drawback name and description are user-typed, and `houseRules` rides inside the saved
+  `pact-character/1` envelope and the cloud `stats` column — so they render in **another user's** browser.
+  That makes it stored XSS, not a display bug, and AGENTS.md's `esc()` rule a hard invariant (REV-12).
+  Wider than filed: the reported site was `buildDrawGrid`, but the same raw interpolation was in
+  `buildBoonGrid`, in **both** grids' `fx` descriptions, and in `buildDmList`'s visible name — six sites,
+  all now through the shared `esc()` from `js/ui-helpers.js`. The DM-list handlers needed **two** layers:
+  `JSON.stringify()` escapes quotes at the JS level, then `esc()` escapes for the attribute — `esc()`
+  alone stops the injection but leaves `onclick="fn("a"b")"`, a syntax error that silently breaks the
+  disable/remove buttons for any name containing a quote. Also renamed a `const esc = …` local that
+  **shadowed the global `esc()` helper** in `buildArtGrid`'s scope, which is exactly what makes a later
+  `esc()` call throw. Gate +2 assertions; both confirmed red against a real revert (un-escaped name
+  materialises an `<img>`; single-layer handler neither parses nor fires). Note the element-count check
+  is what carries the first assertion — `onerror` timing is unreliable headless, so asserting only on
+  "did script run" would have passed while markup was injecting. Display-only; `DATA.version` unmoved.
+- **2026-08-06 · fix(chargen): an epic boon's ability choice survives a whole-log rewrite** — silent data
+  loss on a supported path: `epicBoonAbil` is set only by the Live Sheet's ✎ Names dialog and has no
+  CharGen control, so `_domReadBuild()` never carried it and `replaceWholeLogFromBuild()` emitted a
+  `names` event without it. A Live Sheet character with epic boons, opened in CharGen and re-saved, came
+  back with its choices gone and a permanent *"&lt;boon&gt;: choose an ability to raise (+2)"* it could not
+  clear. `replaceWholeLogFromBuild()` now recovers the value from the log it is about to replace and
+  hands it to the burst on the build; the `names` event carries `eb`, and its emission guard fires on
+  that alone (a character can have an ability choice and no named spells). **Two wrong fixes preceded the
+  right one, both caught by driving the real tool rather than reasoning:** `_buildEventBurst()` declares
+  its own `let LOG=[]`, so reading `LOG` there hits that binding's temporal dead zone — and the read sat
+  in a `try/catch`, so it failed silently and recovered nothing; the top-level `LOG` is also a `let`, so
+  `window.LOG` is undefined too. The capture has to happen in the caller. Gate +1 assertion, confirmed
+  red against the reverted carry (returns `[null, 1]`). Display/entitlement field only — `DATA.version`
+  unmoved, engine untouched.
 - **2026-08-06 · chore(release): `BUILD` → `v1.367` (PR #367)** — small follow-up promotion of `preview` →
   `main`, immediately after `v1.365`: the Live Sheet rules-version fix plus its board entry. Major carried
   forward at `1`. `BUILD` mirrored from `js/engine.js` into CharGen's line-1 comment, `<title>` and header
