@@ -2078,6 +2078,18 @@ document.addEventListener('sync-ready', function () {
         // not adopting it would migrate again on the next save and strand a second row. Bare
         // assignment: __charId is a top-level `let` (window.__charId= would shadow-fail).
         if(res.id) __charId = res.id;
+        // A conflict is NOT a failure to save — the edit is safely in localStorage and the record stays
+        // dirty, exactly as it would offline. What the player must not do is keep editing a copy that is
+        // already behind, because the next successful push would then overwrite the other device wholesale.
+        if(res.conflict){
+          if(confirm('This character was changed on another device since you loaded it.\n\n'+
+                     'Your edits here are saved on THIS device and have not been sent to the cloud.\n\n'+
+                     'Reload the other device\'s version now? Your local changes to this copy will be lost.')){
+            location.reload(); return;
+          }
+          if(typeof window.flash === 'function') window.flash('⚠ Not sent to cloud — this copy is behind another device');
+          btn.disabled = false; btn.textContent = '☁ Save to cloud'; return;
+        }
         if(res.error) throw res.error;
         if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
       } catch(err){ alert('Save failed: '+err.message); }

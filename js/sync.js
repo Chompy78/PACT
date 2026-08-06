@@ -64,7 +64,9 @@ function lsDeletesRemove(id) {
 /**
  * Save a character. Writes localStorage immediately (offline-safe), then tries
  * to push to Supabase. ap is never sent — it stays whatever the server holds.
- * @returns {Promise<{id:string, synced:boolean, error?:Error}>}
+ * @returns {Promise<{id:string, synced:boolean, conflict?:boolean, error?:Error}>}
+ * `conflict:true` means the server row moved on since this copy was loaded — the local edit is kept
+ * and the record stays dirty; the caller must tell the user rather than retrying blindly.
  */
 export async function saveCharacter({ id, name, kind, stats, campaignId }) {
   id = id || newCharacterId();
@@ -92,6 +94,9 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
     stats: stats ?? prev?.stats ?? {},
     ap: prev?.ap ?? 0,            // display-only mirror of the server value
     updated_at: nowIso(),
+    // Carried forward, never re-stamped locally: it is the server's word, not ours. Absent on records
+    // written before this existed — treated as "unknown" below, which falls back to today's behaviour.
+    base_updated_at: prev?.base_updated_at,
     dirty: true,
   };
   lsSet(rec);
@@ -100,7 +105,7 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
 
   if (!navigator.onLine) return { id, synced: false, migratedFrom };
   try { await pushCharacter(rec); return { id, synced: true, migratedFrom }; }
-  catch (error) { return { id, synced: false, error, migratedFrom }; }   // stays dirty, will retry
+  catch (error) { return { id, synced: false, conflict: !!error.conflict, error, migratedFrom }; }   // stays dirty, will retry
 }
 
 /** The signed-in user's existing character id in this campaign, or null. Best-effort: any failure
@@ -123,12 +128,28 @@ async function _existingIdInCampaign(campaignId) {
 
 /** Push one local record to Supabase. Insert if new, else update the writable
  *  columns only (owner_id/ap are intentionally never sent on update). */
+export class ConflictError extends Error {
+  constructor(id) {
+    super('This character was changed elsewhere since you last loaded it.');
+    this.name = 'ConflictError'; this.conflict = true; this.id = id;
+  }
+}
+
 async function pushCharacter(rec) {
-  const { data: upd, error: updErr } = await supabase
+  // Optimistic concurrency. The whole event log lives in `stats`, so an unguarded update lets the later
+  // writer replace the earlier writer's ENTIRE history — two devices on one character silently destroy
+  // each other. characters.updated_at is maintained by a BEFORE UPDATE trigger, so matching on the last
+  // value the server confirmed is enough; nothing needs writing client-side.
+  //
+  // Only guard when we actually know that value. A record written before base_updated_at existed has
+  // none, and must keep saving exactly as it does today rather than being refused forever.
+  const guarded = rec.base_updated_at != null;
+  let q = supabase
     .from('characters')
     .update({ name: rec.name, kind: rec.kind, stats: rec.stats })
-    .eq('id', rec.id)
-    .select('id, updated_at, ap');
+    .eq('id', rec.id);
+  if (guarded) q = q.eq('updated_at', rec.base_updated_at);
+  const { data: upd, error: updErr } = await q.select('id, updated_at, ap');
   if (updErr) throw updErr;
 
   if (upd && upd.length) {
@@ -136,7 +157,17 @@ async function pushCharacter(rec) {
     return;
   }
 
-  // No row updated -> it doesn't exist yet; insert it.
+  // Zero rows now means one of TWO things, and they must not be conflated: the row does not exist yet
+  // (insert), or it exists and someone else wrote first (conflict). Inserting in the second case would
+  // collide on the primary key. Ask before deciding.
+  if (guarded) {
+    const { data: exists, error: exErr } = await supabase
+      .from('characters').select('id').eq('id', rec.id).maybeSingle();
+    if (exErr) throw exErr;
+    // Leave the record dirty — the local edit is NOT discarded, same as an offline failure.
+    if (exists) throw new ConflictError(rec.id);
+  }
+
   const user = await currentUser();
   if (!user) throw new Error('Not signed in');
   const { data: ins, error: insErr } = await supabase
@@ -149,6 +180,10 @@ async function pushCharacter(rec) {
 
 function applyServerMeta(rec, server) {
   rec.updated_at = server.updated_at;
+  // The last value the SERVER confirmed, kept apart from `updated_at` because saveCharacter() stamps
+  // that with the local clock on every edit. A concurrency guard written against `updated_at` would
+  // therefore never match and every save would look like a conflict — this is the field the guard uses.
+  rec.base_updated_at = server.updated_at;
   rec.ap = server.ap;     // server is authoritative for ap
   rec.dirty = false;
   lsSet(rec);
@@ -222,14 +257,17 @@ async function reconcile(id) {
     if (local) { try { await pushCharacter(local); } catch { /* retry later */ } }
     return;
   }
-  if (!local) { lsSet({ ...server, dirty: false }); return; }
+  // base_updated_at must be stamped whenever we ADOPT a server row, not only after a successful push.
+  // Without it the first save after a fresh load runs unguarded — which is exactly the two-device
+  // case this guard exists for: load on the second device, edit, push, clobber the first.
+  if (!local) { lsSet({ ...server, base_updated_at: server.updated_at, dirty: false }); return; }
 
   const localNewer = local.dirty && isNewerInstant(local.updated_at, server.updated_at);
   if (localNewer) {
     try { await pushCharacter(local); } catch { /* retry later */ }
   } else {
     // Server wins: take its stats AND its ap.
-    lsSet({ ...server, dirty: false });
+    lsSet({ ...server, base_updated_at: server.updated_at, dirty: false });
   }
 }
 

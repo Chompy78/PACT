@@ -6,6 +6,26 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(sync): a cloud save is refused if another device wrote first, instead of silently
+  overwriting it** — `pushCharacter()` used a bare `.update(...).eq('id', …)` with **no concurrency guard
+  at all**, and the entire event log lives in the `stats` blob — so the later writer replaced the earlier
+  writer's whole history. Two devices on one character destroyed each other with no warning. Now guarded
+  on `characters.updated_at`, which a BEFORE UPDATE trigger already maintains server-side, so nothing
+  needs writing client-side. The fiddly part is that the client didn't *keep* the server's value:
+  `saveCharacter()` stamps `updated_at` with the local clock on every edit, so a guard against it would
+  never match and every save would look like a conflict. Added `base_updated_at`, holding the last value
+  the server confirmed, carried across local edits and never re-stamped. **Two holes found in my own fix
+  while auditing:** `reconcile()` adopts a server row with `lsSet({...server})` in two places, neither of
+  which set `base_updated_at` — so the *first* save after a fresh load ran unguarded, which is exactly the
+  two-device case. Both now stamp it. Zero rows updated no longer means one thing: an existence check
+  tells "row not there yet, insert" apart from "someone wrote first, conflict", since inserting in the
+  second case would collide on the primary key. A conflict returns `{synced:false, conflict:true}`, keeps
+  the local edit and leaves the record dirty; the Live Sheet offers a reload, and CharGen's silent
+  keystroke autosave breaks its silence **once** for this one outcome, because unlike an offline blip it
+  will never resolve by retrying. A record with no known base value still saves exactly as it does today.
+  **Not covered by any automated gate — the dependency-free suite cannot reach a signed-in Supabase
+  session, so this needs the two-tab check in the PR before it merges.** No schema change; `DATA.version`
+  unmoved.
 - **2026-08-06 · fix(chargen): the creation lock is recorded, so it survives a reload** — owner report:
   *"the higher character generation lock doesn't seem to fire."* It never could. **Both** of the engine's
   lock paths were dead in CharGen: the automatic one (`_spent > threshold`) is suppressed because

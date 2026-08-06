@@ -3294,11 +3294,20 @@ async function _cgCloudPush(){
     var stats=_cgEnvelope(false);
     var res=await window._syncBridge.saveCharacter({id:currentCharId(),name:stats.name||'Character',kind:'chargen',stats:stats,campaignId:window._cgCampaignId});
     if(res&&res.id)__charId=res.id;   // adopt a migrated pre-UUID id, same as the manual save
+    // A conflict is the one autosave outcome worth breaking the silence for. An offline or transient
+    // failure fixes itself on the next retry; this one never will, and every further keystroke is being
+    // typed into a copy that is already behind another device. Warn ONCE — the whole point of the silence
+    // below is that this runs on every edit.
+    if(res&&res.conflict&&!_cgConflictWarned){
+      _cgConflictWarned=true;
+      if(typeof flash==='function')flash('⚠ Not saved to cloud — this character was changed on another device. Reload to get that version.');
+    }
   }catch(e){ /* deliberately silent: the local autosave already holds the work and sync.js leaves the
                 record dirty for the next retry — a toast on every failed keystroke would be noise */ }
   _cgCloudSaveBusy=false;
   if(_cgCloudSaveAgain){_cgCloudSaveAgain=false;_cgCloudAutosave();}
 }
+var _cgConflictWarned=false;   // one notice per session, not one per keystroke
 function _cgAutosave(){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(_cgEnvelope(false)));}catch(e){}
   try{_cgCloudAutosave();}catch(e){}
   // Feed the shared recent-characters store (landing "Continue" list). Best-effort + guarded so it can
