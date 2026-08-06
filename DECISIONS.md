@@ -13,6 +13,18 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-06-creation-lock-survives-reload** — creation ends by being **recorded**, not re-derived.
+  Both of the engine's lock paths were dead in CharGen: the automatic one is suppressed by the burst's
+  blanket `noLock` (which fixes D-GH34 and must stay), and no tool had ever emitted the explicit
+  `creationLocked` the engine calls *"the primary intended trigger"*. Since `_locked` is derived state
+  rebuilt on every replay, nothing survived a reload. `_cgRepriceDraft()` now appends `creationLocked`
+  once spend passes the threshold, mirroring `_replay()`'s own resolution — armed-only, strictly-over,
+  and never against an explicit unlock. Chosen over removing `noLock` (owner, H2): the burst's order is
+  synthetic, so that would put the lock at an arbitrary point in it. Measured on an imported over-budget
+  character — lock is the **last** event, 12 buys before it, 0 after, racial traits still pre-lock. Does
+  **not** deliver per-portion pricing inside an import; that half stays open. No `DATA.version` change.
+  Full record: `decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md`.
+
 - **D-GH-2026-08-06-buyoff-keyed-by-event** — a `buyoff` cancels the specific purchase it targets, not
   every purchase of that drawback value ever. `activeEvents()`'s `boughtOff` map was keyed by value, so
   any buyoff for a drawback suppressed every buy of that value forever — a bought-off drawback could

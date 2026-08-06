@@ -71,7 +71,11 @@ order, so with the tagging gone the lock would fall at an arbitrary point in tha
 the player actually crossed the threshold — which is the D-GH34 mispricing the tagging was added to
 prevent. Tracked on `fix/creation-lock-survives-reload` and `feat/creation-vs-awarded-ap`.
 
-Until that lands, a CharGen character's lock still does not survive a reload.
+**ANSWERED 2026-08-06**, but not this way — see `D-GH-2026-08-06-creation-lock-survives-reload`. The
+owner chose H2: CharGen *appends a `creationLocked` event* once spend passes the threshold, so the lock
+is recorded rather than re-derived. The blanket `noLock` tagging therefore **stays** — removing it would
+have reopened D-GH34 by putting the lock at an arbitrary point in the burst's synthetic order. A CharGen
+character's lock now survives a reload.
 
 ## Related
 

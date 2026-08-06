@@ -2086,7 +2086,41 @@ function _cgEnsureLockArmed(){
 // onChecklistToggle() quotes against _domReadBuild() while replacePatchSlot() quotes against
 // foldBuild(LOG), and whenever those two disagree the deltas stopped telescoping. Post-lock they must
 // still agree on their own, which is what fix/livesheet-context-pricing's listed-price rule is for.
-function _cgRepriceDraft(){LOG=repriceDraft(LOG);}
+// H2 (owner, 2026-08-06): creation ends by RECORDING it, not by re-deriving it. CharGen tags every
+// burst event noLock:true so an imported character can't self-trigger the automatic threshold mid-burst
+// (D-GH34) — but that also meant the automatic lock could never fire here at all, and since `_locked` is
+// derived state reset on every replay, a CharGen character was un-locked again by the next page load.
+// Nothing in any tool ever emitted the explicit `creationLocked` event either, though js/engine.js:671
+// calls it "the primary intended trigger". Both paths were dead.
+//
+// So: append the event once total spend passes the threshold. Because it is a LOG entry it survives a
+// reload by construction, and because the burst events stay noLock the lock lands AFTER the burst rather
+// than at an arbitrary point in its synthetic serialization order — D-GH34 stays fixed.
+//
+// Mirrors _replay()'s own resolution exactly (js/engine.js:749-756): creationLocked sets locked and
+// clears the unlock, creationUnlocked sets the unlock, and creationLockConfig re-arms by clearing it.
+// Respecting an explicit unlock matters — otherwise a DM's unlock would be undone on the next keystroke
+// by a character already sitting over the threshold, which is the whole reason _explicitUnlocked exists.
+function _cgEnsureLockFired(){
+  const st=_creationLockState();
+  if(!st.armed)return;                      // never auto-lock a character that isn't armed (D-GH32)
+  if(!(st.spent>st.threshold))return;       // strictly greater, matching the engine's `_spent > _thr`
+  let locked=false,explicitUnlocked=false;
+  for(const e of (LOG||[])){
+    if(!e)continue;
+    if(e.type==='creationLocked'){locked=true;explicitUnlocked=false;}
+    else if(e.type==='creationUnlocked'){locked=false;explicitUnlocked=true;}
+    else if(e.type==='creationLockConfig')explicitUnlocked=false;
+  }
+  if(locked||explicitUnlocked)return;
+  LOG.push({seq:SEQ++,ts:Date.now(),type:'creationLocked',rules:DATA.version,
+    label:'Creation locked — '+st.spent+' AP spent, past the '+st.threshold+' AP creation budget'});
+}
+// Reprice FIRST, then decide: the lock must be judged on reconciled costs, and appending the event makes
+// isCreationDraft() false, which is what correctly stops any further repricing. Both live in here rather
+// than at each call site for the same reason the burst tags noLock uniformly — a future LOG-mutating path
+// cannot forget one.
+function _cgRepriceDraft(){LOG=repriceDraft(LOG);_cgEnsureLockFired();}
 function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);_cgRepriceDraft();render();}
 
 // Creation-AP confirmation (D-GH-2026-08-05-pricing-model, D3) — the Live Sheet carries a byte-equivalent
