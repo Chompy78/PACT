@@ -1224,44 +1224,56 @@ render path, a gate asserts it by comparing against `DATA.version` itself and wa
 the reverted wiring, `docs/VERSION-SYNC.md` lists every rules-version display site marked live or manual,
 and engine-parity still reports 27/0.
 
-## A DM-applied creation lock a player cannot undo — TODO
-Branch `feat/dm-creation-lock`. Owner, 2026-08-06 — explicitly *"ideally but not critical"*. Today
-`creationUnlocked` clears **any** `creationLocked` regardless of who issued it, so a DM lock and a player
-lock are indistinguishable to the engine and either can be undone by either.
-**Effort:** medium · **Risk:** medium — ambiguity medium (the event shape is obvious, but "who counts as a
-DM" is campaign/auth state the engine deliberately knows nothing about, so where the check lives is a real
-call); damage scale medium (touches `_replay`'s lock resolution, which prices every purchase after it);
-damage likelihood medium (nothing automated can cover the auth half without credentials) — worst-of lands
-at medium.
+## A DM-applied creation lock a player cannot undo (cloud campaign characters only) — TODO
+Branch `feat/dm-creation-lock`. Owner, 2026-08-06 — *"ideally but not critical"*, and scoped 2026-08-06 to
+**cloud characters that are in a campaign**. That scoping is the whole design, not a detail: a DM lock only
+exists where there is a DM, a campaign only exists in the cloud, and a cloud character's row is
+server-mediated — so this can be **genuinely enforced** rather than merely honoured by the client.
+**Effort:** medium · **Risk:** high — ambiguity medium (the enforcement point is now clear, but the
+detach/export edge cases below are genuine judgement calls); damage scale HIGH (it is an RLS/authorization
+change on the `characters` table, the app's only real security boundary, and a wrong policy either locks
+players out of their own characters or lets them through); damage likelihood medium (the advisor catches
+policy shape, nothing catches intent) — worst-of lands at high. **NOT sweep-eligible.**
 
 ```text
-0. CONTEXT. Read decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md first — its Outstanding
-   section is this task, and it explains why the lock is recorded as an event rather than re-derived.
-1. THE CRUX is not the lock, it is provenance. js/engine.js:749-756 resolves creationLocked /
-   creationUnlocked in LOG order, last-write-wins, with no notion of an author. Give the event an
-   authored field (e.g. `by:'dm'` vs `by:'player'`) and make the rule asymmetric: a player-issued
-   unlock must NOT clear a DM-issued lock; a DM unlock clears either.
-2. The engine must stay ignorant of auth. It has no session, no roles, and must not gain them —
-   `by` arrives on the event, stamped by whichever tool wrote it. The engine only compares values.
-   That keeps js/engine.js pure and testable with hand-written fixtures.
-3. Trust boundary — state it explicitly in the decision record: a `by:'dm'` stamp written client-side is
-   NOT a security control, since a determined player can edit their own local LOG. It is an
-   accident-prevention affordance. If it must be enforceable, that is a server-side (RLS) question about
-   the cloud `characters` row, not a LOG question — decide which of the two this is BEFORE coding.
-4. Back-compat: every existing creationLocked/creationUnlocked event has no `by`. Treat an unstamped
-   event as player-issued, which reproduces today's symmetric behaviour exactly for every existing
-   character. Say so in a comment.
-5. CharGen's auto-emit (_cgEnsureLockFired) should stamp by:'player' — it fires on the player's own
-   spending. A DM lock needs a control in DM Console, which today has no lock UI at all (grep:
-   creationLocked appears 0 times in tools/DM-Console.html).
-6. Fixture + gate: a player unlock after a DM lock must leave the character locked; after a player lock
-   it must unlock. Assert both, and prove they fail before the fix.
-7. compute() output changes for any log where a player unlock currently clears a DM lock — bump
-   DATA.version and refresh testing/expected/ in the same PR if so.
+0. READ FIRST: decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md — its Outstanding section
+   is this task. Note its trust-boundary worry is RESOLVED BY THE SCOPING, not by argument: the concern
+   was "a player can edit their own local LOG", which does not apply to a character whose authoritative
+   copy is a server row the player cannot write freely.
+1. THE SERVER IS THE ENFORCEMENT POINT, not the LOG. Per AGENTS.md, RLS is the only real security
+   boundary; a client-written flag is decoration. So the rule belongs in sql/rls-policies.sql:
+   an UPDATE by the character's OWNER must not be able to clear a DM-applied lock while the row's
+   campaign_id is set; the campaign's DM must be able to set and clear it.
+2. Decide WHERE the lock lives on the row before writing any policy. Two shapes:
+   a) a dedicated column (e.g. characters.dm_locked boolean) - trivially checkable in a policy, and
+      independent of the LOG's contents. Preferred: an RLS policy cannot reasonably inspect a JSON LOG.
+   b) inside the stats envelope - keeps everything in one place but makes the policy parse JSON to
+      enforce it, which is fragile and slow. Expect to reject this; say why in the record.
+3. The LOG event is then a MIRROR for display, not the source of truth. The tools still want a
+   creationLocked event so pricing behaves (js/engine.js:749), but the engine must stay ignorant of
+   auth - it compares values, it does not know who a DM is. Stamp provenance on the event for the UI's
+   benefit and say plainly in the record that the event is not what enforces anything.
+4. EDGE CASES that need an owner answer, not a guess:
+   - a DM-locked character is REMOVED from the campaign (campaign_id cleared). Does the lock survive as
+     an ordinary lock, or clear? Both are defensible; pick one and record it.
+   - a player EXPORTS a DM-locked character to a file and re-imports it locally. The local copy has no
+     server row, so nothing enforces it. Is that acceptable (it is now a different, standalone
+     character) or must the export refuse/strip? Note the existing precedent:
+     D-GH-2026-07-11-clone-campaign-character-standalone deliberately severs the campaign on clone.
+   - a character with no campaign_id can never be DM-locked. Confirm the UI never offers it.
+5. DM Console has NO lock UI at all today (grep: creationLocked appears 0 times in tools/DM-Console.html).
+   That is the whole player-facing half of this task.
+6. Back-compat: no existing character has the column/flag, so default it false and every existing
+   character behaves exactly as it does now.
+7. After any RLS/migration change, run the Supabase advisor (get_advisors) and skim get_logs BEFORE
+   opening the PR - AGENTS.md step 4. This project has been bitten twice by grant/RLS drift.
+8. Verification needs a signed-in campaign with a DM and a player account; it cannot be covered by the
+   dependency-free gate. Say in the PR exactly what was exercised by hand.
 ```
-**Done when:** a DM-issued `creationLocked` is not cleared by a player-issued `creationUnlocked`, an
-unstamped legacy event still behaves exactly as it does today, the trust boundary is recorded in a
-`D-GH-<date>-dm-creation-lock` record, and a fixture plus gate assert both directions.
+**Done when:** a DM can lock a campaign character from DM Console, the owning player cannot clear that
+lock through the app or by a direct row update (verified signed-in, both roles), a character with no
+campaign cannot be DM-locked, the detach and export answers from step 4 are recorded in a
+`D-GH-<date>-dm-creation-lock` record, the Supabase advisor is clean, and engine-parity is unchanged.
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
