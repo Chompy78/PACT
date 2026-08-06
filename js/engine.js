@@ -443,6 +443,15 @@ export function compute(b, opts){
     const _bms=bo.minStats||{};for(const [_ba,_bm] of Object.entries(_bms)){if((st[_ba]||10)<_bm) W.push(lab+': boon requires '+_ba+' '+_bm+'+');}
     const _bbmsa=bo.minStatsAny;if(_bbmsa&&_bbmsa.stats){const _banyMet=_bbmsa.stats.some(function(_bba){return (st[_bba]||10)>=_bbmsa.val;});if(!_banyMet)W.push(lab+': boon requires '+_bbmsa.stats.join(' or ')+' '+_bbmsa.val+'+');} }
   add("Boons",boonAP);addItems("Boons",_BI);
+  // Extra Battle Master maneuvers: an escalating rung — base + step*n for the nth extra purchase, so
+  // three cost 4+5+6. Priced HERE as of D-GH-2026-08-06-maneuver-afford-gate (which supersedes its own
+  // first answer) so that the affordability gate, the ledger and repriceDraft() all agree on one number.
+  // Before this, compute() charged nothing for maneuverBuys: the Live Sheet needed a pricing escape for
+  // its gate to work at all, the ledger could not explain the spend, and repriceDraft() rewrote the
+  // frozen cost to 0 while keeping the maneuvers — handing the AP back on a CharGen round-trip.
+  {const _mv=b.maneuverBuys||0;
+   if(_mv>0){const _mb=DATA.maneuverBuy||{base:4,step:1},_mbB=+_mb.base||0,_mbS=+_mb.step||0;
+     add("Extra maneuvers",_mv*_mbB+_mbS*(_mv*(_mv-1)/2));}}
   // v0.086: DM "Tasha" house-rule — bar abilities sourced from Tasha (flagged tasha:true). Default allowed; warns only when explicitly barred.
   {const _da=(b.houseRules&&b.houseRules.dmAllows)||{};
    if(_da.tasha===false){const _tb=(coll,owned)=>{(owned||[]).forEach(k=>{const it=coll[k];if(it&&it.noncore)W.push("⛔ "+(String(k).split(": ")[1]||k)+": non-core (DM-gated) ability barred by DM house rules");});};
