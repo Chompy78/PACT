@@ -1177,7 +1177,9 @@ requirement that re-buying works.
 Live Sheet's event history already renders a bought-off drawback struck through with its buy-off as a
 separate refund row (`~:928-933`) — but the **AP ledger does not**: measured, a drawback bought for 2 and
 bought off for 6 produces NO ledger line for the 6 AP, so the categorised breakdown and `spent` disagree
-by the whole buy-off. Fold this into `feat/ledger-itemise-drawbacks` rather than solving it twice.
+by the whole buy-off. Fold this into `feat/ledger-show-lost-purchases` rather than solving it twice —
+that task now carries exactly this half (the taken-drawback itemisation it used to be bundled with
+shipped separately on 2026-08-06, PR #364).
 
 ```text
 1. DO NOT START until feat/chargen-dm-view has landed. Scope is now fully settled: drawbacks are
