@@ -265,6 +265,7 @@
 
     /* ---- "Continue where you left off": recent characters + autosave timeline ---- */
     .continue-group[hidden] { display:none; }
+    .continue-group { margin-top:26px; }
     .card .meta { color:var(--muted); font-size:.82rem; margin-top:.3em; }
     .recent-saves { margin-top:14px; border:1px solid var(--card-border); border-radius:8px; background:var(--card-bg); }
     .recent-saves[hidden] { display:none; }
@@ -402,17 +403,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       </div>
     </header>
 
-    <!-- "Continue where you left off": populated + revealed by the recent-characters module near the
-         bottom of <body>. Hidden by default, so first-time visitors (no saved characters) never see it. -->
-    <section class="tools-group continue-group" id="continueSection" aria-label="Continue where you left off" hidden>
-      <h2 class="section-head">Continue where you left off</h2>
-      <div class="cards" id="recentCards"></div>
-      <details class="recent-saves" id="recentSaves" hidden>
-        <summary id="recentSavesSummary">Recent autosaves</summary>
-        <div class="recent-save-list" id="recentSaveList"></div>
-      </details>
-    </section>
-
     <a class="guide-hero" href="docs/PACT-Players-Guide.html">
       <img class="cover" src="assets/pact-cover.webp" decoding="async" alt="PACT Player&rsquo;s Guide cover">
       <div class="guide-hero-body">
@@ -456,6 +446,17 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
           </div>
         </a>
       </div>
+
+      <!-- "Continue where you left off": populated + revealed by the recent-characters module near the
+           bottom of <body>. Hidden by default, so first-time visitors (no saved characters) never see it. -->
+      <section class="tools-group continue-group" id="continueSection" aria-label="Continue where you left off" hidden>
+        <h2 class="section-head">Continue where you left off</h2>
+        <div class="cards" id="recentCards"></div>
+        <details class="recent-saves" id="recentSaves" hidden>
+          <summary id="recentSavesSummary">Recent autosaves</summary>
+          <div class="recent-save-list" id="recentSaveList"></div>
+        </details>
+      </section>
     </section>
 
     <section class="tools-group">
