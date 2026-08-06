@@ -686,34 +686,6 @@ resulting ledger were sent to the owner.
 **Done when:** buying a maneuver with insufficient AP is refused with the same flash as any other
 purchase, and buying one with sufficient AP still works; engine-parity 26/0.
 
-## Epic boons are hard-blocked on their first purchase in the Live Sheet — TODO
-Branch `fix/epic-boon-first-buy-block`. Found while auditing the pricing model
-(`decisions/2026/D-GH-2026-08-05-pricing-model.md`); unrelated to it. A whole category of boon (12 of
-them, all `epic:true`) currently cannot be bought at all in the Live Sheet.
-**OWNER-CONFIRMED 2026-08-05** — reproduced in the app: an epic boon cannot be bought in the Live Sheet.
-
-**Effort:** low · **Risk:** low — ambiguity low (add the pattern to the existing SOFT_WARN regex, an
-exact pattern to copy); damage scale low (one warning's classification); damage likelihood low —
-worst-of lands at low. Care needed only in not widening SOFT_WARN so far that real violations slip
-through, so match the specific wording.
-
-```text
-1. MUT.boon (js/engine.js:489) only pushes the label; it does not set epicBoonAbil. So compute() on the
-   candidate build takes the else-branch at js/engine.js:110 and raises
-     "<boon>: choose an ability to raise (+2)"
-2. legalCheck() surfaces that as a NEW warning, and it does not match SOFT_WARN
-   (tools/PACT-Live-Char-Sheet.html:523), so buy() classifies it as a hard rules violation and refuses
-   the purchase with "⛔ Purchase blocked" at :543.
-3. But the warning is expected, not a violation: the ability is chosen afterwards, in the Names dialog
-   (:1414, :1499-1509). The purchase is legal; the prompt is guidance.
-4. Fix: add the "choose an ability to raise" wording to SOFT_WARN (or exempt it explicitly), so it
-   becomes a confirm-through advisory rather than a block.
-5. Sequencing note: fix/chargen-preserve-epicboonabil (NOW) touches the same feature from the other
-   end. Neither blocks the other, but do them in either order aware of the other.
-```
-**Done when:** an epic boon can be bought in the Live Sheet, the "choose an ability to raise" prompt
-still appears as guidance, a genuinely illegal purchase is still hard-blocked; engine-parity 26/0.
-
 ## One-off reconciliation pass for characters built before the pricing fixes — TODO
 Branch `fix/ledger-reconciliation-pass`. **Sequence LAST — after all four pricing branches have landed**
 (see `decisions/2026/D-GH-2026-08-05-pricing-model.md`, D6, where the owner decided this on 2026-08-05).

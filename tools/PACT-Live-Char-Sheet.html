@@ -574,6 +574,13 @@ function award(amount,note,disc){ if(amount===null||amount===undefined||String(a
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
 // these stay confirm-through. Everything else a purchase raises is a hard rules violation → blocked with a popup.
 const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability/i;
+// EXPECTED FOLLOW-UP = not a warning at all. The purchase is legal and complete; a choice that belongs
+// to it is made afterwards, in the ✎ Names dialog. Epic boons are the only case today: MUT.boon pushes
+// the label but cannot set epicBoonAbil (js/engine.js:489), so compute() on the candidate build always
+// raises "<boon>: choose an ability to raise (+2)" (js/engine.js:145). Classified as neither hard nor
+// soft — blocking it made all 12 epic boons unbuyable, and confirm()ing it would ask the player to
+// approve a rules warning that isn't one. buy() points at the dialog instead.
+const EXPECTED_FOLLOWUP=/choose an ability to raise/i;
 // single-instance proficiencies: buying one you already own is never legal (can't stack) → blocked with a popup.
 const DUP_FIELD={save:'saves',skill:'skills',expertise:'expertise',toolexpertise:'toolExpertise',tool:'tools',instrument:'instruments',mastery:'masteries',racial:'racialTraits',racialspell:'racialSpells'};
 function setWornArmour(v){emit({type:'buy',cat:'wornArmour',payload:{v:v},cost:0,label:v?('Worn armour — '+v):'Worn armour — none (unarmoured)',level:foldBuild(null).hd});}
@@ -591,12 +598,15 @@ function buy(cat,payload,label){
   if(cat!=='drawback' && cost>avail){ flash('Not enough AP: needs '+cost+', have '+avail); return; }
   // (B2) split rules warnings: hard violations are blocked with a popup; intended-but-flagged ones stay confirm-through
   const warns=legalCheck(cat,payload,b0);
-  const hard=warns.filter(function(w){return !SOFT_WARN.test(w);});
-  const soft=warns.filter(function(w){return  SOFT_WARN.test(w);});
+  const followup=warns.filter(function(w){return  EXPECTED_FOLLOWUP.test(w);});
+  const rest    =warns.filter(function(w){return !EXPECTED_FOLLOWUP.test(w);});
+  const hard=rest.filter(function(w){return !SOFT_WARN.test(w);});
+  const soft=rest.filter(function(w){return  SOFT_WARN.test(w);});
   if(hard.length){ alert('⛔ Purchase blocked — it breaks a rules limit:\n\n• '+hard.join('\n• ')); return; }
   if(soft.length && !confirm('This purchase raises a rules warning:\n• '+soft.join('\n• ')+'\n\nBuy anyway (it will be flagged for review)?')) return;
   var _preSwap=(cat==='hd')?_swapAvailFrom((b0.hd)||1,LOG):null;
   emit({type:'buy',cat,payload,cost,label:label||(cat+' '+JSON.stringify(payload)),level:b0.hd,warns});
+  if(followup.length)flash('✎ Now open Names and pick the ability — '+followup.join('; '));
   if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
 }
 function takeDrawback(v){ const refund=DATA.drawbacks[v]||0; emit({type:'buy',cat:'drawback',payload:{v},cost:-refund,label:'Drawback — '+v,level:foldBuild(null).hd}); }

@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(livesheet): epic boons can be bought again — an expected follow-up is no longer a
+  hard block** — owner-confirmed: all 12 `epic:true` boons were unbuyable in the Live Sheet. `MUT.boon`
+  pushes the label but cannot set `epicBoonAbil`, so `compute()` on the candidate build always raised
+  *"&lt;boon&gt;: choose an ability to raise (+2)"*; that string matched neither `SOFT_WARN` nor anything
+  else, so `buy()` classified it as a rules violation and refused with *⛔ Purchase blocked*. The warning
+  is guidance, not a violation — the ability is chosen afterwards in the ✎ Names dialog. Added a third
+  class, `EXPECTED_FOLLOWUP`, rather than widening `SOFT_WARN`: soft warnings mean "allowed but flagged,
+  confirm through", and asking a player to confirm a warning that isn't one is the wrong prompt. `buy()`
+  now flashes a pointer to the dialog instead. Measured on a HD-17 character with 804 AP: 12 of 12 epic
+  boons blocked before, 12 of 12 bought after, with the guidance still raised on the build and
+  *"Crossbow Expert: requires DEX 14+"* still hard-blocked. No engine change, so `DATA.version` unmoved.
 - **2026-08-05 · fix(livesheet): a racial trait is gated by its tier, as CharGen already gated it** — owner
   report: *"Draconic flight requires T4, which works in CharGen but not the Live Sheet."* A trait's tier
   gates it by Hit Dice via `DATA.tierHD` (T4 needs 5 HD), and CharGen enforced that on its trait
