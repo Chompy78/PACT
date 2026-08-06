@@ -464,6 +464,59 @@ try {
   // _cgApplyEnvelope reinstates the saved LOG verbatim AFTER applyBuild(), discarding the reprice that
   // replaceWholeLogFromBuild had just done — so a loaded file kept its stale ledger until some later,
   // unrelated edit made it jump.
+  // H2 (owner, 2026-08-06): creation ends by RECORDING it. Both lock paths were dead in CharGen — the
+  // automatic one is suppressed by the burst's blanket noLock (which fixes D-GH34 and must stay), and
+  // no tool had ever emitted the explicit creationLocked the engine calls "the primary intended
+  // trigger". So the lock never fired, and being derived state it was gone again after every reload.
+  console.log('\nCharGen — the creation lock is recorded, so it survives a reload');
+  const OVER_THRESHOLD = `LOG.length=0;SEQ=1;_cgEnsureLockArmed();
+    LOG.push({type:'award',amount:600,note:'Budget',label:'Award',seq:SEQ++,ts:1});
+    ['STR','DEX','CON','INT','WIS','CHA'].forEach(a=>LOG.push(
+      {type:'buy',cat:'abil',payload:{ab:a,to:18},cost:0,label:a+' 18',seq:SEQ++,ts:1,level:1}));
+    _cgRepriceDraft();`;
+  check('spending past the threshold appends creationLocked, once, and ends the draft',
+    await cg.evaluate(`(()=>{${OVER_THRESHOLD}
+      const n=()=>LOG.filter(e=>e&&e.type==='creationLocked').length;
+      const first=n(); _cgRepriceDraft(); _cgRepriceDraft();
+      return [_creationLockState().spent>_creationLockState().threshold, first, n(), isCreationDraft(LOG)];})()`),
+    [true, 1, 1, false]);
+  // The whole point: replaying the SAVED log still sees it. Before this the lock was re-derived from
+  // noLock-tagged spend, so it evaluated to false on every fresh boot.
+  check('a fresh replay of the saved log is still locked',
+    await cg.evaluate(`(()=>{const saved=JSON.parse(JSON.stringify(LOG));
+      return [isCreationDraft(saved), saved.some(e=>e.type==='creationLocked')];})()`), [false, true]);
+  // D-GH32: a character that opted out must never auto-lock, however much it spends.
+  check('a disarmed character never auto-locks',
+    await cg.evaluate(`(()=>{LOG.length=0;SEQ=1;
+      LOG.push({type:'creationLockConfig',payload:{auto:false},label:'disarmed',seq:SEQ++,ts:1});
+      LOG.push({type:'award',amount:600,note:'Budget',label:'Award',seq:SEQ++,ts:1});
+      ['STR','DEX','CON','INT','WIS','CHA'].forEach(a=>LOG.push(
+        {type:'buy',cat:'abil',payload:{ab:a,to:18},cost:0,label:a+' 18',seq:SEQ++,ts:1,level:1}));
+      _cgRepriceDraft();
+      return [_creationLockState().armed, LOG.some(e=>e.type==='creationLocked'), isCreationDraft(LOG)];})()`),
+    [false, false, true]);
+  // A DM's explicit unlock must not be undone on the next keystroke by a character already sitting over
+  // the threshold — that is exactly why _explicitUnlocked exists in the engine. Measured without the
+  // guard: [creationLocked, creationUnlocked, creationLocked].
+  check('an explicit unlock is not immediately re-locked',
+    await cg.evaluate(`(()=>{${OVER_THRESHOLD}
+      LOG.push({type:'creationUnlocked',label:'DM unlocked',seq:SEQ++,ts:1});
+      _cgRepriceDraft(); _cgRepriceDraft();
+      return LOG.filter(e=>e&&/^creation(Locked|Unlocked)$/.test(e.type)).map(e=>e.type);})()`),
+    ['creationLocked', 'creationUnlocked']);
+  // D-GH34 must stay fixed: the burst's events keep noLock, so the lock lands AFTER the whole burst
+  // rather than at an arbitrary point in its synthetic serialization order.
+  check('an imported over-budget character locks after the burst, not inside it',
+    await cg.evaluate(`(()=>{const b=_domReadBuild();
+      b.budget=600; b.species='Dwarf'; b.hd=5;
+      b.stats={STR:18,DEX:18,CON:18,INT:16,WIS:16,CHA:14};
+      replaceWholeLogFromBuild(b);
+      const i=LOG.findIndex(e=>e&&e.type==='creationLocked');
+      const buys=LOG.filter(e=>e&&e.type==='buy');
+      return [i>=0, i===LOG.length-1, buys.every(e=>e.noLock===true),
+              LOG.slice(i+1).filter(e=>e&&e.type==='buy').length];})()`),
+    [true, true, true, 0]);
+
   console.log('\nCharGen — loading a saved character reconciles its ledger');
   check('a stale under-recorded ledger reconciles on load, not on the next edit',
     await cg.evaluate(`(()=>{

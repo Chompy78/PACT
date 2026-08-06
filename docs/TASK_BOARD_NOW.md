@@ -19,62 +19,6 @@ Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page 
 prune, PWA stale-version reload-prompt fix, Live Sheet mobile density/collapse) has landed and graduated
 to `CHANGELOG.md`.
 
-## The creation lock un-fires on every reload — a CharGen character can never stay locked — TODO
-Branch `fix/creation-lock-survives-reload`. Reported by the owner ("the higher character generation lock
-doesn't seem to fire in solo mode"). Measured in a real browser 2026-08-05, fresh solo CharGen character,
-default 79 AP threshold:
-
-| step | `economy().spent` | lock fired? | `noLock` events |
-|---|---:|---|---|
-| fresh boot | 0 | no | 8 of 9 |
-| three stats to 20 | 120 | **yes** | 8 of 11 |
-| HD 9, Vigor 5, Grit 10 | 382 | **yes** | 8 of 13 |
-| **after a reload** | 382 | **NO** | 10 of 11 |
-
-So it is not that the lock never fires — it fires, and then a reload launders it away.
-
-**Cause.** `_buildEventBurst` tags every event it emits `noLock:true` (the `const ev=o=>{…o.noLock=true;…}`
-line in `tools/PACT-CharGen-Webtool.html`), and `_replay` only accumulates the lock's spend counter for
-events *without* that tag (`js/engine.js`: `else if (!e.noLock) _spent += _spendCost(e)`).
-`replaceWholeLogFromBuild()` regenerates the ENTIRE log through that burst on boot / load /
-autosave-restore, so after any reload the lock-relevant spend is ~0 again — while `economy().spent` still
-reports the real figure. The two deliberately disagree, and only one drives the lock.
-
-**Why the tagging exists — do not simply delete it.** D-GH34: a synthetic import burst is a whole finished
-character fabricated in one pass, not an editing history, and a character who legitimately *starts* above
-level 1 can exceed the anchor without creation being over. Blanket-tagging stopped imports self-triggering
-the lock. The defect is that the same mechanism also erases a lock that had genuinely fired.
-
-**This is a retroactive-unlock hole** — the exact hazard D4 guards against
-(`decisions/2026/D-GH-2026-08-05-pricing-model.md`), reached by a different route: not by moving a config
-event, but by re-tagging every purchase on reload. Post-lock prices are meant to be frozen and dearer;
-laundering back to draft makes them cheap again.
-
-**Effort:** medium · **Risk:** high — ambiguity is high (it needs a rules answer about what ends creation
-for a character who legitimately starts at level 5, which is what D-GH34 was protecting); damage scale
-medium (tool/engine interaction, no data loss); damage likelihood medium. Not sweep-eligible.
-
-```text
-1. ANSWERED by the owner 2026-08-05 - see "Split starting AP into creation AP + awarded AP" below, which
-   supersedes the three candidates originally listed here. Creation AP stays the DEFAULT figure and is
-   what the lock measures; anything above it is awarded AP. Build that first: it removes the reason the
-   noLock blanket-tagging exists, so this bug goes away rather than being patched.
-2. Do NOT persist a fired lock as an event as a shortcut - that conflicts with D5, where the automatic
-   lock is deliberately DERIVED and reversible so undo can un-fire it. The split above keeps that intact.
-3. Whatever is chosen, add the reload case to testing/scripts/tool-pricing-ci.mjs: a character taken past
-   its threshold must still read as locked after replaceWholeLogFromBuild() has run. That one assertion
-   is the whole gap.
-4. While here: nothing tells the player the lock HAS fired. The "Creation AP not confirmed" notice clears
-   at exactly that moment (by design), so the only signal is prices quietly getting dearer. Consider a
-   short positive notice - "creation pricing has ended" - so the transition is legible.
-5. engine-parity must stay 26/0. If compute() output moves, update testing/expected/ and bump
-   DATA.version in the same PR.
-```
-
-**Done when:** a character taken past its creation threshold is still locked after a reload, the rules
-answer for above-level-1 starts is recorded under `decisions/2026/`, a gate asserts the reload case, and
-engine-parity still reports 26/0.
-
 ## Split starting AP into creation AP + awarded AP (and fix CharGen's clunky budget entry) — TODO
 Branch `feat/creation-vs-awarded-ap`. Owner's design, 2026-08-05. **Do this before
 `fix/creation-lock-survives-reload`** — it removes that bug's cause instead of patching it.

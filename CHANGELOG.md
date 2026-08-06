@@ -6,6 +6,27 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(chargen): the creation lock is recorded, so it survives a reload** — owner report:
+  *"the higher character generation lock doesn't seem to fire."* It never could. **Both** of the engine's
+  lock paths were dead in CharGen: the automatic one (`_spent > threshold`) is suppressed because
+  `_buildEventBurst` tags every event `noLock:true`, and the explicit `creationLocked` event — which
+  `js/engine.js:671` calls *"the primary intended trigger"* — **had never been emitted by any tool**;
+  CharGen's only mention of it was inside a comment. And since `_locked` is derived state rebuilt on
+  every `_replay()`, there was nothing to survive a page load even had it fired. `_cgRepriceDraft()` now
+  appends `creationLocked` once `economy(LOG).spent` passes the threshold, mirroring `_replay()`'s own
+  resolution (`js/engine.js:749-756`): armed-only (D-GH32 preserved), strictly-over, once, and never
+  while an explicit unlock is in force. Chosen (owner, H2) over the task board's step 4 of *removing* the
+  blanket `noLock` — that would have reopened **D-GH34**, since the burst's order is synthetic and the
+  lock would land at an arbitrary point inside it. Measured on an imported over-budget character (140 AP
+  against a 79 threshold): the lock is the **last** event, **12** buys precede it and **0** follow, every
+  burst buy still carries `noLock`, and every racial trait is still stamped pre-lock. Gate +5 assertions;
+  the firing, persistence and burst-ordering ones confirmed red against a reverted fire, and the
+  unlock guard against its own revert (which produced `[creationLocked, creationUnlocked,
+  creationLocked]` — a DM's unlock undone on the next keystroke). **Not delivered:** per-portion pricing
+  inside an import (first 79 at creation prices, the rest post-lock) — the burst emits in canonical, not
+  purchase, order, so there is no honest place to draw that line; `feat/creation-vs-awarded-ap` stays
+  open for it. Engine untouched, so `DATA.version` is unmoved. Recorded in
+  `decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md`.
 - **2026-08-06 · fix(livesheet): a refresh keeps the campaign binding, and a lookup no longer mints a
   character id** — owner report: *"when the page is refreshed, it loses the connection to campaign and I
   need to reload the character."* **The task board's diagnosis was wrong and is worth correcting:** it
