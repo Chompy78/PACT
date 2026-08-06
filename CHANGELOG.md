@@ -6,6 +6,11 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · chore(release): `BUILD` → `v1.367` (PR #367)** — small follow-up promotion of `preview` →
+  `main`, immediately after `v1.365`: the Live Sheet rules-version fix plus its board entry. Major carried
+  forward at `1`. `BUILD` mirrored from `js/engine.js` into CharGen's line-1 comment, `<title>` and header
+  `.sub`, the Live Sheet's line-1 comment, and DM Console's `TOOL_VERSION`; `index.html` untouched (reads
+  `BUILD` live). `DATA.version` stays at **v0.339** — nothing in this promotion changes `compute()` output.
 - **2026-08-06 · fix(livesheet): the footer reads `DATA.version` live instead of a hardcoded literal** —
   found by checking the claim *"all tools show v0.339 now"* after the v1.365 promotion rather than
   asserting it. They didn't: the Live Sheet's footer read **`PACT v0.309`** while the rules were v0.339 —
