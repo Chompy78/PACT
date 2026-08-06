@@ -426,6 +426,11 @@ let REDO=[];       // popped events for redo
 let SEQ=1;
 let __charId=null;                                   // stable per-character id for hand-typed sheet fields
 function currentCharId(){if(!__charId)__charId=genCharId();return __charId;}
+// Read-only companion: answers "do we have an id yet?" WITHOUT minting one. currentCharId() mints on
+// read, which is load-bearing for genuinely new characters but a hazard in a lookup — asking the
+// server for a freshly-minted id returns nothing, and the tab is then holding a different id than the
+// character it is showing. Use this anywhere the answer feeds a query rather than a write.
+function peekCharId(){return __charId||null;}
 let viewAt=null;   // time-travel: render state as-of this many events (null = head)
 // DM read-only view (?viewChar=<id>, see _lsConsumeViewChar below): true whenever this tab is
 // showing a character it doesn't own, loaded via peekCharacter() (never writes localStorage) rather
@@ -639,7 +644,13 @@ function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localS
   // Feed the shared recent-characters store (landing "Continue" list). Best-effort + guarded so it can
   // never break the real save above; window.recordAutosave arrives with the engine bridge (engine-ready).
   try{if(window.recordAutosave)window.recordAutosave({tool:'livesheet',id:currentCharId(),name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ});}catch(e){} }
-function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
+// Restores the campaign BINDING as well as the log. save() has written campaignId into the autosave
+// envelope since PR #312, but load() called _lsResetCloudApState() (which nulls _lsCampaignId) and then
+// never read it back — so every page refresh dropped the binding and could only recover it via the
+// async cloud round-trip in refreshCloudCampaignRules(). That is the owner's "refresh loses the
+// connection to campaign" report. This is the tab's OWN autosave, so adopting its binding is just
+// restoring what this tab already had; it grants no access the server's RLS doesn't already allow.
+function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;if(d.campaignId)window._lsCampaignId=d.campaignId;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
 // Feature-detect Web Share (files) rather than sniffing the user agent — this is the reliable
 // save path on iOS Safari/PWA, where a plain blob+<a download> is known to silently fail (it
 // often just opens the JSON in a new tab instead of saving a file). Falls back to the existing
@@ -1849,7 +1860,14 @@ document.addEventListener('sync-ready', function () {
     // local-cache-leak. The view-only path already resolves window._dmAp/_rulesStatus/etc. itself.
     if(VIEW_ONLY || !_session || typeof window.currentCharId !== 'function') { renderCloudStatusBadge(); return; }
     try {
-      var rec = await S.loadCharacter(window.currentCharId());
+      // peekCharId, NOT currentCharId: the latter MINTS a fresh random id when none is set, so this
+      // would query for a character that has never existed, get nothing, and fall through to
+      // `_lsCampaignId = null` — wiping the binding load() had just restored from the autosave, which
+      // is the second half of the "refresh loses the campaign" report. No id means no cloud record to
+      // resolve against, so there is nothing to do here.
+      var _cid = (typeof window.peekCharId === 'function') ? window.peekCharId() : window.currentCharId();
+      if(!_cid){ renderCloudStatusBadge(); return; }
+      var rec = await S.loadCharacter(_cid);
       window._dmAp = rec ? (rec.ap || 0) : 0;
       window._ignorePlayerAp = false;
       window._lsCampaignId = (rec && rec.campaign_id) || null;   // binding only — see buildCharacterEnvelope

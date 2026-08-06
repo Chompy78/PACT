@@ -205,6 +205,26 @@ try {
     window.flash=m=>window.__f.push(String(m));
     LOG.length=0;SEQ=1;REDO.length=0;`;
 
+  // The campaign binding is written into the autosave envelope but load() used to drop it, so every
+  // page refresh detached a campaign-bound character until an async cloud round-trip re-resolved it —
+  // and that round-trip minted a fresh id when none was set, queried a character that had never
+  // existed, and nulled the binding again. The local half needs no sign-in, so it is coverable here.
+  console.log('\nLive Sheet — a campaign binding survives the autosave round-trip');
+  check('save() writes campaignId and load() restores it, with a stable character id',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'award',amount:50,label:'AP award',seq:SEQ++,ts:Date.now()});
+      window._lsCampaignId='camp-test-1'; const idBefore=currentCharId(); save();
+      const stored=JSON.parse(localStorage.getItem(KEY));
+      window._lsCampaignId=null; LOG.length=0; SEQ=1; __charId=null;   // as a fresh boot would
+      load();
+      return [stored.campaignId||null, window._lsCampaignId||null, peekCharId()===idBefore];})()`),
+    ['camp-test-1', 'camp-test-1', true]);
+  // currentCharId() mints on read — right for a genuinely new character, a hazard in a lookup.
+  check('peekCharId() answers "have we an id" without minting one',
+    await ls.evaluate(`(()=>{const keep=__charId; __charId=null;
+      const peeked=peekCharId(); const stillNone=(__charId===null);
+      __charId=keep; return [peeked, stillNone];})()`), [null, true]);
+
   // An epic boon's "choose an ability to raise" prompt is a follow-up, not a rules violation. Before
   // the fix buy() classified it as hard and all 12 epic:true boons were unbuyable.
   console.log('\nLive Sheet — an expected follow-up neither blocks a purchase nor asks to confirm it');
