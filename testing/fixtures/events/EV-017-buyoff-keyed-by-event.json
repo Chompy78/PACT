@@ -1,0 +1,38 @@
+{
+  "description": "A bought-off drawback CAN be taken again, and the retake contributes its full AP. Before D-GH-2026-08-06-buyoff-keyed-by-event, activeEvents() keyed its boughtOff map by drawback VALUE, so any buyoff for a drawback suppressed EVERY buy of that value forever — including ones taken AFTER the buyoff. The retake was silently dropped from the build and never counted toward earned AP, with no warning. This fixture is the task's own repro: buy Asthmatic (+2 AP), buy it off (-6 AP, 3x refund), take Asthmatic again. Only the FIRST purchase is cancelled by the buyoff (FIFO match); the retake stays open. Expected: the build holds Asthmatic (compute().total = -2, the one active drawback's refund line); economy() reads earned=202 (200 award + 2 for the still-open retake only — the cancelled first purchase contributes nothing), spent=6 (the buyoff), available=196, drawbackEarned=2. Before the fix: build has NO Asthmatic, drawbackEarned=0.",
+  "baseSnapshot": {},
+  "events": [
+    {
+      "type": "award",
+      "amount": 200,
+      "note": "Test budget",
+      "label": "Award — Test budget (200 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "drawback",
+      "payload": {
+        "v": "Asthmatic"
+      },
+      "cost": -2,
+      "level": 1,
+      "label": "Drawback — Asthmatic"
+    },
+    {
+      "type": "buyoff",
+      "refVal": "Asthmatic",
+      "cost": 6,
+      "label": "Bought off — Asthmatic"
+    },
+    {
+      "type": "buy",
+      "cat": "drawback",
+      "payload": {
+        "v": "Asthmatic"
+      },
+      "cost": -2,
+      "level": 1,
+      "label": "Drawback — Asthmatic (retaken)"
+    }
+  ]
+}

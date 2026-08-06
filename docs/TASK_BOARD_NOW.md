@@ -256,56 +256,6 @@ means either silent data loss continues or nothing syncs at all). Not sweep-elig
 user is told, a record with no known base value still saves as it does today, and the two-tab case has
 been manually verified with a real session.
 
-## A bought-off drawback can never be taken again — TODO
-Branch `fix/buyoff-keyed-by-event`. Found 2026-08-05 while designing DM edits; **it is a live engine bug
-in its own right and needs no part of that feature.**
-
-`activeEvents()` builds `boughtOff[e.refVal]` keyed by the drawback's **name**, and `_replay()` then skips
-*every* buy of that drawback — including ones that happen AFTER the buy-off. `_economyFrom()` skips its
-AP the same way. Measured:
-
-```
-buy "Asthmatic" (+2 AP) -> buy it off (-6 AP) -> take "Asthmatic" again
-  build has the drawback?  false      <- silently dropped
-  drawbackEarned:          0          <- no AP for it either
-  power level:             0          <- invisible in every number
-```
-
-The second purchase is accepted by the UI, written to the log, and then ignored by the engine. Nothing
-warns. The character simply does not have a drawback they just took.
-
-**Fix: key the suppression to the specific EVENT, not the value.** A buy-off cancels the purchase it was
-issued against (by `seq`), leaving later purchases of the same thing untouched. `refVal` can stay for
-display, but the matching has to be identity-based.
-
-**This shape is about to be repeated.** `feat/dm-edit-events` needs boon removal with the explicit
-requirement that the player can buy the boon back afterwards (owner, 2026-08-05). If that removal is keyed
-by boon name it inherits this exact bug. Fixing the mechanism here first means the boon case gets it right
-for free — so do this one before that one.
-
-**Effort:** medium · **Risk:** high — ambiguity low (event-identity matching is the obvious fix); damage
-scale HIGH (it edits `_replay`/`activeEvents`, the engine's replay core, and changes `compute()` output
-for any character that ever re-took a bought-off drawback); damage likelihood low (the parity gate plus a
-new fixture cover it). Worst-of lands at high. Not sweep-eligible.
-
-```text
-1. Match buy-offs to the purchase they cancel by seq, not by refVal. Check both call sites:
-   activeEvents() builds the map, _replay() and _economyFrom() consume it.
-2. Back-compat: existing logs' buyoff events carry refVal and no target seq. Treat a seq-less buyoff as
-   cancelling the FIRST un-cancelled purchase of that value - that reproduces today's behaviour for every
-   existing character while letting new events be precise. Say so in a comment; a future reader will
-   otherwise "tidy" the fallback away.
-3. New fixture: buy a drawback, buy it off, take it again - assert the second one IS in the build and
-   DOES contribute its AP. Verify by reverting the fix (the fixture must fail).
-4. This changes compute() output for affected logs, so bump DATA.version and refresh testing/expected/
-   in the same PR.
-5. Check the tools' UI too: buyoffDrawback() and CharGen's drawback checkboxes should allow re-taking,
-   and the ledger should show both the original, the buy-off, and the retake as separate rows.
-```
-
-**Done when:** a drawback taken again after being bought off appears in the build and contributes its AP,
-existing characters' totals are unchanged, a fixture pins it, and engine-parity passes at its new count.
-
 ---
 
 > **Format note (2026-07-28):** split from a single `docs/TASK_BOARD.md` into `TASK_BOARD_NOW.md`/`_NEXT.md`/`_LATER.md` by the existing NOW/NEXT/LATER bands — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`. Same rules apply to all three files.

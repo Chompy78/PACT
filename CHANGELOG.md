@@ -6,6 +6,29 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(engine): a bought-off drawback can be taken again** (`DATA.version` **v0.340 →
+  v0.341**) — `activeEvents()` keyed its `boughtOff` map by drawback **value**, so any buyoff suppressed
+  *every* buy of that value forever, including ones taken **after** the buyoff. Measured (the task's own
+  repro): buy "Asthmatic", buy it off, take it again → build has no Asthmatic, `drawbackEarned:0`. The
+  retake was accepted by the UI and silently ignored by the engine, with no warning. Worse, the Live
+  Sheet's buy panel read the same value-keyed map to decide whether to *offer* a drawback at all, so a
+  bought-off drawback rendered as a permanently disabled *"Bought off (3× cost paid)"* tile whose
+  `onclick` only flashes a message — the retake wasn't just dropped if attempted, the UI made attempting
+  it structurally unreachable. `boughtOff` now resolves per-**purchase**, not per-value: one forward pass
+  matches each buyoff to the oldest not-yet-cancelled purchase of that value (FIFO by array position) —
+  no `seq` field, no schema change, which is a deliberate departure from the task board's own suggested
+  fix (the engine has no concept of `seq`; see `decisions/2026/D-GH-2026-08-06-buyoff-keyed-by-event.md`
+  for why plain ordering covers every case without it). Existing single-buy/single-buyoff characters are
+  unaffected — verified directly. The buy panel's blocking "Bought off" branch is removed outright: once
+  cancellation is per-purchase, a drawback not currently held is simply available to take again. New
+  fixture `EV-017`, mutation-tested by reverting the engine change and confirming it fails (`EV-015`/
+  `EV-016` unaffected by the same revert). **This session's environment had no browser available**, so
+  the two new Live Sheet UI gate assertions were pushed unexecuted, flagged as such in the decision
+  record — and CI's first real run caught a genuine bug **in the test**, not the fix:
+  `buyoffDrawback()`'s own affordability gate silently refused every buy-off because the test never
+  funded an `award` event, so the fix itself was never actually exercised. Fixed and re-verified green
+  against the real CI browser — exactly the failure mode the "not executed locally" flag exists to catch.
+  Graduates the task off `docs/TASK_BOARD_NOW.md`.
 - **2026-08-06 · feat(engine): `compute()` prices extra maneuvers — and the pricing escape is deleted**
   (`DATA.version` **v0.339 → v0.340**) — `repriceDraft()` re-derives every frozen cost as a `compute()`
   delta, and `compute()` never read `maneuverBuys`, so three maneuvers bought for 4+5+6 were rewritten to

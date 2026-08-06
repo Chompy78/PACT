@@ -285,6 +285,39 @@ try {
       const costs=[];for(let i=0;i<4;i++){const n=LOG.length;buyManeuver();if(LOG.length>n)costs.push(LOG[LOG.length-1].cost);}
       return [costs, avail(), window.__f[window.__f.length-1]||''];})()`),
     [[4, 5, 6], 0, 'Not enough AP: needs 7, have 0']);
+
+  // activeEvents() used to key its boughtOff map by drawback VALUE, so any buyoff for a drawback
+  // suppressed EVERY buy of that value forever — including a retake AFTER the buyoff. The retake was
+  // silently dropped from the build, its AP never counted, and the UI made it structurally
+  // unreachable: the buy panel showed a permanently-disabled "Bought off" tile (ibOwned never fires
+  // takeDrawback), and every history row for that value — including the retake's — rendered "dead".
+  console.log('\nLive Sheet — a bought-off drawback can be taken again');
+  // buyoffDrawback() has its own affordability gate (cost=refund*3 > available -> refuse). A drawback
+  // buy alone only earns its own refund (2 AP), well under the 6 AP a buy-off costs, so an award is
+  // required here or buyoffDrawback() silently no-ops and the whole scenario never happens.
+  const DB_SETUP = `${LS_SETUP} const v='Asthmatic';
+    LOG.push({type:'award',amount:60,label:'AP award',seq:SEQ++,ts:Date.now()});`;
+  check('the retake is on the build, earns its AP, and only the FIRST row is dead in the ledger',
+    await ls.evaluate(`(()=>{${DB_SETUP}
+      takeDrawback(v); buyoffDrawback(v); takeDrawback(v);
+      render();
+      const rows=[...document.querySelectorAll('.led tr')].filter(tr=>/Drawback . Asthmatic/.test(tr.innerText||''));
+      return [foldBuild(null).drawbacks.includes(v), economy(null).drawbackEarned,
+              rows.length, rows.map(tr=>/\\bdead\\b/.test(tr.className))];})()`),
+    [true, 2, 2, [true, false]]);
+  check('the buy panel offers a normal, clickable buy — not a permanently-disabled "Bought off" tile',
+    await ls.evaluate(`(()=>{${DB_SETUP}
+      takeDrawback(v); buyoffDrawback(v);   // bought off, NOT retaken — build must not hold it
+      render();
+      setBuyQuery('asthmatic');
+      const t=[...document.querySelectorAll('#buy button.ib')].find(x=>/Asthmatic/.test(x.innerText||''));
+      const before=foldBuild(null).drawbacks.includes(v);
+      const clickable=t?!t.className.includes(' dis'):false;
+      if(t)t.click();
+      const after=foldBuild(null).drawbacks.includes(v);
+      setBuyQuery('');
+      return [before, clickable, after];})()`),
+    [false, true, true]);
   await ls.close();
 
   // ============================ CharGen ============================
