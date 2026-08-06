@@ -13,6 +13,19 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-06-buyoff-keyed-by-event** — a `buyoff` cancels the specific purchase it targets, not
+  every purchase of that drawback value ever. `activeEvents()`'s `boughtOff` map was keyed by value, so
+  any buyoff for a drawback suppressed every buy of that value forever — a bought-off drawback could
+  never be taken again, silently dropped from the build with no AP and no warning, and the buy panel
+  made retaking it structurally unreachable (a permanently disabled tile whose `onclick` never calls
+  `takeDrawback()`). Resolved by matching each buyoff to the oldest not-yet-cancelled purchase in one
+  forward pass (FIFO by array position) — no `seq` field, no schema change, unlike the task's own
+  suggested fix; existing single-buy/single-buyoff characters are unaffected. `DATA.version` v0.340 →
+  v0.341. **This session's environment had no browser available** (no Chromium, `snap install` needs
+  an interactive terminal); the engine fix is Node-verified and mutation-tested, but the two Live Sheet
+  UI gate assertions were not executed locally — flagged rather than silently held to a lower bar.
+  Full record: `decisions/2026/D-GH-2026-08-06-buyoff-keyed-by-event.md`.
+
 - **D-GH-2026-08-06-reprice-preserves-uncharged-costs** — **`compute()` now prices `maneuverBuys`**, and the
   Live Sheet's pricing escape is **deleted rather than kept**. `repriceDraft()` re-derives each frozen cost
   as a `compute()` delta, and `compute()` never read `maneuverBuys`, so three maneuvers bought for 4+5+6

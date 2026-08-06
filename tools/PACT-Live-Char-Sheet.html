@@ -935,12 +935,15 @@ function render(){
   $('sheet').innerHTML=sh;
   // --- ledger / history ---
   let led='<table class="led"><tr><th>#</th><th>Event</th><th>AP</th><th></th></tr>';
+  // boff is a Set of INDICES into this same (idx==null?LOG:LOG.slice(0,idx)) array — activeEvents()
+  // resolves cancellation per purchase EVENT, not per drawback value, so a retaken drawback's row is
+  // not "dead" even though an earlier buyoff for the same value exists (D-GH-2026-08-06-buyoff-keyed-by-event).
   const boff=activeEvents(idx).boughtOff;
-  (idx==null?LOG:LOG.slice(0,idx)).forEach(e=>{
+  (idx==null?LOG:LOG.slice(0,idx)).forEach((e,_li)=>{
     if(e&&e.type==='rulesSnapshot')return;   // offline campaign-rules metadata — not an AP-ledger action (still audit-visible in the raw LOG/export)
     let ap='', cls='', act='';
     if(e.type==='award'){ap='+'+e.amount;cls='aw';}
-    else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff[e.payload&&e.payload.v]);
+    else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li));
       ap=(e.cost<0?'+'+(-e.cost):'−'+e.cost); cls=dead?'dead':'';
       if(!dead && e.cat==='drawback') act='<button class="x" onclick="buyoffDrawback(\''+(e.payload.v||'').replace(/'/g,"\\'")+'\')">buy off 3×</button>';
       if((e.warns||[]).length) cls+=' warnrow'; }
@@ -1081,14 +1084,19 @@ function buildBuyPanel(b,r,eco,head){
    }],
    ['Drawbacks (gain AP)',()=>{
      const DRAW_ORDER=['Body','Mind','Social','Magic','Wild & Story','DM custom','Other'];
-     const {boughtOff:_bo}=activeEvents(null);
+     // No "already bought off, can't retake" branch here on purpose. `boughtOff` (from activeEvents())
+     // is per-PURCHASE now, not per-value (D-GH-2026-08-06-buyoff-keyed-by-event) — a drawback that was
+     // bought off and is not currently held is simply not held, and buying it again is a normal,
+     // ordinary take. The old code blocked exactly this via a value-keyed `boughtOff[x]` lookup, which
+     // was the literal UI manifestation of the underlying engine bug: once bought off, the tile went
+     // permanently grey (ibOwned renders a disabled button) and `takeDrawback()` was never reachable
+     // again through the panel, regardless of what the build actually held.
      const avail=DATA.drawbackList.filter(x=>(b.drawbacks.includes(x)||!cloudRuleBarred('draws',x)));
      const byCat={};avail.forEach(x=>{const c=(DATA.drawbackCat&&DATA.drawbackCat[x])||'Other';(byCat[c]=byCat[c]||[]).push(x);});
      const cats=DRAW_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>DRAW_ORDER.indexOf(c)<0).sort());
      return cats.map(c=>{
        const items=byCat[c].slice().sort((a,d)=>a.localeCompare(d));
        const html=items.map(x=>{
-         if(_bo[x])return ibOwned(x,'Bought off (3× cost paid)');
          if(b.drawbacks.includes(x))return ibOwned(x,'Active drawback');
          return db(x);
        }).join('');
