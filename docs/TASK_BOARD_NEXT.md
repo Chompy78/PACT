@@ -1178,6 +1178,52 @@ command in the same sentence) — all three low. Sweep-eligible.
 "expect 0 failed" form, `grep -rn "26 passed\|26/0"` returns nothing stale, and engine-parity still
 reports 27/0.
 
+## CharGen's rules label is hardcoded, and VERSION-SYNC doesn't list the rules mirrors — TODO
+Branch `fix/chargen-rules-label-live`. CharGen's own header comment says *"See the follow-up task to make
+this one live too"* — **that task has never existed on the board** (grep found nothing on 2026-08-06). This
+is it. Pairs with the structural half: `docs/VERSION-SYNC.md`'s mirror list names only the `BUILD` sites, so
+no rules-version mirror is on any checklist.
+**Effort:** low · **Risk:** low — ambiguity low (the live-read pattern now exists in BOTH other tools:
+`DM-Console.html:1830` and `PACT-Live-Char-Sheet.html` `_lsBoot()`, and there is a gate assertion to copy
+verbatim); damage scale low (display-only, one tool plus a doc, `git revert` undoes it); damage likelihood
+low (the copied assertion catches a wrong wiring) — all three low. Sweep-eligible.
+
+```text
+0. WHY THIS EXISTS. During the v1.365 promotion the Live Sheet footer was found reading "PACT v0.309"
+   while DATA.version was v0.339 — thirty versions stale — and CharGen's two labels were found at
+   v0.338 and v0.337. The Live Sheet's was fixed by making it live (PR #366). CharGen's were fixed by
+   CORRECTING THE VALUES ONLY, so they will drift again at the next DATA.version bump.
+1. tools/PACT-CharGen-Webtool.html has TWO hardcoded rules mirrors:
+   a) the `#cgPactver` chip — `<span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span>`
+   b) the `Rules v0.339` half of `<title>PACT Character Generator — Web Tool v1.365 · Rules v0.339</title>`
+2. (a) is the easy one and is exactly parallel to the fix already shipped for the Live Sheet: paint it
+   in `_cgBoot()` (~:4169, already gated on engine-ready at ~:4212) from `window.DATA.version`. Copy
+   the Live Sheet's wiring and its fallback-literal comment.
+3. (b) NEEDS CARE — the <title> mixes BOTH version axes. The BUILD half MUST stay a manual mirror:
+   docs/VERSION-SYNC.md names `<title>` as a BUILD mirror site and the promotion step edits it by hand.
+   So either set only the rules half live (build the title string in _cgBoot from a manual BUILD literal
+   plus live DATA.version), or leave (b) alone and say so explicitly in the CHANGELOG. Do NOT make the
+   whole title live — that would silently remove a documented promotion step.
+4. Then extend docs/VERSION-SYNC.md: it currently lists only BUILD mirror sites. Add a rules-version
+   section naming every place a rules version is displayed, and mark each live vs manual. As of
+   2026-08-06 that is: DM Console (live), Live Sheet footer `#lsRulesVer` (live), CharGen `#cgPactver`
+   (manual until this task), CharGen `<title>` (manual). A site that is live needs no promotion step —
+   which is the point of listing them.
+5. Copy the gate assertion from testing/scripts/tool-pricing-ci.mjs ("the Live Sheet footer shows the
+   live DATA.version") for CharGen. Compare against `DATA.version` ITSELF, never a fixed string, so the
+   check never needs touching at a rules bump — that maintenance burden is what caused this drift.
+   Prove it fails before trusting it: revert the wiring and confirm it goes red.
+6. Do NOT touch the Players Guide provenance strings — "verbatim from the v0.309 Players Guide" (Live
+   Sheet ~:1223, ~:1244) and "Rules source of truth: PACT-Players-Guide-v0.303.docx" (both tools, line 9)
+   record which edition the quoted text came from. Bumping them asserts a re-check that has not happened.
+   Same for the "// v0.314:"-style annotations, which mark when a feature landed.
+7. Display-only — do NOT bump DATA.version or BUILD; log in CHANGELOG.
+```
+**Done when:** CharGen's `#cgPactver` chip renders `DATA.version` with no hardcoded rules value in the
+render path, a gate asserts it by comparing against `DATA.version` itself and was confirmed red against
+the reverted wiring, `docs/VERSION-SYNC.md` lists every rules-version display site marked live or manual,
+and engine-parity still reports 27/0.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.

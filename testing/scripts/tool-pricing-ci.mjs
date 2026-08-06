@@ -190,6 +190,13 @@ try {
   // .adv and must stay amber, matching CharGen.
   check('advisories in the tray are amber, not red',
     await ls.evaluate(`getComputedStyle(document.querySelector('#tray li.adv')).color`), 'rgb(178, 106, 0)');
+  // The footer's rules version was a hardcoded literal and had fallen 30 versions behind (v0.309 while
+  // DATA.version was v0.339) — missed by the promotion checklist because VERSION-SYNC.md doesn't name
+  // it. Assert it EQUALS DATA.version rather than a fixed string, so the check never needs a rules bump.
+  check('the Live Sheet footer shows the live DATA.version, not a hardcoded literal',
+    await ls.evaluate(`(()=>{const el=document.getElementById('lsRulesVer');
+      return [el?el.textContent:'(missing)', el?el.textContent===DATA.version:false];})()`),
+    [await ls.evaluate(`DATA.version`), true]);
 
   // Every buy below drives the REAL buy()/buyManeuver() path with the modals captured, so a check
   // fails if the guard is deleted rather than merely if a constant moves. Each rebuilds LOG first.
