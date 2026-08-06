@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · docs(agents): name the failure the A/B/A1/A2 convention keeps hitting, instead of
+  restating the rule** — the owner asked why the lettered-options format keeps getting lost. It isn't
+  lost: `AGENTS.md` is auto-imported every session and the rule was already there. The failure is
+  narrower — the format gets applied to things *shaped like a question* and dropped from things *shaped
+  like a status report*, and a closing "where we are / what's outstanding" summary routinely carries two
+  or three real decisions as a bare numbered list. The section now says explicitly that status summaries,
+  wrap-ups, "still on you" lists and `/close-code-session` action lists are all covered, and that
+  **letters run for the whole session** rather than resetting per message — both failures observed on
+  2026-08-06, the second when the letters restarted at A with A–H already spent. Written as a named
+  trap with the date rather than a louder restatement, on the same reasoning as `H-039` in
+  `ai-lessons-learned`: a preference that keeps slipping needs its trigger made unmissable, not repeated.
 - **2026-08-06 · docs: gate counts replaced with wording that cannot go stale** — `AGENTS.md` (×4),
   `docs/HOW-TO-WORK.md` (×3) and `testing/README.md` all told agents to expect **26 passed**, and
   HOW-TO-WORK put tool-pricing at **16**. Measured today: **29** and **67**. A stale pass count is worse

@@ -88,7 +88,20 @@ for one. Frame options wherever a real decision with distinct paths exists, even
 as a choice — don't wait to be asked "what are my options" before surfacing one. Do **not** use this
 format for simple clarification questions, factual confirmations, or requests for missing information —
 regular lists or single-fact answers never use this format. A follow-up decision point gets the next
-letter, not a nested sub-tier. Letters reset each new chat.
+letter, not a nested sub-tier.
+
+**Letters run for the whole session, not per message.** They reset only on a new chat. If A–H are used,
+the next decision is **I** — never restart at A because a message feels like a fresh start. Before
+writing a lettered block, check what the session has already used.
+
+> **The failure this rule keeps hitting, named so it can be caught.** The format gets applied to things
+> *shaped like a question* and dropped from things *shaped like a status report* — the closing "where we
+> are / what's outstanding" summary at the end of a work block, which routinely contains two or three
+> real decisions written as a bare numbered list. **A status summary, a wrap-up, a "still on you" list
+> and a `/close-code-session` action list are all covered by this rule.** If a line in one of them asks
+> the human to choose or approve something, it is an option and it gets a letter. Observed repeatedly on
+> 2026-08-06, including immediately after the human raised it — and in the same session the letters were
+> restarted at A when A–H were already spent, which is what prompted this paragraph.
 
 This applies whether the decision is presented in prose or via the `AskUserQuestion` tool: give every
 option — not only the recommended one — a one-line reason in its `description` field, not a bare label.
