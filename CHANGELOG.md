@@ -6,6 +6,22 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(livesheet): a refresh keeps the campaign binding, and a lookup no longer mints a
+  character id** — owner report: *"when the page is refreshed, it loses the connection to campaign and I
+  need to reload the character."* **The task board's diagnosis was wrong and is worth correcting:** it
+  blamed `save()` for not passing `campaignId`, but `save()` has carried it since PR #312. The defect is
+  on the **load** side — `load()` calls `_lsResetCloudApState()` (which nulls `_lsCampaignId`) and then
+  restores `LOG`, `SEQ`, `rules` and `__charId` but never `d.campaignId`. The envelope had it all along;
+  the restore threw it away. Now restored — and it is the tab's own autosave, so adopting its binding
+  grants nothing the server's RLS wouldn't. Second half: the async fallback meant to recover the binding
+  called `S.loadCharacter(currentCharId())`, and **`currentCharId()` mints a fresh random id when none is
+  set** — so it queried a character that had never existed, got nothing, and set `_lsCampaignId = null`,
+  wiping the binding again. Added `peekCharId()`, a read-only companion answering *"have we an id yet"*
+  without minting, and the round-trip now bails when there is none. Gate +2 assertions covering the whole
+  local save → wipe → load cycle, both confirmed red against reverts (binding → `null`; peek → mints an
+  id). **Not addressed:** the Live Sheet → CharGen half, which the board flags as an unconfirmed
+  boot-order hypothesis and which needs a signed-in browser to verify — the task stays open for it.
+  Display/state only; `DATA.version` unmoved.
 - **2026-08-06 · fix(engine): a bought-off drawback can be taken again** (`DATA.version` **v0.340 →
   v0.341**) — `activeEvents()` keyed its `boughtOff` map by drawback **value**, so any buyoff suppressed
   *every* buy of that value forever, including ones taken **after** the buyoff. Measured (the task's own
