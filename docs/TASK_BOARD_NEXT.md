@@ -1143,15 +1143,50 @@ uses the ordinary buy-off path at whatever price the drawback carries. Two conse
   character has earned their way out, so they award 2 AP; the player spends it buying the drawback off and
   is exactly where they started. No special case anywhere in that sequence.
 
-**Scope now:** DM edits are ADD-only for drawbacks. Boons are still listed as "add or remove" in the
-owner's original framing — but note removal is NOT symmetric there, because a player has no way to sell a
-boon back, so "award AP and let them do it" has no player-side equivalent. Whether a DM can remove a boon
-(granted in error, or lost to a story beat) is still open and is the last scope question on this task.
+**Scope now:** DM edits are ADD-only for drawbacks — the DM awards AP and the player buys the drawback
+off. Boons are different, because a player has no way to sell a boon back, so there is no player-side
+route to hand it to.
+
+### Removing a boon (owner, 2026-08-05) — the DM can, and the player loses the AP
+
+*"The DM can remove the player-bought boon and the player effectively loses the AP."* No refund, whether
+the DM granted the boon or the player paid for it themselves.
+
+**This is consistent with the neutrality invariant rather than an exception to it.** The player already
+spent the AP; not refunding it means their spendable total does not move, while their power level drops
+by the boon's value. Same one-line rule as everything else here: *a DM edit moves the character's power
+level without touching their wallet.*
+
+**The mechanism matters, and the obvious implementation is wrong.** Removal must NOT delete the original
+buy event. Measured on a 25 AP boon:
+
+| | spent | available | power |
+|---|---:|---:|---:|
+| player bought it | 25 | 75 | 25 |
+| **if the buy event were deleted** | 0 | **100** | 0 |
+
+Deleting refunds the AP — exactly what the owner said must not happen. Removal has to **suppress the boon
+in the fold while leaving its cost in `spent`**.
+
+There is already a mechanism shaped like this: `buyoff`. `activeEvents()` collects `boughtOff[refVal]`,
+`_replay()` skips the matching drawback buy, and `_economyFrom()` drops its earned AP. A boon removal
+wants the same *shape* with a different economy rule — skip it in `_replay`, but leave `_spendCost()`
+alone so the AP stays spent. Note that is genuinely different from `buyoff`, which removes both the build
+effect and the AP; do not reuse the drawback branch verbatim.
+
+**There is no boon-removal path in the engine today** — `MUT.boon` only pushes, and `boughtOff` handles
+drawbacks alone. This needs a new event type or marker plus a skip in `_replay`, which makes it the one
+part of stage 2 that touches `js/engine.js`.
 
 ```text
-1. DO NOT START until feat/chargen-dm-view has landed and the two open questions above (concurrency
-   route; whether a DM may remove a BOON) are answered. Drawback removal is settled: the DM cannot -
-   they award AP and the player buys it off, so build no DM-side removal for drawbacks at all.
+1. DO NOT START until feat/chargen-dm-view has landed. Scope is now fully settled: drawbacks are
+   ADD-only (the DM awards AP, the player buys off); boons can be added AND removed, with no refund on
+   removal. Concurrency is handled by its own tasks - fix/optimistic-character-save (NOW) and
+   feat/character-log-merge (LATER) - so this one does not need to solve it, only to not fight it.
+1b. Boon removal is the ONLY part of this task that touches js/engine.js: it needs an event that skips
+   the boon in _replay() while leaving its cost in _spendCost(). Verify against a fixture that spent and
+   available are UNCHANGED by the removal and only the power level moves - that is the whole point, and
+   the naive implementation (deleting the buy event) gets it backwards.
 2. Implement neutrality as ONE invariant - a dmEdit event contributes 0 to spendable AP - not as two
    separate rules for boons and drawbacks. Assert it directly: for any DM edit, economy().available
    before == economy().available after.
