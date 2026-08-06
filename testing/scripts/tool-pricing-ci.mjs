@@ -469,6 +469,31 @@ try {
               compute(b).warnings.filter(w=>/choose an ability to raise/.test(w)).length];})()`),
     ['STR', 0]);
 
+  // A house-rule name and description are user-typed and ride inside the saved envelope and the cloud
+  // `stats` column, so they render in ANOTHER user's browser — this is stored XSS, not a display bug.
+  // AGENTS.md makes esc() on every player-controlled value reaching innerHTML a hard invariant.
+  console.log('\nCharGen — a house-rule name cannot inject markup, and its controls still work');
+  check('an HTML payload in a house-rule name renders as text and executes nothing',
+    await cg.evaluate(`(()=>{window.__pwned=0;
+      const PAY='<img src=x onerror="window.__pwned=1">', NAME='Cursed '+PAY;
+      HOUSE.draws[NAME]={ap:2,fx:'desc '+PAY}; HOUSE.boons[NAME]={hd:1,ap:2,fx:'desc '+PAY};
+      buildDrawGrid(); buildBoonGrid(); buildDmList();
+      return [window.__pwned,
+              document.querySelectorAll('#drawgrid img,#boongrid img,#dmlist img').length,
+              (document.getElementById('drawgrid').innerText||'').includes(PAY)];})()`),
+    [0, 0, true]);
+  // esc() alone would stop the XSS but leave onclick="fn("a"b")" — a syntax error that silently breaks
+  // the control. The handler needs JSON.stringify() underneath it, so assert the button actually works.
+  check('the DM-list controls still parse and fire for a quote-bearing name',
+    await cg.evaluate(`(()=>{const dl=document.getElementById('dmlist');
+      const btn=dl.querySelector('button.dmctl'); let parses=false;
+      try{ new Function(btn.getAttribute('onclick').replace(/dmToggleDisable/,'window.__got=')); parses=true; }catch(e){}
+      const before=/\\boff\\b/.test(dl.querySelector('.dmrow').className);
+      btn.click(); buildDmList();
+      const after=/\\boff\\b/.test(document.querySelector('#dmlist .dmrow').className);
+      return [parses, before!==after];})()`),
+    [true, true]);
+
   console.log('\nCharGen — the drawbacks ledger line itemises what was taken');
   const LEDGER_ROWS = `(sel)=>{const rows=[...document.getElementById('ledger').querySelectorAll('tr')].map(tr=>
       ({cls:tr.className,label:(tr.cells[0]||{}).innerText||'',val:Number((tr.cells[1]||{}).innerText)}));

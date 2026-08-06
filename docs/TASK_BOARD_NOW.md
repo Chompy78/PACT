@@ -354,33 +354,6 @@ damage likelihood low (parity + tool-pricing gates catch a wrong implementation)
 `D-GH-<date>-reprice-preserves-uncharged-costs` record, a log with paid mvbuy events survives
 `repriceDraft()` with its AP intact, a gate asserts that invariant, and engine-parity still reports 27/0.
 
-## A user-typed house-rule drawback name reaches innerHTML unescaped in CharGen — TODO
-Branch `fix/chargen-houserule-name-escaping`. Found by adversarial review of PR #364; **pre-existing** and
-unrelated to that diff. Breaches AGENTS.md's hard `esc()` invariant (REV-12).
-**Effort:** low · **Risk:** high — damage scale high (a security/trust boundary: `houseRules` travels
-inside the saved `pact-character/1` envelope and the cloud `stats` column, so the string crosses users);
-ambiguity low (wrap it in the tool's existing `esc()`, an exact pattern used everywhere else); damage
-likelihood medium (nothing automated gates escaping today) — worst-of lands at high. **NOT
-sweep-eligible** — security fixes get a human's eyes even when the diff is one call.
-
-```text
-1. tools/PACT-CharGen-Webtool.html — dmAdd() (~:1513) puts an arbitrary user-typed name straight into
-   HOUSE.draws[name]; buildDrawGrid() (~:1507) then interpolates that key raw into innerHTML
-   ('> '+k+'<span class="c">'). Only the value= attribute is quote-escaped, not the visible text.
-2. Confirm the reach before fixing: houseRules is part of the saved envelope (js/character-store.js
-   buildCharacterEnvelope) and therefore of characters.stats, so a DM's house-rule name renders in
-   another signed-in user's browser. That is what makes this stored XSS rather than a display bug.
-3. Fix: route the name through the tool's existing esc() at every render site, not just this one —
-   grep buildDrawGrid and its siblings for other raw interpolations of a HOUSE.* key.
-4. While here, check the same pattern for house-ruled BOONS (HOUSE.boons) — the drawback grid was
-   found by review, the boon grid was not audited.
-5. Display-only — do NOT bump DATA.version; log in CHANGELOG.
-6. Add a gate assertion: a house-rule named with an HTML payload must render as text, not markup.
-   testing/scripts/tool-pricing-ci.mjs already drives CharGen over CDP and is the cheapest home for it.
-```
-**Done when:** a house-rule drawback (and boon) named `<img src=x onerror=alert(1)>` renders as literal
-text in CharGen with no script execution, a gate asserts it, and engine-parity still reports 27/0.
-
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.

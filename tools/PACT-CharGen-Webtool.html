@@ -1462,15 +1462,15 @@ function buildArtGrid(){
       if(!hdOk) tip='Needs '+(+ar.hd||1)+' Hit Dice';
       else if(!statOk) tip='Requires '+statBlock;
       else if(prereq) tip='Prereq: '+prereq+' ✓ (met)';
-      const esc=nm.replace(/"/g,'&quot;');
+      const _nmAttr=esc(nm);   // was `const esc=…`, which shadowed the global esc() helper in this scope
       const prereqBadge=(!blocked&&prereq)?('<span style="font-size:9px;color:#a06000;background:#fff8e1;border:1px solid #e0b000;border-radius:3px;padding:1px 4px;margin-left:4px" title="'+prereq+' is required">'+prereq+'</span>'):'';
       // Boon-identical layout: [checkbox] name [AP] [HD>1?] [prereq?] [description]
       var hdLabel=ar.hd>1?' · <span style="font-size:10px;font-weight:700;color:'+(hdOk?'#888':'#C00000')+'">'+(hdOk?'':'⚠ ')+'HD '+ar.hd+'+</span>':'';
       var prereqLabel=(!blocked&&prereq)?' <span style="font-size:9.5px;color:#a06000" title="'+prereq+'">· '+prereq+'</span>':'';
       var dscSpan='<span class="dsc">'+(ar.fx||'')+'</span>';  // blocked items greyed by CSS :disabled
       return '<label class="ck">'+
-        '<input type="checkbox" class="artck" value="'+esc+'"'+(owned?' checked':'')+'>'+
-        ' '+nm+'<span class="c">'+ar.ap+' AP</span>'+hdLabel+_reqSpan(_reqP.join(', '),!statOk)+prereqLabel+
+        '<input type="checkbox" class="artck" value="'+_nmAttr+'"'+(owned?' checked':'')+'>'+
+        ' '+esc(nm)+'<span class="c">'+ar.ap+' AP</span>'+hdLabel+_reqSpan(_reqP.join(', '),!statOk)+prereqLabel+
         dscSpan+'</label>';
     }).join('');
     html+='</div>';
@@ -1491,8 +1491,8 @@ function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=b
   cats.forEach(c=>byCat[c].sort((a,b)=>((B[a].hd||1)-(B[b].hd||1))||a.localeCompare(b)));   // within a category: by HD requirement, then alphabetical
   let html='';cats.forEach(cat=>{
     html+='<div class="sublab">'+cat+'</div><div class="gridck zebra" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(max(280px,calc((100% - 6px)/4)),1fr));gap:2px">'+byCat[cat].map(k=>{const bo=B[k];var _rp=[],_ru=false;var _ms=bo.minStats||{};for(var _k in _ms){_rp.push(_k+' '+_ms[_k]+'+');if((st[_k]||10)<_ms[_k])_ru=true;}var _msa=bo.minStatsAny;if(_msa&&_msa.stats){_rp.push(_msa.stats.join('/')+' '+_msa.val+'+');if(!_msa.stats.some(function(a){return (st[a]||10)>=_msa.val;}))_ru=true;}
-      return '<label class="ck'+(bo.custom?' hr':'')+'"><input type="checkbox" class="boonck" value="'+k.replace(/"/g,'&quot;')+'"'+(chk.includes(k)?' checked':'')+'> '+k+'<span class="c">'+bo.ap+' AP</span>'+(bo.hd>1?'<span class="req" style="font-size:10px;color:var(--grey)"> · HD '+bo.hd+'+</span>':'')+_reqSpan(_rp.join(', '),_ru)+(bo.custom?'<span class="dmtag">DM</span>':'')+
-        '<span class="dsc">'+(bo.fx||'')+'</span></label>';}).join('')+'</div>';});
+      return '<label class="ck'+(bo.custom?' hr':'')+'"><input type="checkbox" class="boonck" value="'+esc(k)+'"'+(chk.includes(k)?' checked':'')+'> '+esc(k)+'<span class="c">'+bo.ap+' AP</span>'+(bo.hd>1?'<span class="req" style="font-size:10px;color:var(--grey)"> · HD '+bo.hd+'+</span>':'')+_reqSpan(_rp.join(', '),_ru)+(bo.custom?'<span class="dmtag">DM</span>':'')+
+        '<span class="dsc">'+esc(bo.fx||'')+'</span></label>';}).join('')+'</div>';});
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
 function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=_db.drawbacks||[];const q=_bdFilter('drawfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
   const byCat={};Object.keys(D).forEach(k=>{if(isDisabled('draws',k)&&!chk.includes(k))return;
@@ -1504,8 +1504,8 @@ function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild(
   cats.forEach(c=>byCat[c].sort((a,b)=>a.localeCompare(b)));   // within a category: alphabetical
   let html='';cats.forEach(cat=>{
     html+='<div class="sublab">'+cat+'</div><div class="gridck zebra" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(max(280px,calc((100% - 6px)/4)),1fr));gap:2px">'+byCat[cat].map(k=>{const dr=D[k];var _rp=[],_ru=false;var _mx=(DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k])||{};for(var _k in _mx){_rp.push(_k+' ≤ '+_mx[_k]);if((st[_k]||10)>_mx[_k])_ru=true;}
-    return '<label class="ck'+(dr.custom?' hr':'')+'"><input type="checkbox" class="drawck" value="'+k.replace(/"/g,'&quot;')+'"'+(chk.includes(k)?' checked':'')+'> '+k+'<span class="c">+'+dr.ap+' AP</span>'+_reqSpan(_rp.join(', '),_ru)+(dr.custom?'<span class="dmtag">DM</span>':'')+
-      '<span class="dsc">'+(dr.fx||'')+'</span></label>';}).join('')+'</div>';});
+    return '<label class="ck'+(dr.custom?' hr':'')+'"><input type="checkbox" class="drawck" value="'+esc(k)+'"'+(chk.includes(k)?' checked':'')+'> '+esc(k)+'<span class="c">+'+dr.ap+' AP</span>'+_reqSpan(_rp.join(', '),_ru)+(dr.custom?'<span class="dmtag">DM</span>':'')+
+      '<span class="dsc">'+esc(dr.fx||'')+'</span></label>';}).join('')+'</div>';});
   html=html||'<span class="hint">No drawbacks match your filter.</span>';
   g.innerHTML=html;}
 function dmAdd(){const kind=val('dmkind');const name=(val('dmname')||'').trim();if(!name){flash('Enter a name first.');return;}
@@ -1540,9 +1540,14 @@ function dmToggleDisable(kind,name){const dk=kind==='boon'?'boons':'draws';HOUSE
   render();}
 function buildDmList(){const el=$('dmlist');if(!el)return;const rows=[];
   const add=(kind,name,meta)=>{const off=isDisabled(kind==='boon'?'boons':'draws',name);
-    rows.push('<div class="dmrow'+(off?' off':'')+'"><span class="nm">'+name+'</span><span class="meta">'+meta+'</span>'+
-      '<button class="dmctl" type="button" onclick="dmToggleDisable(\''+kind+'\',\''+name.replace(/'/g,"\\\\'")+'\')">'+(off?'enable':'disable')+'</button>'+
-      '<button class="btn x" type="button" onclick="dmRemove(\''+kind+'\',\''+name.replace(/'/g,"\\\\'")+'\')">✕</button></div>');};
+    // A house-rule name is user-typed and rides in the saved envelope, so it crosses users: esc() it
+    // everywhere it reaches the DOM. The handlers need TWO layers, not one — JSON.stringify() escapes
+    // quotes at the JS level, then esc() escapes the result for the attribute. esc() alone stops the
+    // XSS but leaves `onclick="fn("a"b")"`, a syntax error that silently breaks the button for any
+    // name containing a quote.
+    rows.push('<div class="dmrow'+(off?' off':'')+'"><span class="nm">'+esc(name)+'</span><span class="meta">'+esc(meta)+'</span>'+
+      '<button class="dmctl" type="button" onclick="'+esc('dmToggleDisable('+JSON.stringify(kind)+','+JSON.stringify(name)+')')+'">'+(off?'enable':'disable')+'</button>'+
+      '<button class="btn x" type="button" onclick="'+esc('dmRemove('+JSON.stringify(kind)+','+JSON.stringify(name)+')')+'">✕</button></div>');};
   // custom boons/draws
   for(const k in (HOUSE.boons||{}))add('boon',k,'boon · HD '+(HOUSE.boons[k].hd||1)+'+ · '+(HOUSE.boons[k].ap||0)+' AP');
   for(const k in (HOUSE.draws||{}))add('draw',k,'drawback · +'+(HOUSE.draws[k].ap||0)+' AP');

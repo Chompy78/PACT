@@ -6,6 +6,21 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(chargen): house-rule names and descriptions can no longer inject markup** — a DM's
+  custom boon/drawback name and description are user-typed, and `houseRules` rides inside the saved
+  `pact-character/1` envelope and the cloud `stats` column — so they render in **another user's** browser.
+  That makes it stored XSS, not a display bug, and AGENTS.md's `esc()` rule a hard invariant (REV-12).
+  Wider than filed: the reported site was `buildDrawGrid`, but the same raw interpolation was in
+  `buildBoonGrid`, in **both** grids' `fx` descriptions, and in `buildDmList`'s visible name — six sites,
+  all now through the shared `esc()` from `js/ui-helpers.js`. The DM-list handlers needed **two** layers:
+  `JSON.stringify()` escapes quotes at the JS level, then `esc()` escapes for the attribute — `esc()`
+  alone stops the injection but leaves `onclick="fn("a"b")"`, a syntax error that silently breaks the
+  disable/remove buttons for any name containing a quote. Also renamed a `const esc = …` local that
+  **shadowed the global `esc()` helper** in `buildArtGrid`'s scope, which is exactly what makes a later
+  `esc()` call throw. Gate +2 assertions; both confirmed red against a real revert (un-escaped name
+  materialises an `<img>`; single-layer handler neither parses nor fires). Note the element-count check
+  is what carries the first assertion — `onerror` timing is unreliable headless, so asserting only on
+  "did script run" would have passed while markup was injecting. Display-only; `DATA.version` unmoved.
 - **2026-08-06 · fix(chargen): an epic boon's ability choice survives a whole-log rewrite** — silent data
   loss on a supported path: `epicBoonAbil` is set only by the Live Sheet's ✎ Names dialog and has no
   CharGen control, so `_domReadBuild()` never carried it and `replaceWholeLogFromBuild()` emitted a
