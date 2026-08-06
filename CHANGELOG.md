@@ -27,6 +27,16 @@
   purchase, order, so there is no honest place to draw that line; `feat/creation-vs-awarded-ap` stays
   open for it. Engine untouched, so `DATA.version` is unmoved. Recorded in
   `decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md`.
+- **2026-08-06 · fix(login): sign-in now lands back on index.html instead of a redundant "signed in"
+  panel** — `login.html` used to show its own post-auth screen ("Signed in as X.", "Open PACT tools",
+  "Live Character Sheet", "Log out") after a successful sign-in, or when a signed-in visitor loaded the
+  page directly. That panel duplicated `index.html`'s header, which already renders "Signed in as X ·
+  Log out" via `js/auth.js` (`currentSession`/`myProfile`/`logout`). Replaced it with a redirect to
+  `index.html`, checked in the same three places the old panel was shown: after login, after register
+  (when email confirmation is off and a session exists immediately), and on page load for an already
+  signed-in visitor — each still defers to `resumePendingInvite()` first, so the campaign-invite
+  round-trip (CharGen → login.html → CharGen) is unaffected. Removed the now-dead `#signedView` markup/CSS
+  and the `logout`/`myProfile` imports that only it used. Display only; `BUILD`/`DATA.version` unmoved.
 - **2026-08-06 · fix(index): "Continue where you left off" moved into the For players section** — the
   resume-cards module (`#continueSection`) previously rendered as its own top-level section above the
   Player's Guide hero; it now nests at the bottom of the existing "For players" `tools-group`, below the
