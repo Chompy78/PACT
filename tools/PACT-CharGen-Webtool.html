@@ -2242,6 +2242,11 @@ function replaceWholeLogFromBuild(b,opts){
   // user edit. A character saved in that window would carry no arming event, and the Live Sheet would
   // not add one either (it arms only in seedNew(), which runs on an EMPTY log). SEQ is set first
   // because _cgEnsureLockArmed() consumes one.
+  // epicBoonAbil has no CharGen control, so a build read from the DOM never carries it and the
+  // rewritten log used to drop it: a Live Sheet character with epic boons, opened here and
+  // re-saved, lost its ability choices and kept a permanent "choose an ability to raise" warning.
+  // Recover it from the log we are about to replace and hand it to the burst on the build.
+  try{ if(b&&!b.epicBoonAbil){ var _pv=foldBuild(LOG); if(_pv&&_pv.epicBoonAbil&&Object.keys(_pv.epicBoonAbil).length)b.epicBoonAbil=_pv.epicBoonAbil; } }catch(e){}
   commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);_cgEnsureLockArmed();_cgRepriceDraft();render();
 }
 
@@ -3044,6 +3049,18 @@ function saveNames(){var _dup=_cgNameDupes();if(_dup.length){flash('⛔ “'+_du
   CG_NAMES={dab:dab,inn:inn,feat:feat,lang:lang,grants:grants,tr:Object.keys(trMap).map(function(k){return trMap[k];})};closeNames();flash('Spell & language names saved — they will export with your Live Sheet file.');}
 // ---- bridge: convert the current build into a Live-Sheet event log (frozen per-step prices) ----
 function _buildEventBurst(b){
+  // epicBoonAbil has NO CharGen control — only the Live Sheet's ✎ Names dialog sets it — so
+  // _domReadBuild() cannot see it and the rewritten log used to drop it silently. A Live Sheet
+  // character with epic boons, opened in CharGen and re-saved, came back with its ability choices
+  // gone and a permanent "<boon>: choose an ability to raise (+2)" warning.
+  // Recover it from the log we are about to REPLACE: replaceWholeLogFromBuild() assigns the new LOG
+  // only after this returns, so the global LOG here is still the previous one. Prefer the passed
+  // build if it happens to carry the field (the export path hands over a folded build).
+  // The caller attaches this (see replaceWholeLogFromBuild) — it CANNOT be recovered here. This
+  // function declares its own `let LOG=[]` below, so a bare `LOG` is in that binding's temporal dead
+  // zone, and the top-level `LOG` is a `let` too, so it is not on `window` either. Both were tried.
+  var _cgEB=(b&&b.epicBoonAbil)||null;
+  if(_cgEB&&!Object.keys(_cgEB).length)_cgEB=null;
   // Shared "flat build -> canonically-serialized noLock:true event burst" builder (Phase 2 Step 3,
   // Chunk 0). Originally lived only inside buildToLiveLog() (the CharGen->Live-Sheet export path);
   // factored out here so buildToEventLog() (used by replaceWholeLogFromBuild() for all whole-build-
@@ -3102,7 +3119,10 @@ function _buildEventBurst(b){
   (b.drawbacks||[]).forEach(v=>evItem('Drawback — '+v,'drawback',v, -(DATA.drawbacks[v])));
   emitPatch('Attunement',{attune:b.attune});emitPatch('Ki & Sorcery points',{ki:b.ki,sorcery:b.sorcery});emitPatch('Martially Bound',{martiallyBound:b.martiallyBound});
   emitPatch('Character size',{size:b.size});emitPatch('Starting gold',{gold:b.gold});
-  if(CG_NAMES&&((CG_NAMES.lang&&CG_NAMES.lang.length)||(CG_NAMES.dab&&CG_NAMES.dab.length)||(CG_NAMES.inn&&CG_NAMES.inn.some(function(a){return a&&a.length;}))||(CG_NAMES.tr&&CG_NAMES.tr.length)||(CG_NAMES.grants&&Object.keys(CG_NAMES.grants).length)||(CG_NAMES.feat&&Object.keys(CG_NAMES.feat).length)))ev({type:'names',dab:CG_NAMES.dab||[],inn:CG_NAMES.inn||[[],[],[],[],[],[],[],[],[]],feat:CG_NAMES.feat||{},lang:CG_NAMES.lang||[],grants:CG_NAMES.grants||{},tr:CG_NAMES.tr||[],label:'Named spells & languages'});
+  // A character can carry an epic-boon ability choice with no other named spells/languages, so this
+  // fires on _cgEB alone. Read through a local alias rather than mutating the CG_NAMES global.
+  var _cgN=CG_NAMES||{};
+  if((_cgN.lang&&_cgN.lang.length)||(_cgN.dab&&_cgN.dab.length)||(_cgN.inn&&_cgN.inn.some(function(a){return a&&a.length;}))||(_cgN.tr&&_cgN.tr.length)||(_cgN.grants&&Object.keys(_cgN.grants).length)||(_cgN.feat&&Object.keys(_cgN.feat).length)||_cgEB)ev({type:'names',eb:_cgEB||{},dab:_cgN.dab||[],inn:_cgN.inn||[[],[],[],[],[],[],[],[],[]],feat:_cgN.feat||{},lang:_cgN.lang||[],grants:_cgN.grants||{},tr:_cgN.tr||[],label:'Named spells & languages'});
   return LOG;
 }
 // Phase 2 Step 3 (Chunk 0): the LOG-mutation-API's whole-build-replacement helper. opts is currently

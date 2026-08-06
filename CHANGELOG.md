@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(chargen): an epic boon's ability choice survives a whole-log rewrite** — silent data
+  loss on a supported path: `epicBoonAbil` is set only by the Live Sheet's ✎ Names dialog and has no
+  CharGen control, so `_domReadBuild()` never carried it and `replaceWholeLogFromBuild()` emitted a
+  `names` event without it. A Live Sheet character with epic boons, opened in CharGen and re-saved, came
+  back with its choices gone and a permanent *"&lt;boon&gt;: choose an ability to raise (+2)"* it could not
+  clear. `replaceWholeLogFromBuild()` now recovers the value from the log it is about to replace and
+  hands it to the burst on the build; the `names` event carries `eb`, and its emission guard fires on
+  that alone (a character can have an ability choice and no named spells). **Two wrong fixes preceded the
+  right one, both caught by driving the real tool rather than reasoning:** `_buildEventBurst()` declares
+  its own `let LOG=[]`, so reading `LOG` there hits that binding's temporal dead zone — and the read sat
+  in a `try/catch`, so it failed silently and recovered nothing; the top-level `LOG` is also a `let`, so
+  `window.LOG` is undefined too. The capture has to happen in the caller. Gate +1 assertion, confirmed
+  red against the reverted carry (returns `[null, 1]`). Display/entitlement field only — `DATA.version`
+  unmoved, engine untouched.
 - **2026-08-06 · chore(release): `BUILD` → `v1.367` (PR #367)** — small follow-up promotion of `preview` →
   `main`, immediately after `v1.365`: the Live Sheet rules-version fix plus its board entry. Major carried
   forward at `1`. `BUILD` mirrored from `js/engine.js` into CharGen's line-1 comment, `<title>` and header

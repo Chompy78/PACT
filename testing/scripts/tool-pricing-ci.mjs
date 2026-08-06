@@ -452,6 +452,23 @@ try {
   // The ledger renders (r.itemize||{})[lineLabel] generically, so the whole fix is engine-side —
   // and it fails SILENTLY if the addItems() key ever stops matching the ledger line's label exactly.
   // Assert on the rendered DOM rather than on compute() so a label drift is caught here.
+  // epicBoonAbil is set only by the Live Sheet's Names dialog and has no CharGen control, so a build
+  // read from the DOM never carries it. The whole-log rewrite used to drop it silently, leaving the
+  // character with a permanent "choose an ability to raise" warning and no way to clear it.
+  console.log('\nCharGen — an epic boon\'s ability choice survives a whole-log rewrite');
+  check('epicBoonAbil survives load -> DOM rebuild, and the warning clears',
+    await cg.evaluate(`(()=>{
+      const L=[{type:'award',amount:900,label:'AP award',seq:1,ts:1}]; let s=2;
+      for(let h=2;h<=17;h++)L.push({type:'buy',cat:'hd',payload:{to:h},cost:0,label:'lvl',seq:s++,ts:1,level:h-1});
+      L.push({type:'buy',cat:'boon',payload:{v:'Boon of Fate'},cost:25,label:'Boon of Fate',seq:s++,ts:1,level:17});
+      L.push({type:'names',eb:{'Boon of Fate':'STR'},label:'Named spells & languages',seq:s++,ts:1});
+      _cgApplyEnvelope({schema:'pact-character/1',rules:DATA.version,name:'EB',LOG:L,SEQ:s},{clearHistory:true});
+      replaceWholeLogFromBuild(_domReadBuild());
+      const b=foldBuild(LOG);
+      return [(b.epicBoonAbil||{})['Boon of Fate']||null,
+              compute(b).warnings.filter(w=>/choose an ability to raise/.test(w)).length];})()`),
+    ['STR', 0]);
+
   console.log('\nCharGen — the drawbacks ledger line itemises what was taken');
   const LEDGER_ROWS = `(sel)=>{const rows=[...document.getElementById('ledger').querySelectorAll('tr')].map(tr=>
       ({cls:tr.className,label:(tr.cells[0]||{}).innerText||'',val:Number((tr.cells[1]||{}).innerText)}));
