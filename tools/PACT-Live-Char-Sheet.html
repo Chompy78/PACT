@@ -552,11 +552,26 @@ const _CTX_PRICERS={
   mbound:function(){return -2;},
   dbound:function(){return -2;}
 };
+// A SECOND, DISTINCT escape — deliberately not folded into _CTX_PRICERS above, and it must stay that way.
+// Those entries exist because the build diff is WRONG: the purchase changes the pricing context, so the
+// diff drags a re-price of everything already owned into the quote. This one exists for the opposite
+// reason — compute() never charges for the thing at all, so the diff is 0 and any affordability gate
+// built on it is a silent no-op. The distinction is load-bearing: D-GH-2026-08-05-pricing-model D1 plans
+// to retire _CTX_PRICERS into one general context-change rule, and folding an uncharged purchase into
+// that table would quietly restore free maneuvers the day it happens.
+const _UNCHARGED_PRICERS={
+  // Extra Battle Master maneuver: an escalating rung (4, 5, 6, …). `maneuverBuys` only widens the ✎ Names
+  // dialog's slot count; no ledger line reads it. The rung lives in DATA rather than as a literal here —
+  // D1's own finding is that "the escapes exist where the data was missing", and this price had never
+  // been in DATA at all. Falls back to the historical 4/+1 if an older dataset lacks the key.
+  mvbuy:function(cur){const _m=(typeof DATA!=='undefined'&&DATA.maneuverBuy)||{base:4,step:1};
+    return (+_m.base||0)+(+_m.step||0)*(cur.maneuverBuys||0);}
+};
 // price a prospective change: its own listed price for a context change, else a delta against the
 // CURRENT committed build (correct for an ordinary purchase, which changes nothing else's price)
 function priceOf(cat,payload,_cur){
   const cur=_cur||foldBuild(null);   // optional pre-folded build: callers already holding foldBuild(null) (e.g. buy()) pass it to avoid a redundant re-fold; omitted → fresh fold (identical result — the fold is deterministic on the current LOG)
-  const _ctx=_CTX_PRICERS[cat];
+  const _ctx=_CTX_PRICERS[cat]||_UNCHARGED_PRICERS[cat];
   if(_ctx)return _ctx(cur,payload||{});
   const before=compute(cur).total;
   const cand=clone(cur); (MUT[cat]||(()=>{}))(cand,payload);
@@ -574,6 +589,13 @@ function award(amount,note,disc){ if(amount===null||amount===undefined||String(a
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
 // these stay confirm-through. Everything else a purchase raises is a hard rules violation → blocked with a popup.
 const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability/i;
+// EXPECTED FOLLOW-UP = not a warning at all. The purchase is legal and complete; a choice that belongs
+// to it is made afterwards, in the ✎ Names dialog. Epic boons are the only case today: MUT.boon pushes
+// the label but cannot set epicBoonAbil (js/engine.js:545), so compute() on the candidate build always
+// raises "<boon>: choose an ability to raise (+2)" (js/engine.js:145). Classified as neither hard nor
+// soft — blocking it made all 12 epic boons unbuyable, and confirm()ing it would ask the player to
+// approve a rules warning that isn't one. buy() points at the dialog instead.
+const EXPECTED_FOLLOWUP=/choose an ability to raise/i;
 // single-instance proficiencies: buying one you already own is never legal (can't stack) → blocked with a popup.
 const DUP_FIELD={save:'saves',skill:'skills',expertise:'expertise',toolexpertise:'toolExpertise',tool:'tools',instrument:'instruments',mastery:'masteries',racial:'racialTraits',racialspell:'racialSpells'};
 function setWornArmour(v){emit({type:'buy',cat:'wornArmour',payload:{v:v},cost:0,label:v?('Worn armour — '+v):'Worn armour — none (unarmoured)',level:foldBuild(null).hd});}
@@ -591,12 +613,19 @@ function buy(cat,payload,label){
   if(cat!=='drawback' && cost>avail){ flash('Not enough AP: needs '+cost+', have '+avail); return; }
   // (B2) split rules warnings: hard violations are blocked with a popup; intended-but-flagged ones stay confirm-through
   const warns=legalCheck(cat,payload,b0);
-  const hard=warns.filter(function(w){return !SOFT_WARN.test(w);});
-  const soft=warns.filter(function(w){return  SOFT_WARN.test(w);});
+  const followup=warns.filter(function(w){return  EXPECTED_FOLLOWUP.test(w);});
+  const rest    =warns.filter(function(w){return !EXPECTED_FOLLOWUP.test(w);});
+  const hard=rest.filter(function(w){return !SOFT_WARN.test(w);});
+  const soft=rest.filter(function(w){return  SOFT_WARN.test(w);});
   if(hard.length){ alert('⛔ Purchase blocked — it breaks a rules limit:\n\n• '+hard.join('\n• ')); return; }
   if(soft.length && !confirm('This purchase raises a rules warning:\n• '+soft.join('\n• ')+'\n\nBuy anyway (it will be flagged for review)?')) return;
   var _preSwap=(cat==='hd')?_swapAvailFrom((b0.hd)||1,LOG):null;
-  emit({type:'buy',cat,payload,cost,label:label||(cat+' '+JSON.stringify(payload)),level:b0.hd,warns});
+  // Store `rest`, NOT `warns`: the event's warns array is the record of what was flagged and clicked
+  // through, and the history ledger paints any row carrying one red (:947, .warnrow). A follow-up is a
+  // to-do, not a violation — storing it would mark every epic boon as a rules breach forever, including
+  // after the player picks the ability. (hard is empty by here: it returns above.)
+  emit({type:'buy',cat,payload,cost,label:label||(cat+' '+JSON.stringify(payload)),level:b0.hd,warns:rest});
+  if(followup.length)flash('✎ Now open Names and pick the ability — '+followup.join('; '));
   if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
 }
 function takeDrawback(v){ const refund=DATA.drawbacks[v]||0; emit({type:'buy',cat:'drawback',payload:{v},cost:-refund,label:'Drawback — '+v,level:foldBuild(null).hd}); }
@@ -991,13 +1020,19 @@ function buildBuyPanel(b,r,eco,head){
     // HARD block (flash only): unmet prerequisite (reasonExtra) or not enough AP.
     // SOFT warning: the purchase is allowed — buy() asks to confirm and flags it for review. Don't dead-end it.
     const hardReason = reasonExtra || (unaff?('needs '+cost+' AP — you have '+eco.available):'');
-    const soft = (!hardReason && warns.length)?warns[0]:'';
+    // Same three-way split buy() makes: an expected follow-up still shows its text as guidance, but must
+    // NOT take the amber .warn styling — that slot means "this raises a rules warning", and all 12 epic
+    // boons would otherwise be the only permanently-warned tiles in the panel.
+    const _fu   = warns.filter(function(w){return  EXPECTED_FOLLOWUP.test(w);});
+    const _rest = warns.filter(function(w){return !EXPECTED_FOLLOWUP.test(w);});
+    const soft = (!hardReason && _rest.length)?_rest[0]:'';
+    const followup = (!hardReason && !soft && _fu.length)?_fu[0]:'';
     const blocked=!!hardReason;
     if(hideUnavail && blocked) return '';   // "Hide unavailable": drop the greyed can't-buy tiles (default off → shown greyed+clickable with the reason)
     const costlbl = (cat==='drawback'||cat==='mbound'||cat==='dbound')?('+'+(-cost)):(''+cost);
     const pay='buy(&quot;'+cat+'&quot;,'+esc(JSON.stringify(payload))+',&quot;'+esc(label)+'&quot;)';
     const click = blocked ? ('flash(&quot;'+esc(hardReason)+'&quot;)') : pay;
-    const note = hardReason || soft;
+    const note = hardReason || soft || followup;
     const _pg=(['feature','subabil','racial'].indexOf(cat)>=0&&typeof FEAT_PG!=='undefined'&&payload&&FEAT_PG[payload.v])?('PHB p.'+FEAT_PG[payload.v]):'';
     const _ttl=[note,descr,_pg].filter(Boolean).join(' · ');
     return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'"><span class="ibhead">'+label+' <em>'+costlbl+'</em></span>'+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
@@ -1622,7 +1657,11 @@ function toggleMore(e){if(e)e.stopPropagation();var m=document.getElementById('m
 function closeMore(){var m=document.getElementById('moremenu');if(m)m.classList.remove('open');}
 function toggleDM(){var c=document.getElementById('dmcontent'),t=document.getElementById('dmtoggle');if(!c)return;var op=(c.style.display==='none');c.style.display=op?'inline':'none';if(t)t.textContent='🛠 DM tools '+(op?'▾':'▸');}
 function closeNames(){var ov=document.getElementById('namesOv');if(ov)ov.style.display='none';}
-function buyManeuver(){var b=foldBuild(null);emit({type:'buy',cat:'mvbuy',payload:{},cost:4+(b.maneuverBuys||0),label:'Extra Battle Master maneuver'});closeNames();openNames();}
+// Routed through buy() so the frozen-economy affordability gate applies, same as every other purchase.
+// It used to emit() directly, which made it the one unguarded buy path in the tool: a player with 0 AP
+// could keep buying maneuvers indefinitely (measured: 0 → −22 over four clicks at 4/5/6/7 AP).
+// Only redraw the dialog when the purchase actually landed — on a refusal buy() has already flashed why.
+function buyManeuver(){var n=LOG.length;buy('mvbuy',{},'Extra Battle Master maneuver');if(LOG.length>n){closeNames();openNames();}}
 function saveNames(){var dab=[],inn=[[],[],[],[],[],[],[],[],[]],feat={},trMap={},lang=[],fs=[],fsc={},mm=[],mv=[],grants={},eb={},GR=_ownedGrants(foldBuild(null));
   document.querySelectorAll('#namesBox .nmf').forEach(function(e){var p=e.dataset.k.split('::'),v=e.value;
     if(p[0]==='grant'){var _gk=GR[+p[1]]&&GR[+p[1]].key;if(_gk){(grants[_gk]=grants[_gk]||[])[+p[2]]=v;}}

@@ -6,6 +6,64 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · feat(engine): the `Drawbacks (refund)` ledger line itemises what was taken** — owner-
+  confirmed: a character with three drawbacks showed one lump sum and no way to see which three, while
+  *Arts & Techniques*, *Species traits*, *Class features*, *Subclass abilities* and *Boons* all expanded
+  into named rows. The drawbacks loop now collects pairs and calls `addItems("Drawbacks (refund)", …)`
+  with the key matching the ledger line's label exactly — both tools already walk `itemize` generically,
+  so there is no renderer change. Rows are **negative**, so they sum to the line total (`-drawGain`), the
+  same relationship the other five itemised lines have with theirs; the value itemised is the one
+  actually charged, so a house-ruled drawback shows its overridden AP, not the printed one. Unknown
+  drawbacks are skipped, as all five sibling itemised loops already do — a drawback retired from the rules
+  scores 0, and without the guard it rendered a phantom `<name> 0` row and could leave an `itemize` key
+  with no matching ledger line (`add()` suppresses a zero total). `compute()` totals do not move and
+  `testing/expected/` captures only totals and warnings (checked, not assumed), so **`DATA.version` is
+  unmoved**. Note the rows are visible in **CharGen and DM Console** only — the Live Sheet's AP ledger
+  maps `r.lines` and does not read `itemize` at all. Gate +11 assertions across the three fixes; every one
+  that guards a specific behaviour was confirmed red against a deliberately reverted guard before being
+  trusted, and step 6's check that *Boons* rows still render is in there too. **Not in this change:** the
+  2026-08-05 scope extension — showing what was *lost* (a bought-off
+  drawback, its buy-off cost, and a DM-removed boon) appears in no ledger line at all, and needs an owner
+  decision on whether historical spend belongs in `compute()`'s ledger (`feat/ap-model-reconcile`) plus a
+  line shape for a DM-edit feature that isn't built yet. The task stays on `docs/TASK_BOARD_NEXT.md`.
+- **2026-08-06 · fix(livesheet): buying an extra maneuver goes through the affordability gate** —
+  `buyManeuver()` called `emit()` directly, making it the one purchase path in the tool that skipped
+  `buy()`'s frozen-economy check. Measured on a Fighter with *Combat Superiority* and **0 AP available**:
+  four clicks charged 4, 5, 6 and 7 AP and took the character to **−22**, with no refusal and no warning.
+  Now routed through `buy()`. Pricing needed an escape first — `maneuverBuys` is read only by the ✎ Names
+  dialog's slot count and by no ledger line, so `compute()`'s build diff prices the purchase at 0 and the
+  gate would have been a no-op; `mvbuy` therefore joins `_CTX_PRICERS` quoting its own rung
+  (`4 + maneuverBuys`), the same escape `hd`, `abil` and `unlockclass` already use. The dialog now
+  redraws only when the purchase lands, so a refusal leaves it open showing the flash. Verified: at 0 AP
+  all four clicks are refused with *"Not enough AP: needs 4, have 0"*; at 15 AP the ladder still charges
+  4, 5, 6 and then refuses the 7 with *"needs 7, have 0"*. Review then found the escape was in the wrong
+  table: `_CTX_PRICERS` means *"the diff over-charges because this purchase changes the pricing context"*,
+  and adding a fourth entry contradicts `D-GH-2026-08-05-pricing-model` **D1** outright. `mvbuy` now lives
+  in its own `_UNCHARGED_PRICERS` — *"the diff is 0 because `compute()` charges nothing"* — which keeps D1's
+  planned retirement of `_CTX_PRICERS` safe to carry out; folding an uncharged purchase in would have made
+  maneuvers free again the day it happened. The rung itself moved into **`DATA.maneuverBuy`**
+  (`{base:4, step:1}`), following D1's own finding that *"the escapes exist where the data was missing"* —
+  it had never been in `DATA` at all. `DATA.version` deliberately unmoved (value unchanged, `compute()`
+  never reads the key, parity 27/0); reasoning recorded in
+  `decisions/2026/D-GH-2026-08-06-maneuver-afford-gate.md`.
+- **2026-08-06 · fix(livesheet): epic boons can be bought again — an expected follow-up is no longer a
+  hard block** — owner-confirmed: all 12 `epic:true` boons were unbuyable in the Live Sheet. `MUT.boon`
+  pushes the label but cannot set `epicBoonAbil`, so `compute()` on the candidate build always raised
+  *"&lt;boon&gt;: choose an ability to raise (+2)"*; that string matched neither `SOFT_WARN` nor anything
+  else, so `buy()` classified it as a rules violation and refused with *⛔ Purchase blocked*. The warning
+  is guidance, not a violation — the ability is chosen afterwards in the ✎ Names dialog. Added a third
+  class, `EXPECTED_FOLLOWUP`, rather than widening `SOFT_WARN`: soft warnings mean "allowed but flagged,
+  confirm through", and asking a player to confirm a warning that isn't one is the wrong prompt. `buy()`
+  now flashes a pointer to the dialog instead. Measured on a HD-17 character with 804 AP: 12 of 12 epic
+  boons blocked before, 12 of 12 bought after, with the guidance still raised on the build and
+  *"Crossbow Expert: requires DEX 14+"* still hard-blocked. Two follow-on defects found in review and
+  fixed here: the event was still storing the **unfiltered** `warns`, and the history ledger paints any
+  row carrying one red — so an epic boon would have looked like a rules breach forever, including after
+  the ability was chosen, and `warns` travels inside the saved envelope; `buy()` now stores `rest`. And
+  `ib()` built its own classification with no knowledge of `EXPECTED_FOLLOWUP`, so every epic-boon tile
+  stayed amber `.warn` while clicking it bought cleanly — the panel and `buy()` disagreeing about the
+  same string. The tile keeps the guidance text and drops the styling. No engine change, so
+  `DATA.version` unmoved.
 - **2026-08-05 · fix(livesheet): a racial trait is gated by its tier, as CharGen already gated it** — owner
   report: *"Draconic flight requires T4, which works in CharGen but not the Live Sheet."* A trait's tier
   gates it by Hit Dice via `DATA.tierHD` (T4 needs 5 HD), and CharGen enforced that on its trait
