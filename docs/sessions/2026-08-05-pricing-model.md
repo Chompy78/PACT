@@ -108,3 +108,71 @@ different question instead: a pre-lock Live Sheet character that levels up ends 
 The first version of that probe reported `spent=0` throughout, which would have been a spectacular false
 finding: the Live Sheet's bridged `economy()` takes an **index**, not an array. Third time this session that
 the honest move was to distrust my own first measurement.
+
+## Part 5 — what the session became after the pricing branches
+
+The four-branch plan finished, and then the session kept going for a long stretch of owner-driven design
+and bug-hunting. Recording it because the pattern is the reusable part.
+
+### Two rules corrections came out of *describing* the system, not testing it
+
+Both landed because the owner read a number back and said "that's not what I meant":
+
+- **Grit was priced by character tier**, so three Grit cost 6 AP at level 1 and 36 at level 9. It should
+  be priced by *which purchase it is*, level-independent. The guide said "Situational by tier" and the code
+  implemented that faithfully — **both artefacts agreed with each other and both were wrong.** That is the
+  trap worth remembering: agreement between spec and implementation is not evidence of correctness when
+  both were derived from the same wording.
+- **Vigor needed the species-trait treatment.** Species traits have always been stamped per item with the
+  lock state at purchase; Vigor was not, so `compute()` re-priced the whole stack at today's tier. Giving
+  each rank its own stamp closed the last CharGen-vs-Live-Sheet divergence (levelling 1→5 with a Vigor/Grit
+  stack: 51 AP in CharGen against 12 in the Live Sheet, now 12 in both).
+
+### Both of those mechanics had ZERO test coverage
+
+Every fixture carried `tough: 0` **and** `hardy: 0`, and no event fixture bought either. Two rules
+mechanics in a row where the parity gate could not have caught the bug and could not catch a regression.
+That is not a coincidence to note in passing — it is a coverage pattern, and the next question worth asking
+is which *other* DATA-driven mechanic has no fixture touching it.
+
+### Measuring beat reasoning, repeatedly
+
+Every significant finding this session came from running something, and several came from distrusting a
+first measurement:
+
+- The 44-vs-83 "defect" dissolved once the lines were itemised — the gap was entirely Vigor, and the
+  levelling charge was correct all along. My framing ("levels 1→5 ends at ledger 44") had misled the owner
+  into thinking levelling cost 44; they were right that it was 12.
+- A tool-comparison harness reported 5 of 9 categories disagreeing. Three of those were my own probe
+  calling the Live Sheet's `foldBuild()` with an array when it takes an **index** — the same bridged-API
+  trap that had already bitten me once with `economy()` earlier in the session. Corrected: 2 of 9.
+- A gate assertion I wrote asserted `typeof x === 'boolean'`, which passes regardless. Caught on read-back
+  and replaced with one that drives the real buy panel.
+
+### Bugs found by the owner simply describing how they want things to work
+
+- **Epic boons cannot be bought at all** in the Live Sheet (12 of them) — owner-confirmed in the app.
+- **Maneuvers ignore affordability** — reproduced at −22 AP. The control is in the *Names dialog*, not the
+  buy panel, and only for a character with `Fighter: Combat Superiority (maneuvers)`; the task entry had
+  only pointed at a code line, which is why it could not be found.
+- **A bought-off drawback can never be taken again.** `boughtOff` is keyed by the drawback's *name*, so it
+  suppresses every purchase of that value including later ones. Found because the owner said a removed boon
+  must be re-buyable — the same design would have inherited the identical bug.
+- **Cloud saves are last-write-wins today.** `pushCharacter()` writes with no concurrency guard at all, so
+  two devices silently clobber each other. Found while designing DM edits; it needs none of that feature.
+
+### Where I stopped, and why
+
+Two things were specced but deliberately not built:
+
+- **The optimistic-concurrency guard.** The design is settled and two non-obvious traps are documented
+  (the client does not retain the server's `updated_at`; "0 rows updated" currently means "insert"). But it
+  is the sync layer all three tools depend on, the local record shape changes for existing users, and it
+  **cannot be tested without a signed-in browser** — which neither the gate nor I can reach. Shipping it
+  blind risks "nothing syncs" on top of the bug it fixes.
+- **Removing the burst's `noLock` tagging**, which is what actually fixes the reload-unlock bug. It needs a
+  rules answer about event ordering that only the owner can give.
+
+Both are better as precise tasks than as untested commits. The general lesson: *"I have the design"* and
+*"I can verify it"* are different gates, and the second one is the one that decides whether to write code
+while the owner is away.

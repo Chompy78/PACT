@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-05 · fix(livesheet): a racial trait is gated by its tier, as CharGen already gated it** — owner
+  report: *"Draconic flight requires T4, which works in CharGen but not the Live Sheet."* A trait's tier
+  gates it by Hit Dice via `DATA.tierHD` (T4 needs 5 HD), and CharGen enforced that on its trait
+  checkboxes. The Live Sheet used `DATA.tierHD` for class features, Eldritch Invocations and cross-class
+  features but **not** for racial traits — `racialWhy()` checked only `minHD` and `reqRace`, and
+  *Dragonborn: Draconic flight* is T4 with no `minHD` field at all, so nothing stopped it being bought at
+  level 1. `racialWhy()` now checks the tier gate first; `minHD` stays as a stricter override for traits
+  naming an explicit level (the breath-dice steps, Goliath's Large Form). Gate +2 assertions, the second
+  driving the real buy panel for a Dragonborn so it proves the gate is wired rather than that the numbers
+  exist in `DATA`. No `compute()` change, so `DATA.version` unmoved.
 - **2026-08-05 · feat(engine): Vigor is priced per rank at the tier it was bought at** — closes the
   pre-lock reconciliation question (D8). `compute()` had no way to know *when* a Vigor rank was bought, so
   it re-priced the whole stack at today's tier: buy Vigor 2 at level 1 for 10 AP, level to 5, and the sheet

@@ -13,6 +13,16 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-05-creation-vs-awarded-ap** — starting AP splits into **creation AP** (the track's level-1
+  figure, which is what the creation lock measures) and **awarded AP** (everything above it, priced as
+  post-creation). CharGen now derives both from a building-level + budget-track pair, replacing a
+  751-option AP dropdown. A level-5 Standard character starts with 175 AP: 79 creation, 96 awarded — a
+  character who begins at level 5 has already advanced and should not get creation prices for all of it.
+  This also removes the reason `_buildEventBurst` tags every event `noLock:true`, which is what will
+  finally fix the reload-unlock bug; that half is **not built yet** and needs an owner call on burst
+  ordering.
+  Full record: `decisions/2026/D-GH-2026-08-05-creation-vs-awarded-ap.md`.
+
 - **D-GH-2026-08-05-grit-ladder-correction** — Grit is priced by **which purchase it is** (2/4/6/9/12/15/18,
   then steps of 2/4/6/8/10), not by the character's tier, and is level-independent: three Grit cost 12 whether
   you buy them at level 1 or level 9 (it was 6 / 27 / 36 at levels 1 / 5 / 9). Past-CON-mod surcharge is a flat
