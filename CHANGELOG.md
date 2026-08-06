@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(chargen): undo no longer un-locks a locked character, or reorders its purchases** —
+  a regression from the same day's creation-lock work, found by asking whether the ordering problem was
+  *"just randomize"*. It wasn't. `restoreFrame()` (undo/redo) restored the frame's LOG and then called
+  `applyBuild(foldBuild(LOG))`, which **rebuilds the LOG from the DOM** by design under D5. The DOM has no
+  control representing a `creationLocked` event, so the rebuild silently dropped it — **one undo unlocked
+  a locked character** — and re-emitted the purchases in canonical rather than click order. Measured on
+  six raises bought as CHA, WIS, INT, CON, DEX, STR: an undo→redo round-trip moved the creation boundary
+  from **4 purchases to 6**, so two that had been priced post-lock became creation-priced. `restoreFrame()`
+  now reinstates the frame's LOG verbatim after letting `applyBuild()` repaint, **superseding D5's
+  DOM-rebuild default for undo/redo only** — the same call `_cgApplyEnvelope()` already makes, because
+  applyBuild's DOM re-derivation diverges on anything the DOM cannot represent. Confirmed red against the
+  reverted line. Display/state only; `DATA.version` unmoved.
 - **2026-08-06 · fix(sync): a cloud save is refused if another device wrote first, instead of silently
   overwriting it** — `pushCharacter()` used a bare `.update(...).eq('id', …)` with **no concurrency guard
   at all**, and the entire event log lives in the `stats` blob — so the later writer replaced the earlier

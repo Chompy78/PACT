@@ -1984,8 +1984,23 @@ function commitHistory(){
 function restoreFrame(f){
   _histSuspended=true;
   try{
+    // The frame's LOG is AUTHORITATIVE — reinstate it verbatim rather than accepting applyBuild's DOM
+    // re-derivation. This supersedes D5's DOM-rebuild default for undo/redo only, for two reasons:
+    //
+    //  1. It was silently discarding the creation lock. Since D-GH-2026-08-06-creation-lock-survives-
+    //     reload, the lock is a `creationLocked` EVENT; the DOM has no control representing it, so the
+    //     rebuild dropped it and a single undo un-locked a locked character. Measured before this fix.
+    //  2. It was destroying real purchase ORDER. Interactive buys append in click order, which is what
+    //     puts the lock at the point spend actually crossed the threshold; the rebuild re-emits them in
+    //     canonical order instead, so the boundary became arbitrary.
+    //
+    // This is the same call _cgApplyEnvelope() already makes, and for the same stated reason: applyBuild's
+    // DOM re-derivation diverges on anything the DOM cannot represent. A frame is a snapshot of an
+    // already-reconciled state, so it needs no repricing on the way back in.
+    const _frLog=_histClone(f.log), _frSeq=f.seq;
     LOG=_histClone(f.log);SEQ=f.seq;
-    applyBuild(foldBuild(LOG));            // paints every control (incl. name/budget from the LOG); rebuilds LOG from DOM
+    applyBuild(foldBuild(LOG));            // paints every control (incl. name/budget from the LOG)
+    LOG=_frLog;SEQ=_frSeq;                 // …then take the frame's log back, unmodified
     __charId=f.id||__charId;
     render();
   }finally{_histSuspended=false;}
