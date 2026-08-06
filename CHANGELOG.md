@@ -27,6 +27,12 @@
   purchase, order, so there is no honest place to draw that line; `feat/creation-vs-awarded-ap` stays
   open for it. Engine untouched, so `DATA.version` is unmoved. Recorded in
   `decisions/2026/D-GH-2026-08-06-creation-lock-survives-reload.md`.
+- **2026-08-06 · fix(index): "Continue where you left off" moved into the For players section** — the
+  resume-cards module (`#continueSection`) previously rendered as its own top-level section above the
+  Player's Guide hero; it now nests at the bottom of the existing "For players" `tools-group`, below the
+  three tool cards. Layout/markup-only move — the recent-characters module still finds its elements by id
+  and its icon lookup still matches on tool-card `href`, both unaffected by DOM position. Display only;
+  `BUILD`/`DATA.version` unmoved.
 - **2026-08-06 · fix(livesheet): a refresh keeps the campaign binding, and a lookup no longer mints a
   character id** — owner report: *"when the page is refreshed, it loses the connection to campaign and I
   need to reload the character."* **The task board's diagnosis was wrong and is worth correcting:** it
