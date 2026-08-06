@@ -347,7 +347,7 @@ listed there under "Caveats and follow-ups".
 **Done when:** `grep -rn "pace curve\|PACE curve" --include=*.md --include=*.js --include=*.html .`
 returns no hit that presents the term as current fact outside `docs/history/` and the changelog archive
 (hits inside an explicit correction note are fine and expected), every edited record still contains its
-original wording, and parity still 24/0.
+original wording, and parity still 26/0.
 
 ---
 
@@ -517,110 +517,55 @@ path cannot be verified by unit-level checks alone. Not sweep-eligible.
 works for sign-in, an expired link says so and offers a resend, the signup confirmation email is
 unaffected, and the redirect URL is on the Supabase allow-list.
 
-## Species/heritage packs are never charged as a purchase — the frozen ledger under-records — TODO
-Branch `fix/species-pack-not-charged`. Found while investigating a DM Console report that roster AP
-figures looked wrong. **This is the root defect behind that whole thread** — the display bugs were real
-but downstream of this.
+## Live Sheet: should a PRE-LOCK character reconcile to compute()? — TODO
+Branch `fix/livesheet-draft-reconcile`. Surfaced by `fix/species-pack-not-charged` (2026-08-05) while
+verifying that CharGen's draft reconciliation had not left the same hole in the other tool. It had not —
+this is a different question, and it needs a **rules answer before any code**.
 
-**Reproduction (Anders Tealeaf, live Amble character, built 2026-08-02 on v0.337).** The build is
-correct at **33 AP** and its species costs are correct — confirmed by the owner:
+`decisions/2026/D-GH-2026-08-05-pricing-model.md` D1 and D2 conflict for one case neither anticipated.
+Measured in a real browser on a fresh Live Sheet character, well under the 79 AP threshold and so a draft
+by D2's definition:
 
-| what `compute()` charges | AP |
-|---|---|
-| Heritage pack | 5 |
-| 2nd origin species (×2 pack) | 10 |
-| Species traits (Halfling: Naturally Stealthy) | 4 |
-| **species total** | **19** |
+| step | ledger | `compute()` |
+|---|---|---|
+| CON 16, Vigor 2, Grit 3 | 32 | 32 |
+| level 1→2 | 34 | 46 |
+| level 2→5 | **44** | **83** |
 
-The four traits *inside* the packs (Halfling Nimbleness, Gnome Darkvision, Gnome Gnomish Cunning,
-Halfling Luck) are correctly 0 — pack-included. But the LOG records, for the same 19 AP:
+Ordinary purchases reconcile exactly; only the level-ups diverge. Neither rule is being broken, which is
+the problem: **D2** says a draft reconciles (so the Live Sheet would need `repriceDraft` too), while **D1**
+says a context change takes its listed price and levelling is a real context change even during creation
+(so the divergence is correct and D2's wording needs narrowing to *"while no context change has occurred"*).
 
-| log event | recorded |
-|---|---|
-| `patch/identity` (set Halfling + Gnome + Forest + Rogue) | **−5** |
-| `racial` Naturally Stealthy | +4 |
-| four pack-included traits | 0 each |
-| **total** | **−1** |
+CharGen is unaffected either way — it builds at one level, and its edits are revisions of a single draft
+rather than progression. This bites only where a pre-lock character levels up.
 
-So the packs are **never charged**: ~20 AP of species cost missing, netted against categories where he
-overpaid at v0.337 prices (saves 8 vs 5 today, skills 4 vs 2) to leave the build's frozen spend **18 AP
-short** of what it costs — comparable like-for-like, frozen **15** vs `compute()` **33**.
-
-**Cause — sharper than "the packs aren't charged".** `compute()` derives the pack cost from `b.species`
-/ `b.species2` alone (`js/engine.js:177-178`), so a pack is never an event by design; it is priced as a
-consequence of the identity state. That is fine on its own. The defect is in how the identity event's
-delta was computed:
-
-- The four traits were **committed to the LOG before the identity event**, each recorded at **0**
-  (priced as pack-included — CharGen's form already knew the species even though no identity event had
-  been written yet).
-- `priceOf()` then priced the identity event as `compute(after) − compute(before)`. But
-  `compute(before)` sees traits owned with **no species set**, so it prices them as expensive
-  **cross-race** purchases — 21 AP that the log never actually charged.
-- The delta therefore *refunds* that phantom 21 while adding the real +15 of packs, landing at −5.
-
-Verified: `compute()` on the log truncated just before the identity event returns **21**, while the sum
-of recorded costs to that point is **0**. So the identity delta refunds AP that was never paid, and from
-that event onward the frozen ledger and `compute()` stay ~18 apart for the rest of the character's life.
-
-**The general failure:** `priceOf()` computes deltas against `compute(build)`, but recorded costs are
-not kept equal to `compute()`. Once the two diverge for any reason — here, ordering — every later delta
-compounds the error rather than correcting it. Any fix that only special-cases packs will leave this
-mechanism intact.
-
-**Owner's direction:** the packs are *real, allowable purchases* that grant those species abilities at a
-discount, so they must be recorded as purchases in their own right — their own log events with their own
-cost — not folded into an identity patch's net delta.
-
-**Effort:** large · **Risk:** high — rules-adjacent, changes what the frozen ledger contains, and every
-existing character is already under-recorded. **Get a cold plan review before implementing**
-(`/make-code-cold-plan-review`). Not sweep-eligible.
+**Effort:** medium · **Risk:** high — it decides what a pre-lock ledger means, and the wrong answer here
+would be re-litigated by `fix/ledger-reconciliation-pass`. Not sweep-eligible; needs an owner decision.
 
 ```text
-0. SUPERSEDED — H2 (the INVARIANT route) was REVERSED on 2026-08-05 after two rounds of external cold
-   review (5 reviewers, then 4). DO NOT BUILD IT. See decisions/2026/D-GH-2026-08-05-pricing-model.md.
-   Why it was wrong: H2 said "make each event's recorded cost equal compute()'s own delta by
-   construction" — but that delta is EXACTLY what priceOf() already returns, i.e. the contaminated
-   number that produced the -5. H2 formalises the defect rather than fixing it.
-   The real defect is priceOf()'s whole-build-delta quoting basis (tools/PACT-Live-Char-Sheet.html
-   :503-511): any purchase that changes pricing context bills the player for re-pricing everything
-   they already own. Already escaped by hand three times (abil, mbound, dbound).
-   The acceptance test below is also wrong as a general property — prices freeze at purchase while
-   compute() re-prices at today's context, so the two are MEANT to diverge for any character who has
-   levelled or unlocked a class. It holds only for a character built entirely at one context, which is
-   what its own "freshly built character" wording actually scoped.
-   THIS TASK IS NOW LAST OF FOUR and reduces to CharGen draft reconciliation. Prerequisites, in order:
-   (1) docs/pricing-model-decisions — DONE; (2) feat/creation-lock-wiring — DONE; both landed on
-   branch claude/get-ready-i52ojw. (3) fix/livesheet-context-pricing — NOT STARTED, must land first.
-1. If emitting pack events: a distinct `cat:'pack'` buy event per pack (heritage, 2nd-origin) carrying
-   its own cost. Keep the pack-included traits at 0; they are correct and the owner confirmed it.
-2. Whichever route, the identity patch must stop absorbing the pack cost, or the same AP is charged
-   twice. This is the part to get reviewed: priceOf() computes a WHOLE-BUILD delta, so splitting one
-   component out without double-counting needs care. compute() is the arbiter — after the change, the
-   sum of a character's frozen costs must equal compute().total for a character built entirely under
-   one rules version. That is the acceptance test, and it fails today: 15 vs 33.
-3. Changing species later (Halfling -> Elf) must refund/recharge the pack, not silently keep the old
-   entitlement. Cover the swap in both directions.
-4. MIGRATION — do not skip. Existing live characters (Anders 33 vs 21, Fenwick, Cedric, and any
-   already-built PCs) carry under-recorded ledgers. Options: leave them grandfathered (the app's stated
-   rule is that price drift is never refunded or charged), or emit a one-off reconciliation event.
-   This is a product decision for the owner, not an implementation detail — ask before writing it.
-5. engine-parity must stay 24/0. If compute() output moves, update testing/expected/ in the same PR and
-   bump DATA.version. If only CharGen's recorded costs change, DATA.version does NOT move.
-6. Add a gate asserting frozen-spend == compute().total for a freshly built character, which is the
-   invariant this task exists to restore.
+1. OWNER DECISION FIRST, no code until it is recorded: does a pre-lock character who levels up keep
+   listed prices (divergence correct), or re-price to one context (ledger reconciles)?
+2. Record it as an amendment to D-GH-2026-08-05-pricing-model — it narrows either D1 or D2, so the
+   record must say which, or the next agent will read the two rules as still conflicting.
+3. If "reconcile": call the engine's repriceDraft() from the Live Sheet's emit path, exactly as CharGen
+   does. The export already exists and is fuzz-covered; this is wiring, not new logic.
+4. If "listed prices are correct": narrow D2's wording, and add the measured table above to the record
+   as the worked example — an undocumented 44-vs-83 will be re-reported as a bug otherwise.
+5. Either way add the case to testing/scripts/tool-pricing-ci.mjs so the chosen answer is asserted
+   rather than remembered.
 ```
 
-**Done when:** buying a heritage/2nd-origin pack writes its own priced log event, a character built from
-scratch has frozen spend equal to `compute().total`, changing species re-prices the pack correctly, the
-migration decision is recorded in `DECISIONS.md`, and a gate covers the invariant.
+**Done when:** the owner's answer is recorded in the decision record as an explicit narrowing of D1 or D2,
+the Live Sheet matches it, and a gate asserts the pre-lock level-up case.
 
 ## Live Sheet history hides derived costs — it shows the traits but never the packs — TODO
-Branch `fix/history-shows-derived-lines`. Reported by the owner alongside the pack-charging defect
-above. **Sequenced after it** — much of this may resolve once packs are real events, so re-assess
-before starting.
-**⚠ Inherits the reversed H2** — re-read this entry against `decisions/2026/D-GH-2026-08-05-pricing-model.md`
-before scoping; the pack-charging task it sits behind has changed shape and is now last of four.
+Branch `fix/history-shows-derived-lines`. Reported by the owner alongside the pack-charging defect.
+**Its blocker has now landed** — `fix/species-pack-not-charged` shipped 2026-08-05, so re-assess before
+starting: a draft's ledger now reconciles to `compute()`, which may already resolve part of this.
+**⚠ Re-read against `decisions/2026/D-GH-2026-08-05-pricing-model.md` (D7) before scoping.** Note the fix
+did NOT make packs into their own events — `compute()` derives pack cost from `b.species`/`b.species2`,
+so the pack is priced into the identity patch's line, which now shows the correct positive figure.
 
 The Live Sheet's purchase history is **event-only**, so for Anders it renders:
 
@@ -739,7 +684,7 @@ resulting ledger were sent to the owner.
    this by hard-blocking on that warning; the gate is the frozen-economy check in buy().
 ```
 **Done when:** buying a maneuver with insufficient AP is refused with the same flash as any other
-purchase, and buying one with sufficient AP still works; engine-parity 24/0.
+purchase, and buying one with sufficient AP still works; engine-parity 26/0.
 
 ## Epic boons are hard-blocked on their first purchase in the Live Sheet — TODO
 Branch `fix/epic-boon-first-buy-block`. Found while auditing the pricing model
@@ -767,7 +712,7 @@ through, so match the specific wording.
    end. Neither blocks the other, but do them in either order aware of the other.
 ```
 **Done when:** an epic boon can be bought in the Live Sheet, the "choose an ability to raise" prompt
-still appears as guidance, a genuinely illegal purchase is still hard-blocked; engine-parity 24/0.
+still appears as guidance, a genuinely illegal purchase is still hard-blocked; engine-parity 26/0.
 
 ## One-off reconciliation pass for characters built before the pricing fixes — TODO
 Branch `fix/ledger-reconciliation-pass`. **Sequence LAST — after all four pricing branches have landed**
@@ -782,8 +727,18 @@ corpus is small and known, and the invariant is checkable afterwards) — worst-
 sweep-eligible.
 
 ```text
-0. DO NOT START until fix/livesheet-context-pricing and fix/species-pack-not-charged have both landed.
-   Reconciling against a definition of "correct" that is still moving is how this drift began.
+0. SCOPE HAS SHRUNK — re-measure before planning a big inventory. Verified 2026-08-05: no tool emits
+   `campaignBound` or `creationLocked` (grep across tools/ and js/ outside the engine returns nothing),
+   and a character saved before feat/creation-lock-wiring carries no `creationLockConfig` either — so
+   `_autoArmed` is false and `isCreationDraft()` returns TRUE for every pre-existing character. They are
+   all drafts. CharGen now reprices a draft on LOAD (_cgApplyEnvelope), so every one of them self-heals
+   the moment it is opened in CharGen. What is left for this pass is therefore narrower than written
+   below: characters that are only ever opened in the LIVE SHEET, which does not reprice at all pending
+   the rules answer in fix/livesheet-draft-reconcile. Confirm this still holds before starting.
+0b. Both pricing blockers have LANDED (fix/livesheet-context-pricing and fix/species-pack-not-charged, 2026-08-05),
+   but one question they raised has not been answered: fix/livesheet-draft-reconcile above decides whether
+   a pre-lock Live Sheet character reconciles at all. Settle that FIRST — it changes what "correct" means
+   for exactly the characters this pass rewrites. Reconciling against a moving definition is how this began.
 1. Inventory first, decide second. Replay every saved character (local + cloud) and produce a table of
    frozen-sum vs compute().total, per character, with the per-event deltas that explain the gap. Do not
    write anything on this pass — the owner needs the numbers before authorising any rewrite.
@@ -797,7 +752,7 @@ sweep-eligible.
    ask before trimming, refunding, or granting AP to cover the difference.
 5. Gate: after the pass, a corrected character's frozen sum must equal compute().total where the rules
    say it should. Add that assertion to testing/scripts/tool-pricing-ci.mjs rather than checking by hand.
-6. engine-parity must stay 24/0 and DATA.version must not move — this rewrites data, not rules.
+6. engine-parity must stay 26/0 and DATA.version must not move — this rewrites data, not rules.
 ```
 **Done when:** the inventory table exists and has been reviewed by the owner, the agreed correction has
 been applied to every affected saved character, over-budget outcomes have an owner decision recorded, and
@@ -842,7 +797,7 @@ worst-of lands at low.
 ```
 **Done when:** a character with two or more drawbacks shows each one as its own named row under
 `Drawbacks (refund)` in CharGen's AP ledger, the rows sum to the line total, house-ruled values are
-respected, and engine-parity still reports 24/0.
+respected, and engine-parity still reports 26/0.
 
 ## Tune CharGen's random character generator — TODO
 Branch `feat/randomize-tuning`. `randomizeRoll()` (`tools/PACT-CharGen-Webtool.html:3232`) rolls a

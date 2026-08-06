@@ -504,11 +504,12 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild, validate, RULE_BAN_FIELDS, creationLockThreshold } from '../js/engine.js';
+  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild, repriceDraft, isCreationDraft, validate, RULE_BAN_FIELDS, creationLockThreshold } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (CharGen); never read by compute()
   window.DATA = DATA; window.compute = compute; window.MUT = MUT; window.foldBuild = foldBuild;
   window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild;
+  window.repriceDraft = repriceDraft; window.isCreationDraft = isCreationDraft;   // draft-ledger reconciliation (D-GH-2026-08-05-pricing-model, D2/D7)
   window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs; window.recordAutosave = recordAutosave;
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
@@ -1578,7 +1579,22 @@ function buildForm(F){
     '<div class="namelab">Name flavour</div><div class="namesty">'+styleChips+'</div>'+
     '<div class="namelab">Influence</div><div class="namesty influ">'+influChips+'</div>'+
     '<div class="hint" style="margin:2px 0 4px 218px">Tick flavours and/or influence toggles — the generator blends every chosen pool. Species/Class-linked pull from your origin species &amp; class. Leave the name as-is to keep it.</div>'+
-    rNum('budget','AP budget',79,0,750,'0 = none of your own (a campaign character spends DM-granted AP) · ≈ level shown in the list · L0 55 · L1 79 · L5 175 · L10 295 · L15 415 · L20 535 (+24/level)')+
+    // Level + curve, not a 751-option AP dropdown (feat/creation-vs-awarded-ap). Picking the level you
+    // are building and the table's budget track derives everything else: the total AP, the creation-AP
+    // threshold the lock measures against, and the award event that carries the remainder. `budget`
+    // stays in the DOM as a number input because the whole tool reads val('budget') and _cgSyncAward()
+    // writes the award from it — it is now DERIVED from the two selectors, and editable directly for a
+    // table running a figure no curve produces.
+    '<div class="row"><label class="l">Building level</label><select id="buildLevel">'+
+      Array.from({length:21},function(_,L){return '<option value="'+L+'"'+(L===1?' selected':'')+'>'+(L===0?'0 — prelude':'Level '+L)+'</option>';}).join('')+
+      '</select><select id="buildCurve" style="margin-left:6px">'+
+      Object.keys(DATA.levelBudgetCurves||{standard:0}).map(function(k){
+        var c=(DATA.levelBudgetCurves||{})[k]||{};
+        return '<option value="'+k+'"'+(k==='standard'?' selected':'')+'>'+k.charAt(0).toUpperCase()+k.slice(1)+(c.l1?' ('+c.l1+'/+'+c.inc+')':'')+'</option>';}).join('')+
+      '</select><span class="hint" id="buildLevel_hint"></span></div>'+
+    '<div class="row"><label class="l">AP budget</label><input type="number" id="budget" min="0" max="9999" step="1" value="79" style="width:96px">'+
+      '<span class="warn" id="budget_w"></span>'+
+      '<span class="hint" id="budget_hint">Set by the level and track above · edit directly for a custom figure · 0 = none of your own (a campaign character spends DM-granted AP)</span></div>'+
 '<div class="sublab">DM Calls &mdash; what is permitted at this table</div>'+
     '<div class="row" style="gap:20px;flex-wrap:wrap;padding:4px 0">'+
       '<label class="ck" title="Allow Martially Bound and Magically Bound options"><input type="checkbox" id="dm_bound" checked onchange="updateDmToggles()"> ⚔✦ Bound (martial &amp; magical)</label>'+
@@ -1637,9 +1653,9 @@ function buildForm(F){
     '<div class="row"><label class="l">Hit Dice (= level)</label><select id="hd">'+hdopts+'</select><span class="price" id="hdp"></span><span class="hint">prof <b id="profcell">—</b> · tier <b id="tiercell">—</b></span></div>'+
     '<div class="row"><label class="l">Proficiency bonus</label><select id="profBonus">'+[2,3,4,5,6].map(pb=>'<option value="'+pb+'"'+(pb===2?' selected':'')+'>+'+pb+'</option>').join('')+'</select><span class="price" id="profp"></span><span class="warn" id="profb_w"></span><span class="hint">start +2 free · +3 @5 HD, +4 @9, +5 @13, +6 @17</span></div>'+
     '<div class="row"><label class="l">Vigor ranks</label><select id="hardy">'+numOpts(0,12,0)+'</select><span class="price" id="hardyp"></span><span class="warn" id="hardy_w"></span><span class="hint">+1 HP/HD each · cap = CON mod (<b id="hardycap">—</b>)</span></div>'+
-    '<div class="row"><label class="l">Grit (+5 HP)</label><select id="tough">'+numOpts(0,12,0)+'</select><span class="price" id="toughp"></span><span class="hint">flat 2 up to CON mod (<b id="toughcap">—</b>), then +1 each beyond</span></div>'+
+    '<div class="row"><label class="l">Grit (+4 HP)</label><select id="tough">'+numOpts(0,12,0)+'</select><span class="price" id="toughp"></span><span class="hint">2 / 4 / 6 / 9 / 12… by purchase, any level · +1 each past CON mod (<b id="toughcap">—</b>)</span></div>'+
     '<div class="row"><label class="l">Hit Points</label><b id="hpcell" style="font-size:16px">—</b><span class="hint" id="hpcalc"></span><span class="hint" id="basehp" style="margin-left:6px;color:var(--muted,#888)"></span></div>'+
-    '<div class="hint" style="margin-left:218px">HP = base + (CON mod + Hardy)×Hit Dice + Toughness×5</div>'+
+    '<div class="hint" style="margin-left:218px">HP = base + (CON mod + Hardy)×Hit Dice + Grit×4</div>'+
     '<div class="sublab">Saving throws  (1st 5 / 2nd 8 / 3rd 11 …)</div>'+
     sv+'<div class="row"><span class="price" id="savesp"></span></div>');
 
@@ -2050,7 +2066,23 @@ function _cgEnsureLockArmed(){
   LOG.push({seq:SEQ++,ts:Date.now(),type:'creationLockConfig',payload:{auto:true},
     label:'Creation lock armed (default '+DATA.level1AP+' AP)',rules:DATA.version});
 }
-function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);render();}
+// Draft reconciliation (D-GH-2026-08-05-pricing-model, D2; branch fix/species-pack-not-charged).
+// Called from EVERY path that mutates LOG, immediately before its render(). While the character is
+// still a draft there is only one pricing context, so the ledger must agree with compute() — and it
+// stops agreeing the moment a change to context leaves an earlier purchase's frozen cost stale. The
+// case that shipped: buy four Halfling traits, switch species to Dwarf, and the traits silently become
+// cross-race purchases that the ledger still records at own-species prices; switch back and the
+// identity patch quotes a NEGATIVE cost, because it is a whole-build delta against a build whose other
+// events are mispriced. Same mechanism as Anders Tealeaf's 15-vs-33.
+//
+// It is safe to call unconditionally: repriceDraft() leaves every post-lock purchase alone (the
+// freeze-at-purchase guarantee), is idempotent, and is non-mutating — hence the reassignment. It also
+// makes the pre-lock half of the DOM-vs-LOG pricing split moot without touching either pricer:
+// onChecklistToggle() quotes against _domReadBuild() while replacePatchSlot() quotes against
+// foldBuild(LOG), and whenever those two disagree the deltas stopped telescoping. Post-lock they must
+// still agree on their own, which is what fix/livesheet-context-pricing's listed-price rule is for.
+function _cgRepriceDraft(){LOG=repriceDraft(LOG);}
+function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);_cgRepriceDraft();render();}
 
 // Creation-AP confirmation (D-GH-2026-08-05-pricing-model, D3) — the Live Sheet carries a byte-equivalent
 // pair of these; keep them in step. "Confirmed" is not a separate flag: it is whether the log carries a
@@ -2089,6 +2121,73 @@ function _creationApPromptText(curves,names){
     +'Most tables use Standard. Ask your DM if you are not sure.\n\n'+menu+'\n\n'
     +'Type a track name, or enter your own number of AP:';
 }
+// ---- Building level + budget track (feat/creation-vs-awarded-ap) ----------------------------------
+// Two selectors replace the old 751-option AP dropdown. Picking the level you are building and the
+// table's track derives all three numbers the rest of the tool needs:
+//
+//   total AP    = the curve's cumulative figure for that level (l1 + inc x (L-1); level 0 = l1 - inc)
+//   creation AP = min(total, l1) — the LEVEL-1 figure, which is what the creation lock measures against
+//   awarded AP  = total - creation AP — implicitly post-creation, exactly like a DM award in play
+//
+// So a level-5 Standard character starts with 175 AP: the first 79 is spent under creation pricing with
+// the usual warnings, and the remaining 96 behaves as awarded AP. That split is the owner's design
+// (2026-08-05) and it is why creation AP is NOT simply the whole budget — a character who begins at
+// level 5 has, in rules terms, already advanced, and should not get creation prices for all of it.
+//
+// Level 0 is the exception the formula handles on its own: its total (55) is below l1, so creation AP
+// clamps to the total and the whole prelude budget is creation spending.
+function _cgBudgetFor(level,curveKey){
+  const c=(DATA.levelBudgetCurves||{})[curveKey]||(DATA.levelBudgetCurves||{}).standard||{l1:DATA.level1AP,inc:24};
+  const L=Math.max(0,Math.min(20,Math.floor(+level)||0));
+  const total=(L===0)?(c.l1-c.inc):(c.l1+c.inc*(L-1));
+  const creation=Math.min(total,c.l1);
+  return {total:total,creation:creation,awarded:Math.max(0,total-creation),l1:c.l1,inc:c.inc,level:L};
+}
+// Writes the derived budget into the DOM and the LOG. The threshold goes through emit(), which APPENDS —
+// never route a config event through replacePatchSlot()/_cgSyncSingletonEvent(), whose filter-and-append
+// would move it and could un-trip a lock that had already fired (D4).
+let _cgApplyingBuildLevel=false;
+function _cgApplyBuildLevel(){
+  // Re-entrancy guard: this writes the budget and then emits, and emit() renders. Without it a render
+  // triggered mid-apply can re-enter here on a half-updated budget.
+  if(_cgApplyingBuildLevel)return;
+  _cgApplyingBuildLevel=true;
+  try{ _cgApplyBuildLevelInner(); } finally { _cgApplyingBuildLevel=false; }
+  _cgSyncBuildLevelDisplay();
+}
+function _cgApplyBuildLevelInner(){
+  const b=_cgBudgetFor(val('buildLevel'),val('buildCurve'));
+  const hint=$('buildLevel_hint');
+  if(hint)hint.textContent=b.total+' AP total · '+b.creation+' creation'+(b.awarded?(' + '+b.awarded+' awarded'):'');
+  const bi=$('budget'); if(bi&&+bi.value!==b.total){bi.value=b.total;_cgSyncAward();}
+  const st=_creationLockState();
+  if(st.threshold!==b.creation)
+    emit({type:'creationLockConfig',payload:{threshold:b.creation},
+      label:'Creation AP — level '+b.level+' '+val('buildCurve')+' ('+b.creation+' of '+b.total+' AP)'});
+  else render();
+}
+
+// Repaint the two selectors FROM the character's current budget + threshold, without emitting anything.
+// Called on load/render: the budget and the creation-AP threshold live in the LOG (they are the truth),
+// so the selectors are a view onto them, not a second source. If no curve/level pair reproduces the
+// character's budget exactly — a custom figure, or a campaign-granted one — the level select shows the
+// closest match and the hint states the real numbers, so the two never silently disagree.
+// Update the hint ONLY. This deliberately does not write to the two selectors.
+//
+// An earlier version repainted them from the budget on every render, and it fought the user: render()
+// runs mid-apply (emit -> render), reads a budget that has not finished updating, and snaps the level
+// back. It also could not pick a level unambiguously — Lean level 6 and Standard level 5 both total
+// 175 AP, so "derive the level from the budget" has no single right answer. The selectors are INPUTS;
+// the budget and the creation-AP threshold in the LOG are the outputs. Their initial values are set
+// once on load (see applyBuild), not continuously.
+function _cgSyncBuildLevelDisplay(){
+  const bi=$('budget'), hint=$('buildLevel_hint');
+  if(!bi||!hint)return;
+  const cur=Number(bi.value)||0, thr=_creationLockState().threshold;
+  const awarded=cur-thr;
+  hint.textContent=cur+' AP total · '+Math.min(cur,thr)+' creation'+(awarded>0?(' + '+awarded+' awarded'):'');
+}
+
 function setCreationAp(){
   const st=_creationLockState(),curves=(DATA.levelBudgetCurves||{}),names=Object.keys(curves);
   const raw=prompt(_creationApPromptText(curves,names),String(st.threshold));
@@ -2103,7 +2202,7 @@ function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
   const i=LOG.findIndex(function(e){return e.type==='buy'&&e.cat===cat&&predicate(e);});
   if(i===-1)return;
-  commitHistory();LOG.splice(i,1);render();
+  commitHistory();LOG.splice(i,1);_cgRepriceDraft();render();
 }
 
 function replacePatchSlot(slot,patch,label){
@@ -2115,9 +2214,25 @@ function replacePatchSlot(slot,patch,label){
   const before=compute(foldBuild(withoutSlot)).total;
   const candidate=withoutSlot.concat([{type:'buy',cat:'patch',payload:{patch:patch},_slot:slot}]);
   const after=compute(foldBuild(candidate)).total;
+  // REPLACE IN PLACE — do not filter-and-append (fix/species-pack-not-charged). Appending moved the
+  // slot's event to the END of the log on every edit, so changing species re-sorted the ledger to put
+  // the identity line AFTER the species traits it is supposed to price. The traits then priced as if no
+  // species were set (cross-race, dear) and identity absorbed the correction as a NEGATIVE line — the
+  // "-5 identity patch" from Anders Tealeaf's log, and still reproducible as -4 after the ledger sum
+  // itself was fixed. Position is what makes a ledger readable, so an edit must not move the line.
+  //   * Safe because each field maps to exactly ONE slot (PATCH_FIELD_SLOT), so no two patch events
+  //     ever write the same field and their relative order cannot change the folded build.
+  //   * The original `seq` is kept, not reissued, so seq order and array order stay in agreement —
+  //     a fresh seq at an old index would make the two disagree for anything that sorts by seq.
+  //   * This is NOT the D4 config-event rule in reverse: D4 forbids MOVING a creationLockConfig,
+  //     which is exactly what replace-in-place guarantees. Config events still must not come through
+  //     here at all — they are not slots, and replacePatchSlot rejects anything outside PATCH_SLOTS.
+  const at=LOG.findIndex(function(e){return e.type==='buy'&&e.cat==='patch'&&e._slot===slot;});
   const newEvent={type:'buy',cat:'patch',payload:{patch:patch},cost:after-before,label:label,_slot:slot,
-    seq:SEQ++,ts:Date.now(),rules:DATA.version};
-  commitHistory();LOG=withoutSlot.concat([newEvent]);render();
+    seq:(at===-1?SEQ++:LOG[at].seq),ts:Date.now(),rules:DATA.version};
+  commitHistory();
+  if(at===-1)LOG=LOG.concat([newEvent]); else {LOG=LOG.slice();LOG[at]=newEvent;}
+  _cgRepriceDraft();render();
 }
 
 function replaceWholeLogFromBuild(b,opts){
@@ -2127,7 +2242,7 @@ function replaceWholeLogFromBuild(b,opts){
   // user edit. A character saved in that window would carry no arming event, and the Live Sheet would
   // not add one either (it arms only in seedNew(), which runs on an EMPTY log). SEQ is set first
   // because _cgEnsureLockArmed() consumes one.
-  commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);_cgEnsureLockArmed();render();
+  commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);_cgEnsureLockArmed();_cgRepriceDraft();render();
 }
 
 // ---- Phase 2 Step 5: name + budget as first-class LOG events (retire the readBuild DOM shims) ----
@@ -2149,6 +2264,11 @@ function _cgSyncSingletonEvent(type,makeEvent){
   if(cur&&norm(cur)===norm(next))return;   // no-op: same value → no event churn, no undo step
   commitHistory();
   LOG=without.concat([Object.assign({},next,{seq:SEQ++,ts:Date.now(),rules:DATA.version})]);
+  // Deliberately NOT calling _cgRepriceDraft() here, unlike every other LOG-mutating path. This helper
+  // only ever writes `name` and `award` singletons: neither is a purchase and neither can change what
+  // anything costs, so a re-price would be a guaranteed no-op — and this one runs on every keystroke in
+  // the name field, where the whole-log pass is the difference between typing feeling instant and not.
+  // If a third singleton type is ever routed through here, check that before reusing this exemption.
   render();
 }
 function _cgSyncName(){const nm=val('cname')||'';
@@ -2508,6 +2628,8 @@ function onPatchFieldChange(el){
   // set for these textish fields, so keystrokes collapse into one undo step.
   if(id==='cname'){_cgSyncName();return;}
   if(id==='budget'){_cgSyncAward();return;}
+  // Level/track drive the budget AND the creation-AP threshold (feat/creation-vs-awarded-ap).
+  if(id==='buildLevel'||id==='buildCurve'){_cgApplyBuildLevel();return;}
   const slot=_cgPatchSlotForId(id);if(!slot)return;
   _cgSyncPatchSlot(slot);
   // The ARMOUR slot's STR<10 guard depends on STATS — without this cascade, dropping STR below 10 via a
@@ -3138,6 +3260,14 @@ function _cgApplyEnvelope(d,opts){
   // so it records no history frame. (Undo keeps the DOM-rebuild default per D5; a file load is different —
   // it must reproduce the persisted event log exactly.)
   LOG=JSON.parse(JSON.stringify(d.LOG));SEQ=d.SEQ||nextSeq(LOG);
+  // Reprice AFTER the verbatim reinstatement, not before: applyBuild() above ends in
+  // replaceWholeLogFromBuild(), which does reprice — and then this line throws that away by design.
+  // Without repricing here, loading a file left the ledger exactly as saved and it only reconciled on
+  // some later, unrelated edit, which then looked like a spontaneous jump. This is the path a saved
+  // character actually arrives by (native file load, ?handoff= from the Live Sheet, autosave restore),
+  // so it is the one that matters most for a character built before draft reconciliation existed.
+  // A no-op once the lock has fired, so a played character's frozen ledger is still never touched.
+  _cgRepriceDraft();
   // Step 5 back-compat: a pre-Step-5 (Step-4) envelope can hold a top-level name/budget that differs from
   // a STALE `name`/`award` in its LOG (Step 4 didn't event-source live name/budget edits). applyBuild has
   // already written the correct top-level values into #cname/#budget, so re-sync the singleton events to
@@ -3317,7 +3447,7 @@ function randomizeRoll(){
   if(typeof flash==='function') flash(_changed?('🎲 Rolled a random character — '+spent+' / '+budget+' AP spent'+(trad?' (incl. a starter spell kit)':'')+'.'):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');
 }
 
-function relabel(sel,fn){if(!sel)return;for(const o of sel.options)o.textContent=fn(+o.value);}
+function relabel(sel,fn){if(!sel||!sel.options)return;for(const o of sel.options)o.textContent=fn(+o.value);}
 function stepDesc(label,n){const nm=(label.split(': ')[1]||'').toLowerCase();
   if(nm.indexOf('die')>=0)return (['d6','d8','d10','d12'][n-1]||('step '+n));
   if(nm.indexOf('sneak attack')>=0)return '+'+n+'d6';
@@ -3781,7 +3911,7 @@ function buildGuide(b,r){const tips=[];
 // inside _cgRenderInner). _cgRenderInner's armour/cross-race DOM corrections are LOG_SYNC_GUARD writers:
 // they only make the controls reflect already-determined LOG legality; they emit no events and mutate no
 // LOG. b here is readBuild()=foldBuild(LOG)+name/budget shim.
-function render(){ _cgRenderInner(); }
+function render(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){} }
 function _cgRenderInner(){
   const b=readBuild();
   // Medium/Heavy armour require STR 10 — auto-deselect if Strength drops below 10

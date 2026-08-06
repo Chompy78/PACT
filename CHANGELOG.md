@@ -6,6 +6,90 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-05 · feat(engine): Vigor is priced per rank at the tier it was bought at** — closes the
+  pre-lock reconciliation question (D8). `compute()` had no way to know *when* a Vigor rank was bought, so
+  it re-priced the whole stack at today's tier: buy Vigor 2 at level 1 for 10 AP, level to 5, and the sheet
+  said it cost 28 — charging 18 AP for Vigor already owned, purely for levelling. Vigor now carries
+  `b._vigorRankTier`, stamping each rank with the tier in force when bought — the same mechanism
+  `_raceTraitLocked` has always used for species traits. `_replay` fills it just before the mutator runs
+  (the only point where the previous rank total is still visible); `compute()` prices each rank from its
+  own stamp and falls back to today's tier for an unstamped build, so nothing changes for callers that
+  don't replay a LOG. Two ranks bought at tier 1 stay at 10 after levelling, while a third bought after the
+  level-up costs the tier-4 rate of 14 — both halves in one build. **This closes the tool divergence**:
+  levelling 1→5 with Vigor 2 / Grit 3 now quotes 12 in *both* tools, where CharGen quoted 51. One
+  divergence remains, `unlockclass` (CharGen −6 vs Live Sheet 7), tracked as `fix/chargen-context-pricing`.
+  Like Grit, Vigor was **entirely ungated** — every fixture had `hardy: 0` and no event fixture bought it.
+  New fixture EV-015 pins both halves; parity 26/0 → 27/0, verified by reverting the stamp (EV-015 fails,
+  the other 26 pass). `DATA.version` unchanged: no price table moved, and an unstamped build computes
+  exactly as before.
+- **2026-08-05 · feat(chargen): pick a building level and budget track instead of an AP number** —
+  the AP budget was a **751-option `<select>`** (`numOpts(0,750)`), which the owner called clunky, and the
+  creation lock always measured against a flat `DATA.level1AP` of 79 no matter what the character's budget
+  was. Two selectors — **building level (0–20)** and **budget track (lean / standard / generous)** — now
+  derive all three numbers the tools need: **total AP** from the curve, **creation AP** (the track's
+  level-1 figure, which is what the lock measures), and the remainder, which behaves as **awarded AP** at
+  post-creation prices. A level-5 Standard character starts with 175 AP: the first 79 spends under creation
+  pricing with the usual warnings, the other 96 as awards — which is the right shape, since a character
+  beginning at level 5 has in rules terms already advanced (owner's design). Level 0 is handled by the same
+  formula rather than a special case: its 55 AP total is below the level-1 figure, so creation AP clamps to
+  the total and the whole prelude budget is creation spending. The threshold is written as an **appended**
+  `creationLockConfig` event (D4 — never replaced or moved), so it persists in the save file with no schema
+  change. `#budget` remains as a plain number input, derived from the two selectors but still directly
+  editable for a table running a figure no curve produces. Two bugs found and fixed while building it: a
+  render-time helper repainted the selectors from the budget and fought the user's own edit (the level
+  snapped back before the new total landed); and "derive the level from the budget" has no unique answer at
+  all — Lean level 6 and Standard level 5 both total 175 AP — so the selectors are now inputs only, with a
+  hint line reporting the real figures. `relabel()` also gained an `options` guard, since it assumed a
+  `<select>`. Gate: `tool-pricing-ci.mjs` 34 → 42, covering all three tracks, level 0 and level 20, the
+  event-not-DOM threshold, and that the control is no longer a dropdown. Parity 26/0, log-fuzz 500/500,
+  `DATA.version` unchanged — no `compute()` output moves.
+- **2026-08-05 · fix(engine): Grit is priced by which purchase it is, not by your character tier** —
+  **rules correction (owner), `DATA.version` v0.338 → v0.339.** `js/engine.js` indexed the Grit ladder
+  (2/4/6/9/12/15/18) by the character's **tier**, so every Grit purchase cost the same and that cost rose
+  as you levelled: three Grit cost 6 AP at level 1, **27 at level 5, 36 at level 9**. It is now indexed by
+  **purchase number** and is level-independent — three Grit cost 12, whenever you buy them. Past the
+  seven-entry table the steps run 2/4/6/8/10 (8th = 20, 9th = 24, then 30, 38, 48); both tools let a player
+  buy well past 7, so the table had to extend. The past-CON-mod surcharge is now a **flat +1 per purchase**
+  rather than the escalating `max(0, n − CONmod)` the code applied. Vigor is deliberately untouched: it
+  really is tier-locked ("each rank costs the Passive band of your current Hit-Dice tier"), so with Vigor
+  buying early is genuinely cheaper — the two are priced differently on purpose.
+  **The Players Guide needs rewording to match** — it says "Situational by tier" in three places
+  (`docs/PACT-Players-Guide.html` lines 671 and 675 ×2), which is what the old code implemented faithfully.
+  Also corrected two plainly wrong CharGen labels found alongside: the control read "Grit (+5 HP)" and the
+  HP formula "Toughness×5" where the engine and guide both say **+4**.
+  **Test coverage: this was previously ungated entirely** — all 23 fixtures had `tough: 0`, so no parity
+  test touched Grit pricing and none could have caught either the tier indexing or a regression. Added
+  CG-010/CG-011: the same Grit-10 build at HD 1 and HD 9, whose Grit lines must both read 147, spanning the
+  table and the extrapolation. Parity **24/0 → 26/0**; verified by reverting the fix (both new fixtures
+  fail, the other 24 pass). tool-pricing 32/0, log-fuzz 500/500.
+- **2026-08-05 · fix(chargen): a draft character's AP ledger now reconciles to `compute()`** — closes
+  `fix/species-pack-not-charged`, the last of the four pricing branches. Before the creation lock fires a
+  character is a draft with one pricing context, so what was paid must equal what the build costs today —
+  but a purchase's cost was frozen when it was made and a *later* change to context left it stale.
+  Measured in a real browser: buy four Halfling traits (ledger 13, `compute()` 13), switch species to
+  Dwarf and the traits become cross-race purchases the ledger still records at own-species prices
+  (13 vs 24); switch back and the identity patch quotes **−4**, taking the ledger to 2 against 13. That
+  negative line is the same mechanism behind Anders Tealeaf's log summing to 15 against a `compute()` of
+  33. Fixed in two independent halves: new `repriceDraft(log)` export in `js/engine.js` re-derives every
+  pre-lock purchase's cost as its own sequential delta (riding `_replay`, which gained one optional
+  callback, so racial `_raceTraitLocked` stamping and the lock bookkeeping stay single-source), called
+  from CharGen's mutation paths **and from `_cgApplyEnvelope`** — the load path (file, `?handoff=`,
+  autosave restore) that a pre-existing under-recorded ledger actually arrives by; and `replacePatchSlot()` now replaces in place instead of
+  filter-and-appending, which had been moving a slot's event to the end of the log on every edit so the
+  identity line priced traits that came *before* it. Post-lock purchases keep their frozen price
+  (D5), and drawbacks are untouched — their recorded cost is income, not spend. The pass runs to a fixed
+  point because re-pricing and the threshold lock are mutually recursive — the decision is made once for
+  the whole log (`isCreationDraft()`, also exported), never per event, so it settles in one pass and a
+  locked character's frozen prices are never re-derived. `DATA.version` unchanged:
+  `compute()` output does not move, only what the ledger records. Gate: `tool-pricing-ci.mjs` 20→27,
+  verified by reintroducing each half (reproduces −11 and −4 exactly); `log-fuzz.mjs` gained four
+  `repriceDraft` invariants (non-mutating, idempotent, build-preserving, draft-reconciling) — those
+  caught the non-idempotence, the drawback-income bug, and a duplicate-purchase mispricing that also
+  hardened `_replay`'s proficiency dedupe. Code review then caught four more, all fixed here: the
+  per-event lock decision needed O(events) passes to settle and could re-price a purchase frozen at 6 AP
+  down to 2 (a D5 violation); the load path never re-priced at all; and the fuzz invariant's scope
+  excluded every CharGen-shaped log, since `_cgEnsureLockArmed()` stamps `{auto:true}` into all of them.
+  Gate 20→32; fuzz 500/500 clean across five fixed seeds and at 80 events/log; parity 24/0.
 - **2026-08-05 · docs(decisions): reverse H2 — the species-pack fix is a `priceOf()` quoting-basis bug, not
   a ledger-accounting one** — two rounds of external cold review (5 reviewers, then 4) refuted the planned
   approach, and two code audits moved the diagnosis to `priceOf()`

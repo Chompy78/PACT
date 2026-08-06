@@ -14,7 +14,7 @@
   (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `PACT_PLAYER_JWT`, `PACT_TEST_CHARACTER_ID`,
   `PACT_FOREIGN_CAMPAIGN_ID`) set: `python3 testing/scripts/audit.py --rls`. See
   `D-GH-2026-07-15-wire-audit-py-into-ci` in `DECISIONS.md` for the reasoning.
-- **`tests/engine-parity.html`** — regression gate for `js/engine.js`. Run in a browser; expect **24 passed / 0 failed** (check `testing/expected/expected-results.csv`'s row count — don't assume a fixed number). Asserts each fixture's exact warning-text array (`testing/expected/expected-warnings.json`), not just a warning count — a warning changing wording, firing for the wrong reason, or silently disappearing while another appears now fails the gate. See `docs/HOW-TO-WORK.md` for instructions.
+- **`tests/engine-parity.html`** — regression gate for `js/engine.js`. Run in a browser; expect **26 passed / 0 failed** (check `testing/expected/expected-results.csv`'s row count — don't assume a fixed number). Asserts each fixture's exact warning-text array (`testing/expected/expected-warnings.json`), not just a warning count — a warning changing wording, firing for the wrong reason, or silently disappearing while another appears now fails the gate. See `docs/HOW-TO-WORK.md` for instructions.
 - **`scripts/engine-parity-ci.mjs`** (**REV-11**) — headless Node port of `tests/engine-parity.html`: same
   fixtures, same `expected-results.csv` + `expected-warnings.json`, same assertions, no browser needed. Runs automatically in CI (see
   `.github/workflows/engine-parity.yml`) on PRs touching `js/engine.js` or `testing/**`; a CLI agent should

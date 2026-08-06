@@ -67,3 +67,44 @@ Unlocking Wizard while owning four Wizard features quoted **−6** — it *paid*
 - Campaign-vs-player threshold precedence (D-GH-2026-08-05-pricing-model, open question).
 - Three incidental defects found while auditing: `buyManeuver()` skips the affordability gate; epic boons
   are hard-blocked on first purchase in the Live Sheet; `epicBoonAbil` is dropped on a CharGen round-trip.
+
+## Part 4 — what the last branch actually turned out to be
+
+`fix/species-pack-not-charged` closed on the same day, and the shape it took was not the one its own
+task entry described. Three things are worth keeping.
+
+**The reported bug was no longer reproducible; the mechanism was.** Driving CharGen in a real browser at
+`preview` HEAD, the reported flow — set species, buy pack traits — reconciled perfectly. What still drifted
+was the flow nobody had written down: buy four Halfling traits, then *change species*. The traits become
+cross-race purchases while the ledger keeps charging own-species prices (13 against a `compute()` of 24),
+and changing back quotes the identity patch at **−4**. Same mechanism as Anders' −5, reached a different
+way. Had I stopped at "cannot reproduce" the branch would have closed as a no-op.
+
+**Two independent defects wearing one symptom.** Re-pricing the draft ledger fixes the *sum* and leaves the
+negative identity line; making `replacePatchSlot` replace in place instead of filter-and-appending fixes the
+*line* and leaves the sum. Only reintroducing each half separately showed they were separable — the gate
+now asserts both, and each half was verified to fail it alone (reproducing −11 and −4 exactly).
+
+**The fuzzer earned its keep three times over.** Four `repriceDraft` invariants added to `log-fuzz.mjs`
+(non-mutating, idempotent, build-preserving, draft-reconciling) failed on the first run and found things
+no fixture would have:
+- **Non-idempotence.** Re-pricing and the automatic lock are mutually recursive — a new cost moves spend,
+  spend moves the lock, the lock decides what may be re-priced. A single pass moved the numbers again on
+  a second run: a ledger drifting with no edit behind it. Now runs to a fixed point.
+- **Drawbacks are income, not spend.** Re-pricing them changed `b.budget` and therefore `compute()` output.
+  Caught by the build-preserving invariant, which existed only because I wrote it as an afterthought.
+- **Duplicate purchases.** `_replay` collapses proficiency lists once, at the very end, so mid-walk a
+  duplicate inflates `compute()` while the final build has it gone — charging real AP for nothing. Both
+  tools guard against emitting duplicates, so no fixture would have covered it.
+
+Two of my own scoping errors also showed up as fuzz failures and were mine, not the code's: `names` events
+carry paid-spell-swap AP, and `economy()` reports drawbacks under `earned` rather than `spent`. Worth
+noting because both looked like product bugs for a few minutes.
+
+**And one thing deliberately left undone.** Checking whether the Live Sheet had the same hole turned up a
+different question instead: a pre-lock Live Sheet character that levels up ends at a ledger of 44 against a
+`compute()` of 83, and *neither* D1 nor D2 is being violated — they simply conflict for that case. Filed as
+`fix/livesheet-draft-reconcile` with the measured table, because it needs a rules answer rather than code.
+The first version of that probe reported `spent=0` throughout, which would have been a spectacular false
+finding: the Live Sheet's bridged `economy()` takes an **index**, not an array. Third time this session that
+the honest move was to distrust my own first measurement.

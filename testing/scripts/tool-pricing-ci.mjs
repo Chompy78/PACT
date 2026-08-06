@@ -151,6 +151,30 @@ try {
   check('unlock a class that is already the 2nd origin == 0',
     await ls.evaluate(`priceOf('unlockclass',{v:'Rogue'},(()=>{const b=foldBuild(null);b.originClass2='Rogue';return b;})())`), 0);
 
+  // Reported by the owner: a racial trait gated only by its TIER (no explicit minHD) could be bought at
+  // any level here, while CharGen correctly refused it. Draconic flight is T4, so it needs 5 Hit Dice.
+  console.log('\nLive Sheet — a racial trait is gated by its tier, as CharGen already gates it');
+  check('Draconic flight (T4) is refused at 1 HD',
+    await ls.evaluate(`(()=>{const r=DATA.racial['Dragonborn: Draconic flight'];
+      const need=DATA.tierHD[r.tier];
+      return [r.tier, need, r.minHD===undefined];})()`), [4, 5, true]);
+  // Drives the real buy panel (#buy) for a Dragonborn, so it proves the gate is WIRED, not just that
+  // the numbers exist in DATA. At 1 HD the row must carry the reason; at 5 HD it must not.
+  // Drives the real buy panel for a Dragonborn, so this proves the gate is WIRED, not merely that the
+  // numbers exist in DATA. setBuyQuery() forces every collapsed section to render (buy panel line ~1148).
+  // At 1 HD the row must carry the reason; at 5 HD it must not.
+  check('the buy panel gates Draconic flight at 1 HD and releases it at 5 HD',
+    await ls.evaluate(`(()=>{const saved=LOG.map(e=>JSON.parse(JSON.stringify(e)));
+      const at=(hd)=>{LOG.length=0;saved.forEach(e=>LOG.push(e));
+        LOG.push({seq:9e6,type:'buy',cat:'patch',payload:{patch:{species:'Dragonborn'}},cost:0});
+        LOG.push({seq:9e6+1,type:'buy',cat:'hd',payload:{to:hd},cost:0});
+        setBuyQuery('Draconic'); render();
+        const el=[...document.querySelectorAll('#buy *')].find(n=>/Draconic flight/i.test(n.textContent||''));
+        return el ? /needs 5 Hit Dice/.test(el.textContent) : 'ROW NOT FOUND';};
+      const r=[at(1), at(5)];
+      LOG.length=0;saved.forEach(e=>LOG.push(e));setBuyQuery(''); render();
+      return r;})()`), [true, false]);
+
   console.log('\nLive Sheet — categories that were already correct must not move');
   check('ability raise still prices off the ABIL ladder',
     await ls.evaluate(`priceOf('abil',{ab:'CON',to:17},(()=>{const b=foldBuild(null);b.stats.CON=16;b.tough=3;return b;})())`), 5);
@@ -201,6 +225,134 @@ try {
       const s=_creationLockState();
       return LOG.length===n+1 && s.threshold===75 && s.confirmed===true
         && !/Creation AP not confirmed/.test(document.getElementById('warns').innerText);})()`), true);
+
+  // ---- draft reconciliation (fix/species-pack-not-charged) ----------------------------------
+  // While the character is a draft there is ONE pricing context, so "what was paid" must equal "what
+  // it costs to build today". It stopped doing so as soon as a context change left an earlier
+  // purchase's frozen cost stale. Driven through the real controls, because the two pricers involved
+  // read different sources — onChecklistToggle() quotes against _domReadBuild(), replacePatchSlot()
+  // against foldBuild(LOG) — and only the live page exercises both.
+  console.log('\nCharGen — a draft ledger reconciles to compute() through a species change');
+  const setSpec = (v) => `(()=>{const s=document.getElementById('spec');s.value=${JSON.stringify(v)};
+    s.dispatchEvent(new Event('change',{bubbles:true}));})()`;
+  const tick = (v) => `(()=>{const e=[...document.querySelectorAll('.racck')].find(x=>x.value===${JSON.stringify(v)});
+    if(!e)throw new Error('no trait checkbox for '+${JSON.stringify(v)});
+    if(!e.checked){e.checked=true;e.dispatchEvent(new Event('change',{bubbles:true}));}})()`;
+  const drift = `(economy(LOG).spent - compute(foldBuild(LOG)).total)`;
+  const identityCost = `LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e._slot==='identity').map(e=>e.cost)`;
+
+  await cg.evaluate(`(()=>{try{localStorage.clear()}catch(e){}})()`);
+  await cg.evaluate(`location.reload()`);
+  if (!(await cg.evaluate(READY(`window.DATA&&typeof repriceDraft==='function'&&LOG.length>0`))))
+    throw new Error('CharGen never became ready after reload');
+
+  await cg.evaluate(setSpec('Halfling'));
+  for (const t of ['Halfling: Brave', 'Halfling: Luck', 'Halfling: Naturally Stealthy',
+                   'Halfling: Halfling Nimbleness']) await cg.evaluate(tick(t));
+  check('Halfling + 4 traits: ledger == compute', await cg.evaluate(drift), 0);
+  // Before the fix this was 13 vs 24: the traits became cross-race purchases and the ledger kept
+  // charging own-species prices for them.
+  await cg.evaluate(setSpec('Dwarf'));
+  check('after switching species to Dwarf: ledger == compute', await cg.evaluate(drift), 0);
+  // ...and back. Before the fix the ledger read 2 against a compute() of 13.
+  await cg.evaluate(setSpec('Halfling'));
+  check('after switching back to Halfling: ledger == compute', await cg.evaluate(drift), 0);
+  // The sum being right is not enough — the per-line breakdown has to be readable too. The identity
+  // line quoted -4 here until replacePatchSlot() stopped filter-and-appending, which moved the line
+  // to the end of the log on every edit and left it pricing traits that came BEFORE it. That negative
+  // identity line is the visible symptom the bug was reported as (Anders Tealeaf's -5).
+  check('the identity line is the pack price, not a negative correction',
+    await cg.evaluate(identityCost), [7]);
+  check('editing a slot does not move its ledger line to the end',
+    await cg.evaluate(`(()=>{const i=LOG.findIndex(e=>e.type==='buy'&&e.cat==='patch'&&e._slot==='identity');
+      return i>-1 && i<LOG.findIndex(e=>e.type==='buy'&&e.cat==='racial');})()`), true);
+  // The freeze-at-purchase guarantee is the other half of the model: re-pricing must stop at the lock.
+  check('a purchase made while locked keeps its frozen price',
+    await cg.evaluate(`(()=>{const l=[{seq:1,type:'creationLockConfig',payload:{auto:true,threshold:5}},
+      {seq:2,type:'buy',cat:'patch',payload:{patch:{species:'Halfling'}},cost:7,_slot:'identity'},
+      {seq:3,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:999}];
+      const r=repriceDraft(l);return [r[1].cost,r[2].cost];})()`), [7, 999]);
+  check('repriceDraft does not mutate the log it is given',
+    await cg.evaluate(`(()=>{const l=[{seq:1,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:123}];
+      const r=repriceDraft(l);return l[0].cost===123 && r[0]!==l[0];})()`), true);
+
+  // ---- regressions found by code review of the first version of this fix ----------------------
+  // Re-pricing is all-or-nothing per log, because the auto-lock's POSITION is a function of the very
+  // costs it rewrites. The first version decided per event and broke both ways: the numbers kept
+  // moving on repeated calls, and a locked character's frozen prices got re-derived.
+  console.log('\nCharGen — re-pricing stops dead once the lock has fired');
+  const lockedLog = `[{seq:1,type:'creationLockConfig',payload:{auto:true,threshold:6}},
+    {seq:2,type:'buy',cat:'patch',payload:{patch:{species:'Dwarf'}},cost:7,_slot:'identity'},
+    {seq:3,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:6},
+    {seq:4,type:'buy',cat:'racial',payload:{v:'Halfling: Luck'},cost:6},
+    {seq:5,type:'buy',cat:'racial',payload:{v:'Halfling: Naturally Stealthy'},cost:6},
+    {seq:6,type:'buy',cat:'racial',payload:{v:'Halfling: Halfling Nimbleness'},cost:6}]`;
+  // Four traits, not two, and that matters: the edit below drops the identity cost to -4, so cumulative
+  // spend only passes the threshold partway through the traits. With two, the lock fires on the LAST
+  // event, nothing is flagged locked, and the log is correctly still a draft — which is a true result
+  // but not the case this assertion is about.
+  check('isCreationDraft: armed but under threshold is still a draft',
+    await cg.evaluate(`isCreationDraft([{seq:1,type:'creationLockConfig',payload:{auto:true}},
+      {seq:2,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:2}])`), true);
+  check('isCreationDraft: spend past the threshold is not',
+    await cg.evaluate(`isCreationDraft(${lockedLog})`), false);
+  // The exact regression: editing species on a locked character wrote the new quote at the old index,
+  // which sits BEFORE the lock — so the pass treated it as draft state and re-derived purchases made
+  // while locked. `Halfling: Brave`, frozen at 6, silently became 2.
+  check('a locked log is returned untouched, even after a species edit',
+    await cg.evaluate(`(()=>{const l=${lockedLog};
+      l[1]={...l[1],payload:{patch:{species:'Halfling'}},cost:-4};
+      const r=repriceDraft(l);
+      return r.filter(e=>e.type==='buy').map(e=>e.cost);})()`), [-4, 6, 6, 6, 6]);
+  check('re-pricing a draft is a fixed point after ONE pass',
+    await cg.evaluate(`(()=>{const l=[{seq:1,type:'creationLockConfig',payload:{auto:true}},
+      {seq:2,type:'buy',cat:'patch',payload:{patch:{species:'Halfling'}},cost:0,_slot:'identity'},
+      {seq:3,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:0},
+      {seq:4,type:'buy',cat:'racial',payload:{v:'Halfling: Naturally Stealthy'},cost:0}];
+      const a=repriceDraft(l), b=repriceDraft(a);
+      return JSON.stringify(a.map(e=>e.cost))===JSON.stringify(b.map(e=>e.cost));})()`), true);
+
+  // Loading a saved character is the path a pre-existing under-recorded ledger actually arrives by.
+  // _cgApplyEnvelope reinstates the saved LOG verbatim AFTER applyBuild(), discarding the reprice that
+  // replaceWholeLogFromBuild had just done — so a loaded file kept its stale ledger until some later,
+  // unrelated edit made it jump.
+  console.log('\nCharGen — loading a saved character reconciles its ledger');
+  check('a stale under-recorded ledger reconciles on load, not on the next edit',
+    await cg.evaluate(`(()=>{
+      const LOGIN=[{seq:1,type:'creationLockConfig',payload:{auto:true}},
+        {seq:2,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:0},
+        {seq:3,type:'buy',cat:'racial',payload:{v:'Halfling: Naturally Stealthy'},cost:0},
+        {seq:4,type:'buy',cat:'patch',payload:{patch:{species:'Halfling'}},cost:0,_slot:'identity'}];
+      _cgApplyEnvelope({schema:'pact-character/1',rules:DATA.version,name:'Stale',LOG:LOGIN,SEQ:5});
+      return economy(LOG).spent - compute(foldBuild(LOG)).total;})()`), 0);
+
+  // ---- building level + budget track (feat/creation-vs-awarded-ap) ---------------------------
+  // The old control was a 751-option AP dropdown. Level + track now derives all three numbers:
+  // total AP from the curve, creation AP (the level-1 figure, which is what the lock measures),
+  // and the remainder, which behaves as awarded AP bought at post-creation prices.
+  console.log('\nCharGen — level + track derives budget, creation AP and the lock threshold');
+  const pick = (lvl, curve) => `(()=>{const c=document.getElementById('buildCurve');
+    c.value=${JSON.stringify('')}||c.value;c.value=${JSON.stringify(curve)};
+    c.dispatchEvent(new Event('change',{bubbles:true}));
+    const l=document.getElementById('buildLevel');l.value=${JSON.stringify(String(lvl))};
+    l.dispatchEvent(new Event('change',{bubbles:true}));
+    return [Number(document.getElementById('budget').value), _creationLockState().threshold];})()`;
+  check('level 1 standard = 79 total, 79 creation', await cg.evaluate(pick(1, 'standard')), [79, 79]);
+  check('level 5 standard = 175 total, 79 creation (96 awarded)', await cg.evaluate(pick(5, 'standard')), [175, 79]);
+  check('level 5 lean = 155 total, 75 creation', await cg.evaluate(pick(5, 'lean')), [155, 75]);
+  check('level 5 generous = 195 total, 83 creation', await cg.evaluate(pick(5, 'generous')), [195, 83]);
+  // Level 0 is the case the formula has to get right on its own: the prelude total (55) is BELOW the
+  // curve's level-1 figure, so creation AP clamps to the total and the whole budget is creation spending.
+  check('level 0 prelude = 55 total, 55 creation (nothing awarded)', await cg.evaluate(pick(0, 'standard')), [55, 55]);
+  check('level 20 standard = 535 total, 79 creation', await cg.evaluate(pick(20, 'standard')), [535, 79]);
+  // The threshold is a creationLockConfig event, so it must survive being written to the LOG and read
+  // back — this is the half that the old flat DATA.level1AP could never express.
+  check('the threshold is carried by an appended config event, not a DOM value',
+    await cg.evaluate(`(()=>{const cfg=LOG.filter(e=>e.type==='creationLockConfig'&&e.payload&&e.payload.threshold!=null);
+      return cfg.length>0 && cfg[cfg.length-1].payload.threshold===_creationLockState().threshold;})()`), true);
+  check('the budget control is a number input, not a 751-option dropdown',
+    await cg.evaluate(`(()=>{const b=document.getElementById('budget');
+      return [b.tagName, b.options?b.options.length:0];})()`), ['INPUT', 0]);
   await cg.close();
 } catch (e) {
   fail++; console.log(`  FAIL harness — ${e.message}`);
