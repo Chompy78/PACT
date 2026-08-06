@@ -1217,6 +1217,30 @@ decision record, and the RLS change passes the advisor.
 
 ---
 
+## Gate counts in AGENTS.md and HOW-TO-WORK.md are stale — TODO
+Branch `docs/refresh-gate-counts`. Every agent reads these numbers as the pass bar before running
+anything, so a stale one either masks a real failure or triggers a false hunt for a regression.
+**Effort:** low · **Risk:** low — ambiguity low (run the gate, write down what it says); damage scale low
+(docs only, `git revert` undoes it); damage likelihood low (the numbers are checkable by running the
+command in the same sentence) — all three low. Sweep-eligible.
+
+```text
+1. MEASURED 2026-08-06 on preview: `node testing/scripts/engine-parity-ci.mjs` reports 27 passed / 0
+   failed. Four places still say 26 — AGENTS.md:34, :204, :331, :343 — and two more in
+   docs/HOW-TO-WORK.md:99 and :174.
+2. docs/HOW-TO-WORK.md:118 says tool-pricing is "16 passed / 0 failed". It was already 42 on preview
+   before PR #364 and is 54 after. RE-MEASURE before writing a number; do not copy 54 from this task.
+3. Prefer wording that cannot rot: "run it and expect 0 failed" plus "the current baseline lives in
+   testing/expected/expected-results.csv", rather than a hardcoded pass count repeated in six places.
+   If a number is kept, keep it in ONE place and have the others point at it.
+4. Grep for other stale counts before finishing — testing/README.md, docs/VERSION-SYNC.md, the task
+   board's own "Done when" lines, and .github/workflows/ all mention gates.
+5. Docs-only — no DATA.version bump, no code change. Log in CHANGELOG.
+```
+**Done when:** every gate count in the repo either matches a freshly-run gate or has been replaced by a
+"expect 0 failed" form, `grep -rn "26 passed\|26/0"` returns nothing stale, and engine-parity still
+reports 27/0.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
