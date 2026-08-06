@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · chore(release): `BUILD` → `v1.365` (PR #365), and CharGen's stale rules labels resynced**
+  — promotion of `preview` → `main`, 49 non-merge commits since `v1.358`. Major carried forward at `1`;
+  per `docs/VERSION-SYNC.md` that is a named human decision, never inferred from the size of a promotion.
+  `BUILD` mirrored from `js/engine.js` into CharGen's line-1 comment, `<title>` and header `.sub`, the
+  Live Sheet's line-1 comment, and DM Console's `TOOL_VERSION`; `index.html` untouched (it reads `BUILD`
+  live). `DATA.version` stays at **v0.339** — it moved once this window, for the Grit and Vigor pricing
+  corrections, and nothing since changed `compute()` output. **Also resynced two user-visible *rules*
+  labels that had drifted**, which the version-sync one-liner tells you not to touch during a promotion:
+  CharGen's `<title>` read *Rules v0.338* and its `#cgPactver` chip read *PACT rules · v0.337* while
+  `DATA.version` was v0.339 — CharGen hardcodes both, unlike the Live Sheet and DM Console which read
+  `DATA.version` live, and the file's own comment says to resync them on a rules bump. The bump that
+  should have done it was in this same window. Fixing a stale mirror to the already-current value is not
+  a rules-version change, and shipping *"PACT rules · v0.337"* to `main` would have been a wrong fact in
+  front of users; the same comment's own stale examples (`v0.337`, `v0.202`) were corrected with it.
 - **2026-08-06 · feat(engine): the `Drawbacks (refund)` ledger line itemises what was taken** — owner-
   confirmed: a character with three drawbacks showed one lump sum and no way to see which three, while
   *Arts & Techniques*, *Species traits*, *Class features*, *Subclass abilities* and *Boons* all expanded
