@@ -6,6 +6,21 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · feat(engine): the `Drawbacks (refund)` ledger line itemises what was taken** — owner-
+  confirmed: a character with three drawbacks showed one lump sum and no way to see which three, while
+  *Arts & Techniques*, *Species traits*, *Class features*, *Subclass abilities* and *Boons* all expanded
+  into named rows. The drawbacks loop now collects pairs and calls `addItems("Drawbacks (refund)", …)`
+  with the key matching the ledger line's label exactly — both tools already walk `itemize` generically,
+  so there is no renderer change. Rows are **negative**, so they sum to the line total (`-drawGain`), the
+  same relationship the other five itemised lines have with theirs; the value itemised is the one
+  actually charged, so a house-ruled drawback shows its overridden AP, not the printed one. `compute()`
+  totals do not move and `testing/expected/` captures only totals and warnings (checked, not assumed), so
+  **`DATA.version` is unmoved**. Gate +5 assertions across the three fixes, all five confirmed red against
+  a deliberately reverted guard before being trusted; step 6's check that *Boons* rows still render is in
+  there too. **Not in this change:** the 2026-08-05 scope extension — showing what was *lost* (a bought-off
+  drawback, its buy-off cost, and a DM-removed boon) appears in no ledger line at all, and needs an owner
+  decision on whether historical spend belongs in `compute()`'s ledger (`feat/ap-model-reconcile`) plus a
+  line shape for a DM-edit feature that isn't built yet. The task stays on `docs/TASK_BOARD_NEXT.md`.
 - **2026-08-06 · fix(livesheet): buying an extra maneuver goes through the affordability gate** —
   `buyManeuver()` called `emit()` directly, making it the one purchase path in the tool that skipped
   `buy()`'s frozen-economy check. Measured on a Fighter with *Combat Superiority* and **0 AP available**:

@@ -190,6 +190,49 @@ try {
   // .adv and must stay amber, matching CharGen.
   check('advisories in the tray are amber, not red',
     await ls.evaluate(`getComputedStyle(document.querySelector('#tray li.adv')).color`), 'rgb(178, 106, 0)');
+
+  // Every buy below drives the REAL buy()/buyManeuver() path with the modals captured, so a check
+  // fails if the guard is deleted rather than merely if a constant moves. Each rebuilds LOG first.
+  const LS_SETUP = `window.__a=[];window.__c=[];window.__f=[];
+    window.alert=m=>window.__a.push(String(m));window.confirm=m=>{window.__c.push(String(m));return true;};
+    window.flash=m=>window.__f.push(String(m));
+    LOG.length=0;SEQ=1;REDO.length=0;`;
+
+  // An epic boon's "choose an ability to raise" prompt is a follow-up, not a rules violation. Before
+  // the fix buy() classified it as hard and all 12 epic:true boons were unbuyable.
+  console.log('\nLive Sheet — an expected follow-up neither blocks a purchase nor asks to confirm it');
+  check('all 12 epic boons buy on a HD-17 character, with no alert and no confirm',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'award',amount:900,label:'AP award',seq:SEQ++,ts:Date.now()});
+      for(let h=2;h<=17;h++){const b=foldBuild(null);
+        LOG.push({type:'buy',cat:'hd',payload:{to:h},cost:priceOf('hd',{to:h},b),label:'Level up',seq:SEQ++,ts:Date.now(),level:b.hd});}
+      const epics=DATA.boonList.filter(x=>DATA.boons[x].epic);
+      epics.forEach(n=>buy('boon',{v:n},n));
+      const got=(foldBuild(null).boons||[]).filter(x=>DATA.boons[x].epic).length;
+      return [epics.length,got,window.__a.length,window.__c.length];})()`), [12, 12, 0, 0]);
+  check('a genuinely illegal purchase is still hard-blocked',
+    await ls.evaluate(`(()=>{window.__a=[];const n=LOG.length;
+      buy('art',{v:'Crossbow Expert'},'Crossbow Expert');
+      return [LOG.length===n, /Purchase blocked/.test(window.__a[0]||'')];})()`), [true, true]);
+
+  // buyManeuver() used to emit() straight past buy()'s affordability gate — the one unguarded buy
+  // path in the tool. Measured before the fix: 0 AP -> -22 over four clicks at 4/5/6/7.
+  console.log('\nLive Sheet — the extra-maneuver purchase goes through the affordability gate');
+  const MV = `${LS_SETUP}
+    LOG.push({type:'buy',cat:'feature',payload:{v:'Fighter: Combat Superiority (maneuvers)'},cost:0,label:'CS',seq:SEQ++,ts:Date.now(),level:1});
+    const avail=()=>_apRemaining(compute(foldBuild(null),_dmOpts()).spendable,economy(null).spent);
+    const drain=avail();if(drain)LOG.push({type:'award',amount:-drain,label:'AP award',disc:true,seq:SEQ++,ts:Date.now()});`;
+  check('at 0 AP four clicks buy nothing and AP never goes negative',
+    await ls.evaluate(`(()=>{${MV}
+      for(let i=0;i<4;i++)buyManeuver();
+      return [foldBuild(null).maneuverBuys||0, avail(), window.__f[0]||''];})()`),
+    [0, 0, 'Not enough AP: needs 4, have 0']);
+  check('with 15 AP the rungs still charge 4, 5, 6 and then refuse the 7',
+    await ls.evaluate(`(()=>{${MV}
+      LOG.push({type:'award',amount:15,label:'AP award',disc:true,seq:SEQ++,ts:Date.now()});
+      const costs=[];for(let i=0;i<4;i++){const n=LOG.length;buyManeuver();if(LOG.length>n)costs.push(LOG[LOG.length-1].cost);}
+      return [costs, avail(), window.__f[window.__f.length-1]||''];})()`),
+    [[4, 5, 6], 0, 'Not enough AP: needs 7, have 0']);
   await ls.close();
 
   // ============================ CharGen ============================
@@ -353,6 +396,35 @@ try {
   check('the budget control is a number input, not a 751-option dropdown',
     await cg.evaluate(`(()=>{const b=document.getElementById('budget');
       return [b.tagName, b.options?b.options.length:0];})()`), ['INPUT', 0]);
+
+  // The ledger renders (r.itemize||{})[lineLabel] generically, so the whole fix is engine-side —
+  // and it fails SILENTLY if the addItems() key ever stops matching the ledger line's label exactly.
+  // Assert on the rendered DOM rather than on compute() so a label drift is caught here.
+  console.log('\nCharGen — the drawbacks ledger line itemises what was taken');
+  const LEDGER_ROWS = `(sel)=>{const rows=[...document.getElementById('ledger').querySelectorAll('tr')].map(tr=>
+      ({cls:tr.className,label:(tr.cells[0]||{}).innerText||'',val:Number((tr.cells[1]||{}).innerText)}));
+    // the LINE row only — group headers are .lgh and item rows are .lrow.litem
+    const i=rows.findIndex(r=>r.cls==='lrow'&&r.label.indexOf(sel)===0);
+    if(i<0)return null;const items=[];
+    for(let k=i+1;k<rows.length&&/litem/.test(rows[k].cls);k++)items.push([rows[k].label,rows[k].val]);
+    return {line:rows[i].val,items,sum:items.reduce((s,x)=>s+x[1],0)};}`;
+  check('three drawbacks render as three named rows summing to the line total',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const b=readBuild();b.drawbacks=Object.keys(DATA.drawbacks).slice(0,3);
+      renderLedger(compute(b),b);const d=sect('Drawbacks (refund)');
+      return [d.items.length,d.sum,d.line,d.sum===d.line];})()`), [3, -11, -11, true]);
+  check('a house-ruled drawback itemises at the value actually charged, not the printed one',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const n=Object.keys(DATA.drawbacks).slice(0,3);
+      const b=readBuild();b.drawbacks=n.slice();b.houseRules={draws:{[n[0]]:{ap:99}}};
+      renderLedger(compute(b),b);const d=sect('Drawbacks (refund)');
+      return [d.items[0],d.sum,d.line];})()`), [['Asthmatic', -99], -108, -108]);
+  // Step 6 of the task: the same failure mode would silently empty the Boons rows too.
+  check('the Boons line still itemises, and its rows sum to it',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const b=readBuild();b.hd=17;b.boons=DATA.boonList.filter(x=>!DATA.boons[x].epic).slice(0,2);
+      renderLedger(compute(b),b);const o=sect('Boons');
+      return [o.items.length,o.sum===o.line];})()`), [2, true]);
   await cg.close();
 } catch (e) {
   fail++; console.log(`  FAIL harness — ${e.message}`);
