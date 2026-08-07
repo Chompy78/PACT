@@ -188,6 +188,24 @@ the automated gate (`engine-parity.html`) only covers `compute()`, not the UI wi
 5. Confirm DM Console sees the character and can award AP.
 6. Check the browser console for errors at each step above.
 
+## Backing up the cloud data
+Three separate mechanisms, doing three different jobs — don't mistake one for another:
+
+| What | Covers | Who runs it | Where |
+|---|---|---|---|
+| `character_backups` table | every change and delete, per character, 50 kept (deletes forever) | automatic (DB trigger) | server-side only; restore recipes in `sql/migrations/2026-08-07-character-backups.sql` |
+| **Export backup** button | that user's own characters, current state | any signed-in user | My Characters (`tools/characters.html`); warns when 7+ days stale |
+| `sql/full-backup.sql` | the whole database, current state | whoever holds the Supabase dashboard login | dashboard → SQL Editor |
+
+Only the third sees everything, and only from the dashboard: `characters_select` limits any client to
+`owner_id = auth.uid() or is_campaign_dm(campaign_id)`, so even an account DMing every campaign cannot
+export the lot. That's deliberate — this project has no admin role, and `service_role` via the dashboard
+is the admin surface. See `DECISIONS.md` `D-GH-2026-08-07-character-backups` for why an in-app admin
+backup was considered and rejected.
+
+Backup output contains every player's character data and email addresses. Keep it private; never commit
+it to this repo.
+
 ## Start of each session
 Claude Code reads `AGENTS.md` (via `CLAUDE.md`'s `@AGENTS.md` import) automatically, so you don't re-explain
 the project. A good opener: `Run /pick-code-task` — or paste **one** task from the task board directly.

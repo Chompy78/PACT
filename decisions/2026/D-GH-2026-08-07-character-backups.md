@@ -137,6 +137,36 @@ holds no copy at all. Per-device errs toward nagging someone already covered, wh
 direction. A `localStorage` read failure is likewise treated as "never exported" rather than
 "recently exported" — every tie breaks toward the warning.
 
+## Addendum 2 — an in-app admin backup was requested, considered, and rejected
+
+The question raised was whether a nominated account (`jrc.chow@gmail.com`) should be able to back up
+*everything* from inside the app. Three findings decided it:
+
+1. **A client-side allowlist cannot do it.** RLS, not the client, decides what comes back:
+   `characters_select` is `owner_id = auth.uid() or is_campaign_dm(campaign_id)`. That account owns 2
+   characters and DMs all 4 campaigns, reaching 6 of 15 — the other 9 belong to players in no campaign
+   it runs. Dropping the client-side owner filter would have produced a file that *looks* like a full
+   backup while silently missing 60% of the data, which is worse than not offering it. (It would also
+   have published a personal email address in a public repo.)
+2. **Doing it properly means inventing an admin role**, which this project deliberately does not have —
+   stated in `rls-policies.sql` ("An in-app restore UI would require inventing an admin role, which this
+   project deliberately does not have") and `schema.sql` ("No role column: roles are per-campaign and
+   derived"). Reversing that is a real security-model change, not a feature toggle.
+3. **It would grant no new capability, only a weaker route to an existing one.** `service_role` already
+   reads everything from the dashboard. An admin role would mint a *second* key with that same reach —
+   a browser session token in `localStorage` — turning any future stored-XSS from "the attacker gets
+   that user's 2 characters" into "the attacker gets all 15 and every character created afterwards".
+   Given `AGENTS.md` already treats stored XSS as a hard invariant because cloud data crosses users,
+   that is a poor trade for saving ~60 seconds on a rare, deliberate operation. It buys no automation
+   either: the scheduled route stays dead for the reasons in Addendum 1.
+
+**Decision:** keep the no-admin-role posture. Full-database backups run from the Supabase dashboard via
+`sql/full-backup.sql` (added alongside this record), which offers a per-character CSV form and a single
+JSON bundle, and cross-references the existing restore recipes rather than duplicating them. **This
+should be revisited if an in-app admin surface is ever wanted for other reasons** — an admin restore UI
+over `character_backups`, a cross-campaign roster, support tooling — because at that point the role has
+to exist anyway and is better designed deliberately than bolted on during an incident.
+
 The division of labour that came out of this is the right one and should be kept: **`character_backups`
 is the fine-grained history (server-side, every change, time-travel), the exported file is the
 off-site disaster copy (current state, held by the user, outside the app).** Neither substitutes for

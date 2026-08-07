@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-07 · docs(sql): `sql/full-backup.sql` — the whole-database backup runbook** — completes the
+  backup story with the one mechanism that sees everything, run from the Supabase dashboard rather than
+  the app. Two forms: a per-character query that downloads as CSV with each `envelope` cell a loadable
+  `pact-character/1` document, and a single-JSON bundle for archival. Documents who can run it and why
+  nobody else can — `characters_select` caps any client at `owner_id = auth.uid() or
+  is_campaign_dm(campaign_id)`, so even an account DMing every campaign reaches 6 of 15 — and records
+  that an in-app admin backup was requested, considered and rejected rather than left unexplained (see
+  the decision record's Addendum 2: a client-side allowlist can't do it, doing it properly means
+  inventing the admin role this project deliberately lacks, and it would grant no new capability, only
+  a weaker route to one `service_role` already has). Deliberately excludes `character_backups` and
+  points at that migration's existing restore recipes instead of duplicating them. Both queries were
+  executed against production before committing: Query A returns 15 rows, all restorable, all with
+  owner emails; Query B a well-formed 101,676-char bundle. A `docs/HOW-TO-WORK.md` table now sets the
+  three mechanisms side by side so they don't get mistaken for each other. No `DATA.version` change.
 - **2026-08-07 · fix(sync): apply the ownership check on the offline character list too** —
   `listMyCharacters()`'s online branch filters `.eq('owner_id', …)` because `characters_select` also
   grants a DM read access to every character in campaigns they run; the offline branch made no such
