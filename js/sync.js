@@ -210,9 +210,13 @@ export async function refreshServerAp(id) {
 async function reconcile(id) {
   if (lsDeletes().includes(id)) { await replayDelete(id); return; }
   const local = lsGet(id);
+  // owner_id is selected purely so the cached record carries proof of who owns it. reconcile() is
+  // reachable for characters this device does NOT own (a DM opening a player's sheet), and without
+  // this the cached copy is indistinguishable from the user's own — which is precisely the check
+  // listMyCharacters()'s offline branch had no way to make.
   const { data: server, error } = await supabase
     .from('characters')
-    .select('id, name, kind, stats, ap, campaign_id, updated_at')
+    .select('id, owner_id, name, kind, stats, ap, campaign_id, updated_at')
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
@@ -275,7 +279,18 @@ export async function listMyCharacters() {
   // Offline: the server can't be consulted, so `cloud` reports what this device last knew — a record
   // is treated as cloud-saved once a push confirmed it (dirty cleared by applyServerMeta). Anything
   // still dirty has unpushed work, which is exactly what the caller needs to show.
-  return lsIndex().map(lsGet).filter(Boolean).filter(c => !tombstoned.has(c.id))
+  //
+  // The ownership test the online branch makes with `.eq('owner_id', ...)` has to be made here too,
+  // or "My Characters" means something different depending on connectivity. It canNOT be the online
+  // branch's `dirty` test: offline, dirty:false is the normal resting state of the user's OWN synced
+  // characters, so filtering on it would empty the list of everything except unpushed work. Instead
+  // it's the owner_id reconcile() now caches. A record with NO owner_id is kept: that's either a
+  // local-only character (created here, therefore this user's) or one cached before owner_id was
+  // stored, and dropping those would blank the offline list for existing users. Those self-heal on
+  // the next reconcile; a record positively known to belong to someone else is dropped now.
+  return lsIndex().map(lsGet).filter(Boolean)
+    .filter(c => !tombstoned.has(c.id))
+    .filter(c => !c.owner_id || c.owner_id === user.id)
     .map(r => ({ ...r, hasData: Array.isArray(r.stats && r.stats.LOG), cloud: !r.dirty, pendingSync: !!r.dirty }));
 }
 
