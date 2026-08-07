@@ -70,11 +70,86 @@ drawback refunds. **If a future session quotes an AP figure, quote `compute().re
 `economy().available`.** This is the same `compute()`-vs-`economy()` divergence `AGENTS.md` already
 flags as high-risk, and it is what `feat/ap-model-reconcile` on the NEXT board exists to resolve.
 
+## The second half: PR #374, and four defects the manual gate had passed
+
+The backup work was only half the day. The other half was the stale-cloud-save branch, which had been
+sitting open with a self-imposed gate: *"do not merge until the two-tab check has been run."* Running
+that check produced **four defects in two attempts**, and how they were found matters more than what
+they were.
+
+1. **CharGen reported a conflict as "Save failed."** Of three save paths only two handled
+   `res.conflict`; CharGen's manual save fell through to the generic catch. The message was untrue —
+   the save to the device had succeeded — and it is the message most likely to make a player redo work
+   they never lost.
+2. **The guard could be defeated, and was, in production.** `initSync()` runs `syncAll()` on every page
+   load and reconnect; `reconcile()`'s adopt branch refreshed `base_updated_at` **in localStorage**,
+   while the content being saved came from the page's **in-memory build**. A background sync therefore
+   handed a stale page a *fresh* base. Observed: **43 AP spent → 47 → back to 43** across two Edge
+   profiles, guard active throughout. Note the shape — an earlier round of the *same* fix had added
+   `base_updated_at` to those adopt sites, closing a visible bug and opening an invisible one.
+   **A guard that looks like it works is worse than no guard, because it gets trusted.**
+3. **My own harness gave a false pass.** Its stubbed server used `'T1'`/`'T2'` as timestamps.
+   `Date.parse` turns those into `NaN`, so `isNewerInstant()` always returned false, `reconcile()`
+   always adopted, and the recovery check went green for entirely the wrong reason. Real ISO instants
+   exposed defect 4 immediately.
+4. **A refused save had no way out.** The local record is dirty and newer, so `reconcile()` pushed,
+   the guard refused, `catch { /* retry later */ }` swallowed it, and `loadCharacter()` returned the
+   same stale copy. **"☁ Cloud → Load" handed the user their own copy forever** — the exact control the
+   conflict message told them to use. "Retry later" was the wrong frame: a refused push can *never*
+   succeed, because the server has moved and this copy's base never will.
+
+Fixed by pinning the base to the copy the page holds (`_pageBase`, written only by `loadCharacter()`
+and this page's own successful push) and by `loadCharacter(id, {onBehind})`, which asks before
+discarding anything. Full reasoning: `decisions/2026/D-GH-2026-08-07-optimistic-character-save.md`.
+
+### The premise that caused all of it
+
+Both the task and the PR asserted **"no automated gate can reach this"**, because the dependency-free
+suite cannot sign in to Supabase. That was false, and it is what cost a live character. Supabase is not
+what needed testing — the *order of local reads and writes around a conditional update* is.
+`testing/scripts/sync-concurrency-ci.mjs` stubs the server, gives each simulated profile its own
+`localStorage`, and replays the production sequence against the real `js/sync.js` in Node built-ins
+only. It catches defects 2 and 4.
+
+**Treat "this can't be tested automatically" as a claim to verify, not a fact to accept.** It was
+written into a task, carried into a PR, and used to justify a manual ritual that then missed four
+things — including one that destroyed data while the guard was live.
+
+## Shipped: v1.378
+
+`preview` → `main` via PR #378, merged with a regular merge commit (never squash — that severs the
+shared history and breaks the *next* promotion's 3-way merge). `BUILD` → `v1.378`, major `1` carried
+forward; `DATA.version` stays `v0.341` because no mechanics changed. All 10 CI checks green;
+`engine-parity` 29/0, `tool-pricing` 67/0, `sync-concurrency` 12/0.
+
+One CI flake worth recording: `pricing` failed with `fetch failed` on a **docs-only commit**, which is
+what proved it environmental rather than a defect. It passed on re-run. If it recurs, that job's
+browser/loopback setup is the suspect, not the diff.
+
+## Found at the end: drawbacks are counted twice
+
+Checking `Moss Stormspud (COPY)` after the award cleanup showed "4 player AP ignored". With every
+`award` event gone, that 4 was **purely drawback-derived** — which made a real bug visible.
+`foldBuild()` folds `drawbackEarned` into `b.budget`, but `total` already nets drawbacks, so a drawback
+both cuts the cost and raises the ceiling. Amble is unaffected (`ignore_player_ap` drops `playerAp` and
+lands accidentally on the correct model); **every character outside such a campaign gets double value.**
+
+Filed rather than fixed — it changes `compute()` output, so it needs `testing/expected/` and a
+`DATA.version` bump, which is not something to bolt on the day a promotion shipped. On the NEXT board as
+`fix/drawback-ap-double-count`, tagged Risk: high so `/sweep-code-tasks` cannot pick it up.
+
+The display fix is the interesting half: **drawback AP is a discount on cost, not a pool to spend from.**
+Show it on the cost line and reserve "Player AP" for actual awards; `economy()` already returns
+`drawbackEarned` separately (D-GH41), so no new engine export is needed.
+
 ## Not done
 
-- **PR #374** was not merged. Its own body says *"do not merge until the two-tab check has been run"* —
-  a concurrent-save test needing two signed-in browser tabs, which no agent session can perform.
-- **Tagging the promotion commit** cannot be done from a cloud session (hard 403 — see
-  `docs/sessions/2026-07-19-github-release-tag-cloud-session-restriction.md`).
+- **Tagging `main` as `v1.378`** — the one step a cloud session cannot do (hard 403; see
+  `docs/sessions/2026-07-19-github-release-tag-cloud-session-restriction.md`). Run locally:
+  `git tag v1.378 4cdaab5 && git push origin v1.378`.
+- **`Marius Stormholt` is at 43 spent**, not the 47 that a stale tab overwrote during testing. The 47
+  state is preserved in its 13:00:50 snapshot and is one query away if wanted.
+- **The prescribed two-tab test was wrong** and is now corrected in the PR body: two tabs in one browser
+  profile *share localStorage*, which is not the case the guard is about. Two profiles or two devices.
 - `delete@test.com`'s 3 characters and three empty `New Character` rows are still present (W2, not
   taken — one is a real player account whose duplicates may be deliberate).

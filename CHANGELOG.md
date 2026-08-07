@@ -38,6 +38,20 @@
   **Not covered by any automated gate — the dependency-free suite cannot reach a signed-in Supabase
   session, so this needs the two-tab check in the PR before it merges.** No schema change; `DATA.version`
   unmoved.
+- **2026-08-07 · chore(release): `BUILD` → `v1.378` (PR #378)** — promotion of `preview` → `main`, three
+  commits under one theme: a character can no longer be lost quietly. Ships the `character_backups`
+  trigger, the off-site Export backup button and its staleness warning, the offline ownership check, and
+  the stale-cloud-save guard together with its recovery path and a new gate that reaches it. Major
+  carried forward at `1` — per `docs/VERSION-SYNC.md` that is a named human decision, never inferred from
+  the size of a promotion. Merged with a **regular merge commit, not a squash**: squashing a promotion
+  severs the shared history between `preview` and `main`, so the next promotion's 3-way merge falls back
+  to a stale ancestor (this happened for real between #293 and #294). `DATA.version` stays **v0.341** —
+  nothing here changes `compute()` output. Mirrors synced in `js/engine.js` (source of truth), CharGen
+  (line-1 comment, `<title>`, header `.sub`), Live Sheet (line-1 comment) and DM Console
+  (`TOOL_VERSION`); `index.html` reads `BUILD` live and was not touched. All 10 CI checks green —
+  `pricing` failed once with `fetch failed` on a **docs-only commit**, which is what identified it as an
+  environment flake rather than a defect, and it passed on re-run. Tagging `main` as `v1.378` is still
+  outstanding: tag/release pushes get a hard 403 from a cloud session.
 - **2026-08-07 · fix(sync): ☁ Cloud → Load can finally recover a copy that is behind (DD1)** — completes
   the conflict story. `reconcile()` no longer swallows a refused push as "retry later": a refused push can
   *never* succeed, because the server has moved and this copy's base never will, so it now reports
