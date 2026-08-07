@@ -46,6 +46,13 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 #msg{min-height:18px;font-size:13px;margin-top:8px}
 #msg.bad{color:var(--bad)}
 #msg.good{color:var(--good)}
+/* Backup staleness. Deliberately loud when stale and near-silent when fresh: the failure this guards
+   against is a backup nobody remembers to take, so "you're covered" must never compete for attention
+   with "you're not". */
+.backupbar{display:flex;align-items:center;gap:8px;font-size:13px;margin:0 0 12px;padding:9px 11px;border-radius:8px;border:1px solid var(--line);background:var(--lt);color:var(--navy)}
+.backupbar.stale{border-color:var(--bad);background:transparent;color:var(--bad);font-weight:700}
+.backupbar.fresh{border:0;background:transparent;color:var(--grey);padding:0 2px}
+.btn.warn{background:var(--bad);border-color:var(--bad);color:#fff}
 .signin-card a{color:var(--blue);font-weight:700}
 </style>
 </head>
@@ -70,6 +77,7 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
     <p class="hint">You're offline &mdash; showing what's stored in this browser. Reconnect to see everything in your cloud account and to sync anything still marked <b>&#128229; Device only</b>.</p>
   </div>
   <div id="mainCard" class="card" hidden>
+    <div id="backupBar" class="backupbar" role="status" hidden></div>
     <div class="toolbar">
       <p class="hint" style="margin:0">Grouped by campaign. <b>&#9729; Cloud</b> is saved to your account; <b>&#128229; Device only</b> exists in this browser alone and is lost if its data is cleared. Archiving is reversible; deleting is not.</p>
       <label><input type="checkbox" id="showArchived"> Show archived</label>
@@ -131,6 +139,7 @@ async function boot(){
   signinCard.hidden = true;
   offlineCard.hidden = navigator.onLine;
   mainCard.hidden = false;
+  renderBackupBar();
   await loadAndRender();
 }
 
@@ -274,6 +283,49 @@ async function onDelete(id, name, isCloud){
  * filters a *view*, and a backup that silently omits rows because of a UI toggle is exactly the kind
  * of quiet gap this whole feature exists to close.
  * --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+ * Backup staleness.
+ *
+ * The scheduled-backup route was tried and abandoned (see the addendum in
+ * D-GH-2026-08-07-character-backups): an agent-run job has to pull the whole bundle through a model
+ * context, which already exceeds the limit, and a Routine can't carry the credentials it would need.
+ * So the export is a manual act — and the original failure mode here was never "the button was hard
+ * to find", it was "nobody remembered". This is the reminder that replaces the automation.
+ *
+ * Tracked PER BROWSER, not per account, and that is the deliberate choice: the exported file is a
+ * physical thing sitting on one device's disk. If it were account-wide, exporting on the desktop
+ * would silence the warning on the phone — a device that holds no copy at all. Per-device errs
+ * toward nagging someone who is already covered, which is the harmless direction to be wrong in.
+ * --------------------------------------------------------------------------- */
+const BACKUP_KEY = 'pactLastBackupExport';
+const STALE_DAYS = 7;
+
+function lastExportAt(){
+  // A read failure (private mode, disabled storage) is treated as "never exported" rather than
+  // "recently exported" — same reasoning as above, fail toward the warning.
+  try { const v = localStorage.getItem(BACKUP_KEY); return v ? new Date(v) : null; } catch (e) { return null; }
+}
+function noteExport(iso){ try { localStorage.setItem(BACKUP_KEY, iso); } catch (e) {} }
+
+function renderBackupBar(){
+  const bar = document.getElementById('backupBar');
+  const btn = document.getElementById('exportBtn');
+  const when = lastExportAt();
+  const days = when && !isNaN(when) ? Math.floor((Date.now() - when.getTime()) / 86400000) : null;
+  const stale = days === null || days >= STALE_DAYS;
+
+  bar.hidden = false;
+  bar.className = 'backupbar ' + (stale ? 'stale' : 'fresh');
+  btn.classList.toggle('warn', stale);
+  if (days === null) {
+    bar.textContent = '⚠ No backup has ever been exported from this browser. Export one and keep it somewhere outside this app.';
+  } else if (stale) {
+    bar.textContent = '⚠ Last backup from this browser was ' + days + ' days ago. Export a fresh one.';
+  } else {
+    bar.textContent = 'Last backup from this browser: ' + (days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago') + '.';
+  }
+}
+
 async function onExport(){
   const btn = document.getElementById('exportBtn');
   const all = _chars.slice();
@@ -310,6 +362,12 @@ async function onExport(){
       skipped: missing,
       characters: out,
     };
+    // Every character turned out to be unsaved: there is nothing to restore from, so don't hand over
+    // an empty file and don't reset the staleness clock on the strength of it.
+    if (!out.length) {
+      say('Nothing could be exported — none of these ' + all.length + ' have saved data yet.', 'bad');
+      return;
+    }
     const stamp = bundle.exported_at.slice(0, 10);
     const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }));
     const a = document.createElement('a');
@@ -318,6 +376,8 @@ async function onExport(){
     // Revoked on a timer, not immediately: Safari (incl. iOS) can abort the download if the object
     // URL is released in the same tick as the synthetic click.
     setTimeout(() => URL.revokeObjectURL(url), 30000);
+    noteExport(bundle.exported_at);
+    renderBackupBar();
     say(missing.length
       ? 'Exported ' + out.length + '. Skipped ' + missing.length + ' with no saved data: ' + missing.join(', ')
       : 'Exported ' + out.length + ' character' + (out.length === 1 ? '' : 's') + '. Keep the file somewhere outside this app.',

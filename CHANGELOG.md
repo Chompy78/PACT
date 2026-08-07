@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-07 · feat(characters): warn when the backup is stale; scheduled-backup Routine deleted** —
+  the weekly agent-run Routine was abandoned for good (it cannot carry its own connectors, and the
+  bundle would have to pass through a model context it already exceeds), so the export is a manual
+  act. Since the original failure was *nobody remembered*, My Characters now records the last
+  successful export and shows a red warning bar — and turns the export button red — when it is 7+ days
+  old or has never happened; fresh state is a quiet grey line so "you're covered" never competes for
+  attention with "you're not". Tracked per browser, not per account, on purpose: the file sits on one
+  device's disk, so an account-wide flag would let a desktop export silence a phone holding no copy.
+  A localStorage read failure counts as "never exported" — every tie breaks toward the warning. An
+  export where every character turns out to be unsaved now refuses to produce an empty file or reset
+  the clock. Verified headless across never/20d/7d-boundary/2d/today plus a real export resetting
+  stale→fresh. No `DATA.version` change.
 - **2026-08-07 · feat(characters): "Export backup" on My Characters — the off-site half of the backup
   story** — the `character_backups` trigger (same date) is a safety net that lives in the *same
   database as the thing it protects* and is readable only from the Supabase dashboard. This is the

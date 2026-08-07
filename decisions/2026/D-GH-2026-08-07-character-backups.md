@@ -123,10 +123,19 @@ redeemed invite nobody ever opened) are reported by name rather than dropped.
    no such ceiling, which is why the in-app export is the primary mechanism and not the convenience.
 2. **The Routine could not carry its connectors.** A scheduled Routine created from an agent session
    cannot inherit that session's Supabase/Drive connectors, so it would have fired weekly with no
-   tools and quietly done nothing. It was created with the full prompt but left **disabled and
-   renamed** — a backup job that looks scheduled but silently no-ops is worse than none, because it
-   buys false confidence. Re-enabling it requires attaching connectors from the claude.ai Routines
-   UI.
+   tools and quietly done nothing. It was created, then **deleted** — a backup job that looks
+   scheduled but silently no-ops is worse than none, because it buys false confidence, and a
+   *disabled* one sitting in the list eventually reads as "backups are handled" to whoever skims it.
+
+**What replaces the automation: a staleness warning, not a scheduler.** Deleting the Routine means the
+export is a manual act, and the original failure here was never "the button was hard to find" — it was
+that nobody remembered. So My Characters now tracks the last successful export and warns when it is
+7+ days old or has never happened, turning the export button red at the same time. Tracked **per
+browser** (`localStorage`), deliberately not per account: the exported file is a physical thing on one
+device's disk, so an account-wide flag would let a desktop export silence the warning on a phone that
+holds no copy at all. Per-device errs toward nagging someone already covered, which is the harmless
+direction. A `localStorage` read failure is likewise treated as "never exported" rather than
+"recently exported" — every tie breaks toward the warning.
 
 The division of labour that came out of this is the right one and should be kept: **`character_backups`
 is the fine-grained history (server-side, every change, time-travel), the exported file is the
