@@ -1294,6 +1294,63 @@ likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers 
 purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
 answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
 
+## Drawbacks are counted twice — and mislabelled "player AP" — TODO
+Branch `fix/drawback-ap-double-count`. `js/engine.js` (`foldBuild`/`compute`), plus the AP display in
+Live Sheet and CharGen.
+**Effort:** medium · **Risk:** high — damage scale is high (it changes `compute()` output and needs a
+`DATA.version` bump); ambiguity is medium (two coherent models, one is clearly preferable) and damage
+likelihood is low (engine-parity fixtures would catch a wrong implementation).
+
+Found 2026-08-07 while checking `Moss Stormspud (COPY)` after the Amble award-event cleanup. With every
+`award` event removed his `playerAp` was 4 — purely drawback-derived — which made the divergence visible.
+
+`foldBuild()` sets `b.budget = economy().earned`, and `earned` is awards **plus** `drawbackEarned`.
+`compute()` then does `playerAp = b.budget` and `spendable = (ignorePlayerAp ? 0 : playerAp) + dmAp`.
+But `total` **already** nets drawbacks (their `cost` is negative). So a drawback both reduces the build
+cost *and* raises the ceiling — it is worth double.
+
+Two models are each self-consistent; the engine does half of each:
+
+```text
+(a) cost nets the drawback (total 50), budget excludes the refund (37)  -> remaining -13  CORRECT
+(b) cost ignores it (total 54), budget gains it (41)                    -> remaining -13  CORRECT
+    current: total 50 AND spendable 41                                  -> remaining  -9  WRONG
+```
+
+Verified against Moss Stormspud: positive purchases 54, drawback refunds −4, net total 50, DM AP 37.
+With `ignore_player_ap` TRUE the engine drops `playerAp`, lands on model (a), and correctly reports
+"OVER BUDGET by 13 AP". With it FALSE, `remaining` is −9.
+
+**Scope:** Amble is the only campaign with `ignore_player_ap` on, so it is unaffected. Every character
+*not* in such a campaign — including all 8 unbound ones — currently gets double value from drawbacks.
+
+**Also a labelling bug.** `engine.js:476` documents `playerAp = b.budget` as "folded from the
+character's own `award` events", which is not what it holds. Under `ignore_player_ap` the UI then says
+"4 player AP ignored" — wrong twice: it is not player AP, and it is not being ignored, since it is
+already applied as a discount on `total`.
+
+```text
+1. Adopt model (a): a drawback affects the COST side only. Stop b.budget/playerAp folding in
+   drawbackEarned - playerAp must mean what engine.js:476 already says it means, i.e. award events only.
+2. Split the display by which side of the equation each belongs to. Drawback AP is a discount on cost,
+   not a pool to spend from: show it on the cost line ("Build cost 50 - 54, less 4 from drawbacks") and
+   reserve "Player AP" for actual awards. No new engine export is needed - economy() already returns
+   drawbackEarned separately from earned (D-GH41 exposed it for exactly this).
+3. Check every consumer of playerAp/b.budget before changing it - Live Sheet, CharGen, DM Console - and
+   confirm none of them re-derive the drawback credit themselves, or it will be dropped twice instead.
+4. This CHANGES compute() output: update testing/expected/ in the same PR and bump DATA.version. Add a
+   fixture with drawbacks and no award events - the case that exposed this - asserting the same
+   remaining whether ignorePlayerAp is true or false.
+5. Log the model choice as D-GH-<date>-drawback-ap-double-count; a future reader needs to know why the
+   cost side won rather than the budget side.
+```
+
+**Done when:** a drawback affects the build's cost exactly once; a character with drawbacks and no
+awards reports the same `remaining` whether `ignore_player_ap` is on or off; no UI calls
+drawback-derived AP "player AP"; `testing/expected/` updated and `DATA.version` bumped in the same PR;
+engine-parity **0 failed**.
+
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
