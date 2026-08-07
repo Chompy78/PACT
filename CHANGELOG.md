@@ -38,6 +38,18 @@
   **Not covered by any automated gate — the dependency-free suite cannot reach a signed-in Supabase
   session, so this needs the two-tab check in the PR before it merges.** No schema change; `DATA.version`
   unmoved.
+- **2026-08-07 · fix(sync): ☁ Cloud → Load can finally recover a copy that is behind (DD1)** — completes
+  the conflict story. `reconcile()` no longer swallows a refused push as "retry later": a refused push can
+  *never* succeed, because the server has moved and this copy's base never will, so it now reports
+  `{behind:true}`. `loadCharacter(id, {onBehind})` asks the caller before doing anything destructive, and
+  only on an explicit yes discards the local copy and takes the server's. Both tools' single explicit-Load
+  path (`loadCloudChar()`) supplies that prompt, naming the character and warning that unsaved local work
+  is lost. **Omitting the callback leaves behaviour unchanged**, so background callers — `syncAll()`,
+  campaign-rules refresh — can never silently discard work. This makes the conflict alert added earlier
+  today truthful: it tells the user to use Cloud → Load, and Cloud → Load now works. Gate back to green at
+  **12 passed / 0 failed**, with two new checks: a plain re-load keeps the local copy, and the caller is
+  asked before anything is discarded. Both tools boot headless with 0 console errors; `engine-parity`
+  29/0, `tool-pricing` 67/0. No `DATA.version` change.
 - **2026-08-07 · test(sync): make the concurrency harness use real timestamps — and it immediately caught
   a second, unfixed defect** — the harness stubbed server times as `'T1'`/`'T2'`. `Date.parse` turns those
   into `NaN`, so `isNewerInstant()` always returned false, `reconcile()` always took its adopt branch, and

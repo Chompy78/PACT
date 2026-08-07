@@ -864,7 +864,15 @@ document.addEventListener('sync-ready', function () {
   // action — a second confirm on arrival would just be a redundant prompt for the common case of
   // landing on a fresh/empty page.
   async function loadCloudChar(id, label) {
-    var rec = await S.loadCharacter(id);
+    // See the Live Sheet's copy of this: onBehind fires only when this device's copy is dirty AND the
+    // server has moved on, so it can never be pushed. This is the escape hatch the conflict alert in
+    // onSaveClick() points at — without it, Load hands back the same unsendable copy forever.
+    var rec = await S.loadCharacter(id, { onBehind: function(){
+      return confirm('“' + label + '” was changed on another device since you loaded it, so this '
+                   + 'device\'s copy can no longer be saved to the cloud.\n\n'
+                   + 'Replace what is on screen with the cloud version?\n\n'
+                   + 'Anything you changed here and did not manage to save will be lost.');
+    } });
     if (!rec || !rec.stats || !Array.isArray(rec.stats.LOG)) {
       alert('Could not open “' + label + '”.\n\nNo character data came back. If you are offline or the '
             + 'connection dropped, try again once you are back online — nothing has been changed.');

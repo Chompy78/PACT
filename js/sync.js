@@ -232,10 +232,34 @@ function applyServerMeta(rec, server) {
   lsSet(rec);
 }
 
-/** Load a character: reconciles server vs local, returns the winning record. */
-export async function loadCharacter(id) {
+/** Load a character: reconciles server vs local, returns the winning record.
+ *  @param {{onBehind?: () => (boolean|Promise<boolean>)}} [opts] Asked when this copy is dirty AND the
+ *  server has moved on, so it can never be pushed. Return true to discard the local copy and take the
+ *  server's — the only route out of that state. Omit it and behaviour is unchanged. */
+export async function loadCharacter(id, opts = {}) {
+  let behind = false;
   if (navigator.onLine && await currentUser()) {
-    await reconcile(id);
+    const r = await reconcile(id);
+    behind = !!(r && r.behind);
+  }
+  // The local copy is dirty and the server has moved on, so it can never be pushed. Without a way out,
+  // an explicit "Load" returns this same stale copy every time — the page can neither save nor recover,
+  // and the conflict message sends the user to a control that cannot help them.
+  //
+  // opts.onBehind lets the CALLER decide, because only it knows whether this was a deliberate user
+  // action. It is asked, and only on an explicit yes is the local copy replaced by the server's. No
+  // callback means unchanged behaviour, so background callers can never discard work silently.
+  if (behind && typeof opts.onBehind === 'function') {
+    let replace = false;
+    try { replace = await opts.onBehind(); } catch { replace = false; }
+    if (replace) {
+      const { data: server, error } = await supabase
+        .from('characters')
+        .select('id, owner_id, name, kind, stats, ap, campaign_id, updated_at')
+        .eq('id', id)
+        .maybeSingle();
+      if (!error && server) lsSet({ ...server, base_updated_at: server.updated_at, dirty: false });
+    }
   }
   const rec = lsGet(id);
   // The page is about to hold THIS copy, so this is the base its saves must be judged against. Pinned
@@ -290,8 +314,12 @@ export async function refreshServerAp(id) {
 }
 
 /** Reconcile a single id between local and server (last-write-wins; ap = server). */
+/** @returns {Promise<{behind?:boolean}>} `behind:true` means the local copy is dirty AND the server has
+ *  moved on since, so the push was refused. Previously this was swallowed by `catch { }` and the caller
+ *  got the stale local record back with no indication anything was wrong — which made "Cloud -> Load"
+ *  hand the user their own copy forever, the one action a conflict tells them to take. */
 async function reconcile(id) {
-  if (lsDeletes().includes(id)) { await replayDelete(id); return; }
+  if (lsDeletes().includes(id)) { await replayDelete(id); return {}; }
   const local = lsGet(id);
   // owner_id is selected purely so the cached record carries proof of who owns it. reconcile() is
   // reachable for characters this device does NOT own (a DM opening a player's sheet), and without
@@ -307,20 +335,24 @@ async function reconcile(id) {
   if (!server) {
     // Server has no copy. Push if we have a local one to save.
     if (local) { try { await pushCharacter(local); } catch { /* retry later */ } }
-    return;
+    return {};
   }
   // base_updated_at must be stamped whenever we ADOPT a server row, not only after a successful push.
   // Without it the first save after a fresh load runs unguarded — which is exactly the two-device
   // case this guard exists for: load on the second device, edit, push, clobber the first.
-  if (!local) { lsSet({ ...server, base_updated_at: server.updated_at, dirty: false }); return; }
+  if (!local) { lsSet({ ...server, base_updated_at: server.updated_at, dirty: false }); return {}; }
 
   const localNewer = local.dirty && isNewerInstant(local.updated_at, server.updated_at);
   if (localNewer) {
-    try { await pushCharacter(local); } catch { /* retry later */ }
+    // A refused push is NOT "retry later" — retrying can never succeed, because the server has moved
+    // and this copy's base never will. Report it so an explicit Load can offer the only real way out.
+    try { await pushCharacter(local); }
+    catch (err) { if (err && err.conflict) return { behind: true }; /* transient: retry later */ }
   } else {
     // Server wins: take its stats AND its ap.
     lsSet({ ...server, base_updated_at: server.updated_at, dirty: false });
   }
+  return {};
 }
 
 /** List the current user's own characters (owner-only — explicitly filtered by

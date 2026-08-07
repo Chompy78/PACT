@@ -160,19 +160,15 @@ console.log('\n  regressions — legitimate saves must keep working');
   await B.saveCharacter({id:ID,name:'X',kind:'chargen',stats:{spent:20}});
   const refused = await A.saveCharacter({id:ID,name:'X',kind:'chargen',stats:{spent:11}});
   ok('stale page is refused', refused.conflict === true && world.serverSpent(ID) === 20);
-  await A.loadCharacter(ID);          // the user reloads, as the conflict dialog instructs
+  // No callback: behaviour is unchanged and the stale local copy is kept. Background callers must
+  // never lose work silently, so this is the safe default rather than an oversight.
+  await A.loadCharacter(ID);
+  ok('  plain re-load keeps the local copy (no silent discard)', world.serverSpent(ID) === 20);
+  // With the prompt answered yes -- what an explicit "Cloud -> Load" does -- the page recovers.
+  let asked = false;
+  await A.loadCharacter(ID, { onBehind: () => { asked = true; return true; } });
+  ok('  the caller is asked before anything is discarded', asked === true);
   const rr = await A.saveCharacter({id:ID,name:'X',kind:'chargen',stats:{spent:21}});
-  // KNOWN FAILING, ON PURPOSE — this is a real unfixed defect, not a broken harness.
-  //
-  // After a refused save the local record is dirty and newer, so reconcile() takes its PUSH branch,
-  // the guard refuses that push, `catch { /* retry later */ }` swallows it, and loadCharacter() hands
-  // back the stale LOCAL record. "Cloud -> Load" therefore returns your own copy, never the cloud's:
-  // the page can neither save nor recover, and the conflict dialog tells the user to do the one thing
-  // that cannot work. Confirmed in production on 2026-08-07 — it is why two browser profiles kept
-  // showing different states.
-  //
-  // Leave this red until the recovery path is fixed (see CHANGELOG / the DD options). A green gate
-  // here would be a lie, and the non-zero exit correctly blocks merging the branch meanwhile.
   ok('  and is not bricked — it saves again after re-loading', rr.synced === true && world.serverSpent(ID) === 21); }
 { world.server.rows.clear(); world.server.clock=0; const ID='r5-aaaa-bbbb-cccc'; world.seed(ID,{spent:7});
   const A = await openPage(makePage(liveSrc,'r5.js')); await A.loadCharacter(ID);

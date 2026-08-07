@@ -1889,7 +1889,16 @@ document.addEventListener('sync-ready', function () {
   // confirming action. Was inlined in the cloud-load-btn click handler; extracted verbatim so
   // both callers share one implementation instead of drifting.
   async function loadCloudChar(id, label){
-    var rec = await S.loadCharacter(id);
+    // onBehind fires only when this device's copy is dirty AND the server has moved on, so it can never
+    // be pushed. Without answering it, Load returns that same unsendable copy every time — the state a
+    // refused save leaves you in, and the one the conflict message tells you to use Load to escape.
+    // Asked rather than assumed: saying no keeps the local copy exactly as it is.
+    var rec = await S.loadCharacter(id, { onBehind: function(){
+      return confirm('“' + label + '” was changed on another device since you loaded it, so this '
+                   + 'device\'s copy can no longer be saved to the cloud.\n\n'
+                   + 'Replace what is on screen with the cloud version?\n\n'
+                   + 'Anything you changed here and did not manage to save will be lost.');
+    } });
     if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return false; }
     window._dmAp = rec.ap || 0;
     window._ignorePlayerAp = false;
