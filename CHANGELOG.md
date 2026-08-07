@@ -38,6 +38,20 @@
   **Not covered by any automated gate — the dependency-free suite cannot reach a signed-in Supabase
   session, so this needs the two-tab check in the PR before it merges.** No schema change; `DATA.version`
   unmoved.
+- **2026-08-07 · fix(chargen): a save conflict no longer reports itself as "Save failed"** — found by the
+  manual two-tab check that `feat/sync-stale-save` requires. Of the three save paths, only two handled
+  `res.conflict`: the Live Sheet's manual save and CharGen's autosave. CharGen's **manual** ☁ Save to
+  cloud fell through to `throw res.error` and reported the conflict via the generic
+  `alert('Save failed: …')` — untrue, and the most damaging thing that path could say. The save to the
+  device succeeded; only the cloud push was refused, and the record stays dirty so nothing is lost. A
+  player told "Save failed" reasonably concludes their work is gone and redoes it, or never learns
+  another device is ahead. Deliberately **not** a copy of the Live Sheet's `confirm()` + `location.reload()`:
+  CharGen boots from its local autosave (`_cgRestoreAutosave`), so a reload restores this device's build,
+  not the other device's — offering one would be a lie in this tool. It points at ☁ Cloud → Load, which
+  actually fetches from the cloud, and restores the button itself since the shared reset sits after the
+  try/catch. Verified against the extracted function: conflict alerts correctly and re-enables the button,
+  a genuine error still reports "Save failed", the success path is unchanged; CharGen boots with 0 console
+  errors. No `DATA.version` change.
 - **2026-08-07 · docs(sql): `sql/full-backup.sql` — the whole-database backup runbook** — completes the
   backup story with the one mechanism that sees everything, run from the Supabase dashboard rather than
   the app. Two forms: a per-character query that downloads as CSV with each `envelope` cell a loadable

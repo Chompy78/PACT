@@ -773,6 +773,26 @@ document.addEventListener('sync-ready', function () {
       // strand a second row. Bare assignment: __charId is a top-level `let`, so window.__charId= would
       // silently shadow-fail (same trap the cloud-load handler documents).
       if (res.id) __charId = res.id;
+      // A conflict must be caught BEFORE the generic `throw res.error` below, or it reaches the catch
+      // and is reported as "Save failed" — which is simply untrue and the most damaging thing this
+      // path could say. The save to THIS device succeeded; only the cloud push was refused, and
+      // sync.js leaves the record dirty so nothing is lost. A player told "Save failed" reasonably
+      // concludes their work is gone and redoes it, or never learns another device is ahead.
+      //
+      // Deliberately NOT the Live Sheet's confirm()+location.reload(): CharGen boots from its LOCAL
+      // autosave (_cgRestoreAutosave), so a reload here restores this device's in-progress build, not
+      // the other device's version. Offering a reload would be a lie in this tool. ☁ Cloud → Load is
+      // the control that actually fetches from the cloud, so that is what this points at.
+      // The button reset lives after the try/catch, so this path must restore it itself before
+      // returning — otherwise the control is left disabled reading "Saving…" forever.
+      if (res.conflict) {
+        alert('Not sent to the cloud — this character was changed on another device since you loaded it.\n\n'
+            + 'Your work here is saved on THIS device and is not lost.\n\n'
+            + 'To pick up the other device’s version, use ☁ Cloud → Load. That will replace what is '
+            + 'on screen, so copy across anything you want to keep first.');
+        if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
+        return;
+      }
       if (res.error) throw res.error;
       if (typeof flash === 'function') flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
     } catch (err) { alert('Save failed: ' + err.message); }
