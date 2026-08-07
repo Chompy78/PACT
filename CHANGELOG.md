@@ -6,6 +6,23 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-07 · feat(sql): automatic pre-change snapshots for cloud characters (`character_backups`)** —
+  a real player character was lost to `js/sync.js` `deleteCharacter()`, which is a literal hard
+  `delete` (the 2026-07-25 `archived_at` soft-delete is a *separate*, reversible action, offered
+  before it). Nothing captured the row on the way out, and an overwritten `stats` was equally
+  unrecoverable, so a lost cloud character had no recovery path for anyone — including the project
+  owner. New `character_backups` table plus a `BEFORE UPDATE OR DELETE` trigger on `characters`
+  storing the pre-change row; retention keeps the newest 50 `update` snapshots per character and
+  **never** prunes `delete` snapshots. No foreign keys (both `profiles`→`characters` and
+  `characters`→`ap_awards` cascade, which would kill the backups with the row they exist to outlive);
+  `SECURITY DEFINER` trigger (it fires as the player, who is granted nothing on the table);
+  `clock_timestamp()` not `now()` for `captured_at` (transaction time ties, and the prune would then
+  order by a random uuid). RLS on with zero policies and no client grant — the Supabase dashboard is
+  the only reader, same posture as `feedback`; no new admin role. Verified in production with a probe
+  character since removed: pre-change capture, no-op updates skipped, restore under the original id
+  with the campaign binding intact, 60 updates pruned to exactly 50, advisor clean. **Not
+  retroactive** — it cannot recover anything deleted before today. Off-site copy to Google Drive
+  still to come. See `decisions/2026/D-GH-2026-08-07-character-backups.md`. No `DATA.version` change.
 - **2026-08-06 · docs(agents): name the failure the A/B/A1/A2 convention keeps hitting, instead of
   restating the rule** — the owner asked why the lettered-options format keeps getting lost. It isn't
   lost: `AGENTS.md` is auto-imported every session and the rule was already there. The failure is
