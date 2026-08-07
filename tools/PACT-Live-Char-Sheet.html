@@ -1889,7 +1889,16 @@ document.addEventListener('sync-ready', function () {
   // confirming action. Was inlined in the cloud-load-btn click handler; extracted verbatim so
   // both callers share one implementation instead of drifting.
   async function loadCloudChar(id, label){
-    var rec = await S.loadCharacter(id);
+    // onBehind fires only when this device's copy is dirty AND the server has moved on, so it can never
+    // be pushed. Without answering it, Load returns that same unsendable copy every time — the state a
+    // refused save leaves you in, and the one the conflict message tells you to use Load to escape.
+    // Asked rather than assumed: saying no keeps the local copy exactly as it is.
+    var rec = await S.loadCharacter(id, { onBehind: function(){
+      return confirm('“' + label + '” was changed on another device since you loaded it, so this '
+                   + 'device\'s copy can no longer be saved to the cloud.\n\n'
+                   + 'Replace what is on screen with the cloud version?\n\n'
+                   + 'Anything you changed here and did not manage to save will be lost.');
+    } });
     if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return false; }
     window._dmAp = rec.ap || 0;
     window._ignorePlayerAp = false;
@@ -2078,6 +2087,18 @@ document.addEventListener('sync-ready', function () {
         // not adopting it would migrate again on the next save and strand a second row. Bare
         // assignment: __charId is a top-level `let` (window.__charId= would shadow-fail).
         if(res.id) __charId = res.id;
+        // A conflict is NOT a failure to save — the edit is safely in localStorage and the record stays
+        // dirty, exactly as it would offline. What the player must not do is keep editing a copy that is
+        // already behind, because the next successful push would then overwrite the other device wholesale.
+        if(res.conflict){
+          if(confirm('This character was changed on another device since you loaded it.\n\n'+
+                     'Your edits here are saved on THIS device and have not been sent to the cloud.\n\n'+
+                     'Reload the other device\'s version now? Your local changes to this copy will be lost.')){
+            location.reload(); return;
+          }
+          if(typeof window.flash === 'function') window.flash('⚠ Not sent to cloud — this copy is behind another device');
+          btn.disabled = false; btn.textContent = '☁ Save to cloud'; return;
+        }
         if(res.error) throw res.error;
         if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
       } catch(err){ alert('Save failed: '+err.message); }

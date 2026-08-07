@@ -29,6 +29,30 @@ export const newCharacterId = () => crypto.randomUUID();
 // sub-second precision) — a plain string `>` breaks across those variations.
 export const isNewerInstant = (a, b) => Date.parse(a) > Date.parse(b);
 
+/**
+ * The server timestamp THIS PAGE last observed for a character, keyed by id. In-memory, so it dies
+ * with the page — that is the point.
+ *
+ * The concurrency guard compares against the last value the server confirmed. Reading that from
+ * localStorage is not safe, because localStorage is not the thing being saved: the content comes from
+ * the open tool's IN-MEMORY build, and initSync() runs syncAll() on every page load and reconnect, so
+ * reconcile() can adopt a newer server row — refreshing the stored base — while the page still holds an
+ * older build it has no way to update. The next save then presents a fresh base with stale content, the
+ * guard matches, and the newer version is silently overwritten. Observed in production on 2026-08-07:
+ * a character went 43 AP spent -> 47 -> back to 43, across two separate browser profiles, with the
+ * guard active the whole time.
+ *
+ * So the base must travel with the COPY THE PAGE IS HOLDING, not with whatever storage happens to say
+ * now. Written only by operations this page performed — loadCharacter() (the page took this copy) and
+ * applyServerMeta() (this page's own push succeeded) — and deliberately NOT by reconcile()'s adopt
+ * branch, which is exactly the background write that must never re-arm a stale page.
+ *
+ * Consequence worth knowing: after a refused save, the pin stays put, so every further save from that
+ * page is refused until it loads the character again. That is correct — the page's content is behind,
+ * and reloading is the only honest way forward.
+ */
+const _pageBase = new Map();
+
 // --- localStorage helpers ---------------------------------------------------
 function lsGet(id) {
   try { return JSON.parse(localStorage.getItem(LS_PREFIX + id)); }
@@ -64,7 +88,9 @@ function lsDeletesRemove(id) {
 /**
  * Save a character. Writes localStorage immediately (offline-safe), then tries
  * to push to Supabase. ap is never sent — it stays whatever the server holds.
- * @returns {Promise<{id:string, synced:boolean, error?:Error}>}
+ * @returns {Promise<{id:string, synced:boolean, conflict?:boolean, error?:Error}>}
+ * `conflict:true` means the server row moved on since this copy was loaded — the local edit is kept
+ * and the record stays dirty; the caller must tell the user rather than retrying blindly.
  */
 export async function saveCharacter({ id, name, kind, stats, campaignId }) {
   id = id || newCharacterId();
@@ -84,7 +110,22 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
     migratedFrom = id;
     id = (campaignId && await _existingIdInCampaign(campaignId)) || newCharacterId();
   }
-  const prev = lsGet(migratedFrom || id);
+  const prevKey = migratedFrom || id;
+  const prev = lsGet(prevKey);
+  // Prefer the base THIS PAGE pinned over whatever storage says now — see _pageBase. Storage can have
+  // been refreshed by a background reconcile() since this page took its copy, and saving against that
+  // refreshed value is the silent-overwrite bug the pin exists to stop.
+  //
+  // No pin means this page never loaded the character through loadCharacter() (e.g. CharGen booting
+  // from its own local autosave). Fall back to the stored value — today's behaviour — and pin it now,
+  // so that from this point on a background adopt cannot move the base under this page.
+  let base;
+  if (_pageBase.has(prevKey)) {
+    base = _pageBase.get(prevKey);
+  } else {
+    base = prev?.base_updated_at;
+    _pageBase.set(prevKey, base);
+  }
   const rec = {
     id,
     name: name ?? prev?.name ?? 'New Character',
@@ -92,15 +133,19 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
     stats: stats ?? prev?.stats ?? {},
     ap: prev?.ap ?? 0,            // display-only mirror of the server value
     updated_at: nowIso(),
+    // Carried forward, never re-stamped locally: it is the server's word, not ours. Absent on records
+    // written before this existed — treated as "unknown" below, which falls back to today's behaviour.
+    base_updated_at: base,
     dirty: true,
   };
   lsSet(rec);
+  if (migratedFrom) _pageBase.set(id, base);   // follow the id across a legacy-id migration
   // Drop the old key only after the new one is written, so a crash mid-migration loses nothing.
   if (migratedFrom) lsRemove(migratedFrom);
 
   if (!navigator.onLine) return { id, synced: false, migratedFrom };
   try { await pushCharacter(rec); return { id, synced: true, migratedFrom }; }
-  catch (error) { return { id, synced: false, error, migratedFrom }; }   // stays dirty, will retry
+  catch (error) { return { id, synced: false, conflict: !!error.conflict, error, migratedFrom }; }   // stays dirty, will retry
 }
 
 /** The signed-in user's existing character id in this campaign, or null. Best-effort: any failure
@@ -123,12 +168,28 @@ async function _existingIdInCampaign(campaignId) {
 
 /** Push one local record to Supabase. Insert if new, else update the writable
  *  columns only (owner_id/ap are intentionally never sent on update). */
+export class ConflictError extends Error {
+  constructor(id) {
+    super('This character was changed elsewhere since you last loaded it.');
+    this.name = 'ConflictError'; this.conflict = true; this.id = id;
+  }
+}
+
 async function pushCharacter(rec) {
-  const { data: upd, error: updErr } = await supabase
+  // Optimistic concurrency. The whole event log lives in `stats`, so an unguarded update lets the later
+  // writer replace the earlier writer's ENTIRE history — two devices on one character silently destroy
+  // each other. characters.updated_at is maintained by a BEFORE UPDATE trigger, so matching on the last
+  // value the server confirmed is enough; nothing needs writing client-side.
+  //
+  // Only guard when we actually know that value. A record written before base_updated_at existed has
+  // none, and must keep saving exactly as it does today rather than being refused forever.
+  const guarded = rec.base_updated_at != null;
+  let q = supabase
     .from('characters')
     .update({ name: rec.name, kind: rec.kind, stats: rec.stats })
-    .eq('id', rec.id)
-    .select('id, updated_at, ap');
+    .eq('id', rec.id);
+  if (guarded) q = q.eq('updated_at', rec.base_updated_at);
+  const { data: upd, error: updErr } = await q.select('id, updated_at, ap');
   if (updErr) throw updErr;
 
   if (upd && upd.length) {
@@ -136,7 +197,17 @@ async function pushCharacter(rec) {
     return;
   }
 
-  // No row updated -> it doesn't exist yet; insert it.
+  // Zero rows now means one of TWO things, and they must not be conflated: the row does not exist yet
+  // (insert), or it exists and someone else wrote first (conflict). Inserting in the second case would
+  // collide on the primary key. Ask before deciding.
+  if (guarded) {
+    const { data: exists, error: exErr } = await supabase
+      .from('characters').select('id').eq('id', rec.id).maybeSingle();
+    if (exErr) throw exErr;
+    // Leave the record dirty — the local edit is NOT discarded, same as an offline failure.
+    if (exists) throw new ConflictError(rec.id);
+  }
+
   const user = await currentUser();
   if (!user) throw new Error('Not signed in');
   const { data: ins, error: insErr } = await supabase
@@ -149,17 +220,53 @@ async function pushCharacter(rec) {
 
 function applyServerMeta(rec, server) {
   rec.updated_at = server.updated_at;
+  // The last value the SERVER confirmed, kept apart from `updated_at` because saveCharacter() stamps
+  // that with the local clock on every edit. A concurrency guard written against `updated_at` would
+  // therefore never match and every save would look like a conflict — this is the field the guard uses.
+  rec.base_updated_at = server.updated_at;
+  // This page's own push just succeeded, so the copy it holds IS the server's copy — pin the new base
+  // for this page too, or the very next save would present the now-stale pin and be refused forever.
+  _pageBase.set(rec.id, server.updated_at);
   rec.ap = server.ap;     // server is authoritative for ap
   rec.dirty = false;
   lsSet(rec);
 }
 
-/** Load a character: reconciles server vs local, returns the winning record. */
-export async function loadCharacter(id) {
+/** Load a character: reconciles server vs local, returns the winning record.
+ *  @param {{onBehind?: () => (boolean|Promise<boolean>)}} [opts] Asked when this copy is dirty AND the
+ *  server has moved on, so it can never be pushed. Return true to discard the local copy and take the
+ *  server's — the only route out of that state. Omit it and behaviour is unchanged. */
+export async function loadCharacter(id, opts = {}) {
+  let behind = false;
   if (navigator.onLine && await currentUser()) {
-    await reconcile(id);
+    const r = await reconcile(id);
+    behind = !!(r && r.behind);
   }
-  return lsGet(id);
+  // The local copy is dirty and the server has moved on, so it can never be pushed. Without a way out,
+  // an explicit "Load" returns this same stale copy every time — the page can neither save nor recover,
+  // and the conflict message sends the user to a control that cannot help them.
+  //
+  // opts.onBehind lets the CALLER decide, because only it knows whether this was a deliberate user
+  // action. It is asked, and only on an explicit yes is the local copy replaced by the server's. No
+  // callback means unchanged behaviour, so background callers can never discard work silently.
+  if (behind && typeof opts.onBehind === 'function') {
+    let replace = false;
+    try { replace = await opts.onBehind(); } catch { replace = false; }
+    if (replace) {
+      const { data: server, error } = await supabase
+        .from('characters')
+        .select('id, owner_id, name, kind, stats, ap, campaign_id, updated_at')
+        .eq('id', id)
+        .maybeSingle();
+      if (!error && server) lsSet({ ...server, base_updated_at: server.updated_at, dirty: false });
+    }
+  }
+  const rec = lsGet(id);
+  // The page is about to hold THIS copy, so this is the base its saves must be judged against. Pinned
+  // here rather than inside reconcile() on purpose: reconcile also runs from syncAll() in the
+  // background, and a base adopted there belongs to storage, not to whatever build the page is showing.
+  if (rec) _pageBase.set(id, rec.base_updated_at);
+  return rec;
 }
 
 /** Read-only fetch: returns the freshest known copy of a character without ever
@@ -207,8 +314,12 @@ export async function refreshServerAp(id) {
 }
 
 /** Reconcile a single id between local and server (last-write-wins; ap = server). */
+/** @returns {Promise<{behind?:boolean}>} `behind:true` means the local copy is dirty AND the server has
+ *  moved on since, so the push was refused. Previously this was swallowed by `catch { }` and the caller
+ *  got the stale local record back with no indication anything was wrong — which made "Cloud -> Load"
+ *  hand the user their own copy forever, the one action a conflict tells them to take. */
 async function reconcile(id) {
-  if (lsDeletes().includes(id)) { await replayDelete(id); return; }
+  if (lsDeletes().includes(id)) { await replayDelete(id); return {}; }
   const local = lsGet(id);
   // owner_id is selected purely so the cached record carries proof of who owns it. reconcile() is
   // reachable for characters this device does NOT own (a DM opening a player's sheet), and without
@@ -224,17 +335,24 @@ async function reconcile(id) {
   if (!server) {
     // Server has no copy. Push if we have a local one to save.
     if (local) { try { await pushCharacter(local); } catch { /* retry later */ } }
-    return;
+    return {};
   }
-  if (!local) { lsSet({ ...server, dirty: false }); return; }
+  // base_updated_at must be stamped whenever we ADOPT a server row, not only after a successful push.
+  // Without it the first save after a fresh load runs unguarded — which is exactly the two-device
+  // case this guard exists for: load on the second device, edit, push, clobber the first.
+  if (!local) { lsSet({ ...server, base_updated_at: server.updated_at, dirty: false }); return {}; }
 
   const localNewer = local.dirty && isNewerInstant(local.updated_at, server.updated_at);
   if (localNewer) {
-    try { await pushCharacter(local); } catch { /* retry later */ }
+    // A refused push is NOT "retry later" — retrying can never succeed, because the server has moved
+    // and this copy's base never will. Report it so an explicit Load can offer the only real way out.
+    try { await pushCharacter(local); }
+    catch (err) { if (err && err.conflict) return { behind: true }; /* transient: retry later */ }
   } else {
     // Server wins: take its stats AND its ap.
-    lsSet({ ...server, dirty: false });
+    lsSet({ ...server, base_updated_at: server.updated_at, dirty: false });
   }
+  return {};
 }
 
 /** List the current user's own characters (owner-only — explicitly filtered by

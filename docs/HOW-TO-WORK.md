@@ -127,6 +127,26 @@ which is why it runs where the `playwright`-based e2e scripts here (`chargen-flo
 with `CHROME_BIN=/path/to/chrome` if it can't find one. CI runs it via
 `.github/workflows/tool-pricing.yml` on any PR touching the two tools or the budget-curve files.
 
+### The third gate: the cloud stale-save guard
+```
+node testing/scripts/sync-concurrency-ci.mjs   # expect 0 failed
+```
+`js/sync.js` guards against two devices editing one character and silently destroying each other's
+history (the whole event log lives in `stats`, so the later writer replaces the earlier writer's entire
+past). That guard was originally declared untestable — "no automated gate can reach this, the
+dependency-free suite can't sign in to Supabase" — and verified by a manual two-tab ritual instead.
+**The ritual missed a real hole**, which then happened in production on 2026-08-07: a character went 43
+AP spent → 47 → back to 43 across two browser profiles with the guard active.
+
+Supabase turns out not to be needed. What matters is the *order* of local reads and writes around a
+conditional update, so this script stubs the server and gives each simulated profile its own
+`localStorage`, then replays that exact sequence against the real `js/sync.js`. Node built-ins only.
+
+Its first check is **differential**: it also runs the scenario against a deliberately reverted copy of
+`sync.js` and fails if the bug does *not* reproduce there. A regression test that passes on the broken
+version proves nothing, so this one refuses to pass vacuously — if it can no longer build the reverted
+copy, it fails and says so rather than going quietly green.
+
 > Writing new assertions for it: poll a **bridged** symbol (`window._engineFold`, `window.DATA`) for
 > readiness, never a classic-script function like `priceOf` — those exist before the deferred module
 > bridge has run, so probing them races. And read rendered text from the real container

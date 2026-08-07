@@ -6,6 +6,90 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(chargen): undo no longer un-locks a locked character, or reorders its purchases** —
+  a regression from the same day's creation-lock work, found by asking whether the ordering problem was
+  *"just randomize"*. It wasn't. `restoreFrame()` (undo/redo) restored the frame's LOG and then called
+  `applyBuild(foldBuild(LOG))`, which **rebuilds the LOG from the DOM** by design under D5. The DOM has no
+  control representing a `creationLocked` event, so the rebuild silently dropped it — **one undo unlocked
+  a locked character** — and re-emitted the purchases in canonical rather than click order. Measured on
+  six raises bought as CHA, WIS, INT, CON, DEX, STR: an undo→redo round-trip moved the creation boundary
+  from **4 purchases to 6**, so two that had been priced post-lock became creation-priced. `restoreFrame()`
+  now reinstates the frame's LOG verbatim after letting `applyBuild()` repaint, **superseding D5's
+  DOM-rebuild default for undo/redo only** — the same call `_cgApplyEnvelope()` already makes, because
+  applyBuild's DOM re-derivation diverges on anything the DOM cannot represent. Confirmed red against the
+  reverted line. Display/state only; `DATA.version` unmoved.
+- **2026-08-06 · fix(sync): a cloud save is refused if another device wrote first, instead of silently
+  overwriting it** — `pushCharacter()` used a bare `.update(...).eq('id', …)` with **no concurrency guard
+  at all**, and the entire event log lives in the `stats` blob — so the later writer replaced the earlier
+  writer's whole history. Two devices on one character destroyed each other with no warning. Now guarded
+  on `characters.updated_at`, which a BEFORE UPDATE trigger already maintains server-side, so nothing
+  needs writing client-side. The fiddly part is that the client didn't *keep* the server's value:
+  `saveCharacter()` stamps `updated_at` with the local clock on every edit, so a guard against it would
+  never match and every save would look like a conflict. Added `base_updated_at`, holding the last value
+  the server confirmed, carried across local edits and never re-stamped. **Two holes found in my own fix
+  while auditing:** `reconcile()` adopts a server row with `lsSet({...server})` in two places, neither of
+  which set `base_updated_at` — so the *first* save after a fresh load ran unguarded, which is exactly the
+  two-device case. Both now stamp it. Zero rows updated no longer means one thing: an existence check
+  tells "row not there yet, insert" apart from "someone wrote first, conflict", since inserting in the
+  second case would collide on the primary key. A conflict returns `{synced:false, conflict:true}`, keeps
+  the local edit and leaves the record dirty; the Live Sheet offers a reload, and CharGen's silent
+  keystroke autosave breaks its silence **once** for this one outcome, because unlike an offline blip it
+  will never resolve by retrying. A record with no known base value still saves exactly as it does today.
+  **Not covered by any automated gate — the dependency-free suite cannot reach a signed-in Supabase
+  session, so this needs the two-tab check in the PR before it merges.** No schema change; `DATA.version`
+  unmoved.
+- **2026-08-07 · fix(sync): ☁ Cloud → Load can finally recover a copy that is behind (DD1)** — completes
+  the conflict story. `reconcile()` no longer swallows a refused push as "retry later": a refused push can
+  *never* succeed, because the server has moved and this copy's base never will, so it now reports
+  `{behind:true}`. `loadCharacter(id, {onBehind})` asks the caller before doing anything destructive, and
+  only on an explicit yes discards the local copy and takes the server's. Both tools' single explicit-Load
+  path (`loadCloudChar()`) supplies that prompt, naming the character and warning that unsaved local work
+  is lost. **Omitting the callback leaves behaviour unchanged**, so background callers — `syncAll()`,
+  campaign-rules refresh — can never silently discard work. This makes the conflict alert added earlier
+  today truthful: it tells the user to use Cloud → Load, and Cloud → Load now works. Gate back to green at
+  **12 passed / 0 failed**, with two new checks: a plain re-load keeps the local copy, and the caller is
+  asked before anything is discarded. Both tools boot headless with 0 console errors; `engine-parity`
+  29/0, `tool-pricing` 67/0. No `DATA.version` change.
+- **2026-08-07 · test(sync): make the concurrency harness use real timestamps — and it immediately caught
+  a second, unfixed defect** — the harness stubbed server times as `'T1'`/`'T2'`. `Date.parse` turns those
+  into `NaN`, so `isNewerInstant()` always returned false, `reconcile()` always took its adopt branch, and
+  the "recovers after re-loading" check passed for entirely the wrong reason. With real ISO instants it
+  fails, correctly: **after a refused save, ☁ Cloud → Load cannot recover.** The local record is dirty and
+  newer, so `reconcile()` takes its *push* branch, the guard refuses that push, `catch { /* retry later */ }`
+  swallows it, and `loadCharacter()` returns the stale **local** record — so Load hands back your own copy,
+  never the cloud's. The page can neither save nor recover, and the conflict dialog added earlier today
+  points the user at exactly that control. This is the root cause of the original report that two browser
+  profiles kept showing different states. **The gate is deliberately left red** (9 passed / 1 failed): a
+  green gate here would be a lie, and the non-zero exit correctly blocks the branch until the recovery path
+  is fixed. Not wired into CI, so nothing else breaks. No `DATA.version` change.
+- **2026-08-07 · fix(sync): the stale-save guard now travels with the copy the page is holding** — the
+  guard shipped on this branch could be defeated, and was, in production: a character went **43 AP spent
+  → 47 → back to 43** across two separate Edge profiles with the guard active throughout. `initSync()`
+  runs `syncAll()` on every page load and reconnect; `reconcile()`'s adopt branch refreshed
+  `base_updated_at` **in localStorage**, while the still-open tool page held an older in-memory build it
+  had no way to update. The next save then presented a *fresh base with stale content*, the guard
+  matched, and the newer version was silently overwritten — worse than no guard, because it looked like
+  one. (The branch's own earlier fix, stamping `base_updated_at` at those adopt sites, is what opened
+  this.) The base is now pinned per **page** in memory — written only by `loadCharacter()` and by this
+  page's own successful push, never by a background `reconcile()` — so storage can refresh freely without
+  arming a stale page. New gate `testing/scripts/sync-concurrency-ci.mjs` (**10 passed / 0 failed**)
+  replays the exact production sequence; it is *differential*, failing unless the bug still reproduces
+  against a reverted copy, so it cannot pass vacuously. This closes the "no automated gate can reach
+  this" gap the branch shipped with. No `DATA.version` change.
+- **2026-08-07 · fix(chargen): a save conflict no longer reports itself as "Save failed"** — found by the
+  manual two-tab check that `feat/sync-stale-save` requires. Of the three save paths, only two handled
+  `res.conflict`: the Live Sheet's manual save and CharGen's autosave. CharGen's **manual** ☁ Save to
+  cloud fell through to `throw res.error` and reported the conflict via the generic
+  `alert('Save failed: …')` — untrue, and the most damaging thing that path could say. The save to the
+  device succeeded; only the cloud push was refused, and the record stays dirty so nothing is lost. A
+  player told "Save failed" reasonably concludes their work is gone and redoes it, or never learns
+  another device is ahead. Deliberately **not** a copy of the Live Sheet's `confirm()` + `location.reload()`:
+  CharGen boots from its local autosave (`_cgRestoreAutosave`), so a reload restores this device's build,
+  not the other device's — offering one would be a lie in this tool. It points at ☁ Cloud → Load, which
+  actually fetches from the cloud, and restores the button itself since the shared reset sits after the
+  try/catch. Verified against the extracted function: conflict alerts correctly and re-enables the button,
+  a genuine error still reports "Save failed", the success path is unchanged; CharGen boots with 0 console
+  errors. No `DATA.version` change.
 - **2026-08-07 · docs(sql): `sql/full-backup.sql` — the whole-database backup runbook** — completes the
   backup story with the one mechanism that sees everything, run from the Supabase dashboard rather than
   the app. Two forms: a per-character query that downloads as CSV with each `envelope` cell a loadable
