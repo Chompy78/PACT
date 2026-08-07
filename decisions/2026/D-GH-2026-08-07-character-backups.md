@@ -106,6 +106,30 @@ A probe character exercised the whole path in production, then was removed along
   in `sql/migrations/2026-08-07-character-backups.sql` so they don't have to be re-derived under
   pressure. A restore itself trips the trigger, so an unwanted restore is also undoable.
 - **This is not retroactive.** Fenwick predates the trigger and is not recoverable from it.
-- The A2 half — an off-site copy to Google Drive — is not built yet; its mechanism is a separate
-  decision, because anything *scheduled* needs a credentialed runner and this repo is
-  GitHub-Pages-only with no backend.
+## Addendum (same day) — the A2 half, and why the *client* export is the primary mechanism
+
+A2 shipped as an **Export backup** button on `tools/characters.html`, using `peekCharacter()` (the
+read-only fetch — `loadCharacter()` would reconcile every character on the way past, and taking a
+backup must never mutate what it backs up). Archived characters are always included regardless of the
+"Show archived" checkbox: that box filters a *view*, and a backup silently thinned by a UI toggle is
+the same class of quiet gap as the missing delete snapshot. Characters with no `stats.LOG` (a
+redeemed invite nobody ever opened) are reported by name rather than dropped.
+
+**A scheduled agent-run backup was attempted and rejected on evidence.** Two things killed it:
+
+1. **It cannot scale.** Any agent-run job has to pull the bundle *through a model context* to hand it
+   to the Drive tool. The full bundle was 274 KB pretty-printed and 140 KB compact — both already
+   over the limit at 15 characters, and `character_backups` alone will reach ~2 MB. The browser has
+   no such ceiling, which is why the in-app export is the primary mechanism and not the convenience.
+2. **The Routine could not carry its connectors.** A scheduled Routine created from an agent session
+   cannot inherit that session's Supabase/Drive connectors, so it would have fired weekly with no
+   tools and quietly done nothing. It was created with the full prompt but left **disabled and
+   renamed** — a backup job that looks scheduled but silently no-ops is worse than none, because it
+   buys false confidence. Re-enabling it requires attaching connectors from the claude.ai Routines
+   UI.
+
+The division of labour that came out of this is the right one and should be kept: **`character_backups`
+is the fine-grained history (server-side, every change, time-travel), the exported file is the
+off-site disaster copy (current state, held by the user, outside the app).** Neither substitutes for
+the other, and the first off-site copy was taken on 2026-08-07 by splitting the bundle out of a saved
+tool-result file — one JSON per character in the `pact-character/1` envelope, plus the full bundle.

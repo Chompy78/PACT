@@ -73,6 +73,7 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
     <div class="toolbar">
       <p class="hint" style="margin:0">Grouped by campaign. <b>&#9729; Cloud</b> is saved to your account; <b>&#128229; Device only</b> exists in this browser alone and is lost if its data is cleared. Archiving is reversible; deleting is not.</p>
       <label><input type="checkbox" id="showArchived"> Show archived</label>
+      <button type="button" class="btn" id="exportBtn" title="Download every character you can see as one JSON file, to keep somewhere outside this app">&#11015; Export backup</button>
     </div>
     <div id="groups"></div>
     <div id="msg" role="status" aria-live="polite"></div>
@@ -101,7 +102,7 @@ function setTheme(t){if(t)document.body.setAttribute('data-theme',t);else docume
 </script>
 <script type="module">
 import { currentSession, onSessionChange } from '../js/auth.js';
-import { listMyCharacters, archiveCharacter, unarchiveCharacter, deleteCharacter } from '../js/sync.js';
+import { listMyCharacters, peekCharacter, archiveCharacter, unarchiveCharacter, deleteCharacter } from '../js/sync.js';
 import { listMyCampaigns } from '../js/campaign.js';
 
 const TOOL = {
@@ -256,6 +257,76 @@ async function onDelete(id, name, isCloud){
     say('Deleted.', 'good');
   } catch (err) { say('Could not delete: ' + (err && err.message ? err.message : err), 'bad'); }
 }
+
+/* ---------------------------------------------------------------------------
+ * Export backup — download everything this account can see as one JSON file.
+ *
+ * The server-side safety net (character_backups, D-GH-2026-08-07-character-backups) already
+ * snapshots every change and every delete, but it lives in the same database as the thing it
+ * protects and is readable only from the Supabase dashboard. This is the OFF-SITE half: a copy the
+ * user holds, outside the app entirely.
+ *
+ * peekCharacter(), not loadCharacter(): peek is explicitly read-only — no reconcile(), no push, no
+ * localStorage write. Taking a backup must never be able to mutate the thing being backed up, and
+ * loadCharacter() would reconcile every character on the way past.
+ *
+ * ARCHIVED CHARACTERS ARE ALWAYS INCLUDED, regardless of the "Show archived" checkbox: that box
+ * filters a *view*, and a backup that silently omits rows because of a UI toggle is exactly the kind
+ * of quiet gap this whole feature exists to close.
+ * --------------------------------------------------------------------------- */
+async function onExport(){
+  const btn = document.getElementById('exportBtn');
+  const all = _chars.slice();
+  if (!all.length) { say('Nothing to export yet.', 'bad'); return; }
+  btn.disabled = true;
+  try {
+    const out = [], missing = [];
+    for (let i = 0; i < all.length; i++) {
+      const c = all[i];
+      say('Exporting ' + (i + 1) + ' of ' + all.length + '…');
+      let rec = null;
+      try { rec = await peekCharacter(c.id); } catch (err) { rec = null; }
+      const stats = rec && rec.stats;
+      // A character with no stats.LOG was never saved from a tool (e.g. a redeemed invite nobody has
+      // opened yet). Record it by name rather than dropping it silently — an export that quietly
+      // skips rows is worse than one that says what it couldn't take.
+      if (!stats || !Array.isArray(stats.LOG)) { missing.push(c.name || '(unnamed)'); continue; }
+      out.push({
+        id: c.id, name: c.name, kind: c.kind, ap: c.ap,
+        campaign_id: c.campaign_id || null,
+        campaign_name: c.campaign_id ? (_campNames.get(c.campaign_id) || null) : null,
+        archived_at: c.archived_at || null,
+        updated_at: c.updated_at || null,
+        cloud: !!c.cloud,
+        stats: stats,           // a pact-character/1 envelope — loadable as-is by CharGen / Live Sheet
+      });
+    }
+    const bundle = {
+      schema: 'pact-character-backup/1',
+      exported_at: new Date().toISOString(),
+      note: 'Each characters[].stats is a pact-character/1 envelope: save one to its own .json file '
+          + 'and CharGen or the Live Sheet can Load it directly, no conversion needed.',
+      counts: { exported: out.length, skipped: missing.length },
+      skipped: missing,
+      characters: out,
+    };
+    const stamp = bundle.exported_at.slice(0, 10);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'pact-characters-backup-' + stamp + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    // Revoked on a timer, not immediately: Safari (incl. iOS) can abort the download if the object
+    // URL is released in the same tick as the synthetic click.
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    say(missing.length
+      ? 'Exported ' + out.length + '. Skipped ' + missing.length + ' with no saved data: ' + missing.join(', ')
+      : 'Exported ' + out.length + ' character' + (out.length === 1 ? '' : 's') + '. Keep the file somewhere outside this app.',
+      missing.length ? '' : 'good');
+  } catch (err) {
+    say('Could not export: ' + (err && err.message ? err.message : err), 'bad');
+  } finally { btn.disabled = false; }
+}
+document.getElementById('exportBtn').addEventListener('click', onExport);
 
 showArchivedEl.addEventListener('change', render);
 onSessionChange(() => boot());

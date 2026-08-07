@@ -6,6 +6,21 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-07 · feat(characters): "Export backup" on My Characters — the off-site half of the backup
+  story** — the `character_backups` trigger (same date) is a safety net that lives in the *same
+  database as the thing it protects* and is readable only from the Supabase dashboard. This is the
+  copy the user holds, outside the app. Downloads every character the account can see as one JSON
+  file; each `characters[].stats` is a plain `pact-character/1` envelope, so a single lost character
+  is restored by a normal Load in CharGen or the Live Sheet with no conversion. Uses `peekCharacter()`
+  rather than `loadCharacter()` — peek is explicitly read-only, so taking a backup can never mutate
+  what it's backing up. **Archived characters are always included regardless of the "Show archived"
+  checkbox** (that box filters a view; a backup silently thinned by a UI toggle is the exact gap this
+  closes), and characters with no `stats.LOG` are reported by name rather than dropped. Verified
+  headless against a stubbed data layer: archived row present in the bundle while hidden from the
+  list, skipped rows named, envelope schema intact, campaign name resolved, and a character named
+  `Fenwick <script>` produced 0 injected script elements. Note this is now the *primary* mechanism —
+  a scheduled agent-run backup can't scale, since the bundle would have to pass through a model
+  context (140 KB already exceeds it). No `DATA.version` change.
 - **2026-08-07 · feat(sql): automatic pre-change snapshots for cloud characters (`character_backups`)** —
   a real player character was lost to `js/sync.js` `deleteCharacter()`, which is a literal hard
   `delete` (the 2026-07-25 `archived_at` soft-delete is a *separate*, reversible action, offered
