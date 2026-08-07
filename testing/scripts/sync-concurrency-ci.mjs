@@ -37,8 +37,14 @@ const ok = (name, cond) => { cond ? pass++ : fail++; console.log(`  ${cond ? 'PA
 // --- the stubbed world: one shared server, one localStorage per simulated profile ----------------
 writeFileSync(join(dir, 'world.js'), `
 export const server = { rows: new Map(), clock: 0 };
-export function seed(id, stats){ server.clock++; server.rows.set(id, { id, owner_id:'me', name:'X',
-  kind:'chargen', stats, ap:0, campaign_id:null, updated_at:'T'+server.clock }); }
+// REAL ISO instants, deliberately. An earlier version of this harness used 'T1'/'T2' placeholders --
+// Date.parse turns those into NaN, so isNewerInstant() always returned false, reconcile() always took
+// its adopt branch, and a regression check passed for entirely the wrong reason. Server times sit
+// slightly in the PAST so that a local edit stamped with nowIso() is genuinely newer, which is the
+// real-world ordering reconcile() branches on.
+const stamp = () => new Date(Date.now() - 10000 + (++server.clock)).toISOString();
+export function seed(id, stats){ server.rows.set(id, { id, owner_id:'me', name:'X',
+  kind:'chargen', stats, ap:0, campaign_id:null, updated_at:stamp() }); }
 export function serverSpent(id){ const r = server.rows.get(id); return r ? r.stats.spent : null; }
 export function makeLS(){ const m = new Map(); return {
   getItem:k=>m.has(k)?m.get(k):null, setItem:(k,v)=>m.set(k,String(v)), removeItem:k=>m.delete(k) }; }
@@ -57,11 +63,11 @@ export const supabase = { from(){
       if (!r) return { data: [], error:null };
       // THE GUARD: when a base was supplied it must still match the row's current updated_at.
       if (q._eq.updated_at != null && q._eq.updated_at !== r.updated_at) return { data: [], error:null };
-      Object.assign(r, q._payload); server.clock++; r.updated_at = 'T'+server.clock;
+      Object.assign(r, q._payload); r.updated_at = stamp();
       return { data:[{ id:r.id, updated_at:r.updated_at, ap:r.ap }], error:null };
     }
     if (q._op === 'insert') {
-      server.clock++; const r = { ...q._payload, ap:0, campaign_id:null, updated_at:'T'+server.clock };
+      const r = { ...q._payload, ap:0, campaign_id:null, updated_at:stamp() };
       server.rows.set(r.id, r); return { data:[{ id:r.id, updated_at:r.updated_at, ap:r.ap }], error:null };
     }
     const r = server.rows.get(id); return { data: r?[{...r}]:[], error:null };
@@ -156,6 +162,17 @@ console.log('\n  regressions — legitimate saves must keep working');
   ok('stale page is refused', refused.conflict === true && world.serverSpent(ID) === 20);
   await A.loadCharacter(ID);          // the user reloads, as the conflict dialog instructs
   const rr = await A.saveCharacter({id:ID,name:'X',kind:'chargen',stats:{spent:21}});
+  // KNOWN FAILING, ON PURPOSE — this is a real unfixed defect, not a broken harness.
+  //
+  // After a refused save the local record is dirty and newer, so reconcile() takes its PUSH branch,
+  // the guard refuses that push, `catch { /* retry later */ }` swallows it, and loadCharacter() hands
+  // back the stale LOCAL record. "Cloud -> Load" therefore returns your own copy, never the cloud's:
+  // the page can neither save nor recover, and the conflict dialog tells the user to do the one thing
+  // that cannot work. Confirmed in production on 2026-08-07 — it is why two browser profiles kept
+  // showing different states.
+  //
+  // Leave this red until the recovery path is fixed (see CHANGELOG / the DD options). A green gate
+  // here would be a lie, and the non-zero exit correctly blocks merging the branch meanwhile.
   ok('  and is not bricked — it saves again after re-loading', rr.synced === true && world.serverSpent(ID) === 21); }
 { world.server.rows.clear(); world.server.clock=0; const ID='r5-aaaa-bbbb-cccc'; world.seed(ID,{spent:7});
   const A = await openPage(makePage(liveSrc,'r5.js')); await A.loadCharacter(ID);

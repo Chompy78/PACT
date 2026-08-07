@@ -38,6 +38,18 @@
   **Not covered by any automated gate — the dependency-free suite cannot reach a signed-in Supabase
   session, so this needs the two-tab check in the PR before it merges.** No schema change; `DATA.version`
   unmoved.
+- **2026-08-07 · test(sync): make the concurrency harness use real timestamps — and it immediately caught
+  a second, unfixed defect** — the harness stubbed server times as `'T1'`/`'T2'`. `Date.parse` turns those
+  into `NaN`, so `isNewerInstant()` always returned false, `reconcile()` always took its adopt branch, and
+  the "recovers after re-loading" check passed for entirely the wrong reason. With real ISO instants it
+  fails, correctly: **after a refused save, ☁ Cloud → Load cannot recover.** The local record is dirty and
+  newer, so `reconcile()` takes its *push* branch, the guard refuses that push, `catch { /* retry later */ }`
+  swallows it, and `loadCharacter()` returns the stale **local** record — so Load hands back your own copy,
+  never the cloud's. The page can neither save nor recover, and the conflict dialog added earlier today
+  points the user at exactly that control. This is the root cause of the original report that two browser
+  profiles kept showing different states. **The gate is deliberately left red** (9 passed / 1 failed): a
+  green gate here would be a lie, and the non-zero exit correctly blocks the branch until the recovery path
+  is fixed. Not wired into CI, so nothing else breaks. No `DATA.version` change.
 - **2026-08-07 · fix(sync): the stale-save guard now travels with the copy the page is holding** — the
   guard shipped on this branch could be defeated, and was, in production: a character went **43 AP spent
   → 47 → back to 43** across two separate Edge profiles with the guard active throughout. `initSync()`
