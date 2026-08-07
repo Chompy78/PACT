@@ -38,6 +38,77 @@
   **Not covered by any automated gate — the dependency-free suite cannot reach a signed-in Supabase
   session, so this needs the two-tab check in the PR before it merges.** No schema change; `DATA.version`
   unmoved.
+- **2026-08-07 · docs(sql): `sql/full-backup.sql` — the whole-database backup runbook** — completes the
+  backup story with the one mechanism that sees everything, run from the Supabase dashboard rather than
+  the app. Two forms: a per-character query that downloads as CSV with each `envelope` cell a loadable
+  `pact-character/1` document, and a single-JSON bundle for archival. Documents who can run it and why
+  nobody else can — `characters_select` caps any client at `owner_id = auth.uid() or
+  is_campaign_dm(campaign_id)`, so even an account DMing every campaign reaches 6 of 15 — and records
+  that an in-app admin backup was requested, considered and rejected rather than left unexplained (see
+  the decision record's Addendum 2: a client-side allowlist can't do it, doing it properly means
+  inventing the admin role this project deliberately lacks, and it would grant no new capability, only
+  a weaker route to one `service_role` already has). Deliberately excludes `character_backups` and
+  points at that migration's existing restore recipes instead of duplicating them. Both queries were
+  executed against production before committing: Query A returns 15 rows, all restorable, all with
+  owner emails; Query B a well-formed 101,676-char bundle. A `docs/HOW-TO-WORK.md` table now sets the
+  three mechanisms side by side so they don't get mistaken for each other. No `DATA.version` change.
+- **2026-08-07 · fix(sync): apply the ownership check on the offline character list too** —
+  `listMyCharacters()`'s online branch filters `.eq('owner_id', …)` because `characters_select` also
+  grants a DM read access to every character in campaigns they run; the offline branch made no such
+  check, so "My Characters" meant something different depending on connectivity. It could not simply
+  reuse the online branch's `dirty` test — offline, `dirty:false` is the normal resting state of the
+  user's *own* synced characters, so that would have emptied the list of everything except unpushed
+  work. Instead `reconcile()` now caches `owner_id` and the offline branch drops records positively
+  known to belong to someone else, keeping unmarked ones (local-only, or cached before this change;
+  they self-heal on the next reconcile). Previously latent — every path that could cache a foreign
+  character is separately guarded — but it was the missing last line under a feature that now writes
+  characters to a downloadable file. Verified headless against the real `sync.js`: a foreign record is
+  dropped while own-synced, own-unpushed, local-only and legacy-unmarked records all survive.
+  No `DATA.version` change.
+- **2026-08-07 · feat(characters): warn when the backup is stale; scheduled-backup Routine deleted** —
+  the weekly agent-run Routine was abandoned for good (it cannot carry its own connectors, and the
+  bundle would have to pass through a model context it already exceeds), so the export is a manual
+  act. Since the original failure was *nobody remembered*, My Characters now records the last
+  successful export and shows a red warning bar — and turns the export button red — when it is 7+ days
+  old or has never happened; fresh state is a quiet grey line so "you're covered" never competes for
+  attention with "you're not". Tracked per browser, not per account, on purpose: the file sits on one
+  device's disk, so an account-wide flag would let a desktop export silence a phone holding no copy.
+  A localStorage read failure counts as "never exported" — every tie breaks toward the warning. An
+  export where every character turns out to be unsaved now refuses to produce an empty file or reset
+  the clock. Verified headless across never/20d/7d-boundary/2d/today plus a real export resetting
+  stale→fresh. No `DATA.version` change.
+- **2026-08-07 · feat(characters): "Export backup" on My Characters — the off-site half of the backup
+  story** — the `character_backups` trigger (same date) is a safety net that lives in the *same
+  database as the thing it protects* and is readable only from the Supabase dashboard. This is the
+  copy the user holds, outside the app. Downloads every character the account can see as one JSON
+  file; each `characters[].stats` is a plain `pact-character/1` envelope, so a single lost character
+  is restored by a normal Load in CharGen or the Live Sheet with no conversion. Uses `peekCharacter()`
+  rather than `loadCharacter()` — peek is explicitly read-only, so taking a backup can never mutate
+  what it's backing up. **Archived characters are always included regardless of the "Show archived"
+  checkbox** (that box filters a view; a backup silently thinned by a UI toggle is the exact gap this
+  closes), and characters with no `stats.LOG` are reported by name rather than dropped. Verified
+  headless against a stubbed data layer: archived row present in the bundle while hidden from the
+  list, skipped rows named, envelope schema intact, campaign name resolved, and a character named
+  `Fenwick <script>` produced 0 injected script elements. Note this is now the *primary* mechanism —
+  a scheduled agent-run backup can't scale, since the bundle would have to pass through a model
+  context (140 KB already exceeds it). No `DATA.version` change.
+- **2026-08-07 · feat(sql): automatic pre-change snapshots for cloud characters (`character_backups`)** —
+  a real player character was lost to `js/sync.js` `deleteCharacter()`, which is a literal hard
+  `delete` (the 2026-07-25 `archived_at` soft-delete is a *separate*, reversible action, offered
+  before it). Nothing captured the row on the way out, and an overwritten `stats` was equally
+  unrecoverable, so a lost cloud character had no recovery path for anyone — including the project
+  owner. New `character_backups` table plus a `BEFORE UPDATE OR DELETE` trigger on `characters`
+  storing the pre-change row; retention keeps the newest 50 `update` snapshots per character and
+  **never** prunes `delete` snapshots. No foreign keys (both `profiles`→`characters` and
+  `characters`→`ap_awards` cascade, which would kill the backups with the row they exist to outlive);
+  `SECURITY DEFINER` trigger (it fires as the player, who is granted nothing on the table);
+  `clock_timestamp()` not `now()` for `captured_at` (transaction time ties, and the prune would then
+  order by a random uuid). RLS on with zero policies and no client grant — the Supabase dashboard is
+  the only reader, same posture as `feedback`; no new admin role. Verified in production with a probe
+  character since removed: pre-change capture, no-op updates skipped, restore under the original id
+  with the campaign binding intact, 60 updates pruned to exactly 50, advisor clean. **Not
+  retroactive** — it cannot recover anything deleted before today. Off-site copy to Google Drive
+  still to come. See `decisions/2026/D-GH-2026-08-07-character-backups.md`. No `DATA.version` change.
 - **2026-08-06 · docs(agents): name the failure the A/B/A1/A2 convention keeps hitting, instead of
   restating the rule** — the owner asked why the lettered-options format keeps getting lost. It isn't
   lost: `AGENTS.md` is auto-imported every session and the rule was already there. The failure is
