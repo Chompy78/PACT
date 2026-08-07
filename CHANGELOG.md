@@ -6,6 +6,19 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-07 · fix(sync): apply the ownership check on the offline character list too** —
+  `listMyCharacters()`'s online branch filters `.eq('owner_id', …)` because `characters_select` also
+  grants a DM read access to every character in campaigns they run; the offline branch made no such
+  check, so "My Characters" meant something different depending on connectivity. It could not simply
+  reuse the online branch's `dirty` test — offline, `dirty:false` is the normal resting state of the
+  user's *own* synced characters, so that would have emptied the list of everything except unpushed
+  work. Instead `reconcile()` now caches `owner_id` and the offline branch drops records positively
+  known to belong to someone else, keeping unmarked ones (local-only, or cached before this change;
+  they self-heal on the next reconcile). Previously latent — every path that could cache a foreign
+  character is separately guarded — but it was the missing last line under a feature that now writes
+  characters to a downloadable file. Verified headless against the real `sync.js`: a foreign record is
+  dropped while own-synced, own-unpushed, local-only and legacy-unmarked records all survive.
+  No `DATA.version` change.
 - **2026-08-07 · feat(characters): warn when the backup is stale; scheduled-backup Routine deleted** —
   the weekly agent-run Routine was abandoned for good (it cannot carry its own connectors, and the
   bundle would have to pass through a model context it already exceeds), so the export is a manual
