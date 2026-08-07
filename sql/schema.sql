@@ -678,3 +678,93 @@ create table if not exists public.feedback (
   created_at timestamptz not null default now()
 );
 create index if not exists idx_feedback_created on public.feedback(created_at);
+
+-- ---------------------------------------------------------------------------
+-- character_backups — automatic pre-change snapshots of every characters row.
+-- Written by the trg_characters_snapshot trigger below; readable ONLY via the
+-- Supabase dashboard (service role), same posture as `feedback` — there is no
+-- in-app admin view and no player-facing restore. Exists because
+-- js/sync.js deleteCharacter() is a real hard delete (archived_at is a separate,
+-- reversible action) and an overwritten `stats` was equally unrecoverable, so a
+-- lost cloud character had no recovery path for anyone. Full rationale and the
+-- restore recipes: sql/migrations/2026-08-07-character-backups.sql and
+-- DECISIONS.md D-GH-2026-08-07-character-backups.
+--
+-- NO foreign keys, deliberately: characters.owner_id cascades from profiles and
+-- ap_awards.character_id cascades from characters, so a FK here would make the
+-- backups die with the exact row they exist to outlive.
+-- ---------------------------------------------------------------------------
+create table if not exists public.character_backups (
+  id                   uuid primary key default gen_random_uuid(),
+  character_id         uuid not null,          -- NO fk: must outlive the character
+  owner_id             uuid not null,          -- NO fk: must outlive the profile
+  campaign_id          uuid,                   -- NO fk: the binding at snapshot time
+  name                 text not null,
+  kind                 text not null,
+  stats                jsonb not null,         -- full { schema, rules, name, LOG, SEQ, id } envelope
+  ap                   integer not null,
+  archived_at          timestamptz,
+  reason               text not null check (reason in ('update','delete')),
+  character_updated_at timestamptz,
+  -- clock_timestamp(), NOT now(): now() is transaction time, so snapshots taken in
+  -- one transaction would tie and the retention prune would order by random uuid.
+  captured_at          timestamptz not null default clock_timestamp()
+);
+create index if not exists idx_character_backups_char
+  on public.character_backups(character_id, captured_at desc);
+create index if not exists idx_character_backups_owner
+  on public.character_backups(owner_id, captured_at desc);
+
+-- SECURITY DEFINER is load-bearing: the trigger fires as the player (role
+-- `authenticated`), which is granted nothing on character_backups, so without it
+-- every save and delete would fail "permission denied" — a backup system that
+-- bricks the app. Retention: newest 50 'update' snapshots per character; 'delete'
+-- snapshots are never pruned.
+create or replace function public.snapshot_character()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_reason text;
+begin
+  if TG_OP = 'DELETE' then
+    v_reason := 'delete';
+  elsif OLD.stats       is distinct from NEW.stats
+     or OLD.name        is distinct from NEW.name
+     or OLD.kind        is distinct from NEW.kind
+     or OLD.ap          is distinct from NEW.ap
+     or OLD.campaign_id is distinct from NEW.campaign_id
+     or OLD.archived_at is distinct from NEW.archived_at then
+    v_reason := 'update';
+  else
+    return NEW;   -- bare updated_at touch: not worth a retention slot
+  end if;
+
+  insert into public.character_backups
+    (character_id, owner_id, campaign_id, name, kind, stats, ap, archived_at, reason,
+     character_updated_at)
+  values
+    (OLD.id, OLD.owner_id, OLD.campaign_id, OLD.name, OLD.kind, OLD.stats, OLD.ap, OLD.archived_at,
+     v_reason, OLD.updated_at);
+
+  if v_reason = 'update' then
+    delete from public.character_backups b
+     where b.character_id = OLD.id
+       and b.reason = 'update'
+       and b.id not in (
+         select id from public.character_backups
+          where character_id = OLD.id and reason = 'update'
+          order by captured_at desc, id desc
+          limit 50
+       );
+  end if;
+
+  if TG_OP = 'DELETE' then
+    return OLD;
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_characters_snapshot on public.characters;
+create trigger trg_characters_snapshot
+  before update or delete on public.characters
+  for each row execute function public.snapshot_character();

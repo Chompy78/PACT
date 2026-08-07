@@ -6,6 +6,161 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-06 · fix(chargen): undo no longer un-locks a locked character, or reorders its purchases** —
+  a regression from the same day's creation-lock work, found by asking whether the ordering problem was
+  *"just randomize"*. It wasn't. `restoreFrame()` (undo/redo) restored the frame's LOG and then called
+  `applyBuild(foldBuild(LOG))`, which **rebuilds the LOG from the DOM** by design under D5. The DOM has no
+  control representing a `creationLocked` event, so the rebuild silently dropped it — **one undo unlocked
+  a locked character** — and re-emitted the purchases in canonical rather than click order. Measured on
+  six raises bought as CHA, WIS, INT, CON, DEX, STR: an undo→redo round-trip moved the creation boundary
+  from **4 purchases to 6**, so two that had been priced post-lock became creation-priced. `restoreFrame()`
+  now reinstates the frame's LOG verbatim after letting `applyBuild()` repaint, **superseding D5's
+  DOM-rebuild default for undo/redo only** — the same call `_cgApplyEnvelope()` already makes, because
+  applyBuild's DOM re-derivation diverges on anything the DOM cannot represent. Confirmed red against the
+  reverted line. Display/state only; `DATA.version` unmoved.
+- **2026-08-06 · fix(sync): a cloud save is refused if another device wrote first, instead of silently
+  overwriting it** — `pushCharacter()` used a bare `.update(...).eq('id', …)` with **no concurrency guard
+  at all**, and the entire event log lives in the `stats` blob — so the later writer replaced the earlier
+  writer's whole history. Two devices on one character destroyed each other with no warning. Now guarded
+  on `characters.updated_at`, which a BEFORE UPDATE trigger already maintains server-side, so nothing
+  needs writing client-side. The fiddly part is that the client didn't *keep* the server's value:
+  `saveCharacter()` stamps `updated_at` with the local clock on every edit, so a guard against it would
+  never match and every save would look like a conflict. Added `base_updated_at`, holding the last value
+  the server confirmed, carried across local edits and never re-stamped. **Two holes found in my own fix
+  while auditing:** `reconcile()` adopts a server row with `lsSet({...server})` in two places, neither of
+  which set `base_updated_at` — so the *first* save after a fresh load ran unguarded, which is exactly the
+  two-device case. Both now stamp it. Zero rows updated no longer means one thing: an existence check
+  tells "row not there yet, insert" apart from "someone wrote first, conflict", since inserting in the
+  second case would collide on the primary key. A conflict returns `{synced:false, conflict:true}`, keeps
+  the local edit and leaves the record dirty; the Live Sheet offers a reload, and CharGen's silent
+  keystroke autosave breaks its silence **once** for this one outcome, because unlike an offline blip it
+  will never resolve by retrying. A record with no known base value still saves exactly as it does today.
+  **Not covered by any automated gate — the dependency-free suite cannot reach a signed-in Supabase
+  session, so this needs the two-tab check in the PR before it merges.** No schema change; `DATA.version`
+  unmoved.
+- **2026-08-07 · fix(sync): ☁ Cloud → Load can finally recover a copy that is behind (DD1)** — completes
+  the conflict story. `reconcile()` no longer swallows a refused push as "retry later": a refused push can
+  *never* succeed, because the server has moved and this copy's base never will, so it now reports
+  `{behind:true}`. `loadCharacter(id, {onBehind})` asks the caller before doing anything destructive, and
+  only on an explicit yes discards the local copy and takes the server's. Both tools' single explicit-Load
+  path (`loadCloudChar()`) supplies that prompt, naming the character and warning that unsaved local work
+  is lost. **Omitting the callback leaves behaviour unchanged**, so background callers — `syncAll()`,
+  campaign-rules refresh — can never silently discard work. This makes the conflict alert added earlier
+  today truthful: it tells the user to use Cloud → Load, and Cloud → Load now works. Gate back to green at
+  **12 passed / 0 failed**, with two new checks: a plain re-load keeps the local copy, and the caller is
+  asked before anything is discarded. Both tools boot headless with 0 console errors; `engine-parity`
+  29/0, `tool-pricing` 67/0. No `DATA.version` change.
+- **2026-08-07 · test(sync): make the concurrency harness use real timestamps — and it immediately caught
+  a second, unfixed defect** — the harness stubbed server times as `'T1'`/`'T2'`. `Date.parse` turns those
+  into `NaN`, so `isNewerInstant()` always returned false, `reconcile()` always took its adopt branch, and
+  the "recovers after re-loading" check passed for entirely the wrong reason. With real ISO instants it
+  fails, correctly: **after a refused save, ☁ Cloud → Load cannot recover.** The local record is dirty and
+  newer, so `reconcile()` takes its *push* branch, the guard refuses that push, `catch { /* retry later */ }`
+  swallows it, and `loadCharacter()` returns the stale **local** record — so Load hands back your own copy,
+  never the cloud's. The page can neither save nor recover, and the conflict dialog added earlier today
+  points the user at exactly that control. This is the root cause of the original report that two browser
+  profiles kept showing different states. **The gate is deliberately left red** (9 passed / 1 failed): a
+  green gate here would be a lie, and the non-zero exit correctly blocks the branch until the recovery path
+  is fixed. Not wired into CI, so nothing else breaks. No `DATA.version` change.
+- **2026-08-07 · fix(sync): the stale-save guard now travels with the copy the page is holding** — the
+  guard shipped on this branch could be defeated, and was, in production: a character went **43 AP spent
+  → 47 → back to 43** across two separate Edge profiles with the guard active throughout. `initSync()`
+  runs `syncAll()` on every page load and reconnect; `reconcile()`'s adopt branch refreshed
+  `base_updated_at` **in localStorage**, while the still-open tool page held an older in-memory build it
+  had no way to update. The next save then presented a *fresh base with stale content*, the guard
+  matched, and the newer version was silently overwritten — worse than no guard, because it looked like
+  one. (The branch's own earlier fix, stamping `base_updated_at` at those adopt sites, is what opened
+  this.) The base is now pinned per **page** in memory — written only by `loadCharacter()` and by this
+  page's own successful push, never by a background `reconcile()` — so storage can refresh freely without
+  arming a stale page. New gate `testing/scripts/sync-concurrency-ci.mjs` (**10 passed / 0 failed**)
+  replays the exact production sequence; it is *differential*, failing unless the bug still reproduces
+  against a reverted copy, so it cannot pass vacuously. This closes the "no automated gate can reach
+  this" gap the branch shipped with. No `DATA.version` change.
+- **2026-08-07 · fix(chargen): a save conflict no longer reports itself as "Save failed"** — found by the
+  manual two-tab check that `feat/sync-stale-save` requires. Of the three save paths, only two handled
+  `res.conflict`: the Live Sheet's manual save and CharGen's autosave. CharGen's **manual** ☁ Save to
+  cloud fell through to `throw res.error` and reported the conflict via the generic
+  `alert('Save failed: …')` — untrue, and the most damaging thing that path could say. The save to the
+  device succeeded; only the cloud push was refused, and the record stays dirty so nothing is lost. A
+  player told "Save failed" reasonably concludes their work is gone and redoes it, or never learns
+  another device is ahead. Deliberately **not** a copy of the Live Sheet's `confirm()` + `location.reload()`:
+  CharGen boots from its local autosave (`_cgRestoreAutosave`), so a reload restores this device's build,
+  not the other device's — offering one would be a lie in this tool. It points at ☁ Cloud → Load, which
+  actually fetches from the cloud, and restores the button itself since the shared reset sits after the
+  try/catch. Verified against the extracted function: conflict alerts correctly and re-enables the button,
+  a genuine error still reports "Save failed", the success path is unchanged; CharGen boots with 0 console
+  errors. No `DATA.version` change.
+- **2026-08-07 · docs(sql): `sql/full-backup.sql` — the whole-database backup runbook** — completes the
+  backup story with the one mechanism that sees everything, run from the Supabase dashboard rather than
+  the app. Two forms: a per-character query that downloads as CSV with each `envelope` cell a loadable
+  `pact-character/1` document, and a single-JSON bundle for archival. Documents who can run it and why
+  nobody else can — `characters_select` caps any client at `owner_id = auth.uid() or
+  is_campaign_dm(campaign_id)`, so even an account DMing every campaign reaches 6 of 15 — and records
+  that an in-app admin backup was requested, considered and rejected rather than left unexplained (see
+  the decision record's Addendum 2: a client-side allowlist can't do it, doing it properly means
+  inventing the admin role this project deliberately lacks, and it would grant no new capability, only
+  a weaker route to one `service_role` already has). Deliberately excludes `character_backups` and
+  points at that migration's existing restore recipes instead of duplicating them. Both queries were
+  executed against production before committing: Query A returns 15 rows, all restorable, all with
+  owner emails; Query B a well-formed 101,676-char bundle. A `docs/HOW-TO-WORK.md` table now sets the
+  three mechanisms side by side so they don't get mistaken for each other. No `DATA.version` change.
+- **2026-08-07 · fix(sync): apply the ownership check on the offline character list too** —
+  `listMyCharacters()`'s online branch filters `.eq('owner_id', …)` because `characters_select` also
+  grants a DM read access to every character in campaigns they run; the offline branch made no such
+  check, so "My Characters" meant something different depending on connectivity. It could not simply
+  reuse the online branch's `dirty` test — offline, `dirty:false` is the normal resting state of the
+  user's *own* synced characters, so that would have emptied the list of everything except unpushed
+  work. Instead `reconcile()` now caches `owner_id` and the offline branch drops records positively
+  known to belong to someone else, keeping unmarked ones (local-only, or cached before this change;
+  they self-heal on the next reconcile). Previously latent — every path that could cache a foreign
+  character is separately guarded — but it was the missing last line under a feature that now writes
+  characters to a downloadable file. Verified headless against the real `sync.js`: a foreign record is
+  dropped while own-synced, own-unpushed, local-only and legacy-unmarked records all survive.
+  No `DATA.version` change.
+- **2026-08-07 · feat(characters): warn when the backup is stale; scheduled-backup Routine deleted** —
+  the weekly agent-run Routine was abandoned for good (it cannot carry its own connectors, and the
+  bundle would have to pass through a model context it already exceeds), so the export is a manual
+  act. Since the original failure was *nobody remembered*, My Characters now records the last
+  successful export and shows a red warning bar — and turns the export button red — when it is 7+ days
+  old or has never happened; fresh state is a quiet grey line so "you're covered" never competes for
+  attention with "you're not". Tracked per browser, not per account, on purpose: the file sits on one
+  device's disk, so an account-wide flag would let a desktop export silence a phone holding no copy.
+  A localStorage read failure counts as "never exported" — every tie breaks toward the warning. An
+  export where every character turns out to be unsaved now refuses to produce an empty file or reset
+  the clock. Verified headless across never/20d/7d-boundary/2d/today plus a real export resetting
+  stale→fresh. No `DATA.version` change.
+- **2026-08-07 · feat(characters): "Export backup" on My Characters — the off-site half of the backup
+  story** — the `character_backups` trigger (same date) is a safety net that lives in the *same
+  database as the thing it protects* and is readable only from the Supabase dashboard. This is the
+  copy the user holds, outside the app. Downloads every character the account can see as one JSON
+  file; each `characters[].stats` is a plain `pact-character/1` envelope, so a single lost character
+  is restored by a normal Load in CharGen or the Live Sheet with no conversion. Uses `peekCharacter()`
+  rather than `loadCharacter()` — peek is explicitly read-only, so taking a backup can never mutate
+  what it's backing up. **Archived characters are always included regardless of the "Show archived"
+  checkbox** (that box filters a view; a backup silently thinned by a UI toggle is the exact gap this
+  closes), and characters with no `stats.LOG` are reported by name rather than dropped. Verified
+  headless against a stubbed data layer: archived row present in the bundle while hidden from the
+  list, skipped rows named, envelope schema intact, campaign name resolved, and a character named
+  `Fenwick <script>` produced 0 injected script elements. Note this is now the *primary* mechanism —
+  a scheduled agent-run backup can't scale, since the bundle would have to pass through a model
+  context (140 KB already exceeds it). No `DATA.version` change.
+- **2026-08-07 · feat(sql): automatic pre-change snapshots for cloud characters (`character_backups`)** —
+  a real player character was lost to `js/sync.js` `deleteCharacter()`, which is a literal hard
+  `delete` (the 2026-07-25 `archived_at` soft-delete is a *separate*, reversible action, offered
+  before it). Nothing captured the row on the way out, and an overwritten `stats` was equally
+  unrecoverable, so a lost cloud character had no recovery path for anyone — including the project
+  owner. New `character_backups` table plus a `BEFORE UPDATE OR DELETE` trigger on `characters`
+  storing the pre-change row; retention keeps the newest 50 `update` snapshots per character and
+  **never** prunes `delete` snapshots. No foreign keys (both `profiles`→`characters` and
+  `characters`→`ap_awards` cascade, which would kill the backups with the row they exist to outlive);
+  `SECURITY DEFINER` trigger (it fires as the player, who is granted nothing on the table);
+  `clock_timestamp()` not `now()` for `captured_at` (transaction time ties, and the prune would then
+  order by a random uuid). RLS on with zero policies and no client grant — the Supabase dashboard is
+  the only reader, same posture as `feedback`; no new admin role. Verified in production with a probe
+  character since removed: pre-change capture, no-op updates skipped, restore under the original id
+  with the campaign binding intact, 60 updates pruned to exactly 50, advisor clean. **Not
+  retroactive** — it cannot recover anything deleted before today. Off-site copy to Google Drive
+  still to come. See `decisions/2026/D-GH-2026-08-07-character-backups.md`. No `DATA.version` change.
 - **2026-08-06 · docs(agents): name the failure the A/B/A1/A2 convention keeps hitting, instead of
   restating the rule** — the owner asked why the lettered-options format keeps getting lost. It isn't
   lost: `AGENTS.md` is auto-imported every session and the rule was already there. The failure is

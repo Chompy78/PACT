@@ -66,6 +66,33 @@ would first need to distinguish who locked it — an authored field on the event
 player-issued unlock cannot clear a DM-issued lock. Tracked as its own task; it needs a signed-in
 campaign to verify, which the session that wrote this had no credentials for.
 
+## Addendum, same day — undo/redo was silently discarding the lock
+
+Recording the lock as an event exposed a path that destroys it. `restoreFrame()` (undo/redo) set
+`LOG = _histClone(f.log)` and then called `applyBuild(foldBuild(LOG))`, which **rebuilds the LOG from the
+DOM** — a deliberate choice under D5's "build-equality contract". The DOM has no control representing a
+`creationLocked` event, so the rebuild dropped it: **one undo un-locked a locked character.** It also
+re-emitted the purchases in canonical rather than click order, so the boundary moved.
+
+Measured, building six ability raises in the order CHA, WIS, INT, CON, DEX, STR:
+
+| | order | lock | purchases before the lock |
+|---|---|---|---|
+| before undo | `CHA,WIS,INT,CON,DEX,STR` | present | 4 |
+| after undo → redo (broken) | lost | present | **6** |
+| after undo → redo (fixed) | `CHA,WIS,INT,CON,DEX,STR` | present | **4** |
+
+The boundary moving from 4 to 6 means two purchases that had been priced post-lock silently became
+creation-priced. `restoreFrame()` now reinstates the frame's LOG verbatim after letting `applyBuild()`
+repaint the controls — **superseding D5's DOM-rebuild default for undo/redo only**. This is the same call
+`_cgApplyEnvelope()` already makes, for the same stated reason: applyBuild's DOM re-derivation diverges on
+anything the DOM cannot represent. A frame is a snapshot of an already-reconciled state, so it needs no
+repricing on the way back in.
+
+The remaining order-destroying paths are randomize, the shared `#b=` link, and legacy flat-file import —
+all cases where the character arrives whole and no click order ever existed. Tracked as
+`feat/randomize-emits-in-order`.
+
 ## Related
 
 - `decisions/2026/D-GH-2026-08-05-creation-vs-awarded-ap.md` — its *Outstanding* named removing `noLock`

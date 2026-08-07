@@ -13,6 +13,29 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-07-optimistic-character-save** — cloud saves were last-write-wins, so two devices on one
+  character silently destroyed each other's **entire** history (the whole event log lives in `stats`).
+  Guarded on the server's `updated_at`, carried client-side as a separate `base_updated_at`. Took four
+  rounds, and the last two are the point: the base was being read from **localStorage**, which a
+  background `reconcile()` refreshes, while the content came from the page's **in-memory build** — so a
+  background sync handed a stale page a fresh base and the guard waved the overwrite through (seen in
+  production: 43 AP spent → 47 → back to 43). The base now travels with the copy the page holds. And a
+  refused save had no exit: `Cloud → Load` returned your own stale copy forever, which is what the
+  conflict message told you to use. It now asks before discarding. Also corrects the task's own premise
+  that "no automated gate can reach this" — it could; `testing/scripts/sync-concurrency-ci.mjs` is
+  differential and catches both late defects. See `decisions/2026/D-GH-2026-08-07-optimistic-character-save.md`.
+- **D-GH-2026-08-07-character-backups** — cloud characters now get an **automatic pre-change
+  snapshot**. A real character was lost: the owner believed they'd unbound it (`dm_unbind_character`
+  only nulls `campaign_id`), but `js/sync.js` `deleteCharacter()` is a literal hard `delete` and
+  nothing captured the row. Overwrites were equally unrecoverable. A `BEFORE UPDATE OR DELETE`
+  trigger writes the OLD row to a new `character_backups`; newest 50 `update` snapshots per
+  character, `delete` snapshots kept forever. Deliberately **no foreign keys** (they'd cascade the
+  backups away with the row), **`SECURITY DEFINER`** (the trigger fires as the player, who has no
+  grant on the table), **`clock_timestamp()`** not `now()` (transaction time ties, and the prune
+  would fall back to random-uuid order). RLS on with zero policies — dashboard/service_role is the
+  only reader, no new admin role, same posture as `feedback`. Sized first: ~2.6 KB per snapshot, so
+  50 × the whole roster ≈ 2 MB. **Not retroactive.**
+  Full record: `decisions/2026/D-GH-2026-08-07-character-backups.md`.
 - **D-GH-2026-08-06-creation-lock-survives-reload** — creation ends by being **recorded**, not re-derived.
   Both of the engine's lock paths were dead in CharGen: the automatic one is suppressed by the burst's
   blanket `noLock` (which fixes D-GH34 and must stay), and no tool had ever emitted the explicit

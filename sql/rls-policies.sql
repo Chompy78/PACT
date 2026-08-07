@@ -448,3 +448,31 @@ create policy feedback_insert on public.feedback
     char_length(message) between 1 and 2000
     and (user_id is null or user_id = auth.uid())
   );
+
+-- ---------------------------------------------------------------------------
+-- character_backups -- automatic pre-change snapshots (see schema.sql and
+-- sql/migrations/2026-08-07-character-backups.sql).
+--
+-- RLS ON with ZERO policies. That is the whole access model, not an omission:
+-- with RLS enabled and no permissive policy, every row fails for every client
+-- role, so authenticated/anon can neither read, write, nor detect this table.
+-- service_role bypasses RLS by design and is the only reader -- the same posture
+-- as `feedback` above (no in-app admin view; the Supabase dashboard is the
+-- admin surface). An in-app restore UI would require inventing an admin role,
+-- which this project deliberately does not have.
+--
+-- The explicit service_role grant is NOT redundant with the blanket
+-- `grant ... on all tables ... to service_role` earlier in this file: that ran
+-- against the tables existing at the time and does not apply to tables created
+-- later. A new table needs its own grant.
+--
+-- The trigger function still writes fine under all of this because it is
+-- SECURITY DEFINER and owned by postgres -- see schema.sql for why that is
+-- load-bearing rather than incidental.
+-- ---------------------------------------------------------------------------
+alter table public.character_backups enable row level security;
+
+revoke all on public.character_backups from authenticated, anon;
+grant select, insert, update, delete on public.character_backups to service_role;
+
+revoke execute on function public.snapshot_character() from public, authenticated, anon;
