@@ -38,6 +38,20 @@
   **Not covered by any automated gate — the dependency-free suite cannot reach a signed-in Supabase
   session, so this needs the two-tab check in the PR before it merges.** No schema change; `DATA.version`
   unmoved.
+- **2026-08-07 · fix(sync): the stale-save guard now travels with the copy the page is holding** — the
+  guard shipped on this branch could be defeated, and was, in production: a character went **43 AP spent
+  → 47 → back to 43** across two separate Edge profiles with the guard active throughout. `initSync()`
+  runs `syncAll()` on every page load and reconnect; `reconcile()`'s adopt branch refreshed
+  `base_updated_at` **in localStorage**, while the still-open tool page held an older in-memory build it
+  had no way to update. The next save then presented a *fresh base with stale content*, the guard
+  matched, and the newer version was silently overwritten — worse than no guard, because it looked like
+  one. (The branch's own earlier fix, stamping `base_updated_at` at those adopt sites, is what opened
+  this.) The base is now pinned per **page** in memory — written only by `loadCharacter()` and by this
+  page's own successful push, never by a background `reconcile()` — so storage can refresh freely without
+  arming a stale page. New gate `testing/scripts/sync-concurrency-ci.mjs` (**10 passed / 0 failed**)
+  replays the exact production sequence; it is *differential*, failing unless the bug still reproduces
+  against a reverted copy, so it cannot pass vacuously. This closes the "no automated gate can reach
+  this" gap the branch shipped with. No `DATA.version` change.
 - **2026-08-07 · fix(chargen): a save conflict no longer reports itself as "Save failed"** — found by the
   manual two-tab check that `feat/sync-stale-save` requires. Of the three save paths, only two handled
   `res.conflict`: the Live Sheet's manual save and CharGen's autosave. CharGen's **manual** ☁ Save to

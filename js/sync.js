@@ -29,6 +29,30 @@ export const newCharacterId = () => crypto.randomUUID();
 // sub-second precision) — a plain string `>` breaks across those variations.
 export const isNewerInstant = (a, b) => Date.parse(a) > Date.parse(b);
 
+/**
+ * The server timestamp THIS PAGE last observed for a character, keyed by id. In-memory, so it dies
+ * with the page — that is the point.
+ *
+ * The concurrency guard compares against the last value the server confirmed. Reading that from
+ * localStorage is not safe, because localStorage is not the thing being saved: the content comes from
+ * the open tool's IN-MEMORY build, and initSync() runs syncAll() on every page load and reconnect, so
+ * reconcile() can adopt a newer server row — refreshing the stored base — while the page still holds an
+ * older build it has no way to update. The next save then presents a fresh base with stale content, the
+ * guard matches, and the newer version is silently overwritten. Observed in production on 2026-08-07:
+ * a character went 43 AP spent -> 47 -> back to 43, across two separate browser profiles, with the
+ * guard active the whole time.
+ *
+ * So the base must travel with the COPY THE PAGE IS HOLDING, not with whatever storage happens to say
+ * now. Written only by operations this page performed — loadCharacter() (the page took this copy) and
+ * applyServerMeta() (this page's own push succeeded) — and deliberately NOT by reconcile()'s adopt
+ * branch, which is exactly the background write that must never re-arm a stale page.
+ *
+ * Consequence worth knowing: after a refused save, the pin stays put, so every further save from that
+ * page is refused until it loads the character again. That is correct — the page's content is behind,
+ * and reloading is the only honest way forward.
+ */
+const _pageBase = new Map();
+
 // --- localStorage helpers ---------------------------------------------------
 function lsGet(id) {
   try { return JSON.parse(localStorage.getItem(LS_PREFIX + id)); }
@@ -86,7 +110,22 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
     migratedFrom = id;
     id = (campaignId && await _existingIdInCampaign(campaignId)) || newCharacterId();
   }
-  const prev = lsGet(migratedFrom || id);
+  const prevKey = migratedFrom || id;
+  const prev = lsGet(prevKey);
+  // Prefer the base THIS PAGE pinned over whatever storage says now — see _pageBase. Storage can have
+  // been refreshed by a background reconcile() since this page took its copy, and saving against that
+  // refreshed value is the silent-overwrite bug the pin exists to stop.
+  //
+  // No pin means this page never loaded the character through loadCharacter() (e.g. CharGen booting
+  // from its own local autosave). Fall back to the stored value — today's behaviour — and pin it now,
+  // so that from this point on a background adopt cannot move the base under this page.
+  let base;
+  if (_pageBase.has(prevKey)) {
+    base = _pageBase.get(prevKey);
+  } else {
+    base = prev?.base_updated_at;
+    _pageBase.set(prevKey, base);
+  }
   const rec = {
     id,
     name: name ?? prev?.name ?? 'New Character',
@@ -96,10 +135,11 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
     updated_at: nowIso(),
     // Carried forward, never re-stamped locally: it is the server's word, not ours. Absent on records
     // written before this existed — treated as "unknown" below, which falls back to today's behaviour.
-    base_updated_at: prev?.base_updated_at,
+    base_updated_at: base,
     dirty: true,
   };
   lsSet(rec);
+  if (migratedFrom) _pageBase.set(id, base);   // follow the id across a legacy-id migration
   // Drop the old key only after the new one is written, so a crash mid-migration loses nothing.
   if (migratedFrom) lsRemove(migratedFrom);
 
@@ -184,6 +224,9 @@ function applyServerMeta(rec, server) {
   // that with the local clock on every edit. A concurrency guard written against `updated_at` would
   // therefore never match and every save would look like a conflict — this is the field the guard uses.
   rec.base_updated_at = server.updated_at;
+  // This page's own push just succeeded, so the copy it holds IS the server's copy — pin the new base
+  // for this page too, or the very next save would present the now-stale pin and be refused forever.
+  _pageBase.set(rec.id, server.updated_at);
   rec.ap = server.ap;     // server is authoritative for ap
   rec.dirty = false;
   lsSet(rec);
@@ -194,7 +237,12 @@ export async function loadCharacter(id) {
   if (navigator.onLine && await currentUser()) {
     await reconcile(id);
   }
-  return lsGet(id);
+  const rec = lsGet(id);
+  // The page is about to hold THIS copy, so this is the base its saves must be judged against. Pinned
+  // here rather than inside reconcile() on purpose: reconcile also runs from syncAll() in the
+  // background, and a base adopted there belongs to storage, not to whatever build the page is showing.
+  if (rec) _pageBase.set(id, rec.base_updated_at);
+  return rec;
 }
 
 /** Read-only fetch: returns the freshest known copy of a character without ever
