@@ -19,6 +19,109 @@ Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page 
 prune, PWA stale-version reload-prompt fix, Live Sheet mobile density/collapse) has landed and graduated
 to `CHANGELOG.md`.
 
+## Harden the entire invitation system — TODO
+Branch `fix/harden-invitation-system`. **Confirmed live privilege-escalation bug, not a design
+nice-to-have** — verified 2026-08-08 by reading the actual schema/RLS on `preview`, not assumed:
+`campaigns_select` RLS is `dm_id = auth.uid() OR is_campaign_dm(id) OR is_campaign_member(id)` — row-level
+only, no column restriction — so any ordinary player (a campaign member) can `SELECT dm_invite_code`
+straight off the `campaigns` table via PostgREST today, and `js/campaign.js` already exports a
+SECURITY-DEFINER `joinAsDm(code)` RPC with no UI gate. A player who reads that column and calls the RPC
+directly can self-promote to DM in production right now, no UI needed.
+
+**Supersedes/folds in the NEXT-band "Wire up joinAsDm()" task** (removed from `docs/TASK_BOARD_NEXT.md` in
+the same change this task was added) — that task's plan was to add a UI button redeeming
+`dm_invite_code` as-is, which would have shipped a friendly front door onto the exact flow being replaced
+here. Redeeming as a co-DM belongs as a step of this task, built on the new model, not the old one.
+
+**Not green-field — audit before assuming scope.** A `campaign_invites` table already exists for
+**player** invites (`decisions/2026/D-GH-2026-07-13-campaign-invite-tokens.md` and its neighbors): single-
+use CSPRNG tokens, `create_player_invite`/`redeem_player_invite`/`list_campaign_invites`/
+`set_invite_revoked` (revocation), `regenerate_invite_code` (regenerating invalidates the prior token).
+That already covers a real chunk of the Model/Security requirements below for the player side. **DM
+invites are NOT on that system** — `campaigns.dm_invite_code` is still a flat, reusable
+`^[A-Z0-9]{6}$` code from `gen_invite_code()`, nowhere near 128 bits of entropy, and is the column leaking
+per above. Also see the related (not overlapping, don't fold in) NEXT task "Let an invite link identify
+its campaign before it is redeemed" — that task's token-peek RPC will need to target whatever unified
+model this task produces, so sequence or cross-check against it.
+
+**Model.** Design (or extend the existing `campaign_invites` table into) a unified invite system:
+`campaign_id`, `type` (`PLAYER`/`DM`), `mode` (`SINGLE_USE`/`REUSABLE`), a ≥128-bit cryptographically
+random token (store a hash, not usable plaintext, where practical), `created_by`, `created_at`,
+`expires_at`, `revoked_at`, `redeemed_at`/`redeemed_by` for single-use, an optional redemption
+count/limit for reusable invites. Defaults: player and DM single-use available by default; reusable
+invites (either type) only exist when a DM explicitly generates them; every invite is revocable.
+
+**Security requirements** (the critical ones from the finding above are 1 and 12; the rest close out the
+class of bug so it can't recur elsewhere):
+1. Remove `dm_invite_code` from `campaigns` (or otherwise make it unreadable by ordinary players) — this
+   is the confirmed live leak.
+2. Never expose invite secrets through tables, RLS, views, PostgREST, or client queries — plaintext
+   secrets only ever leave the server at creation time, via an RPC return value.
+3. ≥128 bits of cryptographic randomness per token; no short/predictable codes as the actual security
+   primitive.
+4. Store hashes, not usable plaintext, where practical.
+5. No API to retrieve a previously-generated plaintext token — only the creation call returns it.
+6. Redemption only through server-side `SECURITY DEFINER` RPCs, never client-side inserts.
+7. Atomic expiry/revocation/type/campaign validation + single-use redemption so concurrent requests
+   cannot double-redeem (this repo has hit exactly this race before in the join path — see
+   `decisions/2026/D-GH-2026-07-13-campaign-join-race-friendly-error.md` — reuse that pattern).
+8. Reusable invites: explicit enable/generate, revocable, expirable, regeneratable; regenerating
+   invalidates the previous token (existing `regenerate_invite_code` already does this for the player
+   shared code — extend the pattern, don't reinvent it).
+9. Bind tokens server-side to their own campaign and type; never trust a client-supplied `campaign_id`.
+10. Generic invalid/expired/revoked responses to reduce token enumeration.
+11. Rate-limit/abuse-protect invitation redemption and generation.
+12. A player must never be able to use, discover, modify, or manufacture a DM invitation.
+13. Preserve campaign isolation and existing DM/player authorisation boundaries.
+14. Do not weaken RLS or rely on UI hiding for security.
+
+**Migration.** Safely migrate existing player/DM invitations and campaigns; do not expose the existing
+`dm_invite_code` value during migration; decide and document (in `DECISIONS.md`) how existing reusable
+DM/player codes are rotated or invalidated.
+
+**Effort:** high · **Risk:** high — ambiguity is high (unifying two invite mechanisms into one model, and
+deciding the migration/rotation story for existing codes, are genuine architectural calls with no single
+obviously-right answer); damage scale is high (touches core auth/security schema, RLS, and all three
+tools' campaign-join flows); damage likelihood is medium-high given this is security-critical
+production auth code — worst-of lands at high, **never eligible for `/sweep-code-tasks`**. **Run
+`/make-code-cold-plan-review` before implementation** — this meets every trigger in `AGENTS.md`'s own
+rubric (multi-file, security/rules-adjacent, real design trade-off, and a wrong approach here costs far
+more than one implementation cycle to undo).
+
+```text
+1. Audit ALL existing invite RPCs, RLS policies, views, and client code for other privilege-escalation
+   paths before designing the fix — don't assume the dm_invite_code leak found here is the only one.
+   Check every SELECT-able table/view for a column that shouldn't be player-readable, the same way this
+   task's own finding was confirmed (read the actual RLS policy text, don't assume from a comment).
+2. Design (or extend) the unified campaign_invites model per the Model section above; decide DM-invite
+   generation/redemption to mirror the existing player Path A pattern (create_*_invite/redeem_*_invite/
+   list_*_invites/set_*_revoked/regenerate_*), reusing those functions' shape rather than inventing new
+   ones where the existing player-invite functions already solve the same problem.
+3. Remove/neutralize `campaigns.dm_invite_code` per Security requirement 1; confirm via a fresh RLS read
+   (not just code inspection) that no authenticated non-DM role can select it anywhere.
+4. Wire DM-invite redemption through the new model (this is where the folded-in joinAsDm task's UI work
+   belongs — DM Console needs a "Join/redeem as co-DM" affordance, but built against the new hardened
+   RPC, not the raw dm_invite_code).
+5. Write the migration: existing campaigns' dm_invite_code values must be rotated/invalidated, not
+   quietly left live during the transition. Document the chosen approach in DECISIONS.md.
+6. Add/update the full security test list from the task description: player cannot read any DM invite
+   secret; player cannot escalate to DM; cross-campaign invite access fails; wrong invite type fails;
+   expired/revoked invites fail; single-use invites cannot be redeemed twice including concurrently;
+   reusable invites work only when explicitly enabled and can be revoked/regenerated; a client cannot
+   choose the campaign during redemption; direct table/API manipulation cannot create memberships; invite
+   secrets are never returned through normal campaign queries; existing RLS/auth/security tests still pass.
+7. Run the Supabase advisor (`get_advisors`) and skim `get_logs` before opening the PR — this project has
+   been bitten by RLS/grant drift twice before (D-GH15, D-GH12) and this change touches exactly that
+   surface.
+8. Run the full test/security suite; fix any regressions before declaring this complete.
+```
+
+**Done when:** `dm_invite_code` is no longer readable by ordinary players (verified against live RLS, not
+just code); DM and player invites both run through the unified, hardened `campaign_invites` model with
+server-side redemption RPCs; the full security test list above passes; the Supabase advisor reports no
+new findings; `engine-parity.html` and the existing test/security suite are unaffected; the migration for
+existing campaigns' codes is documented in `DECISIONS.md`.
+
 ## Split starting AP into creation AP + awarded AP (and fix CharGen's clunky budget entry) — TODO
 Branch `feat/creation-vs-awarded-ap`. Owner's design, 2026-08-05. **Do this before
 `fix/creation-lock-survives-reload`** — it removes that bug's cause instead of patching it.
