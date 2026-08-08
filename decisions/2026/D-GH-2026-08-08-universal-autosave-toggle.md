@@ -29,12 +29,20 @@ in practice; `docs/plans/2026-08-08-shared-sync-chip-part-b.md`'s B3 step 3 flag
 considering when the toggle UI is actually built.
 
 **Consequence for the data model:** replaces the earlier `cloud_autosave_consented_at timestamptz`
-(one-way stamp) design with `characters.autosave_enabled boolean not null default true`, written via a
-`SECURITY DEFINER` RPC (`set_autosave_enabled`) mirroring the existing `award_ap()` column-grant pattern.
+(one-way stamp) design with `characters.autosave_enabled boolean not null default true`. As implemented,
+this is a **plain column grant** (`grant update (autosave_enabled) on public.characters to authenticated`,
+plus the same column added to the existing insert grant) under the existing owner-only
+`characters_update`/`characters_insert` RLS policies — mirroring `archived_at`'s precedent, not a
+`SECURITY DEFINER` RPC. An RPC (mirroring `award_ap()`) was the plan at the time this record was first
+written, ahead of the code; it turned out unnecessary once implementation showed the owner-only RLS
+policies already gate this column correctly, the way they already gate `archived_at` (fixed here per this
+project's "shipped artifact wins over the written guide" rule — verified against the actual
+`sql/rls-policies.sql` grants and `sql/migrations/2026-08-08-universal-autosave-toggle.sql`, not assumed).
 Default `true` for every character, existing and new — not treated as retroactive enrollment in the sense
 the earlier design worried about, because the setting is immediately visible and immediately reversible,
 unlike a silently-stamped one-way consent flag.
 
-**Status:** DECIDED. Implementation not yet started — this record exists ahead of the code per this
-project's "log as you go" convention, since the decision was made in conversation before any B3 code was
-written.
+**Status:** DECIDED and SHIPPED (2026-08-08, PR #379 → `preview`, promoted to `main` in PR #380). Migration
+`sql/migrations/2026-08-08-universal-autosave-toggle.sql` applied to the live database and verified
+post-apply. Two real bugs in the write path (`setAutosaveEnabled()`) were found by `/code-review ultra`
+before merge and fixed — see the CHANGELOG entry and `testing/scripts/sync-autosave-toggle-ci.mjs`.
