@@ -27,11 +27,12 @@
   matched because the row didn't exist yet, not because anything was wrong) — fixed with an existence
   check, plus carrying the toggle value through `pushCharacter()`'s first INSERT so a pre-save choice
   isn't silently discarded back to the default. Deliberately NOT done: the write-volume budget (no live
-  traffic data available to measure against in this environment); the migration file
-  (`sql/migrations/2026-08-08-universal-autosave-toggle.sql`) was written but **not applied to the live
-  database** — held for explicit confirmation rather than run automatically, since a schema change to a
-  live Supabase project is a real, harder-to-reverse action; DM Console's roster does not yet surface a
-  character's toggle state (open follow-up, not required for B3's own done-when bar).
+  traffic data available to measure against in this environment); DM Console's roster does not yet
+  surface a character's toggle state (open follow-up, not required for B3's own done-when bar).
+  **Migration applied to the live database on explicit owner confirmation** (same day) — verified
+  post-apply: column exists as `boolean not null default true`; all 16 pre-existing characters read
+  `true` (none silently flipped `false`); `authenticated` holds INSERT/SELECT/UPDATE on the column;
+  `get_advisors(security)` showed no new finding attributable to this change.
   `testing/tests/engine-parity.html` 29/0, `tool-pricing` 67/0, `sync-state-machine` 21/0,
   `sync-concurrency` 12/0 — confirmed, not assumed unaffected. No live-browser visual verification was
   possible in this environment. No `DATA.version` change.

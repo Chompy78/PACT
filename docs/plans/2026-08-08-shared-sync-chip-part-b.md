@@ -75,11 +75,18 @@ created.
 
 **Not done, deliberately deferred, not silently skipped:** the write-volume budget (plan step 6, "needs
 a real number before this merges") — no live traffic/quota data was available to measure against in
-this environment. **The migration file was written but NOT applied to the live database** — a schema
-change to a live Supabase project is a real, harder-to-reverse production action, held for explicit
-confirmation rather than run automatically. DM Console's roster does not yet surface a character's
-toggle state (flagged as an open follow-up in the C2 decision record, not required for B3's own
-"done when" bar).
+this environment. DM Console's roster does not yet surface a character's toggle state (flagged as an
+open follow-up in the C2 decision record, not required for B3's own "done when" bar).
+
+**Migration applied to the live database (2026-08-08, on explicit owner confirmation)**, via
+`mcp__Supabase__apply_migration` against project `piuprrrnaotrtxucrtsb`. Verified post-apply, not
+assumed: the column exists as `boolean not null default true`; all 16 pre-existing character rows read
+`autosave_enabled = true` (zero silently flipped to `false` — confirms the "on by default" framing held
+in practice, not just in the SQL); `information_schema.column_privileges` shows `authenticated` holding
+INSERT/SELECT/UPDATE on the column. `get_advisors(type: security)` afterward showed no NEW finding
+attributable to this change — every `SECURITY DEFINER` warning listed is a pre-existing, intentional
+RPC (`award_ap`, `join_campaign`, etc.); this migration added no function, only a column and two column
+grants.
 
 ## Goal
 Give PACT's three tools one shared, honest cloud-sync status indicator (replacing three inconsistent
