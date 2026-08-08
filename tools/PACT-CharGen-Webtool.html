@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.380.html**-->
+<!--**PACT-CharGen-Webtool v1.382.html**-->
 
 <!doctype html>
 <!--
@@ -35,7 +35,7 @@
  VERSIONING
    DATA.version (currently "v0.339") is CANONICAL: stamped onto saved/exported JSON
    and compared on import to drive the "frozen prices / reprice drift" logic.
-   The <title> and header "Web Tool" label show the cosmetic web-tool build (v1.380);
+   The <title> and header "Web Tool" label show the cosmetic web-tool build (v1.382);
    the "PACT rules" label mirrors DATA.version — but is HARDCODED here (resync it on a
    rules bump), unlike Live Sheet / DM Console, which read DATA.version live at
    engine-ready. See the follow-up task to make this one live too.
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.380 · Rules v0.339</title><style>
+<title>PACT Character Generator — Web Tool v1.382 · Rules v0.339</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -322,7 +322,6 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .hd-row2{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:5px 14px;background:var(--navy);color:#fff;border-top:1px solid rgba(255,255,255,0.15)}
 .hd-title{font-size:15px;margin:0;font-weight:700}
 .hd-row2 .sub,.hd-pactver{font-size:11px;opacity:.85}
-.hd-row2 .lastedited{font-size:11px;opacity:.75;white-space:nowrap}
 .hd-row2 .hd-localonly{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.13);border-radius:12px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap}
 /* Shared cloud-sync status chip (feat/shared-sync-chip) — same class/tone names as the Live Sheet's
    copy, so the two tools read identically even though the markup itself is duplicated per the
@@ -456,7 +455,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.380</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><label id="cgAutosaveToggle" class="synchip" style="cursor:pointer;gap:5px" title="Automatically save this character to the cloud as you edit. Off just means you save manually — nothing else changes."><input type="checkbox" id="cgAutosaveChk" checked disabled style="margin:0;cursor:pointer" onchange="_cgOnAutosaveToggle(this)"> Autosave</label><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save this character to the cloud, or load one you saved before" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 8px" aria-label="Cloud menu">⋯</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.382</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 8px" aria-label="Cloud menu">⋯</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
@@ -575,17 +574,19 @@ document.addEventListener('campaign-ready', function () {
   window._cloudSignedIn = false;
   window._cloudCampaign = null;   // rules are read via cloudRules()/window._cloudCampaign.rules — no separate cached copy
 
+  // Header-declutter (D-GH-2026-08-08-header-declutter): this badge now shows ONLY the one thing
+  // nothing else in the header already says — which campaign's rules are bound. "Not signed in" and
+  // "signed in, no campaign" text used to live here too, but both were pure duplicates: the sign-in
+  // link/campaign <select> already show that state via their own presence, and the sync chip
+  // (cgSyncChip) already spells out "🔒 Signed out" / "☁ Signed in" for the exact same states.
   function renderStatus(){
     if (!statusEl) return;
-    if (!window._cloudSignedIn) {
-      statusEl.textContent = '🔒 Local only — not connected to any cloud campaign';
-      statusEl.title = "Sign in to select a DM's cloud campaign — its rules filter your pickers live.";
-    } else if (window._cloudCampaign) {
+    if (window._cloudSignedIn && window._cloudCampaign) {
+      statusEl.style.display = '';
       statusEl.textContent = '☁ Campaign: ' + window._cloudCampaign.name;
       statusEl.title = 'Banned species/origin classes/masteries/boons for this campaign are filtered out of your pickers.';
     } else {
-      statusEl.textContent = '☁ Signed in — no campaign selected';
-      statusEl.title = 'Pick a campaign above to filter your pickers by its DM-set rules.';
+      statusEl.style.display = 'none';
     }
   }
 
@@ -609,8 +610,8 @@ document.addEventListener('campaign-ready', function () {
      picker and the status line agree with reality immediately. Two things went wrong without this:
      the campaign was fetched AFTER loadCampaigns() had already built the <select>, so it wasn't an
      option and `selEl.value = camp.id` silently no-opped; and renderStatus() lives in this closure and
-     was never called, so the header kept reading "☁ Signed in — no campaign selected" for a character
-     that was in fact bound. Exposed on window because _cgResolveDmApStatus() is in a later script. */
+     was never called, so the header kept showing the badge hidden (or blank) for a character that was
+     in fact bound. Exposed on window because _cgResolveDmApStatus() is in a later script. */
   window._cgAdoptCampaign = function (camp) {
     if (!camp || !camp.id) return;
     if (!myCampaigns.some(function (c) { return c.id === camp.id; })) myCampaigns = myCampaigns.concat([camp]);
@@ -725,8 +726,17 @@ document.addEventListener('sync-ready', function () {
         '<a href="../login.html" class="mi">🔑 Sign in</a>';
       return;
     }
+    // Header-declutter (D-GH-2026-08-08-header-declutter): the Autosave toggle used to be a persistent
+    // header chip; it's a set-once-and-forget setting, not a live status, so it moved in here alongside
+    // the other cloud actions. `checked` is computed fresh on every open (menu content is rebuilt each
+    // time, not just shown/hidden) so it always reflects THIS character's current setting.
+    var _autosaveOn = window._syncBridge && window._syncBridge.getAutosaveEnabled
+      ? window._syncBridge.getAutosaveEnabled(currentCharId()) : true;
     cgCloudMenu.innerHTML = '<div style="padding:2px 10px 6px;font-size:11px;color:var(--grey)">' + _apEsc(_session.user.email || '') + '</div>' +
       '<button type="button" class="mi" id="cgCloudSaveBtn">☁ Save to cloud</button>' +
+      '<label class="mi" id="cgAutosaveToggle" style="display:flex;align-items:center;gap:7px;cursor:pointer" ' +
+        'title="Automatically save this character to the cloud as you edit. Off just means you save manually — nothing else changes.">' +
+        '<input type="checkbox" id="cgAutosaveChk"' + (_autosaveOn ? ' checked' : '') + ' style="margin:0;cursor:pointer" onchange="_cgOnAutosaveToggle(this)"> Autosave as you edit</label>' +
       '<a href="characters.html" class="mi" style="display:block;text-decoration:none">📋 My Characters</a>' +
       '<div style="padding:8px 10px 2px;font-size:11px;color:var(--grey);font-weight:700">Join campaign</div>' +
       '<div style="padding:2px 10px 6px">' +
@@ -4512,12 +4522,12 @@ document.addEventListener('keydown',function(e){
   if(e.shiftKey && (cur===first || !document.getElementById('infoBox').contains(cur))){ e.preventDefault(); last.focus(); }
   else if(!e.shiftKey && (cur===last || !document.getElementById('infoBox').contains(cur))){ e.preventDefault(); first.focus(); }
 });
-(function(){var el=document.querySelector('.lastedited');if(!el)return;var d=new Date(document.lastModified);if(isNaN(d)||d.getFullYear()<2020)return;var m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),mn=String(d.getMinutes()).padStart(2,'0');el.textContent='Last edited '+d.getFullYear()+'-'+m+'-'+dy+' '+h+':'+mn;})();
 </script><!-- ── info modal ── -->
 <div id="infoModal" onclick="if(event.target===this)closeInfo()">
 <div id="infoBox">
   <button class="close-btn" aria-label="Close" title="Close" onclick="closeInfo()">&#x2715;</button>
   <h2>&#x2139;&#xFE0F; PACT Character Generator &mdash; Tool Guide</h2>
+  <p class="hint" id="infoLastEdited" style="margin:-8px 0 10px"></p>
   <h3>What this tool does</h3>
   <p>This is the <strong>builder</strong>. Use it to design a character from scratch using the PACT points-buy system &mdash; choose species, ability scores, HD, skills, feats, class features, spells, and more. Every choice has an AP cost drawn from the master price list. The budget counter and legality check update live.</p>
   <h3>Saving your build</h3>
@@ -4539,6 +4549,13 @@ document.addEventListener('keydown',function(e){
 </div>
 </div>
 <script>
+// Moved from a persistent header span into the Info panel (D-GH-2026-08-08-header-declutter) — the
+// file's own last-modified date isn't glance-critical info; it was competing with header cloud/sync
+// controls for space every screen size, not just mobile (M4's .lastedited display:none already hid
+// it on narrow screens, which is what surfaced this as space worth reclaiming everywhere). Placed in
+// THIS script tag, not the earlier one right after infoModal's opening markup, because #infoLastEdited
+// lives inside infoBox — which the DOM hasn't parsed yet at that earlier point in the file.
+(function(){var el=document.getElementById('infoLastEdited');if(!el)return;var d=new Date(document.lastModified);if(isNaN(d)||d.getFullYear()<2020)return;var m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),mn=String(d.getMinutes()).padStart(2,'0');el.textContent='Last edited '+d.getFullYear()+'-'+m+'-'+dy+' '+h+':'+mn;})();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/PACT/service-worker.js').then(reg => {
       reg.update();

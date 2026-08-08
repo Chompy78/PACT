@@ -1,14 +1,20 @@
 # Plan: Simplify header save/load UX + universal cloud autosave across PACT's three tools
 
-## Status (2026-08-08)
+## Status — CLOSED (2026-08-08, all three parts shipped)
 Cold-reviewed by 4 models (see Review outcome below). The review surfaced enough design work in the
-sync-state model and the universal-autosave consent question that this is now **split in two**:
-- **Part A (this branch, `claude/header-save-state-clarity-bt6sjy`):** just the confirmed flush-on-navigate
-  defect — small, low-risk, no further review needed. Implemented directly, not through a second cold
-  review.
-- **Part B (not started):** the shared status chip, the sync-state machine, universal autosave, and the
-  eligibility/consent decision. Needs its own v2 plan and likely its own cold-review round — see
-  "Deferred to Part B" at the bottom. Do not treat Part A's merge as this plan being done.
+sync-state model and the universal-autosave consent question that this was split in two, then a third
+part was added once B's own header-declutter goal turned out not to be fully satisfied by B2's
+deliberately-additive chip:
+- **Part A** (`claude/header-save-state-clarity-bt6sjy`): the confirmed flush-on-navigate defect. Shipped.
+- **Part B** (`docs/plans/2026-08-08-shared-sync-chip-part-b.md`): the shared status chip, the sync-state
+  machine, and universal autosave (`D-GH-2026-08-08-universal-autosave-toggle`). Shipped as PR #379,
+  promoted to `main` in PR #380.
+- **Part C** (`D-GH-2026-08-08-header-declutter`, this same branch, after PR #379/#380): B2's chip was
+  deliberately *additive*, not a replacement, leaving the original "replace the three inconsistent status
+  badges" goal (see below) only partly done — the badges stayed, just joined by a fourth element. This
+  closing pass removed the badges' now-genuinely-redundant states, folded the Autosave toggle into the
+  existing cloud menu, and moved the header's file-build timestamp into each tool's Info panel. See its
+  own decision record for the full "what/why."
 
 ## Goal
 PACT's three standalone web tools (Live Sheet, CharGen, DM Console) each show cloud sign-in/save state

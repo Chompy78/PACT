@@ -95,7 +95,6 @@
   .subbar{background:var(--card); border-bottom:1px solid var(--line); padding:6px clamp(12px,3vw,28px); box-shadow:var(--shadow)}
   .summary{font-size:13px; color:var(--muted)}
   .summary b{color:var(--heading)}
-  .lastedited{margin-top:2px; font-size:11px; color:var(--muted)}
 
   .toolrow{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; align-items:stretch}
   .panel{
@@ -493,7 +492,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 </header>
 <div class="subbar">
   <div class="summary" id="summary">No characters imported yet.</div>
-  <div class="lastedited">Last edited 2026-06-28 23:10</div>
 </div>
 
 <script>
@@ -812,11 +810,18 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
     </details>
   </div>
 
-  <div class="footnote">PACT DM Console <span id="toolVer"></span> · read-only roster viewer · rules engine <span id="rulesVer"></span> · <a href="https://github.com/Chompy78/PACT/issues/new" target="_blank" rel="noopener" style="color:inherit">Report an issue</a></div>
+  <div class="footnote">PACT DM Console <span id="toolVer"></span> · read-only roster viewer · rules engine <span id="rulesVer"></span> · <span id="lastEditedFoot"></span> · <a href="https://github.com/Chompy78/PACT/issues/new" target="_blank" rel="noopener" style="color:inherit">Report an issue</a></div>
 </main>
 
 <script>
 // DATA is bridged from js/engine.js (engine-ready module, D-GH26).
+
+// Header-declutter (D-GH-2026-08-08-header-declutter): moved out of a persistent .subbar row into
+// the existing footnote, alongside the other build-metadata spans, to match CharGen/Live Sheet's
+// info-panel treatment (DM Console has no info modal of its own). This tool never had the
+// document.lastModified auto-update CharGen/Live Sheet use — the old text was a static, silently
+// stale placeholder — so this also fixes that in passing rather than moving stale text verbatim.
+(function(){var el=document.getElementById('lastEditedFoot');if(!el)return;var d=new Date(document.lastModified);if(isNaN(d)||d.getFullYear()<2020)return;var m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),mn=String(d.getMinutes()).padStart(2,'0');el.textContent='Last edited '+d.getFullYear()+'-'+m+'-'+dy+' '+h+':'+mn;})();
 
 function _mod(s){return Math.floor((s-10)/2);}
 function _abilName(a){return a;}
@@ -946,7 +951,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.380';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.382';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().

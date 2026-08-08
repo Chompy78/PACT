@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.380.html**-->
+<!--**PACT-Live-Char-Sheet v1.382.html**-->
 
 <!doctype html>
 <!--
@@ -111,7 +111,7 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
  #buysearch{position:sticky;top:0;z-index:7;box-shadow:0 2px 6px rgba(31,56,100,.12)}
  /* M4: header — icon-only buttons + strip version metadata to reclaim space */
  .top .bl{display:none}
- .top .v,.top .lastedited{display:none}
+ .top .v{display:none}
  /* M5: DM toolbar scrolls horizontally instead of wrapping/squishing */
  .bar{overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
  .bar .btn{white-space:nowrap}
@@ -340,7 +340,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <div id="apFloat" title="AP available (Player AP + DM-granted AP − spent) — updates live as you buy, undo, or gain awards"><b id="apFloatN">0</b><span>AP left</span></div>
-<div class="top"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><h1>🧬 PACT — Live Character Sheet</h1><span class="v" id="verline">event-sourced · prices freeze at purchase</span><span class="lastedited">Last edited 2026-06-28 23:10</span>
+<div class="top"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><h1>🧬 PACT — Live Character Sheet</h1><span class="v" id="verline">event-sourced · prices freeze at purchase</span>
 <button class="btn g" onclick="undo()" title="Undo">↶ <span class="bl">Undo</span></button><button class="btn g" onclick="redo()" title="Redo">↷ <span class="bl">Redo</span></button>
 <button class="btn g" id="exportBtn" onclick="exportJSON()" title="Export character to a file">⬇ <span class="bl">Export</span></button>
 <button class="btn g" onclick="document.getElementById('imp').click()" title="Import a character file">⬆ <span class="bl">Import</span></button>
@@ -348,7 +348,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn g" onclick="switchToCharGen()" title="Open this character back in the Character Generator — no file to export or import">⇆ <span class="bl">Open in CharGen</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" id="cloudBtn" title="Cloud save / load">☁ <span class="bl">Cloud</span></button><div id="cloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span>
 <span id="lsSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span>
-<label id="lsAutosaveToggle" class="synchip" style="cursor:pointer;gap:5px" title="Automatically save this character to the cloud as you edit. Off just means you save manually — nothing else changes."><input type="checkbox" id="lsAutosaveChk" checked disabled style="margin:0;cursor:pointer" onchange="_lsOnAutosaveToggle(this)"> Autosave</label>
 <span id="cloudStatusBadge" class="cloudstatus">🔒 Not signed in</span>
 <button class="btn g" onclick="toggleSheet()" title="Toggle the printable sheet">📋 <span class="bl">Sheet</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" onclick="toggleMore(event)" title="More tools &amp; theme">⋯ <span class="bl">More</span></button><div id="moremenu" class="moremenu"><span class="mi-theme">🎨 <select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></span><button class="mi" onclick="closeMore();openNames()">✎ Name spells &amp; languages</button><button class="mi" onclick="closeMore();openSpellBrowser()">🔍 Spell browser</button><button class="mi" id="miSpellTog" onclick="closeMore();toggleSheetSpell()">🚫 Hide spellcasting on sheet</button><button class="mi" onclick="closeMore();openBonds()">⛓ Bonds</button><button class="mi" onclick="closeMore();resetAll()">↺ Reset</button><button class="mi" onclick="closeMore();showInfo()">&#x2139;&#xFE0F; Info</button></div></span>
@@ -1837,12 +1836,12 @@ function redeemGrant(){var code=prompt('Paste the AP grant code from your DM:','
 function showInfo(){document.getElementById('infoModal').classList.add('open');}
 function closeInfo(){document.getElementById('infoModal').classList.remove('open');}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();});document.addEventListener('click',function(e){var m=document.getElementById('moremenu');if(m&&m.classList.contains('open')&&m.parentNode&&!m.parentNode.contains(e.target))m.classList.remove('open');});
-(function(){var el=document.querySelector('.lastedited');if(!el)return;var d=new Date(document.lastModified);if(isNaN(d)||d.getFullYear()<2020)return;var m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),mn=String(d.getMinutes()).padStart(2,'0');el.textContent='Last edited '+d.getFullYear()+'-'+m+'-'+dy+' '+h+':'+mn;})();
 </script><!-- ── info modal ── -->
 <div id="infoModal" onclick="if(event.target===this)closeInfo()">
 <div id="infoBox">
   <button class="close-btn" aria-label="Close" title="Close" onclick="closeInfo()">&#x2715;</button>
   <h2>&#x2139;&#xFE0F; PACT Live Character Sheet &mdash; Tool Guide</h2>
+  <p class="hint" id="infoLastEdited" style="margin:-8px 0 10px"></p>
   <h3>What this tool does</h3>
   <p>This is the <strong>player tool</strong>. It tracks your character through actual play using an <em>event-sourced</em> log &mdash; every AP award and purchase is recorded in order, so you have a full history and can undo/redo any step. Prices are frozen at the moment of purchase: rules updates never change what you already paid.</p>
   <h3>Getting a character in</h3>
@@ -1870,6 +1869,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
        literal below is only what shows if the engine bridge never fires. -->
   <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.339</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
+<script>
+// Moved from a persistent header span into the Info panel (D-GH-2026-08-08-header-declutter) — see
+// the matching CharGen comment for why. Placed HERE (after the modal markup, not the earlier script
+// block before it) because #infoLastEdited lives inside infoBox, which the DOM hasn't parsed yet at
+// that earlier point in the file.
+(function(){var el=document.getElementById('infoLastEdited');if(!el)return;var d=new Date(document.lastModified);if(isNaN(d)||d.getFullYear()<2020)return;var m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),mn=String(d.getMinutes()).padStart(2,'0');el.textContent='Last edited '+d.getFullYear()+'-'+m+'-'+dy+' '+h+':'+mn;})();
+</script>
 
 <script type="module">
   // ENGINE BRIDGE — local modules ONLY. Deliberately separate from the cloud bridge below, the
@@ -1958,27 +1964,28 @@ document.addEventListener('sync-ready', function () {
                                   // of minting a second one and leaving the first as an orphan; cleared
                                   // on success (same memoized-id pattern as currentCharId()/__charId)
 
-  // Persistent status badge (top toolbar, outside the ☁ Cloud dropdown) — surfaces sign-in
-  // and campaign-rules-fetch state that was previously silent/internal-only. Display-only;
-  // does not affect validate()/cloudRuleBarred()/the live-filter pickers.
+  // Persistent status badge (top toolbar, outside the ☁ Cloud dropdown) — surfaces campaign-
+  // rules-fetch state. Display-only; does not affect validate()/cloudRuleBarred()/the live-filter
+  // pickers. Header-declutter (D-GH-2026-08-08-header-declutter): the plain "not signed in"/"signed
+  // in, no campaign" text used to live here too — both were pure duplicates of the sync chip
+  // (lsSyncChip), which already says "🔒 Signed out" / "☁ Signed in" for the exact same states. This
+  // badge now shows ONLY what nothing else says: which campaign's rules are (or aren't) bound.
   function renderCloudStatusBadge(){
     var el = document.getElementById('cloudStatusBadge');
     if(!el) return;
     el.classList.remove('good','warn');
-    if(!_session){
-      el.textContent = '🔒 Not signed in';
-      el.title = 'Working locally. Sign in via the ☁ Cloud menu to save to a campaign.';
-    } else if(window._rulesStatus === 'active' && _campaignName){
+    if(_session && window._rulesStatus === 'active' && _campaignName){
+      el.style.display = '';
       el.classList.add('good');
       el.textContent = '☁ Campaign: ' + _campaignName + ' — DM rules active';
       el.title = 'Signed in as ' + _session.user.email + '. Bound to "' + _campaignName + '" — the DM\'s campaign rules were fetched successfully and are being enforced.';
-    } else if(window._rulesStatus === 'unavailable'){
+    } else if(_session && window._rulesStatus === 'unavailable'){
+      el.style.display = '';
       el.classList.add('warn');
       el.textContent = '⚠ Campaign' + (_campaignName ? (': ' + _campaignName) : '') + ' — rules unavailable';
       el.title = 'Signed in as ' + _session.user.email + '. This character is attached to a campaign but its DM rules could not be fetched — banned items may not be filtered until this succeeds.';
     } else {
-      el.textContent = '☁ Signed in';
-      el.title = 'Signed in as ' + _session.user.email + '. Not attached to a campaign.';
+      el.style.display = 'none';
     }
   }
 
@@ -2188,9 +2195,18 @@ document.addEventListener('sync-ready', function () {
         '<a href="../login.html" class="mi" style="display:block;text-decoration:none">🔑 Sign in</a>';
       return;
     }
+    // Header-declutter (D-GH-2026-08-08-header-declutter): Autosave used to be a persistent header
+    // chip; it's a set-once-and-forget setting, not a live status, so it moved in here alongside the
+    // other cloud actions — see the matching CharGen comment. `checked` is computed fresh on every
+    // open since this menu's content is rebuilt each time, not just shown/hidden.
+    var _lsAutosaveOn = window._syncBridge && window._syncBridge.getAutosaveEnabled
+      ? window._syncBridge.getAutosaveEnabled(window.currentCharId ? window.currentCharId() : null) : true;
     cloudMenu.innerHTML =
       '<div style="padding:6px 12px;font-size:11px;color:var(--grey);border-bottom:1px solid var(--line)">'+esc(_session.user.email)+'</div>'+
       '<button class="mi" id="cloudSaveBtn">☁ Save to cloud</button>'+
+      '<label class="mi" id="lsAutosaveToggle" style="display:flex;align-items:center;gap:7px;cursor:pointer" '+
+        'title="Automatically save this character to the cloud as you edit. Off just means you save manually — nothing else changes.">'+
+        '<input type="checkbox" id="lsAutosaveChk"'+(_lsAutosaveOn?' checked':'')+(VIEW_ONLY?' disabled':'')+' style="margin:0;cursor:pointer" onchange="_lsOnAutosaveToggle(this)"> Autosave as you edit</label>'+
       '<a href="characters.html" class="mi" style="display:block;text-decoration:none">📋 My Characters</a>'+
       '<div style="padding:4px 10px;font-size:11px;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:4px">Load saved character</div>'+
       '<div id="cloudCharList"><div style="padding:6px 12px;font-size:12px;color:var(--grey)">Loading…</div></div>';
