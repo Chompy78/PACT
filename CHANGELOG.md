@@ -6,6 +6,22 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-08 · feat(ui): CharGen — split header into 📁 Local / ☁ Cloud menus, relabel Reset as 🆕 New
+  Character, fix a debounce-redirect data-loss edge case** — `D-GH-2026-08-08-chargen-local-cloud-split-
+  new-character`, a follow-up to the header declutter below after the owner reviewed the result: cloud
+  actions still sat behind an unlabeled "⋯" while local Save/Load were loose buttons in the row below.
+  New "📁 Local" dropdown (New Character/Save/Load) sits beside a re-labeled "☁ Cloud" dropdown on the
+  same header row. Also traced "the reset doesn't really work as intended" to its root cause: Reset
+  already silently minted a fresh character id on every use (never overwrites the character you had
+  open, just detaches from it with zero indication) — relabeled to "🆕 New Character" with honest confirm
+  text instead of building new in-place-wipe behavior. Fixed a real bug found while tracing this: a
+  still-pending cloud autosave for the outgoing character could get silently redirected to the new blank
+  character's id if its 3s debounce timer hadn't fired yet — now flushed first, the same mechanism
+  `switchToLiveSheet()` already uses before navigating. Verified: `engine-parity` 29/0, `audit.py` 0
+  failed, headless-Chromium smoke pass (menu open/close, New Character mints a different id, Save/Load
+  still work, mobile nav shows "New" not "Reset"). No `compute()`/rules involvement, no `DATA.version`
+  change.
+
 - **2026-08-08 · feat(ui): header declutter across all three tools — remove redundant status text,
   move Autosave into the cloud menu, move "Last edited" into the info panel** —
   `D-GH-2026-08-08-header-declutter`, the closing follow-up to

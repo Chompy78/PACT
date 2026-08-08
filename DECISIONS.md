@@ -13,6 +13,16 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-08-chargen-local-cloud-split-new-character** — CharGen's header cluster still read
+  as two disconnected pieces (cloud actions behind a lone unlabeled "⋯," local Save/Load as loose
+  buttons in the row below) even after the general header declutter, so local and cloud actions were
+  split into two clearly-labeled dropdown menus ("📁 Local" / "☁ Cloud") on the same header row. Also
+  fixed the "no New Character button" gap by discovering Reset already silently minted a fresh
+  character id on every use (never overwriting the previous character, just detaching from it with no
+  explanation) — relabeled it "🆕 New Character" rather than building new in-place-wipe behavior, and
+  fixed a real bug found while tracing this: a still-pending cloud autosave for the outgoing character
+  could get silently redirected to the new blank character's id when its debounce timer fired.
+  Full record: `decisions/2026/D-GH-2026-08-08-chargen-local-cloud-split-new-character.md`.
 - **D-GH-2026-08-08-header-declutter** — CharGen/Live Sheet's cloud-status header cluster (badge +
   sign-in link + campaign select + sync chip + Autosave toggle + ⋯/☁ menu, ~5-6 always-visible elements)
   simplified per the owner's chosen "moderate consolidation" option: the campaign badge now shows only
