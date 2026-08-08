@@ -697,6 +697,26 @@ export function getAutosaveEnabled(id) {
  *  the optimistic write is rolled back so a background autosave never acts on a flag the server never
  *  actually confirmed.
  *
+ *  Two bugs a code review caught before this shipped, both fixed here:
+ *
+ *  1. The optimistic write used to be skipped entirely when no local cache record existed yet (a
+ *     brand-new character, never edited/saved/loaded this device) — `if (before) lsSet(...)` silently
+ *     discarded the user's choice, and getAutosaveEnabled() kept reading the DB default forever. Now a
+ *     minimal placeholder record is written even with no prior cache, so the preference survives until
+ *     the character's real first save fills the rest in. This mirrors an already-existing tolerance in
+ *     this codebase, not a new risk: listMyCharacters() already treats a record with no `stats.LOG` as
+ *     `hasData:false` (its doc comment covers "exists but never actually saved" for a different cause —
+ *     an auto-bound invite redemption — and every consumer of a cached record already falls back via
+ *     `??` on missing name/kind/stats/ap, since saveCharacter()'s real callers always pass those
+ *     explicitly and never actually rely on `prev`'s copies).
+ *  2. `characters.updated_at` is bumped by an unconditional BEFORE UPDATE trigger (schema.sql
+ *     trg_characters_updated_at, no column filter) even though this update only touches
+ *     autosave_enabled — so without re-pinning base_updated_at/_pageBase to the trigger's new value,
+ *     THIS PAGE'S very next real save would present the now-stale old base, get refused by
+ *     pushCharacter()'s optimistic-concurrency guard, and surface as a false "changed on another
+ *     device" conflict caused by nothing but flipping a checkbox. Fixed the same way applyServerMeta()
+ *     already handles a real push: adopt the server-confirmed updated_at as the new base immediately.
+ *
  *  A zero-rows UPDATE is deliberately NOT treated the same as _setArchived()'s identical case: for
  *  archived_at, zero rows always means something is wrong (that toggle only ever applies to an
  *  already-cloud-saved character). Here it commonly means the character has simply never been pushed
@@ -706,11 +726,12 @@ export function getAutosaveEnabled(id) {
  *  (deleted mid-session, access revoked) is treated as a real failure. */
 export async function setAutosaveEnabled(id, enabled) {
   const before = lsGet(id);
-  if (before) lsSet({ ...before, autosave_enabled: enabled });
+  // Always write a local record, even with nothing cached yet — see fix (1) above.
+  lsSet({ ...(before || { id, dirty: false, editSeq: 0, savedSeq: 0, behind: false }), autosave_enabled: enabled });
   if (isCloudCharId(id)) {
     try {
       const { data, error } = await supabase
-        .from('characters').update({ autosave_enabled: enabled }).eq('id', id).select('id');
+        .from('characters').update({ autosave_enabled: enabled }).eq('id', id).select('id, updated_at');
       if (error) throw error;
       if (!data || !data.length) {
         const { data: exists, error: exErr } = await supabase
@@ -721,9 +742,21 @@ export async function setAutosaveEnabled(id, enabled) {
                         + 'longer have access to it. Reload and try again.');
         }
         // else: no row yet — not an error, see the doc comment above.
+      } else {
+        // Fix (2) above: re-pin to the trigger-bumped updated_at so this page's next real save isn't
+        // guarded against a base the server has already moved past.
+        const newUpdatedAt = data[0].updated_at;
+        const current = lsGet(id) || {};
+        lsSet({ ...current, autosave_enabled: enabled, updated_at: newUpdatedAt, base_updated_at: newUpdatedAt });
+        _pageBase.set(id, newUpdatedAt);
       }
     } catch (err) {
-      if (before) lsSet(before);   // roll back the optimistic write — the server never confirmed it
+      // Roll back the optimistic write — the server never confirmed it. `before` null means there was
+      // truly nothing cached before this call (not even the placeholder from fix (1) above, which this
+      // function itself just wrote) — remove it rather than leave a phantom record carrying the failed
+      // value, which the earlier version of this rollback would have done once fix (1) started writing
+      // a placeholder for the no-prior-cache case.
+      if (before) lsSet(before); else lsRemove(id);
       throw err;
     }
   }

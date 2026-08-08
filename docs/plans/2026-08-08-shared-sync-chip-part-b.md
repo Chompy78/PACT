@@ -73,6 +73,32 @@ carrying `autosave_enabled` through `pushCharacter()`'s INSERT (and its RLS inse
 pre-save toggle choice isn't silently discarded back to the column default the moment the row is finally
 created.
 
+**`/code-review ultra`, run before merging into `preview` per this branch's own PR-template checklist
+(it touches `sql/`), found two MORE real bugs in `setAutosaveEnabled()` — both fixed in the same
+change, both empirically verified with a differential repro (fails on the pre-fix commit, passes on
+the fix) that was then promoted into a permanent gate, `testing/scripts/sync-autosave-toggle-ci.mjs`:**
+1. `characters.updated_at` is bumped by an unconditional `BEFORE UPDATE` trigger
+   (`trg_characters_updated_at`, no column filter) even though this update only touches
+   `autosave_enabled` — so without re-pinning `base_updated_at`/`_pageBase` to the trigger's new value,
+   the SAME PAGE's very next real save presented the now-stale old base, got refused by
+   `pushCharacter()`'s optimistic-concurrency guard, and surfaced as a false "changed on another
+   device" conflict caused by nothing but flipping a checkbox. Fixed the same way `applyServerMeta()`
+   already handles a real push.
+2. The optimistic local write was skipped entirely when no local cache record existed yet (a brand-new
+   character, never edited/saved/loaded this device) — silently discarding the user's choice; the
+   toggle UI would visibly snap back to checked on its next render. Fixed by always writing a minimal
+   placeholder record, which turned out to need its own follow-up fix to the failure-path rollback (the
+   original rollback only handled the `before`-existed case; a failed write on a never-cached character
+   now correctly removes the placeholder rather than leaving a phantom unconfirmed value).
+
+The same review also surfaced two findings in **pre-existing** push-overlap machinery — one already
+shipped in CharGen before this branch touched anything, freshly replicated (faithfully, not
+introduced) into Live Sheet's new B3 scaffolding — logged to the task board rather than fixed here,
+since they're bounded (local data isn't lost, only cloud sync can lag) and deserve their own scoped fix
+and test rather than scope-creeping into this branch: "Cloud-autosave flush doesn't wait for the
+freshest edit when a push is already in flight" and "`reconcile()`'s `pushCharacter()` calls bypass
+`_pushInFlight` tracking."
+
 **Not done, deliberately deferred, not silently skipped:** the write-volume budget (plan step 6, "needs
 a real number before this merges") — no live traffic/quota data was available to measure against in
 this environment. DM Console's roster does not yet surface a character's toggle state (flagged as an

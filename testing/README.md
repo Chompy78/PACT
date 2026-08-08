@@ -21,6 +21,22 @@
   run it directly (`node testing/scripts/engine-parity-ci.mjs`) rather than opening the browser page.
 - **`campaign-test.html`** — end-to-end harness for `js/campaign.js` and `js/dm.js` (requires Supabase sign-in).
 - **`sync-test.html`** — end-to-end harness for `js/sync.js` (requires Supabase sign-in).
+- **`scripts/sync-state-machine-ci.mjs`** — gate for `getSyncState()`/`noteEdit()`/`checkFreshness()`
+  (the six-state sync-status chip's state machine, `docs/plans/2026-08-08-shared-sync-chip-part-b.md`
+  Part B1). Pure-Node, no Supabase project needed. **Not yet wired into CI** — run locally:
+  `node testing/scripts/sync-state-machine-ci.mjs`.
+- **`scripts/sync-concurrency-ci.mjs`** — gate for `js/sync.js`'s optimistic-concurrency guard
+  (`base_updated_at`), including a differential leg (fails on a deliberately reverted copy of the fix,
+  proving the test isn't vacuous). Stubs the Supabase client and gives each simulated browser profile
+  its own `localStorage` rather than needing a real project. **Not yet wired into CI** — run locally:
+  `node testing/scripts/sync-concurrency-ci.mjs`.
+- **`scripts/sync-autosave-toggle-ci.mjs`** — gate for `setAutosaveEnabled()`
+  (`D-GH-2026-08-08-universal-autosave-toggle`, Part B3): a false-conflict bug (an unrelated toggle
+  bumping `updated_at` via the DB trigger and invalidating the concurrency pin) and a discarded-
+  preference bug (toggling a never-cached character silently no-opping), both caught by
+  `/code-review ultra` before merge. Differential against the pre-fix commit, same principle as
+  `sync-concurrency-ci.mjs`. **Not yet wired into CI** — run locally:
+  `node testing/scripts/sync-autosave-toggle-ci.mjs`.
 - **`scripts/random-manual-e2e.mjs`** — headless Playwright harness for character generation +
   advancement (a second, complementary REV-11 harness — this one is randomized/UI-driven, `engine-parity-ci.mjs`
   above is fixed-fixture/pure-engine). Drives the real CharGen

@@ -6,6 +6,26 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-08 · fix(sync): two real bugs in `setAutosaveEnabled()`, caught by `/code-review ultra`
+  before merge** — the B3 branch's own PR-template checklist calls for an ultra review on any change
+  touching `sql/`; it found what regular verification hadn't. (1) `characters.updated_at` is bumped by
+  an unconditional `BEFORE UPDATE` trigger even for an update that only touches `autosave_enabled` —
+  without re-pinning `base_updated_at`/`_pageBase` to the trigger's new value, the same page's very next
+  real save was refused as a false "changed on another device" conflict, caused by nothing but flipping
+  the toggle. (2) Toggling autosave on a character with no local cache yet (a brand-new, never-saved
+  build) silently no-opped — the user's explicit choice was discarded, not merely delayed, and the
+  toggle UI would visibly snap back to checked. Both fixed; the failure-path rollback also needed a
+  follow-up fix so a failed write on a never-cached character removes the placeholder record instead of
+  leaving a phantom unconfirmed value. Both verified with a differential repro (fails on the pre-fix
+  commit, passes on the fix) promoted into a permanent gate,
+  `testing/scripts/sync-autosave-toggle-ci.mjs` (4/0, plus `sync-state-machine` 21/0, `sync-concurrency`
+  12/0, `engine-parity` 29/0 all still clean). Two more findings from the same review — in
+  **pre-existing** push-overlap machinery, one already shipped in CharGen before this branch, freshly
+  (and faithfully) replicated into Live Sheet's new B3 scaffolding — were logged to
+  `docs/TASK_BOARD_NEXT.md` rather than fixed here: they're bounded (local data isn't lost, only cloud
+  sync can lag) and deserve their own scoped fix, not scope creep onto this branch. See
+  `docs/plans/2026-08-08-shared-sync-chip-part-b.md`'s B3 implementation note. No `DATA.version` change.
+
 - **2026-08-08 · feat(sync): universal cloud autosave with a per-character owner-reversible toggle**
   — Part B3 of `docs/plans/2026-08-08-shared-sync-chip-part-b.md`, implementing the C2 design decision
   (see `decisions/2026/D-GH-2026-08-08-universal-autosave-toggle.md`): every signed-in character now
