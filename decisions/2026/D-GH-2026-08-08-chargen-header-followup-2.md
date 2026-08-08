@@ -37,4 +37,29 @@ case class the Cloud menu fix caught); the Info panel's version line reads corre
 v1.386 · PACT rules · v0.339") on both mobile and desktop viewports. `engine-parity-ci.mjs` 29/0,
 `audit.py` 0 failed — no rules/`compute()` involvement, no `DATA.version` change.
 
+---
+
+**Addendum (same day, same branch, before merge) — Finding 3: the Info panel itself was stale.** The
+owner reported "the info popup info is now stale" after this task's own PR was already open. Read the
+actual `#infoBox` markup rather than assuming what "stale" meant: the "Sending to the Live Sheet" section
+still described the pre-D-GH40 export/converter flow — "click ⇆ Live Sheet, downloads a
+`-livesheet.json` file, Open the Live Sheet and use ⬆ Import" — a mechanism `AGENTS.md`'s own
+Architecture section says was removed months ago; the real current button (⇆ Open in Live Sheet) is a
+one-click same-origin handoff with no file involved at all. "Saving your build" only covered the
+standalone Save/Load buttons Finding 1 above had already moved into the 📁 Local menu, and never
+mentioned ☁ Cloud once — no sign-in, autosave, cloud save/load, or campaign-join text anywhere. "Other
+outputs" listed one button (Sheet) out of four; the code comment explained *why* (a 2026-08-03
+HTML-truncation bug, `D-GH-2026-08-03-sw-cache-e2e`, that deliberately didn't reconstruct the lost
+original sentence) but nobody had come back since to document the other three real buttons (AI Portrait,
+Share, Name spells) with fresh, accurate text — a different, legitimate action from guessing at what was
+lost, and one this addendum finally does.
+
+Rewrote all three sections to match the current header exactly: a "Local vs. cloud" section covering both
+menus (New Character/Save/Load, sign-in/autosave/My Characters/campaign-join), a "Sharing & the Live
+Sheet" section describing the real handoff (plus noting Save/Load also move a character between tools,
+since both speak the same envelope per D-GH38/D-GH40), and a completed "Other outputs" list. Verified with
+DOM-text assertions (no screenshots, per the standing instruction from earlier in this task): the stale
+`-livesheet.json`/Import wording is gone, and every current header feature is now mentioned by name.
+`engine-parity-ci.mjs` 29/0, `audit.py` 0 failed — docs-only, no `compute()`/rules involvement.
+
 **Status:** DECIDED and SHIPPED (2026-08-08, branch `claude/header-save-state-clarity-bt6sjy`).

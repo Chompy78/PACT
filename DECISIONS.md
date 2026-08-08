@@ -20,7 +20,10 @@
   extending the Cloud menu's reparenting technique to Local, and by making the Info panel copy the
   header version spans' live text rather than hand-duplicating the strings a third time. Verified with
   DOM-state assertions only (rects/classList/textContent) — no screenshots this round, per explicit
-  instruction to stop taking them without asking first.
+  instruction to stop taking them without asking first. **Addendum, same branch:** the Info panel's own
+  guide text was separately found stale — it still described the pre-D-GH40 Live Sheet export/converter
+  flow (removed months ago), never mentioned Cloud/Local/autosave at all, and listed only 1 of 4 "Other
+  outputs" buttons. Rewritten to match the current header.
   Full record: `decisions/2026/D-GH-2026-08-08-chargen-header-followup-2.md`.
 - **D-GH-2026-08-08-chargen-header-followup** — Owner review of the Local/Cloud split (real-browser
   screenshots, not assumed) found three gaps: `.hd-row2` wrapped the theme selector onto its own line

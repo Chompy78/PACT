@@ -4628,21 +4628,24 @@ document.addEventListener('keydown',function(e){
   <p class="hint" id="infoLastEdited" style="margin:0 0 10px"></p>
   <h3>What this tool does</h3>
   <p>This is the <strong>builder</strong>. Use it to design a character from scratch using the PACT points-buy system &mdash; choose species, ability scores, HD, skills, feats, class features, spells, and more. Every choice has an AP cost drawn from the master price list. The budget counter and legality check update live.</p>
-  <h3>Saving your build</h3>
-  <ul>
-    <li><span class="tag">&#x1F4BE; Save</span> downloads a <code>.json</code> snapshot you can reload later with <span class="tag">&#x1F4C2; Load</span>.</li>
-    <li><span class="tag">&#x1F517; Share</span> encodes the entire build into the page URL &mdash; copy and send it to share with anyone.</li>
-  </ul>
-  <h3>Sending to the Live Sheet</h3>
-  <p>When your build is ready to play, click <span class="tag">&#x21C6; Live Sheet</span>. This downloads a <code>-livesheet.json</code> file that converts your snapshot into an <em>event log</em> &mdash; every purchase becomes a timestamped entry. Open the Live Sheet and use <strong>&#x2B06; Import</strong> to load it. After that, the Live Sheet takes over: you spend AP there during play, and prices are frozen at the values they had when you bought them.</p>
+  <h3>Local vs. cloud (&#x1F4C1; Local / &#x2601; Cloud menus)</h3>
+  <p>&#x1F4C1; <strong>Local</strong> stays on this device: <span class="tag">&#x1F195; New Character</span> starts a blank character (your current one stays exactly as last saved &mdash; nothing is overwritten), <span class="tag">&#x1F4BE; Save to file</span> downloads a <code>.json</code> snapshot, <span class="tag">&#x1F4C2; Load from file</span> reopens one.</p>
+  <p>&#x2601; <strong>Cloud</strong> needs signing in: once signed in, this character autosaves to the cloud as you edit (turn it off per-character with the Autosave toggle if you'd rather save manually with <span class="tag">&#x2601; Save to cloud</span>). <strong>&#x1F4CB; My Characters</strong> lists everything you've saved; an invite code from your DM joins you to a campaign, which filters your pickers by their house rules.</p>
+  <h3>Sharing &amp; the Live Sheet</h3>
+  <p><span class="tag">&#x1F517; Share</span> encodes the entire build into the page URL &mdash; copy and send it to share with anyone. <span class="tag">&#x21C6; Open in Live Sheet</span> switches this character straight into the Live Sheet &mdash; no file to save or import. From there you spend AP during actual play, and prices freeze at the values they had when you bought them. (Save/Load also move a character between the two tools &mdash; they read and write the same file format.)</p>
   <h3>Other outputs</h3>
   <ul>
     <li><span class="tag">&#x1F4CB; Sheet</span> shows a printable character sheet overlay.</li>
-    <!-- NOTE: the source was truncated here ("<li><sp") from PR #210 until 2026-08-03. An unterminated
-         tag swallowed everything that followed, so the service-worker registration below never reached
-         the DOM and this tool registered no service worker of its own — masked only because index.html
-         registers one for the whole /PACT/ scope. The lost sentence is unrecoverable; the structure is
-         closed here instead of inventing documentation. See D-GH-2026-08-03-chargen-truncated-help. -->
+    <!-- The list below this comment was a single item ("Sheet" above) from PR #210 until 2026-08-08 —
+         not because these buttons didn't exist, but because the source was truncated here ("<li><sp")
+         from PR #210 until 2026-08-03 (an unterminated tag swallowed everything after it, including the
+         service-worker registration further down — masked only because index.html registers one for
+         the whole /PACT/ scope; see D-GH-2026-08-03-sw-cache-e2e for that fix). The lost ORIGINAL
+         sentence is unrecoverable and was deliberately not guessed at when the truncation itself was
+         fixed. These two items are new, accurate documentation of buttons that already existed in the
+         header — not a reconstruction of what was lost. -->
+    <li><span class="tag">&#x1F4F7; AI Portrait</span> generates AI image-generator prompts from this character.</li>
+    <li><span class="tag">&#x270E; Name spells</span> names your known spells &amp; languages &mdash; carries into the Live Sheet.</li>
   </ul>
 </div>
 </div>

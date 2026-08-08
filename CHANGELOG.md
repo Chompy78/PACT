@@ -6,6 +6,24 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-08 · docs(ui): CharGen — rewrite the Info panel, it described a flow removed months ago** —
+  `D-GH-2026-08-08-chargen-header-followup-2` addendum. The "Sending to the Live Sheet" section still
+  described the pre-D-GH40 export/converter flow — "click ⇆ Live Sheet, downloads a `-livesheet.json`
+  file, Open the Live Sheet and use ⬆ Import" — a mechanism that no longer exists; the actual current
+  button (⇆ Open in Live Sheet) does a one-click same-origin handoff with no file at all. "Saving your
+  build" only mentioned the standalone Save/Load buttons this session's own header changes had already
+  moved into the 📁 Local menu, and never mentioned ☁ Cloud at all — sign-in, autosave, cloud save/load,
+  or campaign join. "Other outputs" listed one button (Sheet) out of four, a gap traced to a 2026-08-03
+  HTML-truncation bug fix (D-GH-2026-08-03-sw-cache-e2e) that deliberately didn't guess at the original
+  lost sentence — but never came back to document the other three buttons (AI Portrait, Share, Name
+  spells) with new, accurate text either. Rewrote all three sections to match the current header exactly:
+  Local vs. Cloud menus (with the New Character / Autosave / My Characters / campaign-join wording),
+  Share + the real Open-in-Live-Sheet handoff, and the full Other-outputs list. Verified with DOM-text
+  assertions (no screenshots): the stale `-livesheet.json`/Import wording is gone, and every current
+  header feature (Local, Cloud, New Character, Autosave, My Characters, campaign, Open in Live Sheet, AI
+  Portrait, Name spells, Sheet, Share) is now mentioned. `engine-parity` 29/0, `audit.py` 0 failed —
+  docs-only, no `compute()`/rules involvement, no `DATA.version` change.
+
 - **2026-08-08 · feat(ui): CharGen — mobile Local menu, version numbers visible in the Info panel** —
   `D-GH-2026-08-08-chargen-header-followup-2`. (1) Mobile had a Cloud dropdown (previous fix) but no
   equivalent for local actions — New Character lived alone in `.hd-mobnav`, Save/Load alone in
