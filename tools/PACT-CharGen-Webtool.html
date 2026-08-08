@@ -543,11 +543,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange };
   window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync };
+  window._syncBridge = { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -3220,9 +3220,15 @@ function buildToEventLog(b,opts){return _buildEventBurst(b);}
 // navigate. The Live Sheet consumes ?handoff=<id> on boot. No file to save/import. writeHandoff/currentCharId
 // are bridged from js/character-store.js (window). Online-only (the SW serves .html network-first; a unique
 // handoff URL is never cached, so offline it falls back to the menu — the character stays safe in autosave).
-function switchToLiveSheet(){
+async function switchToLiveSheet(){
  try{
   _cgAutosave();   // persist current state locally first; the handoff and the autosave both reflect it
+  // Flush any pending/in-flight cloud push before navigating, instead of leaving it on a debounce timer
+  // this page is about to abandon — that was a confirmed bug (a re-armed timer never got the chance to
+  // fire before location.href unloaded the page). Bounded so an offline/paused-backend user is never
+  // stranded on this button; the local autosave above plus the dirty-record retry on next boot are the
+  // fallback either way. See docs/plans/2026-08-08-header-simplification-universal-autosave.md, Part A.
+  await _cgFlushCloudSaveNow(2500);
   const uid=writeHandoff({source:'chargen',LOG:LOG,SEQ:SEQ,rules:DATA.version,id:currentCharId(),campaignId:window._cgCampaignId||null});
   if(!uid){flash('⚠ Could not open the Live Sheet — local storage is unavailable (private mode or full). Your build is unchanged.');return;}
   location.href='PACT-Live-Char-Sheet.html?handoff='+encodeURIComponent(uid);
@@ -3321,18 +3327,31 @@ function _cgEnvelope(sign){return buildCharacterEnvelope({name:val('cname')||'',
 // local-only solo characters into the cloud and add a network write behind every keystroke. This is
 // scoped to characters already bound to a campaign — the one case where somebody else is waiting on
 // the data — and debounced so it fires after editing stops, not during it.
-var _cgCloudSaveTimer=null,_cgCloudSaveBusy=false,_cgCloudSaveAgain=false;
+var _cgCloudSaveTimer=null,_cgCloudSaveBusy=false,_cgCloudSaveAgain=false,_cgCloudPushPromise=null;
 function _cgCloudAutosave(){
   if(!window._cgCampaignBound||!window._cloudSignedIn) return;
   if(!window._syncBridge||!navigator.onLine) return;   // offline edits stay in the local autosave; sync.js retries dirty records on reconnect
   clearTimeout(_cgCloudSaveTimer);
-  _cgCloudSaveTimer=setTimeout(_cgCloudPush,3000);
+  // Nulled the moment the timer actually fires (not just when it's cleared) so _cgFlushCloudSaveNow/the
+  // pagehide handler below can tell "still waiting to fire" from "already consumed, push under way" —
+  // both count as pending work to flush, but only the first needs clearTimeout.
+  _cgCloudSaveTimer=setTimeout(function(){_cgCloudSaveTimer=null;_cgCloudPush();},3000);
 }
-async function _cgCloudPush(){
+// Always returns a promise a caller can await for "the push this call started OR was already in flight
+// has finished" — needed so a flush (below) can wait on an already-running push instead of firing a
+// second one or resolving before the real request completes (D-GH-2026-08-08-autosave-flush-fix).
+function _cgCloudPush(){
   // Never overlap two pushes for the same character — pushCharacter() is a bare update-then-insert with
   // no dirty check, so a slow request overtaken by a fast one could land the older build last.
-  if(_cgCloudSaveBusy){_cgCloudSaveAgain=true;return;}
+  if(_cgCloudSaveBusy){_cgCloudSaveAgain=true;return _cgCloudPushPromise;}
   _cgCloudSaveBusy=true;
+  _cgCloudPushPromise=_cgCloudPushOnce().finally(function(){
+    _cgCloudSaveBusy=false;
+    if(_cgCloudSaveAgain){_cgCloudSaveAgain=false;_cgCloudPush();}
+  });
+  return _cgCloudPushPromise;
+}
+async function _cgCloudPushOnce(){
   try{
     var stats=_cgEnvelope(false);
     var res=await window._syncBridge.saveCharacter({id:currentCharId(),name:stats.name||'Character',kind:'chargen',stats:stats,campaignId:window._cgCampaignId});
@@ -3347,10 +3366,43 @@ async function _cgCloudPush(){
     }
   }catch(e){ /* deliberately silent: the local autosave already holds the work and sync.js leaves the
                 record dirty for the next retry — a toast on every failed keystroke would be noise */ }
-  _cgCloudSaveBusy=false;
-  if(_cgCloudSaveAgain){_cgCloudSaveAgain=false;_cgCloudAutosave();}
 }
 var _cgConflictWarned=false;   // one notice per session, not one per keystroke
+// Flush a pending-or-in-flight cloud autosave right now instead of leaving it on its debounce timer —
+// used before a deliberate in-app navigation (switchToLiveSheet) that would otherwise abandon it. Bounded
+// by timeoutMs so an offline/paused-backend user is never stranded on a dead button; on timeout this
+// resolves anyway and the caller proceeds — the local autosave (already written) plus this record's
+// `dirty` flag retrying on the next boot/reconnect are the fallback either way.
+// See docs/plans/2026-08-08-header-simplification-universal-autosave.md, Part A.
+function _cgFlushCloudSaveNow(timeoutMs){
+  var pending=_cgCloudSaveTimer!=null||_cgCloudSaveBusy;
+  if(_cgCloudSaveTimer!=null){clearTimeout(_cgCloudSaveTimer);_cgCloudSaveTimer=null;}
+  if(!pending) return Promise.resolve();
+  if(!window._cgCampaignBound||!window._cloudSignedIn||!window._syncBridge||!navigator.onLine) return Promise.resolve();
+  var pushed=_cgCloudPush();
+  if(!pushed) return Promise.resolve();
+  return Promise.race([pushed.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
+}
+// Best-effort cloud flush on page exit (tab/browser close, back/forward away from the tool). `pagehide`
+// is preferred over `beforeunload`, which is throttled or skipped outright on mobile and some browsers —
+// but firing code on pagehide is not the same as guaranteeing the network write completes: an ordinary
+// fetch can still be aborted mid-flight once the page starts tearing down. The actual request therefore
+// opts into `keepalive` (js/supabase-client.js's withKeepalive) — the fetch option that lets a request
+// outlive page dismissal. `navigator.sendBeacon` was considered and rejected: it cannot carry the
+// Authorization/apikey headers an authenticated Supabase write needs. Even with keepalive this remains
+// best-effort, not a guarantee, on every browser/OS/process-kill — the durable fallback is the local
+// autosave (already written by _cgAutosave) plus this record's `dirty` flag retrying on this browser's
+// next boot/reconnect. See docs/plans/2026-08-08-header-simplification-universal-autosave.md, Part A.
+window.addEventListener('pagehide',function(){
+  var pending=_cgCloudSaveTimer!=null||_cgCloudSaveBusy;
+  if(_cgCloudSaveTimer!=null){clearTimeout(_cgCloudSaveTimer);_cgCloudSaveTimer=null;}
+  if(!pending) return;
+  if(!window._cgCampaignBound||!window._cloudSignedIn||!window._syncBridge||!navigator.onLine) return;
+  try{
+    if(window._syncBridge.withKeepalive) window._syncBridge.withKeepalive(_cgCloudPush);
+    else _cgCloudPush();
+  }catch(e){ /* best-effort only — see comment above */ }
+});
 function _cgAutosave(){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(_cgEnvelope(false)));}catch(e){}
   try{_cgCloudAutosave();}catch(e){}
   // Feed the shared recent-characters store (landing "Continue" list). Best-effort + guarded so it can

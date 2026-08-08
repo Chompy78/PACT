@@ -6,6 +6,27 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-08 · fix(chargen): a debounced cloud-autosave push no longer gets silently abandoned by
+  navigation** — `_cgCloudAutosave()` only ever *scheduled* a push 3s after the last edit; nothing flushed
+  a pending timer on navigation. CharGen's own "Open in Live Sheet" button (`switchToLiveSheet()`) walked
+  straight into this: it called `_cgAutosave()` (re-arming a fresh 3000ms cloud-push timer) and then
+  navigated away in the same breath, guaranteeing that queued push never fired — the last few seconds of
+  edits before every tool switch silently never reached the cloud. `switchToLiveSheet()` now **awaits** a
+  bounded flush (`_cgFlushCloudSaveNow`, 2.5s timeout) before navigating, so the in-app switch is a real
+  guarantee, not a best-effort. Plain tab/browser close gets a best-effort `pagehide` flush using
+  `fetch(...,{keepalive:true})` (new `withKeepalive()` in `js/supabase-client.js`, re-exported from
+  `js/sync.js`) — `sendBeacon` was considered and rejected because it can't carry the Authorization/apikey
+  headers an authenticated Supabase write needs. Page-lifecycle delivery is inherently best-effort on every
+  browser/OS regardless of transport, so this is documented as such rather than claimed as a guarantee; the
+  durable fallback for that case remains the local autosave (already written) plus the record's `dirty`
+  flag retrying on this browser's next boot/reconnect. `_cgCloudPush()` now tracks its in-flight promise so
+  a flush can await an already-running push instead of firing a duplicate or resolving early.
+  Found and scoped while cold-reviewing a larger header-simplification/universal-autosave plan (4 models,
+  2 vendor families — see `docs/plans/2026-08-08-header-simplification-universal-autosave.md`); this fix
+  is split out as its own small, low-risk change (Part A) rather than folded into that larger, still-open
+  design. `testing/tests/engine-parity.html` 29/0, `tool-pricing` 67/0, both unaffected by design (no
+  rules-engine involvement). No `DATA.version` change.
+
 - **2026-08-06 · fix(chargen): undo no longer un-locks a locked character, or reorders its purchases** —
   a regression from the same day's creation-lock work, found by asking whether the ordering problem was
   *"just randomize"*. It wasn't. `restoreFrame()` (undo/redo) restored the frame's LOG and then called

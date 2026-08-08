@@ -14,9 +14,14 @@
 //     tombstone is replayed against the server on reconnect/syncAll and cleared
 //     only once the server delete actually succeeds.
 
-import { supabase } from './supabase-client.js';
+import { supabase, withKeepalive } from './supabase-client.js';
 import { currentUser } from './auth.js';
 import { isCloudCharId } from './character-store.js';
+
+// Re-exported so callers that only import js/sync.js (the tools' module bridges do this, not
+// supabase-client.js directly) can still reach it for a page-lifecycle flush. See
+// docs/plans/2026-08-08-header-simplification-universal-autosave.md, Part A.
+export { withKeepalive };
 
 const LS_PREFIX  = 'pact-char-';   // one key per character
 const LS_INDEX   = 'pact-chars';   // JSON array of known character ids
