@@ -6,6 +6,11 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-08 · chore(agents): delete the 8 custom commands in `.claude/commands/` now superseded by identically-named skills** —
+  `add-code-task`, `cleanup-code-branches`, `close-code-session`, `log-code-lesson`,
+  `make-code-cold-plan-review`, `pick-code-task`, `run-code-task`, `sweep-code-tasks` all now exist as
+  skills; the old command files were stale duplicates. Removed the files (and the now-empty
+  `.claude/commands/` dir); no other project files changed.
 - **2026-08-08 · docs(ui): CharGen — rewrite the Info panel, it described a flow removed months ago** —
   `D-GH-2026-08-08-chargen-header-followup-2` addendum. The "Sending to the Live Sheet" section still
   described the pre-D-GH40 export/converter flow — "click ⇆ Live Sheet, downloads a `-livesheet.json`
