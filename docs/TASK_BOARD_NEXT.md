@@ -1351,6 +1351,70 @@ drawback-derived AP "player AP"; `testing/expected/` updated and `DATA.version` 
 engine-parity **0 failed**.
 
 
+## Cloud-autosave flush doesn't wait for the freshest edit when a push is already in flight — TODO
+Branch fix/autosave-flush-latest-push. `_cgFlushCloudSaveNow()` (`tools/PACT-CharGen-Webtool.html`) and
+its Live Sheet twin `_lsFlushCloudSaveNow()` don't actually wait for the freshest pending edit when a
+push is already in flight, and neither the flush nor the retry it triggers use `withKeepalive` — so a
+deliberate tool-switch navigation (`switchToLiveSheet()`/`switchToCharGen()`) can still outrun the save
+it was added to guarantee. Found by `/code-review ultra` on the B3 (universal autosave) branch — a
+pre-existing bug in CharGen's already-shipped push-overlap machinery, freshly replicated into Live
+Sheet's new B3 autosave scaffolding rather than something either branch introduced from scratch.
+**Effort:** medium · **Risk:** medium — ambiguity is medium (a clear direction exists — track the
+LATEST queued push, not just "a" push — but the exact mechanism has a few reasonable shapes); damage
+scale is medium (spans two tools' autosave scaffolding, though fully contained and revertible — no
+security/data-model impact, and local autosave never loses the edit, only the cloud copy can lag until
+reconnect); damage likelihood is medium (no automated gate exists yet, but the fix's own differential
+test would catch a wrong implementation before merge).
+
+```text
+1. Reproduce first: a user edits while an earlier debounced push is in flight, then immediately
+   switches tools. _cgFlushCloudSaveNow()/_lsFlushCloudSaveNow() call _cgCloudPush()/_lsCloudPush(),
+   which (busy branch) just sets *SaveAgain=true and returns the OLD in-flight promise — not one
+   representing the newer edit. The Promise.race resolves on that stale push, the switch function
+   navigates away, and the retry carrying the actual latest edit fires later from the old push's
+   .finally() callback, dispatched WITHOUT keepalive.
+2. Fix direction: _cgCloudPush()/_lsCloudPush() need to return a promise that resolves only once the
+   LATEST queued push (not just "a" push) has completed, so the flush's Promise.race actually waits on
+   the right thing.
+3. The retry triggered from .finally() should go through withKeepalive too, since it can fire after the
+   page has already started navigating away.
+4. Apply the same fix to both CharGen and Live Sheet — they're independent copies of the same pattern,
+   not a shared function, so fixing one does not fix the other.
+5. Write a differential regression test (testing/scripts/, matching sync-concurrency-ci.mjs's own
+   pattern) that reproduces the overlapping-push-then-navigate scenario and fails on the pre-fix code.
+```
+
+**Done when:** a differential regression test reproduces the overlapping-push-then-navigate scenario
+and confirms the flush waits for the LATEST edit's push (not a stale one), with keepalive applied to
+any retry that fires after navigation starts; fix applied to both CharGen and Live Sheet; `testing/
+tests/engine-parity.html` still 0 failed.
+
+## reconcile()'s pushCharacter() calls bypass _pushInFlight tracking — TODO
+Branch fix/reconcile-push-inflight-tracking. `js/sync.js`: `reconcile()`'s `localNewer` branch calls
+`pushCharacter(local, ...)` directly without `_pushInFlight.add()`/`delete()` (unlike `saveCharacter()`,
+the only other `pushCharacter()` caller that tracks it). While that network push is running (at boot or
+during `syncAll()`/reconnect), `getSyncState(id)` for the same id has no way to see it and falls
+through to dirty/conflict/idle based on stale flags instead of the documented `SAVING` precedence — so
+a status chip refreshed during this window can show a wrong/flickering state until the push resolves
+and `applyServerMeta()` catches up. Found by `/code-review ultra` on the B3 branch; pre-existing since
+B1 (`docs/plans/2026-08-08-shared-sync-chip-part-b.md`), display-only impact.
+**Effort:** low · **Risk:** medium — ambiguity is low (one obviously right way to do it — mirror
+`saveCharacter()`'s own already-existing `_pushInFlight` pattern exactly); damage scale is low (single
+file, display-only, no security/data implication, trivially revertible); damage likelihood is medium
+(no automated gate exists yet for this specific window, though it's a narrow display glitch that would
+likely surface in manual/visual review rather than persist unnoticed).
+
+```text
+1. Wrap reconcile()'s pushCharacter() call the same way saveCharacter() does: _pushInFlight.add(id)
+   before the call, delete(id) in a finally.
+2. Add a test that starts a reconcile()-triggered push and checks getSyncState() mid-flight reports
+   SAVING, not a stale dirty/conflict/idle read.
+```
+
+**Done when:** `getSyncState()` correctly reports `SAVING` while a `reconcile()`-triggered push is in
+flight, verified by a test that starts a `reconcile()` push and checks `getSyncState()` mid-flight;
+`testing/scripts/sync-state-machine-ci.mjs` still 0 failed.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
