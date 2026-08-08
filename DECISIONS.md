@@ -13,6 +13,18 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-08-chargen-header-followup-2** — Continued mobile review found two more gaps: no
+  consolidated 📁 Local menu on mobile (New/Save/Load stayed scattered across two bars while ☁ Cloud
+  got its own mobile trigger in the prior fix), and no way to see the app/rules version numbers on
+  mobile at all (both header labels are hidden below 1150px, `.hd-row2` itself below 768px). Fixed by
+  extending the Cloud menu's reparenting technique to Local, and by making the Info panel copy the
+  header version spans' live text rather than hand-duplicating the strings a third time. Verified with
+  DOM-state assertions only (rects/classList/textContent) — no screenshots this round, per explicit
+  instruction to stop taking them without asking first. **Addendum, same branch:** the Info panel's own
+  guide text was separately found stale — it still described the pre-D-GH40 Live Sheet export/converter
+  flow (removed months ago), never mentioned Cloud/Local/autosave at all, and listed only 1 of 4 "Other
+  outputs" buttons. Rewritten to match the current header.
+  Full record: `decisions/2026/D-GH-2026-08-08-chargen-header-followup-2.md`.
 - **D-GH-2026-08-08-chargen-header-followup** — Owner review of the Local/Cloud split (real-browser
   screenshots, not assumed) found three gaps: `.hd-row2` wrapped the theme selector onto its own line
   below ~1150px (a common laptop width), mobile had zero cloud access at all (a pre-existing gap that
