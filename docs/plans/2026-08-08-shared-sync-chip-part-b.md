@@ -183,30 +183,44 @@ Three sequential branches, matching this project's one-task-per-branch conventio
 6. `esc()`/safe-composition applies to every chip surface: label, tooltip/title, aria-label.
 7. Remove the folded-in task-board entry from `docs/TASK_BOARD_NEXT.md`.
 
-**B3 — `feat/universal-cloud-autosave`: real consent + flipping the scope. Gated on owner approval.**
-1. **Eligibility is a stored fact, not an inference from cache/row existence.** Add
-   `characters.cloud_autosave_consented_at timestamptz` (null = no consent), written only via a new
-   `SECURITY DEFINER` RPC (`set_autosave_consent(character_id)`, stamping `now()` server-side — not a
-   client-supplied timestamp), mirroring the existing `award_ap()`/`characters_update` column-grant pattern
-   exactly. The client caches the value locally for offline gating; a missing/stale/cross-device cache
-   **fails closed** (autosave stays off) — the opposite failure direction from v1's row-existence
-   inference, and the correct one for a consent flag.
-2. **Campaign-bound autosave becomes its own, separately-justified consent story** — `campaignBound` stays
-   exactly as it is today (joining a campaign is its own affirmative action), rather than being silently
-   folded into "manual save = consent," which never actually governed it (a campaign-bound character can
-   exist via auto-created invite redemption, with no manual save ever clicked). The gate becomes
-   `campaignBound || (cloud_autosave_consented_at != null)`, with the two conditions documented as two
-   distinct consent stories, not one collapsed flag.
-3. `set_autosave_consent()` fires from the existing "Save to cloud" click (relabeled or given a one-line
-   note that this also turns on autosave going forward).
-4. **Migration for characters already eligible under today's (broken) definition — owner decision,
-   proposed default given here rather than left blank**: recommend a one-time, per-character, dismissible
-   opt-in prompt ("PACT can now save changes automatically — turn on for this character?") the next time
-   each pre-existing non-campaign cloud character is opened, rather than a blanket backfill — this makes
-   "nothing is retroactively enrolled" actually true rather than asserted, at the cost of slower full
-   rollout (a character never reopened never gets prompted). The alternative (backfill
-   `cloud_autosave_consented_at = updated_at` for existing rows, with a one-time notice) is faster but is
-   real retroactive enrollment and should only ship if the owner explicitly chooses to own that framing.
+**B3 — `feat/universal-cloud-autosave`: one universal toggle. Design decided (owner, 2026-08-08, "C2"
+below); implementation not yet started.**
+
+**Superseded design decision.** The original consent model below (a one-way `cloud_autosave_consented_at`
+stamp, with `campaignBound` as a separate always-on pathway) is **replaced** by a simpler one the owner
+chose directly: **one visible, freely-reversible per-character toggle — "Autosave to cloud: On/Off" —
+that applies uniformly to every character, including campaign-bound ones.** This was a genuine two-option
+decision:
+- **C1 (not chosen):** keep campaign-bound characters locked to always-on (no toggle), giving the free
+  toggle only to non-campaign characters — preserves the DM-visibility guarantee campaign autosave was
+  originally built for (2026-08-03: "a player who redeemed an invite... stayed invisible in their DM's
+  roster until they happened to press Save"), at the cost of two different rules for two character types.
+- **C2 (chosen):** the toggle is genuinely universal. A player *can* turn off autosave on a campaign
+  character, and the DM's roster can go stale until that player manually saves again — accepted
+  explicitly as a known, intended possibility, not an overlooked edge case. **This is a real behavior
+  change from today**, where campaign-bound autosave has no off switch at all.
+
+**Revised B3 approach:**
+1. **One stored boolean, not a one-way consent timestamp.** Add `characters.autosave_enabled boolean not
+   null default true` (see step 4 for why `true`). Written via a `SECURITY DEFINER` RPC
+   (`set_autosave_enabled(character_id, enabled)`), mirroring the existing `award_ap()`/`characters_update`
+   column-grant pattern. Freely settable in both directions by the character's owner — this is a
+   preference, not a consent event, so there is no "spend it once" framing to preserve.
+2. **The gate collapses to one check:** autosave fires whenever `autosave_enabled` is true — full stop, no
+   `campaignBound || …` special case. Campaign-bound and non-campaign characters are governed by the exact
+   same flag; nothing in the client code needs to know which kind of character it's looking at to decide
+   whether to autosave.
+3. **UI: a real, visible toggle control** (not a one-time prompt) — near the new sync chip in both editor
+   tools' headers, and its current state should be legible from the chip/header without opening a menu, so
+   a DM-relevant "this player has autosave off" fact isn't buried. Consider whether DM Console's roster
+   should also surface a character's toggle state, given C2's accepted staleness risk — the DM is the
+   party most affected by a player switching it off, and today has no way to know it happened.
+4. **Rollout default: `true` for every character, existing and new, campaign-bound or not.** Unlike the
+   superseded consent model, this is *not* retroactive enrollment in the ethically-loaded sense the prior
+   design worried about — the toggle is immediately visible and immediately reversible, so defaulting on
+   is closer to "shipping a new, on-by-default feature" than "silently opting someone into something
+   hidden." Characters that want to stay local-only-by-habit lose nothing they can't get back with one
+   click. No opt-in prompt, no migration ceremony.
 5. Add the equivalent autosave scaffolding to the Live Sheet (debounce, `withKeepalive` flush, awaited
    flush before its own cross-tool switch) — mirroring Part A's CharGen pattern, not re-deriving it. Note
    for scoping, not yet a decision: Live Sheet's edit pattern during live play (rapid small HP/spell-slot
@@ -220,8 +234,8 @@ Three sequential branches, matching this project's one-task-per-branch conventio
 ## Files involved
 - `js/sync.js` — `getSyncState()`, `noteEdit()`, `checkFreshness()`, `_markInSyncWithServer()`,
   `_lastCheckFailed`, the eligibility read (B1/B3).
-- `sql/schema.sql` / a new `sql/migrations/*.sql` — `cloud_autosave_consented_at` column (B3).
-- `sql/rls-policies.sql` — `set_autosave_consent()` RPC, alongside the existing `award_ap()`-style pattern (B3).
+- `sql/schema.sql` / a new `sql/migrations/*.sql` — `autosave_enabled` column, default `true` (B3).
+- `sql/rls-policies.sql` — `set_autosave_enabled()` RPC, alongside the existing `award_ap()`-style pattern (B3).
 - A new small shared module (or a function in `js/sync.js`) for the state→label/icon/aria mapping (B2).
 - `tools/PACT-CharGen-Webtool.html` — chip markup, conflict action, `noteEdit()` call sites, drop the
   campaign-bound-only gate (B2/B3).
@@ -244,16 +258,25 @@ Three sequential branches, matching this project's one-task-per-branch conventio
 - **A tool-owned boolean `pendingEdit`, patched with an in-flight tracking flag** — rejected: strictly more
   moving parts (two independently-owned flags plus a happens-before ordering) to reconstruct what a
   monotonic counter pair gives for free.
-- **Inferring autosave consent from cloud-row existence** — rejected: conflates a server fact (a row
-  exists) with a user-intent fact (this person consented), which can diverge in both directions (auto-bound
-  campaign character with no manual save; stale/cross-device cache implying consent that was never given).
+- **Inferring autosave consent from cloud-row existence** (B3's original v1 design) — rejected: conflates
+  a server fact (a row exists) with a user-intent fact (this person consented), which can diverge in both
+  directions (auto-bound campaign character with no manual save; stale/cross-device cache implying
+  consent that was never given).
+- **A one-way consent timestamp + `campaignBound` as a separate always-on pathway** (B3's superseded
+  second design) — replaced by the owner's own simpler choice (C2): a single reversible boolean covering
+  every character uniformly. Rejected specifically because two different rules for two character types
+  was the more complex answer, once "visible and reversible" removed the ethical weight that justified
+  the complexity in the first place.
+- **C1 — lock campaign-bound characters to always-on, toggle only for the rest** — considered, not chosen;
+  see the B3 decision block above for the tradeoff (DM-visibility guarantee vs. one uniform rule).
 - **Reusing `reconcile()` for the focus/visibility freshness check** — rejected: it can push or adopt as a
   side effect, which a mere freshness check should never risk.
-- **Blanket backfill of consent for existing characters** — considered for B3's migration, not rejected
-  outright, but not the recommended default; see B3 step 4.
 
 ## Risks / open questions
-- **B3 is gated on the owner's migration choice** (B3 step 4) — proposed, not decided.
+- **C2's accepted consequence**: a DM's roster can go stale if a player switches off autosave on a
+  campaign-bound character, with no current plan for the DM to be told this happened (B3 step 3 raises
+  surfacing it in DM Console's roster, not yet designed). Accepted by the owner as a known tradeoff, not
+  an oversight — but the DM-facing visibility gap is still open.
 - 30s freshness throttle and the B3 write-volume budget are starting numbers, not measured ones.
 - Live Sheet's debounce cadence during live play vs. CharGen's during building — worth independent
   evaluation before assuming Part A's pattern transfers unchanged (B3 step 5).
@@ -270,18 +293,18 @@ Three sequential branches, matching this project's one-task-per-branch conventio
   rendering across every dynamic chip surface (label, tooltip, aria-label); a live conflict-resolution run
   confirming both the accept path (state clears via `_markInSyncWithServer`) and Cancel (state unchanged).
 - **B3:** the expanded matrix from the prior review (offline/failed-push, expired-auth mid-session,
-  character-switch-mid-save) plus the specific negative case: a character never manually cloud-saved before
-  B3 ships stays local-only after sign-in; and — new — a character eligible only via the migration path
-  (B3 step 4) behaves per whichever migration option the owner chose.
+  character-switch-mid-save) plus: toggling `autosave_enabled` off on a campaign-bound character actually
+  stops the autosave (proving the gate is genuinely unconditional, not campaign-bound-overridden); the
+  toggle is visible and correctly reflects server state after a reload/cross-device check.
 
 ## Done when
 **B1+B2 done:** the state machine has a race-safe unsaved-edit signal and a persisted `behind` with all
 four clear conditions and defined failure semantics; the chip renders from one shared mapping function
 identically (per the canonical table) across all three tools, with DM Console's narrower subset; the
 conflict state has a working, honestly-labeled, cancelable resolution action; `testing/tests/
-engine-parity.html` stays 0 failed. **Goal fully met (needs B3):** cloud autosave is the default for any
-consenting character in both editor tools, gated on a real stored consent fact, with an owner-approved
-migration path for pre-existing characters and a measured write-volume budget.
+engine-parity.html` stays 0 failed. **Goal fully met (needs B3):** every character, campaign-bound or not,
+autosaves to the cloud by default with one visible, freely-reversible per-character toggle governing it
+uniformly, and a measured write-volume budget.
 
 ---
 
