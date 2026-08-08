@@ -6,6 +6,27 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-08 · feat(ui): header declutter across all three tools — remove redundant status text,
+  move Autosave into the cloud menu, move "Last edited" into the info panel** —
+  `D-GH-2026-08-08-header-declutter`, the closing follow-up to
+  `docs/plans/2026-08-08-header-simplification-universal-autosave.md` (Part A/B are both shipped;
+  this is the header-space cleanup that plan's own goal called for). (1) CharGen's `cgCloudStatus` /
+  Live Sheet's `cloudStatusBadge` badges no longer show "Local only" / "Signed in — no campaign
+  selected" — both states duplicated other header elements already visible (the sign-in link/campaign
+  `<select>`, and the sync chip's own "🔒 Signed out" / "☁ Signed in" text); the badge now shows ONLY
+  what nothing else says — a bound campaign's name/rules-fetch state. (2) The Autosave toggle moved
+  from a persistent header chip into the ☁/⋯ cloud menu as a settings item — it's set-once-and-forget,
+  not a live status, so it no longer competes with the sync chip and campaign controls for header
+  space; same element ids (`cgAutosaveChk`/`lsAutosaveChk`) so the existing gate/toggle-handler code
+  needed no changes. (3) The `.lastedited` span (the tool file's own last-modified date) moved out of
+  the header into each tool's Info panel (CharGen/Live Sheet) or footnote (DM Console, which has no
+  info modal) — freeing header space on every screen size, not just the mobile-only hide it had before.
+  DM Console's copy had never actually been live (no `document.lastModified` script existed for it,
+  unlike the other two tools) — fixed in passing rather than relocating stale hardcoded text. Verified
+  with a real headless-Chromium smoke pass (populated timestamps, hidden redundant badges, cloud menus
+  still open/render correctly) in addition to `engine-parity` 29/0 and `audit.py` 0 failed — no
+  `compute()`/rules involvement, no `DATA.version` change.
+
 - **2026-08-08 · fix(sync): two real bugs in `setAutosaveEnabled()`, caught by `/code-review ultra`
   before merge** — the B3 branch's own PR-template checklist calls for an ultra review on any change
   touching `sql/`; it found what regular verification hadn't. (1) `characters.updated_at` is bumped by

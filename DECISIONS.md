@@ -13,6 +13,15 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-08-header-declutter** — CharGen/Live Sheet's cloud-status header cluster (badge +
+  sign-in link + campaign select + sync chip + Autosave toggle + ⋯/☁ menu, ~5-6 always-visible elements)
+  simplified per the owner's chosen "moderate consolidation" option: the campaign badge now shows only
+  the one thing nothing else already says (campaign name/rules state) instead of also duplicating
+  signed-in/out text; the Autosave toggle moved into the existing cloud menu as a settings item; the
+  header's file-build "Last edited" timestamp moved into each tool's Info panel (or DM Console's
+  footnote, which has no info modal). A DOM-order bug in the timestamp relocation (script ran before its
+  target element existed) was caught and fixed before shipping.
+  Full record: `decisions/2026/D-GH-2026-08-08-header-declutter.md`.
 - **D-GH-2026-08-08-universal-autosave-toggle** — Part B3's autosave-eligibility design (a one-way
   consent-timestamp model, with campaign-bound characters kept on a separate always-on no-toggle path)
   was replaced, at the owner's direct request, with one universal, freely-reversible per-character
@@ -20,8 +29,9 @@
   switch off autosave on a DM's campaign character, and the DM's roster can go stale until they save
   again manually — the exact problem campaign-bound autosave was built in 2026-08-03 to prevent — taken
   on knowingly rather than overlooked, with DM-facing visibility into the toggle state left as an open
-  follow-up for whoever builds the UI. `characters.autosave_enabled boolean default true`, an RPC
-  (`set_autosave_enabled`) mirroring the existing `award_ap()` grant pattern.
+  follow-up for whoever builds the UI. `characters.autosave_enabled boolean default true`, a plain
+  column grant mirroring `archived_at`'s precedent (not the RPC originally planned — see the full
+  record's "Consequence for the data model" for why). SHIPPED 2026-08-08.
   Full record: `decisions/2026/D-GH-2026-08-08-universal-autosave-toggle.md`.
 - **D-GH-2026-08-08-chargen-cloud-autosave-flush** — CharGen's debounced cloud autosave only ever
   *scheduled* a push, and nothing flushed a pending one on navigation — CharGen's own "Open in Live Sheet"
