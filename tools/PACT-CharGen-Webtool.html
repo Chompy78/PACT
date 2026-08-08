@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.384.html**-->
+<!--**PACT-CharGen-Webtool v1.386.html**-->
 
 <!doctype html>
 <!--
@@ -35,7 +35,7 @@
  VERSIONING
    DATA.version (currently "v0.339") is CANONICAL: stamped onto saved/exported JSON
    and compared on import to drive the "frozen prices / reprice drift" logic.
-   The <title> and header "Web Tool" label show the cosmetic web-tool build (v1.384);
+   The <title> and header "Web Tool" label show the cosmetic web-tool build (v1.386);
    the "PACT rules" label mirrors DATA.version — but is HARDCODED here (resync it on a
    rules bump), unlike Live Sheet / DM Console, which read DATA.version live at
    engine-ready. See the follow-up task to make this one live too.
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.384 · Rules v0.339</title><style>
+<title>PACT Character Generator — Web Tool v1.386 · Rules v0.339</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -337,6 +337,15 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .hd-row3{background:var(--navy);color:#fff;padding:5px 14px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,0.15)}
 .hd-mobnav{display:none}
 .mobile-action-bar{display:none}
+/* D-GH-2026-08-08-chargen-header-followup: below ~1150px (a common laptop/half-screen width, well
+   above the 768px full-mobile breakpoint), .hd-row2's item count — title, two version labels, sign-in/
+   campaign status, the Local+Cloud dropdowns, theme select — overflowed and wrapped the theme selector
+   onto its own second line. The two version labels are the least glance-critical items (both are also
+   readable from the Info panel / footer elsewhere), so they're what gives first at this width, not the
+   interactive controls. */
+@media(max-width:1150px){
+ .hd-row2 .sub,.hd-pactver{display:none}
+}
 @media(max-width:768px){
  /* M8: pin the mobile header with position:fixed (more robust than sticky on phones); offset content by the live --headh so nothing hides under it */
  .stickyhead{position:static;flex:0 0 auto}.layout{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
@@ -346,7 +355,12 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
  .hd-mobnav #secjump{flex:1;min-width:120px;font:inherit;padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--inp);color:var(--navytx)}
  /* CU-7: character-management actions (Save/Load/Live Sheet/…) live in the sticky header's .hd-row3 on
     desktop; that row is hidden on mobile, so this non-sticky bar re-surfaces them just below the header. */
- .mobile-action-bar{display:flex;flex:0 0 auto;align-items:center;gap:8px;padding:6px 12px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap;overflow-x:auto}
+ /* D-GH-2026-08-08-chargen-header-followup: overflow-x:auto here implicitly turns overflow-y into
+    "auto" too (the CSS overflow spec ties the two together once either axis leaves "visible") —
+    which would clip the ☁ Cloud dropdown's popup (an absolutely-positioned descendant) instead of
+    letting it overlay below the bar the way it does in every other .moremenu location. Explicit
+    overflow-y:visible keeps the intended horizontal scroll without that side effect. */
+ .mobile-action-bar{display:flex;flex:0 0 auto;align-items:center;gap:8px;padding:6px 12px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap;overflow-x:auto;overflow-y:visible}
 }
 @media(max-width:600px){
  body{font-size:14px}
@@ -455,7 +469,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.384</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.386</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -469,6 +483,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <div class="secnav" id="secnav"></div>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
 <div class="mobile-action-bar">
+<span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtnM" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" aria-label="Cloud menu">☁ Cloud</button></span>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
 <button class="btn ghost" onclick="loadViaPicker()">📂 Load</button>
 <button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
@@ -704,23 +719,54 @@ document.addEventListener('sync-ready', function () {
   'use strict';
   var S = window._syncBridge, A = window._authBridge, C = window._campaignBridge;
   var cgCloudBtn = document.getElementById('cgCloudBtn'), cgCloudMenu = document.getElementById('cgCloudMenu');
+  var cgCloudBtnM = document.getElementById('cgCloudBtnM');
   var _session = null;
-  var _cloudMenuGen = 0;   // bumped on every open — a stale in-flight listMyCharacters() checks this before writing the list, so a rapid close+reopen can't race a slower-loading earlier open
+  var _cloudMenuGen = 0;   // bumped on every open — a stale in-flight listMyCharacters() checks this before writing the list, so a rapid close+reopen can't race a slower-invoking earlier open
 
-  cgCloudBtn.addEventListener('click', function (e) {
-    e.stopPropagation();
-    cgCloudMenu.classList.toggle('open');
+  // D-GH-2026-08-08-chargen-header-followup: mobile had NO cloud access at all — .hd-row2 (where
+  // #cgCloudMenu lives) is display:none below 768px, and a hidden ancestor hides the menu regardless
+  // of its own .open class, so a naive second trigger button elsewhere wouldn't have worked. Rather
+  // than duplicate the whole rich menu (auth state, campaign join, character list — real ID-collision
+  // risk if rendered into two DOM locations), the ONE #cgCloudMenu element is reparented into
+  // whichever button's wrapper triggered it, right before opening — cheap (a single appendChild) and
+  // keeps exactly one copy of the menu's state/markup in the DOM at all times.
+  function _cgOpenCloudMenu(btn){
+    var wrap = btn.parentElement;
+    var reparented = cgCloudMenu.parentElement !== wrap;
+    if (reparented) wrap.appendChild(cgCloudMenu);
+    // A resize between opens (mobile <-> desktop) without an intervening close is a real, if rare,
+    // path: without this, clicking the OTHER breakpoint's button while the menu is still (invisibly,
+    // post-resize) open elsewhere would toggle it CLOSED instead of moving it here and showing it —
+    // confirmed by a headless round-trip test, not assumed. Reparenting always means "show it here."
+    if (reparented) cgCloudMenu.classList.add('open'); else cgCloudMenu.classList.toggle('open');
     if (cgCloudMenu.classList.contains('open')) renderCgCloudMenu();
-  });
+  }
+  cgCloudBtn.addEventListener('click', function (e) { e.stopPropagation(); _cgOpenCloudMenu(cgCloudBtn); });
+  if (cgCloudBtnM) cgCloudBtnM.addEventListener('click', function (e) { e.stopPropagation(); _cgOpenCloudMenu(cgCloudBtnM); });
   document.addEventListener('click', function (e) {
-    if (!cgCloudMenu.contains(e.target) && e.target !== cgCloudBtn) cgCloudMenu.classList.remove('open');
+    if (!cgCloudMenu.contains(e.target) && e.target !== cgCloudBtn && e.target !== cgCloudBtnM) cgCloudMenu.classList.remove('open');
   });
+
+  // D-GH-2026-08-08-chargen-header-followup: New Character is also offered from the ☁ Cloud menu
+  // (not just 📁 Local) — it flushes a pending CLOUD autosave before detaching, so it's as much a
+  // cloud-aware action as a local one, and having it only in Local read as a gap. Same confirm/
+  // handler as the Local menu's copy; re-wired on every render since the menu's content — and
+  // therefore this button element — is rebuilt each open.
+  function _cgWireCloudNewBtn(){
+    var b=document.getElementById('cgCloudNewBtn'); if(!b) return;
+    b.addEventListener('click', function(){
+      cgCloudMenu.classList.remove('open');
+      if(confirm('Start a new character? Any changes not yet saved (to the cloud or a file) will be lost. Your current theme is kept.')) newCharacter();
+    });
+  }
 
   async function renderCgCloudMenu() {
     var gen = ++_cloudMenuGen;
     if (!_session) {
       cgCloudMenu.innerHTML = '<div style="padding:6px 10px;font-size:12px;color:var(--grey)">Sign in to save this character to the cloud, or load one you saved before.</div>' +
-        '<a href="../login.html" class="mi">🔑 Sign in</a>';
+        '<a href="../login.html" class="mi">🔑 Sign in</a>' +
+        '<button type="button" class="mi" id="cgCloudNewBtn">🆕 New Character</button>';
+      _cgWireCloudNewBtn();
       return;
     }
     // Header-declutter (D-GH-2026-08-08-header-declutter): the Autosave toggle used to be a persistent
@@ -730,6 +776,7 @@ document.addEventListener('sync-ready', function () {
     var _autosaveOn = window._syncBridge && window._syncBridge.getAutosaveEnabled
       ? window._syncBridge.getAutosaveEnabled(currentCharId()) : true;
     cgCloudMenu.innerHTML = '<div style="padding:2px 10px 6px;font-size:11px;color:var(--grey)">' + _apEsc(_session.user.email || '') + '</div>' +
+      '<button type="button" class="mi" id="cgCloudNewBtn">🆕 New Character</button>' +
       '<button type="button" class="mi" id="cgCloudSaveBtn">☁ Save to cloud</button>' +
       '<label class="mi" id="cgAutosaveToggle" style="display:flex;align-items:center;gap:7px;cursor:pointer" ' +
         'title="Automatically save this character to the cloud as you edit. Off just means you save manually — nothing else changes.">' +
@@ -751,6 +798,7 @@ document.addEventListener('sync-ready', function () {
       '<div style="padding:8px 10px 2px;font-size:11px;color:var(--grey);font-weight:700">Load saved character</div>' +
       '<div id="cgCloudCharList"><div style="padding:6px 10px;font-size:12px;color:var(--grey)">Loading…</div></div>';
     document.getElementById('cgCloudSaveBtn').addEventListener('click', onSaveClick);
+    _cgWireCloudNewBtn();
     var _joinBtn = document.getElementById('cgJoinBtn');
     if (_joinBtn) _joinBtn.addEventListener('click', onJoinCampaignClick);
     var chars;
