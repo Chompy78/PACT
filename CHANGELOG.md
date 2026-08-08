@@ -6,6 +6,38 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-08 · feat(sync): a real sync-state machine in js/sync.js — getSyncState/noteEdit/
+  checkFreshness** — Part B1 of `docs/plans/2026-08-08-shared-sync-chip-part-b.md` (the shared cloud-sync
+  status chip work), split out as pure sync-layer plumbing with no UI change yet. Adds six exported states
+  (`signedOut > saving > conflict > behind > dirty > idle`, highest precedence first) via
+  `getSyncState(id)`. Closes the 3-second debounce blind window a cold-review round confirmed: local
+  autosave never touched `dirty` until a push actually fired, so a naive status read would report "all
+  synced" for several seconds after a real edit. Fixed with two monotonic counters instead of a boolean —
+  `editSeq` (bumped synchronously by the new `noteEdit()`, meant to be called at edit time, not
+  debounce-fire time) and `savedSeq` (stamped with whatever `editSeq` a push captured *at push-start*,
+  advanced only via `Math.max`) — `hasUnsavedEdits = dirty || editSeq > savedSeq` is race-safe against an
+  edit landing while an earlier push for the same character is still in flight. **Found and fixed a real
+  bug while writing the differential test for exactly this race**: `applyServerMeta()`'s final `lsSet(rec)`
+  wrote back the *whole* in-memory record captured at push-start, silently overwriting a concurrently
+  higher `editSeq`/`savedSeq` some other push or `noteEdit()` had already advanced in localStorage — the
+  same failure class the counters exist to prevent, reintroduced one layer down. Fixed by merging against
+  the currently-persisted values via `Math.max`, not just against the in-memory record's own copies. Also
+  adds read-only `checkFreshness(id)` (deliberately separate from `reconcile()`, which mutates) for a
+  persisted `behind` flag with real clear conditions — including the one a single reviewer caught and the
+  other four missed: `reconcile()`'s own silent adopt-at-boot branches (both of them) now clear `behind`
+  too, via a new shared `markInSyncWithServer()` helper, so a stale "cloud moved on" warning can't outlive
+  a background auto-resolve. A failed freshness check never touches the persisted `behind` value — only a
+  page-lifetime `lastCheckFailed` marker, decorating whichever of the 6 states is showing rather than
+  growing a 7th. New standalone gate `testing/scripts/sync-state-machine-ci.mjs` (21 passed / 0 failed,
+  differential on the editSeq/savedSeq race) — not yet wired into CI, same as `sync-concurrency-ci.mjs`.
+  **Also fixed `sync-concurrency-ci.mjs` itself**, found broken by this session's own Part A change
+  (`withKeepalive` added to `js/sync.js`'s import line 2026-08-08 earlier today, never re-run against this
+  script since it isn't CI-wired) — now 12/0. `noteEdit()` isn't wired into any tool yet (that's Part
+  B2/B3); this branch is sync-layer only. `testing/tests/engine-parity.html` 29/0, `tool-pricing` 67/0,
+  both unaffected by design. No `DATA.version` change. Implemented directly on this session's designated
+  branch rather than a fresh `feat/sync-state-machine` branch, per the harness's branch-pinning rule for
+  this session (see the same deviation noted for Part A).
+
 - **2026-08-08 · fix(chargen): a debounced cloud-autosave push no longer gets silently abandoned by
   navigation** — `_cgCloudAutosave()` only ever *scheduled* a push 3s after the last edit; nothing flushed
   a pending timer on navigation. CharGen's own "Open in Live Sheet" button (`switchToLiveSheet()`) walked
