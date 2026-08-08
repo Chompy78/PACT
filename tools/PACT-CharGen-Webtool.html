@@ -479,13 +479,12 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
-<div class="hd-mobnav"><button class="btn ghost" id="undoBtnM" onclick="undo()" title="Undo" aria-label="Undo" disabled>↶</button><button class="btn ghost" id="redoBtnM" onclick="redo()" title="Redo" aria-label="Redo" disabled>↷</button><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><button class="btn ghost" onclick="if(confirm('Start a new character? Any changes not yet saved (to the cloud or a file) will be lost. Your current theme is kept.')){newCharacter();}" title="Start a new, blank character — your current one stays exactly as last saved">🆕 New</button><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
+<div class="hd-mobnav"><button class="btn ghost" id="undoBtnM" onclick="undo()" title="Undo" aria-label="Undo" disabled>↶</button><button class="btn ghost" id="redoBtnM" onclick="redo()" title="Redo" aria-label="Redo" disabled>↷</button><button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget">🎲 Random</button><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
 <div class="secnav" id="secnav"></div>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
 <div class="mobile-action-bar">
+<span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtnM" type="button" title="Local file actions — start a new character, save to a file, or load one" aria-label="Local menu">📁 Local</button></span>
 <span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtnM" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" aria-label="Cloud menu">☁ Cloud</button></span>
-<button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
-<button class="btn ghost" onclick="loadViaPicker()">📂 Load</button>
 <button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
 <button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
@@ -2156,17 +2155,32 @@ async function newCharacter(){
   await _cgFlushCloudSaveNow(2500);
   resetBuild();
 }
-// Local-actions dropdown (D-GH-2026-08-08-header-declutter): New Character / Save / Load grouped
-// under one clearly-labeled "📁 Local" menu, mirroring the existing "☁ Cloud" menu's open/close
-// pattern — so the header reads as two clearly separate items on one row instead of local actions
-// scattered across .hd-row3 while cloud actions hide behind a lone "⋯". Static content (no auth/
-// network dependency), so this wires directly at boot rather than waiting on sync-ready.
+// Local-actions dropdown (D-GH-2026-08-08-header-declutter, extended D-GH-2026-08-08-chargen-
+// header-followup-2 for mobile): New Character / Save / Load grouped under one clearly-labeled
+// "📁 Local" menu, mirroring the "☁ Cloud" menu's open/close pattern — so the header reads as two
+// clearly separate items on one row instead of local actions scattered across .hd-row3 while cloud
+// actions hide behind a lone "⋯". Static content (no auth/network dependency), so this wires
+// directly at boot rather than waiting on sync-ready.
+// Mobile has its own #cgLocalBtnM trigger (.mobile-action-bar; .hd-row2's #cgLocalBtn is
+// display:none below 768px, same reason the ☁ Cloud menu needed a mobile trigger). Reused the same
+// reparent-the-one-menu-element technique as _cgOpenCloudMenu() rather than duplicating this menu's
+// markup — cheaper, and avoids the ID-collision risk two live copies of #cgLocalNewBtn etc. would
+// have. Also reuses that fix's "reparenting always shows the menu at its new location" rule so a
+// resize-without-closing (mobile -> desktop or back) can't leave a click toggling it closed instead
+// of moving it — see _cgOpenCloudMenu()'s comment for the round-trip test that caught this originally.
 function _cgWireLocalMenu(){
-  var btn=document.getElementById('cgLocalBtn'), menu=document.getElementById('cgLocalMenu');
+  var btn=document.getElementById('cgLocalBtn'), btnM=document.getElementById('cgLocalBtnM'), menu=document.getElementById('cgLocalMenu');
   if(!btn||!menu) return;
-  btn.addEventListener('click', function(e){ e.stopPropagation(); menu.classList.toggle('open'); });
+  function openAt(triggerBtn){
+    var wrap=triggerBtn.parentElement;
+    var reparented=menu.parentElement!==wrap;
+    if(reparented) wrap.appendChild(menu);
+    if(reparented) menu.classList.add('open'); else menu.classList.toggle('open');
+  }
+  btn.addEventListener('click', function(e){ e.stopPropagation(); openAt(btn); });
+  if(btnM) btnM.addEventListener('click', function(e){ e.stopPropagation(); openAt(btnM); });
   document.addEventListener('click', function(e){
-    if(!menu.contains(e.target) && e.target!==btn) menu.classList.remove('open');
+    if(!menu.contains(e.target) && e.target!==btn && e.target!==btnM) menu.classList.remove('open');
   });
   var newBtn=document.getElementById('cgLocalNewBtn');
   if(newBtn) newBtn.addEventListener('click', function(){
@@ -4610,7 +4624,8 @@ document.addEventListener('keydown',function(e){
 <div id="infoBox">
   <button class="close-btn" aria-label="Close" title="Close" onclick="closeInfo()">&#x2715;</button>
   <h2>&#x2139;&#xFE0F; PACT Character Generator &mdash; Tool Guide</h2>
-  <p class="hint" id="infoLastEdited" style="margin:-8px 0 10px"></p>
+  <p class="hint" id="infoVersions" style="margin:-8px 0 2px"></p>
+  <p class="hint" id="infoLastEdited" style="margin:0 0 10px"></p>
   <h3>What this tool does</h3>
   <p>This is the <strong>builder</strong>. Use it to design a character from scratch using the PACT points-buy system &mdash; choose species, ability scores, HD, skills, feats, class features, spells, and more. Every choice has an AP cost drawn from the master price list. The budget counter and legality check update live.</p>
   <h3>Saving your build</h3>
@@ -4639,6 +4654,13 @@ document.addEventListener('keydown',function(e){
 // THIS script tag, not the earlier one right after infoModal's opening markup, because #infoLastEdited
 // lives inside infoBox — which the DOM hasn't parsed yet at that earlier point in the file.
 (function(){var el=document.getElementById('infoLastEdited');if(!el)return;var d=new Date(document.lastModified);if(isNaN(d)||d.getFullYear()<2020)return;var m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),mn=String(d.getMinutes()).padStart(2,'0');el.textContent='Last edited '+d.getFullYear()+'-'+m+'-'+dy+' '+h+':'+mn;})();
+// D-GH-2026-08-08-chargen-header-followup-2: the header's "Web Tool · vX" / "PACT rules · vX" labels
+// (.sub / #cgPactver) are display:none below 1150px (D-GH-2026-08-08-chargen-header-followup) and
+// .hd-row2 itself is display:none below 768px — mobile users had NO way to see either version. Rather
+// than hand-duplicate the version numbers here (a third place to keep in sync at every BUILD/
+// DATA.version bump, on top of audit.py's existing two-location check), this just copies the two
+// header spans' live text — same reasoning as the last-edited line above, one source of truth.
+(function(){var el=document.getElementById('infoVersions');if(!el)return;var sub=document.querySelector('.hd-row2 .sub'),rules=document.getElementById('cgPactver');var parts=[];if(sub&&sub.textContent)parts.push(sub.textContent.trim());if(rules&&rules.textContent)parts.push(rules.textContent.trim());el.textContent=parts.join(' · ');})();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/PACT/service-worker.js').then(reg => {
       reg.update();
