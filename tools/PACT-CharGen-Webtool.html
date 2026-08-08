@@ -456,7 +456,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.378</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save this character to the cloud, or load one you saved before" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 8px" aria-label="Cloud menu">⋯</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.378</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><label id="cgAutosaveToggle" class="synchip" style="cursor:pointer;gap:5px" title="Automatically save this character to the cloud as you edit. Off just means you save manually — nothing else changes."><input type="checkbox" id="cgAutosaveChk" checked disabled style="margin:0;cursor:pointer" onchange="_cgOnAutosaveToggle(this)"> Autosave</label><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save this character to the cloud, or load one you saved before" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 8px" aria-label="Cloud menu">⋯</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
@@ -554,11 +554,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange };
   window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation };
+  window._syncBridge = { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -3339,17 +3339,27 @@ var CG_AUTOSAVE_KEY_LEGACY='pactCharGenAutosave';   // pre-Step-4 flat-build aut
 // _cgEnvelope(true) → SIGNED file export (saveBuild); _cgEnvelope(false) → unsigned localStorage autosave
 // (never signature-checked on restore, so signing it every keystroke is wasted work — D-GH48).
 function _cgEnvelope(sign){return buildCharacterEnvelope({name:val('cname')||'',rules:DATA.version,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._cgCampaignId||null},{sign:sign!==false});}
-// ---- cloud autosave — campaign-bound characters ONLY ----------------------------------------
-// CharGen only ever wrote to the cloud on an explicit action (Save to cloud, Join campaign, invite
-// redemption), so a player who redeemed an invite and started building stayed invisible in their DM's
-// roster until they happened to press Save. Autosaving every build was rejected: it would push
-// local-only solo characters into the cloud and add a network write behind every keystroke. This is
-// scoped to characters already bound to a campaign — the one case where somebody else is waiting on
-// the data — and debounced so it fires after editing stops, not during it.
+// ---- cloud autosave — universal as of B3 (D-GH-2026-08-08-universal-autosave-toggle) --------
+// Originally scoped to campaign-bound characters only (CharGen used to write to the cloud only on an
+// explicit action otherwise — Save to cloud, Join campaign, invite redemption — so a player who
+// redeemed an invite and started building stayed invisible in their DM's roster until they happened to
+// press Save). B3 made this universal: every signed-in character autosaves by default now, campaign-
+// bound or not, gated only by the player's own reversible toggle (autosave_enabled, default true) —
+// see _cgAutosaveGate() below and the decision record for why campaign-bound characters are no longer
+// special-cased. Still debounced so it fires after editing stops, not during it.
 var _cgCloudSaveTimer=null,_cgCloudSaveBusy=false,_cgCloudSaveAgain=false,_cgCloudPushPromise=null;
+// Universal cloud autosave gate (D-GH-2026-08-08-universal-autosave-toggle, B3): every signed-in
+// character autosaves by default now, campaign-bound or not -- this deliberately no longer checks
+// window._cgCampaignBound. The one thing that CAN still turn it off is the player's own toggle
+// (autosave_enabled, default true) -- see the toggle control near the sync chip. Shared by all three
+// call sites below so the condition can't drift between them the way three hand-copies would risk.
+function _cgAutosaveGate(){
+  if(!window._cloudSignedIn||!window._syncBridge||!navigator.onLine) return false;   // offline edits stay in the local autosave; sync.js retries dirty records on reconnect
+  if(window._syncBridge.getAutosaveEnabled && !window._syncBridge.getAutosaveEnabled(currentCharId())) return false;
+  return true;
+}
 function _cgCloudAutosave(){
-  if(!window._cgCampaignBound||!window._cloudSignedIn) return;
-  if(!window._syncBridge||!navigator.onLine) return;   // offline edits stay in the local autosave; sync.js retries dirty records on reconnect
+  if(!_cgAutosaveGate()) return;
   clearTimeout(_cgCloudSaveTimer);
   // Nulled the moment the timer actually fires (not just when it's cleared) so _cgFlushCloudSaveNow/the
   // pagehide handler below can tell "still waiting to fire" from "already consumed, push under way" —
@@ -3397,7 +3407,7 @@ function _cgFlushCloudSaveNow(timeoutMs){
   var pending=_cgCloudSaveTimer!=null||_cgCloudSaveBusy;
   if(_cgCloudSaveTimer!=null){clearTimeout(_cgCloudSaveTimer);_cgCloudSaveTimer=null;}
   if(!pending) return Promise.resolve();
-  if(!window._cgCampaignBound||!window._cloudSignedIn||!window._syncBridge||!navigator.onLine) return Promise.resolve();
+  if(!_cgAutosaveGate()) return Promise.resolve();
   var pushed=_cgCloudPush();
   if(!pushed) return Promise.resolve();
   return Promise.race([pushed.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
@@ -3416,7 +3426,7 @@ window.addEventListener('pagehide',function(){
   var pending=_cgCloudSaveTimer!=null||_cgCloudSaveBusy;
   if(_cgCloudSaveTimer!=null){clearTimeout(_cgCloudSaveTimer);_cgCloudSaveTimer=null;}
   if(!pending) return;
-  if(!window._cgCampaignBound||!window._cloudSignedIn||!window._syncBridge||!navigator.onLine) return;
+  if(!_cgAutosaveGate()) return;
   try{
     if(window._syncBridge.withKeepalive) window._syncBridge.withKeepalive(_cgCloudPush);
     else _cgCloudPush();
@@ -3454,6 +3464,31 @@ async function _cgRenderSyncChip(){
     el.setAttribute('aria-live', s.state==='conflict' ? 'assertive' : 'polite');
     el.className='synchip'+(p.tone?' '+p.tone:'')+(p.stale?' stale':'');
   }catch(e){ /* best-effort status display; never break the tool over it */ }
+  _cgSyncAutosaveToggleUI();
+}
+// Refresh the Autosave checkbox from the character currently open — called alongside the chip
+// (same triggers: character switch, auth change) since both reflect "what does autosave look like for
+// THIS character right now". Synchronous/local-only (getAutosaveEnabled never touches the network),
+// so this is cheap enough to piggyback on every chip render.
+function _cgSyncAutosaveToggleUI(){
+  var chk=document.getElementById('cgAutosaveChk'); if(!chk) return;
+  chk.disabled=!window._cloudSignedIn;
+  if(window._syncBridge&&window._syncBridge.getAutosaveEnabled) chk.checked=window._syncBridge.getAutosaveEnabled(currentCharId());
+}
+// The universal autosave toggle (D-GH-2026-08-08-universal-autosave-toggle) — see setAutosaveEnabled()
+// in js/sync.js for the write path and its optimistic-then-rollback behaviour.
+async function _cgOnAutosaveToggle(chk){
+  var wanted=chk.checked, id=currentCharId();
+  chk.disabled=true;
+  try{
+    await window._syncBridge.setAutosaveEnabled(id, wanted);
+    if(wanted) _cgCloudAutosave();   // turning it on with unsaved edits already on screen shouldn't wait for the next keystroke
+  }catch(e){
+    chk.checked=!wanted;   // setAutosaveEnabled() already rolled back its own local cache on failure — match it here
+    alert('Could not change the autosave setting: '+e.message);
+  }
+  chk.disabled=!window._cloudSignedIn;
+  _cgRenderSyncChip();
 }
 // Freshness check on tab focus/visibility — self-throttled inside checkFreshness() itself, so this can
 // fire freely on every event without hand-rolling a debounce here. Only meaningful once signed in.

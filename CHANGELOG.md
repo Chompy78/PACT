@@ -6,6 +6,35 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-08 · feat(sync): universal cloud autosave with a per-character owner-reversible toggle**
+  — Part B3 of `docs/plans/2026-08-08-shared-sync-chip-part-b.md`, implementing the C2 design decision
+  (see `decisions/2026/D-GH-2026-08-08-universal-autosave-toggle.md`): every signed-in character now
+  autosaves to the cloud by default, campaign-bound or not, governed by one `characters.autosave_enabled`
+  boolean (default `true`) any owner can flip at any time via a new checkbox next to the sync chip in
+  both editor tools. No RPC — a plain column grant under the existing owner-only `characters_update`/
+  `characters_insert` row policies, mirroring `archived_at`'s precedent (unlike `award_ap()`, the writer
+  here is always the row's own owner, so `award_ap`'s SECURITY DEFINER pattern doesn't apply). CharGen's
+  autosave gate (`_cgCloudAutosave`/`_cgFlushCloudSaveNow`/pagehide) had its old campaign-bound-only
+  check replaced outright, including a stale header comment that would otherwise have contradicted the
+  code beneath it. Live Sheet gets cloud autosave for the first time — previously ☁ Save to cloud was
+  its only cloud write path — mirroring CharGen's debounce/overlap-guard/keepalive-on-exit pattern
+  exactly, plus an awaited flush before `switchToCharGen()`'s cross-tool navigation (same bug class as
+  D-GH-2026-08-08-chargen-cloud-autosave-flush). Two real bugs caught before commit: (1) the same
+  `_session`-is-private-to-a-different-closure mistake B2 already made once, this time in the toggle's
+  enable/disable logic — fixed with a `window._lsSignedIn` boolean mirror, matching CharGen's existing
+  `window._cloudSignedIn`; (2) `setAutosaveEnabled()` would have thrown a misleading "may have been
+  deleted" error the first time anyone toggled autosave on a character never yet cloud-saved (zero rows
+  matched because the row didn't exist yet, not because anything was wrong) — fixed with an existence
+  check, plus carrying the toggle value through `pushCharacter()`'s first INSERT so a pre-save choice
+  isn't silently discarded back to the default. Deliberately NOT done: the write-volume budget (no live
+  traffic data available to measure against in this environment); the migration file
+  (`sql/migrations/2026-08-08-universal-autosave-toggle.sql`) was written but **not applied to the live
+  database** — held for explicit confirmation rather than run automatically, since a schema change to a
+  live Supabase project is a real, harder-to-reverse action; DM Console's roster does not yet surface a
+  character's toggle state (open follow-up, not required for B3's own done-when bar).
+  `testing/tests/engine-parity.html` 29/0, `tool-pricing` 67/0, `sync-state-machine` 21/0,
+  `sync-concurrency` 12/0 — confirmed, not assumed unaffected. No live-browser visual verification was
+  possible in this environment. No `DATA.version` change.
 - **2026-08-08 · feat(sync): a shared cloud-sync status chip in all three tools, wired to the real
   state machine** — Part B2 of `docs/plans/2026-08-08-shared-sync-chip-part-b.md`, built on B1's
   `getSyncState`/`noteEdit`/`checkFreshness` (same day, earlier). New `chipPresentation()` in

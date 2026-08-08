@@ -206,6 +206,9 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
     kind: kind ?? prev?.kind ?? 'livesheet',
     stats: stats ?? prev?.stats ?? {},
     ap: prev?.ap ?? 0,            // display-only mirror of the server value
+    // Carried forward like ap: this save never sets it, only mirrors what's already cached (or the DB
+    // default, true, for a never-reconciled character) — the only writer is setAutosaveEnabled().
+    autosave_enabled: prev?.autosave_enabled ?? true,
     updated_at: nowIso(),
     // Carried forward, never re-stamped locally: it is the server's word, not ours. Absent on records
     // written before this existed — treated as "unknown" below, which falls back to today's behaviour.
@@ -275,7 +278,7 @@ async function pushCharacter(rec, capturedSeq) {
     .update({ name: rec.name, kind: rec.kind, stats: rec.stats })
     .eq('id', rec.id);
   if (guarded) q = q.eq('updated_at', rec.base_updated_at);
-  const { data: upd, error: updErr } = await q.select('id, updated_at, ap');
+  const { data: upd, error: updErr } = await q.select('id, updated_at, ap, autosave_enabled');
   if (updErr) throw updErr;
 
   if (upd && upd.length) {
@@ -298,8 +301,12 @@ async function pushCharacter(rec, capturedSeq) {
   if (!user) throw new Error('Not signed in');
   const { data: ins, error: insErr } = await supabase
     .from('characters')
-    .insert({ id: rec.id, owner_id: user.id, name: rec.name, kind: rec.kind, stats: rec.stats })
-    .select('id, updated_at, ap');
+    // autosave_enabled carried forward, not left to the column default: a toggle preference set
+    // locally before this character's first-ever cloud save must survive that first insert, not be
+    // silently reset to `true` (D-GH-2026-08-08-universal-autosave-toggle).
+    .insert({ id: rec.id, owner_id: user.id, name: rec.name, kind: rec.kind, stats: rec.stats,
+              autosave_enabled: rec.autosave_enabled })
+    .select('id, updated_at, ap, autosave_enabled');
   if (insErr) throw insErr;
   applyServerMeta(rec, ins[0], capturedSeq);
 }
@@ -316,6 +323,10 @@ function applyServerMeta(rec, server, capturedSeq) {
   // for this page too, or the very next save would present the now-stale pin and be refused forever.
   _pageBase.set(rec.id, server.updated_at);
   rec.ap = server.ap;     // server is authoritative for ap
+  // Same reasoning as ap: pushCharacter()'s update never writes this column (see setAutosaveEnabled,
+  // the only writer), so this just picks up whatever the toggle currently is — including a flip made
+  // from another device or tab since this page last knew — without any risk of clobbering it.
+  rec.autosave_enabled = server.autosave_enabled;
   // `rec` is the IN-MEMORY snapshot captured at this push's start — a sibling write for the same
   // character (a bare noteEdit(), or another overlapping saveCharacter() call that resolved first)
   // may have advanced editSeq/savedSeq in localStorage while this push was still in flight. The final
@@ -352,7 +363,7 @@ export async function loadCharacter(id, opts = {}) {
     if (replace) {
       const { data: server, error } = await supabase
         .from('characters')
-        .select('id, owner_id, name, kind, stats, ap, campaign_id, updated_at')
+        .select('id, owner_id, name, kind, stats, ap, campaign_id, updated_at, autosave_enabled')
         .eq('id', id)
         .maybeSingle();
       if (!error && server) lsSet({ ...server, base_updated_at: server.updated_at, dirty: false });
@@ -379,7 +390,7 @@ export async function peekCharacter(id) {
   if (navigator.onLine && await currentUser()) {
     const { data, error } = await supabase
       .from('characters')
-      .select('id, name, kind, stats, ap, campaign_id, updated_at')
+      .select('id, name, kind, stats, ap, campaign_id, updated_at, autosave_enabled')
       .eq('id', id)
       .maybeSingle();
     if (!error) return data;
@@ -424,7 +435,7 @@ async function reconcile(id) {
   // listMyCharacters()'s offline branch had no way to make.
   const { data: server, error } = await supabase
     .from('characters')
-    .select('id, owner_id, name, kind, stats, ap, campaign_id, updated_at')
+    .select('id, owner_id, name, kind, stats, ap, campaign_id, updated_at, autosave_enabled')
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
@@ -594,7 +605,7 @@ export async function listMyCharacters() {
   if (navigator.onLine) {
     const { data, error } = await supabase
       .from('characters')
-      .select('id, name, kind, ap, campaign_id, archived_at, updated_at, log:stats->LOG')
+      .select('id, name, kind, ap, campaign_id, archived_at, updated_at, autosave_enabled, log:stats->LOG')
       .eq('owner_id', user.id)
       .order('updated_at', { ascending: false });
     if (error) throw error;
@@ -660,6 +671,63 @@ async function _setArchived(id, when) {
 }
 export async function archiveCharacter(id)   { return _setArchived(id, nowIso()); }
 export async function unarchiveCharacter(id) { return _setArchived(id, null); }
+
+// --- universal cloud-autosave toggle (D-GH-2026-08-08-universal-autosave-toggle, B3) -------------
+//
+// One owner-reversible boolean, applying uniformly to every character (campaign-bound or not — see
+// the decision record for why campaign-bound characters are NOT special-cased here). Same
+// owner-only-column-grant pattern as archived_at just above (no SECURITY DEFINER RPC needed: unlike
+// award_ap(), the writer here is always the row's own owner).
+
+/** Synchronous, no-network read of a character's cached autosave-enabled flag — for use in a hot
+ *  per-edit gate (see the tools' own autosave-scheduling code), where an async round-trip would be
+ *  the wrong shape. A character with no cached record yet (never reconciled/loaded/saved this device)
+ *  reads as `true`, matching the DB column's own default — unlike a consent flag, this is a freely
+ *  reversible preference with nothing to protect by failing closed, so "unknown" safely reads the
+ *  same as "on". */
+export function getAutosaveEnabled(id) {
+  if (!id) return true;
+  const rec = lsGet(id);
+  return rec?.autosave_enabled !== false;
+}
+
+/** Flip a character's autosave-enabled flag. Updates the local cache optimistically first (so
+ *  getAutosaveEnabled() reflects the new value immediately, before the network round-trip resolves —
+ *  the same reason applyServerMeta() exists for `dirty`), then confirms against the server; on failure
+ *  the optimistic write is rolled back so a background autosave never acts on a flag the server never
+ *  actually confirmed.
+ *
+ *  A zero-rows UPDATE is deliberately NOT treated the same as _setArchived()'s identical case: for
+ *  archived_at, zero rows always means something is wrong (that toggle only ever applies to an
+ *  already-cloud-saved character). Here it commonly means the character has simply never been pushed
+ *  yet — a brand-new build, toggled before its first save — which is expected, not an error: nothing
+ *  needs writing server-side, and the value is carried into the row by its eventual first insert (see
+ *  pushCharacter()'s autosave_enabled field). Only a row that DOES exist but still didn't update
+ *  (deleted mid-session, access revoked) is treated as a real failure. */
+export async function setAutosaveEnabled(id, enabled) {
+  const before = lsGet(id);
+  if (before) lsSet({ ...before, autosave_enabled: enabled });
+  if (isCloudCharId(id)) {
+    try {
+      const { data, error } = await supabase
+        .from('characters').update({ autosave_enabled: enabled }).eq('id', id).select('id');
+      if (error) throw error;
+      if (!data || !data.length) {
+        const { data: exists, error: exErr } = await supabase
+          .from('characters').select('id').eq('id', id).maybeSingle();
+        if (exErr) throw exErr;
+        if (exists) {
+          throw new Error('That character could not be updated — it may have been deleted, or you may no '
+                        + 'longer have access to it. Reload and try again.');
+        }
+        // else: no row yet — not an error, see the doc comment above.
+      }
+    } catch (err) {
+      if (before) lsSet(before);   // roll back the optimistic write — the server never confirmed it
+      throw err;
+    }
+  }
+}
 
 /** Delete a character: local is removed immediately and tombstoned so a later
  *  pull can't resurrect it; the server delete is attempted right away if

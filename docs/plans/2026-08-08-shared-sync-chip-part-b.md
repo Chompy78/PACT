@@ -39,6 +39,48 @@ which would have silently thrown-and-been-swallowed by the surrounding `try/catc
 `checkFreshness()` never actually running. Fixed by relying on `checkFreshness()`'s own internal
 signed-in guard instead of duplicating (and getting wrong) an external one.
 
+## Implementation note (B3, 2026-08-08)
+B3 is implemented per the C2 design decision above (`characters.autosave_enabled boolean default
+true`, one owner-reversible toggle, no RPC — a plain column grant under the existing owner-only
+`characters_update`/`characters_insert` policies, mirroring `archived_at`'s precedent exactly rather
+than `award_ap()`'s SECURITY DEFINER pattern, since the writer here is always the row's own owner).
+
+CharGen's `_cgCloudAutosave()`/`_cgFlushCloudSaveNow()`/pagehide handler had their `window._cgCampaignBound`
+gate replaced outright with a shared `_cgAutosaveGate()` (signed-in + `getAutosaveEnabled()`), and the
+stale header comment describing the old campaign-bound-only scoping was corrected in the same change —
+it would otherwise have flatly contradicted the code three lines below it. Live Sheet's equivalent
+scaffolding (`_lsCloudAutosave`/`_lsCloudPush`/`_lsFlushCloudSaveNow`/pagehide/`switchToCharGen` flush)
+is new — mirrored from CharGen's pattern exactly, since Live Sheet had no cloud autosave at all before
+this. A toggle checkbox (`#cgAutosaveToggle`/`#lsAutosaveToggle`) sits next to the sync chip in both
+tools, refreshed on the same triggers as the chip itself.
+
+**A second real bug caught before commit**, same class as B2's: `_lsAutosaveGate()` and the toggle's
+enable/disable logic initially read `_session` directly — the exact variable private to a different
+script closure that B2 already got wrong once. Fixed by introducing `window._lsSignedIn`, a plain
+boolean mirror of `_session` set alongside it in the `onAuthChange`/`currentSession()` handlers — the
+same pattern CharGen already uses (`window._cloudSignedIn`). Left here because it is the *second* time
+this exact mistake happened in the same file across B2 and B3, which says the risk is the file's
+closure structure itself (private auth state, autosave logic living in a different script block), not
+an isolated slip — worth remembering for any *future* code added to Live Sheet's autosave/chip paths,
+not just this one.
+
+**A third gap caught before commit, not from the plan's own risk list**: the original `setAutosaveEnabled()`
+design (an UPDATE, matching `_setArchived()`'s pattern) would have thrown a misleading "may have been
+deleted" error the first time a player toggled autosave on a brand-new character that had never been
+cloud-saved yet — zero rows matched not because anything was wrong, but because the row simply didn't
+exist. Fixed with an existence check that only treats zero-rows-but-exists as a real error, plus
+carrying `autosave_enabled` through `pushCharacter()`'s INSERT (and its RLS insert-column grant) so a
+pre-save toggle choice isn't silently discarded back to the column default the moment the row is finally
+created.
+
+**Not done, deliberately deferred, not silently skipped:** the write-volume budget (plan step 6, "needs
+a real number before this merges") — no live traffic/quota data was available to measure against in
+this environment. **The migration file was written but NOT applied to the live database** — a schema
+change to a live Supabase project is a real, harder-to-reverse production action, held for explicit
+confirmation rather than run automatically. DM Console's roster does not yet surface a character's
+toggle state (flagged as an open follow-up in the C2 decision record, not required for B3's own
+"done when" bar).
+
 ## Goal
 Give PACT's three tools one shared, honest cloud-sync status indicator (replacing three inconsistent
 signed-in/out badges) and make cloud autosave the default for any character whose owner has actually
@@ -302,9 +344,19 @@ decision:
 four clear conditions and defined failure semantics; the chip renders from one shared mapping function
 identically (per the canonical table) across all three tools, with DM Console's narrower subset; the
 conflict state has a working, honestly-labeled, cancelable resolution action; `testing/tests/
-engine-parity.html` stays 0 failed. **Goal fully met (needs B3):** every character, campaign-bound or not,
-autosaves to the cloud by default with one visible, freely-reversible per-character toggle governing it
-uniformly, and a measured write-volume budget.
+engine-parity.html` stays 0 failed.
+
+**B3 done:** every character, campaign-bound or not, autosaves to the cloud by default with one visible,
+freely-reversible per-character toggle governing it uniformly; the toggle survives a pre-save choice
+through a character's first cloud insert; `testing/tests/engine-parity.html` and the sync test scripts
+stay 0 failed.
+
+**Still open, not part of B3's own bar but worth tracking before calling the whole plan closed:** the
+write-volume budget (plan step 6) is unmeasured — no live traffic/quota data was available in this
+environment; the migration was written but not applied to the live database (needs explicit
+confirmation, a separate step from code review); DM Console's roster does not surface a character's
+toggle state (the C2 decision's named follow-up); no real-browser visual verification has been done for
+B2 or B3.
 
 ---
 
