@@ -166,7 +166,14 @@ create table if not exists public.characters (
   ap          integer not null default 0,           -- DM-authoritative; never written by players
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
-  archived_at timestamptz    -- soft-delete (owner-only, reversible); null = active
+  archived_at timestamptz,   -- soft-delete (owner-only, reversible); null = active
+  -- Universal cloud-autosave toggle (D-GH-2026-08-08-universal-autosave-toggle). Owner-settable,
+  -- freely reversible, applies uniformly whether or not the character is campaign-bound -- a player
+  -- CAN switch this off on a DM's campaign character, and the DM's roster can go stale until they
+  -- save again manually. Accepted knowingly, not an oversight; see that decision record. Defaults
+  -- true for every character, existing and new -- not retroactive enrollment in the sense a one-way
+  -- consent flag would be, because this is immediately visible and immediately reversible.
+  autosave_enabled boolean not null default true
 );
 
 create index if not exists idx_characters_owner    on public.characters(owner_id);

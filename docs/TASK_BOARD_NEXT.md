@@ -139,47 +139,6 @@ project's status `ACTIVE_HEALTHY` across at least one full auto-pause window (or
 paid-tier path instead, the project has been upgraded and auto-pause confirmed disabled), and the decision
 is logged in DECISIONS.md.
 
-## Consistent, obvious sign-in indicator across the three tools — TODO
-Branch feat/signin-indicator-consistency. The three tools each show cloud sign-in state differently — DM
-Console (`tools/DM-Console.html`) shows the user's email or "Not signed in" plus a Sign in/Sign out button
-in the top bar (`#campWho`/`#campSignInBtn`); Live Sheet (`tools/PACT-Live-Char-Sheet.html`) shows a
-`#cloudStatusBadge` reading "🔒 Not signed in" with no equivalent "signed in" text shown in the same spot;
-CharGen (`tools/PACT-CharGen-Webtool.html`) shows one of three different strings via `renderStatus()`
-("🔒 Local only — not connected to any cloud campaign" / "☁ Signed in — no campaign selected" / "☁
-Campaign: <name>"). Different wording, different icons, different prominence — a user checking whether
-they're signed in has to relearn the pattern per tool (surfaced when a user went looking for it in DM
-Console).
-**Effort:** medium · **Risk:** medium — ambiguity is medium (the exact shared wording/icon/placement
-convention is a real but low-stakes UI call, not architectural — each tool stays a standalone file per the
-"no framework/no shared bridge for UI" architecture, so this is a copy/consistency pass, not a merge);
-damage scale is low (isolated text/icon/CSS changes, one contained edit per tool, trivially revertible, no
-data/security/engine impact); damage likelihood is medium (no automated gate catches copy/consistency
-drift — only manual/visual review would) — eligible for `/sweep-code-tasks`.
-
-```text
-1. Decide one shared convention (document it briefly in the PR description or a DECISIONS.md entry) for:
-   - Icon: 🔒 for signed-out / ☁ for signed-in (already the majority pattern across the three tools).
-   - Wording pattern: something like "🔒 Not signed in" (signed out) vs "☁ Signed in as <email>" or
-     "☁ Signed in — <campaign/context>" (signed in) — pick one template and apply it consistently.
-   - Placement/prominence: keep each tool's existing location (top bar), but make sure the signed-in
-     state is at least as visually prominent as DM Console's current email+button treatment — Live
-     Sheet and CharGen currently only show a subtle badge, easy to miss.
-2. Apply the convention in each tool's own status-rendering code:
-   - DM Console: `updateAuth(session)` (~line 1509) — already closest to the target pattern, adjust
-     wording only if needed for consistency.
-   - Live Sheet: `#cloudStatusBadge` update logic (~line 1561) — add a clear "signed in" state to match,
-     not just the "Not signed in" case.
-   - CharGen: `renderStatus()` (~line 531) — align wording/icon with the shared convention.
-3. This is UI text/CSS only — no engine.js, no compute() involvement. Display-only, do NOT bump
-   DATA.version; log in CHANGELOG.
-4. Verify in a real browser (per AGENTS.md's UI-testing expectation) in both signed-in and signed-out
-   states, and in both light and dark theme where each tool supports it.
-```
-
-**Done when:** all three tools use the same icon + wording template for signed-in vs signed-out state,
-the signed-in state is clearly visible (not just a subtle badge) in every tool, and this has been visually
-verified in a real browser in both auth states.
-
 ## Wire up joinAsDm() — co-DM invite codes currently can't be redeemed anywhere — TODO
 Branch feat/join-as-dm-ui. `js/campaign.js` exports `joinAsDm(code)` (a SECURITY DEFINER RPC, already
 correctly gated server-side) but no tool calls it — DM Console generates and lets you copy a campaign's

@@ -62,6 +62,17 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 .cloudstatus{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.13);border-radius:12px;padding:3px 11px;font-size:11px;font-weight:700;white-space:nowrap}
 .cloudstatus.good{background:rgba(60,200,120,.22);color:#d6ffe6}
 .cloudstatus.warn{background:rgba(230,160,40,.28);color:#ffe9b3}
+/* Shared cloud-sync status chip (feat/shared-sync-chip) — same class/tone names as CharGen's copy, so
+   the two tools read identically even though the markup is duplicated per the standalone-file
+   architecture (docs/plans/2026-08-08-shared-sync-chip-part-b.md). Separate from .cloudstatus, which
+   keeps its existing campaign-rules-binding job (#cloudStatusBadge) — see that plan's B1 implementation
+   note on why the two were kept as distinct elements rather than merged. */
+.synchip{display:inline-flex;align-items:center;gap:4px;border-radius:12px;padding:3px 11px;font-size:11px;font-weight:700;white-space:nowrap;background:rgba(255,255,255,.16);color:#fff}
+.synchip.good{background:rgba(60,200,120,.22);color:#d6ffe6}
+.synchip.warn{background:rgba(230,160,40,.28);color:#ffe9b3}
+.synchip.bad{background:rgba(220,70,70,.3);color:#ffd9d9}
+.synchip.info{background:rgba(120,170,240,.28);color:#dce9ff}
+.synchip.stale{opacity:.75}
 .bar{background:#16294d;color:#cfe0f7;font-size:11px;padding:4px 16px}
 .btn{background:var(--blue);color:#fff;border:0;border-radius:6px;padding:6px 10px;font:inherit;font-weight:700;cursor:pointer}
 .btn.g{background:var(--card);color:var(--blue);border:1px solid var(--blue)}
@@ -336,6 +347,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <input type="file" id="imp" style="display:none" accept=".json" onchange="if(this.files[0])importJSON(this.files[0]);this.value=''">
 <button class="btn g" onclick="switchToCharGen()" title="Open this character back in the Character Generator — no file to export or import">⇆ <span class="bl">Open in CharGen</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" id="cloudBtn" title="Cloud save / load">☁ <span class="bl">Cloud</span></button><div id="cloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span>
+<span id="lsSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span>
+<label id="lsAutosaveToggle" class="synchip" style="cursor:pointer;gap:5px" title="Automatically save this character to the cloud as you edit. Off just means you save manually — nothing else changes."><input type="checkbox" id="lsAutosaveChk" checked disabled style="margin:0;cursor:pointer" onchange="_lsOnAutosaveToggle(this)"> Autosave</label>
 <span id="cloudStatusBadge" class="cloudstatus">🔒 Not signed in</span>
 <button class="btn g" onclick="toggleSheet()" title="Toggle the printable sheet">📋 <span class="bl">Sheet</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" onclick="toggleMore(event)" title="More tools &amp; theme">⋯ <span class="bl">More</span></button><div id="moremenu" class="moremenu"><span class="mi-theme">🎨 <select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></span><button class="mi" onclick="closeMore();openNames()">✎ Name spells &amp; languages</button><button class="mi" onclick="closeMore();openSpellBrowser()">🔍 Spell browser</button><button class="mi" id="miSpellTog" onclick="closeMore();toggleSheetSpell()">🚫 Hide spellcasting on sheet</button><button class="mi" onclick="closeMore();openBonds()">⛓ Bonds</button><button class="mi" onclick="closeMore();resetAll()">↺ Reset</button><button class="mi" onclick="closeMore();showInfo()">&#x2139;&#xFE0F; Info</button></div></span>
@@ -641,9 +654,133 @@ const KEY='pactLiveSheet';
 // second window/tab from clobbering the SAME shared localStorage[KEY] slot a DM's own in-progress
 // character might be using in another tab of the same browser.
 function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._lsCampaignId||null},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); }
+  // Closes the debounce blind window (docs/plans/2026-08-08-shared-sync-chip-part-b.md, B1): this runs
+  // on every edit, synchronously — noteEdit() is what lets the chip see "unsaved" immediately rather
+  // than only after a cloud push is actually attempted.
+  try{if(window._syncBridge&&window._syncBridge.noteEdit)window._syncBridge.noteEdit(currentCharId());}catch(e){}
   // Feed the shared recent-characters store (landing "Continue" list). Best-effort + guarded so it can
   // never break the real save above; window.recordAutosave arrives with the engine bridge (engine-ready).
-  try{if(window.recordAutosave)window.recordAutosave({tool:'livesheet',id:currentCharId(),name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ});}catch(e){} }
+  try{if(window.recordAutosave)window.recordAutosave({tool:'livesheet',id:currentCharId(),name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ});}catch(e){}
+  try{_lsRenderSyncChip();}catch(e){}
+  try{_lsCloudAutosave();}catch(e){} }
+// ---- universal cloud autosave (D-GH-2026-08-08-universal-autosave-toggle, B3) ------------------
+// Mirrors CharGen's _cgCloudAutosave()/_cgCloudPush()/_cgFlushCloudSaveNow() pattern exactly (same
+// debounce, same overlap guard, same keepalive-on-exit) — this is the first cloud autosave Live
+// Sheet has had; previously ☁ Save to cloud was its only cloud write path. See that plan's B3 note on
+// why the debounce interval was kept identical rather than independently tuned for live play: no
+// measurement exists yet to justify a different number.
+var _lsCloudSaveTimer=null, _lsCloudSaveBusy=false, _lsCloudSaveAgain=false, _lsCloudPushPromise=null, _lsConflictWarned=false;
+function _lsAutosaveGate(){
+  if(VIEW_ONLY||!window._lsSignedIn||!window._syncBridge||!navigator.onLine) return false;   // offline edits stay in the local save; sync.js retries dirty records on reconnect
+  if(window._syncBridge.getAutosaveEnabled && !window._syncBridge.getAutosaveEnabled(currentCharId())) return false;
+  return true;
+}
+function _lsCloudAutosave(){
+  if(!_lsAutosaveGate()) return;
+  clearTimeout(_lsCloudSaveTimer);
+  _lsCloudSaveTimer=setTimeout(function(){_lsCloudSaveTimer=null;_lsCloudPush();},3000);
+}
+function _lsCloudPush(){
+  if(_lsCloudSaveBusy){_lsCloudSaveAgain=true;return _lsCloudPushPromise;}
+  _lsCloudSaveBusy=true;
+  _lsCloudPushPromise=_lsCloudPushOnce().finally(function(){
+    _lsCloudSaveBusy=false;
+    if(_lsCloudSaveAgain){_lsCloudSaveAgain=false;_lsCloudPush();}
+  });
+  return _lsCloudPushPromise;
+}
+async function _lsCloudPushOnce(){
+  try{
+    var b=foldBuild(null);
+    var id=currentCharId();
+    var stats=window.buildCharacterEnvelope({name:b.name,rules:RULES,LOG:LOG,SEQ:SEQ,id:id,campaignId:window._lsCampaignId||null},{sign:false});
+    var res=await window._syncBridge.saveCharacter({id:id,name:b.name||'Character',kind:'livesheet',stats:stats,campaignId:window._lsCampaignId||null});
+    if(res&&res.id) __charId=res.id;   // adopt a migrated pre-UUID id, same as the manual save
+    if(res&&res.conflict&&!_lsConflictWarned){
+      _lsConflictWarned=true;
+      if(typeof flash==='function')flash('⚠ Not saved to cloud — this character was changed on another device. Use ☁ Cloud → Load to get that version.');
+    }
+    if(typeof _lsRenderSyncChip==='function') _lsRenderSyncChip();
+  }catch(e){ /* deliberately silent: the local save already holds the work and sync.js leaves the
+                record dirty for the next retry — a toast on every failed keystroke would be noise */ }
+}
+// Flush a pending-or-in-flight cloud autosave right now, bounded by timeoutMs — used before a
+// deliberate in-app navigation (switchToCharGen) that would otherwise abandon it on its debounce timer.
+function _lsFlushCloudSaveNow(timeoutMs){
+  var pending=_lsCloudSaveTimer!=null||_lsCloudSaveBusy;
+  if(_lsCloudSaveTimer!=null){clearTimeout(_lsCloudSaveTimer);_lsCloudSaveTimer=null;}
+  if(!pending) return Promise.resolve();
+  if(!_lsAutosaveGate()) return Promise.resolve();
+  var pushed=_lsCloudPush();
+  if(!pushed) return Promise.resolve();
+  return Promise.race([pushed.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
+}
+// Best-effort cloud flush on page exit — see CharGen's identical pagehide handler for the full
+// keepalive/why-not-sendBeacon reasoning; not repeated here.
+window.addEventListener('pagehide',function(){
+  var pending=_lsCloudSaveTimer!=null||_lsCloudSaveBusy;
+  if(_lsCloudSaveTimer!=null){clearTimeout(_lsCloudSaveTimer);_lsCloudSaveTimer=null;}
+  if(!pending) return;
+  if(!_lsAutosaveGate()) return;
+  try{
+    if(window._syncBridge&&window._syncBridge.withKeepalive) window._syncBridge.withKeepalive(_lsCloudPush);
+    else _lsCloudPush();
+  }catch(e){ /* best-effort only */ }
+});
+// Refresh the Autosave checkbox from the character currently open — same triggers as the chip.
+function _lsSyncAutosaveToggleUI(){
+  var chk=document.getElementById('lsAutosaveChk'); if(!chk) return;
+  chk.disabled=!window._lsSignedIn||VIEW_ONLY;
+  if(window._syncBridge&&window._syncBridge.getAutosaveEnabled) chk.checked=window._syncBridge.getAutosaveEnabled(currentCharId());
+}
+async function _lsOnAutosaveToggle(chk){
+  var wanted=chk.checked, id=currentCharId();
+  chk.disabled=true;
+  try{
+    await window._syncBridge.setAutosaveEnabled(id, wanted);
+    if(wanted) _lsCloudAutosave();
+  }catch(e){
+    chk.checked=!wanted;
+    alert('Could not change the autosave setting: '+e.message);
+  }
+  chk.disabled=!window._lsSignedIn||VIEW_ONLY;
+  if(typeof _lsRenderSyncChip==='function') _lsRenderSyncChip();
+}
+// ---- shared cloud-sync status chip (feat/shared-sync-chip) -----------------------------------
+// Renders window._syncBridge.getSyncState()'s result through the shared chipPresentation() mapping —
+// see js/sync.js for both. Async (getSyncState/currentUser are async), so callers fire-and-forget it;
+// it's cheap (no network — reads localStorage only) and self-contained, never throws into its caller.
+async function _lsRenderSyncChip(){
+  var el=document.getElementById('lsSyncChip'); if(!el||!window._syncBridge||!window._syncBridge.getSyncState) return;
+  try{
+    var s=await window._syncBridge.getSyncState(currentCharId());
+    var p=window._syncBridge.chipPresentation(s);
+    // Conflict resolution reuses ☁ Cloud → Load's existing onBehind prompt (loadCloudChar, below) —
+    // no separate "force sync" action, deliberately. See CharGen's copy of this same comment.
+    var title = s.state==='conflict'
+      ? p.ariaLabel+' — use ☁ Cloud → Load to resolve (this replaces local changes with the cloud version)'
+      : p.ariaLabel;
+    el.textContent=p.icon+' '+p.label;               // textContent only — see chipPresentation()'s own
+    el.title=title;                                   // doc comment on why it never carries a dynamic name
+    el.setAttribute('aria-label',title);
+    el.setAttribute('aria-live', s.state==='conflict' ? 'assertive' : 'polite');
+    el.className='synchip'+(p.tone?' '+p.tone:'')+(p.stale?' stale':'');
+  }catch(e){ /* best-effort status display; never break the tool over it */ }
+  if(typeof _lsSyncAutosaveToggleUI==='function') _lsSyncAutosaveToggleUI();
+}
+// Freshness check on tab focus/visibility — self-throttled inside checkFreshness() itself.
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') _lsCheckFreshnessNow(); });
+window.addEventListener('focus',function(){ _lsCheckFreshnessNow(); });
+async function _lsCheckFreshnessNow(){
+  try{
+    // No sign-in gate here: checkFreshness() (js/sync.js) already no-ops correctly when signed out
+    // (it checks currentUser() itself) — `_session` tracking sign-in state lives in a DIFFERENT
+    // script's closure (the sync-ready listener below) and isn't reachable from this scope.
+    if(!window._syncBridge||!window._syncBridge.checkFreshness) return;
+    await window._syncBridge.checkFreshness(currentCharId());
+    _lsRenderSyncChip();
+  }catch(e){}
+}
 // Restores the campaign BINDING as well as the log. save() has written campaignId into the autosave
 // envelope since PR #312, but load() called _lsResetCloudApState() (which nulls _lsCampaignId) and then
 // never read it back — so every page refresh dropped the binding and could only recover it via the
@@ -721,9 +858,15 @@ function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=
 // navigate. CharGen consumes ?handoff=<id> on boot. No file to export/import. writeHandoff/currentCharId are
 // bridged from js/character-store.js. Online-only (the SW serves .html network-first; a unique handoff URL is
 // never cached, so offline it falls back to the menu — the character stays safe in this tool's local save).
-function switchToCharGen(){
+async function switchToCharGen(){
  try{
   save();   // persist current state locally first; the handoff and the local save both reflect it
+  // Flush any pending/in-flight cloud push before navigating, instead of leaving it on a debounce timer
+  // this page is about to abandon — same bug class CharGen's switchToLiveSheet() already guards
+  // against (D-GH-2026-08-08-chargen-cloud-autosave-flush). Bounded so an offline/paused-backend user
+  // is never stranded on this button; the local save above plus the dirty-record retry on next boot
+  // are the fallback either way.
+  await _lsFlushCloudSaveNow(2500);
   const uid=writeHandoff({source:'livesheet',LOG:LOG,SEQ:SEQ,rules:RULES,id:currentCharId(),campaignId:window._lsCampaignId||null});
   if(!uid){flash('⚠ Could not open the Character Generator — local storage is unavailable (private mode or full). Your character is unchanged.');return;}
   location.href='PACT-CharGen-Webtool.html?handoff='+encodeURIComponent(uid);
@@ -1759,11 +1902,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). Nothing above depends on it, so a failure here
   // costs cloud save, campaigns and DM AP, not the tool. Listeners gate on sync-ready, which simply
   // never fires; window._syncBridge etc. stay undefined and every consumer already null-checks them.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, withKeepalive } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
   import { listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { getAwardHistory } from '../js/dm.js';
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, withKeepalive };
   window._authBridge = { currentSession, onAuthChange };
   window._campaignBridge = { listMyCampaigns, getCampaign };
   window._dmBridge = { getAwardHistory };
@@ -1841,8 +1984,11 @@ document.addEventListener('sync-ready', function () {
 
   // Uses onAuthChange (not the shared onSessionChange helper) because this site genuinely needs
   // the raw event string for the SIGNED_OUT branch below — see js/auth.js's onSessionChange doc.
-  A.onAuthChange(function(event,session){ _session = session; renderCloudStatusBadge(); if(event==='SIGNED_OUT'){ _lsResetCloudApState(); if(typeof window.render==='function') window.render(); } });
-  A.currentSession().then(function(s){ _session = s; renderCloudStatusBadge(); refreshCloudCampaignRules(); });
+  // window._lsSignedIn mirrors _session as a plain boolean, ONLY so code outside this closure (the
+  // autosave scaffolding near save(), a classic <script> elsewhere in the file) has something to read
+  // — _session itself is private to this closure. Same pattern as CharGen's window._cloudSignedIn.
+  A.onAuthChange(function(event,session){ _session = session; window._lsSignedIn = !!session; renderCloudStatusBadge(); if(typeof _lsRenderSyncChip==='function')_lsRenderSyncChip(); if(event==='SIGNED_OUT'){ _lsResetCloudApState(); if(typeof window.render==='function') window.render(); } });
+  A.currentSession().then(function(s){ _session = s; window._lsSignedIn = !!s; renderCloudStatusBadge(); if(typeof _lsRenderSyncChip==='function')_lsRenderSyncChip(); refreshCloudCampaignRules(); });
 
   // Fetch the active character's campaign rules on load/sign-in (not just at cloud-save)
   // so banned masteries/boons are filtered out of the pickers as you build, not just
@@ -1897,7 +2043,8 @@ document.addEventListener('sync-ready', function () {
       return confirm('“' + label + '” was changed on another device since you loaded it, so this '
                    + 'device\'s copy can no longer be saved to the cloud.\n\n'
                    + 'Replace what is on screen with the cloud version?\n\n'
-                   + 'Anything you changed here and did not manage to save will be lost.');
+                   + 'Anything you changed here and did not manage to save will be lost. If you want to '
+                   + 'keep it, click Cancel first and use ⬇ Export to save a local copy before retrying.');
     } });
     if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return false; }
     window._dmAp = rec.ap || 0;
@@ -2093,16 +2240,21 @@ document.addEventListener('sync-ready', function () {
         if(res.conflict){
           if(confirm('This character was changed on another device since you loaded it.\n\n'+
                      'Your edits here are saved on THIS device and have not been sent to the cloud.\n\n'+
-                     'Reload the other device\'s version now? Your local changes to this copy will be lost.')){
+                     'Reload the other device\'s version now? Your local changes to this copy will be lost. '+
+                     'If you want to keep them, click Cancel first and use ⬇ Export to save a local copy '+
+                     'before retrying.')){
             location.reload(); return;
           }
           if(typeof window.flash === 'function') window.flash('⚠ Not sent to cloud — this copy is behind another device');
-          btn.disabled = false; btn.textContent = '☁ Save to cloud'; return;
+          btn.disabled = false; btn.textContent = '☁ Save to cloud';
+          if(typeof _lsRenderSyncChip==='function') _lsRenderSyncChip();
+          return;
         }
         if(res.error) throw res.error;
         if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
       } catch(err){ alert('Save failed: '+err.message); }
       btn.disabled = false; btn.textContent = '☁ Save to cloud';
+      if(typeof _lsRenderSyncChip==='function') _lsRenderSyncChip();
     });
 
     try {

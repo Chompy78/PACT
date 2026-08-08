@@ -6,6 +6,144 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-08 · fix(sync): two real bugs in `setAutosaveEnabled()`, caught by `/code-review ultra`
+  before merge** — the B3 branch's own PR-template checklist calls for an ultra review on any change
+  touching `sql/`; it found what regular verification hadn't. (1) `characters.updated_at` is bumped by
+  an unconditional `BEFORE UPDATE` trigger even for an update that only touches `autosave_enabled` —
+  without re-pinning `base_updated_at`/`_pageBase` to the trigger's new value, the same page's very next
+  real save was refused as a false "changed on another device" conflict, caused by nothing but flipping
+  the toggle. (2) Toggling autosave on a character with no local cache yet (a brand-new, never-saved
+  build) silently no-opped — the user's explicit choice was discarded, not merely delayed, and the
+  toggle UI would visibly snap back to checked. Both fixed; the failure-path rollback also needed a
+  follow-up fix so a failed write on a never-cached character removes the placeholder record instead of
+  leaving a phantom unconfirmed value. Both verified with a differential repro (fails on the pre-fix
+  commit, passes on the fix) promoted into a permanent gate,
+  `testing/scripts/sync-autosave-toggle-ci.mjs` (4/0, plus `sync-state-machine` 21/0, `sync-concurrency`
+  12/0, `engine-parity` 29/0 all still clean). Two more findings from the same review — in
+  **pre-existing** push-overlap machinery, one already shipped in CharGen before this branch, freshly
+  (and faithfully) replicated into Live Sheet's new B3 scaffolding — were logged to
+  `docs/TASK_BOARD_NEXT.md` rather than fixed here: they're bounded (local data isn't lost, only cloud
+  sync can lag) and deserve their own scoped fix, not scope creep onto this branch. See
+  `docs/plans/2026-08-08-shared-sync-chip-part-b.md`'s B3 implementation note. No `DATA.version` change.
+
+- **2026-08-08 · feat(sync): universal cloud autosave with a per-character owner-reversible toggle**
+  — Part B3 of `docs/plans/2026-08-08-shared-sync-chip-part-b.md`, implementing the C2 design decision
+  (see `decisions/2026/D-GH-2026-08-08-universal-autosave-toggle.md`): every signed-in character now
+  autosaves to the cloud by default, campaign-bound or not, governed by one `characters.autosave_enabled`
+  boolean (default `true`) any owner can flip at any time via a new checkbox next to the sync chip in
+  both editor tools. No RPC — a plain column grant under the existing owner-only `characters_update`/
+  `characters_insert` row policies, mirroring `archived_at`'s precedent (unlike `award_ap()`, the writer
+  here is always the row's own owner, so `award_ap`'s SECURITY DEFINER pattern doesn't apply). CharGen's
+  autosave gate (`_cgCloudAutosave`/`_cgFlushCloudSaveNow`/pagehide) had its old campaign-bound-only
+  check replaced outright, including a stale header comment that would otherwise have contradicted the
+  code beneath it. Live Sheet gets cloud autosave for the first time — previously ☁ Save to cloud was
+  its only cloud write path — mirroring CharGen's debounce/overlap-guard/keepalive-on-exit pattern
+  exactly, plus an awaited flush before `switchToCharGen()`'s cross-tool navigation (same bug class as
+  D-GH-2026-08-08-chargen-cloud-autosave-flush). Two real bugs caught before commit: (1) the same
+  `_session`-is-private-to-a-different-closure mistake B2 already made once, this time in the toggle's
+  enable/disable logic — fixed with a `window._lsSignedIn` boolean mirror, matching CharGen's existing
+  `window._cloudSignedIn`; (2) `setAutosaveEnabled()` would have thrown a misleading "may have been
+  deleted" error the first time anyone toggled autosave on a character never yet cloud-saved (zero rows
+  matched because the row didn't exist yet, not because anything was wrong) — fixed with an existence
+  check, plus carrying the toggle value through `pushCharacter()`'s first INSERT so a pre-save choice
+  isn't silently discarded back to the default. Deliberately NOT done: the write-volume budget (no live
+  traffic data available to measure against in this environment); DM Console's roster does not yet
+  surface a character's toggle state (open follow-up, not required for B3's own done-when bar).
+  **Migration applied to the live database on explicit owner confirmation** (same day) — verified
+  post-apply: column exists as `boolean not null default true`; all 16 pre-existing characters read
+  `true` (none silently flipped `false`); `authenticated` holds INSERT/SELECT/UPDATE on the column;
+  `get_advisors(security)` showed no new finding attributable to this change.
+  `testing/tests/engine-parity.html` 29/0, `tool-pricing` 67/0, `sync-state-machine` 21/0,
+  `sync-concurrency` 12/0 — confirmed, not assumed unaffected. No live-browser visual verification was
+  possible in this environment. No `DATA.version` change.
+- **2026-08-08 · feat(sync): a shared cloud-sync status chip in all three tools, wired to the real
+  state machine** — Part B2 of `docs/plans/2026-08-08-shared-sync-chip-part-b.md`, built on B1's
+  `getSyncState`/`noteEdit`/`checkFreshness` (same day, earlier). New `chipPresentation()` in
+  `js/sync.js` is the one place all three tools' icon/label/tone/aria-label for the six sync states come
+  from, so the wording can't drift between copies. **Deviates from the plan's original "replace, don't
+  add" framing**: reading the actual code found `cgCloudStatus`/`cloudStatusBadge` are dual-purpose
+  (sign-in state AND campaign-rules-binding status), so replacing them would have been a real
+  information loss — the new chip (`#cgSyncChip`, `#lsSyncChip`, class `synchip`) is additive instead,
+  the lowest-risk default since the owner didn't weigh in when asked mid-implementation. `noteEdit()` is
+  now actually wired into both editor tools' edit paths (CharGen's `_cgAutosave()`, Live Sheet's
+  `save()`) and `checkFreshness()` fires on `visibilitychange`/`focus` in both, self-throttled. The
+  `conflict` state reuses the existing `onBehind` confirm-and-reload primitive in both tools rather than
+  a new "force sync" control (the prior plan review found that label actively misleading against the
+  existing stale-save guard) — its wording now also points at the already-shipped ⬇ Export as a
+  keep-a-copy-first step before the destructive reload. CharGen's `☁ Cloud` button is visually
+  de-emphasized (shrunk to `⋯`) with the chip as the primary status element; **Live Sheet's stays
+  undemoted** — it has no autosave until B3, so demoting its only cloud-save path now would have been a
+  real regression, a correction a prior review round caught in v1 of this plan. DM Console gets the
+  shared icon/aria-label vocabulary applied to its existing `#campWho` (kept as one text element, not
+  given a separate chip — it usefully shows the signed-in email, which the editor-tool chip doesn't);
+  its three write paths' own feedback (`award-status`, `dm-notes-status`) were checked, not assumed —
+  `dm-notes-save` already has full Saving/Saved/Error text, `awardAp`'s success is shown via the
+  immediate roster re-render (an explicit flash would just be overwritten by it), `unbindCharacter`'s
+  card disappearing is its own confirmation — no changes needed there. Chip surfaces use `textContent`
+  only, never a dynamic name (the mapping function's contract is fixed-enum-in, nothing dynamic to
+  escape). Folds in and removes the now-superseded `docs/TASK_BOARD_NEXT.md` entry "Consistent, obvious
+  sign-in indicator across the three tools." One real bug caught before commit: Live Sheet's freshness-
+  check wiring initially referenced `_session`, private to a different script closure — would have
+  silently no-op'd forever inside a swallowing `try/catch`; fixed by relying on `checkFreshness()`'s own
+  internal signed-in guard instead. `testing/tests/engine-parity.html` 29/0, `tool-pricing` 67/0,
+  `sync-state-machine` 21/0, `sync-concurrency` 12/0 — all confirmed, not assumed unaffected. No live-
+  browser visual verification was possible in this environment; see the plan doc's B2 implementation
+  note for what a manual pass should still check. No `DATA.version` change. Same branch-pinning
+  deviation as Part A/B1 (implemented directly on this session's designated branch).
+
+- **2026-08-08 · feat(sync): a real sync-state machine in js/sync.js — getSyncState/noteEdit/
+  checkFreshness** — Part B1 of `docs/plans/2026-08-08-shared-sync-chip-part-b.md` (the shared cloud-sync
+  status chip work), split out as pure sync-layer plumbing with no UI change yet. Adds six exported states
+  (`signedOut > saving > conflict > behind > dirty > idle`, highest precedence first) via
+  `getSyncState(id)`. Closes the 3-second debounce blind window a cold-review round confirmed: local
+  autosave never touched `dirty` until a push actually fired, so a naive status read would report "all
+  synced" for several seconds after a real edit. Fixed with two monotonic counters instead of a boolean —
+  `editSeq` (bumped synchronously by the new `noteEdit()`, meant to be called at edit time, not
+  debounce-fire time) and `savedSeq` (stamped with whatever `editSeq` a push captured *at push-start*,
+  advanced only via `Math.max`) — `hasUnsavedEdits = dirty || editSeq > savedSeq` is race-safe against an
+  edit landing while an earlier push for the same character is still in flight. **Found and fixed a real
+  bug while writing the differential test for exactly this race**: `applyServerMeta()`'s final `lsSet(rec)`
+  wrote back the *whole* in-memory record captured at push-start, silently overwriting a concurrently
+  higher `editSeq`/`savedSeq` some other push or `noteEdit()` had already advanced in localStorage — the
+  same failure class the counters exist to prevent, reintroduced one layer down. Fixed by merging against
+  the currently-persisted values via `Math.max`, not just against the in-memory record's own copies. Also
+  adds read-only `checkFreshness(id)` (deliberately separate from `reconcile()`, which mutates) for a
+  persisted `behind` flag with real clear conditions — including the one a single reviewer caught and the
+  other four missed: `reconcile()`'s own silent adopt-at-boot branches (both of them) now clear `behind`
+  too, via a new shared `markInSyncWithServer()` helper, so a stale "cloud moved on" warning can't outlive
+  a background auto-resolve. A failed freshness check never touches the persisted `behind` value — only a
+  page-lifetime `lastCheckFailed` marker, decorating whichever of the 6 states is showing rather than
+  growing a 7th. New standalone gate `testing/scripts/sync-state-machine-ci.mjs` (21 passed / 0 failed,
+  differential on the editSeq/savedSeq race) — not yet wired into CI, same as `sync-concurrency-ci.mjs`.
+  **Also fixed `sync-concurrency-ci.mjs` itself**, found broken by this session's own Part A change
+  (`withKeepalive` added to `js/sync.js`'s import line 2026-08-08 earlier today, never re-run against this
+  script since it isn't CI-wired) — now 12/0. `noteEdit()` isn't wired into any tool yet (that's Part
+  B2/B3); this branch is sync-layer only. `testing/tests/engine-parity.html` 29/0, `tool-pricing` 67/0,
+  both unaffected by design. No `DATA.version` change. Implemented directly on this session's designated
+  branch rather than a fresh `feat/sync-state-machine` branch, per the harness's branch-pinning rule for
+  this session (see the same deviation noted for Part A).
+
+- **2026-08-08 · fix(chargen): a debounced cloud-autosave push no longer gets silently abandoned by
+  navigation** — `_cgCloudAutosave()` only ever *scheduled* a push 3s after the last edit; nothing flushed
+  a pending timer on navigation. CharGen's own "Open in Live Sheet" button (`switchToLiveSheet()`) walked
+  straight into this: it called `_cgAutosave()` (re-arming a fresh 3000ms cloud-push timer) and then
+  navigated away in the same breath, guaranteeing that queued push never fired — the last few seconds of
+  edits before every tool switch silently never reached the cloud. `switchToLiveSheet()` now **awaits** a
+  bounded flush (`_cgFlushCloudSaveNow`, 2.5s timeout) before navigating, so the in-app switch is a real
+  guarantee, not a best-effort. Plain tab/browser close gets a best-effort `pagehide` flush using
+  `fetch(...,{keepalive:true})` (new `withKeepalive()` in `js/supabase-client.js`, re-exported from
+  `js/sync.js`) — `sendBeacon` was considered and rejected because it can't carry the Authorization/apikey
+  headers an authenticated Supabase write needs. Page-lifecycle delivery is inherently best-effort on every
+  browser/OS regardless of transport, so this is documented as such rather than claimed as a guarantee; the
+  durable fallback for that case remains the local autosave (already written) plus the record's `dirty`
+  flag retrying on this browser's next boot/reconnect. `_cgCloudPush()` now tracks its in-flight promise so
+  a flush can await an already-running push instead of firing a duplicate or resolving early.
+  Found and scoped while cold-reviewing a larger header-simplification/universal-autosave plan (4 models,
+  2 vendor families — see `docs/plans/2026-08-08-header-simplification-universal-autosave.md`); this fix
+  is split out as its own small, low-risk change (Part A) rather than folded into that larger, still-open
+  design. `testing/tests/engine-parity.html` 29/0, `tool-pricing` 67/0, both unaffected by design (no
+  rules-engine involvement). No `DATA.version` change.
+
 - **2026-08-06 · fix(chargen): undo no longer un-locks a locked character, or reorders its purchases** —
   a regression from the same day's creation-lock work, found by asking whether the ordering problem was
   *"just randomize"*. It wasn't. `restoreFrame()` (undo/redo) restored the frame's LOG and then called

@@ -81,7 +81,12 @@ writeFileSync(join(dir, 'stub-cs.js'),   `export const isCloudCharId = id => typ
  *  localStorage. Each distinct filename is a separate module instance = a separate open page. */
 function makePage(src, name) {
   let s = src
-    .replace("import { supabase } from './supabase-client.js';", "import { supabase, makeLS } from './world.js';")
+    // feat/chargen-cloud-autosave-flush (Part A) added withKeepalive to this import; this harness has
+    // no use for it (nothing here exercises the pagehide/keepalive flush path), so it's stubbed out
+    // rather than routed anywhere real — dropping the export line too, or the module would try to
+    // re-export a binding that was never imported.
+    .replace("import { supabase, withKeepalive } from './supabase-client.js';", "import { supabase, makeLS } from './world.js';")
+    .replace('export { withKeepalive };\n', '')
     .replace("import { currentUser } from './auth.js';", "import { currentUser } from './stub-auth.js';")
     .replace("import { isCloudCharId } from './character-store.js';", "import { isCloudCharId } from './stub-cs.js';")
     // Module-scoped bindings shadow the globals inside this module only — one storage per page, and
