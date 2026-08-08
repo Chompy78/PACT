@@ -13,6 +13,17 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-08-chargen-header-followup** — Owner review of the Local/Cloud split (real-browser
+  screenshots, not assumed) found three gaps: `.hd-row2` wrapped the theme selector onto its own line
+  below ~1150px (a common laptop width), mobile had zero cloud access at all (a pre-existing gap that
+  became conspicuous once desktop's cloud access got a clean label), and the ☁ Cloud menu was missing
+  the New Character option the 📁 Local menu had. Fixed via a narrower-width media query hiding the two
+  least-critical version labels, a mobile "☁ Cloud" trigger that reparents the single existing
+  `#cgCloudMenu` element (avoiding ID-collision risk from duplicating the whole rich menu), an
+  `overflow-y:visible` fix for a CSS overflow-axis coupling that was clipping the reparented dropdown,
+  and adding New Character to the Cloud menu too. A same-session mobile→desktop resize edge case in the
+  reparenting logic was caught by an actual round-trip headless test, not assumed safe.
+  Full record: `decisions/2026/D-GH-2026-08-08-chargen-header-followup.md`.
 - **D-GH-2026-08-08-chargen-local-cloud-split-new-character** — CharGen's header cluster still read
   as two disconnected pieces (cloud actions behind a lone unlabeled "⋯," local Save/Load as loose
   buttons in the row below) even after the general header declutter, so local and cloud actions were

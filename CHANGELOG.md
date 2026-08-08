@@ -6,6 +6,28 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-08 · fix(ui): CharGen — header no longer wraps on common laptop widths, mobile gets cloud
+  access, New Character also offered from the ☁ Cloud menu** — `D-GH-2026-08-08-chargen-header-followup`,
+  the owner's review of the local/cloud split found three real gaps, confirmed with real-browser
+  screenshots at each width (not assumed): (1) `.hd-row2` overflowed and wrapped the theme selector onto
+  its own line at ~1024-1150px, a very common laptop/half-screen width — fixed by hiding the two
+  least-critical text labels ("Web Tool · vX" / "PACT rules · vX", both readable elsewhere) below 1150px,
+  verified holding a single line down to 900px. (2) Mobile had **zero** cloud access — `.hd-row2`
+  (where the cloud menu lives) is `display:none` below 768px, so a hidden ancestor hid the menu
+  regardless of any new trigger button. Fixed by reparenting the ONE `#cgCloudMenu` element into
+  whichever button's wrapper (desktop `#cgCloudBtn` or new mobile `#cgCloudBtnM`) triggered it, rather
+  than duplicating the whole rich menu (auth state / campaign join / character list — real ID-collision
+  risk across two DOM copies); also fixed `.mobile-action-bar`'s `overflow-x:auto` implicitly clipping
+  the dropdown vertically too (the CSS overflow spec ties both axes together once either leaves
+  `visible`) with an explicit `overflow-y:visible`. A same-session resize-without-closing edge case
+  (open on mobile, resize to desktop, click the desktop trigger) was caught by an actual round-trip
+  headless test and fixed: reparenting now always shows the menu at its new location instead of
+  toggling it closed. (3) "🆕 New Character" is now offered from the ☁ Cloud menu too (previously only
+  in 📁 Local) — it flushes a pending *cloud* autosave before detaching, so it's as much a cloud action
+  as a local one. Verified: `engine-parity` 29/0, `audit.py` 0 failed, headless-Chromium checks at
+  1024px/900px/1151px (no wrap) and a mobile→desktop→mobile menu round-trip. No `compute()`/rules
+  involvement, no `DATA.version` change.
+
 - **2026-08-08 · feat(ui): CharGen — split header into 📁 Local / ☁ Cloud menus, relabel Reset as 🆕 New
   Character, fix a debounce-redirect data-loss edge case** — `D-GH-2026-08-08-chargen-local-cloud-split-
   new-character`, a follow-up to the header declutter below after the owner reviewed the result: cloud
