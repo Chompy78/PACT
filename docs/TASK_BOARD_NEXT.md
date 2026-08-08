@@ -1398,6 +1398,116 @@ is never affected either way — verified by the new differential test; DM Conso
 same lock/confirm pattern as "ignore player-entered AP"; `testing/tests/engine-parity.html` still 0
 failed (`compute()` itself is unchanged).
 
+## Security audit: privilege boundaries + character/AP integrity against a malicious client — TODO
+Branch `security/privilege-and-character-integrity`. Owner request, 2026-08-08. Assume the attacker has
+the full frontend source, the Supabase URL, the publishable key, complete control of browser JS/
+localStorage, and calls Supabase directly — every finding must be verified at the RLS/RPC boundary, not
+just in the UI. **Explicitly excludes the invitation system** — `docs/TASK_BOARD_NOW.md`'s
+`fix/harden-invitation-system` already owns that surface; do not touch `campaigns.dm_invite_code`,
+`campaign_invites`, or `joinAsDm`/invite RPCs from this task.
+
+**Not green-field — audit before assuming a gap exists.** Several of the asks below already have a
+documented answer or a partial existing task; confirm the real state (read the actual RLS/RPC, per
+AGENTS.md's "verify before writing an absence claim") before treating anything here as a fresh finding:
+- `ap` is already documented as server-authoritative, DM-only, never overwritten by a local push
+  (`AGENTS.md` File & data map) — audit whether that's actually *enforced* in `sql/rls-policies.sql`/RPCs
+  or only true by convention.
+- `characters_update`'s RLS already requires `owner_id = auth.uid()` in both `USING` and `WITH CHECK`
+  (confirmed via `grep -n "owner_id" sql/rls-policies.sql`, see the `feat/character-ownership-claim-link`
+  task below) — so raw ownership reassignment is already blocked; that task is where a *deliberate*
+  transfer RPC belongs if one gets built, not this one.
+- DM-applied creation-lock enforcement is already scoped as its own task, `feat/dm-creation-lock` (below)
+  — its "server is the enforcement point, not the LOG" framing is exactly this task's model; don't
+  re-derive the lock design here, cross-check against it instead.
+- `feat/ap-model-reconcile` (below) already covers the *display* divergence between `compute()` and the
+  frozen ledger; this task covers whether a malicious client can *create* that divergence server-side —
+  related, not overlapping. Sequence awareness, not a merge.
+
+**1. Role boundaries (Owner / DM / Player) — audit and enforce server-side, don't introduce new roles.**
+Do not add finer-grained roles unless the audit finds a concrete vulnerability that requires it. For each
+of: DM transferring campaign ownership, DM accessing another campaign, player escalating to DM/Owner,
+campaign-membership checks, DM-only operations — confirm the enforcement is a `SECURITY DEFINER` RPC or
+RLS policy check, not a UI gate. Do not reduce any *legitimate* DM capability while doing this.
+
+**2. Character/AP integrity — treat all browser state as untrusted.** Confirm server-side (RLS/RPC, not
+just `engine.js` — the engine is called client-side and proves nothing about a raw API call):
+- AP cannot be set/increased directly by a player write; AP changes require an authorised RPC.
+- AP cannot go negative or be set arbitrarily via a crafted request.
+- Frozen ledger / LOG history cannot be rewritten or deleted by an UPDATE once persisted.
+- Purchase prices in a saved character cannot be client-supplied — pricing must be derivable/verifiable
+  from `compute()`, not trusted as sent.
+- A locked/finished character cannot be mutated via a direct API call once locked.
+- A character cannot move between campaigns except through an authorised path.
+- LOG events cannot be replayed/duplicated to double-grant purchases, rewards, or AP.
+- Creation-lock rules cannot be bypassed by client-constructed state (cross-check `feat/dm-creation-lock`).
+- Species/heritage/2nd-origin pricing cannot be gamed via a hand-crafted LOG.
+- A malformed/forged LOG cannot produce a cloud character that persists.
+Preserve the invariant **`sum(frozen event costs) == compute().total`** for valid finished characters —
+audit whether the server can currently accept a saved character where these disagree, and if so, close
+that specific gap (don't build new validation infrastructure beyond what closes the actual gap found).
+
+**3. Campaign-rule integrity.** Audit whether a DM changing campaign rules (starting AP, pricing gates,
+species/heritage rules, creation restrictions) can silently reprice or invalidate *existing* characters.
+If retroactive application is intentional design, preserve it and say so; if not, confirm existing
+character history is immune to a later rule edit.
+
+**4. Cloud/client trust boundary — the general sweep.** For every operation currently protected only by
+client-side logic (JS checks, UI hiding) touching AP, LOG/event data, character locking, campaign IDs,
+ownership, DM permissions, or character↔campaign relationships: move real enforcement to
+PostgreSQL/RLS/RPCs where it's missing. Where enforcement already exists, this step is "confirm it," not
+"rebuild it."
+
+**5. Adversarial tests.** Add/extend the automated security suite proving each of: no player privilege
+escalation; no cross-campaign read/write; no direct AP manipulation; no forged purchase prices; no event
+replay/duplication; frozen ledger immutable; locked characters immutable via API; campaign
+reassignment properly authorised; DM cannot transfer ownership (unless a task explicitly adds that
+capability); malformed event/state payloads rejected; `compute().total` == frozen-ledger total holds;
+existing legitimate Owner/DM/Player workflows still pass. Run the full existing test/security suite
+alongside the new tests — a regression here is exactly what this task must not cause.
+
+**Effort:** high · **Risk:** high — ambiguity is high (this is an open-ended audit across RLS, RPCs, and
+three tools with several sub-areas that may turn out to already be enforced correctly, so scope only
+firms up once findings land); damage scale is high (touches the same core auth/character/campaign schema
+and RLS surface as the invitation-system and ownership-transfer tasks); damage likelihood is medium (this
+project's RLS/grant drift has bitten it twice before per D-GH15/D-GH12, and the class of bug this task
+hunts for — client-trusted state — is exactly what those incidents were) — worst-of lands at high, **never
+eligible for `/sweep-code-tasks`**. **Run `/make-code-cold-plan-review` before implementing any fix** this
+audit turns up that touches RLS/RPCs/schema — it meets AGENTS.md's own trigger (security-critical,
+multi-file, real design trade-offs, and a wrong approach costs more than one cycle to undo). The audit
+*itself* (read-only investigation, no schema change) does not need the cold review; a fix does.
+
+```text
+1. Inventory every RPC and RLS policy touching characters/campaigns/ap_awards (sql/schema.sql,
+   sql/rls-policies.sql, sql/migrations/) and classify each security-sensitive operation as
+   "server-enforced" or "client-trusted-only" — this classification IS the audit's deliverable before any
+   fix is written.
+2. For each "client-trusted-only" finding, confirm it's real by attempting the bypass against a live
+   Supabase call shape (not just reading code) — the same standard the invitation-system finding used
+   ("verified by reading the actual schema/RLS on preview, not assumed").
+3. Cross-check every finding against the three related tasks named above (fix/harden-invitation-system,
+   feat/dm-creation-lock, feat/character-ownership-claim-link, feat/ap-model-reconcile) before writing a
+   new fix — don't duplicate work already scoped elsewhere on the board.
+4. For confirmed gaps, design the smallest RLS/RPC change that closes them — do not introduce new roles,
+   new tables, or broader schema changes than the specific gap requires per the Acceptance criterion.
+5. Write the adversarial test suite (Section 5) covering every confirmed gap plus the invariants listed
+   even where no gap was found, so regressions are caught going forward.
+6. After any RLS/RPC/migration change, run the Supabase advisor (`get_advisors`) and skim `get_logs`
+   before opening the PR — this project has been bitten twice by grant/RLS drift (D-GH15, D-GH12).
+7. Run the full existing test/security suite plus the new adversarial tests; fix regressions before
+   declaring done.
+8. Document every finding (confirmed gap, closed or deliberately deferred) and every intentional trust
+   assumption in DECISIONS.md — including where the audit confirmed something was ALREADY correctly
+   enforced, so a future session doesn't re-audit the same ground from scratch.
+```
+
+**Done when:** every item in Sections 1–4 has been checked against live RLS/RPC behaviour (not just code
+review) and is either confirmed already-enforced or has a merged fix; the adversarial test list in
+Section 5 passes; `sum(frozen event costs) == compute().total` holds for every path that can produce a
+saved cloud character; the Supabase advisor reports no new findings; `testing/tests/engine-parity.html`
+is unaffected (0 failed); all findings and trust assumptions are recorded in `DECISIONS.md`; no
+invitation-system file (`campaigns.dm_invite_code`, `campaign_invites`, invite RPCs) was touched by this
+task.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
