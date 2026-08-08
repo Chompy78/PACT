@@ -13,6 +13,28 @@
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 
+- **D-GH-2026-08-08-universal-autosave-toggle** — Part B3's autosave-eligibility design (a one-way
+  consent-timestamp model, with campaign-bound characters kept on a separate always-on no-toggle path)
+  was replaced, at the owner's direct request, with one universal, freely-reversible per-character
+  toggle covering every character including campaign-bound ones. Accepted consequence: a player can
+  switch off autosave on a DM's campaign character, and the DM's roster can go stale until they save
+  again manually — the exact problem campaign-bound autosave was built in 2026-08-03 to prevent — taken
+  on knowingly rather than overlooked, with DM-facing visibility into the toggle state left as an open
+  follow-up for whoever builds the UI. `characters.autosave_enabled boolean default true`, an RPC
+  (`set_autosave_enabled`) mirroring the existing `award_ap()` grant pattern.
+  Full record: `decisions/2026/D-GH-2026-08-08-universal-autosave-toggle.md`.
+- **D-GH-2026-08-08-chargen-cloud-autosave-flush** — CharGen's debounced cloud autosave only ever
+  *scheduled* a push, and nothing flushed a pending one on navigation — CharGen's own "Open in Live Sheet"
+  button re-armed the timer and navigated away in the same breath, guaranteeing that push never fired.
+  Found while cold-reviewing a larger header/autosave plan (4 models, 2 vendor families, converged
+  independently on this as blocking). Split into two honest guarantees: in-app navigation now `await`s a
+  bounded flush of the real (or already-in-flight) push; uncontrolled exit (tab close) gets a best-effort
+  `pagehide` flush via `fetch(...,{keepalive:true})` — `sendBeacon` can't carry the auth headers an
+  authenticated write needs, and a plain non-keepalive fetch isn't guaranteed to survive page teardown.
+  Uncontrolled exit is documented as best-effort, not guaranteed, on any browser — the durable fallback
+  stays the local autosave plus the dirty-record retry on next boot. Split from the larger plan (Part A of
+  2), which is otherwise deferred pending the sync-state-machine and autosave-consent design work the
+  review surfaced. Full record: `decisions/2026/D-GH-2026-08-08-chargen-cloud-autosave-flush.md`.
 - **D-GH-2026-08-07-optimistic-character-save** — cloud saves were last-write-wins, so two devices on one
   character silently destroyed each other's **entire** history (the whole event log lives in `stats`).
   Guarded on the server's `updated_at`, carried client-side as a separate `base_updated_at`. Took four

@@ -946,7 +946,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.378';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.380';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1860,7 +1860,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
   import { getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes } from '../js/dm.js';
+  // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
+  // single character's build open the way the editor tools do, so it only ever needs the signed-out/
+  // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
+  // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
+  import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
   window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes, createPlayerInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
 <script>
@@ -2396,8 +2402,16 @@ document.addEventListener('campaign-ready', function () {
     var wasSignedIn = _dmWasSignedIn;
     var nowSignedIn = !!session;
     _dmWasSignedIn = nowSignedIn;
+    // Shared icon/wording vocabulary (feat/shared-sync-chip, docs/plans/2026-08-08-shared-sync-chip-
+    // part-b.md) — DM Console keeps its own text layout (campWho is a flex-fill label, not a pill
+    // badge, and it usefully shows the signed-in email, which the editor tools' chip does not), but
+    // the icon and aria-label come from the SAME chipPresentation() the other two tools use, so the
+    // signed-in/out language can't drift between all three. window._chipPresentation is undefined if
+    // the CDN-dependent module script failed to load (see the watchdog above) — degrade to plain text.
+    var p = window._chipPresentation ? window._chipPresentation({ state: nowSignedIn ? window._IDLE : window._SIGNED_OUT }) : null;
     if(session){
-      campWho.textContent = session.user.email;
+      campWho.textContent = (p ? p.icon + ' ' : '') + session.user.email;   // textContent only — safe regardless of what the email contains
+      campWho.title = p ? p.ariaLabel : '';
       campSignInBtn.textContent = 'Sign out';
       campSignInBtn.href = '#';
       campSignInBtn.onclick = function(e){ e.preventDefault(); };
@@ -2409,7 +2423,8 @@ document.addEventListener('campaign-ready', function () {
       // (including any in-progress award-amount/note inputs a DM is mid-typing into) for no reason.
       if(!wasSignedIn) loadCampaigns();
     } else {
-      campWho.textContent = 'Not signed in';
+      campWho.textContent = (p ? p.icon + ' ' : '') + 'Not signed in';
+      campWho.title = p ? p.ariaLabel : '';
       campSignInBtn.textContent = 'Sign in';
       campSignInBtn.href = '../login.html';
       campSignInBtn.onclick = null;

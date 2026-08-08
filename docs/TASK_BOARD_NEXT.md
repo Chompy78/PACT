@@ -139,47 +139,6 @@ project's status `ACTIVE_HEALTHY` across at least one full auto-pause window (or
 paid-tier path instead, the project has been upgraded and auto-pause confirmed disabled), and the decision
 is logged in DECISIONS.md.
 
-## Consistent, obvious sign-in indicator across the three tools — TODO
-Branch feat/signin-indicator-consistency. The three tools each show cloud sign-in state differently — DM
-Console (`tools/DM-Console.html`) shows the user's email or "Not signed in" plus a Sign in/Sign out button
-in the top bar (`#campWho`/`#campSignInBtn`); Live Sheet (`tools/PACT-Live-Char-Sheet.html`) shows a
-`#cloudStatusBadge` reading "🔒 Not signed in" with no equivalent "signed in" text shown in the same spot;
-CharGen (`tools/PACT-CharGen-Webtool.html`) shows one of three different strings via `renderStatus()`
-("🔒 Local only — not connected to any cloud campaign" / "☁ Signed in — no campaign selected" / "☁
-Campaign: <name>"). Different wording, different icons, different prominence — a user checking whether
-they're signed in has to relearn the pattern per tool (surfaced when a user went looking for it in DM
-Console).
-**Effort:** medium · **Risk:** medium — ambiguity is medium (the exact shared wording/icon/placement
-convention is a real but low-stakes UI call, not architectural — each tool stays a standalone file per the
-"no framework/no shared bridge for UI" architecture, so this is a copy/consistency pass, not a merge);
-damage scale is low (isolated text/icon/CSS changes, one contained edit per tool, trivially revertible, no
-data/security/engine impact); damage likelihood is medium (no automated gate catches copy/consistency
-drift — only manual/visual review would) — eligible for `/sweep-code-tasks`.
-
-```text
-1. Decide one shared convention (document it briefly in the PR description or a DECISIONS.md entry) for:
-   - Icon: 🔒 for signed-out / ☁ for signed-in (already the majority pattern across the three tools).
-   - Wording pattern: something like "🔒 Not signed in" (signed out) vs "☁ Signed in as <email>" or
-     "☁ Signed in — <campaign/context>" (signed in) — pick one template and apply it consistently.
-   - Placement/prominence: keep each tool's existing location (top bar), but make sure the signed-in
-     state is at least as visually prominent as DM Console's current email+button treatment — Live
-     Sheet and CharGen currently only show a subtle badge, easy to miss.
-2. Apply the convention in each tool's own status-rendering code:
-   - DM Console: `updateAuth(session)` (~line 1509) — already closest to the target pattern, adjust
-     wording only if needed for consistency.
-   - Live Sheet: `#cloudStatusBadge` update logic (~line 1561) — add a clear "signed in" state to match,
-     not just the "Not signed in" case.
-   - CharGen: `renderStatus()` (~line 531) — align wording/icon with the shared convention.
-3. This is UI text/CSS only — no engine.js, no compute() involvement. Display-only, do NOT bump
-   DATA.version; log in CHANGELOG.
-4. Verify in a real browser (per AGENTS.md's UI-testing expectation) in both signed-in and signed-out
-   states, and in both light and dark theme where each tool supports it.
-```
-
-**Done when:** all three tools use the same icon + wording template for signed-in vs signed-out state,
-the signed-in state is clearly visible (not just a subtle badge) in every tool, and this has been visually
-verified in a real browser in both auth states.
-
 ## Wire up joinAsDm() — co-DM invite codes currently can't be redeemed anywhere — TODO
 Branch feat/join-as-dm-ui. `js/campaign.js` exports `joinAsDm(code)` (a SECURITY DEFINER RPC, already
 correctly gated server-side) but no tool calls it — DM Console generates and lets you copy a campaign's
@@ -1293,6 +1252,127 @@ likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers 
 **Done when:** a randomized character over the creation threshold has its `creationLocked` event at the
 purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
 answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
+
+## Drawbacks are counted twice — and mislabelled "player AP" — TODO
+Branch `fix/drawback-ap-double-count`. `js/engine.js` (`foldBuild`/`compute`), plus the AP display in
+Live Sheet and CharGen.
+**Effort:** medium · **Risk:** high — damage scale is high (it changes `compute()` output and needs a
+`DATA.version` bump); ambiguity is medium (two coherent models, one is clearly preferable) and damage
+likelihood is low (engine-parity fixtures would catch a wrong implementation).
+
+Found 2026-08-07 while checking `Moss Stormspud (COPY)` after the Amble award-event cleanup. With every
+`award` event removed his `playerAp` was 4 — purely drawback-derived — which made the divergence visible.
+
+`foldBuild()` sets `b.budget = economy().earned`, and `earned` is awards **plus** `drawbackEarned`.
+`compute()` then does `playerAp = b.budget` and `spendable = (ignorePlayerAp ? 0 : playerAp) + dmAp`.
+But `total` **already** nets drawbacks (their `cost` is negative). So a drawback both reduces the build
+cost *and* raises the ceiling — it is worth double.
+
+Two models are each self-consistent; the engine does half of each:
+
+```text
+(a) cost nets the drawback (total 50), budget excludes the refund (37)  -> remaining -13  CORRECT
+(b) cost ignores it (total 54), budget gains it (41)                    -> remaining -13  CORRECT
+    current: total 50 AND spendable 41                                  -> remaining  -9  WRONG
+```
+
+Verified against Moss Stormspud: positive purchases 54, drawback refunds −4, net total 50, DM AP 37.
+With `ignore_player_ap` TRUE the engine drops `playerAp`, lands on model (a), and correctly reports
+"OVER BUDGET by 13 AP". With it FALSE, `remaining` is −9.
+
+**Scope:** Amble is the only campaign with `ignore_player_ap` on, so it is unaffected. Every character
+*not* in such a campaign — including all 8 unbound ones — currently gets double value from drawbacks.
+
+**Also a labelling bug.** `engine.js:476` documents `playerAp = b.budget` as "folded from the
+character's own `award` events", which is not what it holds. Under `ignore_player_ap` the UI then says
+"4 player AP ignored" — wrong twice: it is not player AP, and it is not being ignored, since it is
+already applied as a discount on `total`.
+
+```text
+1. Adopt model (a): a drawback affects the COST side only. Stop b.budget/playerAp folding in
+   drawbackEarned - playerAp must mean what engine.js:476 already says it means, i.e. award events only.
+2. Split the display by which side of the equation each belongs to. Drawback AP is a discount on cost,
+   not a pool to spend from: show it on the cost line ("Build cost 50 - 54, less 4 from drawbacks") and
+   reserve "Player AP" for actual awards. No new engine export is needed - economy() already returns
+   drawbackEarned separately from earned (D-GH41 exposed it for exactly this).
+3. Check every consumer of playerAp/b.budget before changing it - Live Sheet, CharGen, DM Console - and
+   confirm none of them re-derive the drawback credit themselves, or it will be dropped twice instead.
+4. This CHANGES compute() output: update testing/expected/ in the same PR and bump DATA.version. Add a
+   fixture with drawbacks and no award events - the case that exposed this - asserting the same
+   remaining whether ignorePlayerAp is true or false.
+5. Log the model choice as D-GH-<date>-drawback-ap-double-count; a future reader needs to know why the
+   cost side won rather than the budget side.
+```
+
+**Done when:** a drawback affects the build's cost exactly once; a character with drawbacks and no
+awards reports the same `remaining` whether `ignore_player_ap` is on or off; no UI calls
+drawback-derived AP "player AP"; `testing/expected/` updated and `DATA.version` bumped in the same PR;
+engine-parity **0 failed**.
+
+
+## Cloud-autosave flush doesn't wait for the freshest edit when a push is already in flight — TODO
+Branch fix/autosave-flush-latest-push. `_cgFlushCloudSaveNow()` (`tools/PACT-CharGen-Webtool.html`) and
+its Live Sheet twin `_lsFlushCloudSaveNow()` don't actually wait for the freshest pending edit when a
+push is already in flight, and neither the flush nor the retry it triggers use `withKeepalive` — so a
+deliberate tool-switch navigation (`switchToLiveSheet()`/`switchToCharGen()`) can still outrun the save
+it was added to guarantee. Found by `/code-review ultra` on the B3 (universal autosave) branch — a
+pre-existing bug in CharGen's already-shipped push-overlap machinery, freshly replicated into Live
+Sheet's new B3 autosave scaffolding rather than something either branch introduced from scratch.
+**Effort:** medium · **Risk:** medium — ambiguity is medium (a clear direction exists — track the
+LATEST queued push, not just "a" push — but the exact mechanism has a few reasonable shapes); damage
+scale is medium (spans two tools' autosave scaffolding, though fully contained and revertible — no
+security/data-model impact, and local autosave never loses the edit, only the cloud copy can lag until
+reconnect); damage likelihood is medium (no automated gate exists yet, but the fix's own differential
+test would catch a wrong implementation before merge).
+
+```text
+1. Reproduce first: a user edits while an earlier debounced push is in flight, then immediately
+   switches tools. _cgFlushCloudSaveNow()/_lsFlushCloudSaveNow() call _cgCloudPush()/_lsCloudPush(),
+   which (busy branch) just sets *SaveAgain=true and returns the OLD in-flight promise — not one
+   representing the newer edit. The Promise.race resolves on that stale push, the switch function
+   navigates away, and the retry carrying the actual latest edit fires later from the old push's
+   .finally() callback, dispatched WITHOUT keepalive.
+2. Fix direction: _cgCloudPush()/_lsCloudPush() need to return a promise that resolves only once the
+   LATEST queued push (not just "a" push) has completed, so the flush's Promise.race actually waits on
+   the right thing.
+3. The retry triggered from .finally() should go through withKeepalive too, since it can fire after the
+   page has already started navigating away.
+4. Apply the same fix to both CharGen and Live Sheet — they're independent copies of the same pattern,
+   not a shared function, so fixing one does not fix the other.
+5. Write a differential regression test (testing/scripts/, matching sync-concurrency-ci.mjs's own
+   pattern) that reproduces the overlapping-push-then-navigate scenario and fails on the pre-fix code.
+```
+
+**Done when:** a differential regression test reproduces the overlapping-push-then-navigate scenario
+and confirms the flush waits for the LATEST edit's push (not a stale one), with keepalive applied to
+any retry that fires after navigation starts; fix applied to both CharGen and Live Sheet; `testing/
+tests/engine-parity.html` still 0 failed.
+
+## reconcile()'s pushCharacter() calls bypass _pushInFlight tracking — TODO
+Branch fix/reconcile-push-inflight-tracking. `js/sync.js`: `reconcile()`'s `localNewer` branch calls
+`pushCharacter(local, ...)` directly without `_pushInFlight.add()`/`delete()` (unlike `saveCharacter()`,
+the only other `pushCharacter()` caller that tracks it). While that network push is running (at boot or
+during `syncAll()`/reconnect), `getSyncState(id)` for the same id has no way to see it and falls
+through to dirty/conflict/idle based on stale flags instead of the documented `SAVING` precedence — so
+a status chip refreshed during this window can show a wrong/flickering state until the push resolves
+and `applyServerMeta()` catches up. Found by `/code-review ultra` on the B3 branch; pre-existing since
+B1 (`docs/plans/2026-08-08-shared-sync-chip-part-b.md`), display-only impact.
+**Effort:** low · **Risk:** medium — ambiguity is low (one obviously right way to do it — mirror
+`saveCharacter()`'s own already-existing `_pushInFlight` pattern exactly); damage scale is low (single
+file, display-only, no security/data implication, trivially revertible); damage likelihood is medium
+(no automated gate exists yet for this specific window, though it's a narrow display glitch that would
+likely surface in manual/visual review rather than persist unnoticed).
+
+```text
+1. Wrap reconcile()'s pushCharacter() call the same way saveCharacter() does: _pushInFlight.add(id)
+   before the call, delete(id) in a finally.
+2. Add a test that starts a reconcile()-triggered push and checks getSyncState() mid-flight reports
+   SAVING, not a stale dirty/conflict/idle read.
+```
+
+**Done when:** `getSyncState()` correctly reports `SAVING` while a `reconcile()`-triggered push is in
+flight, verified by a test that starts a `reconcile()` push and checks `getSyncState()` mid-flight;
+`testing/scripts/sync-state-machine-ci.mjs` still 0 failed.
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.

@@ -19,10 +19,28 @@ import { createClient } from './vendor/supabase-js-2.110.2.js';
 export const SUPABASE_URL = 'https://piuprrrnaotrtxucrtsb.supabase.co';
 export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_oUOXbf432dY6_XBF1RcCuw_nFfLBbUC';
 
+// A page-lifecycle flush (e.g. on `pagehide`, when a tab is closing or navigating away) needs its one
+// outgoing request to survive the page tearing down, which a plain `fetch()` does not guarantee — the
+// browser can abort an in-flight request once teardown starts. `keepalive: true` is the fetch option that
+// lets a request outlive page dismissal (subject to a small body-size cap and a per-origin quota).
+// `navigator.sendBeacon` was considered and rejected for this: it cannot carry the Authorization/apikey
+// headers an authenticated Supabase write needs. `withKeepalive(fn)` flags the very next request THIS
+// client makes to opt into `keepalive` — scope it tightly (wrap exactly one call) since the flag is a
+// single shared mutable toggle. Even with keepalive this is best-effort, not a delivery guarantee, on
+// every browser/OS — see docs/plans/2026-08-08-header-simplification-universal-autosave.md, Part A.
+let _keepaliveNext = false;
+export async function withKeepalive(fn) {
+  _keepaliveNext = true;
+  try { return await fn(); } finally { _keepaliveNext = false; }
+}
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     persistSession: true,        // keep the session in localStorage
     autoRefreshToken: true,      // silently refresh the access token
     storageKey: 'pact-auth',     // namespaced so it can't clash with anything else
+  },
+  global: {
+    fetch: (url, options) => fetch(url, _keepaliveNext ? { ...options, keepalive: true } : options),
   },
 });

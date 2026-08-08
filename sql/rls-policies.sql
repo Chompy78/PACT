@@ -233,13 +233,25 @@ grant update (name, kind, stats) on public.characters to authenticated;
 -- is already correctly scoped.
 grant update (archived_at) on public.characters to authenticated;
 
+-- autosave_enabled (D-GH-2026-08-08-universal-autosave-toggle): same reasoning as archived_at
+-- immediately above -- an owner-only preference toggle, no DM/co-owner case to guard against, so a
+-- plain column grant under characters_update's existing owner-only row policy is already correctly
+-- scoped. No RPC (unlike award_ap, which needs SECURITY DEFINER specifically because the WRITER --
+-- a DM -- is not the row's owner; that never applies here).
+grant update (autosave_enabled) on public.characters to authenticated;
+
 -- Same guard on INSERT: strip blanket INSERT, grant it only on the columns a
 -- new character actually needs. ap and campaign_id are excluded here too —
 -- any future insert naming either column is rejected by Postgres itself,
 -- before the characters_insert policy's WITH CHECK is even evaluated. Belt
 -- and suspenders with that policy's own `ap = 0` check above.
 revoke insert on public.characters from authenticated;
-grant insert (id, owner_id, name, kind, stats) on public.characters to authenticated;
+grant insert (id, owner_id, name, kind, stats, autosave_enabled) on public.characters to authenticated;
+-- autosave_enabled included here (unlike ap/campaign_id) so pushCharacter()'s first-ever insert for a
+-- character can carry forward a toggle preference set locally before any row existed -- without this,
+-- flipping the toggle off on a brand-new never-saved character would be silently discarded the moment
+-- that character's first cloud save actually created the row (the insert would fall back to the
+-- column's own `true` default instead of the local `false` the player had already chosen).
 
 -- ---------------------------------------------------------------------------
 -- award_ap(character, amount, note) — the ONLY ap write path. Any DM of the
