@@ -12,6 +12,33 @@ copies. Left here as a reminder that "two disinterested design passes agreed thi
 same as "implementing it exposes no further races" — B2/B3 should expect the same, not assume the design
 work already caught everything.
 
+## Implementation note (B2, 2026-08-08)
+B2 is implemented with one deliberate deviation from this plan's original framing, made because the
+user declined to weigh in when asked mid-implementation and "keep both, additively" was the lowest-risk
+default: **the new chip does NOT replace `cgCloudStatus`/`renderStatus()` (CharGen) or
+`cloudStatusBadge`/`renderCloudStatusBadge()` (Live Sheet).** Reading the actual code found those
+elements are dual-purpose — they carry campaign-rules-binding status ("☁ Campaign: Amble — DM rules
+active" etc.), not just sign-in state — so a literal replace would have been a real information loss,
+not a pure simplification. The new chip (`#cgSyncChip`/`#lsSyncChip`, class `synchip`, shared
+`chipPresentation()` in `js/sync.js`) is **additive**, sitting alongside the existing status line. This
+is a partial win on the original "replace, don't add" goal, not the clean swap the plan described —
+worth revisiting explicitly (with the owner, not assumed again) if the two-element header still feels
+cluttered once this ships. DM Console's `#campWho` was NOT given a separate chip element — its existing
+text now carries the shared icon/aria-label from `chipPresentation()` while keeping its own layout
+(it usefully shows the signed-in email, which the editor-tool chip does not).
+
+Also found while implementing: DM Console's `award-status` element (item 7) turned out to be
+**already-adequate, not a gap** — its apparent "no success message" turned out to be because
+`renderCloudRoster()` re-renders the whole card immediately after a successful award, showing the
+updated AP total; an explicit "Awarded!" flash would just be overwritten by that re-render a moment
+later. No change made there — verified, not assumed.
+
+One real bug caught before commit, not in review: the freshness-check wiring in Live Sheet initially
+referenced `_session`, a variable private to a *different* script closure (the `sync-ready` listener),
+which would have silently thrown-and-been-swallowed by the surrounding `try/catch` on every call —
+`checkFreshness()` never actually running. Fixed by relying on `checkFreshness()`'s own internal
+signed-in guard instead of duplicating (and getting wrong) an external one.
+
 ## Goal
 Give PACT's three tools one shared, honest cloud-sync status indicator (replacing three inconsistent
 signed-in/out badges) and make cloud autosave the default for any character whose owner has actually

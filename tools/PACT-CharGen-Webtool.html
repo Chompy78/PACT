@@ -324,6 +324,17 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .hd-row2 .sub,.hd-pactver{font-size:11px;opacity:.85}
 .hd-row2 .lastedited{font-size:11px;opacity:.75;white-space:nowrap}
 .hd-row2 .hd-localonly{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.13);border-radius:12px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap}
+/* Shared cloud-sync status chip (feat/shared-sync-chip) — same class/tone names as the Live Sheet's
+   copy, so the two tools read identically even though the markup itself is duplicated per the
+   standalone-file architecture (docs/plans/2026-08-08-shared-sync-chip-part-b.md). Separate from
+   .hd-localonly's campaign-rules-binding status (cgCloudStatus) — this chip is sign-in/save state
+   only; see that plan's B1 implementation note on why the two were kept as distinct elements. */
+.synchip{display:inline-flex;align-items:center;gap:4px;border-radius:12px;padding:3px 11px;font-size:11px;font-weight:700;white-space:nowrap;background:rgba(255,255,255,.16);color:#fff}
+.synchip.good{background:rgba(60,200,120,.22);color:#d6ffe6}
+.synchip.warn{background:rgba(230,160,40,.28);color:#ffe9b3}
+.synchip.bad{background:rgba(220,70,70,.3);color:#ffd9d9}
+.synchip.info{background:rgba(120,170,240,.28);color:#dce9ff}
+.synchip.stale{opacity:.75}
 .hd-row3{background:var(--navy);color:#fff;padding:5px 14px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,0.15)}
 .hd-mobnav{display:none}
 .mobile-action-bar{display:none}
@@ -445,7 +456,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.378</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Save this character to the cloud, or load one you saved before" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35)">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.378</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="lastedited">Last edited 2026-06-28 23:10</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save this character to the cloud, or load one you saved before" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 8px" aria-label="Cloud menu">⋯</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <button class="btn ghost" onclick="saveBuild()" title="Save this character to a JSON file you can re-open with Load. Supported browsers let you pick where; otherwise it goes to your Downloads (iOS: opens to Share → Save to Files).">💾 Save</button>
@@ -543,11 +554,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange };
   window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive };
+  window._syncBridge = { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -632,6 +643,10 @@ document.addEventListener('campaign-ready', function () {
       if (wasSignedIn) { myCampaigns = []; applySelection(''); }
     }
     renderStatus();
+    // The shared sync chip (feat/shared-sync-chip) is defined in a later script (window._syncBridge
+    // arrives with the sync-ready module below); it may not exist yet on the very first auth callback,
+    // hence the typeof guard rather than a hard call.
+    if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
   }
 
   selEl.addEventListener('change', function () { applySelection(selEl.value); });
@@ -791,12 +806,14 @@ document.addEventListener('sync-ready', function () {
             + 'To pick up the other device’s version, use ☁ Cloud → Load. That will replace what is '
             + 'on screen, so copy across anything you want to keep first.');
         if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
+        if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
         return;
       }
       if (res.error) throw res.error;
       if (typeof flash === 'function') flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
     } catch (err) { alert('Save failed: ' + err.message); }
     if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
+    if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
   }
 
   // Path B (feat/campaign-bind-character, docs/plans/2026-07-11-campaign-join-invite-flow.md
@@ -871,7 +888,9 @@ document.addEventListener('sync-ready', function () {
       return confirm('“' + label + '” was changed on another device since you loaded it, so this '
                    + 'device\'s copy can no longer be saved to the cloud.\n\n'
                    + 'Replace what is on screen with the cloud version?\n\n'
-                   + 'Anything you changed here and did not manage to save will be lost.');
+                   + 'Anything you changed here and did not manage to save will be lost. If you want to '
+                   + 'keep it, click Cancel first and use ⬇ Save/Export to save a local copy before '
+                   + 'retrying.');
     } });
     if (!rec || !rec.stats || !Array.isArray(rec.stats.LOG)) {
       alert('Could not open “' + label + '”.\n\nNo character data came back. If you are offline or the '
@@ -3404,10 +3423,49 @@ window.addEventListener('pagehide',function(){
   }catch(e){ /* best-effort only — see comment above */ }
 });
 function _cgAutosave(){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(_cgEnvelope(false)));}catch(e){}
+  // Closes the debounce blind window (docs/plans/2026-08-08-shared-sync-chip-part-b.md, B1): this runs
+  // on every edit, synchronously, well before _cgCloudAutosave()'s 3s debounce fires — noteEdit() is
+  // what lets the chip see "unsaved" immediately instead of only after a push is actually attempted.
+  try{if(window._syncBridge&&window._syncBridge.noteEdit)window._syncBridge.noteEdit(currentCharId());}catch(e){}
   try{_cgCloudAutosave();}catch(e){}
+  try{_cgRenderSyncChip();}catch(e){}
   // Feed the shared recent-characters store (landing "Continue" list). Best-effort + guarded so it can
   // never break the real autosave above; window.recordAutosave arrives with the engine bridge (engine-ready).
   try{if(window.recordAutosave)window.recordAutosave({tool:'chargen',id:currentCharId(),name:val('cname')||'',rules:DATA.version,LOG:LOG,SEQ:SEQ});}catch(e){}}
+// ---- shared cloud-sync status chip (feat/shared-sync-chip) -----------------------------------
+// Renders window._syncBridge.getSyncState()'s result through the shared chipPresentation() mapping —
+// see js/sync.js for both. Async (getSyncState/currentUser are async), so callers fire-and-forget it;
+// it's cheap (no network — reads localStorage only) and self-contained, never throws into its caller.
+async function _cgRenderSyncChip(){
+  var el=document.getElementById('cgSyncChip'); if(!el||!window._syncBridge||!window._syncBridge.getSyncState) return;
+  try{
+    var s=await window._syncBridge.getSyncState(currentCharId());
+    var p=window._syncBridge.chipPresentation(s);
+    el.textContent=p.icon+' '+p.label;               // textContent only — see chipPresentation()'s own
+    // Conflict resolution reuses ☁ Cloud → Load's existing onBehind prompt (loadCloudChar, above) —
+    // there is no separate "force sync" action, deliberately (the plan this branch implements found
+    // that label actively misleading in this state: the stale-save guard would just refuse it). Point
+    // at the real resolution path instead of implying a one-click fix that doesn't exist.
+    var title = s.state==='conflict'
+      ? p.ariaLabel+' — use ☁ Cloud → Load to resolve (this replaces local changes with the cloud version)'
+      : p.ariaLabel;
+    el.title=title;                                    // doc comment on why it never carries a dynamic name
+    el.setAttribute('aria-label',title);
+    el.setAttribute('aria-live', s.state==='conflict' ? 'assertive' : 'polite');
+    el.className='synchip'+(p.tone?' '+p.tone:'')+(p.stale?' stale':'');
+  }catch(e){ /* best-effort status display; never break the tool over it */ }
+}
+// Freshness check on tab focus/visibility — self-throttled inside checkFreshness() itself, so this can
+// fire freely on every event without hand-rolling a debounce here. Only meaningful once signed in.
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') _cgCheckFreshnessNow(); });
+window.addEventListener('focus',function(){ _cgCheckFreshnessNow(); });
+async function _cgCheckFreshnessNow(){
+  try{
+    if(!window._syncBridge||!window._syncBridge.checkFreshness||!window._cloudSignedIn) return;
+    await window._syncBridge.checkFreshness(currentCharId());
+    _cgRenderSyncChip();
+  }catch(e){}
+}
 // Apply a schema-tagged CharGen envelope's LOG + name/budget/id shims (shared by load + autosave-restore).
 function _cgApplyEnvelope(d,opts){
   const b=foldBuild(d.LOG);

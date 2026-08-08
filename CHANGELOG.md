@@ -6,6 +6,41 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-08 · feat(sync): a shared cloud-sync status chip in all three tools, wired to the real
+  state machine** — Part B2 of `docs/plans/2026-08-08-shared-sync-chip-part-b.md`, built on B1's
+  `getSyncState`/`noteEdit`/`checkFreshness` (same day, earlier). New `chipPresentation()` in
+  `js/sync.js` is the one place all three tools' icon/label/tone/aria-label for the six sync states come
+  from, so the wording can't drift between copies. **Deviates from the plan's original "replace, don't
+  add" framing**: reading the actual code found `cgCloudStatus`/`cloudStatusBadge` are dual-purpose
+  (sign-in state AND campaign-rules-binding status), so replacing them would have been a real
+  information loss — the new chip (`#cgSyncChip`, `#lsSyncChip`, class `synchip`) is additive instead,
+  the lowest-risk default since the owner didn't weigh in when asked mid-implementation. `noteEdit()` is
+  now actually wired into both editor tools' edit paths (CharGen's `_cgAutosave()`, Live Sheet's
+  `save()`) and `checkFreshness()` fires on `visibilitychange`/`focus` in both, self-throttled. The
+  `conflict` state reuses the existing `onBehind` confirm-and-reload primitive in both tools rather than
+  a new "force sync" control (the prior plan review found that label actively misleading against the
+  existing stale-save guard) — its wording now also points at the already-shipped ⬇ Export as a
+  keep-a-copy-first step before the destructive reload. CharGen's `☁ Cloud` button is visually
+  de-emphasized (shrunk to `⋯`) with the chip as the primary status element; **Live Sheet's stays
+  undemoted** — it has no autosave until B3, so demoting its only cloud-save path now would have been a
+  real regression, a correction a prior review round caught in v1 of this plan. DM Console gets the
+  shared icon/aria-label vocabulary applied to its existing `#campWho` (kept as one text element, not
+  given a separate chip — it usefully shows the signed-in email, which the editor-tool chip doesn't);
+  its three write paths' own feedback (`award-status`, `dm-notes-status`) were checked, not assumed —
+  `dm-notes-save` already has full Saving/Saved/Error text, `awardAp`'s success is shown via the
+  immediate roster re-render (an explicit flash would just be overwritten by it), `unbindCharacter`'s
+  card disappearing is its own confirmation — no changes needed there. Chip surfaces use `textContent`
+  only, never a dynamic name (the mapping function's contract is fixed-enum-in, nothing dynamic to
+  escape). Folds in and removes the now-superseded `docs/TASK_BOARD_NEXT.md` entry "Consistent, obvious
+  sign-in indicator across the three tools." One real bug caught before commit: Live Sheet's freshness-
+  check wiring initially referenced `_session`, private to a different script closure — would have
+  silently no-op'd forever inside a swallowing `try/catch`; fixed by relying on `checkFreshness()`'s own
+  internal signed-in guard instead. `testing/tests/engine-parity.html` 29/0, `tool-pricing` 67/0,
+  `sync-state-machine` 21/0, `sync-concurrency` 12/0 — all confirmed, not assumed unaffected. No live-
+  browser visual verification was possible in this environment; see the plan doc's B2 implementation
+  note for what a manual pass should still check. No `DATA.version` change. Same branch-pinning
+  deviation as Part A/B1 (implemented directly on this session's designated branch).
+
 - **2026-08-08 · feat(sync): a real sync-state machine in js/sync.js — getSyncState/noteEdit/
   checkFreshness** — Part B1 of `docs/plans/2026-08-08-shared-sync-chip-part-b.md` (the shared cloud-sync
   status chip work), split out as pure sync-layer plumbing with no UI change yet. Adds six exported states

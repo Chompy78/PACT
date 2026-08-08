@@ -539,6 +539,44 @@ export async function getSyncState(id) {
   return { state: IDLE, lastCheckFailed };
 }
 
+// One canonical table for the six display states, matching the naming in
+// docs/plans/2026-08-08-shared-sync-chip-part-b.md ("Standing scope" table) — the internal enum values
+// above (signedOut/idle/dirty/behind/conflict/saving) are what code branches on; PRESENTATION is the
+// single place their user-facing icon/label/tone is decided, so three separately-maintained copies in
+// three tools' HTML can't drift from each other.
+const PRESENTATION = {
+  [SIGNED_OUT]: { icon: '🔒', label: 'Signed out',        ariaLabel: 'Not signed in',                                  tone: 'muted' },
+  [SAVING]:     { icon: '⋯',  label: 'Saving…',            ariaLabel: 'Saving to the cloud',                            tone: 'info'  },
+  [CONFLICT]:   { icon: '⚠',  label: 'Cloud conflict',     ariaLabel: 'Unsaved changes and a newer version on the cloud', tone: 'bad' },
+  [BEHIND]:     { icon: '☁',  label: 'Newer on cloud',     ariaLabel: 'A newer version exists on the cloud',            tone: 'warn'  },
+  [DIRTY]:      { icon: '●',  label: 'Unsaved changes',    ariaLabel: 'Unsaved changes not yet on the cloud',           tone: 'warn'  },
+  [IDLE]:       { icon: '☁',  label: 'Signed in',          ariaLabel: 'Signed in — up to date',                        tone: 'good'  },
+};
+
+/**
+ * Pure state → `{icon, label, ariaLabel, tone, stale}` mapping for a shared cloud-sync status chip —
+ * the ONE place all three tools read the chip's icon/text/aria/color from, so their otherwise-duplicated
+ * markup can't drift on wording (each tool still owns its own DOM/CSS; only this decision is shared).
+ *
+ * Takes ONLY the fixed enum values getSyncState()/checkFreshness() return (`{state, lastCheckFailed}`)
+ * — DELIBERATELY NEVER a raw character or campaign name. A tool that wants to show a name near the chip
+ * composes it itself, via `textContent`/DOM property assignment (never `innerHTML` string
+ * concatenation) — this function has no dynamic-string surface for that risk to live on.
+ *
+ * `lastCheckFailed` (see checkFreshness()) decorates the result as `stale:true` plus an amended
+ * `ariaLabel` rather than becoming a distinct chip state — the fixed 6-state vocabulary doesn't grow a
+ * 7th value for "a background freshness check didn't complete," which is connectivity noise, not a
+ * change in what's actually known about the character.
+ */
+export function chipPresentation({ state, lastCheckFailed } = {}) {
+  const p = { ...(PRESENTATION[state] || PRESENTATION[SIGNED_OUT]) };
+  if (lastCheckFailed) {
+    p.stale = true;
+    p.ariaLabel += ' (last freshness check did not complete)';
+  }
+  return p;
+}
+
 /** List the current user's own characters (owner-only — explicitly filtered by
  *  owner_id rather than relying on RLS alone, since characters_select also grants
  *  DMs read access to every character in campaigns they run; this must never widen
