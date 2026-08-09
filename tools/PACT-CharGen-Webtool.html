@@ -362,9 +362,13 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
  .stickyhead{position:static;flex:0 0 auto}.layout{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
  body{padding-top:0;height:100vh;height:100dvh;overflow:hidden;display:flex;flex-direction:column}
  .hd-row2,.hd-row3,.secnav{display:none}
- /* feat/chargen-mobile-header-layout: session controls (Undo/Redo/Theme/Local/Cloud) live here — the
-    row a phone user needs on every screen, not just the builder — so #secjump still gets flex:1 to
-    soak up whatever width the buttons before it don't need. */
+ /* feat/chargen-mobile-header-layout: session controls (Undo/Redo/Local/Cloud) live here — the row a
+    phone user needs on every screen, not just the builder. #secjump keeps flex:1 to soak up whatever
+    width the buttons before it don't need; 🎨 Theme (fix/chargen-mobile-theme-right) comes last with
+    margin-left:auto so it hugs the right edge of whichever line it lands on — redundant with secjump's
+    flex:1 on a line that has room (secjump already ate the slack), but the safety net for a narrower
+    phone where flex-wrap puts Theme alone on its own line, where flex:1's sibling wouldn't be there to
+    do that job for it. */
  .hd-mobnav{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
  .hd-mobnav #secjump{flex:1;min-width:120px;font:inherit;padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--inp);color:var(--navytx)}
  /* CU-7: character-management actions (Save/Load/Live Sheet/…) live in the sticky header's .hd-row3 on
@@ -511,7 +515,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
-<div class="hd-mobnav"><button class="btn ghost" id="undoBtnM" onclick="undo()" title="Undo" aria-label="Undo" disabled>↶</button><button class="btn ghost" id="redoBtnM" onclick="redo()" title="Redo" aria-label="Redo" disabled>↷</button><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtnM" type="button" title="Local file actions — start a new character, save to a file, or load one" aria-label="Local menu">📁 Local</button></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtnM" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" aria-label="Cloud menu">☁ Cloud</button></span><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
+<div class="hd-mobnav"><button class="btn ghost" id="undoBtnM" onclick="undo()" title="Undo" aria-label="Undo" disabled>↶</button><button class="btn ghost" id="redoBtnM" onclick="redo()" title="Redo" aria-label="Redo" disabled>↷</button><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtnM" type="button" title="Local file actions — start a new character, save to a file, or load one" aria-label="Local menu">📁 Local</button></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtnM" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" aria-label="Cloud menu">☁ Cloud</button></span><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px;margin-left:auto"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></div>
 <div class="secnav" id="secnav"></div>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
 <div class="mobile-action-bar" id="mobActionBar">

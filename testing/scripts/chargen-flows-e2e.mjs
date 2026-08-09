@@ -250,6 +250,13 @@ section('mobile header: Local/Cloud on the first row, Random + collapse on the l
         && document.querySelector('.hd-mobnav').contains(document.getElementById('undoBtnM'))
         && document.querySelector('.hd-mobnav').contains(document.getElementById('redoBtnM'))
         && document.querySelector('.hd-mobnav').contains(document.getElementById('themeselMobile'))),
+      // fix/chargen-mobile-theme-right: 🎨 Theme must be the LAST child of .hd-mobnav (so it hugs the
+      // right edge — margin-left:auto in the CSS relies on it being last), not just "somewhere in the
+      // row" (the check above already covers that weaker claim).
+      themeIsLastInFirstRow: (function(){
+        var row = document.querySelector('.hd-mobnav'), theme = document.getElementById('themeselMobile');
+        return !!(row && theme && row.lastElementChild === theme);
+      })(),
     };
   });
   check('📁 Local moved to the first row', rows.localInFirstRow, JSON.stringify(rows));
@@ -259,6 +266,7 @@ section('mobile header: Local/Cloud on the first row, Random + collapse on the l
   check('🎲 Random moved OFF the first row', !rows.randomInFirstRow, JSON.stringify(rows));
   check('🎲 Random is now on the last row', rows.randomInLastRow, JSON.stringify(rows));
   check('Undo/Redo/Theme are still on the first row', rows.undoRedoThemeStillFirstRow, JSON.stringify(rows));
+  check('🎨 Theme is the last item in the first row (right side)', rows.themeIsLastInFirstRow, JSON.stringify(rows));
 
   // Moving the Local/Cloud trigger buttons must not break their popup menus — both are a single
   // reparented #cgLocalMenu/#cgCloudMenu element keyed off btn.parentElement (see _cgWireLocalMenu()),

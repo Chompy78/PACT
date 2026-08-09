@@ -6,6 +6,14 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-09 · fix(chargen): move the mobile 🎨 Theme selector to the right side of the first row** —
+  Follow-up to the mobile header rework above: 🎨 Theme moved from between Redo and 📁 Local to the last
+  slot in `.hd-mobnav`, after "Jump to section", with `margin-left:auto` so it hugs the row's right edge
+  on any width — mirrors the desktop header's own `.hd-theme{margin-left:auto}` pattern for the same
+  control. `testing/scripts/chargen-flows-e2e.mjs`: 48 → 49 checks (added an explicit
+  `.hd-mobnav.lastElementChild === themeselMobile` assertion so the position, not just the row
+  membership, is covered).
+
 - **2026-08-09 · fix(chargen): mobile header rework — Local/Cloud on the first row, collapsible last row, fixed info modal** —
   CharGen's mobile header (`.hd-mobnav`/`.mobile-action-bar`) reorganized: 📁 Local/☁ Cloud moved from
   the last row into the first row alongside Undo/Redo/Theme (their popup menus still work — both are a
