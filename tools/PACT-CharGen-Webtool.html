@@ -4395,15 +4395,41 @@ function _csKey(id){return (id&&String(id).trim())||'(none)';}
 function csLoad(id){var all=_csStore();return all[_csKey(id)]||{};}
 function csSave(id,fieldId,val){try{var all=_csStore();var k=_csKey(id);(all[k]=all[k]||{})[fieldId]=val;localStorage.setItem(_sheetStoreKey(),JSON.stringify(all));}catch(e){}}
 var _csId='(none)';
-function onSheetField(el){var f=el.getAttribute('data-mf');if(!f)return;var v=(el.type==='checkbox')?(el.checked?'1':''):el.value;csSave(_csId,f,v);}
+// fix/sheet-tab-appearance-not-persisted: these `data-mf` ids are real character data (b.appearance),
+// unlike Player Name/Alignment/Background-Other/Allies/Backstory-Notes/spell trackers, which have no LOG
+// concept and are genuinely device-local scratch notes. Before this fix ALL of them — appearance included
+// — went through csSave()/csLoad() only: a local, per-tool, per-character-id scratchpad that never
+// touched the LOG, so an edit made here never reached a cloud save, and looked like it "disappeared" the
+// moment the character was opened in the other tool (a different tool = a different scratchpad
+// namespace, see _sheetStoreKey()). _shCommitAppearanceField (tool-local: CharGen routes it through
+// PATCH_SLOTS.APPEARANCE; Live Sheet's own copy of this file has no Setup-panel equivalent and writes
+// the LOG directly) is what makes these fields real now.
+var SHEET_APPEARANCE_FIELDS=['ap_gender','ap_age','ap_height','ap_build','ap_hair','ap_eyes','ap_skin','ap_marks','ap_voice','ap_hometown','ap_faith','ap_ambition','ap_fear','ap_prized','ap_companion','ap_overall'];
+function onSheetField(el){var f=el.getAttribute('data-mf');if(!f)return;var v=(el.type==='checkbox')?(el.checked?'1':''):el.value;
+  if(SHEET_APPEARANCE_FIELDS.indexOf(f)>=0){_shCommitAppearanceField(f.slice(3),v);return;}
+  csSave(_csId,f,v);}
 // after innerHTML is set, fill manual fields from store (seeded with build defaults baked into data-seed) and wire save
 function hydrateSheet(id){_csId=_csKey(id);var data=csLoad(_csId);
   document.querySelectorAll('#sheetbody [data-mf]').forEach(function(el){
-    var id=el.getAttribute('data-mf');var stored=data[id];
+    var id=el.getAttribute('data-mf');
+    // Appearance fields always show the LIVE LOG value (data-seed, freshly computed on every render) —
+    // never a stored scratch override, so this view can no longer silently diverge from what Save/cloud
+    // sync actually persists. Everything else keeps the original stored-or-seed behaviour.
+    var stored=(SHEET_APPEARANCE_FIELDS.indexOf(id)>=0)?null:data[id];
     if(el.type==='checkbox'){el.checked=(stored!=null)?(stored==='1'):(el.getAttribute('data-seed')==='1');}
     else{el.value=(stored!=null)?stored:(el.getAttribute('data-seed')||'');}
     if(el.addEventListener){el.addEventListener('input',function(){onSheetField(el);});el.addEventListener('change',function(){onSheetField(el);});}
   });}
+// Merge the edited key into the FULL current appearance object (so fields the Sheet doesn't show — nose,
+// demeanour, quirk, likes, dislikes, father, mother, profession, familyfor, famevent, secret, drink —
+// survive untouched) and commit through the same coalescing mechanism the Setup panel's own ap_* fields
+// use, so a Sheet-tab edit and a Setup-panel edit of the same character never fight each other.
+function _shCommitAppearanceField(key,v){
+  var merged=Object.assign({},(readBuild().appearance)||{});merged[key]=v;
+  _cgSyncPatchSlot(PATCH_SLOTS.APPEARANCE,{appearance:merged});
+  var setupEl=document.getElementById('ap_'+key);
+  if(setupEl && setupEl!==document.activeElement) setupEl.value=v;   // keep the Setup panel in sync if it's on screen
+}
 var _CSABCOL={STR:'#DE3520',DEX:'#39843C',CON:'#B36113',INT:'#3F6FD8',WIS:'#008393',CHA:'#9C27B0'};
 function _csEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function _mfIn(id,seed,cls,ph,aria){return '<input class="cs-in '+(cls||'')+'" data-mf="'+id+'" data-seed="'+_csEsc(seed)+'" aria-label="'+_csEsc(aria||ph||id)+'"'+(ph?' placeholder="'+_csEsc(ph)+'"':'')+'>';}

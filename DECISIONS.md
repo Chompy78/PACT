@@ -10,6 +10,21 @@
 
 ## Index
 
+- **D-GH-2026-08-09-sheet-tab-appearance-not-persisted** — the fillable "📋 Sheet" tab's Appearance grid
+  and Background & Personality block (gender/age/height/build/hair/eyes/skin/marks/voice/hometown/faith/
+  ambition/fear/prized/companion/Description) are real `b.appearance` data, but were rendered through the
+  same local-`localStorage`-scratchpad mechanism as genuinely scratch fields (Player Name, Notes, spell
+  trackers) — so an edit made there never reached the LOG, never synced to the cloud, and looked like it
+  "disappeared" the moment the character was reopened in the other tool (a different, empty scratchpad
+  namespace per tool). Fixed by routing those 16 fields into the real LOG: CharGen reuses its existing
+  `PATCH_SLOTS.APPEARANCE`/`replacePatchSlot()` coalescing mechanism; Live Sheet (which has no
+  Setup-panel equivalent — the Sheet tab is its only editor for these fields) gained a new
+  position-stable replace-in-place helper mirroring the same "don't move the ledger line, don't let
+  undo() eat it" rule. Both merge into the FULL current appearance object so fields the Sheet doesn't
+  show (nose, demeanour, quirk, likes, dislikes, father, mother, profession, familyfor, famevent, secret,
+  drink) survive untouched.
+  Full record: `decisions/2026/D-GH-2026-08-09-sheet-tab-appearance-not-persisted.md`.
+
 - **D-GH-2026-08-09-harden-invitation-system** — `campaigns.dm_invite_code` was readable by any campaign
   member (row-level RLS, no column exclusion) and redeemable by any authenticated account system-wide via
   `join_as_dm()` with no membership check — a confirmed live privilege-escalation bug. Fixed by dropping
