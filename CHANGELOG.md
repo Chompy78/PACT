@@ -6,6 +6,15 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-09 · docs(tasks): remove stale `feat/creation-vs-awarded-ap` entry from `TASK_BOARD_NOW.md`** —
+  picked up via `/run-code-task-jc` and found already fully shipped: the level+track selectors, the
+  creation/awarded AP split, and `#budget` as a plain number input all landed 2026-08-05 (see this file's
+  2026-08-05 entry and `decisions/2026/D-GH-2026-08-05-creation-vs-awarded-ap.md`); the one open question
+  the board task still listed — removing `_buildEventBurst`'s blanket `noLock` tagging — was answered
+  differently and closed 2026-08-06 (`D-GH-2026-08-06-creation-lock-survives-reload.md`: the owner kept
+  the tagging and had CharGen append an explicit `creationLocked` event instead). No code change; the
+  board entry was a stale duplicate of already-completed, already-documented work.
+
 - **2026-08-09 · fix(chargen): drop the mobile last-row collapse toggle — leave it flat and scrolling** —
   Second follow-up to the mobile header rework: `.mobile-action-bar`'s "▴ Less"/"▾ More" collapse toggle
   (added the same day) removed. The row already scrolls horizontally to reach anything off-screen, so
