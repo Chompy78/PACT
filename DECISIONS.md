@@ -17,6 +17,17 @@
   repo's working copy switched branches, since git can't check the same branch out twice. Also folds in
   the pre-existing `z-cold-reviews/` content, moved in during setup.
   Full record: `decisions/2026/D-GH-2026-08-09-zcold-autosync-setup.md`.
+- **D-GH-2026-08-09-campaign-ap-budget-enforce** — new campaign setting `rules.enforceApBudget`
+  (default true) blocks a campaign-bound character's CLOUD save (manual + autosave, both tools) once
+  `compute()`'s `remaining < 0`; local file Save and DM Console (no save path of its own) are never
+  touched. Client-side only, deliberately — mirrors `validate()`'s existing enforcement style, since
+  true DB-level enforcement would mean reimplementing `compute()`'s pricing math in SQL, violating the
+  hard rule that `js/engine.js` is the only place rules logic lives. DM Console's new toggle copies the
+  existing `ignorePlayerAp` lock-guarded UI pattern verbatim. Grandfathered — turning it on never
+  retroactively touches an already-over-budget character, only blocks the next save attempt. Manual save
+  alerts with a clear reason; autosave skips silently after one warning per session, mirroring
+  `_cgConflictWarned`/`_lsConflictWarned` exactly.
+  Full record: `decisions/2026/D-GH-2026-08-09-campaign-ap-budget-enforce.md`.
 
 - **D-GH-2026-08-09-sheet-tab-appearance-not-persisted** — the fillable "📋 Sheet" tab's Appearance grid
   and Background & Personality block (gender/age/height/build/hair/eyes/skin/marks/voice/hometown/faith/

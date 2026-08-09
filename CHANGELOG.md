@@ -10,6 +10,29 @@
   `zcold` branch** — external background script watches both folders and auto-pushes anything
   dropped in them within seconds, via a git worktree + junction (not tracked on `preview`). See
   `D-GH-2026-08-09-zcold-autosync-setup`.
+- **2026-08-09 · feat(campaign): block cloud save for campaign-bound characters over AP budget** —
+  new per-campaign `rules.enforceApBudget` toggle (default true; jsonb key inside `campaigns.rules`, no
+  migration/RLS change) blocks a campaign-bound character's *cloud* save — manual "Save to cloud" and
+  autosave, in both CharGen and Live Sheet — once `compute()`'s `remaining < 0`. Local file Save is
+  never affected either way, and neither is DM Console (no save path of its own). Client-side only,
+  deliberately, mirroring `validate()`'s existing banned-item enforcement — `compute()` itself needed no
+  change, `remaining < 0` already meant "over budget." Manual save shows a clear alert (over budget by N
+  AP, DM has enforcement on) and never attempts the push; autosave skips silently after one warning per
+  session, mirroring the existing `_cgConflictWarned`/`_lsConflictWarned` pattern exactly so a blocked
+  debounce cycle isn't noise. Grandfathered: turning the setting on never retroactively touches an
+  already-over-budget character. DM Console's new toggle (`tools/DM-Console.html`) copies the existing
+  "ignore player-entered AP" lock-guarded checkbox+button pattern verbatim, and is threaded into the big
+  "Save rules" button's own object literal so a routine rules save doesn't silently revert it (same
+  treatment `dmNotes` already gets). 7 new gate assertions across both tools in
+  `testing/scripts/tool-pricing-ci.mjs` (83/0 total; `engine-parity` 29/0 unaffected — `js/engine.js`
+  untouched), isolating the gating logic from real AP-pricing arithmetic via a stubbed `compute()`.
+  Confirmed red first: reverting only the two tool-file changes threw `ReferenceError:
+  _lsOverApBudget is not defined` and failed the gate. Not verified in this session: the manual-save
+  button end-to-end (its Cloud menu only renders once signed in, which this CDP harness can't do — the
+  separate "Cloud (signed-in) e2e" CI check's job) and DM Console's new toggle UI behaviourally (no local
+  harness covers that tool; its script blocks were confirmed to parse with no syntax errors). Graduates
+  `feat/campaign-ap-budget-enforce` off `docs/TASK_BOARD_NEXT.md`. See
+  `decisions/2026/D-GH-2026-08-09-campaign-ap-budget-enforce.md` for the full record.
 
 - **2026-08-09 · fix(chargen,livesheet): the Sheet tab's Description/Appearance/Background fields now
   actually save** — owner report, live: *"when i go from chargen to live sheet and back, all the

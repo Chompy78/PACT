@@ -577,6 +577,14 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                       title="This setting changes what every character in the campaign can spend. Click to unlock it.">&#128274; Locked</button>
               <button type="button" class="infobtn" id="ignoreApInfo" title="When ON, AP a player granted themselves in their own character log is ignored — they can spend only AP you granted (characters.ap). Turning it OFF hands every character back whatever AP sits in their own log, which can change several players' budgets at once. Locked by default so it can't be toggled by a stray click.">&#9432;</button>
             </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink)">
+                <input type="checkbox" id="enforceApBudget" disabled> Block cloud save when over AP budget
+              </label>
+              <button type="button" class="btn sm ghost" id="enforceBudgetLock" aria-pressed="true"
+                      title="This setting blocks a campaign-bound character's cloud save once they've spent past their AP budget. Click to unlock it.">&#128274; Locked</button>
+              <button type="button" class="infobtn" id="enforceBudgetInfo" title="When ON (the default), a campaign-bound character can't save to the cloud — manually or via autosave — once they've spent past their AP budget. Local file Save is never affected. Turning it OFF lets over-budget characters keep saving to the cloud as before. Never retroactive — only blocks the next save attempt. Locked by default so it can't be toggled by a stray click.">&#9432;</button>
+            </div>
           </div>
 
           <div class="subtile" id="campInviteTile">
@@ -1969,6 +1977,7 @@ document.addEventListener('campaign-ready', function () {
   var campRoster   = document.getElementById('campRoster');
   var campRosterName = document.getElementById('campRosterName');
   var ignoreChk    = document.getElementById('ignorePlayerAp');
+  var enforceChk   = document.getElementById('enforceApBudget');
   var inviteStartAp = document.getElementById('inviteStartAp');
   var inviteNote    = document.getElementById('inviteNote');
   var inviteList    = document.getElementById('inviteList');
@@ -2425,7 +2434,12 @@ document.addEventListener('campaign-ready', function () {
       startingTier: window._dmTierState.read(),
       // dmNotes lives in the same rules JSON but has its own "Save notes" button (DM notes tile)
       // — carry the live textarea value through here too so this save never clobbers it.
-      dmNotes: dmNotesText.value
+      dmNotes: dmNotesText.value,
+      // enforceApBudget (feat/campaign-ap-budget-enforce) likewise has its own lock-guarded toggle and
+      // dedicated save call — carry the live checkbox state through so this save never clobbers it.
+      // enforceChk.checked always reflects the current persisted value between campaign selects (see
+      // its own change handler and the campaign-select init above), never a stale/locked DOM default.
+      enforceApBudget: enforceChk.checked
     };
     if(_peekBlocks()) return;
     ruleSaveStatus.textContent = 'Saving…';
@@ -2611,6 +2625,10 @@ document.addEventListener('campaign-ready', function () {
     _renderPlayerCodeGrant();   // the grant figure belongs to the campaign, so it moves with the switch
     ignoreChk.checked = !!camp.ignore_player_ap;
     _setIgnoreLocked(true);   // every campaign switch lands locked
+    // feat/campaign-ap-budget-enforce: default TRUE when absent/unset (opposite default from
+    // ignore_player_ap above) — a campaign whose rules were never saved with this key still enforces.
+    enforceChk.checked = !(camp.rules && camp.rules.enforceApBudget === false);
+    _setEnforceLocked(true);   // every campaign switch lands locked
     // The roster cards price each character's AP ceiling against this switch (cloudAnalyze, in the
     // earlier UI-layer IIFE — a separate closure, hence the window seam). Set BEFORE loadRoster()
     // below, so the first paint already has it; a campaign switch re-fetches the roster, so the two
@@ -2757,6 +2775,26 @@ document.addEventListener('campaign-ready', function () {
   if(document.getElementById('ignoreApInfo'))
     document.getElementById('ignoreApInfo').addEventListener('click', function(){ alert(this.title); });
 
+  // feat/campaign-ap-budget-enforce: same lock-guarded pattern as ignorePlayerAp above, verbatim —
+  // this switch also changes what every campaign-bound character can do (whether their next cloud
+  // save is refused), so the same "disabled by default, explicit unlock, confirm, always re-lock"
+  // shape applies.
+  var enforceBudgetLock = document.getElementById('enforceBudgetLock');
+  function _setEnforceLocked(locked){
+    enforceChk.disabled = locked;
+    if(!enforceBudgetLock) return;
+    enforceBudgetLock.setAttribute('aria-pressed', locked ? 'true' : 'false');
+    enforceBudgetLock.innerHTML = locked ? '&#128274; Locked' : '&#128275; Unlocked';
+    enforceBudgetLock.title = locked
+      ? "This setting blocks a campaign-bound character's cloud save once they've spent past their AP budget. Click to unlock it."
+      : 'Unlocked — the checkbox can be changed. It re-locks automatically after a change.';
+  }
+  if(enforceBudgetLock) enforceBudgetLock.addEventListener('click', function(){
+    _setEnforceLocked(!enforceChk.disabled);
+  });
+  if(document.getElementById('enforceBudgetInfo'))
+    document.getElementById('enforceBudgetInfo').addEventListener('click', function(){ alert(this.title); });
+
   // Campaign Rules + Advancement panels: same "locked by default" pattern as ignorePlayerAp above, sized
   // up for a whole panel of checkboxes/selects/inputs instead of one control. Unlike the AP switch there
   // is no single change event to confirm() against — the existing "Save rules" click is already the
@@ -2808,6 +2846,34 @@ document.addEventListener('campaign-ready', function () {
       alert('Could not change that setting: ' + (err && err.message ? err.message : err));
     }
     _setIgnoreLocked(true);                    // always re-lock
+  });
+
+  // feat/campaign-ap-budget-enforce: unlike ignorePlayerAp, this setting changes no DISPLAYED number
+  // (DM Console has no save path of its own — it's read-only roster/awards, per its own design
+  // principle) — it only gates a FUTURE cloud-save attempt in CharGen/Live Sheet. So no roster
+  // re-fetch/re-price is needed here, just persisting the setting into the rules blob.
+  enforceChk.addEventListener('change', async function(){
+    if(!currentCampId){ _setEnforceLocked(true); return; }
+    if(_peekBlocks()){ enforceChk.checked = !enforceChk.checked; _setEnforceLocked(true); return; }
+    var turningOn = enforceChk.checked;
+    var msg = turningOn
+      ? "Block cloud save when over AP budget?\n\nAny campaign-bound character who has spent past their AP "
+        + "budget will have their NEXT cloud save (manual or autosave) refused until they're back under "
+        + "budget. This never touches an already-saved character retroactively — it only blocks their next "
+        + "save attempt. Local file Save is never affected."
+      : "Stop blocking cloud save when over AP budget?\n\nCampaign-bound characters who are over their AP "
+        + "budget will be able to save to the cloud again, same as before this setting existed.";
+    if(!confirm(msg)){ enforceChk.checked = !turningOn; _setEnforceLocked(true); return; }
+    var _c = currentCampaigns.find(function(c){ return c.id === currentCampId; });
+    var rules = Object.assign({}, (_c && _c.rules) || {}, { enforceApBudget: enforceChk.checked });
+    try {
+      await B.setCampaignRules(currentCampId, rules);
+      if(_c) _c.rules = rules;   // so a re-select doesn't revert to the old value
+    } catch(err){
+      enforceChk.checked = !turningOn;          // put the box back if the write failed
+      alert('Could not change that setting: ' + (err && err.message ? err.message : err));
+    }
+    _setEnforceLocked(true);                    // always re-lock
   });
 
   // ---- Invites issued -------------------------------------------------------------------------

@@ -373,6 +373,60 @@ try {
       const ap=foldBuild(null).appearance;
       return [ap.age, ap.hair, ap.overall];})()`),
     ['32', 'silver', 'A grizzled veteran.']);
+
+  // feat/campaign-ap-budget-enforce: a campaign-bound character's CLOUD save (manual + autosave) is
+  // refused once compute()'s remaining<0, when the campaign's rules.enforceApBudget is true-or-absent.
+  // compute() itself needs no change (task step 8), so these isolate _lsOverApBudget()'s own gating
+  // logic from real AP-pricing arithmetic by stubbing compute() to a fixed {remaining} — the pricing
+  // math is already exhaustively covered by engine-parity-ci.mjs.
+  console.log('\nLive Sheet — cloud save is blocked while over AP budget, enforced by the campaign');
+  check('_lsOverApBudget gates on campaign-bound + enforcement + remaining<0, independently',
+    await ls.evaluate(`(()=>{
+      const real=compute;
+      window._lsCampaignId=null; window._cloudCampaignRules={enforceApBudget:true}; window.compute=()=>({remaining:-3});
+      const r1=_lsOverApBudget();   // not bound -> false regardless of remaining
+      window._lsCampaignId='camp-1'; window._cloudCampaignRules={enforceApBudget:false};
+      const r2=_lsOverApBudget();   // bound but enforcement explicitly off -> false
+      window._cloudCampaignRules={};   // absent key -> default true
+      const r3=_lsOverApBudget();   // bound + default-enforced + over -> true
+      window.compute=()=>({remaining:3});
+      const r4=_lsOverApBudget();   // bound + enforced + UNDER -> false
+      window.compute=real; window._lsCampaignId=null;
+      return [r1, r2, r3, r4];})()`),
+    [false, false, true, false]);
+  check('autosave push skips silently while over budget, warning once per session not every cycle',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      const real=compute; window.compute=()=>({remaining:-7});
+      window._lsCampaignId='camp-1'; window._cloudCampaignRules={};
+      window.flash=m=>window.__f.push(String(m));
+      let calls=0; const realBridge=window._syncBridge;
+      window._syncBridge={saveCharacter:async()=>{calls++;return{};}};
+      _lsBudgetWarned=false;
+      return _lsCloudPushOnce().then(()=>_lsCloudPushOnce()).then(()=>{
+        window.compute=real; window._syncBridge=realBridge; window._lsCampaignId=null;
+        return [calls, window.__f.length];});})()`),
+    [0, 1]);
+  check('autosave push proceeds normally when enforcement is off, even over budget',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      const real=compute; window.compute=()=>({remaining:-7});
+      window._lsCampaignId='camp-1'; window._cloudCampaignRules={enforceApBudget:false};
+      let calls=0; const realBridge=window._syncBridge;
+      window._syncBridge={saveCharacter:async()=>{calls++;return{synced:true};}};
+      return _lsCloudPushOnce().then(()=>{
+        window.compute=real; window._syncBridge=realBridge; window._lsCampaignId=null;
+        return calls;});})()`),
+    1);
+  check('autosave push proceeds normally for a non-campaign character, however negative remaining is',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      const real=compute; window.compute=()=>({remaining:-999});
+      window._lsCampaignId=null;
+      let calls=0; const realBridge=window._syncBridge;
+      window._syncBridge={saveCharacter:async()=>{calls++;return{synced:true};}};
+      return _lsCloudPushOnce().then(()=>{
+        window.compute=real; window._syncBridge=realBridge;
+        return calls;});})()`),
+    1);
+
   await ls.close();
 
   // ============================ CharGen ============================
@@ -735,6 +789,57 @@ try {
       el.value='Jamie'; onSheetField(el);
       return csLoad(currentCharId()).playerName;})()`),
     'Jamie');
+
+  // feat/campaign-ap-budget-enforce: a campaign-bound character's CLOUD save (manual + autosave) is
+  // refused once compute()'s remaining<0, when the campaign's rules.enforceApBudget is true-or-absent.
+  // compute() itself needs no change (task step 8), so these isolate _cgOverApBudget()'s own gating
+  // logic from real AP-pricing arithmetic by stubbing compute() to a fixed {remaining} — the pricing
+  // math is already exhaustively covered by engine-parity-ci.mjs.
+  console.log('\nCharGen — cloud save is blocked while over AP budget, enforced by the campaign');
+  check('_cgOverApBudget gates on campaign-bound + enforcement + remaining<0, independently',
+    await cg.evaluate(`(()=>{
+      const real=compute;
+      window._cgCampaignBound=false; window._cgEnforceApBudget=true; window.compute=()=>({remaining:-3});
+      const r1=_cgOverApBudget();   // not bound -> false regardless of remaining
+      window._cgCampaignBound=true; window._cgEnforceApBudget=false;
+      const r2=_cgOverApBudget();   // bound but enforcement explicitly off -> false
+      window._cgEnforceApBudget=true;
+      const r3=_cgOverApBudget();   // bound + enforced + over -> true
+      window.compute=()=>({remaining:3});
+      const r4=_cgOverApBudget();   // bound + enforced + UNDER -> false
+      window.compute=real; window._cgCampaignBound=false;
+      return [r1, r2, r3, r4];})()`),
+    [false, false, true, false]);
+  // onSaveClick() itself is NOT directly testable here: its "☁ Save to cloud" button only exists in
+  // the DOM once the Cloud menu is rendered, which requires a signed-in _session (a closure-local
+  // variable this unauthenticated CDP harness can never set — that's the separate "Cloud (signed-in)
+  // e2e" CI check's job, not this dependency-free one). onSaveClick's block is a single `if
+  // (_cgOverApBudget()) { alert(...); return; }` at its very top, before anything else runs — the gate
+  // above proves the condition it depends on is correct, and the autosave checks below exercise the
+  // exact same gate end-to-end through a path that doesn't need sign-in.
+  check('autosave push skips silently while over budget, warning once per session not every cycle',
+    await cg.evaluate(`(()=>{
+      const real=compute; window.compute=()=>({remaining:-7});
+      window._cgCampaignBound=true; window._cgEnforceApBudget=true;
+      window.__f=[]; window.flash=m=>window.__f.push(String(m));
+      let calls=0; const realBridge=window._syncBridge;
+      window._syncBridge={saveCharacter:async()=>{calls++;return{};}};
+      _cgBudgetWarned=false;
+      return _cgCloudPushOnce().then(()=>_cgCloudPushOnce()).then(()=>{
+        window.compute=real; window._syncBridge=realBridge; window._cgCampaignBound=false;
+        return [calls, window.__f.length];});})()`),
+    [0, 1]);
+  check('autosave push proceeds normally for a non-campaign character, however negative remaining is',
+    await cg.evaluate(`(()=>{
+      const real=compute; window.compute=()=>({remaining:-999});
+      window._cgCampaignBound=false;
+      let calls=0; const realBridge=window._syncBridge;
+      window._syncBridge={saveCharacter:async()=>{calls++;return{synced:true};}};
+      return _cgCloudPushOnce().then(()=>{
+        window.compute=real; window._syncBridge=realBridge;
+        return calls;});})()`),
+    1);
+
   await cg.close();
 } catch (e) {
   fail++; console.log(`  FAIL harness — ${e.message}`);
