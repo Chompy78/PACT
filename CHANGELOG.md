@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-09 · fix(chargen): drop the mobile last-row collapse toggle — leave it flat and scrolling** —
+  Second follow-up to the mobile header rework: `.mobile-action-bar`'s "▴ Less"/"▾ More" collapse toggle
+  (added the same day) removed. The row already scrolls horizontally to reach anything off-screen, so
+  collapsing it behind a tap added a step without saving anything a scroll didn't already handle. Reverted
+  to a flat single-row strip — same 7 buttons (Sheet/Live Sheet/AI Portrait/Share/Name spells/Random/Info),
+  `overflow-x:auto` directly on the row, no wrapper `<div>` or toggle button. `setMobActionsCollapsed()`/
+  `toggleMobileActions()` and the `pactCgMobActionsCollapsed` localStorage key removed along with it.
+  `testing/scripts/chargen-flows-e2e.mjs`'s collapse-specific checks replaced with simpler ones asserting
+  the toggle/wrapper are gone and the row scrolls (49 → 46 checks — fewer, but covering the actual
+  current shape instead of a removed feature).
+
 - **2026-08-09 · fix(chargen): move the mobile 🎨 Theme selector to the right side of the first row** —
   Follow-up to the mobile header rework above: 🎨 Theme moved from between Redo and 📁 Local to the last
   slot in `.hd-mobnav`, after "Jump to section", with `margin-left:auto` so it hugs the row's right edge

@@ -285,33 +285,24 @@ section('mobile header: Local/Cloud on the first row, Random + collapse on the l
   check('and reparents into the first row (not left behind in the last row)', menu.parentIsFirstRow, JSON.stringify(menu));
   check('and still closes on a second tap', menu.closed, JSON.stringify(menu));
 
-  // Collapsible last row (feat/chargen-mobile-header-layout): defaults to expanded, a tap collapses it
-  // (hiding the seven action buttons, keeping only the toggle), and the choice survives a reload.
-  const collapse = await p.evaluate(async ()=>{
-    const bar = document.getElementById('mobActionBar'), items = document.getElementById('mobActionItems'),
-          btn = document.getElementById('mobActionsToggle');
-    const beforeVisible = getComputedStyle(items).display !== 'none';
-    const beforeExpanded = btn.getAttribute('aria-expanded');
-    btn.click();
-    const afterVisible = getComputedStyle(items).display !== 'none';
-    const afterExpanded = btn.getAttribute('aria-expanded');
-    const persisted = localStorage.getItem('pactCgMobActionsCollapsed');
-    return { beforeVisible, beforeExpanded, afterVisible, afterExpanded, persisted };
+  // feat/chargen-mobile-header-layout's collapse toggle was reverted in fix/chargen-mobile-theme-right
+  // — the row already scrolls horizontally to reach anything off-screen, so a toggle just added a tap
+  // without saving anything a scroll didn't already handle. Assert the toggle is gone and the row is
+  // a flat, horizontally-scrollable strip instead.
+  const bar = await p.evaluate(()=>{
+    const el = document.getElementById('mobActionBar');
+    const cs = el ? getComputedStyle(el) : null;
+    return {
+      noToggle: !document.getElementById('mobActionsToggle'),
+      noItemsWrapper: !document.getElementById('mobActionItems'),
+      scrollsHorizontally: !!cs && cs.overflowX === 'auto',
+      buttonCount: el ? el.querySelectorAll('button').length : 0,
+    };
   });
-  check('the last row starts expanded (unchanged default behavior)', collapse.beforeVisible === true, JSON.stringify(collapse));
-  check('aria-expanded starts true', collapse.beforeExpanded === 'true', JSON.stringify(collapse));
-  check('tapping the toggle collapses it', collapse.afterVisible === false, JSON.stringify(collapse));
-  check('aria-expanded flips to false', collapse.afterExpanded === 'false', JSON.stringify(collapse));
-  check('the collapsed choice is persisted to localStorage', collapse.persisted === '1', JSON.stringify(collapse));
-
-  await p.reload({waitUntil:'load'});
-  await p.waitForTimeout(1500);
-  const afterReload = await p.evaluate(()=>({
-    visible: getComputedStyle(document.getElementById('mobActionItems')).display !== 'none',
-    expanded: document.getElementById('mobActionsToggle').getAttribute('aria-expanded'),
-  }));
-  check('the collapsed state survives a reload', afterReload.visible === false, JSON.stringify(afterReload));
-  check('and aria-expanded reflects it on reload too', afterReload.expanded === 'false', JSON.stringify(afterReload));
+  check('the collapse toggle is gone', bar.noToggle, JSON.stringify(bar));
+  check('the intermediate .mob-action-items wrapper is gone', bar.noItemsWrapper, JSON.stringify(bar));
+  check('the last row is a flat horizontally-scrolling strip', bar.scrollsHorizontally, JSON.stringify(bar));
+  check('all 7 action buttons are directly in the row', bar.buttonCount === 7, JSON.stringify(bar));
 
   await ctx.close();
 }
