@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.393.html**-->
+<!--**PACT-CharGen-Webtool v1.395.html**-->
 
 <!doctype html>
 <!--
@@ -35,7 +35,7 @@
  VERSIONING
    DATA.version (currently "v0.339") is CANONICAL: stamped onto saved/exported JSON
    and compared on import to drive the "frozen prices / reprice drift" logic.
-   The <title> and header "Web Tool" label show the cosmetic web-tool build (v1.393);
+   The <title> and header "Web Tool" label show the cosmetic web-tool build (v1.395);
    the "PACT rules" label mirrors DATA.version — but is HARDCODED here (resync it on a
    rules bump), unlike Live Sheet / DM Console, which read DATA.version live at
    engine-ready. See the follow-up task to make this one live too.
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.393 · Rules v0.339</title><style>
+<title>PACT Character Generator — Web Tool v1.395 · Rules v0.339</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -362,37 +362,33 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
  .stickyhead{position:static;flex:0 0 auto}.layout{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
  body{padding-top:0;height:100vh;height:100dvh;overflow:hidden;display:flex;flex-direction:column}
  .hd-row2,.hd-row3,.secnav{display:none}
- /* feat/chargen-mobile-header-layout: session controls (Undo/Redo/Theme/Local/Cloud) live here — the
-    row a phone user needs on every screen, not just the builder — so #secjump still gets flex:1 to
-    soak up whatever width the buttons before it don't need. */
+ /* feat/chargen-mobile-header-layout: session controls (Undo/Redo/Local/Cloud) live here — the row a
+    phone user needs on every screen, not just the builder. #secjump keeps flex:1 to soak up whatever
+    width the buttons before it don't need; 🎨 Theme (fix/chargen-mobile-theme-right) comes last with
+    margin-left:auto so it hugs the right edge of whichever line it lands on — redundant with secjump's
+    flex:1 on a line that has room (secjump already ate the slack), but the safety net for a narrower
+    phone where flex-wrap puts Theme alone on its own line, where flex:1's sibling wouldn't be there to
+    do that job for it. */
  .hd-mobnav{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
  .hd-mobnav #secjump{flex:1;min-width:120px;font:inherit;padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--inp);color:var(--navytx)}
  /* CU-7: character-management actions (Save/Load/Live Sheet/…) live in the sticky header's .hd-row3 on
     desktop; that row is hidden on mobile, so this non-sticky bar re-surfaces them just below the header.
-    feat/chargen-mobile-header-layout split this into two layers: the outer bar never scrolls (so its
-    #mobActionsToggle stays reachable at a fixed spot) and only the inner .mob-action-items strip does —
-    same horizontal-scroll behavior as before, just scoped to the buttons instead of the whole row. */
- .mobile-action-bar{display:flex;flex:0 0 auto;align-items:center;gap:8px;padding:6px 12px;background:var(--card);border-bottom:1px solid var(--line)}
- .mobile-action-bar .mobtoggle{flex-shrink:0}
+    feat/chargen-mobile-header-layout tried splitting this into an always-visible toggle + a collapsible
+    strip, but the row already scrolls horizontally to reach anything off-screen, so hiding it behind a
+    tap added a step without saving anything real — reverted (fix/chargen-mobile-theme-right) back to a
+    single flat scrolling row, same shape as before that attempt. */
+ .mobile-action-bar{display:flex;flex:0 0 auto;align-items:center;gap:8px;padding:6px 12px;background:var(--card);border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:visible}
  /* D-GH-2026-08-08-chargen-header-followup: overflow-x:auto here implicitly turns overflow-y into
     "auto" too (the CSS overflow spec ties the two together once either axis leaves "visible") —
     which would clip an absolutely-positioned popup (e.g. a .moremenu) instead of letting it overlay
     below the bar the way it does everywhere else. Explicit overflow-y:visible keeps the intended
     horizontal scroll without that side effect. (No .moremenu triggers live in this row any more —
     Local/Cloud moved to .hd-mobnav — but Random/Info etc. don't open one either, so this is
-    precautionary against a future addition, not dead code for today's contents.) */
- .mobile-action-bar .mob-action-items{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;overflow-x:auto;overflow-y:visible}
- /* .mob-action-items itself is allowed to shrink (flex:1 1 auto, above) so it never forces the outer
-    bar to overflow — but without this, its BUTTON children shrink right along with it (the default
-    flex-shrink:1), squeezing each one below its own text's width and wrapping the label onto 2-3 lines
-    instead of the intended single-line horizontal scroll. flex-shrink:0 here is what makes the
-    overflow-x:auto above actually engage as a scroll instead of a squeeze. */
- .mobile-action-bar .mob-action-items>*{flex-shrink:0}
- /* Collapsed by the toggle (default state persisted per-device in localStorage, feat/chargen-mobile-header-layout):
-    the seven action buttons (Sheet/Live Sheet/AI Portrait/Share/Name spells/Random/Info) hide, leaving
-    only the toggle itself — reclaims the row's vertical space for the builder below without removing
-    the actions, which stay one tap away. */
- .mobile-action-bar.collapsed .mob-action-items{display:none}
+    precautionary against a future addition, not dead code for today's contents.)
+    flex-shrink:0 on every child is still needed even in this flat shape: without it the buttons shrink
+    to fit the bar instead of the bar scrolling to fit the buttons, squeezing each label onto 2-3 lines
+    (a real bug caught by screenshot in feat/chargen-mobile-header-layout, not a hypothetical). */
+ .mobile-action-bar>*{flex-shrink:0}
 }
 @media(max-width:600px){
  body{font-size:14px}
@@ -501,7 +497,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.393</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.395</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -511,12 +507,10 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
-<div class="hd-mobnav"><button class="btn ghost" id="undoBtnM" onclick="undo()" title="Undo" aria-label="Undo" disabled>↶</button><button class="btn ghost" id="redoBtnM" onclick="redo()" title="Redo" aria-label="Redo" disabled>↷</button><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtnM" type="button" title="Local file actions — start a new character, save to a file, or load one" aria-label="Local menu">📁 Local</button></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtnM" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" aria-label="Cloud menu">☁ Cloud</button></span><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select></div>
+<div class="hd-mobnav"><button class="btn ghost" id="undoBtnM" onclick="undo()" title="Undo" aria-label="Undo" disabled>↶</button><button class="btn ghost" id="redoBtnM" onclick="redo()" title="Redo" aria-label="Redo" disabled>↷</button><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtnM" type="button" title="Local file actions — start a new character, save to a file, or load one" aria-label="Local menu">📁 Local</button></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtnM" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" aria-label="Cloud menu">☁ Cloud</button></span><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px;margin-left:auto"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></div>
 <div class="secnav" id="secnav"></div>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
 <div class="mobile-action-bar" id="mobActionBar">
-<button class="btn ghost mobtoggle" id="mobActionsToggle" type="button" aria-expanded="true" aria-controls="mobActionItems" onclick="toggleMobileActions()" title="Show/hide these actions">▴ Less</button>
-<div class="mob-action-items" id="mobActionItems">
 <button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
 <button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
@@ -524,7 +518,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button>
-</div>
 </div>
 <div id="sheetview"><div class="shtop"><b>📋 Character Sheet</b><button class="btn" onclick="window.print()">🖨 Print</button><button class="btn ghost" onclick="toggleSheet()">✕ Close — back to builder</button></div><div id="sheetbody"></div></div>
 <div id="explainview"><div class="shtop"><b>💡 Explain my cost</b><button class="btn ghost" onclick="closeExplain()">✕ Close</button></div>
@@ -4563,27 +4556,11 @@ function setTheme(t){if(t)document.body.setAttribute('data-theme',t);else docume
 (function(){let t='';try{t=localStorage.getItem('pactTheme')||'';}catch(e){}
   if(!t&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)t='dark';
   if(t)setTheme(t);})();
-// feat/chargen-mobile-header-layout: the mobile "last row" (Sheet/Live Sheet/AI Portrait/Share/Name
-// spells/Random/Info) collapses to just its toggle button, same localStorage-persistence pattern as
-// setTheme() above. Defaults to EXPANDED (no saved preference) so existing behavior is unchanged until
-// a phone user actually collapses it once — after that it stays collapsed on this device.
-function setMobActionsCollapsed(collapsed){
-  var bar=document.getElementById('mobActionBar'), btn=document.getElementById('mobActionsToggle');
-  if(!bar) return;
-  bar.classList.toggle('collapsed', !!collapsed);
-  if(btn){
-    btn.setAttribute('aria-expanded', collapsed?'false':'true');
-    btn.textContent = collapsed ? '▾ More' : '▴ Less';
-  }
-}
-function toggleMobileActions(){
-  var bar=document.getElementById('mobActionBar');
-  var next = bar ? !bar.classList.contains('collapsed') : false;
-  setMobActionsCollapsed(next);
-  try{localStorage.setItem('pactCgMobActionsCollapsed', next?'1':'0');}catch(e){}
-}
-(function(){var saved=false;try{saved=localStorage.getItem('pactCgMobActionsCollapsed')==='1';}catch(e){}
-  setMobActionsCollapsed(saved);})();
+// feat/chargen-mobile-header-layout added a collapse toggle for the mobile "last row" (Sheet/Live
+// Sheet/AI Portrait/Share/Name spells/Random/Info); reverted in fix/chargen-mobile-theme-right — the
+// row already scrolls horizontally to reach anything off-screen, so a collapse toggle added a tap
+// without saving anything a scroll didn't already handle. setMobActionsCollapsed()/toggleMobileActions()
+// removed along with the markup and CSS they drove.
 function _cgBoot(){
 buildForm($('form'));
 buildSecNav();
