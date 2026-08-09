@@ -1347,57 +1347,6 @@ likely surface in manual/visual review rather than persist unnoticed).
 flight, verified by a test that starts a `reconcile()` push and checks `getSyncState()` mid-flight;
 `testing/scripts/sync-state-machine-ci.mjs` still 0 failed.
 
-## Block cloud save for campaign-bound characters over AP budget — TODO
-Branch feat/campaign-ap-budget-enforce. Add a per-campaign `rules.enforceApBudget` toggle (default on)
-that blocks a campaign-bound character's *cloud* save (manual "Save to cloud" and autosave) once
-`compute()`'s `remaining < 0` — local file Save stays unaffected. DM Console gets a lock-guarded toggle
-matching the existing "ignore player-entered AP" UI exactly. Design fully settled below — implementer
-should not need to re-derive any of it.
-**Effort:** high · **Risk:** medium — ambiguity is low (design fully settled in the steps below,
-including setting location/default/exact blocking scope); damage scale is low (client-side only, no
-data loss, no security/trust boundary — a `git revert` fully undoes it); damage likelihood is medium
-(no automated gate exists yet for a new save-blocking UX path — a wrong implementation would surface in
-manual testing, not silently).
-
-```text
-1. New setting: `rules.enforceApBudget` (boolean key inside the campaign's existing `rules` jsonb blob
-   — NOT a new `campaigns` column, no migration/RLS change needed). Default true when absent/unset
-   (opposite default from `ignore_player_ap`). Read/write via the existing `setCampaignRules()`/
-   read-modify-write-the-whole-blob path (js/campaign.js), same as `houseRules`/`levelBudgetCurve`
-   already do.
-2. Enforcement is CLIENT-SIDE ONLY, deliberately — matches `validate()`'s existing banned-item
-   enforcement (also client-side-only today). True DB-level enforcement would mean reimplementing
-   compute()'s AP pricing math in SQL, which violates the hard rule that js/engine.js is the only place
-   rules logic lives. Do not build a Postgres-side check.
-3. Block only the CLOUD save path (Cloud menu's "Save to cloud" + cloud autosave) — never the Local
-   "Save to file" action (a personal backup, not DM-visible). Block when: the character's campaign_id
-   is set AND that campaign's rules.enforceApBudget is true-or-absent AND compute()'s remaining < 0.
-4. Manual "Save to cloud" click while blocked: show a clear message explaining why (over budget by N
-   AP, DM has budget enforcement on). Autosave while blocked: skip the push silently after one warning
-   (mirror the existing `_cgConflictWarned` one-notice-per-session pattern) rather than erroring on
-   every debounce cycle.
-5. Apply to BOTH CharGen (`onSaveClick()`/`_cgCloudPushOnce()`) and Live Sheet's equivalent cloud-save
-   handlers — not DM Console, which has no save path of its own (read-only roster/awards).
-6. Grandfathering: turning the setting ON must never retroactively touch, hide, or revert an
-   already-over-budget character — it only blocks that character's NEXT save attempt.
-7. DM Console UI: copy the EXISTING "ignore player-entered AP" lock pattern verbatim (in
-   tools/DM-Console.html — a disabled checkbox + a separate lock/unlock toggle button + a `confirm()`
-   dialog on change + auto-relock after every attempt, success or failure) for this new toggle, placed
-   alongside it.
-8. `compute()` itself needs no change — `remaining < 0` already means "over budget." All new logic
-   lives at the save call sites plus the DM Console settings UI.
-9. Add a differential regression test (`testing/scripts/`, matching this project's existing
-   `sync-*-ci.mjs` pattern) proving: an over-budget campaign-bound character's cloud save is refused
-   when the setting is on, succeeds when it's off, and a non-campaign or under-budget character is
-   never blocked either way.
-```
-
-**Done when:** a campaign-bound, over-budget character's cloud save (manual and autosave) is refused
-when `rules.enforceApBudget` is true-or-absent, succeeds when explicitly set false, and local file Save
-is never affected either way — verified by the new differential test; DM Console's new toggle uses the
-same lock/confirm pattern as "ignore player-entered AP"; `testing/tests/engine-parity.html` still 0
-failed (`compute()` itself is unchanged).
-
 ## Security audit: privilege boundaries + character/AP integrity against a malicious client — TODO
 Branch `security/privilege-and-character-integrity`. Owner request, 2026-08-08. Assume the attacker has
 the full frontend source, the Supabase URL, the publishable key, complete control of browser JS/

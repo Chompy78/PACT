@@ -476,6 +476,17 @@ function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)
 // can't stand behind — and so the DM chip can't read "from DM" while the total excludes it. CharGen gates
 // identically (see _cgDmOpts), so both tools show the same spendable total in every state.
 function _dmOpts(){var a=window._rulesStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp};}
+// feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on
+// (default true when absent/unset — opposite default from ignore_player_ap), who has actually spent
+// past their budget right now. window._cloudCampaignRules is refreshCloudCampaignRules()'s cache — the
+// same rules object window._ignorePlayerAp above is already sourced from. compute() needs no change —
+// remaining<0 already means "over budget". Blocks only the CLOUD save path, never local Save.
+function _lsOverApBudget(){
+  if(!window._lsCampaignId) return false;
+  var r = window._cloudCampaignRules;
+  if(r && r.enforceApBudget === false) return false;
+  return compute(foldBuild(null),_dmOpts()).remaining < 0;
+}
 function apCeiling(uptoIdx){ return compute(foldBuild(uptoIdx),_dmOpts()).spendable; }
 // Pure formula (no I/O) — the one place "AP available" is defined, shared by apAvailable() below AND by
 // render()/refreshBuy()/renderSheet(), which already have a fresh spendable/spent in scope and would
@@ -668,7 +679,7 @@ function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localS
 // Sheet has had; previously ☁ Save to cloud was its only cloud write path. See that plan's B3 note on
 // why the debounce interval was kept identical rather than independently tuned for live play: no
 // measurement exists yet to justify a different number.
-var _lsCloudSaveTimer=null, _lsCloudSaveBusy=false, _lsCloudSaveAgain=false, _lsCloudPushPromise=null, _lsConflictWarned=false;
+var _lsCloudSaveTimer=null, _lsCloudSaveBusy=false, _lsCloudSaveAgain=false, _lsCloudPushPromise=null, _lsConflictWarned=false, _lsBudgetWarned=false;
 function _lsAutosaveGate(){
   if(VIEW_ONLY||!window._lsSignedIn||!window._syncBridge||!navigator.onLine) return false;   // offline edits stay in the local save; sync.js retries dirty records on reconnect
   if(window._syncBridge.getAutosaveEnabled && !window._syncBridge.getAutosaveEnabled(currentCharId())) return false;
@@ -689,6 +700,16 @@ function _lsCloudPush(){
   return _lsCloudPushPromise;
 }
 async function _lsCloudPushOnce(){
+  // feat/campaign-ap-budget-enforce: skip the push silently after one warning per session — this runs
+  // on every debounced edit, so erroring/flashing on every cycle would be noise. Mirrors
+  // _lsConflictWarned exactly. The local autosave (save(), already run before this) still holds the work.
+  if(_lsOverApBudget()){
+    if(!_lsBudgetWarned){
+      _lsBudgetWarned=true;
+      if(typeof flash==='function')flash('⚠ Not saving to cloud — over AP budget, and your DM has budget enforcement on for this campaign. Local autosave still holds your work.');
+    }
+    return;
+  }
   try{
     var b=foldBuild(null);
     var id=currentCharId();
@@ -2259,6 +2280,21 @@ document.addEventListener('sync-ready', function () {
               alert('This character breaks campaign rules set by your DM — fix these before saving to the cloud:\n\n'+
                 v.violations.map(function(x){ return '• '+x.message; }).join('\n'));
               return;
+            }
+            // feat/campaign-ap-budget-enforce: default true when absent/unset (opposite default from
+            // ignore_player_ap). Reuses the freshly-fetched `camp` above rather than a second fetch;
+            // dmAp/ignorePlayerAp still come from the established global DM-AP context (_dmOpts(),
+            // same source every other compute() call in this file uses) — window.X, matching this
+            // handler's own defensive scope style right above.
+            if (camp && !(camp.rules && camp.rules.enforceApBudget === false) && window.compute) {
+              var _rem = window.compute(b, window._dmOpts ? window._dmOpts() : {}).remaining;
+              if (_rem < 0) {
+                btn.disabled = false; btn.textContent = '☁ Save to cloud';
+                alert('⛔ Not saved to the cloud — this character is ' + (-_rem) + ' AP over budget, and '
+                    + 'your DM has AP-budget enforcement on for this campaign.\n\nSpend back under budget '
+                    + '(or ask your DM to adjust it) before saving to the cloud. Local file Save is not affected.');
+                return;
+              }
             }
           } catch(e) { /* non-fatal — can't reach campaign rules right now, don't block the save */ }
         }
