@@ -125,8 +125,14 @@ authoritative. (Adapted from the strongest reviewer's proposed list, resolved ag
 Decisions above.)
 
 1. **Bearer credentials.** Plaintext invite tokens are never readable through ordinary table
-   queries by non-DM users. Stored tokens are cryptographically hashed by default — plaintext
-   storage requires explicit justification recorded in the decision log, not silent default.
+   queries by non-DM users. **DM-invite tokens** are stored hashed and never as usable plaintext —
+   they're a brand-new capability with no legacy retrieval expectation, so they get the strict bar.
+   **(Revised during implementation.)** Player-invite tokens are the one explicit, justified
+   exception: they remain plaintext, exactly as before this change, because `list_campaign_invites()`
+   / DM Console's invite list already reads and persistently re-displays them (not just at creation)
+   so a DM can re-copy a lost link — real, currently-used functionality that hashing would silently
+   break. This is the "explicit justification recorded" exception this invariant's own second
+   sentence anticipates, not a silent default.
 2. **Server-authoritative identity.** A redemption is determined solely from the presented token
    and its server-side row. A caller-supplied campaign ID, type, mode, or limit cannot alter what
    the token authorizes.
@@ -182,16 +188,24 @@ Decisions above.)
    column. New DM invites are 128-bit random tokens, hashed at rest (Invariant 1), bound
    server-side to campaign + type (Invariant 2/3), checked atomically on redemption (Invariant
    5/6) including expiry/revocation (Invariant 7), single-use by default per Decision 2.
-5. **Explicitly retire the old path.** `REVOKE EXECUTE` on `join_as_dm` and
-   `regenerate_dm_invite_code` (or drop them) as its own commit-level step, verified by attempting
-   to call both post-migration and confirming they fail for every role. This is Invariant 9 and is
-   listed as its own step specifically because it's the exact class of thing that quietly survives
-   a migration otherwise.
-6. **Migrate existing campaigns.** Per Decision 2/3: every existing campaign gets one freshly
-   generated single-use DM token (not a reusable one, not a wrapped copy of the old code — per
-   Invariant 11). At 4 campaigns total, this is a trivial, easily-reviewable migration statement,
-   not a batched/staged one. Record the decision (this document) and the migration's execution in
-   `DECISIONS.md`.
+5. **Explicitly retire the old path.** Drop `join_as_dm`, `regenerate_dm_invite_code`, and the
+   `dm_invite_code` column outright (stronger than revoke-only: nothing left to have a grant policy
+   about, and no future grant regression can re-expose them, because they no longer exist). This is
+   Invariant 9 and is listed as its own step specifically because it's the exact class of thing that
+   quietly survives a migration otherwise.
+6. **Migrate existing campaigns — with no auto-created replacement invite.** Per Decision 2/3, the old
+   `dm_invite_code` is retired with nothing generated in its place. **(Revised during implementation —
+   the original version of this step called for generating one fresh single-use DM token per existing
+   campaign here, but writing the actual migration surfaced a real flaw: a token generated and
+   immediately hashed-and-discarded inside a migration script is never seen by anyone, including the DM
+   it's meant for — under hash-only storage (Invariant 1: no API ever retrieves a plaintext token after
+   creation), that would create a permanently unredeemable row, not a usable replacement, and this
+   project has no email/notification channel to hand a DM the plaintext out-of-band either.)** Live data
+   confirms zero co-DMs have ever been added via `join_as_dm` in production, so no DM is mid-invite with
+   the old code today — any DM who wants to invite a co-DM generates a fresh one on demand through the
+   new UI (step 7), which means every DM invite that ever exists going forward was created under the
+   hardened model from the start, with no transitional exception to reason about. Record this refinement
+   in `DECISIONS.md` alongside Decisions 1–4.
 7. **Wire the UI.** DM Console: a "Generate DM invite" button mirroring the existing
    `createInviteBtn`/`createPlayerInvite` pattern, plus a redeem affordance (the previously
    separate, now-folded-in "wire up joinAsDm" task-board item) built against the new hardened RPC

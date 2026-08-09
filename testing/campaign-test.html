@@ -47,7 +47,7 @@
       <div class="row">
         <input id="joinCode" placeholder="player code" maxlength="6" style="text-transform:uppercase;width:8rem">
         <button id="joinBtn" class="ghost">Join as player</button>
-        <input id="dmCode" placeholder="DM code" maxlength="6" style="text-transform:uppercase;width:8rem">
+        <input id="dmToken" placeholder="co-DM invite token" style="width:16rem">
         <button id="joinDmBtn" class="ghost">Join as co-DM</button>
       </div>
     </fieldset>
@@ -56,7 +56,7 @@
       <legend>My campaigns</legend>
       <button id="refreshBtn" class="ghost">Refresh</button>
       <table>
-        <thead><tr><th>name</th><th>roles</th><th>player code</th><th>DM code</th><th>settings</th><th></th></tr></thead>
+        <thead><tr><th>name</th><th>roles</th><th>player code</th><th>co-DM invite</th><th>settings</th><th></th></tr></thead>
         <tbody id="campRows"></tbody>
       </table>
     </fieldset>
@@ -76,7 +76,7 @@
   <script type="module">
     import { currentUser } from './js/auth.js';
     import {
-      createCampaign, joinCampaign, joinAsDm, regenerateInviteCode, regenerateDmInviteCode,
+      createCampaign, joinCampaign, createDmInvite, redeemDmInvite, regenerateInviteCode,
       setIgnorePlayerAp, getCampaignDms, promoteToDm, removeDm, listMyCampaigns
     } from './js/campaign.js';
     import { getRoster, awardAp, getAwardHistory } from './js/dm.js';
@@ -94,10 +94,14 @@
 
     $('createBtn').onclick = wrap(async () => {
       const c = await createCampaign($('newName').value.trim());
-      log(`created "${c.name}" — player ${c.invite_code} / DM ${c.dm_invite_code}`); refresh();
+      log(`created "${c.name}" — player code ${c.invite_code}. Open it and use "Generate co-DM invite" for a DM token.`); refresh();
     }, 'create');
     $('joinBtn').onclick   = wrap(async () => { const id = await joinCampaign($('joinCode').value); log('joined as player ' + id.slice(0,8) + '…'); refresh(); }, 'join');
-    $('joinDmBtn').onclick = wrap(async () => { const id = await joinAsDm($('dmCode').value);   log('joined as co-DM ' + id.slice(0,8) + '…'); refresh(); }, 'join-dm');
+    $('joinDmBtn').onclick = wrap(async () => {
+      const r = await redeemDmInvite($('dmToken').value);
+      log((r.alreadyMember ? 'already a co-DM of ' : 'joined as co-DM ') + r.campaignId.slice(0,8) + '…');
+      refresh();
+    }, 'join-dm');
     $('refreshBtn').onclick = refresh;
 
     function wrap(fn, tag){ return async () => { try { await fn(); } catch (e) { log(tag + ' error: ' + e.message); } }; }
@@ -119,8 +123,7 @@
             <td>${roles(c)}</td>
             <td><span class="code">${c.isDm ? c.invite_code : '••••••'}</span>
                 ${c.isDm ? `<button class="ghost" data-regen="${c.id}">↻</button>` : ''}</td>
-            <td><span class="code">${c.isDm ? c.dm_invite_code : '—'}</span>
-                ${c.isDm ? `<button class="ghost" data-regendm="${c.id}">↻</button>` : ''}</td>
+            <td>${c.isDm ? `<button class="ghost" data-gendm="${c.id}">Generate co-DM invite</button>` : '—'}</td>
             <td>${c.isDm
                   ? `<label class="chk"><input type="checkbox" data-ignore="${c.id}" ${c.ignore_player_ap ? 'checked' : ''}> ignore player AP</label>`
                   : (c.ignore_player_ap ? 'player AP ignored' : '')}</td>
@@ -134,7 +137,10 @@
       document.querySelectorAll('[data-roster]').forEach(b => b.onclick = () =>
         openCampaign({ id: b.dataset.roster, name: b.dataset.name, isOwner: b.dataset.owner === 'true', isDm: b.dataset.dm === 'true' }));
       document.querySelectorAll('[data-regen]').forEach(b => b.onclick = wrap(async () => { const code = await regenerateInviteCode(b.dataset.regen); log('new player code: ' + code); refresh(); }, 'regen'));
-      document.querySelectorAll('[data-regendm]').forEach(b => b.onclick = wrap(async () => { const code = await regenerateDmInviteCode(b.dataset.regendm); log('new DM code: ' + code); refresh(); }, 'regen-dm'));
+      document.querySelectorAll('[data-gendm]').forEach(b => b.onclick = wrap(async () => {
+        const token = await createDmInvite(b.dataset.gendm, {});
+        log('co-DM invite token (single-use, shown once): ' + token);
+      }, 'gen-dm'));
       document.querySelectorAll('[data-ignore]').forEach(b => b.onchange = wrap(async () => { await setIgnorePlayerAp(b.dataset.ignore, b.checked); log('ignore player AP → ' + b.checked); }, 'toggle'));
     }
 

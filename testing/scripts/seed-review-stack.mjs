@@ -324,9 +324,13 @@ async function seed(cfg, browser, base) {
     const idOf = tok => (invites.find(i => i.token === tok) || {}).id;
     await c.setInviteRevoked(idOf(revokedTok), true);
 
+    // Co-DM invite (D-GH-2026-08-09-harden-invitation-system: dm_invite_code/joinAsDm were removed --
+    // co-DM invites are now single-use tokens like player invites, generated here and consumed once,
+    // below, by the co-DM's own browser context).
+    const dmTok = await c.createDmInvite(main.id, { mode: 'single_use', note: 'Review-stack co-DM seed' });
+
     return {
-      main: { id: main.id, name: main.name, code: codeOf(main.id).invite_code,
-              dmCode: codeOf(main.id).dm_invite_code },
+      main: { id: main.id, name: main.name, code: codeOf(main.id).invite_code, dmToken: dmTok },
       bare: { id: bare.id, name: bare.name, code: codeOf(bare.id).invite_code },
       old:  { id: old.id,  name: old.name },
       tokens: { live: liveTok, revoked: revokedTok, stale: staleTok, redeem: redeemTok },
@@ -337,10 +341,10 @@ async function seed(cfg, browser, base) {
   const coCtx = await browser.newContext();
   const coPage = await coCtx.newPage();
   await signIn(coPage, base, ACCOUNTS.codm.email);
-  await coPage.evaluate(async (code) => {
+  await coPage.evaluate(async (token) => {
     const c = await import('/PACT/js/campaign.js');
-    await c.joinAsDm(code);
-  }, world.main.dmCode);
+    await c.redeemDmInvite(token);
+  }, world.main.dmToken);
   await coCtx.close();
 
   log('players joining and saving characters…');
@@ -499,7 +503,7 @@ ${'='.repeat(94)}
 ${rows}
 
   CAMPAIGNS
-    "${world.main.name}"      player code ${world.main.code}   DM code ${world.main.dmCode}
+    "${world.main.name}"      player code ${world.main.code}   (co-DM invite already redeemed by ${ACCOUNTS.codm.email} during seeding — single-use, generate a fresh one from DM Console to add another)
                              rules configured, ignore-player-AP ON, 2 players, 1 co-DM
     "${world.bare.name}"      player code ${world.bare.code}
                              NO rules written — the common real-world shape; join grants the 79 default

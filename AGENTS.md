@@ -13,13 +13,15 @@ is staging and promotes into `main`).
      task board (docs/TASK_BOARD_NOW.md/_NEXT.md/_LATER.md) stays the single writer of the full task
      list — this is a pointer to it, not a second copy. -->
 
-- **Current focus:** `docs/TASK_BOARD_NOW.md`'s 🔴 NOW section is currently empty — the last NOW item, the
-  full engine module-bridge migration across all three tools, graduated to `CHANGELOG.md` on 2026-07-10.
-  See `docs/TASK_BOARD_NEXT.md` 🟡 NEXT for open work. (The Live Sheet `undo()` correctness bug closed as
-  D-GH30: `undo()` itself was already correct; the real defect was a display divergence, fixed
-  display-only. The deferred long-term question — whether `js/engine.js` should grow a
-  frozen-ledger-aware remaining-AP export — is now a NEXT item, `feat/ap-model-reconcile`, in
-  `docs/TASK_BOARD_NEXT.md`.)
+- **Current focus:** `docs/TASK_BOARD_NOW.md`'s 🔴 NOW section is currently empty — the last NOW item,
+  hardening the invitation system (a confirmed live privilege-escalation bug via
+  `campaigns.dm_invite_code`/`join_as_dm()`), graduated to `CHANGELOG.md` on 2026-08-09; see
+  `D-GH-2026-08-09-harden-invitation-system` for the full record. See `docs/TASK_BOARD_NEXT.md` 🟡 NEXT
+  for open work, including the rate-limiting follow-up (`feat/invite-rate-limiting`) split off from that
+  fix. (The Live Sheet `undo()` correctness bug closed as D-GH30: `undo()` itself was already correct;
+  the real defect was a display divergence, fixed display-only. The deferred long-term question —
+  whether `js/engine.js` should grow a frozen-ledger-aware remaining-AP export — is now a NEXT item,
+  `feat/ap-model-reconcile`, in `docs/TASK_BOARD_NEXT.md`.)
 - **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); Live Sheet's
   `compute()`-vs-frozen-`economy()` divergence (see D-GH30 and `feat/ap-model-reconcile`) — any UI that
   displays "AP left" for an event-sourced character must use the frozen ledger, not a retroactive

@@ -10,7 +10,11 @@
 import { supabase } from './supabase-client.js';
 import { currentUser } from './auth.js';
 
-const CAMPAIGN_COLS = 'id, name, invite_code, dm_invite_code, ignore_player_ap, rules, dm_id, archived_at';
+// dm_invite_code was removed by D-GH-2026-08-09-harden-invitation-system (it was readable by any
+// campaign member and redeemable system-wide with no membership check — a confirmed privilege-
+// escalation bug). Co-DM invites are now discrete campaign_invites rows (type='dm'), created/redeemed
+// via createDmInvite()/redeemDmInvite() below, not a column on this table.
+const CAMPAIGN_COLS = 'id, name, invite_code, ignore_player_ap, rules, dm_id, archived_at';
 
 /**
  * sessionStorage key for a pending Path-A player-invite token (see docs/plans/2026-07-11-
@@ -62,13 +66,41 @@ export async function joinCampaign(code) {
   return data;
 }
 
-/** Join a campaign as a CO-DM by its DM invite code. Returns the campaign id. */
-export async function joinAsDm(code) {
-  const { data, error } = await supabase.rpc('join_as_dm', {
-    p_code: (code || '').trim().toUpperCase(),
+/**
+ * DM-only: generate a co-DM invite token (D-GH-2026-08-09-harden-invitation-system). Single-use by
+ * default; pass mode:'reusable' with a positive maxRedemptions for a multi-use invite. Returns the
+ * raw plaintext token — this is the ONLY time it is ever available; it is stored hashed and there is
+ * no API to retrieve it again (Security Invariant 1). The caller is responsible for showing/copying it
+ * immediately.
+ * @returns {Promise<string>} the plaintext token
+ */
+export async function createDmInvite(campaignId, { mode = 'single_use', maxRedemptions = null, note = null, expiresAt = null } = {}) {
+  const { data, error } = await supabase.rpc('create_dm_invite', {
+    p_campaign_id: campaignId,
+    p_mode: mode,
+    p_max_redemptions: maxRedemptions == null ? null : _nonNegInt(maxRedemptions),
+    p_note: (note == null ? null : String(note)),
+    p_expires_at: expiresAt || null,
   });
   if (error) throw error;
   return data;
+}
+
+/**
+ * Redeem a co-DM invite token as the signed-in user. Any authenticated account may redeem a valid
+ * token (a deliberate choice — see the plan's Security Invariant 12 — not a membership requirement).
+ * Idempotent: a repeat call after already being a co-DM (via this token or any other path) returns
+ * alreadyMember:true instead of erroring.
+ * @returns {Promise<{campaignId:string, alreadyMember:boolean}>}
+ */
+export async function redeemDmInvite(token) {
+  const { data, error } = await supabase.rpc('redeem_dm_invite', {
+    p_token: (token || '').trim(),
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error('DM invite redemption returned no campaign');
+  return { campaignId: row.campaign_id, alreadyMember: row.already_member };
 }
 
 /** Owner-only: promote a profile (e.g. an existing member) to co-DM. */
@@ -94,12 +126,10 @@ export async function regenerateInviteCode(campaignId) {
   return data;
 }
 
-/** DM-only: regenerate the DM invite code. Returns the new code. */
-export async function regenerateDmInviteCode(campaignId) {
-  const { data, error } = await supabase.rpc('regenerate_dm_invite_code', { p_campaign: campaignId });
-  if (error) throw error;
-  return data;
-}
+// regenerateDmInviteCode() was removed alongside dm_invite_code/join_as_dm by
+// D-GH-2026-08-09-harden-invitation-system. DM invites are now discrete campaign_invites rows, not a
+// single mutable column — "regenerating" one is revoke the old (setInviteRevoked) + createDmInvite(),
+// not an in-place mutation.
 
 /** Non-negative integer, or 0 -- doesn't wrap on huge input the way `x | 0` (32-bit
  * bitwise truncation) would; an out-of-range value is instead left for Postgres's
@@ -137,21 +167,33 @@ export async function createPlayerInvite(campaignId, startingAp, note) {
 }
 
 /**
- * DM-only: every invite ever issued for this campaign, newest first, with the redeemer's
- * display name and the character the invite produced. Goes through an RPC rather than a direct
- * select because those joins cross tables the caller's own RLS won't let them read wholesale;
- * the function gates on is_campaign_dm() internally.
- * @returns {Promise<Array<{id, token, note, startingAp, createdAt, revokedAt, redeemedAt,
- *                          redeemedByName, characterId, characterName}>>}
+ * DM-only: every invite ever issued for this campaign (player AND dm type, newest first), with the
+ * redeemer's display name and the character the invite produced (player invites only — a dm-type
+ * invite never creates a character, so characterId/characterName come back null for those rows).
+ * Goes through an RPC rather than a direct select because those joins cross tables the caller's own
+ * RLS won't let them read wholesale; the function gates on is_campaign_dm() internally.
+ *
+ * `token` is the real, re-copyable plaintext for a player-type row (unchanged, historical
+ * behavior — see D-GH-2026-08-09-harden-invitation-system for why player tokens stay plaintext).
+ * For a dm-type row it is always null: the plaintext was only ever returned once, by
+ * createDmInvite(), at creation, and is never stored (Security Invariant 1).
+ * @returns {Promise<Array<{id, type, mode, token, note, startingAp, maxRedemptions, redeemedCount,
+ *                          expiresAt, createdAt, revokedAt, redeemedAt, redeemedByName, characterId,
+ *                          characterName}>>}
  */
 export async function listCampaignInvites(campaignId) {
   const { data, error } = await supabase.rpc('list_campaign_invites', { p_campaign: campaignId });
   if (error) throw error;
   return (data || []).map(r => ({
     id: r.id,
+    type: r.type,
+    mode: r.mode,
     token: r.token,
     note: r.note || '',
     startingAp: r.starting_ap || 0,
+    maxRedemptions: r.max_redemptions,
+    redeemedCount: r.redeemed_count || 0,
+    expiresAt: r.expires_at,
     createdAt: r.created_at,
     revokedAt: r.revoked_at,
     redeemedAt: r.redeemed_at,

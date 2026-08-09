@@ -261,10 +261,12 @@ const peek = await page.evaluate(async ()=>{
   const P = window._dmArchivedPeek;
   if(!P) return {missing:true};
   const rules = { startingTier:{level:2,band:'standard',ap:103}, dmNotes:'old plot threads' };
+  // dm_invite_code was removed from the campaigns shape by D-GH-2026-08-09-harden-invitation-system
+  // (co-DM invites are campaign_invites rows now, not a column here) -- fixture matches current shape.
   P.seed(
-    [{ id:'live-1', name:'Amble', isOwner:true, rules, invite_code:'LIVE1', dm_invite_code:'LIVED' }],
+    [{ id:'live-1', name:'Amble', isOwner:true, rules, invite_code:'LIVE1' }],
     [{ id:'arch-1', name:'Old <b>Keep</b>', isOwner:true, archived_at:'2026-01-01T00:00:00Z', rules,
-       invite_code:'ARCH1', dm_invite_code:'ARCHD' }]
+       invite_code:'ARCH1' }]
   );
   const out = {};
   const row = document.querySelector('#campArchivedList button[data-peek]');

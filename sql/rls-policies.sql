@@ -157,14 +157,16 @@ create policy campaigns_delete on public.campaigns
 -- archive_campaign()/unarchive_campaign()'s owner-only check — the same class
 -- of gap characters.ap was already locked down for. Only re-grant the columns
 -- an ordinary DM actually needs to update directly today; archived_at (and
--- name/invite_code/dm_invite_code/dm_id, which have no direct-update client
--- path at all) go only through their SECURITY DEFINER RPCs.
+-- name/invite_code/dm_id, which have no direct-update client path at all) go only through their
+-- SECURITY DEFINER RPCs. (dm_invite_code itself was dropped by
+-- D-GH-2026-08-09-harden-invitation-system, so it's not merely lockdown-protected anymore, it's
+-- gone.)
 -- ---------------------------------------------------------------------------
 grant update (ignore_player_ap, rules) on public.campaigns to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- campaign_dms — readable by any DM or member of the campaign; writes are only
--- via the SECURITY DEFINER RPCs (join_as_dm / promote_to_dm / remove_dm).
+-- via the SECURITY DEFINER RPCs (redeem_dm_invite / promote_to_dm / remove_dm).
 -- ---------------------------------------------------------------------------
 drop policy if exists campaign_dms_select on public.campaign_dms;
 create policy campaign_dms_select on public.campaign_dms
@@ -310,18 +312,20 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- campaign_invites — single-use per-player invite tokens (Path A). A DM sees
--- all invites for their campaign; a redeemer can read their own redeemed row.
--- Writes happen only through create_player_invite()/redeem_player_invite()
--- (both SECURITY DEFINER) — no insert/update/delete policy.
+-- campaign_invites — unified player+dm invite tokens (extended from player-only by
+-- D-GH-2026-08-09-harden-invitation-system). A DM sees all invites for their campaign; a redeemer can
+-- read their own redeemed row. Writes happen only through create_player_invite()/redeem_player_invite()
+-- /create_dm_invite()/redeem_dm_invite() (all SECURITY DEFINER) — no insert/update/delete policy.
 --
 -- `note` is withheld at the COLUMN level (D-GH-2026-08-03-invite-note-dm-only): the redeemer clause
 -- below would otherwise let a player read the DM's label for their own invite, RLS being row-level.
--- The DM reads notes through list_campaign_invites(), which is SECURITY DEFINER. Note that a
--- column-level revoke cannot subtract from a table-level grant — the blanket grant is dropped and the
--- wanted columns granted explicitly, which is why this is a column list and not `grant select on`.
--- (The previous version of this comment claimed CharGen's crash-recovery path re-read starting_budget
--- from here; that code no longer exists — nothing in js/ or tools/ selects this table at all.)
+-- The DM reads notes through list_campaign_invites(), which is SECURITY DEFINER. `token_hash` is
+-- withheld the same way and for the same structural reason (row-level RLS can't do column-level
+-- exclusion) — it is never selectable by any client role, DM included; DM invites are read back via
+-- list_campaign_invites() too, which always returns null for a dm-type row's token (the plaintext was
+-- never stored — Security Invariant 1). Note that a column-level revoke cannot subtract from a
+-- table-level grant — the blanket grant is dropped and the wanted columns granted explicitly, which is
+-- why this is a column list and not `grant select on`.
 -- ---------------------------------------------------------------------------
 alter table public.campaign_invites enable row level security;
 
@@ -329,20 +333,34 @@ drop policy if exists campaign_invites_select on public.campaign_invites;
 create policy campaign_invites_select on public.campaign_invites
   for select using (is_campaign_dm(campaign_id) or redeemed_by = auth.uid());
 
-grant select (id, campaign_id, token, starting_ap, starting_budget,
-              created_by, created_at, expires_at, revoked_at,
+grant select (id, campaign_id, type, mode, token, starting_ap, starting_budget,
+              max_redemptions, redeemed_count, expires_at,
+              created_by, created_at, revoked_at,
               redeemed_by, redeemed_at)
-  on public.campaign_invites to authenticated;   -- every column EXCEPT note
+  on public.campaign_invites to authenticated;   -- every column EXCEPT note and token_hash
+
+-- campaign_invite_redemptions — per-redeemer tracking for REUSABLE (dm-only) invites. A redeemer sees
+-- their own row; a DM sees every redemption of any invite belonging to their campaign. Written only by
+-- redeem_dm_invite() (SECURITY DEFINER) — no insert/update/delete policy.
+alter table public.campaign_invite_redemptions enable row level security;
+
+drop policy if exists campaign_invite_redemptions_select on public.campaign_invite_redemptions;
+create policy campaign_invite_redemptions_select on public.campaign_invite_redemptions
+  for select using (
+    redeemed_by = auth.uid()
+    or exists (select 1 from campaign_invites i where i.id = invite_id and is_campaign_dm(i.campaign_id))
+  );
+grant select on public.campaign_invite_redemptions to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Allow authenticated users to call the controlled RPCs.
 -- ---------------------------------------------------------------------------
 grant execute on function public.join_campaign(text)                to authenticated;
-grant execute on function public.join_as_dm(text)                   to authenticated;
+grant execute on function public.create_dm_invite(uuid, text, integer, text, timestamptz) to authenticated;
+grant execute on function public.redeem_dm_invite(text)                                   to authenticated;
 grant execute on function public.promote_to_dm(uuid, uuid)          to authenticated;
 grant execute on function public.remove_dm(uuid, uuid)              to authenticated;
 grant execute on function public.regenerate_invite_code(uuid)       to authenticated;
-grant execute on function public.regenerate_dm_invite_code(uuid)    to authenticated;
 grant execute on function public.archive_campaign(uuid)             to authenticated;
 grant execute on function public.unarchive_campaign(uuid)           to authenticated;
 grant execute on function public.award_ap(uuid, integer, text)      to authenticated;
@@ -406,13 +424,13 @@ revoke execute on function public.gen_invite_code()        from public;
 -- Client-facing RPCs already granted to authenticated above: just strip the
 -- redundant PUBLIC grant.
 revoke execute on function public.join_campaign(text)             from public;
-revoke execute on function public.join_as_dm(text)                from public;
+revoke execute on function public.create_dm_invite(uuid, text, integer, text, timestamptz) from public;
+revoke execute on function public.redeem_dm_invite(text)                                   from public;
 revoke execute on function public.promote_to_dm(uuid, uuid)       from public;
 revoke execute on function public.remove_dm(uuid, uuid)           from public;
 revoke execute on function public.archive_campaign(uuid)          from public;
 revoke execute on function public.unarchive_campaign(uuid)        from public;
 revoke execute on function public.regenerate_invite_code(uuid)    from public;
-revoke execute on function public.regenerate_dm_invite_code(uuid) from public;
 
 -- find_campaign_by_invite_code (schema.sql; D-GH-2026-07-13-campaign-
 -- membership-helpers): unlike is_campaign_dm/owner/member above, it's NEVER
