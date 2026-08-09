@@ -10,6 +10,14 @@
 
 ## Index
 
+- **D-GH-2026-08-09-zcold-autosync-setup** — `z-cold`/`z-uploads` are drop-zone folders: anything placed
+  in them locally gets auto-committed and pushed within seconds by an external background script (not
+  part of this repo). They live on a dedicated `zcold` branch via a **git worktree + Windows
+  junction**, not on `preview` — a plain tracked folder was tried first but broke the moment a sibling
+  repo's working copy switched branches, since git can't check the same branch out twice. Also folds in
+  the pre-existing `z-cold-reviews/` content, moved in during setup.
+  Full record: `decisions/2026/D-GH-2026-08-09-zcold-autosync-setup.md`.
+
 - **D-GH-2026-08-09-sheet-tab-appearance-not-persisted** — the fillable "📋 Sheet" tab's Appearance grid
   and Background & Personality block (gender/age/height/build/hair/eyes/skin/marks/voice/hometown/faith/
   ambition/fear/prized/companion/Description) are real `b.appearance` data, but were rendered through the

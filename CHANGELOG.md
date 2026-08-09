@@ -6,6 +6,11 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-09 · chore(repo): `z-cold`/`z-uploads` drop-zone folders, auto-synced to a dedicated
+  `zcold` branch** — external background script watches both folders and auto-pushes anything
+  dropped in them within seconds, via a git worktree + junction (not tracked on `preview`). See
+  `D-GH-2026-08-09-zcold-autosync-setup`.
+
 - **2026-08-09 · fix(chargen,livesheet): the Sheet tab's Description/Appearance/Background fields now
   actually save** — owner report, live: *"when i go from chargen to live sheet and back, all the
   character descriptions disappear. They don't seem to save to the cloud file either when i click save."*
