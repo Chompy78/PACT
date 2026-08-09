@@ -6,6 +6,25 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-09 · fix(chargen): mobile header rework — Local/Cloud on the first row, collapsible last row, fixed info modal** —
+  CharGen's mobile header (`.hd-mobnav`/`.mobile-action-bar`) reorganized: 📁 Local/☁ Cloud moved from
+  the last row into the first row alongside Undo/Redo/Theme (their popup menus still work — both are a
+  single reparented element keyed off `btn.parentElement`, not the button's row); 🎲 Random moved the
+  other way, off the first row and onto the last (Sheet/Live Sheet/AI Portrait/Share/Name spells/Info).
+  The last row is now collapsible — a "▴ Less"/"▾ More" toggle hides the seven action buttons down to
+  just itself, reclaiming vertical space for the builder below; the choice persists per-device via
+  localStorage, defaulting to expanded (unchanged behavior) until first collapsed. Fixed a real flex-shrink
+  bug found while screenshotting the new layout: the buttons inside the (still horizontally-scrollable)
+  action strip were shrinking and wrapping their own labels onto 2-3 lines instead of scrolling —
+  `flex-shrink:0` on the strip's children was the missing piece. Also fixed the info modal (`#infoBox`):
+  it had no `max-height`/`overflow`, so its content — routinely taller than a phone viewport — just ran
+  off both edges of the screen with no way to scroll and no way to reach the close button. Capped the box
+  at `85vh` with internal scroll, and made the close button live in a sticky `.infotop` bar (mirroring
+  `.shtop`, the same pattern `#sheetview`/`#explainview`/`#portraitview` already use for this exact
+  problem) so it stays reachable at any scroll position. `testing/scripts/chargen-flows-e2e.mjs`: 27 → 48
+  checks (new coverage for the row swap, menu reparenting after the move, collapse/expand/persist, and
+  the info modal's scroll-cap + sticky-close-button behavior at a deliberately short 390×600 viewport).
+
 - **2026-08-09 · feat(dm-console): warnings banner for stale invites + lock the Campaign Rules panel** —
   Two DM Console additions. (1) A "⚠ Worth a look" banner above the campaign panel, computed from the
   same `_invites` fetch the invite-list panels already use: flags an outstanding (unredeemed, unrevoked)
