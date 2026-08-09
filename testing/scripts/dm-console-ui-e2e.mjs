@@ -447,8 +447,10 @@ const warn = await page.evaluate(async ()=>{
   // should trip ONLY the staleness warning, not the 0-AP one.
   // A settled (redeemed) old invite and a settled (revoked) old DM invite must NOT count — they are
   // history, not something outstanding to act on.
-  // A fresh (today-ish) DM invite must not count as stale, and a reusable DM invite that already hit
-  // its redemption limit must not count as outstanding at all (_dmInviteSettled()'s "full" branch).
+  // A fresh (today-ish) DM invite must not count as stale, a genuinely stale+unsettled DM invite MUST
+  // (the co-DM mirror of the player-invite staleness check — d-stale below, code-review 2026-08-09), and
+  // a reusable DM invite that already hit its redemption limit must not count as outstanding at all
+  // (_dmInviteSettled()'s "full" branch).
   const longAgo = '2026-01-01T00:00:00Z';               // >7 months before this suite's fixed "today"
   const today   = new Date().toISOString();
   P.seedInvites([
@@ -456,6 +458,7 @@ const warn = await page.evaluate(async ()=>{
     { id:'p-zeroap', type:'player', createdAt:today,   redeemedAt:null, revokedAt:null, startingAp:0,  note:'no tier set' },
     { id:'p-settled', type:'player', createdAt:longAgo, redeemedAt:longAgo, revokedAt:null, startingAp:79, note:'done' },
     { id:'d-fresh', type:'dm', mode:'single_use', createdAt:today, redeemedAt:null, revokedAt:null, maxRedemptions:null, redeemedCount:0 },
+    { id:'d-stale', type:'dm', mode:'single_use', createdAt:longAgo, redeemedAt:null, revokedAt:null, maxRedemptions:null, redeemedCount:0 },
     { id:'d-settled', type:'dm', mode:'single_use', createdAt:longAgo, redeemedAt:null, revokedAt:longAgo, maxRedemptions:null, redeemedCount:0 },
     { id:'d-full', type:'dm', mode:'reusable', createdAt:longAgo, redeemedAt:null, revokedAt:null, maxRedemptions:2, redeemedCount:2 },
   ]);
@@ -470,12 +473,15 @@ const warn = await page.evaluate(async ()=>{
   return out;
 });
 check('no invites -> warnings banner hidden', warn.emptyHidesBanner === true);
-check('a stale + zero-AP + settled + fresh + settled-dm + exhausted-reusable-dm mix shows the banner',
+check('a stale + zero-AP + settled + fresh + stale-dm + settled-dm + exhausted-reusable-dm mix shows the banner',
       warn.mixShowsBanner === true);
-check('exactly 2 warning lines (stale player, zero-AP player) — settled/fresh/exhausted rows excluded',
-      Array.isArray(warn.mixItems) && warn.mixItems.length === 2, JSON.stringify(warn.mixItems));
+check('exactly 3 warning lines (stale player, stale co-DM, zero-AP player) — settled/fresh/exhausted rows excluded',
+      Array.isArray(warn.mixItems) && warn.mixItems.length === 3, JSON.stringify(warn.mixItems));
 check('the stale-player warning mentions the 14-day threshold',
       Array.isArray(warn.mixItems) && warn.mixItems.some(t=>/1 player invite/.test(t) && /14\+ days/.test(t)),
+      JSON.stringify(warn.mixItems));
+check('the stale co-DM invite trips its OWN warning line, not just the player one',
+      Array.isArray(warn.mixItems) && warn.mixItems.some(t=>/1 co-DM invite/.test(t) && /14\+ days/.test(t)),
       JSON.stringify(warn.mixItems));
 check('the zero-AP warning calls out the AP figure',
       Array.isArray(warn.mixItems) && warn.mixItems.some(t=>/grants 0 AP/.test(t)),
