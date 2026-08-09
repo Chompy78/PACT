@@ -484,6 +484,127 @@ revoke execute on function public.list_campaign_invites(uuid) from public;
 
 -- Fix 2 -- minor performance advisory (INFO level, not security). campaign_invite_redemptions'
 -- primary key covers (invite_id, redeemed_by) but not a reverse lookup on redeemed_by alone; the
--- advisor flagged the resulting unindexed foreign key. Cheap and safe to add.
-create index if not exists idx_campaign_invite_redemptions_redeemed_by
-  on public.campaign_invite_redemptions(redeemed_by);
+-- advisor flagged the resulting unindexed foreign key. Cheap and safe to add -- folded directly into
+-- section 2's table definition above (not restated here) once found, so this file doesn't carry the
+-- same `create index if not exists ...` statement twice (a redundancy a later code review caught,
+-- 2026-08-09 -- harmless at runtime given IF NOT EXISTS, but confusing to a future reader who'd
+-- otherwise wonder whether section 2's copy was ever actually applied).
+
+-- ---------------------------------------------------------------------------
+-- 10. Further self-caught fixes, from a 9-angle adversarial code review (2026-08-09) run before this
+--     PR was merged. Applied as their own statements immediately after the migration above, kept here
+--     as an honest record rather than silently folded back into the sections above as if always correct.
+-- ---------------------------------------------------------------------------
+
+-- Fix 3 -- schema gap. Nothing tied mode='reusable' to type='dm', even though the design (and every
+-- comment in this file) assumes reusable invites are DM-only. No live code path creates the
+-- type='player'/mode='reusable' combination today, but the schema itself permitted it.
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'campaign_invites_reusable_dm_only_check') then
+    alter table public.campaign_invites
+      add constraint campaign_invites_reusable_dm_only_check check (mode = 'single_use' or type = 'dm');
+  end if;
+end $$;
+
+-- Fix 4 -- list_campaign_invites()'s character JOIN wasn't scoped to type='player', so a co-DM invite
+-- whose redeemer also happened to own an unrelated character in that campaign could spuriously show
+-- that character as if the DM invite had produced it (it never does).
+-- Fix 5 -- redeem_dm_invite() set campaign_dms.added_by to the invite's creator instead of auth.uid()
+-- (the actual caller performing this write), diverging from promote_to_dm()'s and the owner-auto-add
+-- trigger's established convention for that column.
+create or replace function public.redeem_dm_invite(p_token text)
+returns table(campaign_id uuid, already_member boolean)
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_hash   text;
+  v_invite campaign_invites%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  v_hash := encode(extensions.digest(p_token, 'sha256'), 'hex');
+
+  select * into v_invite from campaign_invites where token_hash = v_hash and type = 'dm' for update;
+
+  if not found then
+    raise exception 'Invite is invalid or already redeemed';
+  end if;
+
+  if (v_invite.mode = 'single_use' and v_invite.redeemed_by = auth.uid())
+     or (v_invite.mode = 'reusable' and exists (
+           select 1 from campaign_invite_redemptions r
+           where r.invite_id = v_invite.id and r.redeemed_by = auth.uid()))
+     or is_campaign_dm(v_invite.campaign_id)
+  then
+    return query select v_invite.campaign_id, true;
+    return;
+  end if;
+
+  if v_invite.revoked_at is not null
+     or (v_invite.expires_at is not null and v_invite.expires_at <= now())
+     or (v_invite.mode = 'single_use' and v_invite.redeemed_by is not null)
+     or (v_invite.mode = 'reusable' and v_invite.redeemed_count >= v_invite.max_redemptions)
+  then
+    raise exception 'Invite is invalid or already redeemed';
+  end if;
+
+  if v_invite.mode = 'single_use' then
+    update campaign_invites set redeemed_by = auth.uid(), redeemed_at = now() where id = v_invite.id;
+  else
+    update campaign_invites set redeemed_count = redeemed_count + 1 where id = v_invite.id;
+    insert into campaign_invite_redemptions (invite_id, redeemed_by) values (v_invite.id, auth.uid())
+      on conflict do nothing;
+  end if;
+
+  insert into campaign_dms (campaign_id, dm_id, added_by)
+    values (v_invite.campaign_id, auth.uid(), auth.uid())
+    on conflict do nothing;
+
+  return query select v_invite.campaign_id, false;
+end;
+$$;
+
+drop function if exists public.list_campaign_invites(uuid);
+
+create or replace function public.list_campaign_invites(p_campaign uuid)
+returns table(
+  id                uuid,
+  type              text,
+  mode              text,
+  token             text,
+  note              text,
+  starting_ap       integer,
+  max_redemptions   integer,
+  redeemed_count    integer,
+  expires_at        timestamptz,
+  created_at        timestamptz,
+  revoked_at        timestamptz,
+  redeemed_at       timestamptz,
+  redeemed_by_name  text,
+  character_id      uuid,
+  character_name    text
+)
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not is_campaign_dm(p_campaign) then
+    raise exception 'Only a campaign DM can list invites';
+  end if;
+  return query
+    select i.id, i.type, i.mode, i.token,
+           i.note,
+           coalesce(i.starting_ap, 0) + coalesce(i.starting_budget, 0),
+           i.max_redemptions, i.redeemed_count, i.expires_at,
+           i.created_at, i.revoked_at, i.redeemed_at,
+           p.display_name, c.id, c.name
+      from campaign_invites i
+      left join profiles p on p.id = i.redeemed_by
+      left join characters c on i.type = 'player' and c.owner_id = i.redeemed_by and c.campaign_id = i.campaign_id
+     where i.campaign_id = p_campaign
+     order by i.created_at desc;
+end;
+$$;
+
+-- list_campaign_invites()'s signature/RETURNS TABLE shape is unchanged from section 6, so this
+-- CREATE OR REPLACE doesn't need another DROP FUNCTION first -- but its grants were already restated
+-- in section 9's Fix 1 above and CREATE OR REPLACE doesn't touch existing grants, so nothing to redo.

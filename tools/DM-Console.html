@@ -2592,6 +2592,11 @@ document.addEventListener('campaign-ready', function () {
     inviteLinkRow.style.display = 'none';
     inviteLinkOut.value = '';
     inviteStatus.textContent = '';
+    // Same reset, DM-invite side (code-review finding, 2026-08-09) — without this, a token generated
+    // for the PREVIOUS campaign stays visible/copyable under the newly-selected one.
+    dmInviteLinkRow.style.display = 'none';
+    dmInviteLinkOut.value = '';
+    dmInviteStatus.textContent = '';
     inviteStartAp.value = '';
     // Pre-fill the starting budget from the campaign's advancement starting-tier (feat/advancement-tracks).
     // Visible and fully editable — the DM can clear or override it before generating each invite.
@@ -2768,7 +2773,13 @@ document.addEventListener('campaign-ready', function () {
       renderInvites();
       renderDmInvites();
     } catch(err){
-      inviteList.textContent = 'Could not load invites: ' + (err && err.message ? err.message : err);
+      // Both panels share one fetch/one _invites array, so a failure here must clear BOTH -- otherwise
+      // the co-DM panel silently keeps showing whatever it last rendered (possibly a different
+      // campaign's data, right after a switch) with no sign anything failed (code-review, 2026-08-09).
+      var msg = 'Could not load invites: ' + (err && err.message ? err.message : err);
+      inviteList.textContent = msg;
+      _invites = [];
+      if(dmInviteList) dmInviteList.textContent = msg;
     }
   }
 
@@ -2802,10 +2813,11 @@ document.addEventListener('campaign-ready', function () {
       return v.type !== 'dm' && (showAll || (!v.redeemedAt && !v.revokedAt));
     });
     if(!rows.length){
+      var mine = _invites.filter(function(v){ return v.type !== 'dm'; });
       inviteList.innerHTML = '<div class="grantnote" style="margin-top:0">' +
-        (_invites.length ? 'No outstanding invites. Tick “Show redeemed &amp; withdrawn” to see the ' +
-                           _invites.length + ' already issued.'
-                         : 'No invites issued for this campaign yet.') + '</div>';
+        (mine.length ? 'No outstanding invites. Tick “Show redeemed &amp; withdrawn” to see the ' +
+                       mine.length + ' already issued.'
+                     : 'No invites issued for this campaign yet.') + '</div>';
       return;
     }
     // esc() on every player-controlled value that reaches innerHTML — notes and display names are
@@ -2868,11 +2880,23 @@ document.addEventListener('campaign-ready', function () {
   /* DM-invite counterpart of renderInvites() above -- same list machinery (open/settled filter,
      revoke/restore), simpler row template: no AP badge (DM invites don't grant AP), no invite-link
      input (the plaintext was only ever shown once, at creation -- token is always null here, by
-     design, Security Invariant 1), and a mode/redemption-count line instead. */
+     design, Security Invariant 1), and a mode/redemption-count line instead.
+
+     _dmInviteSettled() is the ONE place "is this dm invite done" is decided -- used by the summary
+     count, the default-view filter, and the row template's own spent/action-button logic alike, so
+     they cannot drift out of sync the way they did before this was extracted (code-review, 2026-08-09):
+     a reusable invite that hit its redemption limit never sets redeemedAt/revokedAt (those two columns
+     are single-use-only; reusable tracks via redeemed_count/campaign_invite_redemptions instead), so
+     any copy of the filter that only checked those two columns miscounted an exhausted reusable invite
+     as permanently outstanding. */
+  function _dmInviteSettled(v){
+    var full = v.mode === 'reusable' && v.maxRedemptions != null && v.redeemedCount >= v.maxRedemptions;
+    return !!(v.revokedAt) || (v.mode === 'single_use' && !!v.redeemedAt) || full;
+  }
   function renderDmInviteSummary(){
     var el = document.getElementById('campDmInviteSummary');
     var mine = _invites.filter(function(v){ return v.type === 'dm'; });
-    var open = mine.filter(function(v){ return !v.redeemedAt && !v.revokedAt; }).length;
+    var open = mine.filter(function(v){ return !_dmInviteSettled(v); }).length;
     if(el) el.textContent = open ? ('· ' + open + ' outstanding') : (mine.length ? '· none outstanding' : '');
     var cnt = document.getElementById('dmInviteHiddenCount');
     if(cnt){
@@ -2885,7 +2909,7 @@ document.addEventListener('campaign-ready', function () {
     renderDmInviteSummary();
     var showAll = !!(dmInviteShowAll && dmInviteShowAll.checked);
     var rows = _invites.filter(function(v){
-      return v.type === 'dm' && (showAll || (!v.redeemedAt && !v.revokedAt));
+      return v.type === 'dm' && (showAll || !_dmInviteSettled(v));
     });
     if(!rows.length){
       var mine = _invites.filter(function(v){ return v.type === 'dm'; });
@@ -2899,7 +2923,7 @@ document.addEventListener('campaign-ready', function () {
     // renderInvites() above (REV-12).
     dmInviteList.innerHTML = rows.map(function(v){
       var full = v.mode === 'reusable' && v.maxRedemptions != null && v.redeemedCount >= v.maxRedemptions;
-      var spent = !!(v.revokedAt) || (v.mode === 'single_use' && v.redeemedAt) || full;
+      var spent = _dmInviteSettled(v);
       var state = full ? '<span class="invstate used">Fully redeemed</span>'
                 : v.revokedAt ? '<span class="invstate gone">Withdrawn</span>'
                 : (v.mode === 'single_use' && v.redeemedAt) ? '<span class="invstate used">Redeemed</span>'
@@ -2916,7 +2940,7 @@ document.addEventListener('campaign-ready', function () {
                (v.mode === 'reusable' ? 'reusable, ' + esc(usage) : 'single-use, ' + esc(usage));
       }
       var acts = '';
-      if(!v.revokedAt && !full){
+      if(!spent){
         acts = '<div class="invacts">' +
                '<button type="button" class="btn sm ghost" data-dm-revoke="' + esc(v.id) + '">Withdraw</button>' +
                '</div>';

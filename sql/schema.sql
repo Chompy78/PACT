@@ -393,6 +393,13 @@ create table if not exists public.campaign_invites (
     (mode = 'single_use' and max_redemptions is null)
     or (mode = 'reusable' and max_redemptions is not null and max_redemptions >= 1)
   ),
+  -- Reusable mode is a DM-invite-only capability today (create_player_invite() always hardcodes
+  -- single_use) -- enforced here, not just left as an application convention, so a future helper or
+  -- manual fix-up can't silently create a type='player', mode='reusable' row that redeem_player_invite()
+  -- would then treat as single-use anyway while the data claims otherwise (code-review, 2026-08-09).
+  constraint campaign_invites_reusable_dm_only_check check (
+    mode = 'single_use' or type = 'dm'
+  ),
   -- Each type owns exactly one storage column -- player rows carry plaintext token and never
   -- token_hash; dm rows carry token_hash and never plaintext token. See this table's header comment.
   constraint campaign_invites_token_storage_check check (
@@ -565,8 +572,12 @@ begin
       on conflict do nothing;
   end if;
 
+  -- added_by = auth.uid() (the caller performing THIS write), matching promote_to_dm() and the
+  -- owner-auto-add trigger's convention everywhere else this table is written -- not
+  -- v_invite.created_by (the invite's original issuer, who merely authorized this in advance but did
+  -- not perform the join) (code-review, 2026-08-09).
   insert into campaign_dms (campaign_id, dm_id, added_by)
-    values (v_invite.campaign_id, auth.uid(), v_invite.created_by)
+    values (v_invite.campaign_id, auth.uid(), auth.uid())
     on conflict do nothing;
 
   return query select v_invite.campaign_id, false;
@@ -635,7 +646,11 @@ begin
            p.display_name, c.id, c.name
       from campaign_invites i
       left join profiles p on p.id = i.redeemed_by
-      left join characters c on c.owner_id = i.redeemed_by and c.campaign_id = i.campaign_id
+      -- Scoped to type='player': without this, a co-DM invite whose redeemer also happens to own an
+      -- unrelated character in this campaign would spuriously pick it up, contradicting this
+      -- function's own documented invariant that a dm invite never produces a character (code-review,
+      -- 2026-08-09).
+      left join characters c on i.type = 'player' and c.owner_id = i.redeemed_by and c.campaign_id = i.campaign_id
      where i.campaign_id = p_campaign
      order by i.created_at desc;
 end;

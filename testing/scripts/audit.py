@@ -637,11 +637,15 @@ def check_rls(rep):
         rep.ok("redeem_dm_invite rejected a garbage token (status %s)" % status)
 
     # (e) token_hash must never be selectable by any client role — it isn't in the column grant at
-    # all, so PostgREST should reject the request outright (an unknown/ungranted column errors rather
-    # than silently omitting), not merely return it empty.
+    # all, so PostgREST resolves and rejects an ungranted column BEFORE evaluating RLS on any rows.
+    # That means a 2xx status here is itself conclusive proof of the leak, independent of whether the
+    # test account happens to have any visible campaign_invites rows — checking `'"token_hash"' in
+    # body` as well (as an earlier version of this check did) was the actual bug: an empty result set
+    # (`[]`, zero visible rows) makes that substring check false-negative even when status<300 already
+    # proved the column is grant-visible (code-review, 2026-08-09).
     endpoint_hash = "%s/rest/v1/campaign_invites?select=token_hash&limit=1" % base.rstrip("/")
     status, body = _rls_get(endpoint_hash, key, jwt)
-    if status < 300 and '"token_hash"' in body:
+    if status < 300:
         rep.fail("SECURITY: campaign_invites.token_hash is selectable by a player (status %s): %s"
                  % (status, body[:200]))
     else:

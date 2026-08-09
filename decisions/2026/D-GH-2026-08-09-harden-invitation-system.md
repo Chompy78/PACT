@@ -123,3 +123,61 @@ Status: Active
   see `feat/invite-rate-limiting` on `docs/TASK_BOARD_NEXT.md` (Decision 4). Retiring the player-facing
   shared `invite_code` mechanism is also out of scope — lower urgency (grants ordinary membership, not
   elevated access) and a larger behavior change than this fix requires.
+
+## Addendum (2026-08-09) — `/code-review ultra` findings on this PR, fixed same-day
+
+A 9-angle adversarial review (line-by-line diff scan, removed-behavior audit, cross-file tracer,
+language-pitfall specialist, wrapper/proxy correctness, altitude/conventions, simplification/efficiency,
+plus a gap-hunter sweep) ran against the diff before merge, per the PR template's requirement for any
+change touching `sql/`. 12 findings survived independent verification against the actual current files
+(several were caught by 2-3 angles independently, converging on the same bug from different scans) — all
+fixed same-day, same PR:
+
+1. **`selectCampaign()` didn't reset the co-DM invite panel** on a campaign switch — a token generated for
+   campaign A stayed visible/copyable while viewing campaign B. Added the missing reset, matching the
+   player-panel's existing one.
+2. **A fully-exhausted reusable co-DM invite never left the "outstanding" count/default list** — the
+   filter only checked `redeemedAt`/`revokedAt`, neither of which the reusable-redemption path ever sets
+   (it uses `redeemed_count`/`campaign_invite_redemptions` instead). Extracted a single
+   `_dmInviteSettled()` predicate used by the summary count, the list filter, and the row template alike,
+   closing the whole class of "these three near-duplicate checks drifted" bugs at once rather than
+   patching each call site separately.
+3. **CHECK constraints didn't tie `mode='reusable'` to `type='dm'`** — added
+   `campaign_invites_reusable_dm_only_check`, enforced at the database level.
+4. **`list_campaign_invites()`'s character JOIN wasn't scoped to `type='player'`** — a co-DM invite whose
+   redeemer also happened to own a character in that campaign could spuriously show that character as if
+   the DM invite had produced it. Added the missing `i.type = 'player'` join condition.
+5. **`redeem_dm_invite()` set `campaign_dms.added_by` to the invite's creator instead of `auth.uid()`** —
+   diverging from `promote_to_dm()`'s and the owner-auto-add trigger's established "added_by = the actor
+   performing this write" convention. Fixed to `auth.uid()`.
+6. **A "Withdraw" button was shown for an already-redeemed single-use co-DM invite** — the button guard
+   used `!v.revokedAt && !full` instead of the `spent` flag computed two lines above it; clicking it would
+   hit `set_invite_revoked()`'s unconditional rejection of a redeemed invite. Fixed via the same
+   `_dmInviteSettled()` extraction as finding 2.
+7. **`loadInvites()`'s error path never reset or re-rendered the co-DM panel** — a fetch failure left it
+   showing stale (possibly wrong-campaign) data with no error indication. Fixed to clear `_invites` and
+   surface the error in both panels.
+8. **`renderInvites()`'s empty-state message used the mixed player+dm count** instead of a player-filtered
+   one, producing a misleading "N already issued" figure. Fixed to filter first, matching
+   `renderInviteSummary()`'s existing correct pattern two functions above it.
+9. **`testing/scripts/audit.py`'s new `token_hash` leak check could false-negative** if the test account
+   had zero visible `campaign_invites` rows — it checked for the string `"token_hash"` in the response
+   body rather than relying on the real signal (PostgREST rejects an ungranted column before evaluating
+   RLS on any rows, so a 2xx status is itself conclusive regardless of row count). Fixed to check status
+   alone.
+10. **`createDmInvite()`'s `p_expires_at: expiresAt || null`** used a truthiness fallback instead of the
+    `== null` check its sibling `p_max_redemptions` field uses two lines above — currently unreachable
+    (no caller passes a falsy-but-valid value) but a latent inconsistency in the function's public
+    contract. Fixed to match.
+11. **The migration file carried the same `create index ...` statement twice** (once in the original
+    table definition, once in the self-caught-follow-up-fix section documenting the same advisor finding)
+    — harmless at runtime (`IF NOT EXISTS`) but misleading to a future reader. Removed the duplicate,
+    kept the explanatory comment.
+12. **A stale docstring** in `js/campaign.js` (`createCampaign()`) still said "Both invite codes are
+    generated server-side", left over from before `dm_invite_code` was removed. Corrected.
+
+All SQL fixes (3-5) were applied live via a second migration
+(`sql/migrations/2026-08-09-harden-invitation-system.sql` section 10) and re-verified: the new constraint
+rejects an invalid `type='player'/mode='reusable'` row, `redeem_dm_invite()`'s `added_by` now matches the
+actual redeemer, and the full test suite (`engine-parity-ci.mjs` 29/0, `audit.py --rls` 0 failed,
+`dm-console-ui-e2e.mjs` 79/79) stayed green throughout.

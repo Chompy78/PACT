@@ -25,7 +25,8 @@ const CAMPAIGN_COLS = 'id, name, invite_code, ignore_player_ap, rules, dm_id, ar
  */
 export const PENDING_INVITE_KEY = 'pact_pending_invite';
 
-/** Create a campaign you will own/DM. Both invite codes are generated server-side. */
+/** Create a campaign you will own/DM. The player invite code is generated server-side; co-DM invites
+ * are separate, discrete tokens created on demand via createDmInvite(). */
 export async function createCampaign(name) {
   const user = await currentUser();
   if (!user) throw new Error('Not signed in');
@@ -80,7 +81,7 @@ export async function createDmInvite(campaignId, { mode = 'single_use', maxRedem
     p_mode: mode,
     p_max_redemptions: maxRedemptions == null ? null : _nonNegInt(maxRedemptions),
     p_note: (note == null ? null : String(note)),
-    p_expires_at: expiresAt || null,
+    p_expires_at: expiresAt == null ? null : expiresAt,
   });
   if (error) throw error;
   return data;
