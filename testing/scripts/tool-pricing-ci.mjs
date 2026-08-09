@@ -600,6 +600,29 @@ try {
       return [parses, before!==after];})()`),
     [true, true]);
 
+  // fix/campaign-binding-survives-reload: _cgAdoptEnvelopeBinding() runs from _cgBoot(), which fires
+  // synchronously off 'engine-ready' — dispatched by the FIRST of two <script type="module"> blocks,
+  // strictly before the SECOND (auth/campaign/sync bridge, kept deliberately separate) has executed and
+  // set window._campaignBridge/_syncBridge. Simulate that exact ordering directly rather than requiring
+  // a signed-in session: with the bridge undefined, the adopt call must WAIT for 'campaign-ready' before
+  // resolving, not silently short-circuit and never retry.
+  console.log("\nCharGen — a campaign-bound handoff/autosave resolves after campaign-ready, not before");
+  check('_cgAdoptEnvelopeBinding waits for window._campaignBridge instead of resolving with it unset',
+    await cg.evaluate(`(async()=>{
+      window._campaignBridge = undefined; window._syncBridge = undefined;
+      window._dmApStatus = 'none'; window._cgCampaignBound = false; window._cgCampaignId = null;
+      let settled = false;
+      const p = _cgAdoptEnvelopeBinding({campaignId: 'fake-test-campaign', id: null});
+      p.then(() => { settled = true; });
+      await new Promise(r => setTimeout(r, 50));
+      const pendingBeforeReady = !settled;   // true only if the fix's await-gate is actually in place
+      window._campaignBridge = { getCampaign: async () => null };
+      window._syncBridge = window._syncBridge || {};
+      document.dispatchEvent(new Event('campaign-ready'));
+      await p;
+      return [pendingBeforeReady, window._cgCampaignBound, window._cgCampaignId];
+    })()`), [true, true, 'fake-test-campaign']);
+
   console.log('\nCharGen — the drawbacks ledger line itemises what was taken');
   const LEDGER_ROWS = `(sel)=>{const rows=[...document.getElementById('ledger').querySelectorAll('tr')].map(tr=>
       ({cls:tr.className,label:(tr.cells[0]||{}).innerText||'',val:Number((tr.cells[1]||{}).innerText)}));

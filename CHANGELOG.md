@@ -14,6 +14,31 @@
   differently and closed 2026-08-06 (`D-GH-2026-08-06-creation-lock-survives-reload.md`: the owner kept
   the tagging and had CharGen append an explicit `creationLocked` event instead). No code change; the
   board entry was a stale duplicate of already-completed, already-documented work.
+- **2026-08-09 · fix(chargen): a campaign-bound handoff/autosave resolves its DM AP instead of getting
+  stuck "unavailable"** — closes the second half of `fix/campaign-binding-survives-reload` (the refresh
+  half closed 2026-08-06; this is the "Live Sheet → CharGen switch" half, previously an unconfirmed
+  boot-order hypothesis). Confirmed by tracing actual script execution order rather than a live browser
+  (unavailable in this session, same constraint the board task flagged): CharGen has two
+  `<script type="module">` blocks, deliberately kept separate — the first bridges `js/engine.js` and
+  fires `engine-ready`; the second bridges auth/campaign/sync and fires `campaign-ready` **after** setting
+  `window._campaignBridge`/`window._syncBridge`. Module scripts execute in document order, and
+  `_cgBoot()` — which runs both `_cgConsumeHandoff()` (the Live Sheet handoff) and `_cgRestoreAutosave()`
+  (a plain reload) — is wired to the `engine-ready` listener, so it always runs **before** the second
+  module has even started. `_cgAdoptEnvelopeBinding()`, called from both paths, read
+  `window._campaignBridge` to resolve a bound character's DM AP; with the bridge still `undefined`, the
+  `C && await C.getCampaign(...)` guard silently short-circuited, `_dmApStatus` was left at the interim
+  `'unavailable'` state, and nothing ever re-ran the resolve — so it stuck there permanently, not just
+  for the handoff switch but for **any plain CharGen reload of a campaign-bound character's autosave**,
+  which the board task hadn't identified as in scope. Fixed at the one shared function: if
+  `window._campaignBridge` isn't set yet, await a one-shot `campaign-ready` listener before resolving —
+  the "re-run it when that event arrives" option the board task named as acceptable, chosen over
+  reordering the whole boot sequence because it's the smaller, more localized change. New gate assertion
+  in `testing/scripts/tool-pricing-ci.mjs` simulates the exact race directly (no sign-in needed — it's a
+  pure timing bug, not an auth one): stub the bridge as `undefined`, call `_cgAdoptEnvelopeBinding()`,
+  assert it's still pending 50ms later, then set the bridge and fire `campaign-ready`, assert it resolves.
+  Confirmed red against a revert of just the await-gate before trusting it. `engine-parity` (29/0) and the
+  rest of `tool-pricing-ci` (68/0 total) unaffected — `js/engine.js` untouched. Graduates
+  `fix/campaign-binding-survives-reload` off `docs/TASK_BOARD_NOW.md` — both halves are now closed.
 
 - **2026-08-09 · fix(chargen): drop the mobile last-row collapse toggle — leave it flat and scrolling** —
   Second follow-up to the mobile header rework: `.mobile-action-bar`'s "▴ Less"/"▾ More" collapse toggle
