@@ -1508,6 +1508,48 @@ is unaffected (0 failed); all findings and trust assumptions are recorded in `DE
 invitation-system file (`campaigns.dm_invite_code`, `campaign_invites`, invite RPCs) was touched by this
 task.
 
+## Rate limiting / abuse protection for invite generation and redemption — TODO
+Branch `feat/invite-rate-limiting`. Split off from `fix/harden-invitation-system` (TASK_BOARD_NOW.md) per
+its cold-review Decision 4 — see `docs/plans/2026-08-08-harden-invitation-system.md`'s "Decisions" section
+and its `z-cold-reviews/` files, where all 6 reviewers independently agreed rate limiting shouldn't gate
+the core RLS/token fix: once DM invites move to 128-bit tokens, brute-forcing them directly becomes
+infeasible, so the remaining value of rate limiting is abuse/DoS protection on invite generation and
+redemption RPCs, not closing the core escalation path. No rate-limiting or abuse-tracking mechanism exists
+anywhere in this project's schema or policy files today (confirmed by inspection while drafting the
+invitation-system plan) — this is new ground, not an extension of an existing pattern.
+**Effort:** medium · **Risk:** medium — ambiguity is medium (whether Supabase's platform-level rate
+limiting already covers arbitrary RPC calls, as opposed to auth-specific endpoints, is genuinely
+unconfirmed — the answer determines whether this needs new application-level infrastructure at all);
+damage scale is low (additive — a new attempt-tracking mechanism, no changes to existing invite/campaign
+logic); damage likelihood is low (a rate-limiting gap fails open to "no limit," the pre-existing status
+quo, not a new failure mode) — not sweep-eligible given the unresolved platform-verification step, but
+low risk once that's answered.
+
+```text
+1. FIRST: verify whether Supabase's project-level configuration already throttles arbitrary RPC/PostgREST
+   calls (not just auth endpoints like signup/login/OTP) — this determines the rest of the task's scope.
+   Check the live project's configuration/advisor output, don't assume from documentation alone.
+2. If platform-level throttling is confirmed sufficient for the invite generation/redemption RPCs, this
+   task is mostly a verification + documentation task: confirm coverage, record the finding in
+   DECISIONS.md, done.
+3. If not sufficient, design a minimal attempt-tracking mechanism (e.g. a small table keyed by caller +
+   action + time window, checked at the top of the invite-generation and invite-redemption RPCs) —
+   race-safe under concurrent requests, matching this codebase's existing atomic-claim discipline
+   (UPDATE ... WHERE ... RETURNING) rather than a check-then-act pattern.
+4. Cover both directions: generation (a DM spamming invite creation) and redemption (an attacker hammering
+   the redemption RPC to brute-force or enumerate tokens) — these may need different thresholds.
+5. Add adversarial test coverage: N rapid requests from one caller are throttled after the configured
+   threshold; legitimate, well-spaced usage is never blocked.
+6. Run the Supabase advisor (`get_advisors`) after any schema/policy change; this project has been bitten
+   twice before by grant/RLS drift the advisor catches for free (D-GH15, D-GH12).
+7. Record the platform-vs-application-level decision and its reasoning in DECISIONS.md.
+```
+
+**Done when:** either platform-level rate limiting is confirmed to cover invite generation/redemption RPCs
+(documented, no new code needed), or a new race-safe attempt-tracking mechanism is in place and covered by
+adversarial tests proving both that abuse is throttled and legitimate use isn't blocked; the decision is
+recorded in `DECISIONS.md`; the Supabase advisor reports no new findings.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
