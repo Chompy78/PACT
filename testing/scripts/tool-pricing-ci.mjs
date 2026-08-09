@@ -426,7 +426,12 @@ try {
 
   await cg.evaluate(`(()=>{try{localStorage.clear()}catch(e){}})()`);
   await cg.evaluate(`location.reload()`);
-  if (!(await cg.evaluate(READY(`window.DATA&&typeof repriceDraft==='function'&&LOG.length>0`))))
+  // Pre-existing CI-only flake (not reproduced locally, seen on a PR unrelated to species/traits):
+  // engine-readiness (window.DATA/repriceDraft/LOG.length) can land a tick before the Setup panel's
+  // own DOM form finishes painting, especially right after a hard reload restarts the whole
+  // engine-ready/campaign-ready module boot sequence. setSpec() immediately below needs #spec to
+  // exist, so the probe must wait for the form too, not just the engine bridge.
+  if (!(await cg.evaluate(READY(`window.DATA&&typeof repriceDraft==='function'&&LOG.length>0&&document.getElementById('spec')`))))
     throw new Error('CharGen never became ready after reload');
 
   await cg.evaluate(setSpec('Halfling'));
