@@ -557,6 +557,32 @@ def _write_took_effect(status, body, field, forbidden_value):
     return any(isinstance(r, dict) and r.get(field) == forbidden_value for r in rows)
 
 
+def _rls_rpc_post(url, key, jwt, payload):
+    """POST to a Supabase RPC endpoint as a player; return (status, body_text)."""
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="POST")
+    req.add_header("apikey", key)
+    req.add_header("Authorization", "Bearer " + jwt)
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            return resp.status, resp.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8", "replace")
+
+
+def _rls_get(url, key, jwt):
+    """GET a Supabase REST endpoint as a player; return (status, body_text)."""
+    req = urllib.request.Request(url, method="GET")
+    req.add_header("apikey", key)
+    req.add_header("Authorization", "Bearer " + jwt)
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            return resp.status, resp.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8", "replace")
+
+
 def check_rls(rep):
     rep.group("RLS proof (live)")
     base = os.environ.get("SUPABASE_URL")
@@ -585,6 +611,45 @@ def check_rls(rep):
                  % (status, body[:200]))
     else:
         rep.ok("setting campaign_id to an unjoined campaign rejected (status %s)" % status)
+
+    # --- D-GH-2026-08-09-harden-invitation-system: co-DM invite adversarial checks ------------------
+    # (c) a player who is not a DM of PACT_FOREIGN_CAMPAIGN_ID must not be able to create a DM invite
+    # for it via create_dm_invite() — the exact class of gap the retired dm_invite_code/join_as_dm had
+    # (a caller acting on a campaign they have no authority over), now on the new RPC.
+    rpc_create = "%s/rest/v1/rpc/create_dm_invite" % base.rstrip("/")
+    status, body = _rls_rpc_post(rpc_create, key, jwt,
+                                  {"p_campaign_id": foreign_campaign, "p_mode": "single_use"})
+    if status < 300:
+        rep.fail("SECURITY: create_dm_invite SUCCEEDED for a non-DM caller (status %s): %s"
+                 % (status, body[:200]))
+    else:
+        rep.ok("create_dm_invite rejected for a non-DM caller (status %s)" % status)
+
+    # (d) redeem_dm_invite with a garbage token must fail with a generic error — it must not
+    # distinguish "malformed", "never existed", "expired", or "revoked" (Security Invariant 8),
+    # and it must not succeed.
+    rpc_redeem = "%s/rest/v1/rpc/redeem_dm_invite" % base.rstrip("/")
+    status, body = _rls_rpc_post(rpc_redeem, key, jwt, {"p_token": "0" * 32})
+    if status < 300:
+        rep.fail("SECURITY: redeem_dm_invite SUCCEEDED for a garbage token (status %s): %s"
+                 % (status, body[:200]))
+    else:
+        rep.ok("redeem_dm_invite rejected a garbage token (status %s)" % status)
+
+    # (e) token_hash must never be selectable by any client role — it isn't in the column grant at
+    # all, so PostgREST resolves and rejects an ungranted column BEFORE evaluating RLS on any rows.
+    # That means a 2xx status here is itself conclusive proof of the leak, independent of whether the
+    # test account happens to have any visible campaign_invites rows — checking `'"token_hash"' in
+    # body` as well (as an earlier version of this check did) was the actual bug: an empty result set
+    # (`[]`, zero visible rows) makes that substring check false-negative even when status<300 already
+    # proved the column is grant-visible (code-review, 2026-08-09).
+    endpoint_hash = "%s/rest/v1/campaign_invites?select=token_hash&limit=1" % base.rstrip("/")
+    status, body = _rls_get(endpoint_hash, key, jwt)
+    if status < 300:
+        rep.fail("SECURITY: campaign_invites.token_hash is selectable by a player (status %s): %s"
+                 % (status, body[:200]))
+    else:
+        rep.ok("campaign_invites.token_hash is not selectable (status %s)" % status)
 
 
 # ---------------------------------------------------------------------------

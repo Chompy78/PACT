@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-09 · fix(security): harden the invitation system — close a live privilege-escalation bug** —
+  `D-GH-2026-08-09-harden-invitation-system`. `campaigns.dm_invite_code` was readable by any campaign
+  member and redeemable by any authenticated account system-wide, with no membership check and no rate
+  limiting — a confirmed live bug (production data showed it was never actually exploited). Dropped
+  `dm_invite_code`/`join_as_dm()`/`regenerate_dm_invite_code()` outright and unified co-DM invites onto
+  the existing hardened player-invite model (`campaign_invites`, extended with `type`/`mode`/
+  `redeemed_count`/`max_redemptions`; new `create_dm_invite()`/`redeem_dm_invite()`, hash-only token
+  storage, single-use by default with reusable as an explicit DM opt-in). Player-invite tokens
+  deliberately stay plaintext (unlike DM invites) since DM Console's invite list re-displays them — see
+  the decision record for why. Went through a 6-reviewer cross-vendor cold review before implementation.
+  New "Invite a co-DM" panel and "Join as co-DM" redemption row in DM Console replace the old static
+  code display — also closes the previously-separate "Wire up joinAsDm()" task. `testing/scripts/
+  audit.py`'s live RLS proof extended with 3 new adversarial checks. `DATA.version` unchanged (no rules
+  logic touched); `engine-parity` 29/0, `dm-console-ui-e2e` 79/79, `audit.py --rls` 0 failed.
 - **2026-08-08 · chore(agents): delete the 8 custom commands in `.claude/commands/` now superseded by identically-named skills** —
   `add-code-task`, `cleanup-code-branches`, `close-code-session`, `log-code-lesson`,
   `make-code-cold-plan-review`, `pick-code-task`, `run-code-task`, `sweep-code-tasks` all now exist as

@@ -10,6 +10,20 @@
 
 ## Index
 
+- **D-GH-2026-08-09-harden-invitation-system** — `campaigns.dm_invite_code` was readable by any campaign
+  member (row-level RLS, no column exclusion) and redeemable by any authenticated account system-wide via
+  `join_as_dm()` with no membership check — a confirmed live privilege-escalation bug. Fixed by dropping
+  `dm_invite_code`/`join_as_dm()`/`regenerate_dm_invite_code()` outright and unifying DM invites onto the
+  existing hardened player-invite model (`campaign_invites`, extended with `type`/`mode` columns,
+  `create_dm_invite()`/`redeem_dm_invite()`). Went through a 6-reviewer cross-vendor cold review before
+  implementation; four resulting product/security decisions (redemption scope, single-use-vs-reusable
+  default, no emergency hotfix, rate limiting split off) resolved with the project owner. Player-invite
+  tokens deliberately stay plaintext (DM Console's invite list re-displays them, unlike DM invites, which
+  have no such legacy behavior); no auto-generated replacement DM invite for existing campaigns (a
+  migration-time token would be unretrievable under hash-only storage). A self-caught grant-drift
+  regression (a `DROP FUNCTION` needed for a signature change wiped a `REVOKE EXECUTE FROM PUBLIC`) was
+  found and fixed via the Supabase advisor in the same session.
+  Full record: `decisions/2026/D-GH-2026-08-09-harden-invitation-system.md`.
 > One line per decision, in document order (newest on top). Follow each entry's "Full record:" pointer
 > to the full **Context → Options → Decision → Why → Status** writeup under `decisions/2026/`.
 

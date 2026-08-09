@@ -12,7 +12,8 @@
 --     independently — players can never write it; only a campaign's DM can.
 --   * Roles are PER-CAMPAIGN and derived, never a stored flag:
 --       DM of a campaign  = you are in campaign_dms for it (the owner is dm_id +
---                           auto-added; co-DMs join by dm_invite_code or promotion)
+--                           auto-added; co-DMs join by a DM invite token — campaign_invites,
+--                           type='dm', see D-GH-2026-08-09-harden-invitation-system — or promotion)
 --       player in one     = you own a character whose campaign_id is that campaign
 --     The same user can be a DM in one campaign and a player in another at once,
 --     and a campaign can have multiple DMs (see D-GH7).
@@ -60,9 +61,7 @@ begin
     for i in 0..5 loop
       code := code || substr(alphabet, 1 + (get_byte(raw, i) % 36), 1);
     end loop;
-    exit when not exists (
-      select 1 from public.campaigns where invite_code = code or dm_invite_code = code
-    );
+    exit when not exists (select 1 from public.campaigns where invite_code = code);
   end loop;
   return code;
 end;
@@ -102,7 +101,12 @@ create trigger trg_on_auth_user_created
 
 -- ---------------------------------------------------------------------------
 -- campaigns — an owner (dm_id) + a set of co-DMs (campaign_dms). Joined by a
--- player invite_code; co-DMs join by a separate dm_invite_code (see D-GH7).
+-- player invite_code. Co-DM invites went through a separate dm_invite_code column here (D-GH7) until
+-- D-GH-2026-08-09-harden-invitation-system removed it: that code was readable by any campaign member
+-- via campaigns_select (row-level RLS, no column exclusion) and redeemable by ANY authenticated
+-- account system-wide via join_as_dm(), a confirmed live privilege-escalation bug. Co-DM invites now
+-- go through campaign_invites (type='dm') via create_dm_invite()/redeem_dm_invite(), same as player
+-- invites' campaign_invites (type='player') rows.
 -- ---------------------------------------------------------------------------
 create table if not exists public.campaigns (
   id               uuid primary key default gen_random_uuid(),
@@ -110,8 +114,6 @@ create table if not exists public.campaigns (
   name             text not null,
   invite_code      text not null unique default public.gen_invite_code()
                    check (invite_code ~ '^[A-Z0-9]{6}$'),
-  dm_invite_code   text not null unique default public.gen_invite_code()
-                   check (dm_invite_code ~ '^[A-Z0-9]{6}$'),
   ignore_player_ap boolean not null default false,   -- when true, only DM-granted AP counts
   rules            jsonb not null default '{}'::jsonb, -- DM-authoritative campaign rules (D-GH14)
   archived_at      timestamptz,   -- soft-delete (owner-only, reversible); null = active
@@ -276,22 +278,10 @@ begin
 end;
 $$;
 
--- ---------------------------------------------------------------------------
--- join_as_dm(code) — become a co-DM via the campaign's DM invite code.
--- ---------------------------------------------------------------------------
-create or replace function public.join_as_dm(p_code text)
-returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
-declare v_campaign campaigns%rowtype;
-begin
-  if auth.uid() is null then raise exception 'Not authenticated'; end if;
-  select * into v_campaign from campaigns where dm_invite_code = upper(p_code);
-  if not found then raise exception 'No campaign with that DM invite code'; end if;
-  insert into campaign_dms (campaign_id, dm_id, added_by)
-    values (v_campaign.id, auth.uid(), auth.uid())
-    on conflict do nothing;
-  return v_campaign.id;
-end;
-$$;
+-- join_as_dm(code) was removed by D-GH-2026-08-09-harden-invitation-system: it matched purely on
+-- campaigns.dm_invite_code (also removed) with no membership check and a system-wide execute grant --
+-- a confirmed live privilege-escalation bug. Co-DM invites now go through create_dm_invite()/
+-- redeem_dm_invite() below (campaign_invites, type='dm').
 
 -- ---------------------------------------------------------------------------
 -- promote_to_dm / remove_dm — owner-only co-DM management. The owner cannot be
@@ -349,8 +339,10 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- regenerate_invite_code / regenerate_dm_invite_code — any DM; invalidates the
--- old code. is_campaign_dm() is defined in rls-policies.sql.
+-- regenerate_invite_code — any DM; invalidates the old code. is_campaign_dm() is defined in
+-- rls-policies.sql. (regenerate_dm_invite_code was removed alongside dm_invite_code by
+-- D-GH-2026-08-09-harden-invitation-system — DM invites are now discrete campaign_invites rows;
+-- "regenerating" one is revoke-old + create_dm_invite(), not an in-place mutation.)
 -- ---------------------------------------------------------------------------
 create or replace function public.regenerate_invite_code(p_campaign uuid)
 returns text language plpgsql security definer set search_path = public, pg_temp as $$
@@ -365,41 +357,70 @@ begin
 end;
 $$;
 
-create or replace function public.regenerate_dm_invite_code(p_campaign uuid)
-returns text language plpgsql security definer set search_path = public, pg_temp as $$
-declare v_code text;
-begin
-  if not is_campaign_dm(p_campaign) then
-    raise exception 'Only a campaign DM can regenerate the DM invite code';
-  end if;
-  v_code := gen_invite_code();
-  update campaigns set dm_invite_code = v_code where id = p_campaign;
-  return v_code;
-end;
-$$;
-
 -- ---------------------------------------------------------------------------
--- campaign_invites — single-use, per-player invite tokens (Path A: DM invites a
--- brand-new player). Distinct from the shared campaigns.invite_code above: this
--- token is single-use, DM-curated with a preset starting AP/budget, and produces
--- a 'chargen' character. See sql/migrations/2026-07-13-campaign-invite-tokens.sql
--- and docs/plans/2026-07-11-campaign-join-invite-flow.md for the full design.
+-- campaign_invites — unified player+DM invite tokens (D-GH-2026-08-09-harden-invitation-system
+-- extended this from player-only to also cover DM invites; see that migration's header comment for
+-- the full rationale, including why player tokens stay plaintext while DM tokens are hash-only).
+--
+-- Path A (type='player'): DM invites a brand-new player. Distinct from the shared campaigns.invite_code
+-- above: this token is single-use, DM-curated with a preset starting AP/budget, and produces a
+-- 'chargen' character. See sql/migrations/2026-07-13-campaign-invite-tokens.sql and
+-- docs/plans/2026-07-11-campaign-join-invite-flow.md for that original design.
+--
+-- type='dm' rows: DM invites a co-DM. Single-use by default; reusable requires an explicit
+-- max_redemptions (see campaign_invite_redemptions below for how reusable-invite redeemers are
+-- tracked, since a single redeemed_by/redeemed_at pair can only ever record one redeemer).
 -- ---------------------------------------------------------------------------
 create table if not exists public.campaign_invites (
   id              uuid primary key default gen_random_uuid(),
   campaign_id     uuid not null references public.campaigns(id) on delete cascade,
-  token           text not null unique,
+  type            text not null default 'player' check (type in ('player','dm')),
+  mode            text not null default 'single_use' check (mode in ('single_use','reusable')),
+  redeemed_count  integer not null default 0,
+  max_redemptions integer,
+  token           text unique,        -- player invites only (plaintext, deliberately -- see header)
+  token_hash      text unique,        -- dm invites only (SHA-256 hex, Security Invariant 1)
   starting_ap     integer not null default 0,
   starting_budget integer not null default 0,
   created_by      uuid references public.profiles(id) on delete set null,
   created_at      timestamptz not null default now(),
-  expires_at      timestamptz,                                    -- reserved, not yet enforced
+  expires_at      timestamptz,                                    -- enforced on redemption for both types
   note            text,                                           -- DM label; see D-GH-2026-08-03-dm-invite-manager
   revoked_at      timestamptz,                                    -- soft revocation; a revoked invite cannot redeem
   redeemed_by     uuid references public.profiles(id) on delete set null,
-  redeemed_at     timestamptz
+  redeemed_at     timestamptz,
+  constraint campaign_invites_redemption_limit_check check (
+    (mode = 'single_use' and max_redemptions is null)
+    or (mode = 'reusable' and max_redemptions is not null and max_redemptions >= 1)
+  ),
+  -- Reusable mode is a DM-invite-only capability today (create_player_invite() always hardcodes
+  -- single_use) -- enforced here, not just left as an application convention, so a future helper or
+  -- manual fix-up can't silently create a type='player', mode='reusable' row that redeem_player_invite()
+  -- would then treat as single-use anyway while the data claims otherwise (code-review, 2026-08-09).
+  constraint campaign_invites_reusable_dm_only_check check (
+    mode = 'single_use' or type = 'dm'
+  ),
+  -- Each type owns exactly one storage column -- player rows carry plaintext token and never
+  -- token_hash; dm rows carry token_hash and never plaintext token. See this table's header comment.
+  constraint campaign_invites_token_storage_check check (
+    (type = 'player' and token is not null and token_hash is null)
+    or (type = 'dm' and token is null and token_hash is not null)
+  )
 );
 create index if not exists idx_campaign_invites_campaign on public.campaign_invites(campaign_id);
+
+-- campaign_invite_redemptions — per-redeemer tracking for REUSABLE (dm-only) invites, since a single
+-- redeemed_by/redeemed_at pair on campaign_invites can only ever record one redeemer. Single-use
+-- invites keep using those two columns directly and never touch this table.
+create table if not exists public.campaign_invite_redemptions (
+  invite_id   uuid not null references public.campaign_invites(id) on delete cascade,
+  redeemed_by uuid not null references public.profiles(id) on delete cascade,
+  redeemed_at timestamptz not null default now(),
+  primary key (invite_id, redeemed_by)
+);
+-- The primary key covers (invite_id, redeemed_by) but not a reverse lookup on redeemed_by alone.
+create index if not exists idx_campaign_invite_redemptions_redeemed_by
+  on public.campaign_invite_redemptions(redeemed_by);
 
 -- Invite AP is a SINGLE grant, paid into characters.ap (DM-authoritative).
 -- `starting_budget` is DEPRECATED and always written 0 — both functions still ADD it in so
@@ -442,10 +463,124 @@ begin
     exit when not exists (select 1 from campaign_invites where token = v_token);
   end loop;
 
-  insert into campaign_invites (campaign_id, token, starting_ap, starting_budget, created_by, note)
-    values (p_campaign_id, v_token, v_ap, 0, auth.uid(), v_note);
+  insert into campaign_invites (campaign_id, token, type, mode, starting_ap, starting_budget, created_by, note)
+    values (p_campaign_id, v_token, 'player', 'single_use', v_ap, 0, auth.uid(), v_note);
 
   return v_token;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- create_dm_invite() / redeem_dm_invite() — D-GH-2026-08-09-harden-invitation-system. Modeled on
+-- create_player_invite()/redeem_player_invite()'s shape (same DM-only creation check, same
+-- "generate a CSPRNG token, loop on collision" pattern). Redeemable by any authenticated account
+-- (a deliberate choice, not an oversight — see docs/plans/2026-08-08-harden-invitation-system.md,
+-- Security Invariant 12): unlike the retired dm_invite_code, security now rests on token strength,
+-- expiry, and revocation rather than membership-scoping. Single-use by default; reusable requires an
+-- explicit max_redemptions, tracked per-redeemer in campaign_invite_redemptions since a single
+-- redeemed_by/redeemed_at pair can only record one redeemer.
+-- ---------------------------------------------------------------------------
+create or replace function public.create_dm_invite(
+  p_campaign_id     uuid,
+  p_mode            text default 'single_use',
+  p_max_redemptions integer default null,
+  p_note            text default null,
+  p_expires_at      timestamptz default null
+)
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_token text;
+  v_hash  text;
+  v_note  text := nullif(trim(coalesce(p_note, '')), '');
+begin
+  if not is_campaign_dm(p_campaign_id) then
+    raise exception 'Only a campaign DM can create a DM invite';
+  end if;
+  if p_mode not in ('single_use', 'reusable') then
+    raise exception 'Invalid invite mode';
+  end if;
+  if p_mode = 'reusable' and (p_max_redemptions is null or p_max_redemptions < 1) then
+    raise exception 'Reusable invites require a positive redemption limit';
+  end if;
+  if v_note is not null and length(v_note) > 200 then v_note := left(v_note, 200); end if;
+
+  loop
+    v_token := encode(extensions.gen_random_bytes(16), 'hex');
+    v_hash  := encode(extensions.digest(v_token, 'sha256'), 'hex');
+    exit when not exists (select 1 from campaign_invites where token_hash = v_hash);
+  end loop;
+
+  insert into campaign_invites
+      (campaign_id, token_hash, type, mode, max_redemptions, created_by, note, expires_at)
+    values (
+      p_campaign_id, v_hash, 'dm', p_mode,
+      case when p_mode = 'reusable' then p_max_redemptions else null end,
+      auth.uid(), v_note, p_expires_at
+    );
+
+  return v_token;   -- plaintext returned ONCE; no API retrieves it again (Security Invariant 1/5).
+end;
+$$;
+
+create or replace function public.redeem_dm_invite(p_token text)
+returns table(campaign_id uuid, already_member boolean)
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_hash   text;
+  v_invite campaign_invites%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  v_hash := encode(extensions.digest(p_token, 'sha256'), 'hex');
+
+  -- FOR UPDATE serializes concurrent redemption attempts against this exact invite row.
+  select * into v_invite from campaign_invites where token_hash = v_hash and type = 'dm' for update;
+
+  if not found then
+    raise exception 'Invite is invalid or already redeemed';
+  end if;
+
+  -- Idempotency FIRST (Security Invariant 10): a repeat call from the original redeemer, or from
+  -- anyone already a co-DM of this campaign by any path, is a no-op.
+  if (v_invite.mode = 'single_use' and v_invite.redeemed_by = auth.uid())
+     or (v_invite.mode = 'reusable' and exists (
+           select 1 from campaign_invite_redemptions r
+           where r.invite_id = v_invite.id and r.redeemed_by = auth.uid()))
+     or is_campaign_dm(v_invite.campaign_id)
+  then
+    return query select v_invite.campaign_id, true;
+    return;
+  end if;
+
+  -- Generic validity check (Security Invariant 8): nonexistent, expired, revoked, already-consumed,
+  -- or exhausted all produce the SAME error.
+  if v_invite.revoked_at is not null
+     or (v_invite.expires_at is not null and v_invite.expires_at <= now())
+     or (v_invite.mode = 'single_use' and v_invite.redeemed_by is not null)
+     or (v_invite.mode = 'reusable' and v_invite.redeemed_count >= v_invite.max_redemptions)
+  then
+    raise exception 'Invite is invalid or already redeemed';
+  end if;
+
+  if v_invite.mode = 'single_use' then
+    update campaign_invites set redeemed_by = auth.uid(), redeemed_at = now() where id = v_invite.id;
+  else
+    update campaign_invites set redeemed_count = redeemed_count + 1 where id = v_invite.id;
+    insert into campaign_invite_redemptions (invite_id, redeemed_by) values (v_invite.id, auth.uid())
+      on conflict do nothing;
+  end if;
+
+  -- added_by = auth.uid() (the caller performing THIS write), matching promote_to_dm() and the
+  -- owner-auto-add trigger's convention everywhere else this table is written -- not
+  -- v_invite.created_by (the invite's original issuer, who merely authorized this in advance but did
+  -- not perform the join) (code-review, 2026-08-09).
+  insert into campaign_dms (campaign_id, dm_id, added_by)
+    values (v_invite.campaign_id, auth.uid(), auth.uid())
+    on conflict do nothing;
+
+  return query select v_invite.campaign_id, false;
 end;
 $$;
 
@@ -474,18 +609,26 @@ $$;
 
 -- DM-only listing. SECURITY DEFINER so it can join profiles/characters, which the caller's own RLS
 -- would not let them read wholesale, while still gating on is_campaign_dm internally.
+-- Explicit DROP first: Postgres won't CREATE OR REPLACE a function whose RETURNS TABLE shape changed.
+drop function if exists public.list_campaign_invites(uuid);
+
 create or replace function public.list_campaign_invites(p_campaign uuid)
 returns table(
-  id           uuid,
-  token        text,
-  note         text,
-  starting_ap  integer,
-  created_at   timestamptz,
-  revoked_at   timestamptz,
-  redeemed_at  timestamptz,
-  redeemed_by_name text,
-  character_id uuid,
-  character_name text
+  id                uuid,
+  type              text,
+  mode              text,
+  token             text,
+  note              text,
+  starting_ap       integer,
+  max_redemptions   integer,
+  redeemed_count    integer,
+  expires_at        timestamptz,
+  created_at        timestamptz,
+  revoked_at        timestamptz,
+  redeemed_at       timestamptz,
+  redeemed_by_name  text,
+  character_id      uuid,
+  character_name    text
 )
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
@@ -493,20 +636,30 @@ begin
     raise exception 'Only a campaign DM can list invites';
   end if;
   return query
-    select i.id, i.token, i.note,
+    -- token is the real plaintext for player rows (unchanged from before); dm rows always return
+    -- null here -- the plaintext was never stored (Security Invariant 1).
+    select i.id, i.type, i.mode, i.token,
+           i.note,
            coalesce(i.starting_ap, 0) + coalesce(i.starting_budget, 0),   -- same fold the RPCs apply
+           i.max_redemptions, i.redeemed_count, i.expires_at,
            i.created_at, i.revoked_at, i.redeemed_at,
            p.display_name, c.id, c.name
       from campaign_invites i
       left join profiles p on p.id = i.redeemed_by
-      left join characters c on c.owner_id = i.redeemed_by and c.campaign_id = i.campaign_id
+      -- Scoped to type='player': without this, a co-DM invite whose redeemer also happens to own an
+      -- unrelated character in this campaign would spuriously pick it up, contradicting this
+      -- function's own documented invariant that a dm invite never produces a character (code-review,
+      -- 2026-08-09).
+      left join characters c on i.type = 'player' and c.owner_id = i.redeemed_by and c.campaign_id = i.campaign_id
      where i.campaign_id = p_campaign
      order by i.created_at desc;
 end;
 $$;
 
--- A revoked invite must not redeem. Only this branch changes; the rest is unchanged from
--- 2026-08-03-invite-grant-award-row.sql.
+-- Player-invite redemption. Token storage/lookup is unchanged (plaintext, direct equality) --
+-- D-GH-2026-08-09-harden-invitation-system added the type filter and expires_at enforcement, and
+-- folded the previously-distinct "withdrawn by the DM" message into the same generic
+-- invalid/expired/revoked response redeem_dm_invite() above uses (Security Invariant 8).
 create or replace function public.redeem_player_invite(p_token text, p_name text default null)
 returns table(character_id uuid, starting_ap integer, starting_budget integer, campaign_id uuid, is_new boolean)
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -520,15 +673,10 @@ begin
     raise exception 'Not authenticated';
   end if;
 
-  -- Checked before the claiming UPDATE so a revoked invite can't be consumed by the race.
-  if exists (select 1 from campaign_invites
-              where token = p_token and revoked_at is not null and redeemed_by is null) then
-    raise exception 'This invite has been withdrawn by the DM';
-  end if;
-
   update campaign_invites
     set redeemed_by = auth.uid(), redeemed_at = now()
-    where token = p_token and redeemed_by is null and revoked_at is null
+    where token = p_token and type = 'player' and redeemed_by is null and revoked_at is null
+      and (expires_at is null or expires_at > now())
     returning * into v_invite;
 
   if found then
@@ -560,7 +708,9 @@ begin
     return;
   end if;
 
-  select * into v_invite from campaign_invites where token = p_token and redeemed_by = auth.uid();
+  -- Not claimed by the UPDATE above. Idempotent re-return for the original redeemer; the identical
+  -- generic error for everything else (Security Invariant 8).
+  select * into v_invite from campaign_invites where token = p_token and type = 'player' and redeemed_by = auth.uid();
   if not found then
     raise exception 'Invite is invalid or already redeemed';
   end if;
