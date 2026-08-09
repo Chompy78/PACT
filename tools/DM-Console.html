@@ -465,6 +465,15 @@
   #campPeekBanner b{color:var(--warn);text-transform:uppercase;letter-spacing:.5px;font-size:11px;
     display:block;margin-bottom:2px}
   #campPeekBanner .btn{margin-top:7px}
+  /* Same visual language as the peek banner above (warn colors — this isn't an error, just something
+     worth a look) but its own id: the two are independent and can show at once (an archived campaign
+     can still have stale invites worth knowing about before you unarchive it). */
+  #campWarnBanner{background:var(--warn-bg);border:1px solid var(--warn);border-radius:10px;
+    padding:9px 12px;margin-bottom:10px;font-size:12px;color:var(--ink);line-height:1.45}
+  #campWarnBanner b{color:var(--warn);text-transform:uppercase;letter-spacing:.5px;font-size:11px;
+    display:block;margin-bottom:2px}
+  #campWarnBanner ul{margin:4px 0 0;padding-left:18px}
+  #campWarnBanner li{margin:2px 0}
   /* The archived row's NAME is the peek trigger. It has to look like a name you can click, not a
      second button competing with "Unarchive" beside it. */
   .archname{appearance:none;background:transparent;border:0;padding:0;margin:0;font:inherit;
@@ -553,6 +562,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <div><button type="button" class="btn sm ghost" id="campPeekExitBtn">Done viewing</button></div>
           </div>
 
+          <div id="campWarnBanner" style="display:none" role="status">
+            <b>&#9888; Worth a look</b>
+            <ul id="campWarnList"></ul>
+          </div>
+
           <div class="subtile" id="campOwnerTile">
             <div class="stitle">Owner settings</div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -579,12 +593,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                  answer lived three collapsed panels away. Show it here, live, with a link that opens the
                  panel it comes from — so the figure is legible at the moment the code is copied. -->
             <div class="grantnote" id="campPlayerCodeGrant" style="margin-top:2px"></div>
-            <div class="codechip">
-              <span class="lbl">DMs:</span>
-              <input class="field ro" id="campDmCode" readonly>
-              <button type="button" class="btn sm ghost" id="copyDmCode">Copy</button>
-              <button type="button" class="infobtn" id="campDmCodeInfo" title="Reusable — share with a trusted co-DM. Redeeming it lets them manage this campaign alongside you (rules, rosters, AP awards).">ⓘ</button>
-            </div>
             <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
               <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
                 <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
@@ -614,6 +622,50 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <div id="inviteList" style="margin-top:6px"></div>
               </div>
             </div>
+              </div>
+            </details>
+          </div>
+
+          <div class="subtile" id="campDmInviteTile">
+            <details id="campDmInviteDetails">
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Invite a co-DM <span class="dsum" id="campDmInviteSummary"></span></summary>
+              <div style="margin-top:8px">
+                <div class="ruleblock" id="dmInviteBlock">
+                  <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+                    <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
+                      <span>Mode <button type="button" class="infobtn" title="Single-use (default): one invite, one co-DM. Reusable: set a redemption limit so more than one person can join with the same invite.">ⓘ</button></span>
+                      <select class="field" id="dmInviteMode" style="width:120px">
+                        <option value="single_use">Single-use</option>
+                        <option value="reusable">Reusable</option>
+                      </select>
+                    </label>
+                    <label style="display:none;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)" id="dmInviteLimitWrap">
+                      <span>Redemption limit</span>
+                      <input class="field" type="number" id="dmInviteLimit" min="1" step="1" style="width:100px">
+                    </label>
+                    <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);flex:1 1 200px">
+                      <span>Note <button type="button" class="infobtn" title="A label for your own reference — who this invite is for. Appears in the list below; withheld from anyone who redeems it.">&#9432;</button></span>
+                      <input class="field" type="text" id="dmInviteNote" maxlength="200" placeholder="e.g. Co-DM for the west wing">
+                    </label>
+                    <button type="button" class="btn sm" id="createDmInviteBtn">Generate co-DM invite</button>
+                  </div>
+                  <div id="dmInviteLinkRow" style="display:none;align-items:center;gap:6px;margin-top:6px">
+                    <input class="field ro" id="dmInviteLinkOut" readonly>
+                    <button type="button" class="btn sm ghost" id="copyDmInviteLink">Copy</button>
+                  </div>
+                  <div id="dmInviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+                  <div class="grantnote">Shown once — copy it now, it cannot be retrieved again after this. Redeeming it makes the recipient a co-DM of this campaign (rules, rosters, AP awards) — any signed-in account can redeem a valid invite, so only share it with someone you trust.</div>
+                  <div id="dmInviteListWrap" style="margin-top:10px">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      <b style="font-size:12px">Co-DM invites issued</b>
+                      <label style="font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:5px;cursor:pointer">
+                        <input type="checkbox" id="dmInviteShowAll"> Show redeemed &amp; withdrawn<span id="dmInviteHiddenCount"></span>
+                      </label>
+                      <button type="button" class="btn sm ghost" id="dmInviteRefresh" style="margin-left:auto">Refresh</button>
+                    </div>
+                    <div id="dmInviteList" style="margin-top:6px"></div>
+                  </div>
+                </div>
               </div>
             </details>
           </div>
@@ -710,6 +762,9 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 
           <div style="display:flex;align-items:center;gap:8px;margin:2px 0 4px">
             <button type="button" class="btn sm" id="ruleSaveBtn">Save rules</button>
+            <button type="button" class="btn sm ghost" id="ruleLockBtn" aria-pressed="true"
+                    title="These settings apply campaign-wide — species/class/mastery bans, the AP curve, and what new joiners start with. Click to unlock them.">&#128274; Locked</button>
+            <button type="button" class="infobtn" id="ruleLockInfo" title="Locked by default so scrolling or a stray click can't silently ban a species or change the AP curve. Unlock to edit, then Save — it re-locks automatically after a successful save.">&#9432;</button>
             <span id="ruleSaveStatus" style="font-size:11px;color:var(--muted)"></span>
           </div>
           <div class="grantnote" style="margin:0 0 10px">Saves the Campaign Rules and advancement settings above together.</div>
@@ -732,6 +787,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <button type="button" class="btn sm" id="campNewBtn">+ Create</button>
           </div>
           <div id="campNewStatus" style="font-size:11px;color:var(--muted);margin:4px 0 0"></div>
+          <div id="joinDmRow" style="display:flex;gap:6px;margin-top:8px">
+            <input class="field" type="text" id="joinDmToken" placeholder="Co-DM invite token" maxlength="64">
+            <button type="button" class="btn sm" id="joinDmBtn">Join as co-DM</button>
+          </div>
+          <div id="joinDmStatus" style="font-size:11px;color:var(--muted);margin:4px 0 0"></div>
           <details id="campArchivedDetails" style="margin-top:10px">
             <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Archived campaigns</summary>
             <div id="campArchivedList" style="margin-top:8px"></div>
@@ -951,7 +1011,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.388';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.391';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1863,14 +1923,14 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). A failure here costs campaigns and the roster, not the
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
-  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
+  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
   import { getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes, createPlayerInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -1919,10 +1979,26 @@ document.addEventListener('campaign-ready', function () {
   var inviteLinkOut = document.getElementById('inviteLinkOut');
   var copyInviteLink = document.getElementById('copyInviteLink');
   var inviteStatus = document.getElementById('inviteStatus');
+  var dmInviteMode  = document.getElementById('dmInviteMode');
+  var dmInviteLimitWrap = document.getElementById('dmInviteLimitWrap');
+  var dmInviteLimit = document.getElementById('dmInviteLimit');
+  var dmInviteNote  = document.getElementById('dmInviteNote');
+  var dmInviteList  = document.getElementById('dmInviteList');
+  var dmInviteShowAll = document.getElementById('dmInviteShowAll');
+  var dmInviteRefresh = document.getElementById('dmInviteRefresh');
+  var createDmInviteBtn = document.getElementById('createDmInviteBtn');
+  var dmInviteLinkRow = document.getElementById('dmInviteLinkRow');
+  var dmInviteLinkOut = document.getElementById('dmInviteLinkOut');
+  var copyDmInviteLink = document.getElementById('copyDmInviteLink');
+  var dmInviteStatus = document.getElementById('dmInviteStatus');
+  var joinDmToken = document.getElementById('joinDmToken');
+  var joinDmBtn = document.getElementById('joinDmBtn');
+  var joinDmStatus = document.getElementById('joinDmStatus');
   var ruleMultiDisc = document.getElementById('ruleMultiDisc');
   var ruleHouseRules = document.getElementById('ruleHouseRules');
   var ruleHouseRuleName = document.getElementById('ruleHouseRuleName');
   var ruleSaveStatus = document.getElementById('ruleSaveStatus');
+  var ruleLockBtn    = document.getElementById('ruleLockBtn');
   var ruleCopyBlock  = document.getElementById('ruleCopyBlock');
   var ruleCopyFrom   = document.getElementById('ruleCopyFrom');
   var ruleCopyStatus = document.getElementById('ruleCopyStatus');
@@ -1988,22 +2064,32 @@ document.addEventListener('campaign-ready', function () {
   // Campaign-scoped controls only. #campManageTile is deliberately absent — "+ Create campaign" and
   // the Unarchive buttons belong to the DM, not to the campaign being peeked, and locking the way
   // back out would be a trap.
-  var _PEEK_SCOPES = ['campOwnerTile','campInviteTile','campRulesTile','campAdvancementTile','dmNotesTile','campRoster'];
+  var _PEEK_SCOPES = ['campOwnerTile','campInviteTile','campDmInviteTile','campRulesTile','campAdvancementTile','dmNotesTile','campRoster'];
 
-  function _peekLockEls(){
+  /* Shared by _peekLockEls() and _ruleLockEls() below: both are "every input/select/textarea/button
+     under these tile ids, plus these extra elements that live outside any tile, minus the ⓘ info
+     buttons" — kept as one implementation so a future exemption (e.g. a new class to skip) can't be
+     patched into one copy and silently left out of the other. */
+  function _scopedControlEls(tileIds, extraEls){
     var out = [];
-    _PEEK_SCOPES.forEach(function(id){
+    tileIds.forEach(function(id){
       var root = document.getElementById(id);
       if(root) out = out.concat(Array.prototype.slice.call(root.querySelectorAll('input,select,textarea,button')));
     });
-    var save = document.getElementById('ruleSaveBtn');   // lives outside every tile, in a bare row
-    if(save) out.push(save);
-    return out.filter(function(el){
-      // ⓘ buttons only alert() their own title, and Copy/Refresh only read — but an archived
-      // campaign's invite codes are dead links, so copying one is a trap worth closing too. The sole
-      // exemption is the info buttons: they are the read-only explanation of what is being looked at.
-      return !el.classList.contains('infobtn');
-    });
+    (extraEls || []).forEach(function(el){ if(el) out.push(el); });
+    return out.filter(function(el){ return !el.classList.contains('infobtn'); });
+  }
+
+  function _peekLockEls(){
+    // ruleSaveBtn and ruleLockBtn both live outside every tile, in the bare row below them — passed as
+    // extras since the tile scan can't reach them. ruleLockBtn itself must be swept too: its whole job
+    // is being the one thing NOT covered by the rules lock (_setRulesLocked never touches it), so
+    // without this an archived peek would leave it clickable — the one control that should be just as
+    // inert as everything else while viewing read-only history. (Copy/Refresh buttons stay in scope on
+    // purpose — an archived campaign's invite codes are dead links, so copying one is a trap worth
+    // closing too. The sole exemption, applied inside _scopedControlEls(), is the ⓘ info buttons: they
+    // only alert() their own title, nothing to guard.)
+    return _scopedControlEls(_PEEK_SCOPES, [document.getElementById('ruleSaveBtn'), ruleLockBtn]);
   }
 
   /* Restores rather than blanket-enables on exit: several of these controls have their own disabled
@@ -2352,6 +2438,7 @@ document.addEventListener('campaign-ready', function () {
     } catch(err){
       ruleSaveStatus.textContent = 'Error: '+err.message;
     }
+    _setRulesLocked(true);   // always re-lock, same as ignorePlayerAp — success or error alike
   });
   document.getElementById('dmNotesSaveBtn').addEventListener('click', async function(){
     if(!currentCampId || _peekBlocks()) return;
@@ -2512,6 +2599,7 @@ document.addEventListener('campaign-ready', function () {
       dmNotesText.value = ''; dmNotesStatus.textContent = '';
       window._dmCampaignApRules = null;   // no campaign selected → no DM AP context to price against
       _renderPeekState();   // clears the banner and releases the lock
+      renderCampWarnings();   // clears any warnings left over from the previous campaign
       // Deselecting a campaign must also clear the cloud roster — see the sign-out branch above for why.
       if(window._dmRenderCloudRoster) window._dmRenderCloudRoster(campRoster, []);
       setImportPanelDimmed(false);
@@ -2520,7 +2608,6 @@ document.addEventListener('campaign-ready', function () {
     setImportPanelDimmed(true);
     campCodes.style.display = 'block';
     document.getElementById('campPlayerCode').value = camp.invite_code||'';
-    document.getElementById('campDmCode').value     = camp.dm_invite_code||'';
     _renderPlayerCodeGrant();   // the grant figure belongs to the campaign, so it moves with the switch
     ignoreChk.checked = !!camp.ignore_player_ap;
     _setIgnoreLocked(true);   // every campaign switch lands locked
@@ -2535,12 +2622,20 @@ document.addEventListener('campaign-ready', function () {
     inviteLinkRow.style.display = 'none';
     inviteLinkOut.value = '';
     inviteStatus.textContent = '';
+    // Same reset, DM-invite side (code-review finding, 2026-08-09) — without this, a token generated
+    // for the PREVIOUS campaign stays visible/copyable under the newly-selected one.
+    dmInviteLinkRow.style.display = 'none';
+    dmInviteLinkOut.value = '';
+    dmInviteStatus.textContent = '';
     inviteStartAp.value = '';
     // Pre-fill the starting budget from the campaign's advancement starting-tier (feat/advancement-tracks).
     // Visible and fully editable — the DM can clear or override it before generating each invite.
     var _tierAp = camp.rules && camp.rules.startingTier && camp.rules.startingTier.ap;
     inviteStartAp.value = (_tierAp != null && _tierAp !== '') ? _tierAp : '';
     loadRulesIntoPanel(camp.rules);
+    _setRulesLocked(true);   // every campaign switch lands locked — after populate, so dynamically
+                              // rendered checkboxes (first-ever render, inside loadRulesIntoPanel above)
+                              // are already in the DOM to be locked, not created after the fact
     dmNotesText.value = (camp.rules && camp.rules.dmNotes) || '';
     dmNotesStatus.textContent = '';
     renderRuleCopyOptions();
@@ -2640,11 +2735,7 @@ document.addEventListener('campaign-ready', function () {
   document.getElementById('copyPlayerCode').addEventListener('click', function(){
     navigator.clipboard.writeText(document.getElementById('campPlayerCode').value);
   });
-  document.getElementById('copyDmCode').addEventListener('click', function(){
-    navigator.clipboard.writeText(document.getElementById('campDmCode').value);
-  });
   document.getElementById('campPlayerCodeInfo').addEventListener('click', function(){ alert(this.title); });
-  document.getElementById('campDmCodeInfo').addEventListener('click', function(){ alert(this.title); });
   // "Ignore player-entered AP" decides whether every character's own log AP counts toward what they can
   // spend, so a stray click silently re-budgets the whole table. It is disabled by default behind an
   // explicit unlock, and confirms before writing — then re-locks, so the unlocked state can't be left
@@ -2665,6 +2756,31 @@ document.addEventListener('campaign-ready', function () {
   });
   if(document.getElementById('ignoreApInfo'))
     document.getElementById('ignoreApInfo').addEventListener('click', function(){ alert(this.title); });
+
+  // Campaign Rules + Advancement panels: same "locked by default" pattern as ignorePlayerAp above, sized
+  // up for a whole panel of checkboxes/selects/inputs instead of one control. Unlike the AP switch there
+  // is no single change event to confirm() against — the existing "Save rules" click is already the
+  // deliberate step, so the lock's job is purely to stop a scroll-past or a stray click from silently
+  // toggling a ban checkbox or a curve field before that click ever happens. ruleMultiDisc stands in for
+  // ignoreChk as the "am I currently locked" source of truth on toggle (same disabled-state trick).
+  function _ruleLockEls(){
+    return _scopedControlEls(['campRulesTile', 'campAdvancementTile'], [document.getElementById('ruleSaveBtn')]);
+  }
+  function _setRulesLocked(locked){
+    _ruleLockEls().forEach(function(el){ el.disabled = locked; });
+    if(!ruleLockBtn) return;
+    ruleLockBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
+    ruleLockBtn.innerHTML = locked ? '&#128274; Locked' : '&#128275; Unlocked';
+    ruleLockBtn.title = locked
+      ? 'These settings apply campaign-wide — species/class/mastery bans, the AP curve, and what new joiners start with. Click to unlock them.'
+      : 'Unlocked — the fields above can be changed. Saving re-locks automatically.';
+  }
+  if(ruleLockBtn) ruleLockBtn.addEventListener('click', function(){
+    _setRulesLocked(!ruleMultiDisc.disabled);
+  });
+  if(document.getElementById('ruleLockInfo'))
+    document.getElementById('ruleLockInfo').addEventListener('click', function(){ alert(this.title); });
+  _setRulesLocked(true);   // initial state, before any campaign is even selected
 
   ignoreChk.addEventListener('change', async function(){
     if(!currentCampId){ _setIgnoreLocked(true); return; }
@@ -2699,6 +2815,12 @@ document.addEventListener('campaign-ready', function () {
   // outstanding invites, so unredeemed ones piled up invisibly (Amble had nine) with no way to tell
   // which was meant for whom or what AP it carried. Since the grant became a character's entire
   // starting AP, that is a question with real consequences.
+  // _invites holds EVERY invite for the campaign, both types (listCampaignInvites() was extended to
+  // return both by D-GH-2026-08-09-harden-invitation-system) -- renderInvites() (player) and
+  // renderDmInvites() below both filter their own subset from this one shared array/fetch rather than
+  // querying twice. The player filter is `type !== 'dm'` rather than `type === 'player'` so an
+  // old-shaped test fixture with no `type` field at all (predating this change) still renders as a
+  // player invite instead of silently vanishing — see window._dmArchivedPeek.seedInvites below.
   var _invites = [];
 
   async function loadInvites(){
@@ -2707,9 +2829,18 @@ document.addEventListener('campaign-ready', function () {
     try {
       _invites = await B.listCampaignInvites(currentCampId);
       renderInvites();
+      renderDmInvites();
     } catch(err){
-      inviteList.textContent = 'Could not load invites: ' + (err && err.message ? err.message : err);
+      // Both panels share one fetch/one _invites array, so a failure here must clear BOTH -- otherwise
+      // the co-DM panel silently keeps showing whatever it last rendered (possibly a different
+      // campaign's data, right after a switch) with no sign anything failed (code-review, 2026-08-09).
+      var msg = 'Could not load invites: ' + (err && err.message ? err.message : err);
+      inviteList.textContent = msg;
+      _invites = [];
+      if(dmInviteList) dmInviteList.textContent = msg;
     }
+    renderCampWarnings();   // covers both the success and error path — an error clears _invites, which
+                             // correctly clears any warnings computed from the previous fetch too
   }
 
   function inviteUrl(token){
@@ -2721,15 +2852,16 @@ document.addEventListener('campaign-ready', function () {
      would make a fully-settled campaign look like it had pending work. */
   function renderInviteSummary(){
     var el = document.getElementById('campInviteSummary');
-    var open = _invites.filter(function(v){ return !v.redeemedAt && !v.revokedAt; }).length;
-    if(el) el.textContent = open ? ('· ' + open + ' outstanding') : (_invites.length ? '· none outstanding' : '');
+    var mine = _invites.filter(function(v){ return v.type !== 'dm'; });
+    var open = mine.filter(function(v){ return !v.redeemedAt && !v.revokedAt; }).length;
+    if(el) el.textContent = open ? ('· ' + open + ' outstanding') : (mine.length ? '· none outstanding' : '');
     // The list shows OPEN invites only by default, so "which invite did I send Sam" is unanswerable
     // until a DM thinks to tick the box -- and nothing hinted there was anything behind it. A campaign
     // with 1 open and 4 settled invites looked like a campaign with 1 invite, full stop. Put the count
     // ON the toggle so the history announces itself.
     var cnt = document.getElementById('inviteHiddenCount');
     if(cnt){
-      var hidden = _invites.length - open;
+      var hidden = mine.length - open;
       cnt.textContent = hidden ? (' (' + hidden + ')') : '';
     }
   }
@@ -2738,13 +2870,14 @@ document.addEventListener('campaign-ready', function () {
     renderInviteSummary();
     var showAll = !!(inviteShowAll && inviteShowAll.checked);
     var rows = _invites.filter(function(v){
-      return showAll || (!v.redeemedAt && !v.revokedAt);
+      return v.type !== 'dm' && (showAll || (!v.redeemedAt && !v.revokedAt));
     });
     if(!rows.length){
+      var mine = _invites.filter(function(v){ return v.type !== 'dm'; });
       inviteList.innerHTML = '<div class="grantnote" style="margin-top:0">' +
-        (_invites.length ? 'No outstanding invites. Tick “Show redeemed &amp; withdrawn” to see the ' +
-                           _invites.length + ' already issued.'
-                         : 'No invites issued for this campaign yet.') + '</div>';
+        (mine.length ? 'No outstanding invites. Tick “Show redeemed &amp; withdrawn” to see the ' +
+                       mine.length + ' already issued.'
+                     : 'No invites issued for this campaign yet.') + '</div>';
       return;
     }
     // esc() on every player-controlled value that reaches innerHTML — notes and display names are
@@ -2804,18 +2937,160 @@ document.addEventListener('campaign-ready', function () {
     _renderPeekState();   // same reason as loadRoster(): this list rebuilds its own buttons
   }
 
-  async function setRevoked(id, revoked, btn){
+  /* DM-invite counterpart of renderInvites() above -- same list machinery (open/settled filter,
+     revoke/restore), simpler row template: no AP badge (DM invites don't grant AP), no invite-link
+     input (the plaintext was only ever shown once, at creation -- token is always null here, by
+     design, Security Invariant 1), and a mode/redemption-count line instead.
+
+     _dmInviteSettled() is the ONE place "is this dm invite done" is decided -- used by the summary
+     count, the default-view filter, and the row template's own spent/action-button logic alike, so
+     they cannot drift out of sync the way they did before this was extracted (code-review, 2026-08-09):
+     a reusable invite that hit its redemption limit never sets redeemedAt/revokedAt (those two columns
+     are single-use-only; reusable tracks via redeemed_count/campaign_invite_redemptions instead), so
+     any copy of the filter that only checked those two columns miscounted an exhausted reusable invite
+     as permanently outstanding. */
+  function _dmInviteSettled(v){
+    var full = v.mode === 'reusable' && v.maxRedemptions != null && v.redeemedCount >= v.maxRedemptions;
+    return !!(v.revokedAt) || (v.mode === 'single_use' && !!v.redeemedAt) || full;
+  }
+  function renderDmInviteSummary(){
+    var el = document.getElementById('campDmInviteSummary');
+    var mine = _invites.filter(function(v){ return v.type === 'dm'; });
+    var open = mine.filter(function(v){ return !_dmInviteSettled(v); }).length;
+    if(el) el.textContent = open ? ('· ' + open + ' outstanding') : (mine.length ? '· none outstanding' : '');
+    var cnt = document.getElementById('dmInviteHiddenCount');
+    if(cnt){
+      var hidden = mine.length - open;
+      cnt.textContent = hidden ? (' (' + hidden + ')') : '';
+    }
+  }
+  function renderDmInvites(){
+    if(!dmInviteList) return;
+    renderDmInviteSummary();
+    var showAll = !!(dmInviteShowAll && dmInviteShowAll.checked);
+    var rows = _invites.filter(function(v){
+      return v.type === 'dm' && (showAll || !_dmInviteSettled(v));
+    });
+    if(!rows.length){
+      var mine = _invites.filter(function(v){ return v.type === 'dm'; });
+      dmInviteList.innerHTML = '<div class="grantnote" style="margin-top:0">' +
+        (mine.length ? 'No outstanding co-DM invites. Tick “Show redeemed &amp; withdrawn” to see the ' +
+                       mine.length + ' already issued.'
+                     : 'No co-DM invites issued for this campaign yet.') + '</div>';
+      return;
+    }
+    // esc() on every player-controlled value that reaches innerHTML — same hard invariant as
+    // renderInvites() above (REV-12).
+    dmInviteList.innerHTML = rows.map(function(v){
+      var full = v.mode === 'reusable' && v.maxRedemptions != null && v.redeemedCount >= v.maxRedemptions;
+      var spent = _dmInviteSettled(v);
+      var state = full ? '<span class="invstate used">Fully redeemed</span>'
+                : v.revokedAt ? '<span class="invstate gone">Withdrawn</span>'
+                : (v.mode === 'single_use' && v.redeemedAt) ? '<span class="invstate used">Redeemed</span>'
+                : '<span class="invstate open">Open</span>';
+      var usage = v.mode === 'reusable'
+        ? (v.redeemedCount || 0) + (v.maxRedemptions != null ? ' / ' + v.maxRedemptions : '') + ' used'
+        : (v.redeemedAt ? 'used' : 'unused');
+      var meta;
+      if(v.revokedAt){
+        meta = 'Withdrawn ' + esc(String(v.revokedAt).slice(0,10)) +
+               ' · issued ' + esc(String(v.createdAt).slice(0,10)) + ' · ' + (v.mode === 'reusable' ? 'reusable' : 'single-use');
+      } else {
+        meta = 'Issued ' + esc(String(v.createdAt).slice(0,10)) + ' · ' +
+               (v.mode === 'reusable' ? 'reusable, ' + esc(usage) : 'single-use, ' + esc(usage));
+      }
+      var acts = '';
+      if(!spent){
+        acts = '<div class="invacts">' +
+               '<button type="button" class="btn sm ghost" data-dm-revoke="' + esc(v.id) + '">Withdraw</button>' +
+               '</div>';
+      } else if(v.revokedAt){
+        acts = '<div class="invacts">' +
+               '<button type="button" class="btn sm ghost" data-dm-restore="' + esc(v.id) + '">Restore</button>' +
+               '</div>';
+      }
+      return '<div class="invrow' + (spent ? ' spent' : '') + '">' +
+               '<div class="invtop">' +
+                 '<span class="invnote' + (v.note ? '' : ' none') + '">' +
+                   (v.note ? esc(v.note) : 'No note') + '</span>' +
+                 state +
+               '</div>' +
+               '<div class="invmeta">' + meta + '</div>' +
+               acts +
+             '</div>';
+    }).join('');
+
+    dmInviteList.querySelectorAll('[data-dm-revoke]').forEach(function(b){
+      b.addEventListener('click', function(){ setRevoked(b.dataset.dmRevoke, true, b, dmInviteStatus); });
+    });
+    dmInviteList.querySelectorAll('[data-dm-restore]').forEach(function(b){
+      b.addEventListener('click', function(){ setRevoked(b.dataset.dmRestore, false, b, dmInviteStatus); });
+    });
+    _renderPeekState();
+  }
+
+  async function setRevoked(id, revoked, btn, statusEl){
     if(_peekBlocks()) return;
-    if(revoked && !confirm('Withdraw this invite? The link stops working. Nothing already redeemed is affected.')) return;
+    if(revoked && !confirm('Withdraw this invite? It stops working. Nothing already redeemed is affected.')) return;
     btn.disabled = true;
     try {
       await B.setInviteRevoked(id, revoked);
       await loadInvites();
     } catch(err){
-      inviteStatus.textContent = 'Error: ' + (err && err.message ? err.message : err);
+      (statusEl || inviteStatus).textContent = 'Error: ' + (err && err.message ? err.message : err);
       btn.disabled = false;
     }
   }
+
+  // ---- Campaign warnings banner ----------------------------------------------------------------
+  // Surfaces things that may not be right without the DM having to open a collapsed panel and read
+  // through it. Both checks below read only _invites (already fetched by loadInvites() for the two
+  // panels above) — nothing here writes anything, so it can safely recompute on every load with no
+  // lock or confirm of its own.
+  //   - A stale OPEN invite (player or co-DM): unredeemed invites otherwise pile up invisibly — this
+  //     app has already seen it happen for real ("Amble had nine", see the comment above
+  //     renderInviteSummary()). _dmInviteSettled() is reused for the co-DM half so "is this one done"
+  //     can't drift between the list filter and the warning.
+  //   - A player invite granting 0 AP: almost always a forgotten "Starting tier" (see
+  //     _renderPlayerCodeGrant's own warning about the identical footgun on the reusable code) rather
+  //     than a deliberate choice, and a player who redeems it arrives unable to build anything.
+  var STALE_INVITE_DAYS = 14;
+  function _campWarnings(){
+    var out = [];
+    var staleCutoff = Date.now() - STALE_INVITE_DAYS * 86400000;
+    var staleOpenPlayer = 0, zeroApPlayer = 0, staleOpenDm = 0;
+    _invites.forEach(function(v){
+      var created = v.createdAt ? new Date(v.createdAt).getTime() : NaN;
+      if(v.type === 'dm'){
+        if(_dmInviteSettled(v)) return;
+        if(created < staleCutoff) staleOpenDm++;
+      } else {
+        if(v.redeemedAt || v.revokedAt) return;
+        if(created < staleCutoff) staleOpenPlayer++;
+        if(!v.startingAp) zeroApPlayer++;
+      }
+    });
+    if(staleOpenPlayer) out.push(staleOpenPlayer + ' player invite' + (staleOpenPlayer === 1 ? '' : 's') +
+      ' issued ' + STALE_INVITE_DAYS + '+ days ago, still unredeemed — still needed, or worth withdrawing?');
+    if(staleOpenDm) out.push(staleOpenDm + ' co-DM invite' + (staleOpenDm === 1 ? '' : 's') +
+      ' issued ' + STALE_INVITE_DAYS + '+ days ago, still unredeemed — still needed, or worth withdrawing?');
+    if(zeroApPlayer) out.push(zeroApPlayer + ' outstanding player invite' + (zeroApPlayer === 1 ? '' : 's') +
+      ' grant' + (zeroApPlayer === 1 ? 's' : '') + ' 0 AP — check "Starting tier" under Advancement if that wasn’t intended.');
+    return out;
+  }
+  function renderCampWarnings(){
+    var banner = document.getElementById('campWarnBanner');
+    var list = document.getElementById('campWarnList');
+    if(!banner || !list) return;
+    // Every string here is built from counts and static text, never from a note/name a user typed —
+    // esc() isn't needed the way it is in renderInvites()/renderDmInvites() above (REV-12's invariant
+    // is about player-controlled text, and there is none in this list).
+    var warnings = currentCampId ? _campWarnings() : [];
+    banner.style.display = warnings.length ? 'block' : 'none';
+    list.innerHTML = warnings.map(function(w){ return '<li>' + w + '</li>'; }).join('');
+  }
+  // No separate test seam for this one (unlike window._dmRulesPanel above) — dm-console-ui-e2e.mjs
+  // already exercises it for real through _dmArchivedPeek.seedInvites(), which now calls it directly.
 
   if(inviteShowAll) inviteShowAll.addEventListener('change', renderInvites);
   if(inviteRefresh) inviteRefresh.addEventListener('click', function(){
@@ -2847,6 +3122,67 @@ document.addEventListener('campaign-ready', function () {
     navigator.clipboard.writeText(inviteLinkOut.value).catch(function(){
       inviteStatus.textContent = 'Could not copy — select and copy the link manually.';
     });
+  });
+
+  // ---- Co-DM invites (D-GH-2026-08-09-harden-invitation-system) -----------------------------------
+  if(dmInviteShowAll) dmInviteShowAll.addEventListener('change', renderDmInvites);
+  if(dmInviteRefresh) dmInviteRefresh.addEventListener('click', function(){
+    loadInvites();
+    if(currentCampId) loadRoster(currentCampId);
+  });
+  if(dmInviteMode) dmInviteMode.addEventListener('change', function(){
+    dmInviteLimitWrap.style.display = dmInviteMode.value === 'reusable' ? 'flex' : 'none';
+  });
+
+  createDmInviteBtn.addEventListener('click', async function(){
+    if(!currentCampId || _peekBlocks()) return;
+    var mode = dmInviteMode.value === 'reusable' ? 'reusable' : 'single_use';
+    var limit = null;
+    if(mode === 'reusable'){
+      limit = parseInt(dmInviteLimit.value, 10);
+      if(!(limit >= 1)){ dmInviteStatus.textContent = 'Enter a redemption limit of 1 or more for a reusable invite.'; return; }
+    }
+    var note = (dmInviteNote && dmInviteNote.value || '').trim();
+    createDmInviteBtn.disabled = true;
+    dmInviteStatus.textContent = 'Generating…';
+    dmInviteLinkRow.style.display = 'none';
+    try {
+      var token = await B.createDmInvite(currentCampId, { mode: mode, maxRedemptions: limit, note: note });
+      dmInviteLinkOut.value = token;
+      dmInviteLinkRow.style.display = 'flex';
+      dmInviteStatus.textContent = 'Shown once — copy it now. It cannot be retrieved again after this.';
+      if(dmInviteNote) dmInviteNote.value = '';
+      loadInvites();
+    } catch(err){
+      dmInviteStatus.textContent = 'Error: '+err.message;   // .textContent is XSS-safe -- esc() here would double-escape
+    }
+    createDmInviteBtn.disabled = false;
+  });
+  copyDmInviteLink.addEventListener('click', function(){
+    navigator.clipboard.writeText(dmInviteLinkOut.value).catch(function(){
+      dmInviteStatus.textContent = 'Could not copy — select and copy the token manually.';
+    });
+  });
+
+  // "Join as co-DM" is campaign-list-scoped, not currentCampId-scoped — the token itself determines
+  // which campaign it belongs to server-side (Security Invariant 2: a caller-supplied campaign id is
+  // never authoritative), so this works whether or not a campaign is currently selected.
+  if(joinDmBtn) joinDmBtn.addEventListener('click', async function(){
+    var token = (joinDmToken.value || '').trim();
+    if(!token){ joinDmStatus.textContent = 'Paste a co-DM invite token first.'; return; }
+    joinDmBtn.disabled = true;
+    joinDmStatus.textContent = 'Joining…';
+    try {
+      var result = await B.redeemDmInvite(token);
+      joinDmToken.value = '';
+      joinDmStatus.textContent = result.alreadyMember ? 'You are already a co-DM of that campaign.' : 'Joined as co-DM.';
+      await loadCampaigns();
+      campSel.value = result.campaignId;
+      selectCampaign(result.campaignId);
+    } catch(err){
+      joinDmStatus.textContent = 'Error: '+(err&&err.message?err.message:err);   // .textContent is XSS-safe
+    }
+    joinDmBtn.disabled = false;
   });
 
   // Card rendering + all per-card interaction (award AP, history, DM notes, unbind) live in the
@@ -2888,11 +3224,15 @@ document.addEventListener('campaign-ready', function () {
     // _paintRoster(), so "cards come back enabled after a refresh" is a check that can actually fail.
     paintRoster: function(rows){ return _paintRoster(rows); },
     // Ditto for the invite list — its Withdraw buttons only exist once there are invites to render,
-    // and listCampaignInvites() needs a session. Seeds the closure's own array, then the real renderer.
-    seedInvites: function(list){ _invites = list || []; renderInvites(); },
+    // and listCampaignInvites() needs a session. Seeds the closure's own array, then the real
+    // renderers. list may mix both types (type:'player'/'dm') or omit `type` entirely for an
+    // old-shaped player-only fixture — renderInvites()'s `type !== 'dm'` filter treats the latter as
+    // player rows, same as production data predating this split.
+    seedInvites: function(list){ _invites = list || []; renderInvites(); renderDmInvites(); renderCampWarnings(); },
     state: function(){
       return { peeking: !!peekCamp, peekId: peekCamp && peekCamp.id, currentCampId: currentCampId,
-               locked: _peekLockEls().filter(function(el){ return !el.disabled; }).map(function(el){ return el.id || el.className; }) };
+               locked: _peekLockEls().filter(function(el){ return !el.disabled; }).map(function(el){ return el.id || el.className; }),
+               rulesLocked: !!ruleMultiDisc.disabled };
     },
     // Exercises the guard itself, independently of whether the control is disabled — this is the half
     // that a re-enabled button cannot get past.
