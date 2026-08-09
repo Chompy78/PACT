@@ -19,62 +19,6 @@ Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page 
 prune, PWA stale-version reload-prompt fix, Live Sheet mobile density/collapse) has landed and graduated
 to `CHANGELOG.md`.
 
-## Split starting AP into creation AP + awarded AP (and fix CharGen's clunky budget entry) — TODO
-Branch `feat/creation-vs-awarded-ap`. Owner's design, 2026-08-05. **Do this before
-`fix/creation-lock-survives-reload`** — it removes that bug's cause instead of patching it.
-
-**The idea.** A character's starting AP is currently one number, and the creation lock measures against a
-flat `DATA.level1AP` (79). Those should be two different things:
-
-- **Creation AP** — the default figure for the chosen track (Standard 79, Generous 83, Lean 75, Level-0
-  prelude 55, or custom). This is what the creation lock measures, and creation prices and warnings apply
-  while spending it.
-- **Awarded AP** — everything above that. Treated exactly like DM-awarded AP in the Live Sheet: it is
-  post-creation, so it buys at post-lock prices.
-
-So a 5th-level starting character is given their full starting AP however the DM sets it, spends the first
-~79 under creation pricing with the usual warnings, and the remainder behaves as awards. That is the
-correct shape: a character who begins at level 5 has, in rules terms, already advanced.
-
-**Why it matters beyond tidiness.** `_buildEventBurst` blanket-tags every event `noLock:true` purely so a
-high-budget starting character isn't instantly locked (D-GH34). With the split, that reason disappears —
-creation AP is always the default, so the threshold is never wrong — and with it goes the reload-unlock
-bug: see `fix/creation-lock-survives-reload` above, where a reload currently launders a locked character
-back to draft.
-
-**Two UI pieces:**
-1. **CharGen has no awarded-AP entry at all.** The Live Sheet does (`award()`, which appends a `type:'award'`
-   event). CharGen needs the equivalent so a DM or player can set the extra AP on a starting character.
-2. **CharGen's budget control is a dropdown and is clunky** (owner). Replace it with a plainer entry — a
-   number field, or a track picker plus a number, so a custom figure doesn't mean hunting a list.
-
-**Effort:** medium · **Risk:** medium — ambiguity medium (the split is decided, but where the boundary is
-recorded in the LOG is an open design call); damage scale medium (touches the award/budget model both
-tools read); damage likelihood low (parity + tool-pricing gates cover the numbers). Not sweep-eligible.
-
-```text
-1. Decide how the split is RECORDED before writing UI. The LOG already carries `award` events and
-   `creationLockConfig{threshold}`. Natural shape: creation AP is the threshold (already an event, already
-   append-only per D4), and awarded AP is one or more ordinary `award` events. Check that against how
-   economy() computes earned/spent, and write the answer into
-   decisions/2026/D-GH-2026-08-05-pricing-model.md as an amendment - it changes D3.
-2. CharGen: add an awarded-AP entry mirroring the Live Sheet's award(). Route it through the LOG-mutation
-   API (emit), not a DOM shim - readBuild() is foldBuild(LOG) since the Chunk 6 flip.
-3. CharGen: replace the budget dropdown with a number entry (keep the track presets reachable - they feed
-   DATA.levelBudgetCurves and the creation-AP confirm prompt already reads them).
-4. Once creation AP is always the default, REMOVE the blanket noLock tagging in _buildEventBurst and
-   confirm the D-GH34 case it protected is still safe: an imported higher-budget character must not
-   self-trigger the lock on its own total. That is the whole point of doing this task first.
-5. Gate it in testing/scripts/tool-pricing-ci.mjs: a character with creation AP 79 + 170 awarded must show
-   creation pricing for the first 79 and post-lock pricing after, AND still be locked after a reload.
-6. engine-parity must stay at 0 failed. If compute() output moves, update testing/expected/ and bump DATA.version
-   in the same PR.
-```
-
-**Done when:** starting AP is split into creation AP and awarded AP, CharGen can set both, its budget
-control is no longer a dropdown, a 5th-level starting character gets creation pricing only for the
-creation-AP portion, the lock survives a reload, and engine-parity still reports 0 failed.
-
 ## Campaign binding is lost on refresh, and on the Live Sheet → CharGen switch — TODO
 Branch `fix/campaign-binding-survives-reload`. Reported by the owner from real use, 2026-08-05: "when the
 page is refreshed, it loses the connection to campaign and I need to reload the character. Same as when I
