@@ -1242,6 +1242,20 @@ function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;wind
 async function _cgAdoptEnvelopeBinding(d){
   _cgResetCloudApState();
   var campId = d && d.campaignId; if(!campId) return;
+  // fix/campaign-binding-survives-reload: this runs from _cgBoot(), which fires synchronously off
+  // 'engine-ready' — dispatched by the FIRST of two <script type="module"> blocks, strictly before the
+  // SECOND (the auth/campaign/sync bridge, kept separate deliberately — see the comment above its own
+  // script tag) has even started executing. That second module is what sets window._campaignBridge AND
+  // window._syncBridge. So on both paths that call this function during boot (a Live Sheet→CharGen
+  // handoff via _cgConsumeHandoff, and a plain reload's autosave restore via _cgRestoreAutosave), a
+  // campaign-bound character's DM-AP resolve used to fire while the bridge was still undefined: the
+  // `S &&`/`C &&` guards below silently short-circuited, _cgResolveDmApStatus() set _dmApStatus to a
+  // permanent 'unavailable' with nothing left to retry it, and the campaign never got adopted into the
+  // picker. Wait for 'campaign-ready' (after which both bridges are guaranteed set) before resolving,
+  // rather than resolving too early and missing the window for good.
+  if(!window._campaignBridge){
+    await new Promise(function(res){ document.addEventListener('campaign-ready', res, {once:true}); });
+  }
   var ap = 0;
   try{
     var S = window._syncBridge;
