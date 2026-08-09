@@ -338,6 +338,41 @@ try {
       setBuyQuery('');
       return [before, clickable, after];})()`),
     [false, true, true]);
+
+  // fix/sheet-tab-appearance-not-persisted: the Sheet tab's Appearance/Background fields (Description,
+  // hometown, faith, etc.) used to go through csSave() only — a local, per-tool, per-character-id
+  // scratchpad that never touched the LOG, so an edit here silently never reached a cloud save and
+  // "disappeared" the moment the character was reopened in the other tool (a different, empty
+  // scratchpad namespace — see _sheetStoreKey()). _shCommitAppearanceField now writes the real LOG.
+  console.log('\nLive Sheet — Sheet-tab appearance/background fields write into the real LOG');
+  check('a field committed via the Sheet writes into b.appearance, not just local scratch',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      _shCommitAppearanceField('hometown','Testville');
+      return [foldBuild(null).appearance.hometown, csLoad(currentCharId()).ap_hometown||null];})()`),
+    ['Testville', null]);
+  check('a second field commits in place — one appearance patch event, not two, and both fields merge',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      _shCommitAppearanceField('hometown','Testville');
+      _shCommitAppearanceField('faith','Old Gods');
+      const matches=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance);
+      return [matches.length, foldBuild(null).appearance.hometown, foldBuild(null).appearance.faith];})()`),
+    [1, 'Testville', 'Old Gods']);
+  check('editing appearance after a later purchase replaces in place, not at the end (so undo stays on the real last action)',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      _shCommitAppearanceField('hometown','Testville');
+      const apIdxBefore=LOG.findIndex(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance);
+      LOG.push({type:'award',amount:10,label:'AP award',seq:SEQ++,ts:Date.now()});
+      _shCommitAppearanceField('faith','Old Gods');
+      const apIdxAfter=LOG.findIndex(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance);
+      return [apIdxBefore, apIdxAfter, LOG[LOG.length-1].type];})()`),
+    [0, 0, 'award']);
+  check('a pre-existing imported appearance (age, hair) survives an unrelated field edit',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'buy',cat:'patch',payload:{patch:{appearance:{age:'32',hair:'silver'}}},cost:0,label:'Appearance & description (0 AP)',seq:SEQ++,ts:Date.now()});
+      _shCommitAppearanceField('overall','A grizzled veteran.');
+      const ap=foldBuild(null).appearance;
+      return [ap.age, ap.hair, ap.overall];})()`),
+    ['32', 'silver', 'A grizzled veteran.']);
   await ls.close();
 
   // ============================ CharGen ============================
@@ -391,7 +426,12 @@ try {
 
   await cg.evaluate(`(()=>{try{localStorage.clear()}catch(e){}})()`);
   await cg.evaluate(`location.reload()`);
-  if (!(await cg.evaluate(READY(`window.DATA&&typeof repriceDraft==='function'&&LOG.length>0`))))
+  // Pre-existing CI-only flake (not reproduced locally, seen on a PR unrelated to species/traits):
+  // engine-readiness (window.DATA/repriceDraft/LOG.length) can land a tick before the Setup panel's
+  // own DOM form finishes painting, especially right after a hard reload restarts the whole
+  // engine-ready/campaign-ready module boot sequence. setSpec() immediately below needs #spec to
+  // exist, so the probe must wait for the form too, not just the engine bridge.
+  if (!(await cg.evaluate(READY(`window.DATA&&typeof repriceDraft==='function'&&LOG.length>0&&document.getElementById('spec')`))))
     throw new Error('CharGen never became ready after reload');
 
   await cg.evaluate(setSpec('Halfling'));
@@ -661,6 +701,40 @@ try {
       const b=readBuild();b.hd=17;b.boons=DATA.boonList.filter(x=>!DATA.boons[x].epic).slice(0,2);
       renderLedger(compute(b),b);const o=sect('Boons');
       return [o.items.length,o.sum===o.line];})()`), [2, true]);
+
+  // fix/sheet-tab-appearance-not-persisted: the Sheet tab's Appearance/Background fields (Description,
+  // hometown, faith, etc.) used to go through csSave() only — a local, per-tool, per-character-id
+  // scratchpad that never touched the LOG, so an edit here silently never reached a cloud save and
+  // "disappeared" the moment the character was reopened in the other tool (a different, empty
+  // scratchpad namespace — see _sheetStoreKey()). _shCommitAppearanceField now routes through the same
+  // PATCH_SLOTS.APPEARANCE mechanism the Setup panel's own ap_* fields already use.
+  console.log('\nCharGen — Sheet-tab appearance/background fields write into the real LOG');
+  check('opening the Sheet then committing a field writes into b.appearance via PATCH_SLOTS.APPEARANCE, not just local scratch',
+    await cg.evaluate(`(()=>{
+      toggleSheet();
+      _shCommitAppearanceField('hometown','Testville');
+      const matches=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e._slot===PATCH_SLOTS.APPEARANCE);
+      return [readBuild().appearance.hometown, matches.length, csLoad(currentCharId()).ap_hometown||null];})()`),
+    ['Testville', 1, null]);
+  check('a second commit coalesces in place (still one APPEARANCE patch event) and merges with the first',
+    await cg.evaluate(`(()=>{
+      _shCommitAppearanceField('faith','Old Gods');
+      const matches=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e._slot===PATCH_SLOTS.APPEARANCE);
+      return [matches.length, readBuild().appearance.hometown, readBuild().appearance.faith];})()`),
+    [1, 'Testville', 'Old Gods']);
+  check('a stale local-scratch value for an appearance field is ignored on re-render — the Sheet always shows the live LOG value',
+    await cg.evaluate(`(()=>{
+      csSave(currentCharId(),'ap_hometown','STALE-SCRATCH');
+      toggleSheet();toggleSheet();   // close+reopen to force a fresh hydrateSheet() pass
+      const el=document.querySelector('#sheetbody [data-mf="ap_hometown"]');
+      return el?el.value:null;})()`),
+    'Testville');
+  check('a genuinely scratch field (Player Name) still round-trips via the local store, unaffected',
+    await cg.evaluate(`(()=>{
+      const el=document.querySelector('#sheetbody [data-mf="playerName"]');
+      el.value='Jamie'; onSheetField(el);
+      return csLoad(currentCharId()).playerName;})()`),
+    'Jamie');
   await cg.close();
 } catch (e) {
   fail++; console.log(`  FAIL harness — ${e.message}`);

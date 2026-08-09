@@ -6,6 +6,39 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-09 · fix(chargen,livesheet): the Sheet tab's Description/Appearance/Background fields now
+  actually save** — owner report, live: *"when i go from chargen to live sheet and back, all the
+  character descriptions disappear. They don't seem to save to the cloud file either when i click save."*
+  Root cause: the fillable "📋 Sheet" tab's Appearance grid and Background & Personality block
+  (gender/age/height/build/hair/eyes/skin/marks/voice/hometown/faith/ambition/fear/prized/companion/
+  Description) are real `b.appearance` data, but were rendered through the same
+  local-`localStorage`-scratchpad mechanism (`csSave`/`csLoad`) as genuinely scratch, no-LOG-concept
+  fields (Player Name, Alignment, Notes, spell trackers) — and that scratchpad is keyed **separately per
+  tool** (`pactSheetStore:chargen` vs `pactSheetStore:livesheet`). An edit on the Sheet tab never touched
+  the LOG, so it was never part of what cloud Save actually sends
+  (`{schema,rules,name,LOG,SEQ,id,campaignId}`), and reopening the character in the other tool read from
+  an empty, different-namespace scratchpad — falling back to the real (unedited) LOG value, which looked
+  exactly like the edit had vanished. Worse for Live Sheet specifically: it has no Setup-panel equivalent
+  of CharGen's, so the Sheet tab is the *only* place these fields are ever edited there — every such edit
+  was unconditionally lost on close, not merely on a tool switch.
+  Fixed by routing those 16 fields into the real LOG instead: CharGen reuses its existing
+  `PATCH_SLOTS.APPEARANCE`/`_cgSyncPatchSlot()` mechanism (the same one its own Setup panel already
+  uses, so the two views can't disagree); Live Sheet gained a new `_shCommitAppearanceField()` that
+  replaces the latest existing appearance-patch LOG event in place (appends one if none exists) rather
+  than appending a fresh event on every edit — position-stable, so it can't move the ledger line and
+  can't land at the end of the LOG where `undo()` could eat it instead of the player's last real
+  purchase. Both merge the edited field into the FULL current appearance object first, so fields the
+  Sheet doesn't show (nose, demeanour, quirk, likes, dislikes, father, mother, profession, familyfor,
+  famevent, secret, drink) survive untouched — a naive subset-only write would have silently wiped them.
+  `hydrateSheet()` now always paints these 16 fields from the live LOG value, never a stale local-scratch
+  override, so this view can no longer silently diverge from what Save/cloud-sync actually persists.
+  Pre-existing scratchpad data from before this fix is not migrated — there is no reliable way to know
+  whether it was ever the intended value, so the LOG (cloud-synced, cross-tool) is the only trustworthy
+  fallback. 4 new gate assertions per tool (8 total) in `testing/scripts/tool-pricing-ci.mjs` (76/0 total,
+  `engine-parity` 29/0 unaffected — `js/engine.js` untouched), confirmed red first: reverting only the
+  two tool-file changes threw `ReferenceError: _shCommitAppearanceField is not defined` and failed the
+  gate. See `decisions/2026/D-GH-2026-08-09-sheet-tab-appearance-not-persisted.md` for the full record.
+
 - **2026-08-09 · docs(tasks): remove stale `feat/creation-vs-awarded-ap` entry from `TASK_BOARD_NOW.md`** —
   picked up via `/run-code-task-jc` and found already fully shipped: the level+track selectors, the
   creation/awarded AP split, and `#budget` as a plain number input all landed 2026-08-05 (see this file's
