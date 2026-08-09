@@ -230,6 +230,126 @@ section('nothing is clipped off a 390px phone viewport');
 }
 
 // -------------------------------------------------------------------------------------------------
+section('mobile header: Local/Cloud on the first row, Random + collapse on the last (feat/chargen-mobile-header-layout)');
+{
+  const ctx = await browser.newContext({ viewport:{width:390,height:844} });
+  const p = await ctx.newPage();
+  await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, {waitUntil:'load'});
+  await p.waitForTimeout(3000);
+
+  const rows = await p.evaluate(()=>{
+    const inRow = (rowSel, id) => { const r=document.querySelector(rowSel); return !!(r && r.querySelector('#'+id)); };
+    return {
+      localInFirstRow: inRow('.hd-mobnav', 'cgLocalBtnM'),
+      cloudInFirstRow: inRow('.hd-mobnav', 'cgCloudBtnM'),
+      localInLastRow: inRow('.mobile-action-bar', 'cgLocalBtnM'),
+      cloudInLastRow: inRow('.mobile-action-bar', 'cgCloudBtnM'),
+      randomInFirstRow: !!document.querySelector('.hd-mobnav [onclick*="randomizeBuild"]'),
+      randomInLastRow: !!document.querySelector('.mobile-action-bar [onclick*="randomizeBuild"]'),
+      undoRedoThemeStillFirstRow: !!(document.getElementById('undoBtnM') && document.getElementById('redoBtnM') && document.getElementById('themeselMobile')
+        && document.querySelector('.hd-mobnav').contains(document.getElementById('undoBtnM'))
+        && document.querySelector('.hd-mobnav').contains(document.getElementById('redoBtnM'))
+        && document.querySelector('.hd-mobnav').contains(document.getElementById('themeselMobile'))),
+    };
+  });
+  check('📁 Local moved to the first row', rows.localInFirstRow, JSON.stringify(rows));
+  check('☁ Cloud moved to the first row', rows.cloudInFirstRow, JSON.stringify(rows));
+  check('📁 Local no longer on the last row', !rows.localInLastRow, JSON.stringify(rows));
+  check('☁ Cloud no longer on the last row', !rows.cloudInLastRow, JSON.stringify(rows));
+  check('🎲 Random moved OFF the first row', !rows.randomInFirstRow, JSON.stringify(rows));
+  check('🎲 Random is now on the last row', rows.randomInLastRow, JSON.stringify(rows));
+  check('Undo/Redo/Theme are still on the first row', rows.undoRedoThemeStillFirstRow, JSON.stringify(rows));
+
+  // Moving the Local/Cloud trigger buttons must not break their popup menus — both are a single
+  // reparented #cgLocalMenu/#cgCloudMenu element keyed off btn.parentElement (see _cgWireLocalMenu()),
+  // so this is a real regression risk from the move, not incidental coverage.
+  const menu = await p.evaluate(async ()=>{
+    document.getElementById('cgLocalBtnM').click();
+    await new Promise(r=>setTimeout(r,50));
+    const opened = document.getElementById('cgLocalMenu').classList.contains('open');
+    const parentIsFirstRow = document.querySelector('.hd-mobnav').contains(document.getElementById('cgLocalMenu'));
+    document.getElementById('cgLocalBtnM').click();
+    await new Promise(r=>setTimeout(r,50));
+    const closed = !document.getElementById('cgLocalMenu').classList.contains('open');
+    return { opened, parentIsFirstRow, closed };
+  });
+  check('the Local menu still opens from its new location', menu.opened, JSON.stringify(menu));
+  check('and reparents into the first row (not left behind in the last row)', menu.parentIsFirstRow, JSON.stringify(menu));
+  check('and still closes on a second tap', menu.closed, JSON.stringify(menu));
+
+  // Collapsible last row (feat/chargen-mobile-header-layout): defaults to expanded, a tap collapses it
+  // (hiding the seven action buttons, keeping only the toggle), and the choice survives a reload.
+  const collapse = await p.evaluate(async ()=>{
+    const bar = document.getElementById('mobActionBar'), items = document.getElementById('mobActionItems'),
+          btn = document.getElementById('mobActionsToggle');
+    const beforeVisible = getComputedStyle(items).display !== 'none';
+    const beforeExpanded = btn.getAttribute('aria-expanded');
+    btn.click();
+    const afterVisible = getComputedStyle(items).display !== 'none';
+    const afterExpanded = btn.getAttribute('aria-expanded');
+    const persisted = localStorage.getItem('pactCgMobActionsCollapsed');
+    return { beforeVisible, beforeExpanded, afterVisible, afterExpanded, persisted };
+  });
+  check('the last row starts expanded (unchanged default behavior)', collapse.beforeVisible === true, JSON.stringify(collapse));
+  check('aria-expanded starts true', collapse.beforeExpanded === 'true', JSON.stringify(collapse));
+  check('tapping the toggle collapses it', collapse.afterVisible === false, JSON.stringify(collapse));
+  check('aria-expanded flips to false', collapse.afterExpanded === 'false', JSON.stringify(collapse));
+  check('the collapsed choice is persisted to localStorage', collapse.persisted === '1', JSON.stringify(collapse));
+
+  await p.reload({waitUntil:'load'});
+  await p.waitForTimeout(1500);
+  const afterReload = await p.evaluate(()=>({
+    visible: getComputedStyle(document.getElementById('mobActionItems')).display !== 'none',
+    expanded: document.getElementById('mobActionsToggle').getAttribute('aria-expanded'),
+  }));
+  check('the collapsed state survives a reload', afterReload.visible === false, JSON.stringify(afterReload));
+  check('and aria-expanded reflects it on reload too', afterReload.expanded === 'false', JSON.stringify(afterReload));
+
+  await ctx.close();
+}
+
+// -------------------------------------------------------------------------------------------------
+section('info modal is usable at 390px: scrolls, and the close button stays reachable (feat/chargen-mobile-header-layout)');
+{
+  const ctx = await browser.newContext({ viewport:{width:390,height:600} });   // short viewport: forces the overflow this bug needs to reproduce
+  const p = await ctx.newPage();
+  await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, {waitUntil:'load'});
+  await p.waitForTimeout(3000);
+
+  const info = await p.evaluate(async ()=>{
+    showInfo();
+    await new Promise(r=>setTimeout(r,80));
+    const box = document.getElementById('infoBox');
+    const boxRect = box.getBoundingClientRect();
+    const closeBtn = box.querySelector('.close-btn');
+    const closeRectBefore = closeBtn.getBoundingClientRect();
+    const scrollableAndCapped = box.scrollHeight > box.clientHeight + 4 && boxRect.height <= innerHeight;
+    // Scroll the box itself to the bottom — the close button must still be on-screen afterward.
+    box.scrollTop = box.scrollHeight;
+    await new Promise(r=>setTimeout(r,30));
+    const closeRectAfter = closeBtn.getBoundingClientRect();
+    const stillOnScreenAfterScroll = closeRectAfter.top >= 0 && closeRectAfter.bottom <= innerHeight
+      && closeRectAfter.left >= 0 && closeRectAfter.right <= innerWidth;
+    const barelyMoved = Math.abs(closeRectAfter.top - closeRectBefore.top) < 2;   // sticky, not scrolled away
+    return { scrollableAndCapped, stillOnScreenAfterScroll, barelyMoved,
+              boxHeight: Math.round(boxRect.height), viewportHeight: innerHeight,
+              scrollHeight: box.scrollHeight, clientHeight: box.clientHeight };
+  });
+  check('the box is capped to the viewport, not left to grow past it', info.scrollableAndCapped, JSON.stringify(info));
+  check('the close button stays on-screen after scrolling the box to the bottom', info.stillOnScreenAfterScroll, JSON.stringify(info));
+  check('the close button barely moves (sticky), it does not scroll away with the content', info.barelyMoved, JSON.stringify(info));
+
+  const closed = await p.evaluate(async ()=>{
+    document.getElementById('infoBox').querySelector('.close-btn').click();
+    await new Promise(r=>setTimeout(r,80));
+    return !document.getElementById('infoModal').classList.contains('open');
+  });
+  check('clicking the (still-reachable) close button actually closes the modal', closed, String(closed));
+
+  await ctx.close();
+}
+
+// -------------------------------------------------------------------------------------------------
 section('the feedback pill clears Live Sheet\'s fixed bottom bar at 390px');
 {
   // Deliberately Live Sheet, not CharGen: CharGen has no fixed BOTTOM bar, so the same assertion there
