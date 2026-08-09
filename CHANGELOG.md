@@ -6,6 +6,22 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-09 · feat(dm-console): warnings banner for stale invites + lock the Campaign Rules panel** —
+  Two DM Console additions. (1) A "⚠ Worth a look" banner above the campaign panel, computed from the
+  same `_invites` fetch the invite-list panels already use: flags an outstanding (unredeemed, unrevoked)
+  player or co-DM invite issued 14+ days ago, and a player invite granting 0 AP (almost always a
+  forgotten "Starting tier"). Reuses `_dmInviteSettled()` for the co-DM half so "is this one done" can't
+  drift from the invite-list filter. (2) The Campaign Rules + Advancement panels (bans, house rules,
+  budget curve, award pace, starting tier, "copy rules from…") now land **locked by default** on every
+  campaign switch, mirroring the existing `ignore_player_ap` lock (`_setIgnoreLocked`) — a new
+  Locked/Unlocked button beside "Save rules" gates all the inputs in both tiles plus the Save button
+  itself; a successful save always re-locks. Composes for free with the existing archived-campaign peek
+  lock (`_applyPeekLock`'s remember/restore already respects whatever `disabled` state this lock leaves
+  behind). `testing/scripts/dm-console-ui-e2e.mjs` extended: the pre-existing "Save rules button is
+  enabled on a live campaign" check was updated for the new default-locked behavior, plus new coverage
+  for lock/unlock/re-lock and for the warnings banner (stale/fresh/settled/0-AP/exhausted-reusable
+  cases) — 79 → 88 checks, all passing.
+
 - **2026-08-09 · fix(security): harden the invitation system — close a live privilege-escalation bug** —
   `D-GH-2026-08-09-harden-invitation-system`. `campaigns.dm_invite_code` was readable by any campaign
   member and redeemable by any authenticated account system-wide, with no membership check and no rate

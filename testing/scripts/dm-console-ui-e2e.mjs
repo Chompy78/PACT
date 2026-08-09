@@ -375,7 +375,17 @@ const peek = await page.evaluate(async ()=>{
   await P.select('live-1');
   await new Promise(r=>setTimeout(r,60));
   out.liveNotPeeked = !P.state().peeking;
-  out.liveSaveEnabled = !document.getElementById('ruleSaveBtn').disabled;
+  // Campaign Rules lock (feat/dm-console-warnings-and-rules-lock): a live, non-archived campaign still
+  // lands LOCKED by default — this is the new "prevent accidental ticking" gate, distinct from the
+  // archived-peek lock above. Unlock -> Save rules becomes clickable -> re-selecting the SAME campaign
+  // (the closest thing to "after a save" this seam can drive without a real RPC) re-locks it.
+  out.liveRulesLockedByDefault = document.getElementById('ruleSaveBtn').disabled;
+  document.getElementById('ruleLockBtn').click();
+  out.unlockedEnablesSave = !document.getElementById('ruleSaveBtn').disabled;
+  out.unlockedEnablesMultiDisc = !document.getElementById('ruleMultiDisc').disabled;
+  await P.select('live-1');
+  await new Promise(r=>setTimeout(r,60));
+  out.reselectRelocks = document.getElementById('ruleSaveBtn').disabled;
   return out;
 });
 check('_dmArchivedPeek seam exposed', !peek.missing);
@@ -412,9 +422,67 @@ check('and releases the write guard', peek.guardReleased === true);
 check('and hides the banner', peek.bannerGone === true);
 check('exiting RESTORES prior disabled state, not a blanket enable', peek.ignoreStillLocked === true);
 check('a live campaign is never treated as a peek', peek.liveNotPeeked === true);
-check('and its Save rules button is enabled', peek.liveSaveEnabled === true);
+check('Campaign Rules land locked by default on a live campaign', peek.liveRulesLockedByDefault === true);
+check('clicking the lock enables Save rules', peek.unlockedEnablesSave === true);
+check('and enables the rule checkboxes/selects underneath it', peek.unlockedEnablesMultiDisc === true);
+check('re-selecting the campaign re-locks it', peek.reselectRelocks === true);
 
-// 12. DM AP must reach the roster's AP figures. DM AP lives ONLY on characters.ap and is never written
+// 12. Campaign warnings banner (feat/dm-console-warnings-and-rules-lock) — surfaces stale/unused invites
+//     and a 0-AP player invite without the DM having to open the collapsed invite panels. seedInvites()
+//     drives the real renderCampWarnings() (mirrors seedInvites' existing use for renderInvites() above).
+const warn = await page.evaluate(async ()=>{
+  const P = window._dmArchivedPeek;
+  const out = {};
+  await P.select('live-1');
+  await new Promise(r=>setTimeout(r,60));
+  const bannerDisplay = () => getComputedStyle(document.getElementById('campWarnBanner')).display;
+  const items = () => [...document.querySelectorAll('#campWarnList li')].map(li=>li.textContent);
+
+  // No invites at all -> no warnings.
+  P.seedInvites([]);
+  await new Promise(r=>setTimeout(r,40));
+  out.emptyHidesBanner = bannerDisplay() === 'none';
+
+  // One old, unredeemed player invite (well past the 14-day threshold) granting a real AP figure —
+  // should trip ONLY the staleness warning, not the 0-AP one.
+  // A settled (redeemed) old invite and a settled (revoked) old DM invite must NOT count — they are
+  // history, not something outstanding to act on.
+  // A fresh (today-ish) DM invite must not count as stale, and a reusable DM invite that already hit
+  // its redemption limit must not count as outstanding at all (_dmInviteSettled()'s "full" branch).
+  const longAgo = '2026-01-01T00:00:00Z';               // >7 months before this suite's fixed "today"
+  const today   = new Date().toISOString();
+  P.seedInvites([
+    { id:'p-stale', type:'player', createdAt:longAgo, redeemedAt:null, revokedAt:null, startingAp:79, note:'stale' },
+    { id:'p-zeroap', type:'player', createdAt:today,   redeemedAt:null, revokedAt:null, startingAp:0,  note:'no tier set' },
+    { id:'p-settled', type:'player', createdAt:longAgo, redeemedAt:longAgo, revokedAt:null, startingAp:79, note:'done' },
+    { id:'d-fresh', type:'dm', mode:'single_use', createdAt:today, redeemedAt:null, revokedAt:null, maxRedemptions:null, redeemedCount:0 },
+    { id:'d-settled', type:'dm', mode:'single_use', createdAt:longAgo, redeemedAt:null, revokedAt:longAgo, maxRedemptions:null, redeemedCount:0 },
+    { id:'d-full', type:'dm', mode:'reusable', createdAt:longAgo, redeemedAt:null, revokedAt:null, maxRedemptions:2, redeemedCount:2 },
+  ]);
+  await new Promise(r=>setTimeout(r,40));
+  out.mixShowsBanner = bannerDisplay() === 'block';
+  out.mixItems = items();
+
+  // Deselecting the campaign must clear the banner, same as every other campaign-scoped panel.
+  await P.select('');
+  await new Promise(r=>setTimeout(r,40));
+  out.deselectHidesBanner = bannerDisplay() === 'none';
+  return out;
+});
+check('no invites -> warnings banner hidden', warn.emptyHidesBanner === true);
+check('a stale + zero-AP + settled + fresh + settled-dm + exhausted-reusable-dm mix shows the banner',
+      warn.mixShowsBanner === true);
+check('exactly 2 warning lines (stale player, zero-AP player) — settled/fresh/exhausted rows excluded',
+      Array.isArray(warn.mixItems) && warn.mixItems.length === 2, JSON.stringify(warn.mixItems));
+check('the stale-player warning mentions the 14-day threshold',
+      Array.isArray(warn.mixItems) && warn.mixItems.some(t=>/1 player invite/.test(t) && /14\+ days/.test(t)),
+      JSON.stringify(warn.mixItems));
+check('the zero-AP warning calls out the AP figure',
+      Array.isArray(warn.mixItems) && warn.mixItems.some(t=>/grants 0 AP/.test(t)),
+      JSON.stringify(warn.mixItems));
+check('deselecting the campaign clears the banner', warn.deselectHidesBanner === true);
+
+// 13. DM AP must reach the roster's AP figures. DM AP lives ONLY on characters.ap and is never written
 //     into the character's log, so economy() — which can only see the log — structurally cannot know
 //     about it. Before this, every AP figure on the roster was player-log-only: a campaign running
 //     ignore_player_ap with the whole budget granted as DM AP showed every character deeply overspent

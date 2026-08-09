@@ -465,6 +465,15 @@
   #campPeekBanner b{color:var(--warn);text-transform:uppercase;letter-spacing:.5px;font-size:11px;
     display:block;margin-bottom:2px}
   #campPeekBanner .btn{margin-top:7px}
+  /* Same visual language as the peek banner above (warn colors — this isn't an error, just something
+     worth a look) but its own id: the two are independent and can show at once (an archived campaign
+     can still have stale invites worth knowing about before you unarchive it). */
+  #campWarnBanner{background:var(--warn-bg);border:1px solid var(--warn);border-radius:10px;
+    padding:9px 12px;margin-bottom:10px;font-size:12px;color:var(--ink);line-height:1.45}
+  #campWarnBanner b{color:var(--warn);text-transform:uppercase;letter-spacing:.5px;font-size:11px;
+    display:block;margin-bottom:2px}
+  #campWarnBanner ul{margin:4px 0 0;padding-left:18px}
+  #campWarnBanner li{margin:2px 0}
   /* The archived row's NAME is the peek trigger. It has to look like a name you can click, not a
      second button competing with "Unarchive" beside it. */
   .archname{appearance:none;background:transparent;border:0;padding:0;margin:0;font:inherit;
@@ -551,6 +560,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             invite it lists is worth sharing. To edit it again, use <b style="display:inline;text-transform:none;letter-spacing:0;font-size:inherit;color:inherit">Unarchive</b>
             under &ldquo;Archived campaigns&rdquo; below.</span>
             <div><button type="button" class="btn sm ghost" id="campPeekExitBtn">Done viewing</button></div>
+          </div>
+
+          <div id="campWarnBanner" style="display:none" role="status">
+            <b>&#9888; Worth a look</b>
+            <ul id="campWarnList"></ul>
           </div>
 
           <div class="subtile" id="campOwnerTile">
@@ -748,6 +762,9 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 
           <div style="display:flex;align-items:center;gap:8px;margin:2px 0 4px">
             <button type="button" class="btn sm" id="ruleSaveBtn">Save rules</button>
+            <button type="button" class="btn sm ghost" id="ruleLockBtn" aria-pressed="true"
+                    title="These settings apply campaign-wide — species/class/mastery bans, the AP curve, and what new joiners start with. Click to unlock them.">&#128274; Locked</button>
+            <button type="button" class="infobtn" id="ruleLockInfo" title="Locked by default so scrolling or a stray click can't silently ban a species or change the AP curve. Unlock to edit, then Save — it re-locks automatically after a successful save.">&#9432;</button>
             <span id="ruleSaveStatus" style="font-size:11px;color:var(--muted)"></span>
           </div>
           <div class="grantnote" style="margin:0 0 10px">Saves the Campaign Rules and advancement settings above together.</div>
@@ -1981,6 +1998,7 @@ document.addEventListener('campaign-ready', function () {
   var ruleHouseRules = document.getElementById('ruleHouseRules');
   var ruleHouseRuleName = document.getElementById('ruleHouseRuleName');
   var ruleSaveStatus = document.getElementById('ruleSaveStatus');
+  var ruleLockBtn    = document.getElementById('ruleLockBtn');
   var ruleCopyBlock  = document.getElementById('ruleCopyBlock');
   var ruleCopyFrom   = document.getElementById('ruleCopyFrom');
   var ruleCopyStatus = document.getElementById('ruleCopyStatus');
@@ -2054,8 +2072,14 @@ document.addEventListener('campaign-ready', function () {
       var root = document.getElementById(id);
       if(root) out = out.concat(Array.prototype.slice.call(root.querySelectorAll('input,select,textarea,button')));
     });
-    var save = document.getElementById('ruleSaveBtn');   // lives outside every tile, in a bare row
+    // ruleSaveBtn and ruleLockBtn both live outside every tile, in the bare row below them — pushed
+    // explicitly since the tile scan above can't reach them. ruleLockBtn itself must be swept too: its
+    // whole job is being the one thing NOT covered by the rules lock (_setRulesLocked never touches
+    // it), so without this explicit push an archived peek would leave it clickable — the one control
+    // that should be just as inert as everything else while viewing read-only history.
+    var save = document.getElementById('ruleSaveBtn');
     if(save) out.push(save);
+    if(ruleLockBtn) out.push(ruleLockBtn);
     return out.filter(function(el){
       // ⓘ buttons only alert() their own title, and Copy/Refresh only read — but an archived
       // campaign's invite codes are dead links, so copying one is a trap worth closing too. The sole
@@ -2410,6 +2434,7 @@ document.addEventListener('campaign-ready', function () {
     } catch(err){
       ruleSaveStatus.textContent = 'Error: '+err.message;
     }
+    _setRulesLocked(true);   // always re-lock, same as ignorePlayerAp — success or error alike
   });
   document.getElementById('dmNotesSaveBtn').addEventListener('click', async function(){
     if(!currentCampId || _peekBlocks()) return;
@@ -2570,6 +2595,7 @@ document.addEventListener('campaign-ready', function () {
       dmNotesText.value = ''; dmNotesStatus.textContent = '';
       window._dmCampaignApRules = null;   // no campaign selected → no DM AP context to price against
       _renderPeekState();   // clears the banner and releases the lock
+      renderCampWarnings();   // clears any warnings left over from the previous campaign
       // Deselecting a campaign must also clear the cloud roster — see the sign-out branch above for why.
       if(window._dmRenderCloudRoster) window._dmRenderCloudRoster(campRoster, []);
       setImportPanelDimmed(false);
@@ -2603,6 +2629,9 @@ document.addEventListener('campaign-ready', function () {
     var _tierAp = camp.rules && camp.rules.startingTier && camp.rules.startingTier.ap;
     inviteStartAp.value = (_tierAp != null && _tierAp !== '') ? _tierAp : '';
     loadRulesIntoPanel(camp.rules);
+    _setRulesLocked(true);   // every campaign switch lands locked — after populate, so dynamically
+                              // rendered checkboxes (first-ever render, inside loadRulesIntoPanel above)
+                              // are already in the DOM to be locked, not created after the fact
     dmNotesText.value = (camp.rules && camp.rules.dmNotes) || '';
     dmNotesStatus.textContent = '';
     renderRuleCopyOptions();
@@ -2724,6 +2753,39 @@ document.addEventListener('campaign-ready', function () {
   if(document.getElementById('ignoreApInfo'))
     document.getElementById('ignoreApInfo').addEventListener('click', function(){ alert(this.title); });
 
+  // Campaign Rules + Advancement panels: same "locked by default" pattern as ignorePlayerAp above, sized
+  // up for a whole panel of checkboxes/selects/inputs instead of one control. Unlike the AP switch there
+  // is no single change event to confirm() against — the existing "Save rules" click is already the
+  // deliberate step, so the lock's job is purely to stop a scroll-past or a stray click from silently
+  // toggling a ban checkbox or a curve field before that click ever happens. ruleMultiDisc stands in for
+  // ignoreChk as the "am I currently locked" source of truth on toggle (same disabled-state trick).
+  function _ruleLockEls(){
+    var out = [];
+    ['campRulesTile', 'campAdvancementTile'].forEach(function(id){
+      var root = document.getElementById(id);
+      if(root) out = out.concat(Array.prototype.slice.call(root.querySelectorAll('input,select,textarea,button')));
+    });
+    var save = document.getElementById('ruleSaveBtn');
+    if(save) out.push(save);
+    // Same infobtn exemption as _peekLockEls() — those only alert() their own title, nothing to guard.
+    return out.filter(function(el){ return !el.classList.contains('infobtn'); });
+  }
+  function _setRulesLocked(locked){
+    _ruleLockEls().forEach(function(el){ el.disabled = locked; });
+    if(!ruleLockBtn) return;
+    ruleLockBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
+    ruleLockBtn.innerHTML = locked ? '&#128274; Locked' : '&#128275; Unlocked';
+    ruleLockBtn.title = locked
+      ? 'These settings apply campaign-wide — species/class/mastery bans, the AP curve, and what new joiners start with. Click to unlock them.'
+      : 'Unlocked — the fields above can be changed. Saving re-locks automatically.';
+  }
+  if(ruleLockBtn) ruleLockBtn.addEventListener('click', function(){
+    _setRulesLocked(!ruleMultiDisc.disabled);
+  });
+  if(document.getElementById('ruleLockInfo'))
+    document.getElementById('ruleLockInfo').addEventListener('click', function(){ alert(this.title); });
+  _setRulesLocked(true);   // initial state, before any campaign is even selected
+
   ignoreChk.addEventListener('change', async function(){
     if(!currentCampId){ _setIgnoreLocked(true); return; }
     // Put the box back before bailing — the change event fires after the DOM has already flipped it.
@@ -2781,6 +2843,8 @@ document.addEventListener('campaign-ready', function () {
       _invites = [];
       if(dmInviteList) dmInviteList.textContent = msg;
     }
+    renderCampWarnings();   // covers both the success and error path — an error clears _invites, which
+                             // correctly clears any warnings computed from the previous fetch too
   }
 
   function inviteUrl(token){
@@ -2982,6 +3046,55 @@ document.addEventListener('campaign-ready', function () {
     }
   }
 
+  // ---- Campaign warnings banner ----------------------------------------------------------------
+  // Surfaces things that may not be right without the DM having to open a collapsed panel and read
+  // through it. Both checks below read only _invites (already fetched by loadInvites() for the two
+  // panels above) — nothing here writes anything, so it can safely recompute on every load with no
+  // lock or confirm of its own.
+  //   - A stale OPEN invite (player or co-DM): unredeemed invites otherwise pile up invisibly — this
+  //     app has already seen it happen for real ("Amble had nine", see the comment above
+  //     renderInviteSummary()). _dmInviteSettled() is reused for the co-DM half so "is this one done"
+  //     can't drift between the list filter and the warning.
+  //   - A player invite granting 0 AP: almost always a forgotten "Starting tier" (see
+  //     _renderPlayerCodeGrant's own warning about the identical footgun on the reusable code) rather
+  //     than a deliberate choice, and a player who redeems it arrives unable to build anything.
+  var STALE_INVITE_DAYS = 14;
+  function _campWarnings(){
+    var out = [];
+    var staleCutoff = Date.now() - STALE_INVITE_DAYS * 86400000;
+    var staleOpenPlayer = 0, zeroApPlayer = 0, staleOpenDm = 0;
+    _invites.forEach(function(v){
+      var created = v.createdAt ? new Date(v.createdAt).getTime() : NaN;
+      if(v.type === 'dm'){
+        if(_dmInviteSettled(v)) return;
+        if(created < staleCutoff) staleOpenDm++;
+      } else {
+        if(v.redeemedAt || v.revokedAt) return;
+        if(created < staleCutoff) staleOpenPlayer++;
+        if(!v.startingAp) zeroApPlayer++;
+      }
+    });
+    if(staleOpenPlayer) out.push(staleOpenPlayer + ' player invite' + (staleOpenPlayer === 1 ? '' : 's') +
+      ' issued ' + STALE_INVITE_DAYS + '+ days ago, still unredeemed — still needed, or worth withdrawing?');
+    if(staleOpenDm) out.push(staleOpenDm + ' co-DM invite' + (staleOpenDm === 1 ? '' : 's') +
+      ' issued ' + STALE_INVITE_DAYS + '+ days ago, still unredeemed — still needed, or worth withdrawing?');
+    if(zeroApPlayer) out.push(zeroApPlayer + ' outstanding player invite' + (zeroApPlayer === 1 ? '' : 's') +
+      ' grant' + (zeroApPlayer === 1 ? 's' : '') + ' 0 AP — check "Starting tier" under Advancement if that wasn’t intended.');
+    return out;
+  }
+  function renderCampWarnings(){
+    var banner = document.getElementById('campWarnBanner');
+    var list = document.getElementById('campWarnList');
+    if(!banner || !list) return;
+    // Every string here is built from counts and static text, never from a note/name a user typed —
+    // esc() isn't needed the way it is in renderInvites()/renderDmInvites() above (REV-12's invariant
+    // is about player-controlled text, and there is none in this list).
+    var warnings = currentCampId ? _campWarnings() : [];
+    banner.style.display = warnings.length ? 'block' : 'none';
+    list.innerHTML = warnings.map(function(w){ return '<li>' + w + '</li>'; }).join('');
+  }
+  window._dmRenderCampWarnings = renderCampWarnings;   // test seam, mirrors window._dmRulesPanel above
+
   if(inviteShowAll) inviteShowAll.addEventListener('change', renderInvites);
   if(inviteRefresh) inviteRefresh.addEventListener('click', function(){
     loadInvites();
@@ -3118,10 +3231,11 @@ document.addEventListener('campaign-ready', function () {
     // renderers. list may mix both types (type:'player'/'dm') or omit `type` entirely for an
     // old-shaped player-only fixture — renderInvites()'s `type !== 'dm'` filter treats the latter as
     // player rows, same as production data predating this split.
-    seedInvites: function(list){ _invites = list || []; renderInvites(); renderDmInvites(); },
+    seedInvites: function(list){ _invites = list || []; renderInvites(); renderDmInvites(); renderCampWarnings(); },
     state: function(){
       return { peeking: !!peekCamp, peekId: peekCamp && peekCamp.id, currentCampId: currentCampId,
-               locked: _peekLockEls().filter(function(el){ return !el.disabled; }).map(function(el){ return el.id || el.className; }) };
+               locked: _peekLockEls().filter(function(el){ return !el.disabled; }).map(function(el){ return el.id || el.className; }),
+               rulesLocked: !!ruleMultiDisc.disabled };
     },
     // Exercises the guard itself, independently of whether the control is disabled — this is the half
     // that a re-enabled button cannot get past.
