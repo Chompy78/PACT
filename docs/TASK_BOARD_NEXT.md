@@ -491,45 +491,6 @@ would be re-litigated by `fix/ledger-reconciliation-pass`. Not sweep-eligible; n
 **Done when:** the owner's answer is recorded in the decision record as an explicit narrowing of D1 or D2,
 the Live Sheet matches it, and a gate asserts the pre-lock level-up case.
 
-## Live Sheet history hides derived costs — it shows the traits but never the packs — TODO
-Branch `fix/history-shows-derived-lines`. Reported by the owner alongside the pack-charging defect.
-**Its blocker has now landed** — `fix/species-pack-not-charged` shipped 2026-08-05, so re-assess before
-starting: a draft's ledger now reconciles to `compute()`, which may already resolve part of this.
-**⚠ Re-read against `decisions/2026/D-GH-2026-08-05-pricing-model.md` (D7) before scoping.** Note the fix
-did NOT make packs into their own events — `compute()` derives pack cost from `b.species`/`b.species2`,
-so the pack is priced into the identity patch's line, which now shows the correct positive figure.
-
-The Live Sheet's purchase history is **event-only**, so for Anders it renders:
-
-```text
-241  Species trait — Halfling: Halfling Nimbleness   v0.337   −0
-242  Species trait — Gnome: Darkvision 60 ft         v0.337   −0
-243  Species trait — Gnome: Gnomish Cunning          v0.337   −0
-244  Species trait — Halfling: Luck                  v0.337   −0
-```
-
-Four entries at −0 and **no sign of the 19 AP the species actually cost**, because Heritage pack and
-2nd origin species are *derived* lines from `compute()`, not log events. The AP Ledger panel does show
-them. So the tool presents two views of the same spend that don't reconcile, and the history — the one a
-player reads to answer "where did my AP go" — is the one that hides it.
-
-**Effort:** medium · **Risk:** low — display-only, no rules logic. Sweep-eligible **only after** the
-pack task lands and the remaining gap is re-measured.
-
-```text
-1. Re-measure first. If packs become real log events, the history may become complete on its own and
-   this task shrinks to a check.
-2. For whatever derived cost remains, make the history reconcile with the AP Ledger — either by showing
-   derived lines inline, or by grouping pack-included traits under their pack with the pack's price so
-   a −0 entry is visibly explained rather than looking free.
-3. A 0-cost entry should never read as "this was free" when it was paid for inside a bundle. That is
-   the actual user-facing complaint.
-4. Display-only — do NOT bump DATA.version; log in CHANGELOG.
-```
-
-**Done when:** the Live Sheet history accounts for every AP the AP Ledger charges, a pack-included trait
-is visibly attributed to the pack that paid for it, and the two views reconcile for Anders Tealeaf.
-
 ## feat/ap-model-reconcile — "AP left" and the AP Ledger disagree on the same screen — TODO
 Branch `feat/ap-model-reconcile`. Long-deferred from D-GH30, now with a live worked example and a
 decision already taken, so it is ready to scope.

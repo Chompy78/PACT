@@ -427,6 +427,46 @@ try {
         return calls;});})()`),
     1);
 
+  // fix/history-shows-derived-lines: the printable sheet's AP Ledger (renderCharSheet) always priced
+  // Heritage pack / 2nd origin species pack correctly from compute() — but History & ledger (the `led`
+  // table, driven purely off LOG) showed only the 4 individual 0-cost racial-trait buy events with no
+  // sign of the AP the pack actually cost, because there is no LOG event for a derived line. Reproduces
+  // the exact Anders Tealeaf shape: Halfling primary + Gnome 2nd origin, 2 pack traits each.
+  console.log('\nLive Sheet — history surfaces the same derived pack costs the AP Ledger already prices');
+  const PACK_SETUP = `${LS_SETUP}
+    LOG.push({seq:SEQ++,type:'buy',cat:'patch',payload:{patch:{species:'Halfling',species2:'Gnome'}},cost:0,label:'Species — Halfling / Gnome'});
+    ['Halfling: Halfling Nimbleness','Halfling: Luck','Gnome: Darkvision 60 ft','Gnome: Gnomish Cunning']
+      .forEach(v=>LOG.push({seq:SEQ++,type:'buy',cat:'racial',payload:{v:v},cost:0,label:'Species trait — '+v}));
+    render();`;
+  check('the AP Ledger prices both packs (Heritage 5 + 2nd origin x2 pack 10 = 15), for the fixture to be worth anything',
+    await ls.evaluate(`(()=>{${PACK_SETUP}
+      const r=compute(foldBuild(null),_dmOpts());
+      return r.lines.filter(l=>l[0]==='Heritage pack'||l[0]==='2nd origin species (x2 pack)').map(l=>l[1]);})()`),
+    [5, 10]);
+  check('history renders a derived row per pack line, summing to the same 15 AP the AP Ledger charges',
+    await ls.evaluate(`(()=>{${PACK_SETUP}
+      const rows=[...document.querySelectorAll('#ledger tr.derived')];
+      return [rows.length, rows.reduce((s,tr)=>s+Number(tr.children[2].textContent),0)];})()`),
+    [2, 15]);
+  check('each pack-included trait row is marked "· pack" and costs 0, not left looking free with no explanation',
+    await ls.evaluate(`(()=>{${PACK_SETUP}
+      const rows=[...document.querySelectorAll('#ledger tr')].filter(tr=>/Species trait/.test(tr.innerText||''));
+      return [rows.length, rows.every(tr=>/· pack/.test(tr.innerText)), rows.every(tr=>/−0/.test(tr.innerText))];})()`),
+    [4, true, true]);
+  // Regression guard: a non-pack racial trait (bought post-creation, at a real ladder cost) must NOT
+  // get the "· pack" note — only compute()'s own DATA.racial(...).pack flag decides that, never cost===0.
+  check('a genuinely-bought, non-pack racial trait is not mislabelled "· pack"',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'buy',cat:'patch',payload:{patch:{species:'Dragonborn'}},cost:0});
+      LOG.push({seq:SEQ++,type:'buy',cat:'hd',payload:{to:5},cost:0});
+      LOG.push({seq:SEQ++,type:'award',amount:20,label:'AP award'});
+      const b=foldBuild(null); const cost=priceOf('racial',{v:'Dragonborn: Draconic flight'},b);
+      LOG.push({seq:SEQ++,type:'buy',cat:'racial',payload:{v:'Dragonborn: Draconic flight'},cost:cost,label:'Trait: Draconic flight'});
+      render();
+      const row=[...document.querySelectorAll('#ledger tr')].find(tr=>/Draconic flight/.test(tr.innerText||''));
+      return [cost>0, row?/· pack/.test(row.innerText):'(row not found)'];})()`),
+    [true, false]);
+
   await ls.close();
 
   // ============================ CharGen ============================

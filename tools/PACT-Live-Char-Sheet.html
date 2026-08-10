@@ -155,6 +155,8 @@ table.led{width:100%;border-collapse:collapse;font-size:11.5px}.led th{backgroun
 .led td{padding:2px 5px;border-bottom:1px solid var(--line)}.led td:nth-child(3){text-align:right;font-weight:700}
 .led tr.aw td{color:var(--good)}.led tr.rfnd td{color:#8a6d00}.led tr.dead td{color:var(--grey);text-decoration:line-through}
 .led tr.warnrow td:nth-child(2){color:var(--bad)}
+.led tr.derived td{font-style:italic;color:var(--teal)}
+.led .packnote{font-style:italic;color:var(--grey);font-weight:400}
 .bg{margin-bottom:8px}.bg h4{margin:6px 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--teal)}
 .ib{display:inline-block;background:var(--inp);border:1px solid var(--line);border-radius:6px;padding:3px 7px;margin:2px;font:inherit;font-size:11.5px;cursor:pointer;color:var(--navytx)}
 .ib em{font-style:normal;color:var(--blue);font-weight:800;margin-left:4px}
@@ -1109,21 +1111,32 @@ function render(){
   $('sheet').innerHTML=sh;
   // --- ledger / history ---
   let led='<table class="led"><tr><th>#</th><th>Event</th><th>AP</th><th></th></tr>';
+  // fix/history-shows-derived-lines: Heritage pack / 2nd origin species pack are DERIVED costs —
+  // compute() prices them from b.species/b.species2 (fix/species-pack-not-charged), never from a LOG
+  // event — so history used to show only the individual 0-cost racial-trait buy events with no sign
+  // of the AP the pack actually cost, while the printable sheet's AP Ledger (renderCharSheet, same
+  // r.lines) showed it correctly. Surface the exact same lines here, straight from compute() — this is
+  // display grouping, not new pricing math, so it stays in sync with the engine by construction.
+  const _packLines=r.lines.filter(l=>(l[0]==='Heritage pack'||l[0]==='2nd origin species (x2 pack)')&&l[1]!==0);
+  led+=_packLines.map(l=>'<tr class="derived" title="Derived from your current species — not an individual purchase event. Pack-included traits below show 0 AP because this line already paid for them."><td>—</td><td>'+esc(l[0])+'</td><td>'+l[1]+'</td><td></td></tr>').join('');
   // boff is a Set of INDICES into this same (idx==null?LOG:LOG.slice(0,idx)) array — activeEvents()
   // resolves cancellation per purchase EVENT, not per drawback value, so a retaken drawback's row is
   // not "dead" even though an earlier buyoff for the same value exists (D-GH-2026-08-06-buyoff-keyed-by-event).
   const boff=activeEvents(idx).boughtOff;
   (idx==null?LOG:LOG.slice(0,idx)).forEach((e,_li)=>{
     if(e&&e.type==='rulesSnapshot')return;   // offline campaign-rules metadata — not an AP-ledger action (still audit-visible in the raw LOG/export)
-    let ap='', cls='', act='';
+    let ap='', cls='', act='', packNote='';
     if(e.type==='award'){ap='+'+e.amount;cls='aw';}
     else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li));
       ap=(e.cost<0?'+'+(-e.cost):'−'+e.cost); cls=dead?'dead':'';
       if(!dead && e.cat==='drawback') act='<button class="x" onclick="buyoffDrawback(\''+(e.payload.v||'').replace(/'/g,"\\'")+'\')">buy off 3×</button>';
+      // Same DATA.racial(...).pack flag the buy panel already reads (line ~1215) — not a new signal.
+      const _rmeta=(e.cat==='racial'&&e.payload)?DATA.racial[e.payload.v]:null;
+      if(_rmeta&&_rmeta.pack) packNote=' <small class="packnote" title="Included in the pack line above — not a separate AP cost">· pack</small>';
       if((e.warns||[]).length) cls+=' warnrow'; }
     else if(e.type==='buyoff'){ap='−'+e.cost;cls='rfnd';}
     else if(e.type==='name'){ap='';}
-    led+='<tr class="'+cls+'"><td>'+e.seq+'</td><td>'+esc(e.label||e.type)+(e.rules?' <span class="vtag">'+e.rules+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+ap+'</td><td>'+act+'</td></tr>';
+    led+='<tr class="'+cls+'"><td>'+e.seq+'</td><td>'+esc(e.label||e.type)+packNote+(e.rules?' <span class="vtag">'+e.rules+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+ap+'</td><td>'+act+'</td></tr>';
   });
   led+='</table>'; $('ledger').innerHTML=led;
   // --- validation tray ---

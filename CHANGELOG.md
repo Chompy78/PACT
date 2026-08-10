@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · fix(livesheet): History & ledger now surfaces derived species-pack costs** — Heritage
+  pack / 2nd-origin-species pack are lines `compute()` derives from `b.species`/`b.species2` (per
+  `fix/species-pack-not-charged`), never LOG events, so the printable sheet's AP Ledger priced them
+  correctly while the event-only History & ledger panel showed only the 4 individual 0-cost racial-trait
+  buy events with no sign of the AP the pack actually cost. History now renders the same `r.lines`
+  entries as distinct italic "derived" rows, and each pack-included trait row is marked "· pack" (read
+  from `DATA.racial[...].pack`, not inferred from cost) so a 0 AP line never reads as free. Gated in
+  `tool-pricing-ci.mjs` against the Anders Tealeaf shape (Halfling + Gnome, 4 pack traits, 15 AP total)
+  plus a regression guard that a genuinely-bought non-pack trait is never mislabelled. Display-only; no
+  `DATA.version` change.
 - **2026-08-10 · fix(chargen): rules-label `<title>` no longer clobbers the web-tool build version** —
   CharGen's `#cgPactver` chip was already reading `DATA.version` live (found already fixed, contrary to
   the stale task-board entry that filed this as still-hardcoded); the real live bug was in the
