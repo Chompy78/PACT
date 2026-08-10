@@ -6,6 +6,21 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · feat(campaign): Earned Lv accounts for DM AP; frozen-vs-repriced disagreement is now
+  labelled** — a fully DM-funded character used to read "Earned Lv 0" with "0 earned" because
+  `trackLevel(eco.earned)` can only see the character's own log — DM AP lives only on `characters.ap`.
+  New pure `earnedWithDm(eco, opts)` export in `js/engine.js` (display-time composition, mirrors
+  `compute()`'s own spendable formula; `economy()` itself untouched) bridged into both tools via the
+  existing `window._engineFold` pattern. Live Sheet's Earned Lv/next-level and DM Console's apLevel/
+  `earnedTotal` (detail summary + sortable roster column) now read from it. The card's frozen "AP left"
+  vs the AP Ledger's repriced total staying allowed to disagree was already decided (G1, #355) — now
+  labelled on both surfaces in both tools so a DM/player can tell which question each answers, rather
+  than reading it as a bug. Low-tier campaigns (e.g. Amble's 36 AP, below the Standard curve's L0)
+  reading below-curve Track-Level confirmed intended; no clamping added. `tool-pricing-ci.mjs` 116/0
+  (new `window._dmAnalyzeTest` seam for DM Console); `engine-parity-ci.mjs` unaffected, 30/0. Fenwick
+  Copperkettle's exact real numbers were not reproducible as a fixture in this session (no access to the
+  real campaign data) — recorded explicitly in `D-GH-2026-08-10-ap-model-reconcile` rather than assumed
+  pinned.
 - **2026-08-10 · feat(campaign): a DM adds/removes boons and imposes drawbacks, recorded as a DM edit** —
   New `dm_edit_character_log` SECURITY DEFINER RPC — the only DM write path onto a player's
   `characters.stats`, server-stamped `seq`/`ts`/`dmEdit`/`dmId` (unforgeable for a different account),

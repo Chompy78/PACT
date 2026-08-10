@@ -558,6 +558,31 @@ try {
       undo();
       return LOG.length===n-1;})()`), true);
 
+  // feat/ap-model-reconcile (D-GH-2026-08-10-ap-model-reconcile): a fully DM-funded character used to
+  // read "Earned Lv 0" with "0 earned" because trackLevel(eco.earned) can only see the character's own
+  // log — DM AP lives only on characters.ap. earnedWithDm() composes it in, mirroring compute()'s own
+  // spendable formula exactly.
+  console.log('\nLive Sheet — Earned Lv accounts for DM AP (was "Earned Lv 0" even when the DM granted real AP)');
+  check('earnedWithDm composes DM AP correctly for all three campaign shapes',
+    await ls.evaluate(`[
+      earnedWithDm({earned:100},{dmAp:36,ignorePlayerAp:true}),
+      earnedWithDm({earned:20},{dmAp:36,ignorePlayerAp:false}),
+      earnedWithDm({earned:20},{})
+    ]`), [36, 56, 20]);
+  // 80 AP (above the Standard curve's L1=79), not 36 — 36 is genuinely below even L0 on the default
+  // curve (Amble's real-world shape, per the task doc's own note: intended, not a bug, per the owner's
+  // decision — Track-Level reads the curve literally). A dmAp below the curve's floor would show 0
+  // both before AND after this fix, for two different reasons, and prove nothing about which is fixed.
+  check('a fully DM-funded character (0 in their own log, 80 DM AP, ignore_player_ap on) shows a real Earned Lv, not "Earned Lv 0"',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      window._rulesStatus='active'; window._dmAp=80; window._ignorePlayerAp=true;
+      render();
+      const expectedL = trackLevel(earnedWithDm(economy(null), {dmAp:80, ignorePlayerAp:true}), _levelCurve());
+      const text = document.getElementById('eco').innerText;
+      window._rulesStatus='none'; window._dmAp=0; window._ignorePlayerAp=false;
+      return [expectedL>0, text.indexOf('Earned Lv '+expectedL)>=0, text.indexOf('Earned Lv 0')<0];
+    })()`), [true, true, true]);
+
   await ls.close();
 
   // ============================ CharGen ============================
@@ -1038,13 +1063,13 @@ try {
   check('a roster row holding the DB default name (no LOG data yet) renders it as-is, not a divergent fallback',
     await dm.evaluate(`(()=>{
       window._dmRenderCloudRoster(document.getElementById('__testRoster'),
-        [{id:'test-1',name:'New Character',stats:{LOG:[{type:'award',amount:36}]},ap:36,player:'',playerLabel:'',dmNotes:''}]);
+        [{id:'test-1',name:'New Character',stats:{LOG:[{type:'award',amount:36}]},ap:80,player:'',playerLabel:'',dmNotes:''}]);
       const card=document.getElementById('__testRoster').querySelector('.cname');
       return card?card.textContent:'(no card)';})()`), 'New Character');
   check('a roster row with a real player-given name still shows it, unaffected',
     await dm.evaluate(`(()=>{
       window._dmRenderCloudRoster(document.getElementById('__testRoster'),
-        [{id:'test-2',name:'Anders Tealeaf',stats:{LOG:[{type:'award',amount:36}]},ap:36,player:'',playerLabel:'',dmNotes:''}]);
+        [{id:'test-2',name:'Anders Tealeaf',stats:{LOG:[{type:'award',amount:36}]},ap:80,player:'',playerLabel:'',dmNotes:''}]);
       const card=document.getElementById('__testRoster').querySelector('.cname');
       return card?card.textContent:'(no card)';})()`), 'Anders Tealeaf');
 
@@ -1055,7 +1080,7 @@ try {
   check('both buttons render, with distinct labels, for a roster row with no build data yet',
     await dm.evaluate(`(()=>{
       window._dmRenderCloudRoster(document.getElementById('__testRoster'),
-        [{id:'test-3',name:'Fenwick',stats:{LOG:[{type:'award',amount:36}]},ap:36,player:'',playerLabel:'',dmNotes:''}]);
+        [{id:'test-3',name:'Fenwick',stats:{LOG:[{type:'award',amount:36}]},ap:80,player:'',playerLabel:'',dmNotes:''}]);
       const card=[...document.querySelectorAll('#__testRoster .card')].find(c=>c.dataset.id==='test-3');
       const v=card&&card.querySelector('.view-btn'), c=card&&card.querySelector('.cgcopy-btn');
       return [!!v, !!c, v?v.textContent:'', c?c.textContent:'', c?c.getAttribute('data-cid'):''];})()`),
@@ -1065,7 +1090,7 @@ try {
   check('the click handler opens CharGen with ?viewChar= for the same roster row id, not the Live Sheet',
     await dm.evaluate(`(()=>{
       window._dmRenderCloudRoster(document.getElementById('campRoster'),
-        [{id:'test-3',name:'Fenwick',stats:{LOG:[{type:'award',amount:36}]},ap:36,player:'',playerLabel:'',dmNotes:''}]);
+        [{id:'test-3',name:'Fenwick',stats:{LOG:[{type:'award',amount:36}]},ap:80,player:'',playerLabel:'',dmNotes:''}]);
       let opened=null; const realOpen=window.open;
       window.open=(url)=>{opened=url;return {};};
       try{
@@ -1155,6 +1180,21 @@ try {
       window._dmPeekActive=false; window._campBridge.dmEditCharacterLog=realFn; window._dmPeekBlocks=realBlocks;
       return [calls, blocked];})()`),
     [0, 3]);
+
+  // feat/ap-model-reconcile: a fully DM-funded character (0 in their own log, ignore_player_ap on)
+  // used to show apLevel 0 (trackLevel(eco.earned) alone). earnedWithDm() fixes it identically to the
+  // Live Sheet, reusing the same engine export — not a second, independently-drifting fix.
+  console.log('\nDM Console — apLevel/earnedTotal account for DM AP the same way the Live Sheet does');
+  // 80 AP (above the Standard curve's L1=79), not 36 — see the matching Live Sheet comment above for why.
+  check('a fully DM-funded roster character (0 in their own log, 80 DM AP, ignore_player_ap on) gets a real apLevel/earnedTotal, not 0',
+    await dm.evaluate(`(()=>{
+      window._dmCampaignApRules={ignorePlayerAp:true};
+      const row={id:'test-5',name:'Fully DM-Funded',ap:80,player:'',playerLabel:'',dmNotes:'',
+        stats:{LOG:[{type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25}]}};
+      const rec=window._dmAnalyzeTest(row);
+      window._dmCampaignApRules=null;
+      return [rec.hasData, rec.summary.apLevel>0, rec.summary.earnedTotal, rec.summary.earned];})()`),
+    [true, true, 80, 0]);
 
   await dm.close();
 } catch (e) {

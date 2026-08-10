@@ -10,6 +10,15 @@
 
 ## Index
 
+- **D-GH-2026-08-10-ap-model-reconcile** — Earned Lv/apLevel used `trackLevel(eco.earned)`, log-only, so
+  a fully DM-funded character read "Earned Lv 0" even with real AP granted. New pure `earnedWithDm(eco,
+  opts)` engine export (display-time composition, `economy()` itself untouched) mirrors `compute()`'s own
+  spendable formula; both tools now read Earned Lv/next-level/apLevel from it via the shared
+  `window._engineFold` bridge. Card-vs-AP-Ledger disagreement stays allowed (G1, unchanged) but is now
+  labelled on both surfaces in both tools. Low-tier campaigns reading below-curve Track-Level confirmed
+  intended, no clamping. Fenwick Copperkettle's exact real numbers were not reproducible as a fixture (no
+  access to the real campaign data in this environment) — recorded explicitly rather than assumed pinned.
+  Full record: `decisions/2026/D-GH-2026-08-10-ap-model-reconcile.md`.
 - **D-GH-2026-08-10-dm-edit-events** — a DM adds/removes boons and imposes drawbacks on a campaign
   character, recorded in the character's own LOG as a server-attributed `dmEdit` event that never moves
   their spendable AP. New `dm_edit_character_log` SECURITY DEFINER RPC (the only DM write path onto

@@ -21,6 +21,9 @@
  *   activeEvents(events) — {evs, boughtOff, boonRemoved}: live events + a bought-off-drawback map +
  *                          a DM-removed-boon map (feat/dm-edit-events).
  *   economy(events)      — {earned, spent, available, drawbackEarned}: AP tally from a LOG (no fold/compute).
+ *   earnedWithDm(eco, opts?) — eco.earned composed with DM AP (opts:{dmAp?, ignorePlayerAp?}), mirroring
+ *                       compute()'s own spendable formula — feeds Track-Level in both tools
+ *                       (feat/ap-model-reconcile). Pure; does not change economy() itself.
  *   foldBuild(events)    — replay a LOG from baseBuild() → a build (b.budget = economy().earned).
  *   rebuildStateFromEvents(base, events, opts?) — replay onto `base` (or an embedded {LOG}) → {ok, version, …}.
  * Campaign rules (VALIDATION only — never read by compute()):
@@ -675,6 +678,28 @@ function _economyFrom(evs, boughtOff) {
 export function economy(events) {
   const { evs, boughtOff } = activeEvents(events);
   return _economyFrom(evs, boughtOff);
+}
+
+// feat/ap-model-reconcile (D-GH-2026-08-10-ap-model-reconcile): a DM-funded character read "Earned Lv 0"
+// with "0 earned" even when the DM had granted real AP, because economy().earned can only see the
+// character's OWN log — DM AP is stored server-side only (characters.ap), by design (see compute()'s
+// two-pool model just above baseBuild()), so economy() structurally cannot know about it.
+//
+// Deliberately a DISPLAY-TIME composition, not a change to economy() itself (the owner's decision:
+// keeps economy() pure/log-only, preserving the anti-double-count invariant) — a small, pure, exported
+// function so both tools compute "earned, accounting for DM AP" identically rather than drifting via
+// two local copies. Mirrors compute()'s own spendable formula exactly:
+// `(ignorePlayerAp ? 0 : playerAp) + dmAp` — same two pools, same ignore-switch semantics, just for the
+// EARNED side of the ledger instead of the spendable ceiling.
+//
+// NOT the same figure as "AP left"/"AP Available" (compute().spendable − economy().spent, G1, #355,
+// unaffected by this) — this only feeds Track-Level ("Earned Lv") and "AP to reach Earned Lv N+1" in
+// both tools, which use pace-earned, not spend, as their basis.
+export function earnedWithDm(eco, opts) {
+  const _opts = opts || {};
+  const dmAp = Number(_opts.dmAp) || 0;
+  const playerEarned = (eco && Number(eco.earned)) || 0;
+  return (_opts.ignorePlayerAp ? 0 : playerEarned) + dmAp;
 }
 
 // Replay an append-only event log onto build `b` in place (shared by foldBuild

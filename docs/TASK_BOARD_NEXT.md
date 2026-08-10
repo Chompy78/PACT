@@ -443,59 +443,6 @@ would be re-litigated by `fix/ledger-reconciliation-pass`. Not sweep-eligible; n
 **Done when:** the owner's answer is recorded in the decision record as an explicit narrowing of D1 or D2,
 the Live Sheet matches it, and a gate asserts the pre-lock level-up case.
 
-## feat/ap-model-reconcile — "AP left" and the AP Ledger disagree on the same screen — TODO
-Branch `feat/ap-model-reconcile`. Long-deferred from D-GH30, now with a live worked example and a
-decision already taken, so it is ready to scope.
-**⚠ Inherits the reversed H2** — re-read this entry against `decisions/2026/D-GH-2026-08-05-pricing-model.md`
-before scoping. In particular, "AP left" vs the AP Ledger disagreeing is EXPECTED, not a defect, wherever
-the character's context has changed since a purchase: the ledger records what was paid, `compute()` prices
-what it would cost today. The bug is only where the two disagree for a reason other than that.
-
-**The decision (G1, owner, 2026-08-04):** DM Console's roster "AP left" uses the **frozen ledger** —
-`compute().spendable − economy().spent` — matching the Live Sheet's `_apRemaining()` and, critically,
-its `buy()` gate: the frozen figure is what actually governs whether a player can spend. Shipped in
-#355. The AP Ledger panel keeps showing `compute().total`, because repricing is that panel's subject.
-The consequence is accepted, not overlooked: the two can disagree on one screen.
-
-**Worked example — Fenwick Copperkettle (live, Amble):**
-
-| figure | value | source |
-|---|---|---|
-| DM AP (spendable, campaign ignores player AP) | 36 | `characters.ap` |
-| frozen spend | 47 | `economy().spent` |
-| repriced build cost | 40 | `compute().total` |
-| card "AP left" | **−11** | frozen |
-| AP Ledger | **4 over** | repriced |
-
-The 7 AP gap is two things: ~3 of genuine price drift (paid 8 for a DEX save that reprices to 5, etc.)
-and 4 of drawback accounting — the refund sits inside `compute().total` as −4 but is excluded from
-frozen `spent`, landing in `earned` instead.
-
-**Also unresolved here:** `apLevel` uses `trackLevel(eco.earned)`, so a fully DM-funded character reads
-**Earned Lv 0** with **0 earned** even when the DM granted 36 — because `economy().earned` cannot see DM
-AP. This is wrong identically in the Live Sheet and DM Console, which is why #355 deliberately did NOT
-fix it there alone (that would have traded a shared bug for a new divergence). Fixing it belongs here.
-
-**Effort:** large · **Risk:** high — decides what every AP number in the app means. Not sweep-eligible.
-**Sequence after `fix/species-pack-not-charged`**, which changes what the frozen ledger contains.
-
-```text
-1. Decide whether "earned" is a display composition (eco.earned + dmAp, honouring ignore_player_ap) or
-   whether the engine grows a frozen-ledger-aware remaining-AP export. The former keeps economy() pure
-   and log-only, which the anti-double-count invariant wants; the latter puts it in one place.
-2. Whatever is chosen, Earned Lv / "AP to reach Earned Lv N+1" / the header Track-Level must all read
-   from it, in BOTH tools, or the divergence just moves.
-3. Decide whether the card and the AP Ledger should ever be allowed to differ. If yes, label them so a
-   DM can tell which question each answers; if no, one of them changes.
-4. Note for scoping: Amble's starting tier is 36 AP while the Standard curve's L1 is 79 and its level 0
-   is 55 — so every character there reads below level 0 on the curve. Worth confirming with the owner
-   whether that is intended before treating low Track-Levels as a bug.
-```
-
-**Done when:** a DM-funded character shows an Earned Lv and an earned figure that account for DM AP, the
-card and the AP Ledger either agree or are labelled to explain why they differ, both tools read the same
-definition, and Fenwick's numbers are used as the regression fixture.
-
 ## One-off reconciliation pass for characters built before the pricing fixes — TODO
 Branch `fix/ledger-reconciliation-pass`. **Sequence LAST — after all four pricing branches have landed**
 (see `decisions/2026/D-GH-2026-08-05-pricing-model.md`, D6, where the owner decided this on 2026-08-05).
