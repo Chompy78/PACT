@@ -22,12 +22,42 @@
 -- had" -- a different, complementary invariant to the client gate's "would this reprice over budget
 -- today," not a re-implementation of it.
 --
+-- REVISION NOTE (post /code-review ultra on PR #401): the first version of this file had three real
+-- bugs, two caught by review and one found while fixing those. All three are fixed here; see
+-- decisions/2026/D-GH-2026-08-10-campaign-ap-log-integrity.md's "Review findings" section for the
+-- full trace of each. Summary:
+--   1. The protected-event snapshot dropped `disc`, so flipping an award's disc flag (no cost/type
+--      change) passed both triggers silently and then permanently disabled trigger 2 on the NEXT
+--      write (the boundary-finding query would no longer see that award as non-discretionary).
+--      Fixed: `disc` is now part of the snapshot, so changing it trips the "protected event changed"
+--      rejection like any other field.
+--   2. cat:'patch' events were excluded from trigger 2's protected set (correct -- see below) but
+--      their cost STILL counted in trigger 1's spend sum, so a rewritten/appended patch event with a
+--      large negative cost could mask a genuine spend increase elsewhere in the same or a later write.
+--      Fixed: cat:'patch' costs are now excluded from BOTH triggers' notion of "spend" -- patch-driven
+--      cost changes are covered only by the client-side gate (which reprices the whole build via
+--      compute(), seeing patch effects directly), not by this SQL-only backstop. Documented as a
+--      scope boundary, not silently dropped.
+--   3. CharGen's creation-budget award (_cgSyncSingletonEvent, tools/PACT-CharGen-Webtool.html:2539)
+--      sets noLock:true and NEVER disc -- and is re-synced via a DELETE-then-APPEND-AT-END pattern
+--      every time the budget value changes, not a stable in-place mutation. Without an exclusion, this
+--      event would be treated as the trigger-2 boundary and would churn to the end of the log on every
+--      resync, dragging the "locked" boundary forward and freezing ordinary in-progress drafting for
+--      any campaign-bound CharGen character (found while re-verifying fix #1, not by the review).
+--      Fixed: the boundary-finding query now also excludes noLock:true awards. Live Sheet's own
+--      award-entry function (award(amount,note,disc), tools/PACT-Live-Char-Sheet.html:601) and its
+--      "Level 1 starting AP" seed event never set noLock, so this does not weaken protection for
+--      genuine play-time awards -- undo() already treats that seed event as its own boundary anyway
+--      (same disc-based check), so trigger 2 remains behaviourally consistent with the shipped client
+--      for Live Sheet. Caveat: if CharGen ever gains a path that appends a real (non-noLock) award
+--      event mid-draft, that would need re-review before this boundary assumption still holds there.
+--
 -- TWO TRIGGERS, campaign-bound characters only (campaign_id is not null):
 --
--- 1. pact_enforce_ap_budget_consistency -- sums frozen buy/buyoff/names costs and award/drawback
---    earnings straight from the LOG (never re-derives a price), and rejects a write only if that sum
---    BOTH increases AND exceeds spendable AP. The non-regression guard grandfathers an
---    already-over-budget character (pre-existing before this trigger, or before a DM turned
+-- 1. pact_enforce_ap_budget_consistency -- sums frozen buy(non-patch)/buyoff/names costs and
+--    award/drawback earnings straight from the LOG (never re-derives a price), and rejects a write
+--    only if that sum BOTH increases AND exceeds spendable AP. The non-regression guard grandfathers
+--    an already-over-budget character (pre-existing before this trigger, or before a DM turned
 --    enforceApBudget on) -- unrelated edits (appearance, undo, DM notes) still save; only making
 --    total spend worse is blocked. Gated on campaigns.rules->>'enforceApBudget' (default true,
 --    matching the client feature's own default -- see feat/campaign-ap-budget-enforce).
@@ -37,16 +67,15 @@
 --    `earned` occasionally slightly GENEROUS, never stingy: it can under-enforce, never wrongly
 --    block a legitimate save.
 --
--- 2. pact_enforce_locked_history -- once a character's LOG contains a non-discretionary `award`
---    event (type:'award' with no truthy `disc`), everything at-or-before that event's index becomes
---    append-only: it may never be rewritten, reordered, or removed. This is NOT a new boundary --
---    it is PACT-Live-Char-Sheet.html's own undo() (`LOG[LOG.length-1].type==='award' && !disc` ->
---    refuse to pop) made server-authoritative, so it needs no new "locked" column and cannot
---    conflict with legitimate undo. `cat:'patch'` events (CharGen's replacePatchSlot(), Live Sheet's
+-- 2. pact_enforce_locked_history -- once a character's LOG contains a non-discretionary, non-seed
+--    `award` event (type:'award', no truthy `disc`, no truthy `noLock`), everything at-or-before that
+--    event's index becomes append-only: it may never be rewritten, reordered, or removed (including
+--    the award event's OWN fields, like `disc`, once set). This is Live Sheet's own undo()
+--    (`LOG[LOG.length-1].type==='award' && !disc` -> refuse to pop) made server-authoritative, so it
+--    needs no new "locked" column. `cat:'patch'` events (CharGen's replacePatchSlot(), Live Sheet's
 --    _shCommitAppearanceField -- identity/appearance/stats/economy slot edits) are excluded from the
 --    protected set entirely: they are legitimately rewritten or reordered in place by design (verified
---    directly in both tools' source before writing this), and they carry no history-forgery risk on
---    their own -- any cost they carry is still covered by trigger 1's aggregate sum.
+--    directly in both tools' source before writing this).
 --
 -- Both are SECURITY DEFINER so they can read `campaigns` regardless of the invoking player's own RLS
 -- visibility into that table (same reasoning as award_ap()/dm_unbind_character() above them in
@@ -57,8 +86,9 @@
 -- 1. Helpers -- pure jsonb arithmetic, no table access, no SECURITY DEFINER needed.
 -- ===========================================================================
 
--- Sums a LOG's frozen spend/earn straight off the event fields already present -- see the file header
--- for the boughtOff approximation this deliberately accepts.
+-- Sums a LOG's frozen spend/earn straight off the event fields already present. cat:'patch' buy
+-- events are deliberately excluded from `spent` (see revision note above) -- see the file header for
+-- the boughtOff approximation this deliberately accepts.
 create or replace function public.pact_ap_ledger_spend(p_log jsonb)
 returns table(spent numeric, player_earned numeric)
 language plpgsql set search_path = public, pg_temp as $$
@@ -73,7 +103,7 @@ begin
     elsif (ev->>'type') = 'buy' and coalesce(ev->>'cat','') = 'drawback' then
       -- drawback cost is stored negative (a refund); js/engine.js's economy() negates it into earned.
       v_earned := v_earned + (coalesce((ev->>'cost')::numeric, 0) * -1);
-    elsif (ev->>'type') in ('buy','buyoff','names') then
+    elsif (ev->>'type') in ('buyoff','names') or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch') then
       v_spent := v_spent + coalesce((ev->>'cost')::numeric, 0);
     end if;
   end loop;
@@ -82,16 +112,18 @@ begin
 end;
 $$;
 
--- The ordered "protected" (economic, non-cosmetic) subsequence of a LOG -- everything
--- js/engine.js's _spendCost()/_economyFrom() count toward spend/earn EXCEPT cat='patch' events.
--- Keeps only the fields that carry AP stakes (type/cat/cost/amount/refVal); payload/label/ts/etc are
--- dropped on purpose so a cosmetic-only field inside a protected event (there are none today, but
--- nothing stops a future one) can never trip this check.
+-- The ordered "protected" (economic, non-cosmetic) subsequence of a LOG -- everything counted in
+-- pact_ap_ledger_spend's spend/earn EXCEPT cat='patch' events. Keeps the fields that carry AP stakes
+-- OR gate the boundary itself (type/cat/cost/amount/refVal/disc) -- payload/label/ts/etc are dropped
+-- on purpose so a cosmetic-only field inside a protected event can never trip this check. `disc` is
+-- included so flipping an award's own lock-relevant flag is itself a protected-field change once that
+-- award is inside the protected prefix (see revision note fix #1).
 create or replace function public.pact_ap_ledger_protected(p_log jsonb)
-returns jsonb language sql immutable as $$
+returns jsonb language sql immutable set search_path = public, pg_temp as $$
   select coalesce(jsonb_agg(jsonb_build_object(
            'type', ev->>'type', 'cat', ev->>'cat',
-           'cost', ev->>'cost', 'amount', ev->>'amount', 'refVal', ev->>'refVal'
+           'cost', ev->>'cost', 'amount', ev->>'amount', 'refVal', ev->>'refVal',
+           'disc', ev->>'disc'
          ) order by ord), '[]'::jsonb)
   from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
   where (ev->>'type') in ('buyoff','names','award')
@@ -111,7 +143,7 @@ returns trigger language plpgsql security definer set search_path = public, pg_t
 declare
   v_campaign public.campaigns%rowtype;
   v_enforce boolean;
-  v_old_spent numeric; v_old_earned numeric;
+  v_old_spent numeric;
   v_new_spent numeric; v_new_earned numeric;
   v_spendable numeric;
 begin
@@ -134,7 +166,7 @@ begin
 
   select spent, player_earned into v_new_spent, v_new_earned
     from public.pact_ap_ledger_spend(NEW.stats->'LOG');
-  select spent, player_earned into v_old_spent, v_old_earned
+  select spent into v_old_spent
     from public.pact_ap_ledger_spend(OLD.stats->'LOG');
 
   v_spendable := NEW.ap + (case when v_campaign.ignore_player_ap then 0 else v_new_earned end);
@@ -174,13 +206,15 @@ begin
 
   v_old_log := coalesce(OLD.stats->'LOG', '[]'::jsonb);
 
-  -- The same boundary PACT-Live-Char-Sheet.html's undo() already enforces client-side: the LAST
-  -- non-discretionary award event. No such event yet = nothing protected (matches undo()'s own
-  -- semantics, and matches CharGen: its own award events are always noLock:true budget seeds, never
-  -- non-discretionary, so a still-drafting character never trips this).
+  -- The same boundary undo() already enforces client-side: the LAST non-discretionary, non-seed
+  -- award event. noLock:true excludes CharGen's creation-budget seed (which churns to the end of the
+  -- log on every resync -- see revision note fix #3); disc:true excludes a player's own
+  -- explicitly-discretionary Live Sheet award entry, same as undo()'s own check.
   select max(ord) into v_award_idx
   from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
-  where (ev->>'type') = 'award' and not coalesce((ev->>'disc')::boolean, false);
+  where (ev->>'type') = 'award'
+    and not coalesce((ev->>'disc')::boolean, false)
+    and not coalesce((ev->>'noLock')::boolean, false);
 
   if v_award_idx is null then
     return NEW;

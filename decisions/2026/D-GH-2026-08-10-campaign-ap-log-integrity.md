@@ -53,12 +53,13 @@ scoped to campaign-bound characters (`campaign_id is not null`) only:
    `campaigns.rules->>'enforceApBudget'` (default true, matching the client feature's default).
 
 2. **`pact_enforce_locked_history` (O3 in conversation, "N2" in the original three-way split).** Once a
-   character's LOG contains a non-discretionary `award` event, everything at-or-before that event's index
-   becomes append-only — the exact boundary `undo()` already enforces, made server-authoritative. No new
-   `locked_at` column needed: the boundary is derived from the LOG itself on every check. `cat:'patch'`
-   events are excluded from the protected set entirely (verified against both tools' actual mutation code
-   before writing this, not assumed) — they carry no history-forgery risk on their own, and any real AP
-   cost they carry is still covered by trigger 1's aggregate sum regardless of their position.
+   character's LOG contains a non-discretionary, non-seed `award` event, everything at-or-before that
+   event's index becomes append-only — the exact boundary `undo()` already enforces, made
+   server-authoritative. No new `locked_at` column needed: the boundary is derived from the LOG itself on
+   every check. `cat:'patch'` events are excluded from the protected set entirely (verified against both
+   tools' actual mutation code before writing this, not assumed) — they carry no history-forgery risk on
+   their own, and (after the review-fixes below) their cost is also excluded from trigger 1's sum, so
+   their exclusion here doesn't leave a gap.
 
 ## Why this is NOT the same check as the shipped client gate
 
@@ -72,14 +73,15 @@ consistency` checks a genuinely different, complementary invariant ("did this ch
 spend AP it never had") from the client gate's ("would this reprice over budget today") — not a
 server-side mirror of it.
 
-## Verification
+## Verification (round 1)
 
 Applied to the live project (`piuprrrnaotrtxucrtsb`) via `apply_migration`. `get_advisors` (security) came
 back clean except: the pre-existing `character_backups` RLS-no-policy finding (predates this change), and
 "SECURITY DEFINER executable by authenticated" on both new trigger functions — the same accepted class of
 warning every other RPC in this project already carries (`award_ap`, `join_campaign`, ...; "hygiene, not a
 fix for a live hole" per the existing comment in `rls-policies.sql`). One genuine finding — `pact_ap_
-ledger_protected` missing `set search_path` — was fixed immediately.
+ledger_protected` missing `set search_path` — was fixed immediately (though only in `rls-policies.sql` at
+this point — see finding 3 below).
 
 Both helper functions unit-tested directly against synthetic JSONB (spend/earn arithmetic, patch-event
 filtering, patch-reorder not breaking the protected-prefix comparison). The full trigger pair was then
@@ -89,6 +91,64 @@ error message), a within-budget edit (allowed), adding a non-discretionary award
 the trailing post-award event (allowed), a rewrite of a pre-award event (rejected), and a `cat:'patch'`
 appearance edit added then mutated in place across the award boundary (allowed both times). All disposable
 rows were deleted afterward and confirmed gone via a follow-up count query.
+
+## Review findings (`/code-review ultra` on PR #401) — all fixed before merge
+
+The per-change checklist's own template calls for `/code-review ultra` on any PR touching `sql/`. Run
+against the PR #401 diff at max effort, it surfaced two real, concretely-traced bypasses; fixing the first
+one surfaced a third bug during re-verification. All three are fixed in the code as it stands now (not
+left as follow-ups) and re-verified live.
+
+1. **`disc`-flip bypass (found by review).** `pact_ap_ledger_protected`'s comparison snapshot omitted
+   `disc`. A write that only flipped a locking award's `disc` from absent/false to `true` passed both
+   triggers unnoticed (no cost/type/cat change), and then permanently disabled `pact_enforce_locked_
+   history` on the *next* write — the boundary-finding query would no longer see that award as
+   non-discretionary, so `v_award_idx` would come back null and all protection would silently switch off
+   from then on. **Fix:** `disc` is now part of the snapshot, so changing it on a protected event trips
+   the same "protected event changed" rejection as any other field.
+2. **`cat:'patch'` negative-cost bypass (found by review).** `cat:'patch'` events were (correctly)
+   excluded from trigger 2's protected/positional set, but their `cost` still counted in trigger 1's
+   spend sum. A rewritten or newly-appended patch event with a large negative cost could offset a
+   genuine spend increase elsewhere in the same write, passing the non-regression check on a net figure
+   that no longer reflected real spend. **Fix:** `cat:'patch'` costs are now excluded from *both*
+   triggers' notion of spend — patch-driven cost changes are covered only by the client-side gate (which
+   reprices the whole build via `compute()` and sees patch effects directly), not by this SQL backstop.
+   This narrows what trigger 1 covers and is now stated as an explicit scope boundary, not a silently
+   dropped case — verified via an adversarial test (real +50 purchase offset by a fabricated -50 patch
+   event) that the real overspend is still caught.
+3. **Migration file left inconsistent with the live fix (found while re-verifying finding 1).** The
+   `set search_path` fix for `pact_ap_ledger_protected` was applied live and to `rls-policies.sql`, but
+   the idempotent migration file itself was never updated — so re-running it against a different existing
+   install would silently reintroduce the advisor finding. **Fix:** the migration file was rewritten in
+   place to match, rather than layered with a second patch file, since the original hadn't been merged yet.
+4. **Own finding, surfaced while fixing #1 (not from the review).** Re-checking `disc`'s exact semantics
+   led to checking CharGen's own `award`-emitting code, which surfaced a real, separate bug: CharGen's
+   creation-budget seed (`_cgSyncSingletonEvent`, `tools/PACT-CharGen-Webtool.html:2539`) sets
+   `noLock:true` and never `disc`, and is re-synced via **delete-then-append-at-the-end**, not a stable
+   in-place mutation, every time the budget value changes. Without an exclusion, this event would be
+   treated as trigger 2's boundary and would churn to the end of the log on every resync — dragging the
+   "locked" point forward and freezing ordinary in-progress drafting for any campaign-bound CharGen
+   character, essentially from the moment budget was first set. **Fix:** the boundary-finding query now
+   also excludes `noLock:true` awards. Confirmed Live Sheet's own award-entry function
+   (`award(amount,note,disc)`, `tools/PACT-Live-Char-Sheet.html:601`) and its "Level 1 starting AP" seed
+   event never set `noLock`, so genuine play-time award protection is unaffected; `undo()` already treats
+   that Live Sheet seed event as its own boundary via the same `disc` check, so trigger 2 stays
+   behaviourally consistent with the shipped client there. **Caveat, not fully closed:** if CharGen ever
+   gains a path that appends a real (non-`noLock`) `award` event mid-draft, that would need re-review
+   before this boundary assumption still holds for CharGen specifically — not verified exhaustively across
+   every CharGen code path, only the ones that currently emit `award` events.
+5. **Dead code (found by review, cosmetic).** `pact_enforce_ap_budget_consistency` computed
+   `v_old_earned` from the OLD log and never read it. Removed; only `v_old_spent` is needed.
+
+## Verification (round 2, after the fixes above)
+
+Corrected functions re-applied live via `apply_migration`; `get_advisors` re-run and came back clean of
+the `search_path` finding too (only the same pre-existing/accepted findings remain). New adversarial
+tests, each against a fresh disposable row (cleaned up and confirmed gone afterward, same as round 1):
+the `disc`-flip attack (now rejected, "protected event changed"), the patch negative-cost offset attack
+(now rejected on the real +50 spend, ignoring the fabricated -50 patch), and the CharGen `noLock`-churn
+scenario — buy a trait, resync the budget singleton (moves it to the end), then fully rewrite the earlier
+trait purchase (now allowed, confirming the churn no longer falsely locks in-progress drafting).
 
 ## Known limitations (accepted, not oversights)
 
@@ -100,6 +160,12 @@ rows were deleted afterward and confirmed gone via a follow-up count query.
   inherent to any sum-only check — a client can still submit a LOG where every cost is understated but
   mutually consistent. True correctness would require server-side execution of `engine.js` itself (N3,
   deferred).
+- `cat:'patch'` event costs (identity/stats/economy slot edits, some of which can carry real AP deltas)
+  count toward neither trigger after the review fixes above — only the client-side gate (via `compute()`,
+  which reprices the whole build and sees patch effects directly) covers patch-driven cost changes. A
+  direct-API write that only manipulates patch-slot costs is not caught server-side. Deliberate: the
+  alternative (counting patch costs in trigger 1 while exempting patch events from trigger 2's positional
+  protection, as the first version of this migration did) is exactly what finding 2 above exploited.
 - A player can still legitimately self-award AP via a plain LOG `award` event (not DM-granted) unless the
   campaign sets `ignore_player_ap` — this is a pre-existing trust assumption in the app's own design
   (`characters.ap` + player-logged awards are both counted toward `spendable` by design), not something

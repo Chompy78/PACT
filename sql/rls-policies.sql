@@ -318,18 +318,22 @@ $$;
 -- re-derives what anything SHOULD cost, so neither duplicates js/engine.js's pricing tables.
 --
 -- pact_ap_ledger_spend / pact_ap_ledger_protected are the shared helpers (no table access, no
--- SECURITY DEFINER needed). pact_enforce_ap_budget_consistency (N1) sums frozen buy/buyoff/names
--- costs and award/drawback earnings and rejects a write only if that sum both INCREASES and
--- exceeds spendable AP (characters.ap + player-logged awards unless the campaign ignores player
--- AP) -- NOT the same quantity as the client-side gate (_lsOverApBudget/_cgOverApBudget), which
--- checks compute().remaining, a REPRICED total only engine.js's pricing tables can produce; see
--- the migration file's header for the full reasoning and the accepted boughtOff approximation.
--- pact_enforce_locked_history (O3) makes PACT-Live-Char-Sheet.html's own undo() boundary --
--- everything at-or-before the LAST non-discretionary `award` event -- server-authoritative:
--- once such an award exists, that prefix of "protected" (non-cat:'patch') events may never be
--- rewritten, reordered, or removed. cat:'patch' events (CharGen's replacePatchSlot(), Live
--- Sheet's _shCommitAppearanceField) are exempt -- they are legitimately rewritten/reordered in
--- place by design, verified directly in both tools' source.
+-- SECURITY DEFINER needed). pact_enforce_ap_budget_consistency (N1) sums frozen buy(non-patch)/
+-- buyoff/names costs and award/drawback earnings and rejects a write only if that sum both
+-- INCREASES and exceeds spendable AP (characters.ap + player-logged awards unless the campaign
+-- ignores player AP) -- NOT the same quantity as the client-side gate
+-- (_lsOverApBudget/_cgOverApBudget), which checks compute().remaining, a REPRICED total only
+-- engine.js's pricing tables can produce; see the migration file's header for the full reasoning,
+-- the accepted boughtOff approximation, and why cat:'patch' costs are out of scope for this
+-- SQL-only check (covered by the client gate instead).
+-- pact_enforce_locked_history (O3) makes Live Sheet's own undo() boundary -- everything
+-- at-or-before the LAST non-discretionary, non-seed `award` event -- server-authoritative: once
+-- such an award exists, that prefix of "protected" (non-cat:'patch') events, INCLUDING each
+-- protected event's own fields like `disc`, may never be rewritten, reordered, or removed.
+-- cat:'patch' events (CharGen's replacePatchSlot(), Live Sheet's _shCommitAppearanceField) are
+-- exempt -- they are legitimately rewritten/reordered in place by design, verified directly in
+-- both tools' source. See the migration file's revision note for the three real bugs (two caught
+-- by /code-review ultra on PR #401, one found while fixing those) this version already fixes.
 -- ---------------------------------------------------------------------------
 create or replace function public.pact_ap_ledger_spend(p_log jsonb)
 returns table(spent numeric, player_earned numeric)
@@ -345,7 +349,7 @@ begin
     elsif (ev->>'type') = 'buy' and coalesce(ev->>'cat','') = 'drawback' then
       -- drawback cost is stored negative (a refund); js/engine.js's economy() negates it into earned.
       v_earned := v_earned + (coalesce((ev->>'cost')::numeric, 0) * -1);
-    elsif (ev->>'type') in ('buy','buyoff','names') then
+    elsif (ev->>'type') in ('buyoff','names') or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch') then
       v_spent := v_spent + coalesce((ev->>'cost')::numeric, 0);
     end if;
   end loop;
@@ -358,7 +362,8 @@ create or replace function public.pact_ap_ledger_protected(p_log jsonb)
 returns jsonb language sql immutable set search_path = public, pg_temp as $$
   select coalesce(jsonb_agg(jsonb_build_object(
            'type', ev->>'type', 'cat', ev->>'cat',
-           'cost', ev->>'cost', 'amount', ev->>'amount', 'refVal', ev->>'refVal'
+           'cost', ev->>'cost', 'amount', ev->>'amount', 'refVal', ev->>'refVal',
+           'disc', ev->>'disc'
          ) order by ord), '[]'::jsonb)
   from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
   where (ev->>'type') in ('buyoff','names','award')
@@ -370,7 +375,7 @@ returns trigger language plpgsql security definer set search_path = public, pg_t
 declare
   v_campaign public.campaigns%rowtype;
   v_enforce boolean;
-  v_old_spent numeric; v_old_earned numeric;
+  v_old_spent numeric;
   v_new_spent numeric; v_new_earned numeric;
   v_spendable numeric;
 begin
@@ -393,7 +398,7 @@ begin
 
   select spent, player_earned into v_new_spent, v_new_earned
     from public.pact_ap_ledger_spend(NEW.stats->'LOG');
-  select spent, player_earned into v_old_spent, v_old_earned
+  select spent into v_old_spent
     from public.pact_ap_ledger_spend(OLD.stats->'LOG');
 
   v_spendable := NEW.ap + (case when v_campaign.ignore_player_ap then 0 else v_new_earned end);
@@ -430,13 +435,15 @@ begin
 
   v_old_log := coalesce(OLD.stats->'LOG', '[]'::jsonb);
 
-  -- The same boundary undo() already enforces client-side: the LAST non-discretionary award
-  -- event. No such event yet = nothing protected -- CharGen's own award events are always
-  -- noLock:true budget seeds, never non-discretionary, so a still-drafting character never
-  -- trips this.
+  -- The same boundary undo() already enforces client-side: the LAST non-discretionary, non-seed
+  -- award event. noLock:true excludes CharGen's creation-budget seed (which churns to the end of
+  -- the log on every resync -- see the migration file's revision note); disc:true excludes a
+  -- player's own explicitly-discretionary Live Sheet award entry, same as undo()'s own check.
   select max(ord) into v_award_idx
   from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
-  where (ev->>'type') = 'award' and not coalesce((ev->>'disc')::boolean, false);
+  where (ev->>'type') = 'award'
+    and not coalesce((ev->>'disc')::boolean, false)
+    and not coalesce((ev->>'noLock')::boolean, false);
 
   if v_award_idx is null then
     return NEW;
