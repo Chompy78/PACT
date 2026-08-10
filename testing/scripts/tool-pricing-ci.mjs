@@ -1046,6 +1046,49 @@ try {
       return csLoad(currentCharId()).playerName;})()`),
     'Jamie');
 
+  // fix/randomise-appearance-not-persisted: found live (a real Amble character's randomised description
+  // vanished after a Live Sheet <-> CharGen round trip). _rollField()/genDescription() set DOM .value
+  // directly with no 'input' event and no LOG write — looked committed on screen, was never actually
+  // saved anywhere. Assert the fix: after 🎲 Randomise all, the LOG carries exactly ONE coalesced
+  // appearance patch event (same coalescing behaviour as manual typing, PR #364's pattern) with the
+  // fields actually populated, and it survives a fold — not just a DOM read.
+  console.log('\nCharGen — 🎲 Randomise all / 🪶 Auto-write actually commit to the LOG, not just the DOM');
+  check('randomiseAppearance() writes to the LOG (not just the DOM), still coalesced into ONE patch event',
+    await cg.evaluate(`(()=>{
+      randomiseAppearance();
+      const matches=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance);
+      const domOverall=document.getElementById('ap_overall')?document.getElementById('ap_overall').value:'';
+      const b=foldBuild(LOG);
+      return [matches.length, domOverall.length>0, domOverall===b.appearance.overall, b.appearance.hometown.length>0];})()`),
+    [1, true, true, true]);
+  check('🪶 Auto-write (genDescription alone) also commits, coalescing into the same single patch event',
+    await cg.evaluate(`(()=>{
+      const n=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance).length;
+      _shCommitAppearanceField('hometown','Rewritten-by-hand');   // updates both LOG and the DOM field genDescription() reads
+      genDescription();
+      const matches=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance);
+      const b=foldBuild(LOG);
+      return [n, matches.length, b.appearance.hometown, /Rewritten-by-hand/.test(b.appearance.overall)];})()`),
+    [1, 1, 'Rewritten-by-hand', true]);
+  // code-review finding (this session): randomizeRoll() (the full "🎲 Random" button) calls
+  // randomiseAppearance() while _histSuspended, then unconditionally rebuilds the WHOLE LOG from the DOM
+  // a few lines later (replaceWholeLogFromBuild) — committing appearance mid-roll would be ~20 wasted
+  // fold+compute passes per click for state that resync immediately discards. Assert both halves: the
+  // commit is skipped while suspended (spy on _shCommitAppearanceField's call count), AND the final
+  // result still ends up with real appearance data (the resync captures the DOM values either way).
+  check('randomizeRoll() skips the per-field LOG commit (suspended — a full resync follows) but the final build still has real appearance data',
+    await cg.evaluate(`(()=>{
+      const real=_shCommitAppearanceField; let calls=0;
+      // _rollField/genDescription call the bare identifier — reassigning window.X redirects it too,
+      // since a top-level "function name(){}" declaration in a classic script IS a window property
+      // (unlike let/const), the same mechanism the existing "compute gates" test above already relies on.
+      window._shCommitAppearanceField=function(){calls++;return real.apply(this,arguments);};
+      randomizeRoll();
+      window._shCommitAppearanceField=real;
+      const b=foldBuild(LOG);
+      return [calls, b.appearance.overall.length>0, b.appearance.hometown.length>0];})()`),
+    [0, true, true]);
+
   // feat/campaign-ap-budget-enforce: a campaign-bound character's CLOUD save (manual + autosave) is
   // refused once compute()'s remaining<0, when the campaign's rules.enforceApBudget is true-or-absent.
   // compute() itself needs no change (task step 8), so these isolate _cgOverApBudget()'s own gating

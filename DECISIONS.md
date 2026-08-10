@@ -10,6 +10,16 @@
 
 ## Index
 
+- **D-GH-2026-08-10-randomise-appearance-not-persisted** — found live on a real Amble character: CharGen's
+  "🎲 Randomise all" appearance control (and "🪶 Auto-write" description) set DOM field values directly
+  with no LOG write, so the randomised text rendered convincingly on screen but vanished on the next
+  reload/save/tool-switch. A second, adjacent code path to `fix/sheet-tab-appearance-not-persisted`
+  (Setup-tab `apField()` inputs, not the Sheet tab's manually-typed fields, which that fix already
+  covers) that never got the same treatment. Fixed by routing both through the existing
+  `_shCommitAppearanceField()` — the same primitive manual typing already uses, so it also coalesces
+  correctly into one patch event. New regression tests confirmed to fail without the fix (DOM populated,
+  LOG empty) and pass with it. `tool-pricing-ci.mjs` 128/0; `engine-parity-ci.mjs` unaffected, 30/0.
+  Full record: `decisions/2026/D-GH-2026-08-10-randomise-appearance-not-persisted.md`.
 - **D-GH-2026-08-10-dm-ap-lost-on-handoff** — found live on a real Amble character: DM AP read as "🛡 0
   AP — DM only" in CharGen after switching from the Live Sheet, despite showing correctly in both the
   Live Sheet and DM Console. Root cause: `_cgAdoptEnvelopeBinding()` gated its DM-AP refresh on
