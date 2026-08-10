@@ -10,6 +10,20 @@
 
 ## Index
 
+- **D-GH-2026-08-10-expand-random-names** — owner report: "i keep getting the same name." Each of the six
+  `NAMEDATA` naming styles held only ~12-16 first / ~8-10 last names; expanded every style ~3-4x (≥40
+  first / ≥25 last, gated), additively (originals kept, new names appended, no reshuffle), matching each
+  style's existing theme. `genName()` itself unchanged — same shape, more data. `tool-pricing-ci.mjs`
+  134/0; `engine-parity-ci.mjs` unaffected, 30/0 (pure flavour data, not the rules dataset).
+  Full record: `decisions/2026/D-GH-2026-08-10-expand-random-names.md`.
+- **D-GH-2026-08-10-custom-appearance-fields** — owner request: two free-form, player-labeled detail
+  fields on CharGen's Appearance panel (own label, own sentence, no fixed prompt, no random table — so no
+  🎲/🔒 unlike every other field). `ap_`-prefixed ids ride the existing generic patch delegation
+  (`_cgPatchSlotForId`'s prefix match) with zero new commit wiring; only the DOM↔build translation needed
+  the two new keys added, including the build→DOM reload direction (a real gap, caught by hand-reading
+  `applyBuild`'s field list and locked in with a regression test that fails without that one line).
+  `tool-pricing-ci.mjs` 132/0 at that point in the session; `engine-parity-ci.mjs` unaffected, 30/0.
+  Full record: `decisions/2026/D-GH-2026-08-10-custom-appearance-fields.md`.
 - **D-GH-2026-08-10-randomise-appearance-not-persisted** — found live on a real Amble character: CharGen's
   "🎲 Randomise all" appearance control (and "🪶 Auto-write" description) set DOM field values directly
   with no LOG write, so the randomised text rendered convincingly on screen but vanished on the next
