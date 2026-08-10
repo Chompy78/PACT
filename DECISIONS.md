@@ -10,6 +10,62 @@
 
 ## Index
 
+- **D-GH-2026-08-10-ledger-show-lost-purchases** — the AP ledger showed NOTHING for a bought-off drawback
+  or a DM-removed boon: `compute()` is pure over the build, and both drop out of `_replay()`'s fold
+  entirely, so their AP (still real, permanent spend) was invisible to `compute().total` while
+  `economy().spent` still counted it. New "Lost purchases" ledger line (owner's chosen shape, adds to
+  total) itemises `"Bought off — X"`/`"Removed by DM — X"` rows, sourced from a new `lost` key on
+  `activeEvents()`'s existing FIFO-match pass and stamped onto the build as `b._lostPurchases` by
+  `_replay()` (same pattern as `_raceTraitLocked`/`_vigorRankTier`) — `compute()` still never reads the log
+  directly. A repurchase (bought, bought off, bought again) shows both the active retake AND the lost
+  buyoff simultaneously, by construction. `DATA.version` bumped (three existing fixtures' totals moved).
+  Full record: `decisions/2026/D-GH-2026-08-10-ledger-show-lost-purchases.md`.
+- **D-GH-2026-08-10-ap-model-reconcile** — Earned Lv/apLevel used `trackLevel(eco.earned)`, log-only, so
+  a fully DM-funded character read "Earned Lv 0" even with real AP granted. New pure `earnedWithDm(eco,
+  opts)` engine export (display-time composition, `economy()` itself untouched) mirrors `compute()`'s own
+  spendable formula; both tools now read Earned Lv/next-level/apLevel from it via the shared
+  `window._engineFold` bridge. Card-vs-AP-Ledger disagreement stays allowed (G1, unchanged) but is now
+  labelled on both surfaces in both tools. Low-tier campaigns reading below-curve Track-Level confirmed
+  intended, no clamping. Fenwick Copperkettle's exact real numbers were not reproducible as a fixture (no
+  access to the real campaign data in this environment) — recorded explicitly rather than assumed pinned.
+  Full record: `decisions/2026/D-GH-2026-08-10-ap-model-reconcile.md`.
+- **D-GH-2026-08-10-dm-edit-events** — a DM adds/removes boons and imposes drawbacks on a campaign
+  character, recorded in the character's own LOG as a server-attributed `dmEdit` event that never moves
+  their spendable AP. New `dm_edit_character_log` SECURITY DEFINER RPC (the only DM write path onto
+  `characters.stats`), server-stamped `seq`/`ts`/`dmEdit`/`dmId` so the marker can't be forged for a
+  different account, allowlisted to boon/drawback events only. Boon removal is the one engine change
+  (`activeEvents()`'s new `boonRemoved` FIFO map, mirroring the buyoff fix); everything else achieves
+  neutrality through existing mechanics with no `DATA.version` bump. DM Console gained grant/remove/impose
+  controls; the Live Sheet renders DM-marked events distinctly and enforces its own undo barrier + a
+  DM-imposed drawback's locked/removal-cost flags; CharGen gets the undo barrier only (no per-event
+  history view to mark, a documented scope boundary).
+  Full record: `decisions/2026/D-GH-2026-08-10-dm-edit-events.md`.
+- **D-GH-2026-08-10-chargen-dm-view** — a DM opens a campaign character in CharGen via a safe, freely
+  editable COPY (owner's chosen approach) rather than a locked read-only view — safe by construction
+  (a copy with its own id cannot touch the original) rather than by a twelve-entry-point guard list.
+  Copy id is `SHA-256(source id, viewing DM's id)`, formatted as a UUID: deterministic per (source, DM)
+  pair for overwrite-per-source, structurally asserted to never equal the source id. Cloud-saved, not
+  campaign-bound. "📋 Copy to CharGen" added beside DM Console's existing read-only "👁 View" button.
+  Full record: `decisions/2026/D-GH-2026-08-10-chargen-dm-view.md`.
+- **D-GH-2026-08-10-invite-peek-auth-scope** — new `peek_player_invite(token)` RPC resolves a player
+  invite to its campaign name without redeeming it, closing the "CharGen's accept confirm() can't name
+  the campaign" gap. Scoped `authenticated`-only (not anon-callable) since `feat/invite-rate-limiting`
+  hasn't landed yet — the signed-out "dead link looks live" gap stays open as an accepted tradeoff.
+  Advisor confirms no new finding class; grants verified directly.
+  Full record: `decisions/2026/D-GH-2026-08-10-invite-peek-auth-scope.md`.
+- **D-GH-2026-08-10-unnamed-character-default** — CharGen/`js/sync.js` already stamped a real stored
+  default name (`'New Character'`, matching `sql/schema.sql`'s column default), but DM Console converted
+  it back to blank and substituted a different literal (`'Unnamed character'`) at display time, and each
+  tool separately carried its own placeholder for the live pre-save state (`'Unnamed Hero'`/`'Unnamed
+  hero'`/`'Unnamed'`). All unified on `'New Character'` everywhere — one convention, no second literal
+  left in the codebase. Display-only, no `DATA.version` change, existing characters unaffected.
+  Full record: `decisions/2026/D-GH-2026-08-10-unnamed-character-default.md`.
+- **D-GH-2026-08-10-add-player-hierarchy** — DM Console's three add-player routes (Players code,
+  invite link, local-file import) had equal visual weight and no guidance. Invite link (new character)
+  is now the default, badged "✓ Usual choice" and shown first; Players code follows, captioned for the
+  "already has a character" case; local import gained its own caption distinguishing it as a read-only
+  viewer, not a campaign-roster join. Copy/ordering-only, no `DATA.version` change.
+  Full record: `decisions/2026/D-GH-2026-08-10-add-player-hierarchy.md`.
 - **D-GH-2026-08-10-campaign-ap-log-integrity** — server-side backstop for the AP-overspend trust
   boundary, following a 7-AI external review batch (`z-cold/`). Two BEFORE UPDATE triggers on
   `characters`, campaign-bound only: `pact_enforce_ap_budget_consistency` (frozen-cost-sum, non-regression

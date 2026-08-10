@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.402.html**-->
+<!--**PACT-CharGen-Webtool v1.404.html**-->
 
 <!doctype html>
 <!--
@@ -33,12 +33,12 @@
    RULE: any change to the engine or DATA must be mirrored in the other file.
 
  VERSIONING
-   DATA.version (currently "v0.339") is CANONICAL: stamped onto saved/exported JSON
-   and compared on import to drive the "frozen prices / reprice drift" logic.
-   The <title> and header "Web Tool" label show the cosmetic web-tool build (v1.395);
-   the "PACT rules" label mirrors DATA.version — but is HARDCODED here (resync it on a
-   rules bump), unlike Live Sheet / DM Console, which read DATA.version live at
-   engine-ready. See the follow-up task to make this one live too.
+   DATA.version is CANONICAL: stamped onto saved/exported JSON and compared on import to
+   drive the "frozen prices / reprice drift" logic. The <title> and header "Web Tool" label
+   show the cosmetic web-tool build (js/engine.js's BUILD — mirror here per docs/VERSION-SYNC.md,
+   never hand-guessed). The "PACT rules" label reads DATA.version LIVE at engine-ready
+   (#cgPactver chip + <title>'s "Rules" half) — fix/chargen-rules-label-live (2026-08-10) fixed
+   the last hardcoded copy, matching Live Sheet / DM Console, which already read it live.
 
  HARD CONSTRAINTS (do not break)
    • Single self-contained .html: inline CSS+JS, NO external deps, NO network/CDN, no build step.
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.402 · Rules v0.339</title><style>
+<title>PACT Character Generator — Web Tool v1.404 · Rules v0.339</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -497,7 +497,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.402</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.404</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -571,9 +571,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
     const pactverSpan = document.getElementById('cgPactver');
     if (pactverSpan && window.DATA && window.DATA.version) {
       pactverSpan.textContent = `PACT rules · ${window.DATA.version}`;
-      // Update title to match the new version
-      const newTitle = `PACT Character Generator — Web Tool v0.203 · Rules ${window.DATA.version}`;
-      document.title = newTitle;
+      // Update the title's rules half only — the web-tool build half (BUILD) is a manually-mirrored
+      // literal per docs/VERSION-SYNC.md, not something this script should invent its own copy of.
+      // Read it back from the header .sub label (already the canonical live source for it, see the
+      // #infoVersions composer further down this file) so it can never drift from what's on screen.
+      const subEl = document.querySelector('.hd-row2 .sub');
+      const buildLabel = subEl ? subEl.textContent.replace(/^Web Tool\s*·\s*/, '').trim() : '';
+      document.title = buildLabel
+        ? `PACT Character Generator — Web Tool ${buildLabel} · Rules ${window.DATA.version}`
+        : document.title.replace(/Rules v[\d.]+/, `Rules ${window.DATA.version}`);
     }
   }, {once: true});
 </script>
@@ -587,15 +593,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // so this failure must never take engine-ready down with it; keeping it a separate <script
   // type="module"> means a dead CDN only loses the cloud-campaign UI, not the character builder.
   import { currentSession, onSessionChange } from '../js/auth.js';
-  import { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, PENDING_INVITE_KEY } from '../js/campaign.js';
+  import { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY } from '../js/campaign.js';
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange };
-  window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign };
+  window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -854,10 +860,10 @@ document.addEventListener('sync-ready', function () {
       if (!c.hasData) {
         return '<div class="mi" style="display:flex;align-items:center;color:var(--grey);cursor:default;opacity:.65" ' +
           'title="Never saved from CharGen or Live Sheet — there is nothing to load yet.">' +
-          '<span style="flex:1">' + _apEsc(c.name || 'Unnamed') + '</span>' +
+          '<span style="flex:1">' + _apEsc(c.name || 'New Character') + '</span>' +
           '<span style="font-size:10px;margin-left:6px;flex-shrink:0">empty</span></div>';
       }
-      return '<button type="button" class="mi cg-cloud-load-btn" data-cid="' + _apEsc(c.id) + '" data-cname="' + _apEsc(c.name || 'Unnamed') + '">' + _apEsc(c.name || 'Unnamed') +
+      return '<button type="button" class="mi cg-cloud-load-btn" data-cid="' + _apEsc(c.id) + '" data-cname="' + _apEsc(c.name || 'New Character') + '">' + _apEsc(c.name || 'New Character') +
         ' <span style="color:var(--grey);font-weight:400">— ' + _apEsc((c.updated_at || '').slice(0, 10)) + '</span></button>';
     }).join('');
     listEl.querySelectorAll('.cg-cloud-load-btn').forEach(function (btn) {
@@ -1097,11 +1103,23 @@ document.addEventListener('sync-ready', function () {
         if(banner){var a=document.createElement('a');a.href='../login.html';a.textContent='Sign in';a.style.color='#fff';a.style.fontWeight='700';banner.appendChild(a);}
         return;
       }
-      // The campaign's NAME is deliberately absent: it only arrives with redeemPlayerInvite()'s
-      // response, and moving the prompt after that would be confirming an act already taken. So the
-      // copy leans on the consequence the player can actually evaluate — that their current build is
-      // about to be replaced — and says the invite survives a decline, which it now does.
-      if(!confirm('Accept this campaign invite?\n\nThis creates a NEW character bound to the campaign, and replaces the build you have open right now. Anything unsaved in it will be lost.\n\nYou can decline and accept later — the invite stays on this page either way.')){
+      // feat/invite-peek-campaign-name: resolve the campaign name (and whether the token is still
+      // live) BEFORE asking to accept — moving the prompt after redemption would be confirming an act
+      // already taken. Best-effort: a peek failure (network, or a not-yet-migrated database) falls
+      // back to the pre-existing nameless copy rather than blocking the invite outright.
+      var peek = null;
+      try{ peek = await C.peekPlayerInvite(token); }catch(e){ peek = null; }
+      if(peek && !peek.valid){
+        // A dead token (already redeemed/withdrawn/expired) is caught HERE, before ever showing a
+        // confirm() the player would have no way to act on differently.
+        clearPendingToken();
+        showBanner(peek.campaignName
+          ? 'This invite to “'+peek.campaignName+'” is no longer valid — it may have already been used or withdrawn.'
+          : 'This invite is no longer valid — it may have already been used or withdrawn.');
+        return;
+      }
+      var _campName = peek && peek.campaignName;
+      if(!confirm((_campName ? 'Accept this invite to join “'+_campName+'”?' : 'Accept this campaign invite?')+'\n\nThis creates a NEW character bound to the campaign, and replaces the build you have open right now. Anything unsaved in it will be lost.\n\nYou can decline and accept later — the invite stays on this page either way.')){
         // Declining must not re-prompt on every later reload in this tab -- but it must ALSO not be a
         // one-way door. This used to clearPendingToken() and hide the banner outright, so a player who
         // clicked Cancel (or misclicked, or meant "let me think") lost the invite with no explanation and
@@ -1194,12 +1212,72 @@ document.addEventListener('sync-ready', function () {
     }
   }
 
+  // feat/chargen-dm-view (D-GH-2026-08-10-chargen-dm-view): DM Console's "Copy to CharGen" button on a
+  // cloud roster card. The DM does not own this character — peekCharacter() reads it via
+  // characters_select's DM-of-campaign grant, and (per its own docstring) never caches into
+  // localStorage under this device's own index, so there is nothing to leak. This is the COPY approach
+  // (owner, 2026-08-05): a scratch character the DM can freely edit, NOT a locked read-only view of the
+  // player's real one — chosen over a read-only mode because it is safe by construction rather than by
+  // vigilance (no entry-point guard list to keep current) and answers "what if I gave them this boon?",
+  // a question a locked view cannot.
+  //
+  // THE ONE HAZARD: the copy MUST get an id that is never the source character's own id, or the DM's
+  // next autosave would silently overwrite the PLAYER's character. _cgDeriveCopyId() derives a
+  // deterministic id from (source id, viewing DM's own user id) via SHA-256 — same source id always
+  // maps to the same copy for a given DM (the decided "overwrite per source character" behaviour,
+  // cross-device correct with no extra query or schema change), while two different DMs copying the
+  // SAME player's character land on two different, independent copies.
+  async function _cgDeriveCopyId(sourceId, dmUserId){
+    var enc = new TextEncoder().encode('pact-dm-copy:'+sourceId+':'+dmUserId);
+    var buf = await crypto.subtle.digest('SHA-256', enc);
+    var hex = Array.prototype.map.call(new Uint8Array(buf), function(b){return b.toString(16).padStart(2,'0');}).join('');
+    return hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20,32);
+  }
+  window._cgDeriveCopyId = _cgDeriveCopyId;   // exposed for tool-pricing-ci.mjs's collision-hazard gate
+  async function _cgConsumeViewChar(){
+    var qs = new URLSearchParams(location.search);
+    var vid = qs.get('viewChar');
+    if(!vid) return false;
+    qs.delete('viewChar');
+    try{ history.replaceState(null,'',location.pathname+(qs.toString()?('?'+qs.toString()):'')+location.hash); }catch(e){}
+    try{
+      var session = await A.currentSession();
+      if(!session){ alert('Sign in to open a copy of this character.'); return false; }
+      var rec = await S.peekCharacter(vid);
+      if(!rec || !rec.stats || !Array.isArray(rec.stats.LOG)){ alert('No character data found.'); return false; }
+      var srcName = rec.name || 'Character';
+      var copyName = srcName+' (DM copy)';
+      var copyId = await _cgDeriveCopyId(vid, session.user.id);
+      // ASSERT the hazard above cannot happen: a copy id equal to its own source id would mean this
+      // whole mechanism failed silently. Refuse rather than proceed if that ever occurs.
+      if(copyId === vid){ alert('Could not safely open a copy of that character (id collision) — nothing was loaded.'); return false; }
+      _cgResetCloudApState();   // never campaign-bound — a save from this copy must not write into the source campaign's roster
+      _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:rec.stats.rules||DATA.version,name:copyName,
+        LOG:rec.stats.LOG,SEQ:rec.stats.SEQ||(rec.stats.LOG.length+1),id:copyId},{clearHistory:true});
+      var stats = _cgEnvelope(false);
+      var saveRes = await S.saveCharacter({id:copyId,name:copyName,kind:'chargen',stats:stats});
+      if(saveRes && saveRes.error) throw saveRes.error;
+      if(saveRes && saveRes.id) __charId = saveRes.id;
+      flash('👁 Opened a DM copy of “'+srcName+'” — a snapshot as of right now. Edits here never touch the original character, and re-opening it later replaces this copy.');
+      return true;
+    }catch(err){
+      console.error('PACT CharGen: view-char copy failed', err);
+      alert('Could not open a copy of that character: '+(err&&err.message?err.message:err));
+      return false;
+    }
+  }
+
   A.onSessionChange(function(session){
     var nowSignedIn = !!session;
     if(nowSignedIn && !_wasSignedIn) tryRedeem(session);
     _wasSignedIn = nowSignedIn;
   });
-  tryRedeem();
+  (async function(){
+    // A ?viewChar= copy takes priority over an ordinary pending invite — both can't happen in one
+    // load, and the copy flow's own alerts/flash calls are clearer if nothing else fires alongside them.
+    var hadViewChar = await _cgConsumeViewChar();
+    if(!hadViewChar) tryRedeem();
+  })();
 });
 </script>
 <script>
@@ -2179,6 +2257,13 @@ function restoreFrame(f){
 
 function undo(){
   if(_histSuspended)return;
+  // feat/dm-edit-events: mirrors the Live Sheet's award-event undo barrier, but checked against LOG
+  // directly rather than a HIST frame — CharGen's undo is snapshot-based, not LIFO-over-events, so the
+  // "last thing that happened" is the tail of the live LOG, not the top of HIST.
+  if(LOG.length&&LOG[LOG.length-1]&&LOG[LOG.length-1].dmEdit){
+    flash('DM edits lock your history — buys made before one can\'t be undone.');
+    return;
+  }
   _sealOpenGroup();                        // seal-before-undo: never land mid-word
   if(!HIST.length)return;
   REDO.push(_snapshotFrame());
@@ -2553,7 +2638,7 @@ function _cgSyncSingletonEvent(type,makeEvent){
   render();
 }
 function _cgSyncName(){const nm=val('cname')||'';
-  _cgSyncSingletonEvent('name',function(){return {type:'name',name:nm,label:'Name — '+(nm||'(unnamed)')};});}
+  _cgSyncSingletonEvent('name',function(){return {type:'name',name:nm,label:'Name — '+(nm||'New Character')};});}
 // D-GH41 bug fix: val('budget') is the FULL computed total (foldBuild's economy().earned = raw award +
 // drawback earnings combined) — it is NOT the raw award. Baking that combined total into a new `award`
 // event, while the drawback buy event(s) already in the LOG separately keep contributing their own AP on
@@ -4194,14 +4279,14 @@ const SECTIONS=[
  {t:'Classes',lines:['Class unlocks','2nd origin class','Class features','Ki / Focus points','Sorcery points'],warns:[]},
  {t:'Subclasses',lines:['Subclass abilities','Subclass unlocks'],warns:['subclass']},
  {t:'Spellcasting',lines:['Trad ','Cantrips (','Innate spells'],warns:['Rank','Foundation','Mystic','Warlock','antrip','spell','Spell','slots','known','gate','Discipline','Magically']},
- {t:'Arts & Boons',lines:['Arts & Techniques','Boons','Drawbacks','Martially Bound'],warns:['boon','Boon','needs '],},
+ {t:'Arts & Boons',lines:['Arts & Techniques','Boons','Drawbacks','Lost purchases','Martially Bound'],warns:['boon','Boon','needs '],},
 ];
 const LGROUPS=[
  {t:'Core',lines:['Ability scores','Hit Dice','Proficiency bonus','Vigor','Grit','Saving throws','Skills','Tools & instruments','Expertise','Tool expertise','Languages','Attunement slots']},
  {t:'Combat',lines:['Weapon proficiency','Weapon masteries','Armour proficiency']},
  {t:'Class & Heritage',lines:['Heritage pack','2nd origin species','Species traits','Class unlocks','2nd origin class','Class features','Ki / Focus points','Sorcery points','Subclass abilities','Subclass unlocks']},
  {t:'Magic',lines:['Trad ','Cantrips (','Innate spells']},
- {t:'Boons & Gold',lines:['Boons','Drawbacks','Martially Bound','Starting gold']},
+ {t:'Boons & Gold',lines:['Boons','Drawbacks','Lost purchases','Martially Bound','Starting gold']},
 ];
 // Bug fix (this session, found via the switch-tool feature's manual testing): st_STR/DEX/etc are
 // readonly — the +/- stepper is the ONLY way a player can change an ability score. Setting .value
@@ -4313,6 +4398,7 @@ function explainParas(label,b,r){
   else if(L.indexOf('Subclass unlocks')===0){P('Reaching into a <b>second</b> subclass of the same class costs a one-time 15 AP unlock — the brake on cherry-picking.');}
   else if(L==='Boons'){P('Boons are flat-priced extra abilities, Hit-Dice-gated by price (≤7 AP from 1 HD, 8–10 from 3 HD, 11–12 from 5 HD, 13+ from 9 HD). DM-tunable.');}
   else if(L==='Drawbacks (refund)'){P('Drawbacks <b>refund</b> AP up front for accepting a hindrance. Buying one off later costs 3× the AP it gave (and a story).');}
+  else if(L==='Lost purchases'){P('A drawback you bought off, or a boon your DM removed, drops off the sheet above — but the AP is still spent for good. This line keeps that spend visible instead of letting it vanish from the ledger.');}
   else if(L.indexOf('Innate spells')===0){P('Any one spell as a stand-alone casting (1/long rest) costs <b>3× its spell-slot cost</b> — no discounts — and is still Hit-Dice gated by spell level.');}
   else if(L.indexOf('Cantrips (Wizard list')===0){P('No-Foundation cantrips (Wizard list, cast with INT) ride the <b>Steep</b> curve (base 4, +2 each) and cap at prof + INT modifier. They never scale (single die).');}
   else if(L.indexOf('Starting gold')===0){P('You may convert AP to starting gold at <b>1 AP = 50 gp</b> (on top of a free 25 gp purse), suggested cap 8 AP.');}
@@ -4411,7 +4497,15 @@ function _cgRenderInner(){
      else{wb.style.display='none';}}}
   $('statsbox').innerHTML=sheetStats(r,b);
   renderLedger(r,b); updateSections(r); buildGuide(b,r);
-  const mn=$('mtop-name');if(mn)mn.textContent=val('cname')||'Unnamed hero';
+  const mn=$('mtop-name');if(mn)mn.textContent=val('cname')||'New Character';
+  // feat/chargen-dm-view follow-up: a DM-copy character's name always carries the " (DM copy)" suffix
+  // (see _cgConsumeViewChar), on the initial open AND on every later reload — the same string is what
+  // gets saved as both the DB row's name and the envelope's own embedded name, so this check is reliable
+  // across a full close/reopen, not just the first-open flash message. A persistent header row beats a
+  // one-time toast: the flash is easy to miss or dismiss and scrolls away, this stays pinned while a DM
+  // works. Styled with the existing .warnbanner "warn" (orange/advisory) palette, not "bad" (red) — this
+  // isn't a build problem, it's a status notice.
+  const dcb=$('cgDmCopyBanner');if(dcb)dcb.style.display=/ \(DM copy\)$/.test(val('cname')||'')?'flex':'none';
   const mtt=$('mtop-tot');if(mtt){mtt.textContent=r.total+' / '+r.budget+' AP';var _mb=r.remaining<0;mtt.style.background=_mb?'#f7c5c5':'#CDEAD3';mtt.style.color=_mb?'#7a0000':'#14501f';}
   const mw=$('mtop-warn');if(mw){var _hi=r.warnings.filter(w=>!isAdvisory(w)).length;mw.style.display=_hi?'inline':'none';}
   _cgUpdateUndoButtons();
@@ -4482,7 +4576,7 @@ function renderCharSheet(b,r,ctx){
   var lvl=b.hd, tier=r.tier;
   // ----- header -----
   H.push('<div class="cs-head">'+
-    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'Unnamed Hero')+'</div></div>'+
+    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'New Character')+'</div></div>'+
     '<div class="cs-fld"><label>Class &amp; Level</label><div class="shsmall">'+_csEsc(b.originClass+(b.originClass2&&b.originClass2!=='(none)'?' / '+b.originClass2:'')+'  ·  Lv '+lvl+' (T'+tier+')')+'</div></div>'+
     '<div class="cs-fld"><label>Player Name</label>'+_mfIn('playerName','','','your name')+'</div>'+
     '<div class="cs-fld"><label>Species / Heritage</label><div class="shsmall">'+_csEsc((b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+'  ·  '+(r.size||'Medium'))+'</div></div>'+
@@ -4657,8 +4751,12 @@ _cgWireTraditionDelegation();   // Phase 2 Step 3 (Chunk 4B): traditions/discipl
 _cgWireUndoKeys();   // Phase 2 Step 4 (Chunk D): Ctrl/Cmd-Z undo, Ctrl/Cmd-Shift-Z / Ctrl-Y redo
 _cgWireLocalMenu();   // D-GH-2026-08-08-header-declutter: 📁 Local dropdown (New Character/Save/Load)
 try{sweepExpiredHandoffs();}catch(e){}   // D-GH38: clear orphaned handoff keys from interrupted switches
-let _cgHadShared=false;
-try{_cgHadShared=_cgConsumeHandoff();}catch(e){}                 // 1) incoming character from the Live Sheet
+// feat/chargen-dm-view: a ?viewChar= copy is resolved asynchronously (needs a sign-in check + a
+// network read) by _cgConsumeViewChar(), fired separately once campaign-ready. Skip the synchronous
+// restore-autosave/blank-character steps below for that one load so this device's own unrelated
+// in-progress build doesn't flash on screen before the copy replaces it.
+let _cgHadShared=new URLSearchParams(location.search).has('viewChar');
+if(!_cgHadShared){try{_cgHadShared=_cgConsumeHandoff();}catch(e){}}                 // 1) incoming character from the Live Sheet
 if(!_cgHadShared){try{_cgHadShared=!!loadFromHash();}catch(e){}} // 2) existing #b= share-link
 if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}  // 3) autosave; else 4) blank
 window.addEventListener('hashchange',function(){try{if(loadFromHash())render();}catch(e){}});

@@ -90,6 +90,25 @@ export async function awardAp(characterId, amount, note) {
 }
 
 /**
+ * feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events): append DM-attributed events to a campaign
+ * character's own LOG — grant/remove a boon, impose a drawback. `events` must be a non-empty array;
+ * a DM-granted boon needs its matched [buy, award] pair passed together so they land in one atomic
+ * write (see the migration's header for why). The server stamps seq/ts/dmEdit/dmId on every event —
+ * whatever the caller sets for those fields here is discarded, never trusted. Throws if the caller is
+ * not a DM of the character's campaign, or if an event's shape isn't one of the allowlisted
+ * boon/drawback types (dm_edit_character_log is deliberately not a general editor).
+ * @returns {Promise<object[]>} the events as actually stored (with server-stamped fields)
+ */
+export async function dmEditCharacterLog(characterId, events) {
+  const { data, error } = await supabase.rpc('dm_edit_character_log', {
+    p_character: characterId,
+    p_events: events,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
  * The AP award history for a character (newest first), each row attributed to
  * the DM who gave it. Readable by the character's owner and any campaign DM.
  * @returns {Promise<Array<{id,amount,note,created_at,dm_id,dm}>>}

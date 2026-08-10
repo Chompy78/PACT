@@ -1,0 +1,39 @@
+{
+  "description": "feat/dm-edit-events: a DM-removed boon is suppressed from the fold with NO refund (the player already spent the AP), and the SAME boon can be bought again afterward — the retake is not silently dropped. Mirrors EV-017's exact shape (boughtOff/FIFO-by-value) for the new boonRemoved map: buy a boon (25 AP), DM removes it (no cost, no refund), buy the SAME boon again. Only the FIRST purchase is suppressed from the build (FIFO match against dmRemoveBoon's refVal); the retake stays active. Expected: the build holds the boon once (from the retake only); economy() reads earned=50, spent=50 (BOTH purchases counted — spent is never reduced by a removal, only buyoff refunds), available=0. Before this feature existed, dmRemoveBoon was not a recognised event type at all, so this fixture could not be constructed.",
+  "baseSnapshot": {},
+  "events": [
+    {
+      "type": "award",
+      "amount": 50,
+      "note": "Test budget",
+      "label": "Award — Test budget (50 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "boon",
+      "payload": {
+        "v": "Boon of Combat Prowess"
+      },
+      "cost": 25,
+      "level": 1,
+      "label": "Boon — Boon of Combat Prowess"
+    },
+    {
+      "type": "dmRemoveBoon",
+      "refVal": "Boon of Combat Prowess",
+      "cost": 0,
+      "dmEdit": true,
+      "label": "DM removed boon — Boon of Combat Prowess"
+    },
+    {
+      "type": "buy",
+      "cat": "boon",
+      "payload": {
+        "v": "Boon of Combat Prowess"
+      },
+      "cost": 25,
+      "level": 1,
+      "label": "Boon — Boon of Combat Prowess (rebought)"
+    }
+  ]
+}

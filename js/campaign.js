@@ -218,6 +218,24 @@ export async function setInviteRevoked(inviteId, revoked = true) {
 }
 
 /**
+ * Resolve a player-invite token to its campaign name WITHOUT redeeming it (feat/invite-peek-campaign-name,
+ * D-GH-2026-08-10-invite-peek-auth-scope). authenticated-only by decision — see the migration for the
+ * scope reasoning. `valid` mirrors redeem_player_invite's own criteria (unredeemed, unrevoked,
+ * unexpired), so a token that resolves a name but reads valid:false is real-but-dead (already used,
+ * withdrawn, or expired) rather than mistyped — callers can distinguish the two.
+ * @returns {Promise<{campaignName: string|null, valid: boolean}>}
+ */
+export async function peekPlayerInvite(token) {
+  const { data, error } = await supabase.rpc('peek_player_invite', {
+    p_token: (token || '').trim(),
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return { campaignName: null, valid: false };
+  return { campaignName: row.campaign_name || null, valid: !!row.valid };
+}
+
+/**
  * Redeem a player invite token as the signed-in user. Idempotent: a repeat call
  * by the same user after a successful redemption returns the same result (with
  * isNew:false) instead of erroring (double-click / interrupted-client recovery) —

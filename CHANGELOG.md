@@ -6,20 +6,165 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · fix(dm-console, live-sheet): two `/code-review ultra` findings from PR #403's pre-merge
+  review, fixed before merge** — (1) DM Console's ≤700px roster card fallback (`renderCards()`, a
+  different code path from the table view's own `COLS`) still showed the raw, DM-AP-blind `earned`
+  figure instead of `earnedTotal` — a DM viewing a fully-DM-funded character on a narrow screen would
+  have seen the exact "AP Earned 0" bug `feat/ap-model-reconcile` was written to fix. (2) The Live
+  Sheet's History & ledger only checked `boughtOff` (drawbacks) when marking a row `.dead` — a
+  DM-removed boon's original purchase row stayed styled as a normal, active purchase; now reads
+  `activeEvents().boonRemoved` too, mirroring the existing FIFO-by-purchase drawback logic (a retake
+  afterward correctly stays live). Addenda added to `D-GH-2026-08-10-ap-model-reconcile` and
+  `D-GH-2026-08-10-dm-edit-events`. `tool-pricing-ci.mjs` 125/0 (2 new checks, new
+  `window._dmRenderCardsTest` seam); `engine-parity-ci.mjs` unaffected, 30/0 — both fixes are
+  display-only.
+  **Flagged, not fixed — filed as a follow-up task:** the same review found `dm_edit_character_log()`
+  never cross-validates a DM-granted boon's paired `buy`/`award` amounts server-side; the "always net 0"
+  guarantee is enforced by DM Console's client code only. Already an explicitly-documented trade-off in
+  the migration's own header comment (an `award` alone is exactly what `award_ap()` already permits a DM
+  to do through a separate path, so this isn't a new privilege) — not fixed in this PR to avoid scope
+  creep into a new migration; see the task board for the follow-up (`/add-code-task` was unavailable in
+  this session — added via the documented fallback instead).
+- **2026-08-10 · fix(chargen): a persistent header banner marks a DM-copy character** — the only signal
+  that a loaded character was a DM-viewed copy used to be a one-time `flash()` at open plus the
+  `"(DM copy)"` name suffix, both easy to miss. New pinned `#cgDmCopyBanner` in the sticky header,
+  styled **purple** (`#5a3d99`, matching the family of the existing `#cgInviteBanner` in the same header
+  stack) rather than the red/orange issue-severity palette — this isn't a build-quality signal, so it
+  doesn't borrow that language. Driven off the same name-suffix check on every render so it also
+  reappears on a later reload of the same copy. Addendum to `D-GH-2026-08-10-chargen-dm-view`.
+  `tool-pricing-ci.mjs` 123/0 (3 checks); display-only, no `DATA.version` change.
+- **2026-08-10 · feat(engine): AP ledger shows what was LOST — bought-off drawbacks, DM-removed boons**
+  (`DATA.version` v0.341 → v0.342) — a bought-off drawback or DM-removed boon drops out of `_replay()`'s
+  fold entirely, so `compute()` (pure over the build) had NO way to show its cost — a drawback taken for
+  2 then bought off for 6 appeared in no ledger line, while `economy()` correctly reported 6 spent. New
+  "Lost purchases" ledger line (owner's chosen shape: adds to `compute().total`), itemising
+  `"Bought off — X"`/`"Removed by DM — X"` rows. `activeEvents()` gained a `lost` key, built in its
+  existing FIFO buyoff/removal-match pass; `_replay()` stamps it onto `b._lostPurchases` (same pattern as
+  `_raceTraitLocked`/`_vigorRankTier`) for `compute()` to itemise — `compute()` still never reads the log
+  directly. A repurchase (bought, bought off, bought again) shows both the active retake and the lost
+  buyoff at once, by construction. Both tools' ledger renderers already itemise any line generically, so
+  no new renderer plumbing was needed — just grouping (`LGROUPS`/`LG`/`SECTIONS`) and an explain-text
+  entry in CharGen. Three existing fixtures' totals moved (EV-010 +6, EV-017 +6, EV-018 +25) —
+  `testing/expected/expected-results.csv` updated; `engine-parity-ci.mjs` 30/0; `tool-pricing-ci.mjs`
+  120/0 (4 new checks asserting the reconciliation identity `compute().total === economy().spent` for the
+  single-buyoff no-repurchase case). See `D-GH-2026-08-10-ledger-show-lost-purchases`.
+- **2026-08-10 · feat(campaign): Earned Lv accounts for DM AP; frozen-vs-repriced disagreement is now
+  labelled** — a fully DM-funded character used to read "Earned Lv 0" with "0 earned" because
+  `trackLevel(eco.earned)` can only see the character's own log — DM AP lives only on `characters.ap`.
+  New pure `earnedWithDm(eco, opts)` export in `js/engine.js` (display-time composition, mirrors
+  `compute()`'s own spendable formula; `economy()` itself untouched) bridged into both tools via the
+  existing `window._engineFold` pattern. Live Sheet's Earned Lv/next-level and DM Console's apLevel/
+  `earnedTotal` (detail summary + sortable roster column) now read from it. The card's frozen "AP left"
+  vs the AP Ledger's repriced total staying allowed to disagree was already decided (G1, #355) — now
+  labelled on both surfaces in both tools so a DM/player can tell which question each answers, rather
+  than reading it as a bug. Low-tier campaigns (e.g. Amble's 36 AP, below the Standard curve's L0)
+  reading below-curve Track-Level confirmed intended; no clamping added. `tool-pricing-ci.mjs` 116/0
+  (new `window._dmAnalyzeTest` seam for DM Console); `engine-parity-ci.mjs` unaffected, 30/0. Fenwick
+  Copperkettle's exact real numbers were not reproducible as a fixture in this session (no access to the
+  real campaign data) — recorded explicitly in `D-GH-2026-08-10-ap-model-reconcile` rather than assumed
+  pinned.
+- **2026-08-10 · feat(campaign): a DM adds/removes boons and imposes drawbacks, recorded as a DM edit** —
+  New `dm_edit_character_log` SECURITY DEFINER RPC — the only DM write path onto a player's
+  `characters.stats`, server-stamped `seq`/`ts`/`dmEdit`/`dmId` (unforgeable for a different account),
+  allowlisted to boon/drawback events only. Neutrality invariant (a DM edit never changes the player's
+  spendable AP) holds via existing mechanics for boon grants (matched `[buy,award]` pair, one atomic
+  write) and DM-imposed drawbacks (`cost:0`); boon removal is the one `js/engine.js` change — a new
+  `boonRemoved` FIFO-by-purchase map (mirroring `D-GH-2026-08-06-buyoff-keyed-by-event`'s fix), no
+  refund, the purchase stays visible and re-buyable. New fixture EV-018; no `DATA.version` bump (purely
+  additive, all 30 fixtures unchanged). DM Console gained grant-boon/remove-boon/impose-drawback
+  controls on the roster card DM-tools section, gated behind the existing archived-peek write-block. The
+  Live Sheet renders DM-marked events distinctly, enforces its own undo barrier (mirroring the AP-award
+  one), and `buyoffDrawback()` now honours a DM-imposed drawback's own locked/removal-cost flags instead
+  of the unconditional 3×. CharGen gets the undo barrier only — no per-event history view to mark
+  (documented scope boundary in `D-GH-2026-08-10-dm-edit-events`). Applied to the live Supabase project;
+  advisor confirms no new finding class; grants and AP-integrity-trigger compatibility verified directly.
+  `tool-pricing-ci.mjs` 113/0, `engine-parity-ci.mjs` 30/0. A full live end-to-end (two real distinct
+  sessions) was not run in this session.
+- **2026-08-10 · feat(campaign): a DM opens a roster character in CharGen via a safe copy** —
+  DM Console's roster card gained "📋 Copy to CharGen" beside the existing read-only "👁 View" (Live
+  Sheet). Per the owner's stated preference (`D-GH-2026-08-10-chargen-dm-view`), this is a fresh,
+  freely-editable COPY under the DM's own account, not a locked read-only mode — safe by construction
+  rather than by a twelve-entry-point guard list. Copy id is `SHA-256(source id, viewing DM's own id)`
+  formatted as a UUID: deterministic per (source, DM) pair (overwrite-per-source, no schema change),
+  structurally asserted to never equal the source id — the hazard the task doc called "the single thing
+  most likely to be got wrong, and it destroys player data when it is." Cloud-saved immediately, labelled
+  `"<name> (DM copy)"`, explicitly not campaign-bound. Uses `peekCharacter()`, never `loadCharacter()`
+  (no ownership-check-free local cache leak). Gated in `tool-pricing-ci.mjs` (collision hazard + button
+  wiring + real click routing); the full fetch→copy→save round trip needs a live signed-in session and
+  was not run in this session. No `DATA.version`/`js/engine.js` change.
+- **2026-08-10 · feat(campaign): invite links can name their campaign before redemption** — new
+  `peek_player_invite(token)` SECURITY DEFINER RPC (`sql/migrations/2026-08-10-peek-player-invite.sql`)
+  resolves a player-invite token to `{campaign_name, valid}` without redeeming it, mirroring
+  `redeem_player_invite`'s own lookup/validity criteria. Scoped `authenticated`-only (not anon-callable) —
+  `D-GH-2026-08-10-invite-peek-auth-scope` — since `feat/invite-rate-limiting` hasn't landed yet; the
+  signed-out "dead link looks live" half of the original finding stays open, filed as
+  `feat/invite-peek-signed-out-banner`. CharGen's `tryRedeem()` now names the campaign in its accept
+  `confirm()` and short-circuits with a clear message for an already-dead token, before ever showing that
+  prompt. Applied to the live Supabase project; advisor confirms no new finding class (same WARN every
+  other authenticated-only RPC in this schema carries); grants verified directly (`authenticated` +
+  owner only). `cloud-e2e` coverage for the full redemption flow needs a live signed-in session and
+  was not run in this session.
+- **2026-08-10 · fix(tools): unify the unnamed-character default to `'New Character'` everywhere** —
+  DM Console converted the DB's own `'New Character'` default back to blank and substituted a different
+  literal (`'Unnamed character'`) at display time, so a freshly-redeemed, never-named character showed
+  one word to the player and another to their DM. Also unified every OTHER divergent placeholder for the
+  same "no name yet" state — `'Unnamed Hero'`/`'Unnamed hero'`/`'Unnamed'`/`'(unnamed)'` across CharGen,
+  the Live Sheet, DM Console's local-import path, `tools/characters.html`, and `index.html`'s
+  recent-characters cards — onto the single stored convention, per D-GH-2026-08-10-unnamed-character-default.
+  Display-only; no `DATA.version` change; existing characters unaffected (only what renders for the
+  absent-name state changed, never what gets written). New DM Console coverage added to
+  `tool-pricing-ci.mjs` (confirmed red against the original divergence first) since `dm-console-ui-e2e.mjs`
+  (Playwright) couldn't run in this session.
+- **2026-08-10 · fix(dm-console): give the three add-player routes a visible hierarchy** — the invite
+  link (new character) is now the default, badged "✓ Usual choice — new player, no character yet" and
+  shown first; the reusable Players code follows, captioned for the "already has a character" case; the
+  local-file-import panel gained its own caption distinguishing it as a read-only viewer, not a
+  campaign-roster join. Decision recorded in `D-GH-2026-08-10-add-player-hierarchy`. Copy/ordering-only;
+  no `DATA.version` change. `dm-console-ui-e2e.mjs` (Playwright) couldn't run in this session — verified
+  instead with an ad-hoc CDP check plus a headless screenshot.
+- **2026-08-10 · fix(livesheet): History & ledger now surfaces derived species-pack costs** — Heritage
+  pack / 2nd-origin-species pack are lines `compute()` derives from `b.species`/`b.species2` (per
+  `fix/species-pack-not-charged`), never LOG events, so the printable sheet's AP Ledger priced them
+  correctly while the event-only History & ledger panel showed only the 4 individual 0-cost racial-trait
+  buy events with no sign of the AP the pack actually cost. History now renders the same `r.lines`
+  entries as distinct italic "derived" rows, and each pack-included trait row is marked "· pack" (read
+  from `DATA.racial[...].pack`, not inferred from cost) so a 0 AP line never reads as free. Gated in
+  `tool-pricing-ci.mjs` against the Anders Tealeaf shape (Halfling + Gnome, 4 pack traits, 15 AP total)
+  plus a regression guard that a genuinely-bought non-pack trait is never mislabelled. Display-only; no
+  `DATA.version` change.
+- **2026-08-10 · fix(chargen): rules-label `<title>` no longer clobbers the web-tool build version** —
+  CharGen's `#cgPactver` chip was already reading `DATA.version` live (found already fixed, contrary to
+  the stale task-board entry that filed this as still-hardcoded); the real live bug was in the
+  `engine-ready` title-rewrite, which hardcoded a stale `v0.203` literal over the correct BUILD number
+  every time it ran. Now reads the web-tool half back from the header `.sub` label (the same
+  manually-mirrored-at-promotion value already on screen) instead of inventing a second copy of it.
+  `docs/VERSION-SYNC.md` gained a "rules version display sites" table confirming all three tools read
+  `DATA.version` live — no rules-label edit is ever needed at a rules bump. Gate added to
+  `tool-pricing-ci.mjs` (confirmed red against the reverted wiring first). Display-only; no
+  `DATA.version`/`BUILD` change.
+- **2026-08-10 · chore(version): promote `preview` → `main`, `BUILD` v1.398 → v1.402 (PR #402)** —
+  regular merge commit (never squash, per `docs/VERSION-SYNC.md`). Carries the AP-ledger integrity
+  triggers below into production. `dm-console-ui`'s CI failure on the version-bump commit was flake, not
+  a regression — confirmed the only diff was the `TOOL_VERSION` string and this same suite had
+  flaked-then-passed on a nearby commit before; re-ran the job rather than pushing a speculative fix.
+  Tagged `v1.402`.
 - **2026-08-10 · feat(campaign): server-side AP-ledger integrity backstop for campaign-bound
   characters** — two BEFORE UPDATE Postgres triggers on `characters`
   (`sql/migrations/2026-08-10-campaign-ap-log-integrity.sql`), following a 7-AI external review of
   `pact-ap-overspend-problem.txt` (`z-cold/` on the `zcold` branch). `pact_enforce_ap_budget_consistency`
-  sums frozen `buy`/`buyoff`/`names`/`award` LOG fields (never re-derives a price) and rejects a write
-  only if that sum both increases and exceeds spendable AP, grandfathering already-over-budget
+  sums frozen `buy`(non-patch)/`buyoff`/`names`/`award` LOG fields (never re-derives a price) and rejects
+  a write only if that sum both increases and exceeds spendable AP, grandfathering already-over-budget
   characters. `pact_enforce_locked_history` makes Live Sheet's own `undo()` boundary — everything
-  at-or-before the last non-discretionary `award` event — append-only server-side, with `cat:'patch'`
-  events (CharGen's `replacePatchSlot()`, Live Sheet's `_shCommitAppearanceField`) exempt so appearance/
-  identity edits keep working. Closes the gap the 2026-08-09 client-side gate below can't: a raw
-  PostgREST write bypassing the UI entirely. Applied to the live project and verified end-to-end against
-  disposable test data (never touching real characters); see
-  `D-GH-2026-08-10-campaign-ap-log-integrity`. The Edge Function idea from the same review batch was
-  deferred to the task board (`feat/ap-edge-function-validation`).
+  at-or-before the last non-discretionary, non-seed `award` event — append-only server-side, with
+  `cat:'patch'` events (CharGen's `replacePatchSlot()`, Live Sheet's `_shCommitAppearanceField`) exempt so
+  appearance/identity edits keep working. Closes the gap the 2026-08-09 client-side gate below can't: a
+  raw PostgREST write bypassing the UI entirely. `/code-review ultra` on the PR found two real bypasses
+  (a `disc`-flip that silently disabled the locked-history trigger; a `cat:'patch'` negative-cost trick
+  masking real overspend) and fixing the first surfaced a third (CharGen's budget-seed award churning the
+  lock boundary forward during ordinary drafting) — all three fixed and re-verified before merge, none
+  left as follow-ups. Applied to the live project and verified end-to-end against disposable test data
+  (never touching real characters); see `D-GH-2026-08-10-campaign-ap-log-integrity`. The Edge Function
+  idea from the same review batch was deferred to the task board (`feat/ap-edge-function-validation`).
 - **2026-08-09 · chore(repo): `z-cold`/`z-uploads` drop-zone folders, auto-synced to a dedicated
   `zcold` branch** — external background script watches both folders and auto-pushes anything
   dropped in them within seconds, via a git worktree + junction (not tracked on `preview`). See

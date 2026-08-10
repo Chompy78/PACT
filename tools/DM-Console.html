@@ -591,16 +591,12 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <details id="campInviteDetails">
               <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Invite new player <span class="dsum" id="campInviteSummary"></span></summary>
               <div style="margin-top:8px">
-            <div class="codechip">
-              <span class="lbl">Players:</span>
-              <input class="field ro" id="campPlayerCode" readonly>
-              <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
-              <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. A player who enters this code (CharGen's “Join campaign”) binds the character they are CURRENTLY building to this campaign — it does not create a blank one — and is granted this campaign's Starting tier AP. Paid once per character: re-joining the same campaign does not grant it twice.">ⓘ</button>
-            </div>
-            <!-- The single most-asked question about this code is "how much AP does it hand out?", and the
-                 answer lived three collapsed panels away. Show it here, live, with a link that opens the
-                 panel it comes from — so the figure is legible at the moment the code is copied. -->
-            <div class="grantnote" id="campPlayerCodeGrant" style="margin-top:2px"></div>
+            <!-- fix/add-player-hierarchy (DECISIONS.md D-GH-2026-08-10-add-player-hierarchy): the
+                 invite link is the default route, shown first with a "usual choice" badge, because most
+                 players meeting a DM here have no character yet. The reusable Players code follows,
+                 for the less common case of a player who already built one. -->
+            <div class="chip good" style="margin-bottom:6px">✓ Usual choice — new player, no character yet</div>
+            <div class="grantnote" style="margin-top:0;margin-bottom:6px">Single-use link. The first player to open it and sign in gets a brand-new character bound to this campaign, holding the Starting AP below as DM-granted AP.</div>
             <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
               <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
                 <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
@@ -618,7 +614,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
               </div>
               <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign, holding the Starting AP above as DM-granted AP. The reusable Players code above is for a player who has already built a character: it binds that character and grants the campaign's own Starting tier AP instead of the per-invite figure set here. Both routes grant AP; this one lets you set a different amount for one specific player.</div>
               <div id="inviteListWrap" style="margin-top:10px">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <b style="font-size:12px">Invites issued</b>
@@ -629,6 +624,19 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 </div>
                 <div id="inviteList" style="margin-top:6px"></div>
               </div>
+            </div>
+            <div style="margin-top:16px;padding-top:12px;border-top:1px dashed var(--line)">
+            <div class="grantnote" style="margin-top:0;margin-bottom:6px">Use this instead when the player has <b>already built a character</b> elsewhere and just needs to join this campaign — it binds the character they're currently working on and grants the campaign's Starting tier AP.</div>
+            <div class="codechip">
+              <span class="lbl">Players:</span>
+              <input class="field ro" id="campPlayerCode" readonly>
+              <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
+              <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. A player who enters this code (CharGen's “Join campaign”) binds the character they are CURRENTLY building to this campaign — it does not create a blank one — and is granted this campaign's Starting tier AP. Paid once per character: re-joining the same campaign does not grant it twice.">ⓘ</button>
+            </div>
+            <!-- The single most-asked question about this code is "how much AP does it hand out?", and the
+                 answer lived three collapsed panels away. Show it here, live, with a link that opens the
+                 panel it comes from — so the figure is legible at the moment the code is copied. -->
+            <div class="grantnote" id="campPlayerCodeGrant" style="margin-top:2px"></div>
             </div>
               </div>
             </details>
@@ -833,6 +841,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
         <span class="chev">▸</span>
       </summary>
       <div class="importPanelBody">
+        <div class="grantnote" style="margin-top:0;margin-bottom:8px">Use this when you just want to <b>look at</b> a player's exported file — not to add them to a cloud campaign roster (that's the Players code or invite link above, in the Campaign panel).</div>
         <div id="drop">
           <div class="big">Drop your players' exported .json files here</div>
           <div class="sub">Each player exports from the PACT Live Sheet (a <code>.json</code> of <code>{rules, name, LOG, SEQ}</code>). Drop one or many.</div>
@@ -949,6 +958,8 @@ function eventsUpTo(uptoIdx){ return uptoIdx==null ? LOG : LOG.slice(0,uptoIdx);
 function activeEvents(uptoIdx){ return window._engineFold.activeEvents(eventsUpTo(uptoIdx)); }
 function foldBuild(uptoIdx){ return window._engineFold.foldBuild(eventsUpTo(uptoIdx)); }
 function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)); }
+// feat/ap-model-reconcile: no index-scrubbing needed — operates on an already-computed economy() result.
+function earnedWithDm(eco,opts){ return window._engineFold.earnedWithDm(eco,opts); }
 
 /* ===== PACT DM Console adapter — read-only, operates on a passed-in export ===== */
 // `apOpts` is compute()'s {dmAp, ignorePlayerAp} — the campaign's server-side AP pool and its
@@ -972,12 +983,18 @@ function dmAnalyze(exported, apOpts){
   (r.discInfo||[]).forEach(function(di){ if(!di) return;
     casting.push({trad:di.tradName||di.trad||'', disc:di.name||'', ab:di.castAb, dc:di.saveDC, atk:di.spellAtk, rank:di.rank, prepared:!!di.prepared}); });
   return {
-    name: b.name||exported.name||'Unnamed Hero',
+    name: b.name||exported.name||'New Character',
     rules: exported.rules||'?',
     species: b.species, species2: b.species2, lineage: b.lineage||'',
     originClass: b.originClass, originClass2: b.originClass2,
     unlockedClasses: (b.unlockedClasses||[]).slice(),
-    hd: b.hd, tier: r.tier, apLevel: trackLevel(eco.earned),
+    // feat/ap-model-reconcile: apLevel used trackLevel(eco.earned) — log-only, so a fully DM-funded
+    // character read "Earned Lv 0" even when the DM had granted real AP. earnedWithDm() composes in
+    // DM AP the same way compute()'s own spendable formula does. earnedTotal is exposed alongside the
+    // raw eco.earned (below, unrenamed — the "(own log)" breakdown row deliberately shows log-only)
+    // for detailHTML's terser inline summary, which pairs directly with apLevel and would otherwise
+    // show a DIFFERENT, uncorrected number right next to the now-corrected Track-Level.
+    hd: b.hd, tier: r.tier, apLevel: trackLevel(earnedWithDm(eco, apOpts)), earnedTotal: earnedWithDm(eco, apOpts),
     hp: r.hp, ac: r.ac, prof: r.prof, saveDC: r.hasDC?r.saveDC:null, spellAtk: r.hasDC?r.spellAtk:null,
     castAb: r.hasDC?r.castAb:null, speed: r.speed, init: r.init, size: r.size,
     mods: r.mods, conMod: r.conMod, goldGp: r.goldGp,
@@ -1019,7 +1036,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.402';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.404';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1300,13 +1317,20 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // Remove which are rarer actions). Shares the .view-btn class + data-cid convention the delegated
   // click handler (wireCloudRosterDelegation) already listens for.
   function viewBtnHTML(id){
-    return '<button type="button" class="skbtn view-btn" data-cid="'+esc(id)+'" title="Open a read-only view of this character\'s full sheet in a new tab — nothing there can be edited or saved">👁 View</button>';
+    return '<button type="button" class="skbtn view-btn" data-cid="'+esc(id)+'" title="Open a read-only view of this character\'s full sheet in a new tab — nothing there can be edited or saved">👁 View</button>'+
+    // feat/chargen-dm-view (D-GH-2026-08-10-chargen-dm-view): a SEPARATE capability from the read-only
+    // View above — this opens a fresh, freely-editable COPY of the character in CharGen under the DM's
+    // own account. Never edits or overwrites the original (a new id is minted for the copy). Label says
+    // "Copy", not "View", so a DM never mistakes edits made here for changes to the player's real character.
+    '<button type="button" class="skbtn cgcopy-btn" data-cid="'+esc(id)+'" title="Open a copy of this character in CharGen that you can freely edit — never touches the player\'s original. Re-opening it later replaces this copy with a fresh snapshot.">📋 Copy to CharGen</button>';
   }
   // Cloud-only: player label + private DM notes (character_dm_notes — never readable by the
   // character's own owner, see sql/migrations/2026-08-01-dm-remove-character-notes.sql) plus the
   // Award AP / History actions the old plain-table roster used to carry. `dm` is
-  // {ap, player, playerLabel, dmNotes} — see cloudRoster in loadRoster().
-  function dmToolsBody(id, dm){
+  // {ap, player, playerLabel, dmNotes} — see cloudRoster in loadRoster(). `curBoons` (feat/dm-edit-events)
+  // is the character's currently-held boon names, for the remove dropdown — omitted/empty for the
+  // no-build-data-yet placeholder card, where there is nothing to remove.
+  function dmToolsBody(id, dm, curBoons){
     var h = '<div class="kvs"><div class="kvrow"><span class="kk">Player (account)</span><span class="vv">'+esc(dm.player||'—')+'</span></div>' +
             '<div class="kvrow"><span class="kk" title="AP you have granted this character (the characters.ap column). This is PART OF their spendable total, not extra on top of it — the strip above shows what they can actually spend. Labelled &quot;Bonus DM AP&quot; until 2026-08-04, which read as a spendable figure and was mistaken for one.">DM-granted AP <span style="opacity:.6">&#9432;</span></span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     h += '<div class="ruleblock" style="margin-top:8px"><div class="lbl">Player-name label</div>' +
@@ -1321,13 +1345,48 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
          '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">' +
          '<button type="button" class="btn sm award-btn" data-cid="'+esc(id)+'">Award</button></div>' +
          '<span class="award-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
+    h += dmEditBody(id, curBoons);
     h += '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'">📒 AP history</button>' +
          '<button type="button" class="btn sm danger unbind-btn" data-cid="'+esc(id)+'" style="margin-left:8px">Remove from campaign</button>';
     return h;
   }
+  // feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events): grant/remove a boon, impose a drawback.
+  // Every write goes through dm_edit_character_log (SECURITY DEFINER) — this UI never touches
+  // characters.stats directly. Scope: boons and drawbacks only (owner, 2026-08-05 — "not a general
+  // editor"); the server enforces the same allowlist independently.
+  function dmEditBody(id, curBoons){
+    var boonOpts = DATA.boonList.map(function(n){
+      return '<option value="'+esc(n)+'">'+esc(n)+' ('+((DATA.boons[n]&&DATA.boons[n].ap)||0)+' AP)</option>';
+    }).join('');
+    var drawOpts = DATA.drawbackList.map(function(n){
+      return '<option value="'+esc(n)+'">'+esc(n)+' ('+(DATA.drawbacks[n]||0)+' AP)</option>';
+    }).join('');
+    var h = '<div class="ruleblock"><div class="lbl">DM edit — grant a boon <button type="button" class="infobtn" title="Adds the boon AND grants matching bonus AP in the same write, so it never costs the player anything — net 0 change to their spendable AP. Recorded in their log as a DM edit; they can see it but cannot undo past it.">&#9432;</button></div>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+      '<select class="field dm-grant-boon-sel" data-cid="'+esc(id)+'" style="flex:1 1 220px"><option value="">— choose a boon —</option>'+boonOpts+'</select>' +
+      '<button type="button" class="btn sm dm-grant-boon-btn" data-cid="'+esc(id)+'">Grant</button>' +
+      '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="grant-boon" style="font-size:11px;color:var(--muted)"></span></div>';
+    if((curBoons||[]).length){
+      h += '<div class="ruleblock"><div class="lbl">DM edit — remove a boon <button type="button" class="infobtn" title="Removes the boon with NO refund — they keep the AP cost, they just lose the effect. The purchase stays visible in their history and they can buy it again later.">&#9432;</button></div>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+        '<select class="field dm-remove-boon-sel" data-cid="'+esc(id)+'" style="flex:1 1 220px">'+
+          curBoons.map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+'</option>';}).join('')+
+        '</select>' +
+        '<button type="button" class="btn sm danger dm-remove-boon-btn" data-cid="'+esc(id)+'">Remove</button>' +
+        '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="remove-boon" style="font-size:11px;color:var(--muted)"></span></div>';
+    }
+    h += '<div class="ruleblock"><div class="lbl">DM edit — impose a drawback <button type="button" class="infobtn" title="Adds the drawback with NO AP grant (an ordinary drawback pays the player; this one doesn\'t) — net 0 change to their spendable AP, but their power level still drops. You choose whether/how they can buy it off.">&#9432;</button></div>' +
+      '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">' +
+      '<select class="field dm-impose-draw-sel" data-cid="'+esc(id)+'" style="flex:1 1 220px"><option value="">— choose a drawback —</option>'+drawOpts+'</select>' +
+      '<label style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap"><input type="checkbox" class="dm-impose-draw-locked" data-cid="'+esc(id)+'"> Locked</label>' +
+      '<label style="display:flex;flex-direction:column;gap:2px;font-size:11px">Removal cost<select class="field dm-impose-draw-rate" data-cid="'+esc(id)+'"><option value="flat">Flat</option><option value="expensive">Expensive (3&times;)</option></select></label>' +
+      '<button type="button" class="btn sm dm-impose-draw-btn" data-cid="'+esc(id)+'">Impose</button>' +
+      '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="impose-draw" style="font-size:11px;color:var(--muted)"></span></div>';
+    return h;
+  }
   function buildSections(s, id, dm){
     var h = '';
-    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm));
+    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons));
     h += secBlock('Skills & Tools', chipGroup('Skills',s.skills)+chipGroup('Tools',s.tools)+chipGroup('Instruments',s.instruments));
     h += secBlock('Expertise & Saves', chipGroup('Expertise',s.expertise)+chipGroup('Saves',s.saves)+chipGroup('Masteries',s.masteries));
     h += secBlock('Saving Throws', saveBody(s));
@@ -1416,7 +1475,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   function flagCount(a){ return (a.unnamed>0?1:0)+(a.warnings>0?1:0); }
   function flagDisp(a){ var n=flagCount(a); if(!n) return '<span class="flag-none">—</span>'; var tip=(a.warningList||[]).slice(); if(a.unnamed>0) tip.push(a.unnamed+' unnamed spell/feat entr'+(a.unnamed>1?'ies':'y')); return '<span class="flag" title="'+esc(tip.join('\n'))+'">⚠ '+n+'</span>'; }
   var COLS = [
-    {key:'name',     label:'Name',     type:'text', cls:'name', get:function(a){return a.name||'';}, disp:function(a){return esc(a.name||'Unnamed Hero')+tamperBadge(a);}},
+    {key:'name',     label:'Name',     type:'text', cls:'name', get:function(a){return a.name||'';}, disp:function(a){return esc(a.name||'New Character')+tamperBadge(a);}},
     {key:'species',  label:'Species',  type:'text', get:function(a){return speciesText(a);}, disp:function(a){return esc(speciesText(a));}},
     {key:'class',    label:'Class',    type:'text', get:function(a){return classText(a);}, disp:function(a){return esc(classText(a));}},
     {key:'species2', label:'Species 2',type:'text', get:function(a){return (a.species2&&a.species2!=='(none)')?a.species2:'';}, disp:function(a){return esc((a.species2&&a.species2!=='(none)')?a.species2:'—');}},
@@ -1435,7 +1494,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     {key:'attune',   label:'Attune',   type:'num',  cls:'ctr', get:function(a){return a.attune||0;}, disp:function(a){return compactNum(a.attune);}},
     {key:'ki',       label:'Ki',       type:'num',  cls:'ctr', get:function(a){return a.ki||0;}, disp:function(a){return compactNum(a.ki);}},
     {key:'sorc',     label:'Sorc',     type:'num',  cls:'ctr', get:function(a){return a.sorcery||0;}, disp:function(a){return compactNum(a.sorcery);}},
-    {key:'earned',   label:'AP Earned',type:'num',  cls:'num', get:function(a){return a.earned||0;}, disp:function(a){return a.earned;}},
+    {key:'earned',   label:'AP Earned',type:'num',  cls:'num', get:function(a){return a.earnedTotal!=null?a.earnedTotal:(a.earned||0);}, disp:function(a){return a.earnedTotal!=null?a.earnedTotal:a.earned;}},
     {key:'spent',    label:'AP Spent', type:'num',  cls:'num', get:function(a){return a.spent||0;}, disp:function(a){return a.spent;}},
     {key:'available',label:'AP Avail', type:'num',  cls:'num', get:function(a){return a.available||0;}, disp:function(a){return availCell(a.available);}},
     {key:'flags',    label:'Flags',    type:'num',  cls:'ctr', get:function(a){return flagCount(a);}, disp:function(a){return flagDisp(a);}}
@@ -1453,11 +1512,11 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   function lineageSection(a){ var hasLin=a.lineage&&a.lineage!==''; var rs=a.racialSpells||[]; if(!hasLin&&!rs.length) return ''; var h='<div class="detail-col"><h3>Lineage</h3>'; if(hasLin) h+='<div class="meta">'+esc(a.lineage)+'</div>'; if(rs.length){ h+='<ul class="flaglist">'; rs.forEach(function(x){ h+='<li>'+esc(x)+'</li>'; }); h+='</ul>'; } return h+'</div>'; }
   function resourcesSection(a){ var rows=[]; if(a.vigor>0) rows.push(['Vigor', a.vigor+(a.vigorCap!=null?(' / '+a.vigorCap+' cap'):'')]); if(a.grit>0) rows.push(['Grit',a.grit]); if(a.ki>0) rows.push(['Ki / Focus',a.ki]); if(a.sorcery>0) rows.push(['Sorcery (extra)',a.sorcery]); if(a.attune>0) rows.push(['Attunement',a.attune]); if(a.martiallyBound) rows.push(['Martially Bound',a.martiallyBound]); if(!rows.length) return ''; var h='<div class="detail-col"><h3>Resources</h3><table class="awards"><tbody>'; rows.forEach(function(r){ h+='<tr><td>'+esc(r[0])+'</td><td style="text-align:right;font-weight:700;color:var(--navy);white-space:nowrap;">'+esc(r[1])+'</td></tr>'; }); return h+'</tbody></table></div>'; }
   function weaponArmourSection(a){ var wp=weaponProfList(a.weaponProf), ar=armourProfList(a.armour); var h='<div class="detail-col"><h3>Weapons &amp; Armour</h3><ul class="flaglist">'; h+='<li><b>Weapons:</b> '+(wp.length?wp.map(esc).join(', '):'<span class="none">None</span>')+'</li>'; h+='<li><b>Armour:</b> '+(ar.length?ar.map(esc).join(', '):'<span class="none">None</span>')+'</li>'; return h+'</ul></div>'; }
-  function detailHTML(a){ var id=_idOf(a); var h='<div class="detail-inner"><div class="detail-actions"><button type="button" class="skbtn" data-sk="'+esc(id)+'">🎯 All skills &amp; bonuses</button> <button type="button" class="skbtn" data-tools="'+esc(id)+'">🛠 Tools</button></div><div class="detail-grid">'; h+='<div class="detail-col"><h3>Award history</h3>'; var aw=(a.awards||[]).slice(); if(!aw.length){ h+='<div class="meta">No AP awards recorded in this character’s log.</div>'; } else { aw.sort(function(x,y){ return (y.ts||0)-(x.ts||0); }); h+='<table class="awards"><thead><tr><th>Amount</th><th>Label</th><th>Date</th></tr></thead><tbody>'; aw.forEach(function(w){ h+='<tr><td class="amt">+'+(w.amount||0)+'</td><td>'+esc(w.label||'—')+(w.disc?'<span class="badge">disc</span>':'')+'</td><td>'+fmtDate(w.ts)+'</td></tr>'; }); h+='</tbody></table>'; } h+='<div class="meta">'+(a.purchases||0)+' purchase'+((a.purchases===1)?'':'s')+' logged · '+(a.earned||0)+' earned · '+(a.spent||0)+' spent · '+(a.available||0)+' available</div></div>'; h+='<div class="detail-col"><h3>Flags &amp; notes</h3><ul class="flaglist">'; var any=false; if(a.warnings>0){ any=true; h+='<li class="warn">⚠ '+a.warnings+' build warning'+(a.warnings>1?'s':'')+' raised by the rules engine:</li>'; (a.warningList||[]).forEach(function(w){ h+='<li class="warn" style="margin-left:6px;list-style:none;">• '+esc(w)+'</li>'; }); } if(a.unnamed>0){ any=true; h+='<li class="warn">⚠ '+a.unnamed+' unnamed spell/feat entr'+(a.unnamed>1?'ies':'y')+' — player has slots bought but not labelled.</li>'; } if(isTampered(a)){ any=true; h+='<li class="warn">⚠ Tamper-evidence: this file was edited outside PACT — its signature no longer matches. Its numbers may not reflect a legal build; ask the player to re-export from the Live Sheet.</li>'; } if(!any){ h+='<li class="none">No flags — build is clean.</li>'; } h+='</ul><div class="meta">Rules '+esc(a.rules||'?')+' · AP-level '+(a.apLevel==null?'—':a.apLevel)+' · Speed '+(a.speed||'—')+' ft · Pass. Perc '+passivePerc(a)+' · Prof +'+(a.prof||0)+(a.__file?(' · '+esc(a.__file)):'')+'</div></div>'; h+=castingSection(a); h+=resourcesSection(a); h+=lineageSection(a); h+=listSection('Skills',a.skills); h+=listSection('Tools & instruments',(a.tools||[]).concat(a.instruments||[])); h+=listSection('Expertise',a.expertise); h+=listSection('Saving throws',a.saves); h+=listSection('Weapon masteries',a.masteries); h+=weaponArmourSection(a); h+=listSection('Arts & Techniques',a.arts); h+=listSection('Boons',a.boons); h+=listSection('Drawbacks',a.drawbacks); h+=listSection('Class features',a.features); h+='</div></div>'; return h; }
+  function detailHTML(a){ var id=_idOf(a); var h='<div class="detail-inner"><div class="detail-actions"><button type="button" class="skbtn" data-sk="'+esc(id)+'">🎯 All skills &amp; bonuses</button> <button type="button" class="skbtn" data-tools="'+esc(id)+'">🛠 Tools</button></div><div class="detail-grid">'; h+='<div class="detail-col"><h3>Award history</h3>'; var aw=(a.awards||[]).slice(); if(!aw.length){ h+='<div class="meta">No AP awards recorded in this character’s log.</div>'; } else { aw.sort(function(x,y){ return (y.ts||0)-(x.ts||0); }); h+='<table class="awards"><thead><tr><th>Amount</th><th>Label</th><th>Date</th></tr></thead><tbody>'; aw.forEach(function(w){ h+='<tr><td class="amt">+'+(w.amount||0)+'</td><td>'+esc(w.label||'—')+(w.disc?'<span class="badge">disc</span>':'')+'</td><td>'+fmtDate(w.ts)+'</td></tr>'; }); h+='</tbody></table>'; } h+='<div class="meta">'+(a.purchases||0)+' purchase'+((a.purchases===1)?'':'s')+' logged · '+(a.earnedTotal!=null?a.earnedTotal:(a.earned||0))+' earned · '+(a.spent||0)+' spent · '+(a.available||0)+' available</div></div>'; h+='<div class="detail-col"><h3>Flags &amp; notes</h3><ul class="flaglist">'; var any=false; if(a.warnings>0){ any=true; h+='<li class="warn">⚠ '+a.warnings+' build warning'+(a.warnings>1?'s':'')+' raised by the rules engine:</li>'; (a.warningList||[]).forEach(function(w){ h+='<li class="warn" style="margin-left:6px;list-style:none;">• '+esc(w)+'</li>'; }); } if(a.unnamed>0){ any=true; h+='<li class="warn">⚠ '+a.unnamed+' unnamed spell/feat entr'+(a.unnamed>1?'ies':'y')+' — player has slots bought but not labelled.</li>'; } if(isTampered(a)){ any=true; h+='<li class="warn">⚠ Tamper-evidence: this file was edited outside PACT — its signature no longer matches. Its numbers may not reflect a legal build; ask the player to re-export from the Live Sheet.</li>'; } if(!any){ h+='<li class="none">No flags — build is clean.</li>'; } h+='</ul><div class="meta">Rules '+esc(a.rules||'?')+' · AP-level '+(a.apLevel==null?'—':a.apLevel)+' · Speed '+(a.speed||'—')+' ft · Pass. Perc '+passivePerc(a)+' · Prof +'+(a.prof||0)+(a.__file?(' · '+esc(a.__file)):'')+'</div></div>'; h+=castingSection(a); h+=resourcesSection(a); h+=lineageSection(a); h+=listSection('Skills',a.skills); h+=listSection('Tools & instruments',(a.tools||[]).concat(a.instruments||[])); h+=listSection('Expertise',a.expertise); h+=listSection('Saving throws',a.saves); h+=listSection('Weapon masteries',a.masteries); h+=weaponArmourSection(a); h+=listSection('Arts & Techniques',a.arts); h+=listSection('Boons',a.boons); h+=listSection('Drawbacks',a.drawbacks); h+=listSection('Class features',a.features); h+='</div></div>'; return h; }
   function kv(k,v){ return '<div class="kv"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>'; }
   function renderHead(){ var tr='<tr><th class="exq"></th>'; visCols().forEach(function(c){ var active=(sort.key===c.key); var arrow=active?(sort.dir>0?'▲':'▼'):''; var cls=(c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':''); tr+='<th data-key="'+c.key+'" class="'+(active?'active ':'')+cls+'">'+esc(c.label)+'<span class="arrow">'+arrow+'</span></th>'; }); tr+='</tr>'; $('thead').innerHTML=tr; Array.prototype.forEach.call($('thead').querySelectorAll('th'),function(th){ th.addEventListener('click',function(){ var k=th.getAttribute('data-key'); if(!k) return; if(sort.key===k) sort.dir=-sort.dir; else { sort.key=k; sort.dir=(colByKey(k).type==='num')?-1:1; } render(); }); }); }
   function renderBody(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, isSel=(expanded===ri); html+='<tr class="data'+(isSel?' sel':'')+'" data-ri="'+ri+'">'; html+='<td class="exq"><span class="exq-chev">▸</span></td>'; visCols().forEach(function(c){ var cls=(c.cls==='name')?'name':((c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':'')); html+='<td class="'+cls+'">'+c.disp(a)+'</td>'; }); html+='</tr>'; if(isSel){ html+='<tr class="detail"><td colspan="'+(visCols().length+1)+'">'+detailHTML(a)+'</td></tr>'; } }); var tb=$('tbody'); tb.innerHTML=html; Array.prototype.forEach.call(tb.querySelectorAll('tr.data'),function(tr){ tr.addEventListener('click',function(){ var ri=+tr.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); }); }); }
-  function renderCards(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, open=(expanded===ri); html+='<div class="ccard"><div class="chead" data-ri="'+ri+'"><div><div class="nm">'+esc(a.name||'Unnamed Hero')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div><div class="sub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div></div><div class="chev">'+(open?'−':'+')+'</div></div>'; if(open){ html+='<div class="cbody">'; html+=kv('HP',a.hp); html+='<div class="kv"><span class="k">AC</span><span class="v">'+acCellHTML(a.ac,a.name)+'</span></div>'; html+=kv('Save DC',dcDisp(a)); html+=kv('AP Earned',a.earned); html+=kv('AP Spent',a.spent); html+='<div class="kv"><span class="k">AP Available</span><span class="v">'+availCell(a.available)+'</span></div>'; html+='<div class="kv"><span class="k">Flags</span><span class="v">'+flagDisp(a)+'</span></div>'; html+=detailHTML(a); html+='</div>'; } html+='</div>'; }); var c=$('cards'); c.innerHTML=html; Array.prototype.forEach.call(c.querySelectorAll('.chead'),function(h){ h.addEventListener('click',function(){ var ri=+h.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); }); }); }
+  function renderCards(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, open=(expanded===ri); html+='<div class="ccard"><div class="chead" data-ri="'+ri+'"><div><div class="nm">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div><div class="sub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div></div><div class="chev">'+(open?'−':'+')+'</div></div>'; if(open){ html+='<div class="cbody">'; html+=kv('HP',a.hp); html+='<div class="kv"><span class="k">AC</span><span class="v">'+acCellHTML(a.ac,a.name)+'</span></div>'; html+=kv('Save DC',dcDisp(a)); html+=kv('AP Earned',a.earnedTotal!=null?a.earnedTotal:(a.earned||0)); html+=kv('AP Spent',a.spent); html+='<div class="kv"><span class="k" title="The FROZEN ledger — what was actually paid, and what governs what this player can spend right now. Can legitimately differ from the 📒 AP Ledger view&rsquo;s repriced total whenever prices or rules moved since a purchase.">AP Available</span><span class="v">'+availCell(a.available)+'</span></div>'; html+='<div class="kv"><span class="k">Flags</span><span class="v">'+flagDisp(a)+'</span></div>'; html+=detailHTML(a); html+='</div>'; } html+='</div>'; }); var c=$('cards'); c.innerHTML=html; Array.prototype.forEach.call(c.querySelectorAll('.chead'),function(h){ h.addEventListener('click',function(){ var ri=+h.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); }); }); }
   function renderTable(){ renderHead(); renderBody(); renderCards(); }
   // Dim the local-tools card whenever this campaign actually has characters. Guarded: the
   // campaign-ready block that defines it may not have loaded (cloud bridge failure).
@@ -1615,7 +1674,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       h+='<tr class="'+cls+'"><td>'+tag+esc(r.name)+'</td><td>'+esc(r.ab||'—')+'</td><td class="num">'+_sgnv(r.bonus)+'</td></tr>'; });
     return h+'</tbody></table>';
   }
-  function _chars(){ return _combinedRoster().map(function(r){ return {name:(r.summary&&r.summary.name)||'Unnamed Hero', a:r.summary||{}}; }); }
+  function _chars(){ return _combinedRoster().map(function(r){ return {name:(r.summary&&r.summary.name)||'New Character', a:r.summary||{}}; }); }
   function matrixOverlayHTML(chars){
     if(!chars.length) return '<h2 class="ov-h">Party Skill Matrix</h2><div class="ov-sub">No characters loaded.</div>';
     var skills=(typeof DATA!=='undefined'&&DATA.skillList)?DATA.skillList:[];
@@ -1655,10 +1714,16 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
      {t:'Combat',lines:['Weapon proficiency','Weapon masteries','Armour proficiency']},
      {t:'Class & Heritage',lines:['Heritage pack','2nd origin species','Species traits','Class unlocks','2nd origin class','Class features','Ki / Focus points','Sorcery points','Subclass abilities','Subclass unlocks']},
      {t:'Magic',lines:['Trad ','Cantrips (','Innate spells']},
-     {t:'Boons & Gold',lines:['Boons','Drawbacks','Martially Bound','Starting gold']}
+     {t:'Boons & Gold',lines:['Boons','Drawbacks','Lost purchases','Martially Bound','Starting gold']}
     ];
     var TH='font-weight:700;border-top:1px solid var(--line,#3a4150);padding:5px 8px 2px';
-    var h='<h2 class="ov-h">AP Ledger</h2><div class="ov-sub">Full per-character breakdown — every purchase itemised, grouped like the live sheet.</div><div class="mtx-scroll">';
+    // feat/ap-model-reconcile (D-GH-2026-08-10-ap-model-reconcile): this figure is REPRICED at
+    // today's rules (compute().total) — what the build would cost to buy fresh right now. The roster
+    // card's "AP Available" is the FROZEN ledger instead (what was actually paid, governing what a
+    // player can really spend) — the two can legitimately disagree whenever prices or rules moved
+    // since a purchase. Neither is wrong; they answer different questions. Say so here rather than
+    // leave a DM to notice the gap and wonder which number is broken.
+    var h='<h2 class="ov-h">AP Ledger</h2><div class="ov-sub">Full per-character breakdown — every purchase itemised, grouped like the live sheet. Priced at TODAY\'S rules — this can differ from a roster card\'s "AP Available" (the frozen ledger, what was actually paid and what governs spending) whenever prices or rules have moved since a purchase.</div><div class="mtx-scroll">';
     chars.forEach(function(c){var a=c.a||{},lines=a.lines||[],it=a.itemize||{};
       h+='<div style="margin:0 0 16px"><div style="font-size:15px;font-weight:700;margin:8px 0 2px">'+esc(c.name)+' <span style="color:var(--grey,#9aa3b2);font-weight:400;font-size:12px">'+(a.total||0)+' / '+(a.budget||0)+' AP</span></div><table style="width:100%;border-collapse:collapse;font-size:12px"><tbody>';
       var matched={};
@@ -1689,15 +1754,15 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       var sk=t.closest? t.closest('[data-sk]') : null;
       if(sk){ e.preventDefault(); e.stopPropagation(); var id=sk.getAttribute('data-sk');
         var r=findRosterEntry(id);
-        if(r&&r.summary) openOv(skillsOverlayHTML(r.summary.name||'Unnamed Hero', r.summary)); return; }
+        if(r&&r.summary) openOv(skillsOverlayHTML(r.summary.name||'New Character', r.summary)); return; }
       var tl=t.closest? t.closest('[data-tools]') : null;
       if(tl){ e.preventDefault(); e.stopPropagation(); var tid=tl.getAttribute('data-tools');
         var rt=findRosterEntry(tid);
-        if(rt&&rt.summary) openOv(toolsOverlayHTML(rt.summary.name||'Unnamed Hero', rt.summary)); return; }
+        if(rt&&rt.summary) openOv(toolsOverlayHTML(rt.summary.name||'New Character', rt.summary)); return; }
       var kn=t.closest? t.closest('[data-known]') : null;
       if(kn){ e.preventDefault(); e.stopPropagation(); var kid=kn.getAttribute('data-known');
         var rr=findRosterEntry(kid);
-        if(rr&&rr.summary) openOv(knownSpellsOverlayHTML(rr.summary.name||'Unnamed Hero', rr.summary.casting||[])); }
+        if(rr&&rr.summary) openOv(knownSpellsOverlayHTML(rr.summary.name||'New Character', rr.summary.casting||[])); }
     });
     document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeOv(); });
     document.addEventListener('input', function(e){
@@ -1744,13 +1809,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     }
     // Carry the `name` COLUMN through even when hasData is false. A player can name a character and
     // save it before buying anything — the column then holds their real name while the LOG still has
-    // no `buy` event, so the placeholder card below must not fall back to "Unnamed character" and
-    // throw the name away (it did: a correctly-named, correctly-bound character read as nameless).
-    // 'New Character' is the server-assigned default (sql/schema.sql: characters.name's column
-    // default, and redeem_player_invite's v_name fallback), so it carries no more information than
-    // no name at all and is treated as absent here.
+    // no `buy` event, so the placeholder card below must not fall back to the default name and throw
+    // the real one away (it did: a correctly-named, correctly-bound character read as nameless).
+    // 'New Character' (sql/schema.sql: characters.name's column default, and redeem_player_invite's
+    // v_name fallback) is shown AS-IS, same as CharGen and the Live Sheet — D-GH-2026-08-10-
+    // unnamed-character-default: a real stored default name wins everywhere, rather than this tool
+    // converting it back to blank and substituting its own different fallback string.
     var rowName = (row.name||'').trim();
-    if(rowName === 'New Character') rowName = '';
     return {
       id: row.id, summary: summary, hasData: hasData, rowName: rowName,
       dm: { ap: row.ap||0, player: row.player||'', playerLabel: row.playerLabel||'', dmNotes: row.dmNotes||'' }
@@ -1761,7 +1826,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // documents) — show a lightweight placeholder instead of running dmAnalyze() on an empty LOG.
   function cloudCardHTML(rec){
     if(!rec.hasData){
-      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'Unnamed character';
+      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'New Character';
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
@@ -1775,6 +1840,14 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; return; }
     container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
   }
+  window._dmAnalyzeTest = cloudAnalyze;   // test seam: lets tool-pricing-ci.mjs assert on the analyzed summary directly, no DOM traversal needed
+  // test seam: renderCards() (the ≤700px table-view fallback, NOT the Card-view toggle's own #campRoster
+  // cards) reads the closure-local `cloudRoster`/`roster`/`expanded`, which a page-evaluate assignment
+  // from outside this IIFE can't reach (it would create unrelated window.* globals instead) — same
+  // reason _dmRenderCloudRoster exists below. Takes raw rows, analyzes them the same way, optionally
+  // expands the row at `expandIndex` (the detail body — where AP Earned/Spent/Available live — only
+  // renders for the open card, same as a real click on its header would), then renders directly.
+  window._dmRenderCardsTest = function(rows,expandIndex){ cloudRoster = (rows||[]).map(cloudAnalyze); expanded = (expandIndex==null?null:expandIndex); renderCards(); };
   window._dmRenderCloudRoster = function(container, rows){
     _cloudRosterEl = container;
     cloudRoster = (rows||[]).map(cloudAnalyze);
@@ -1805,7 +1878,8 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       // the lock was applied — or re-enabled by any means — still cannot write. Section toggles,
       // "View sheet" and "AP history" are reads and fall through untouched.
       if(window._dmPeekActive && t.closest &&
-         (t.closest('.award-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn'))){
+         (t.closest('.award-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
+          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn'))){
         if(window._dmPeekBlocks) window._dmPeekBlocks();
         return;
       }
@@ -1829,10 +1903,85 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         return;
       }
 
+      // feat/dm-edit-events: all three write events through dm_edit_character_log, then reload the
+      // whole roster — a DM edit changes the folded BUILD (which boons/drawbacks the character holds),
+      // not just one number the way Award AP does, so a full re-analysis (not a local field patch) is
+      // needed for the card, the remove-boon dropdown, and the AP strip to all stay correct together.
+      var grantBoonBtn = t.closest ? t.closest('.dm-grant-boon-btn') : null;
+      if(grantBoonBtn && card){
+        var gbcid = grantBoonBtn.getAttribute('data-cid');
+        var gbSel = card.querySelector('.dm-grant-boon-sel[data-cid="'+gbcid+'"]');
+        var gbStatus = card.querySelector('.dm-status[data-cid="'+gbcid+'"][data-kind="grant-boon"]');
+        var boonName = gbSel && gbSel.value;
+        if(!boonName){ alert('Choose a boon first.'); return; }
+        var boonCost = (DATA.boons[boonName] && DATA.boons[boonName].ap) || 0;
+        grantBoonBtn.disabled = true; if(gbStatus) gbStatus.textContent = 'Granting…';
+        B.dmEditCharacterLog(gbcid, [
+          {type:'buy', cat:'boon', payload:{v:boonName}, cost:boonCost, label:'Boon — '+boonName+' (DM granted)'},
+          {type:'award', amount:boonCost, note:'DM boon grant', label:'Award — DM boon grant ('+boonCost+' AP)'}
+        ]).then(function(){
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){
+          grantBoonBtn.disabled = false; if(gbStatus) gbStatus.textContent = '';
+          alert('Grant failed: '+err.message);
+        });
+        return;
+      }
+
+      var removeBoonBtn = t.closest ? t.closest('.dm-remove-boon-btn') : null;
+      if(removeBoonBtn && card){
+        var rbcid = removeBoonBtn.getAttribute('data-cid');
+        var rbSel = card.querySelector('.dm-remove-boon-sel[data-cid="'+rbcid+'"]');
+        var rbStatus = card.querySelector('.dm-status[data-cid="'+rbcid+'"][data-kind="remove-boon"]');
+        var removeName = rbSel && rbSel.value;
+        if(!removeName){ alert('Choose a boon first.'); return; }
+        if(!confirm('Remove "'+removeName+'" from this character?\n\nThey keep the AP they paid for it — there is no refund. It stays visible in their history, and they can buy it again later.')) return;
+        removeBoonBtn.disabled = true; if(rbStatus) rbStatus.textContent = 'Removing…';
+        B.dmEditCharacterLog(rbcid, [
+          {type:'dmRemoveBoon', refVal:removeName, cost:0, label:'DM removed boon — '+removeName}
+        ]).then(function(){
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){
+          removeBoonBtn.disabled = false; if(rbStatus) rbStatus.textContent = '';
+          alert('Remove failed: '+err.message);
+        });
+        return;
+      }
+
+      var imposeDrawBtn = t.closest ? t.closest('.dm-impose-draw-btn') : null;
+      if(imposeDrawBtn && card){
+        var idcid = imposeDrawBtn.getAttribute('data-cid');
+        var idSel = card.querySelector('.dm-impose-draw-sel[data-cid="'+idcid+'"]');
+        var idLocked = card.querySelector('.dm-impose-draw-locked[data-cid="'+idcid+'"]');
+        var idRate = card.querySelector('.dm-impose-draw-rate[data-cid="'+idcid+'"]');
+        var idStatus = card.querySelector('.dm-status[data-cid="'+idcid+'"][data-kind="impose-draw"]');
+        var drawName = idSel && idSel.value;
+        if(!drawName){ alert('Choose a drawback first.'); return; }
+        imposeDrawBtn.disabled = true; if(idStatus) idStatus.textContent = 'Imposing…';
+        B.dmEditCharacterLog(idcid, [
+          {type:'buy', cat:'drawback', payload:{v:drawName}, cost:0,
+           dmLocked: !!(idLocked && idLocked.checked), dmRemovalCost: (idRate && idRate.value) || 'flat',
+           label:'Drawback — '+drawName+' (DM imposed)'}
+        ]).then(function(){
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){
+          imposeDrawBtn.disabled = false; if(idStatus) idStatus.textContent = '';
+          alert('Impose failed: '+err.message);
+        });
+        return;
+      }
+
       var viewBtn = t.closest ? t.closest('.view-btn') : null;
       if(viewBtn){
         var vcid = viewBtn.getAttribute('data-cid');
         window.open('PACT-Live-Char-Sheet.html?viewChar='+encodeURIComponent(vcid), '_blank');
+        return;
+      }
+
+      var cgCopyBtn = t.closest ? t.closest('.cgcopy-btn') : null;
+      if(cgCopyBtn){
+        var ccid = cgCopyBtn.getAttribute('data-cid');
+        window.open('PACT-CharGen-Webtool.html?viewChar='+encodeURIComponent(ccid), '_blank');
         return;
       }
 
@@ -1917,9 +2066,9 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // failed esm.sh import (js/supabase-client.js pulls @supabase/supabase-js from a CDN) aborted the whole
   // module: engine-ready never fired, boot never ran, and the console rendered as a bare shell. Now the
   // engine half cannot be taken down by the cloud half.
-  import { DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
+  import { DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm } from '../js/engine.js';
   import { verifyCharacterEnvelope } from '../js/character-store.js';   // tamper-evidence read-side (D-GH48)
-  window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy };
+  window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   // Engine module bridge (D-GH26, extended D-GH36/D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth. Boot waits on engine-ready.
@@ -1932,13 +2081,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
-  import { getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes } from '../js/dm.js';
+  import { getRoster, awardAp, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, getAwardHistory, unbindCharacter, setCharacterDmNotes, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -3269,6 +3418,10 @@ document.addEventListener('campaign-ready', function () {
     try { rows = await B.getRoster(campId); } catch(err){ campRoster.innerHTML='<div class="camp-empty">Error: '+esc(err.message)+'</div>'; return; }
     _paintRoster(rows);
   }
+  // feat/dm-edit-events: cross-boundary reload — wireCloudRosterDelegation (a separate IIFE, outside
+  // this campaign-ready closure) needs to refresh the roster after a successful DM edit, the same way
+  // window._dmRenderCloudRoster already bridges the render call across that same boundary.
+  window._dmReloadRoster = function(){ if(currentCampId) loadRoster(currentCampId); };
 
   /* Test seam for the dm-console-ui gate, same pattern as window._dmRulesPanel above. The archived-peek
      path needs a campaign list, which a signed-out page has no way to obtain — so seed the closure's own
