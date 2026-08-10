@@ -18,7 +18,8 @@
  *   baseBuild()       — a fresh blank level-1 build object (the fold/replay starting point).
  *   MUT               — { cat: (build, payload) => void }; replay applies MUT[e.cat] per buy event.
  * Event-sourcing (append-only LOG):
- *   activeEvents(events) — {evs, boughtOff}: live events + a bought-off-drawback map.
+ *   activeEvents(events) — {evs, boughtOff, boonRemoved}: live events + a bought-off-drawback map +
+ *                          a DM-removed-boon map (feat/dm-edit-events).
  *   economy(events)      — {earned, spent, available, drawbackEarned}: AP tally from a LOG (no fold/compute).
  *   foldBuild(events)    — replay a LOG from baseBuild() → a build (b.budget = economy().earned).
  *   rebuildStateFromEvents(base, events, opts?) — replay onto `base` (or an embedded {LOG}) → {ok, version, …}.
@@ -602,6 +603,15 @@ export function activeEvents(events) {
   // Do not "fix" this into a seq lookup without checking the fixtures first — they'd all lack the field.
   const boughtOff = new Set();
   const _openDraws = {};   // drawback value -> queue of still-open purchase indices, oldest first
+  // boonRemoved (feat/dm-edit-events): a DM can remove a player-bought boon with NO refund — the
+  // player already spent the AP, and _spendCost() must keep counting it (removal ≠ buyoff, which DOES
+  // refund). Resolved with the exact same FIFO-by-value pattern as boughtOff above, on purpose: a boon
+  // removal keyed by NAME instead of by matched purchase would reintroduce the identical bug
+  // D-GH-2026-08-06-buyoff-keyed-by-event just fixed for drawbacks — a removed-then-rebought boon has
+  // to stay bought, not silently vanish from the build again. `dmRemoveBoon` events carry `refVal` (the
+  // boon name) exactly like `buyoff` carries it for drawbacks.
+  const boonRemoved = new Set();
+  const _openBoons = {};   // boon value -> queue of still-open purchase indices, oldest first
   evs.forEach((e, i) => {
     if (e.type === 'buy' && e.cat === 'drawback') {
       const v = e.payload && e.payload.v;
@@ -609,9 +619,15 @@ export function activeEvents(events) {
     } else if (e.type === 'buyoff') {
       const q = _openDraws[e.refVal];
       if (q && q.length) boughtOff.add(q.shift());
+    } else if (e.type === 'buy' && e.cat === 'boon') {
+      const v = e.payload && e.payload.v;
+      (_openBoons[v] = _openBoons[v] || []).push(i);
+    } else if (e.type === 'dmRemoveBoon') {
+      const q = _openBoons[e.refVal];
+      if (q && q.length) boonRemoved.add(q.shift());
     }
   });
-  return { evs, boughtOff };
+  return { evs, boughtOff, boonRemoved };
 }
 
 // AP-spend contribution of a single event — 0 for anything that isn't a spend-bearing buy/buyoff/names
@@ -734,7 +750,7 @@ export function economy(events) {
 // chase each other (see repriceDraft's "ALL-OR-NOTHING" note for what that cost the first time).
 function _replay(b, log, onApplied) {
   const ae = activeEvents(log);
-  const { evs, boughtOff } = ae;
+  const { evs, boughtOff, boonRemoved } = ae;
   let _locked = false, _spent = 0, _campaignBound = false;
   // creationLockConfig / creationUnlocked bookkeeping (see the block comment above this function).
   // _cfgAuto: undefined = "not configured" (legacy: campaignBound alone arms the auto-lock, which is
@@ -767,8 +783,12 @@ function _replay(b, log, onApplied) {
 
     if (e.type === 'name') { b.name = e.name; continue; }
     if (e.type === 'names') { MUT.names(b, e); continue; }   // names take the whole event
-    if (e.type !== 'buy') continue;                          // award/buyoff affect economy only
+    if (e.type !== 'buy') continue;                          // award/buyoff/dmRemoveBoon affect economy only
     if (e.cat === 'drawback' && boughtOff.has(_i)) continue;   // bought off: removed (this specific purchase, not the value)
+    // DM-removed boon (feat/dm-edit-events): suppressed from the fold only — its cost stays counted in
+    // _spendCost() above (already ran for this event, unconditionally) because removal grants no refund.
+    // The mirror image of the drawback buyoff line above: THERE the AP comes back, HERE it never does.
+    if (e.cat === 'boon' && boonRemoved.has(_i)) continue;
     if (e.cat === 'racial' && e.payload && e.payload.v)
       (b._raceTraitLocked = b._raceTraitLocked || {})[e.payload.v] = _wasLocked;
     // Stamp each NEW Vigor rank with the tier it was bought at, so compute() can price it at what the

@@ -6,6 +6,23 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · feat(campaign): a DM adds/removes boons and imposes drawbacks, recorded as a DM edit** —
+  New `dm_edit_character_log` SECURITY DEFINER RPC — the only DM write path onto a player's
+  `characters.stats`, server-stamped `seq`/`ts`/`dmEdit`/`dmId` (unforgeable for a different account),
+  allowlisted to boon/drawback events only. Neutrality invariant (a DM edit never changes the player's
+  spendable AP) holds via existing mechanics for boon grants (matched `[buy,award]` pair, one atomic
+  write) and DM-imposed drawbacks (`cost:0`); boon removal is the one `js/engine.js` change — a new
+  `boonRemoved` FIFO-by-purchase map (mirroring `D-GH-2026-08-06-buyoff-keyed-by-event`'s fix), no
+  refund, the purchase stays visible and re-buyable. New fixture EV-018; no `DATA.version` bump (purely
+  additive, all 30 fixtures unchanged). DM Console gained grant-boon/remove-boon/impose-drawback
+  controls on the roster card DM-tools section, gated behind the existing archived-peek write-block. The
+  Live Sheet renders DM-marked events distinctly, enforces its own undo barrier (mirroring the AP-award
+  one), and `buyoffDrawback()` now honours a DM-imposed drawback's own locked/removal-cost flags instead
+  of the unconditional 3×. CharGen gets the undo barrier only — no per-event history view to mark
+  (documented scope boundary in `D-GH-2026-08-10-dm-edit-events`). Applied to the live Supabase project;
+  advisor confirms no new finding class; grants and AP-integrity-trigger compatibility verified directly.
+  `tool-pricing-ci.mjs` 113/0, `engine-parity-ci.mjs` 30/0. A full live end-to-end (two real distinct
+  sessions) was not run in this session.
 - **2026-08-10 · feat(campaign): a DM opens a roster character in CharGen via a safe copy** —
   DM Console's roster card gained "📋 Copy to CharGen" beside the existing read-only "👁 View" (Live
   Sheet). Per the owner's stated preference (`D-GH-2026-08-10-chargen-dm-view`), this is a fresh,

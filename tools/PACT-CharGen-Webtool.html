@@ -2257,6 +2257,13 @@ function restoreFrame(f){
 
 function undo(){
   if(_histSuspended)return;
+  // feat/dm-edit-events: mirrors the Live Sheet's award-event undo barrier, but checked against LOG
+  // directly rather than a HIST frame — CharGen's undo is snapshot-based, not LIFO-over-events, so the
+  // "last thing that happened" is the tail of the live LOG, not the top of HIST.
+  if(LOG.length&&LOG[LOG.length-1]&&LOG[LOG.length-1].dmEdit){
+    flash('DM edits lock your history — buys made before one can\'t be undone.');
+    return;
+  }
   _sealOpenGroup();                        // seal-before-undo: never land mid-word
   if(!HIST.length)return;
   REDO.push(_snapshotFrame());

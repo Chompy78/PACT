@@ -157,6 +157,9 @@ table.led{width:100%;border-collapse:collapse;font-size:11.5px}.led th{backgroun
 .led tr.warnrow td:nth-child(2){color:var(--bad)}
 .led tr.derived td{font-style:italic;color:var(--teal)}
 .led .packnote{font-style:italic;color:var(--grey);font-weight:400}
+.led tr.dmedit td:nth-child(2){border-left:3px solid var(--blue)}
+.led .dmtag{display:inline-block;font-size:9px;font-weight:700;color:#fff;background:var(--blue);border-radius:6px;padding:0 4px;vertical-align:middle;margin-left:3px}
+.led .dmlocked{font-size:11px;color:var(--grey);white-space:nowrap}
 .bg{margin-bottom:8px}.bg h4{margin:6px 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--teal)}
 .ib{display:inline-block;background:var(--inp);border:1px solid var(--line);border-radius:6px;padding:3px 7px;margin:2px;font:inherit;font-size:11.5px;cursor:pointer;color:var(--navytx)}
 .ib em{font-style:normal;color:var(--blue);font-weight:800;margin-left:4px}
@@ -644,7 +647,31 @@ function buy(cat,payload,label){
   if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
 }
 function takeDrawback(v){ const refund=DATA.drawbacks[v]||0; emit({type:'buy',cat:'drawback',payload:{v},cost:-refund,label:'Drawback — '+v,level:foldBuild(null).hd}); }
-function buyoffDrawback(v){ const refund=DATA.drawbacks[v]||0; const cost=refund*3; const avail=apAvailable(null);
+// feat/dm-edit-events: finds the drawback-buy event a NEW buyoff would target — the oldest still-open
+// (not yet bought-off) purchase of this value, same FIFO order activeEvents() itself resolves buyoffs
+// in (D-GH-2026-08-06-buyoff-keyed-by-event). Needed here because buyoffDrawback() must consult THAT
+// specific event's dmEdit/dmLocked/dmRemovalCost flags, not just DATA.drawbacks[v].
+function _openDrawbackEvent(v){
+  const {evs,boughtOff}=activeEvents(null);
+  for(let i=0;i<evs.length;i++){const e=evs[i];
+    if(e.type==='buy'&&e.cat==='drawback'&&e.payload&&e.payload.v===v&&!boughtOff.has(i))return e;}
+  return null;
+}
+function buyoffDrawback(v){
+  const refund=DATA.drawbacks[v]||0;
+  const src=_openDrawbackEvent(v);
+  // A DM-imposed drawback (dmEdit:true) carries its own removal rules; an ordinary player-taken one
+  // keeps today's unconditional 3× — that deterrent doesn't apply when the player never took a loan.
+  if(src&&src.dmEdit){
+    if(src.dmLocked){flash('🔒 Your DM has locked this drawback — it can\'t be bought off.');return;}
+    const rate=(src.dmRemovalCost==='expensive')?3:1;
+    const cost=refund*rate;
+    const avail=apAvailable(null);
+    if(cost>avail){flash('Buying off costs '+cost+' AP'+(rate===3?' (3×, your DM set this rate)':' (flat, your DM set this rate)')+'; you have '+avail);return;}
+    emit({type:'buyoff',refVal:v,cost,label:'Bought off — '+v});
+    return;
+  }
+  const cost=refund*3; const avail=apAvailable(null);
   if(cost>avail){flash('Buying off costs '+cost+' AP (3×); you have '+avail);return;} emit({type:'buyoff',refVal:v,cost,label:'Bought off — '+v}); }
 function undo(){
   if(_viewOnlyBlock())return;
@@ -653,6 +680,9 @@ function undo(){
   var _dropped=false; while(LOG.length && LOG[LOG.length-1] && LOG[LOG.length-1].type==='rulesSnapshot'){ LOG.pop(); _dropped=true; }
   if(!LOG.length){ if(_dropped){save();render();} return; }
   if(LOG[LOG.length-1].type==='award'&&!LOG[LOG.length-1].disc){ if(_dropped){save();render();} flash('AP awards lock your history — buys made before an award can\'t be undone.');return; }
+  // feat/dm-edit-events: a DM edit is the same kind of undo barrier as an AP award — the player must
+  // not be able to silently erase what their DM changed. Mirrors the award check above exactly.
+  if(LOG[LOG.length-1].dmEdit){ if(_dropped){save();render();} flash('DM edits lock your history — buys made before one can\'t be undone.');return; }
   REDO.push(LOG.pop()); viewAt=null; save(); render(); }
 function redo(){ if(_viewOnlyBlock())return; if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save(); render(); }
 
@@ -1129,14 +1159,27 @@ function render(){
     if(e.type==='award'){ap='+'+e.amount;cls='aw';}
     else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li));
       ap=(e.cost<0?'+'+(-e.cost):'−'+e.cost); cls=dead?'dead':'';
-      if(!dead && e.cat==='drawback') act='<button class="x" onclick="buyoffDrawback(\''+(e.payload.v||'').replace(/'/g,"\\'")+'\')">buy off 3×</button>';
+      if(!dead && e.cat==='drawback'){
+        if(e.dmEdit&&e.dmLocked){
+          act='<span class="dmlocked" title="Your DM has locked this drawback — it can\'t be bought off">🔒 locked</span>';
+        } else {
+          const rateLabel=(e.dmEdit&&e.dmRemovalCost==='flat')?'buy off (flat)':'buy off 3×';
+          act='<button class="x" onclick="buyoffDrawback(\''+(e.payload.v||'').replace(/'/g,"\\'")+'\')">'+rateLabel+'</button>';
+        }
+      }
       // Same DATA.racial(...).pack flag the buy panel already reads (line ~1215) — not a new signal.
       const _rmeta=(e.cat==='racial'&&e.payload)?DATA.racial[e.payload.v]:null;
       if(_rmeta&&_rmeta.pack) packNote=' <small class="packnote" title="Included in the pack line above — not a separate AP cost">· pack</small>';
       if((e.warns||[]).length) cls+=' warnrow'; }
     else if(e.type==='buyoff'){ap='−'+e.cost;cls='rfnd';}
+    else if(e.type==='dmRemoveBoon'){ap='';cls='dead';}
     else if(e.type==='name'){ap='';}
-    led+='<tr class="'+cls+'"><td>'+e.seq+'</td><td>'+esc(e.label||e.type)+packNote+(e.rules?' <span class="vtag">'+e.rules+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+ap+'</td><td>'+act+'</td></tr>';
+    // feat/dm-edit-events: every DM-marked event renders distinctly — the whole point is that the
+    // player can see exactly what their DM changed. A dmEdit event never moves economy().available
+    // (the invariant this whole feature rests on), so this is a display cue only, never a cost.
+    if(e.dmEdit) cls+=' dmedit';
+    const dmTag=e.dmEdit?' <span class="dmtag" title="This was a DM edit — it never changed your spendable AP">🛡 DM</span>':'';
+    led+='<tr class="'+cls+'"><td>'+e.seq+'</td><td>'+esc(e.label||e.type)+dmTag+packNote+(e.rules?' <span class="vtag">'+e.rules+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+ap+'</td><td>'+act+'</td></tr>';
   });
   led+='</table>'; $('ledger').innerHTML=led;
   // --- validation tray ---

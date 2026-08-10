@@ -10,6 +10,17 @@
 
 ## Index
 
+- **D-GH-2026-08-10-dm-edit-events** — a DM adds/removes boons and imposes drawbacks on a campaign
+  character, recorded in the character's own LOG as a server-attributed `dmEdit` event that never moves
+  their spendable AP. New `dm_edit_character_log` SECURITY DEFINER RPC (the only DM write path onto
+  `characters.stats`), server-stamped `seq`/`ts`/`dmEdit`/`dmId` so the marker can't be forged for a
+  different account, allowlisted to boon/drawback events only. Boon removal is the one engine change
+  (`activeEvents()`'s new `boonRemoved` FIFO map, mirroring the buyoff fix); everything else achieves
+  neutrality through existing mechanics with no `DATA.version` bump. DM Console gained grant/remove/impose
+  controls; the Live Sheet renders DM-marked events distinctly and enforces its own undo barrier + a
+  DM-imposed drawback's locked/removal-cost flags; CharGen gets the undo barrier only (no per-event
+  history view to mark, a documented scope boundary).
+  Full record: `decisions/2026/D-GH-2026-08-10-dm-edit-events.md`.
 - **D-GH-2026-08-10-chargen-dm-view** — a DM opens a campaign character in CharGen via a safe, freely
   editable COPY (owner's chosen approach) rather than a locked read-only view — safe by construction
   (a copy with its own id cannot touch the original) rather than by a twelve-entry-point guard list.

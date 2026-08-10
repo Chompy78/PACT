@@ -473,6 +473,91 @@ try {
       return [cost>0, row?/· pack/.test(row.innerText):'(row not found)'];})()`),
     [true, false]);
 
+  // feat/dm-edit-events: buyoffDrawback() must consult the matched purchase's dmEdit/dmLocked/
+  // dmRemovalCost flags — a DM-imposed drawback carries its own removal rules, distinct from the
+  // unconditional 3x every ordinary player-taken drawback still charges (regression guard below).
+  console.log('\nLive Sheet — buyoffDrawback() honours a DM-imposed drawback\'s own removal rules');
+  check('a normal, player-taken drawback still buys off at the unconditional 3x (regression guard)',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      takeDrawback('Asthmatic');
+      buyoffDrawback('Asthmatic');
+      const ev=LOG[LOG.length-1];
+      return [ev.type, ev.cost];})()`),
+    ['buyoff', 6]);
+  check('a DM-imposed drawback with dmRemovalCost:"flat" buys off at 1x, not 3x',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      LOG.push({seq:SEQ++,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:false,dmRemovalCost:'flat',label:'Drawback — Asthmatic (DM imposed)'});
+      buyoffDrawback('Asthmatic');
+      const ev=LOG[LOG.length-1];
+      return [ev.type, ev.cost];})()`),
+    ['buyoff', 2]);
+  check('a DM-imposed drawback with dmRemovalCost:"expensive" still buys off at 3x',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      LOG.push({seq:SEQ++,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:false,dmRemovalCost:'expensive',label:'Drawback — Asthmatic (DM imposed)'});
+      buyoffDrawback('Asthmatic');
+      const ev=LOG[LOG.length-1];
+      return [ev.type, ev.cost];})()`),
+    ['buyoff', 6]);
+  check('a DM-imposed drawback with dmLocked:true refuses buy-off with a stated reason, not silently',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      LOG.push({seq:SEQ++,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:true,dmRemovalCost:'flat',label:'Drawback — Asthmatic (DM imposed)'});
+      const n=LOG.length;
+      window.__f=[]; window.flash=m=>window.__f.push(String(m));
+      buyoffDrawback('Asthmatic');
+      return [LOG.length===n, /locked/i.test(window.__f[0]||'')];})()`),
+    [true, true]);
+
+  // Ledger rendering: a DM-marked event must render distinctly (the whole point of feat/dm-edit-events)
+  // and a locked drawback's row must show the lock, not an active buy-off button.
+  console.log('\nLive Sheet — history renders DM-marked events distinctly');
+  check('a DM-granted boon\'s buy+award pair both carry the DM badge in history',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25,dmEdit:true,dmId:'dm-1',label:'Boon — Boon of Combat Prowess (DM granted)'});
+      LOG.push({seq:SEQ++,type:'award',amount:25,dmEdit:true,dmId:'dm-1',label:'Award — DM boon grant (25 AP)'});
+      render();
+      const rows=[...document.querySelectorAll('#ledger tr.dmedit')];
+      return [rows.length, rows.every(tr=>/DM/.test(tr.innerText))];})()`),
+    [2, true]);
+  check('a locked DM-imposed drawback shows a lock, not a clickable buy-off button',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:true,dmRemovalCost:'flat',label:'Drawback — Asthmatic (DM imposed)'});
+      render();
+      const row=[...document.querySelectorAll('#ledger tr')].find(tr=>/Asthmatic/.test(tr.innerText||''));
+      return [!!row.querySelector('button.x'), /locked/i.test(row.innerText)];})()`),
+    [false, true]);
+  check('a dmRemoveBoon event itself renders in history, marked as a DM edit',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25,label:'Boon — Boon of Combat Prowess'});
+      LOG.push({seq:SEQ++,type:'award',amount:25,label:'AP award'});
+      LOG.push({seq:SEQ++,type:'dmRemoveBoon',refVal:'Boon of Combat Prowess',cost:0,dmEdit:true,dmId:'dm-1',label:'DM removed boon — Boon of Combat Prowess'});
+      render();
+      const row=[...document.querySelectorAll('#ledger tr')].find(tr=>/DM removed boon/.test(tr.innerText||''));
+      return [!!row, row?row.className.indexOf('dmedit')>=0:false];})()`),
+    [true, true]);
+
+  // Undo barrier: mirrors the existing AP-award check exactly.
+  console.log('\nLive Sheet — a DM edit locks history the same way an AP award does');
+  check('undo refuses when the last event is a DM edit, with a stated reason',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      LOG.push({seq:SEQ++,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:false,dmRemovalCost:'flat',label:'Drawback — Asthmatic (DM imposed)'});
+      const n=LOG.length;
+      window.__f=[]; window.flash=m=>window.__f.push(String(m));
+      undo();
+      return [LOG.length===n, /DM edit/i.test(window.__f[window.__f.length-1]||'')];})()`),
+    [true, true]);
+  check('undo still works normally for an ordinary (non-DM) purchase',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      takeDrawback('Frail');
+      const n=LOG.length;
+      undo();
+      return LOG.length===n-1;})()`), true);
+
   await ls.close();
 
   // ============================ CharGen ============================
@@ -916,6 +1001,22 @@ try {
   check('the derived id is UUID-shaped (what characters.id, a uuid column, requires)',
     await cg.evaluate(`window._cgDeriveCopyId('char-A','dm-1').then(r=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(r))`), true);
 
+  // feat/dm-edit-events: CharGen's undo is snapshot-based (HIST), not LIFO-over-events like the Live
+  // Sheet's — so its barrier has to be its own guard checked against the tail of the live LOG, not a
+  // HIST frame. Assert it directly rather than trusting the Live Sheet's coverage to generalise.
+  console.log('\nCharGen — a DM edit locks history the same way it does in the Live Sheet');
+  check('undo refuses when the last LOG event is a DM edit, with a stated reason',
+    await cg.evaluate(`(()=>{
+      LOG.push({seq:(SEQ=SEQ||1)+1,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:false,dmRemovalCost:'flat',label:'Drawback — Asthmatic (DM imposed)'});
+      const n=LOG.length;
+      window.__f=[]; const realFlash=window.flash; window.flash=m=>window.__f.push(String(m));
+      undo();
+      const refused = LOG.length===n;
+      window.flash=realFlash;
+      if(!refused) LOG.pop();   // clean up if the guard failed, so it doesn't bleed into later checks
+      return [refused, /DM edit/i.test(window.__f[window.__f.length-1]||'')];})()`),
+    [true, true]);
+
   await cg.close();
 
   // ============================ DM Console ============================
@@ -973,6 +1074,87 @@ try {
       } finally { window.open=realOpen; }
       return opened;})()`),
     'PACT-CharGen-Webtool.html?viewChar=test-3');
+
+  // feat/dm-edit-events: DM Console's grant-boon/remove-boon/impose-drawback controls. A row needs a
+  // real 'buy' event to reach hasData:true (cloudAnalyze) and therefore the full cardHTML→
+  // buildSections→dmToolsBody render path the remove-boon dropdown depends on.
+  console.log('\nDM Console — grant/remove/impose controls call dm_edit_character_log with the right shape');
+  const DM_EDIT_ROW = `[{id:'test-4',name:'Anders',
+    stats:{LOG:[{type:'award',amount:60},{type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25}]},
+    ap:60,player:'',playerLabel:'',dmNotes:''}]`;
+  check('all three controls render for a roster row with real build data',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      const g=card.querySelector('.dm-grant-boon-sel[data-cid="test-4"]');
+      const r=card.querySelector('.dm-remove-boon-sel[data-cid="test-4"]');
+      const i=card.querySelector('.dm-impose-draw-sel[data-cid="test-4"]');
+      return [!!g, !!r, !!i, r?[...r.options].map(o=>o.value):[]];})()`),
+    [true, true, true, ['Boon of Combat Prowess']]);
+  check('grant boon calls dm_edit_character_log with a matched [buy,award] pair at the SAME cost',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      let captured=null; const realFn=window._campBridge.dmEditCharacterLog;
+      window._campBridge.dmEditCharacterLog=(id,events)=>{captured=[id,events];return Promise.resolve(events);};
+      const realReload=window._dmReloadRoster; window._dmReloadRoster=()=>{};
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      card.querySelector('.dm-grant-boon-sel[data-cid="test-4"]').value='Boon of Irresistible Offense';
+      card.querySelector('.dm-grant-boon-btn[data-cid="test-4"]').click();
+      window._campBridge.dmEditCharacterLog=realFn; window._dmReloadRoster=realReload;
+      if(!captured) return 'not called';
+      const [id,events]=captured;
+      return [id, events.length, events[0].type, events[0].cat, events[1].type, events[0].cost===events[1].amount];})()`),
+    ['test-4', 2, 'buy', 'boon', 'award', true]);
+  check('remove boon asks for confirmation, then calls dm_edit_character_log with a dmRemoveBoon event',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      let captured=null, confirmed=null; const realFn=window._campBridge.dmEditCharacterLog;
+      window._campBridge.dmEditCharacterLog=(id,events)=>{captured=[id,events];return Promise.resolve(events);};
+      const realReload=window._dmReloadRoster; window._dmReloadRoster=()=>{};
+      const realConfirm=window.confirm; window.confirm=(m)=>{confirmed=m;return true;};
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      card.querySelector('.dm-remove-boon-sel[data-cid="test-4"]').value='Boon of Combat Prowess';
+      card.querySelector('.dm-remove-boon-btn[data-cid="test-4"]').click();
+      window._campBridge.dmEditCharacterLog=realFn; window._dmReloadRoster=realReload; window.confirm=realConfirm;
+      if(!captured) return 'not called';
+      const [id,events]=captured;
+      return [id, !!confirmed, events.length, events[0].type, events[0].refVal];})()`),
+    ['test-4', true, 1, 'dmRemoveBoon', 'Boon of Combat Prowess']);
+  check('impose drawback sends cost:0 plus the chosen locked/removal-cost flags',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      let captured=null; const realFn=window._campBridge.dmEditCharacterLog;
+      window._campBridge.dmEditCharacterLog=(id,events)=>{captured=[id,events];return Promise.resolve(events);};
+      const realReload=window._dmReloadRoster; window._dmReloadRoster=()=>{};
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      card.querySelector('.dm-impose-draw-sel[data-cid="test-4"]').value='Asthmatic';
+      card.querySelector('.dm-impose-draw-locked[data-cid="test-4"]').checked=true;
+      card.querySelector('.dm-impose-draw-rate[data-cid="test-4"]').value='expensive';
+      card.querySelector('.dm-impose-draw-btn[data-cid="test-4"]').click();
+      window._campBridge.dmEditCharacterLog=realFn; window._dmReloadRoster=realReload;
+      if(!captured) return 'not called';
+      const [id,events]=captured;
+      return [id, events.length, events[0].type, events[0].cat, events[0].cost, events[0].dmLocked, events[0].dmRemovalCost];})()`),
+    ['test-4', 1, 'buy', 'drawback', 0, true, 'expensive']);
+  // Archived-campaign peek must block these exactly like Award AP/notes/unbind already are — same
+  // handler, same guard, same class of write action.
+  check('archived-campaign peek blocks all three DM-edit buttons, same as Award AP',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      let calls=0; const realFn=window._campBridge.dmEditCharacterLog;
+      window._campBridge.dmEditCharacterLog=()=>{calls++;return Promise.resolve([]);};
+      let blocked=0; const realBlocks=window._dmPeekBlocks; window._dmPeekBlocks=()=>{blocked++;};
+      window._dmPeekActive=true;
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      card.querySelector('.dm-grant-boon-sel[data-cid="test-4"]').value='Boon of Irresistible Offense';
+      card.querySelector('.dm-grant-boon-btn[data-cid="test-4"]').click();
+      card.querySelector('.dm-remove-boon-sel[data-cid="test-4"]').value='Boon of Combat Prowess';
+      card.querySelector('.dm-remove-boon-btn[data-cid="test-4"]').click();
+      card.querySelector('.dm-impose-draw-sel[data-cid="test-4"]').value='Asthmatic';
+      card.querySelector('.dm-impose-draw-btn[data-cid="test-4"]').click();
+      window._dmPeekActive=false; window._campBridge.dmEditCharacterLog=realFn; window._dmPeekBlocks=realBlocks;
+      return [calls, blocked];})()`),
+    [0, 3]);
 
   await dm.close();
 } catch (e) {

@@ -312,6 +312,78 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- dm_edit_character_log(character, events) — feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events).
+-- The ONLY path a DM can append to a player's own stats->LOG through — characters_update's row policy
+-- is owner-only, same SECURITY DEFINER-bypass pattern as award_ap/dm_unbind_character just above,
+-- extended to `stats`. Scope allowlist (owner: "not a general editor"): buy/cat:boon, buy/cat:drawback,
+-- award, dmRemoveBoon only. Server stamps seq/ts/dmEdit/dmId on every event, discarding whatever the
+-- client sent for them — the caller cannot forge who made the edit, when, or where in the log it lands.
+-- Accepts a JSON ARRAY so a DM-granted boon's matched buy+award pair lands in ONE atomic write (see
+-- the migration file's header for why two separate calls would leave a real, if brief, non-neutral
+-- moment). See sql/migrations/2026-08-10-dm-edit-character-log.sql for the full design/compatibility
+-- reasoning against the AP-integrity triggers just below.
+-- ---------------------------------------------------------------------------
+create or replace function public.dm_edit_character_log(p_character uuid, p_events jsonb)
+returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_campaign uuid;
+  v_stats    jsonb;
+  v_log      jsonb;
+  v_seq      integer;
+  v_new      jsonb := '[]'::jsonb;
+  v_ev       jsonb;
+  v_type     text;
+  v_cat      text;
+  v_ts       bigint := (extract(epoch from now()) * 1000)::bigint;
+begin
+  if jsonb_typeof(p_events) is distinct from 'array' or jsonb_array_length(p_events) = 0 then
+    raise exception 'p_events must be a non-empty JSON array';
+  end if;
+
+  select campaign_id, stats into v_campaign, v_stats from characters where id = p_character for update;
+  if not found then
+    raise exception 'Character not found';
+  end if;
+  if v_campaign is null then
+    raise exception 'Character is not in a campaign';
+  end if;
+  if not is_campaign_dm(v_campaign) then
+    raise exception 'Only a campaign DM can edit this character';
+  end if;
+  if v_stats is null or not (v_stats ? 'LOG') then
+    raise exception 'Character has no log to edit';
+  end if;
+
+  v_log := coalesce(v_stats->'LOG', '[]'::jsonb);
+  v_seq := coalesce((v_stats->>'SEQ')::integer, jsonb_array_length(v_log) + 1);
+
+  for v_ev in select * from jsonb_array_elements(p_events) loop
+    v_type := v_ev->>'type';
+    v_cat  := v_ev->>'cat';
+    if v_type = 'buy' then
+      if v_cat is distinct from 'boon' and v_cat is distinct from 'drawback' then
+        raise exception 'dm_edit_character_log: unsupported buy category %', v_cat;
+      end if;
+    elsif v_type not in ('award', 'dmRemoveBoon') then
+      raise exception 'dm_edit_character_log: unsupported event type %', v_type;
+    end if;
+
+    v_ev := (v_ev - 'seq' - 'ts' - 'dmEdit' - 'dmId')
+      || jsonb_build_object('seq', v_seq, 'ts', v_ts, 'dmEdit', true, 'dmId', auth.uid());
+    v_new := v_new || jsonb_build_array(v_ev);
+    v_seq := v_seq + 1;
+  end loop;
+
+  v_log := v_log || v_new;
+  v_stats := jsonb_set(jsonb_set(v_stats, '{LOG}', v_log), '{SEQ}', to_jsonb(v_seq));
+
+  update characters set stats = v_stats where id = p_character;
+  return v_new;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Campaign-bound AP-ledger integrity (D-GH-2026-08-10-campaign-ap-log-integrity;
 -- sql/migrations/2026-08-10-campaign-ap-log-integrity.sql). Two BEFORE UPDATE triggers on
 -- characters, both pure ledger arithmetic over numbers already declared on the LOG -- neither
@@ -545,6 +617,7 @@ grant execute on function public.create_player_invite(uuid, integer, integer, te
 grant execute on function public.list_campaign_invites(uuid)                        to authenticated;
 grant execute on function public.set_invite_revoked(uuid, boolean)                  to authenticated;
 grant execute on function public.peek_player_invite(text)                           to authenticated;
+grant execute on function public.dm_edit_character_log(uuid, jsonb)                 to authenticated;
 
 -- create_player_invite gained a 4th (p_note) parameter on 2026-08-03. `create or replace` with a new
 -- signature CREATES a second function rather than replacing the old one, so the 3-argument version was
@@ -554,6 +627,7 @@ revoke execute on function public.list_campaign_invites(uuid)                   
 revoke execute on function public.set_invite_revoked(uuid, boolean)                  from public;
 revoke execute on function public.redeem_player_invite(text, text)             from public;
 revoke execute on function public.peek_player_invite(text)                     from public;
+revoke execute on function public.dm_edit_character_log(uuid, jsonb)           from public;
 revoke execute on function public.bind_character_to_campaign(uuid, text)       from public;
 revoke execute on function public.dm_unbind_character(uuid)                    from public;
 revoke execute on function public.is_campaign_dm_of_character(uuid)            from public;
