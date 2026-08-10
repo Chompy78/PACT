@@ -6,6 +6,31 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · feat(chargen): random name pools roughly tripled/quadrupled** — owner report: "i keep
+  getting the same name." Each of the six naming styles held only ~12-16 first / ~8-10 last names;
+  expanded every style to ≥40 first / ≥25 last, additively (originals kept, matching theme per style).
+  `genName()` itself unchanged. `tool-pricing-ci.mjs` 134/0; `engine-parity-ci.mjs` unaffected, 30/0. See
+  `D-GH-2026-08-10-expand-random-names`.
+- **2026-08-10 · feat(chargen): two free-form, player-labeled custom description fields** — owner request.
+  Own label, own sentence, no fixed prompt/random table (so no 🎲/🔒, unlike every other Appearance
+  field). Rides the existing `ap_`-prefix patch delegation with no new commit wiring; the build→DOM
+  reload direction needed its own fix (a real gap caught before shipping — a loaded character would have
+  shown blank custom fields and the next edit would have overwritten the real saved value). See
+  `D-GH-2026-08-10-custom-appearance-fields`.
+
+- **2026-08-10 · fix(chargen): 🎲 Randomise all / 🪶 Auto-write now actually save the description they
+  generate** — found live on a real Amble character: both set the DOM field's `.value` directly with no
+  LOG write, so the randomised appearance/description looked correct on screen but vanished on the next
+  reload, save, or Live Sheet ⇆ CharGen switch. A second, adjacent code path to
+  `fix/sheet-tab-appearance-not-persisted` (the Setup-tab randomiser, not the Sheet tab's manual typing,
+  which that fix already covers) that never got the same fix. Now routes both through the existing
+  `_shCommitAppearanceField()`, skipping the commit while `_histSuspended` so `randomizeRoll()`'s "🎲
+  Random" full-character button (which already does its own full LOG resync right after) doesn't waste
+  ~20 redundant fold+compute passes per click (`/code-review` finding, fixed pre-merge — confirmed 28
+  wasted calls before the guard, 0 after). New regression tests (confirmed to fail pre-fix, pass post-fix
+  by hand-reverting each one). `tool-pricing-ci.mjs` 129/0; `engine-parity-ci.mjs` unaffected, 30/0. See
+  `D-GH-2026-08-10-randomise-appearance-not-persisted`.
+
 - **2026-08-10 · fix(dm-console, live-sheet): two `/code-review ultra` findings from PR #403's pre-merge
   review, fixed before merge** — (1) DM Console's ≤700px roster card fallback (`renderCards()`, a
   different code path from the table view's own `COLS`) still showed the raw, DM-AP-blind `earned`
@@ -33,6 +58,15 @@
   doesn't borrow that language. Driven off the same name-suffix check on every render so it also
   reappears on a later reload of the same copy. Addendum to `D-GH-2026-08-10-chargen-dm-view`.
   `tool-pricing-ci.mjs` 123/0 (3 checks); display-only, no `DATA.version` change.
+- **2026-08-10 · fix(chargen): DM AP no longer silently reads 0 after a Live Sheet → CharGen switch** —
+  found live on a real Amble character. `_cgAdoptEnvelopeBinding()` gated its DM-AP refresh on
+  `window._cloudSignedIn`, which the `'campaign-ready'` listener resets to `false` the instant it fires
+  and only asynchronously re-sets afterward — a race that could skip the refresh for a genuinely
+  signed-in user on either boot path (a Live Sheet handoff or a plain reload), while `_dmApStatus` still
+  independently resolved to `'active'` — exactly the "🛡 0 AP — DM only" symptom. Now asks the auth
+  bridge directly (`currentSession()`) instead, matching `_cgConsumeViewChar()`'s existing pattern. New
+  regression test (confirmed to fail pre-fix, pass post-fix by hand-reverting). `tool-pricing-ci.mjs`
+  126/0; `engine-parity-ci.mjs` unaffected, 30/0. See `D-GH-2026-08-10-dm-ap-lost-on-handoff`.
 - **2026-08-10 · feat(engine): AP ledger shows what was LOST — bought-off drawbacks, DM-removed boons**
   (`DATA.version` v0.341 → v0.342) — a bought-off drawback or DM-removed boon drops out of `_replay()`'s
   fold entirely, so `compute()` (pure over the build) had NO way to show its cost — a drawback taken for

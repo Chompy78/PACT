@@ -28,6 +28,46 @@ to `CHANGELOG.md`.
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
 
+## dm_edit_character_log doesn't cross-validate a DM boon grant's buy/award amounts — TODO
+Branch `fix/dm-edit-boon-amount-check`. Found by `/code-review ultra` on PR #403 (2026-08-10, see
+`decisions/2026/D-GH-2026-08-10-dm-edit-events.md`'s "Addendum (2026-08-10, pre-merge review)").
+
+**Effort:** low · **Risk:** medium — ambiguity is low (the fix, if taken, is a straightforward SQL
+check: when a `buy`/cat:'boon' event and an `award` event appear in the same `p_events` array, their
+`cost`/`amount` must match); damage scale is medium (touches `dm_edit_character_log`, the sole DM write
+path onto a player's `stats` — a wrong validation could block a legitimate DM boon grant); damage
+likelihood is low (this is a hardening addition to an already authenticated-only, DM-only-gated RPC, not
+a behaviour change for any existing legitimate caller) — worst-of lands at medium on damage scale.
+
+```text
+0. MEASURED 2026-08-10 (code review, not yet independently reproduced against the live RPC): the
+   allowlist in sql/migrations/2026-08-10-dm-edit-character-log.sql checks event `type`/`cat` only —
+   it never verifies a paired `buy` cost equals the `award` amount. The migration's own header comment
+   ("moves both sums by the identical amount (net 0...)") and DM Console's grant-boon tooltip both
+   promise the operation is net-0 to spendable AP, but that promise is enforced by DM Console's client
+   code always sending the pair together — nothing server-side stops a caller from sending `award`
+   alone, or with a mismatched amount.
+1. THE DECISION COMES FIRST: is this worth fixing at all? The migration's own comment already names it
+   as an accepted trade-off — `award_ap()` already lets a DM grant arbitrary AP through a separate,
+   existing path, so a bare `award` via this RPC isn't a NEW privilege, just a second route to one that
+   already exists. Confirm that reasoning still holds (re-read award_ap()'s own grant/RLS) before
+   deciding whether server-side cross-validation is worth adding regardless, for defense-in-depth.
+2. If fixing: add a check in the `p_events` loop — when a `buy`/cat:'boon' event's `cost` doesn't have a
+   same-call `award` event of the identical `amount` (matched 1:1, not just "some award exists somewhere
+   in the batch"), raise an exception. Mirror the FIFO-by-position caution already documented for
+   `boughtOff`/`boonRemoved` in js/engine.js's `activeEvents()` — don't match by value alone if the
+   batch could ever contain more than one boon grant.
+3. If NOT fixing: write a decision record explaining why (likely: the award_ap() equivalence argument
+   above, formalized) so a future reviewer doesn't re-flag the same thing as a fresh finding.
+4. Either way: re-run `get_advisors(type:'security')` against the live Supabase project after any SQL
+   change, and re-verify DM Console's grant-boon flow still works end-to-end (tool-pricing-ci.mjs's
+   existing "grant boon calls dm_edit_character_log with a matched [buy,award] pair at the SAME cost"
+   check already covers the legitimate-caller shape; add a new check for the rejected-mismatch case if
+   the fix is taken).
+```
+**Done when:** either the RPC validates a boon grant's paired `buy`/`award` amounts match, with a gate
+asserting a mismatched pair is rejected, or a decision record explains why it deliberately doesn't.
+
 ## Port the AGENTS.md/skills scaffold to another repo — TODO
 Branch docs/port-agents-scaffold-skill. Generalize this session's manual copy-and-adapt work (porting
 AGENTS.md + .claude/commands/ + hooks to chompy78/petdetective and chompy78/homelife — see

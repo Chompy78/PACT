@@ -10,6 +10,41 @@
 
 ## Index
 
+- **D-GH-2026-08-10-expand-random-names** — owner report: "i keep getting the same name." Each of the six
+  `NAMEDATA` naming styles held only ~12-16 first / ~8-10 last names; expanded every style ~3-4x (≥40
+  first / ≥25 last, gated), additively (originals kept, new names appended, no reshuffle), matching each
+  style's existing theme. `genName()` itself unchanged — same shape, more data. `tool-pricing-ci.mjs`
+  134/0; `engine-parity-ci.mjs` unaffected, 30/0 (pure flavour data, not the rules dataset).
+  Full record: `decisions/2026/D-GH-2026-08-10-expand-random-names.md`.
+- **D-GH-2026-08-10-custom-appearance-fields** — owner request: two free-form, player-labeled detail
+  fields on CharGen's Appearance panel (own label, own sentence, no fixed prompt, no random table — so no
+  🎲/🔒 unlike every other field). `ap_`-prefixed ids ride the existing generic patch delegation
+  (`_cgPatchSlotForId`'s prefix match) with zero new commit wiring; only the DOM↔build translation needed
+  the two new keys added, including the build→DOM reload direction (a real gap, caught by hand-reading
+  `applyBuild`'s field list and locked in with a regression test that fails without that one line).
+  `tool-pricing-ci.mjs` 132/0 at that point in the session; `engine-parity-ci.mjs` unaffected, 30/0.
+  Full record: `decisions/2026/D-GH-2026-08-10-custom-appearance-fields.md`.
+- **D-GH-2026-08-10-randomise-appearance-not-persisted** — found live on a real Amble character: CharGen's
+  "🎲 Randomise all" appearance control (and "🪶 Auto-write" description) set DOM field values directly
+  with no LOG write, so the randomised text rendered convincingly on screen but vanished on the next
+  reload/save/tool-switch. A second, adjacent code path to `fix/sheet-tab-appearance-not-persisted`
+  (Setup-tab `apField()` inputs, not the Sheet tab's manually-typed fields, which that fix already
+  covers) that never got the same treatment. Fixed by routing both through the existing
+  `_shCommitAppearanceField()` — the same primitive manual typing already uses, so it also coalesces
+  correctly into one patch event. New regression tests confirmed to fail without the fix (DOM populated,
+  LOG empty) and pass with it. `tool-pricing-ci.mjs` 128/0; `engine-parity-ci.mjs` unaffected, 30/0.
+  Full record: `decisions/2026/D-GH-2026-08-10-randomise-appearance-not-persisted.md`.
+- **D-GH-2026-08-10-dm-ap-lost-on-handoff** — found live on a real Amble character: DM AP read as "🛡 0
+  AP — DM only" in CharGen after switching from the Live Sheet, despite showing correctly in both the
+  Live Sheet and DM Console. Root cause: `_cgAdoptEnvelopeBinding()` gated its DM-AP refresh on
+  `window._cloudSignedIn`, a flag the `'campaign-ready'` listener itself resets to `false` the instant it
+  fires and only asynchronously re-sets afterward — a race that could skip the refresh for a genuinely
+  signed-in user while `_dmApStatus` (resolved separately, from the campaign fetch alone) still reported
+  `'active'`. Fixed by asking the auth bridge directly (`currentSession()`) instead of trusting the flag,
+  matching `_cgConsumeViewChar()`'s existing pattern. New regression test confirmed to fail without the
+  fix and pass with it (hand-verified by reverting just the fix). `tool-pricing-ci.mjs` 126/0;
+  `engine-parity-ci.mjs` unaffected, 30/0 — display/timing only.
+  Full record: `decisions/2026/D-GH-2026-08-10-dm-ap-lost-on-handoff.md`.
 - **D-GH-2026-08-10-ledger-show-lost-purchases** — the AP ledger showed NOTHING for a bought-off drawback
   or a DM-removed boon: `compute()` is pure over the build, and both drop out of `_replay()`'s fold
   entirely, so their AP (still real, permanent spend) was invisible to `compute().total` while

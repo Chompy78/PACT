@@ -903,6 +903,30 @@ try {
       return [pendingBeforeReady, window._cgCampaignBound, window._cgCampaignId];
     })()`), [true, true, 'fake-test-campaign']);
 
+  // fix/dm-ap-lost-on-handoff (found live in a real Amble campaign, 2026-08-10): window._cloudSignedIn
+  // is synchronously reset to false by the 'campaign-ready' listener itself, the instant it fires, and
+  // only asynchronously flipped true again once that listener's OWN separate auth check resolves —
+  // waiting for 'campaign-ready' (the check just above) does not wait for THAT second resolution. Before
+  // the fix, _cgAdoptEnvelopeBinding() gated its DM-AP refresh on that stale flag, so a genuinely
+  // signed-in user's DM AP silently read as 0 on a fresh handoff/reload even though _dmApStatus still
+  // resolved to 'active' (a separate check that doesn't depend on the flag) — exactly the "🛡 0 AP — DM
+  // only" label. Reproduce the race directly: bridges already exist (so the campaign-ready wait above is
+  // a no-op here), but _cloudSignedIn is still stale-false, while a direct currentSession() call (what
+  // the fix uses instead) would report a real session.
+  check('DM AP still resolves correctly when window._cloudSignedIn is stale-false but the user really is signed in',
+    await cg.evaluate(`(async()=>{
+      const realAuth=window._authBridge, realCamp=window._campaignBridge, realSync=window._syncBridge;
+      window._cloudSignedIn = false;   // the exact stale state the race produces
+      window._authBridge = { currentSession: async()=>({user:{id:'test-user'}}) };
+      window._campaignBridge = { getCampaign: async()=>({id:'test-camp',ignore_player_ap:true,rules:{}}) };
+      window._syncBridge = { refreshServerAp: async(id)=> id==='test-char-id' ? 53 : null };
+      window._dmApStatus='none'; window._dmAp=0; window._cgCampaignBound=false; window._cgCampaignId=null;
+      await _cgAdoptEnvelopeBinding({campaignId:'test-camp', id:'test-char-id'});
+      const result=[window._dmApStatus, window._dmAp];
+      window._authBridge=realAuth; window._campaignBridge=realCamp; window._syncBridge=realSync;
+      return result;
+    })()`), ['active', 53]);
+
   console.log('\nCharGen — the drawbacks ledger line itemises what was taken');
   const LEDGER_ROWS = `(sel)=>{const rows=[...document.getElementById('ledger').querySelectorAll('tr')].map(tr=>
       ({cls:tr.className,label:(tr.cells[0]||{}).innerText||'',val:Number((tr.cells[1]||{}).innerText)}));
@@ -1021,6 +1045,100 @@ try {
       el.value='Jamie'; onSheetField(el);
       return csLoad(currentCharId()).playerName;})()`),
     'Jamie');
+
+  // fix/randomise-appearance-not-persisted: found live (a real Amble character's randomised description
+  // vanished after a Live Sheet <-> CharGen round trip). _rollField()/genDescription() set DOM .value
+  // directly with no 'input' event and no LOG write — looked committed on screen, was never actually
+  // saved anywhere. Assert the fix: after 🎲 Randomise all, the LOG carries exactly ONE coalesced
+  // appearance patch event (same coalescing behaviour as manual typing, PR #364's pattern) with the
+  // fields actually populated, and it survives a fold — not just a DOM read.
+  console.log('\nCharGen — 🎲 Randomise all / 🪶 Auto-write actually commit to the LOG, not just the DOM');
+  check('randomiseAppearance() writes to the LOG (not just the DOM), still coalesced into ONE patch event',
+    await cg.evaluate(`(()=>{
+      randomiseAppearance();
+      const matches=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance);
+      const domOverall=document.getElementById('ap_overall')?document.getElementById('ap_overall').value:'';
+      const b=foldBuild(LOG);
+      return [matches.length, domOverall.length>0, domOverall===b.appearance.overall, b.appearance.hometown.length>0];})()`),
+    [1, true, true, true]);
+  check('🪶 Auto-write (genDescription alone) also commits, coalescing into the same single patch event',
+    await cg.evaluate(`(()=>{
+      const n=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance).length;
+      _shCommitAppearanceField('hometown','Rewritten-by-hand');   // updates both LOG and the DOM field genDescription() reads
+      genDescription();
+      const matches=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance);
+      const b=foldBuild(LOG);
+      return [n, matches.length, b.appearance.hometown, /Rewritten-by-hand/.test(b.appearance.overall)];})()`),
+    [1, 1, 'Rewritten-by-hand', true]);
+  // code-review finding (this session): randomizeRoll() (the full "🎲 Random" button) calls
+  // randomiseAppearance() while _histSuspended, then unconditionally rebuilds the WHOLE LOG from the DOM
+  // a few lines later (replaceWholeLogFromBuild) — committing appearance mid-roll would be ~20 wasted
+  // fold+compute passes per click for state that resync immediately discards. Assert both halves: the
+  // commit is skipped while suspended (spy on _shCommitAppearanceField's call count), AND the final
+  // result still ends up with real appearance data (the resync captures the DOM values either way).
+  check('randomizeRoll() skips the per-field LOG commit (suspended — a full resync follows) but the final build still has real appearance data',
+    await cg.evaluate(`(()=>{
+      const real=_shCommitAppearanceField; let calls=0;
+      // _rollField/genDescription call the bare identifier — reassigning window.X redirects it too,
+      // since a top-level "function name(){}" declaration in a classic script IS a window property
+      // (unlike let/const), the same mechanism the existing "compute gates" test above already relies on.
+      window._shCommitAppearanceField=function(){calls++;return real.apply(this,arguments);};
+      randomizeRoll();
+      window._shCommitAppearanceField=real;
+      const b=foldBuild(LOG);
+      return [calls, b.appearance.overall.length>0, b.appearance.hometown.length>0];})()`),
+    [0, true, true]);
+
+  // feat/expand-random-names (owner request, 2026-08-10 — "i keep getting the same name"): each of the
+  // 6 styles roughly tripled/quadrupled from its original ~12-16 first / ~8-10 last names. Floor checks
+  // (not exact counts, so future additions don't need this test touched) guard against an accidental
+  // shrink back toward the old, repeat-prone size; every original name is still present (additive, not
+  // a rewrite) and pool contents are unique within each list (a literal typo'd duplicate reduces real
+  // variety without showing up as a count regression).
+  console.log('\nCharGen — the random name pools were genuinely expanded, not just re-labelled');
+  check('every style has at least 40 first names and 25 last names, each style internally duplicate-free',
+    await cg.evaluate(`(()=>{
+      const styles=Object.keys(NAMEDATA);
+      const sizesOk=styles.every(k=>NAMEDATA[k].first.length>=40&&NAMEDATA[k].last.length>=25);
+      const noDupes=styles.every(k=>new Set(NAMEDATA[k].first).size===NAMEDATA[k].first.length&&new Set(NAMEDATA[k].last).size===NAMEDATA[k].last.length);
+      return [styles.length, sizesOk, noDupes];})()`),
+    [6, true, true]);
+  check('the original heroic names are still present (additive expansion, not a replacement)',
+    await cg.evaluate(`(()=>{
+      const orig=['Aldric','Roland','Garrick','Bryn','Brightblade','Stormholt'];
+      return orig.every(n=>NAMEDATA.heroic.first.includes(n)||NAMEDATA.heroic.last.includes(n));})()`),
+    true);
+
+  // feat/custom-appearance-fields (owner request, 2026-08-10): two free-form, player-labeled detail
+  // fields — unlike every other appearance field, no fixed prompt, no random table, so no 🎲/🔒. Their
+  // 'ap_'-prefixed ids ride the EXISTING generic patch delegation (_cgPatchSlotForId's prefix match), so
+  // manual typing needs zero new wiring — assert that directly. Also assert the DOM-restore direction
+  // (applyBuild's explicit field list), which is easy to silently miss when adding a new appearance key —
+  // exactly the gap this test would have caught (found by re-reading applyBuild's own list by hand before
+  // this test existed, not by the test itself, but locked in here so it can't silently regress).
+  console.log('\nCharGen — the two custom-labeled appearance fields commit and reload correctly');
+  check('typing into a custom field commits to the LOG via the existing ap_* patch delegation, no new wiring',
+    await cg.evaluate(`(()=>{
+      const lab=document.getElementById('ap_custom1Label'), txt=document.getElementById('ap_custom1Text');
+      lab.value='Catchphrase'; lab.dispatchEvent(new Event('input',{bubbles:true}));
+      txt.value='Never met a lock I couldn\\'t pick.'; txt.dispatchEvent(new Event('input',{bubbles:true}));
+      const b=foldBuild(LOG);
+      return [b.appearance.custom1Label, b.appearance.custom1Text];})()`),
+    ['Catchphrase', "Never met a lock I couldn't pick."]);
+  check('a loaded build repopulates both custom fields\' DOM inputs (the reverse, applyBuild direction)',
+    await cg.evaluate(`(()=>{
+      const b=readBuild();
+      b.appearance=Object.assign({},b.appearance,{custom2Label:'Motto',custom2Text:'Slow is smooth, smooth is fast.'});
+      applyBuild(b);
+      return [document.getElementById('ap_custom2Label').value, document.getElementById('ap_custom2Text').value];})()`),
+    ['Motto', 'Slow is smooth, smooth is fast.']);
+  check('custom fields are never touched by 🎲 Randomise all (no random table backs a player-invented label)',
+    await cg.evaluate(`(()=>{
+      const before=[document.getElementById('ap_custom1Label').value,document.getElementById('ap_custom2Label').value];
+      randomiseAppearance();
+      const after=[document.getElementById('ap_custom1Label').value,document.getElementById('ap_custom2Label').value];
+      return [before[0]===after[0], before[1]===after[1]];})()`),
+    [true, true]);
 
   // feat/campaign-ap-budget-enforce: a campaign-bound character's CLOUD save (manual + autosave) is
   // refused once compute()'s remaining<0, when the campaign's rules.enforceApBudget is true-or-absent.
