@@ -1499,6 +1499,59 @@ low risk once that's answered.
 adversarial tests proving both that abuse is throttled and legitimate use isn't blocked; the decision is
 recorded in `DECISIONS.md`; the Supabase advisor reports no new findings.
 
+## Supabase Edge Function running the real engine.js for AP-budget validation — TODO
+Branch `feat/ap-edge-function-validation`. Third of three ideas from the 2026-08-09/10 AP-integrity
+external-review batch (`z-cold/` on the `zcold` branch — 7 independent AI reviews synthesized against the
+actual code). The other two shipped as one change: `feat/campaign-ap-log-integrity` (a frozen-cost-sum
+consistency trigger with a non-regression guard, plus a locked-history append-only protection trigger
+scoped to the same boundary Live Sheet's own `undo()` already enforces — the last non-discretionary
+`award` event). This is the deferred, lower-priority third leg.
+
+**Why it's lower priority, not higher — confirmed by reading the code, not assumed.** Several of the
+external reviews proposed this as the "real"/airtight server-side fix, on the theory that running the
+actual `compute()` server-side re-derives correct prices. Checked directly in `js/engine.js`
+(`_spendCost()`/`_economyFrom()`, ~lines 617-662): `compute()`/`economy()` only **sum** the frozen `cost`
+field already sitting on each LOG event — they never re-derive what a purchase *should* cost from the
+action itself. (Only `repriceDraft()` does real re-derivation, and it deliberately no-ops the instant a
+log is locked — post-lock prices are supposed to diverge from current rules; that's grandfathering, not a
+gap.) So an Edge Function that calls `compute()` server-side gives the exact same guarantee as the SQL
+trigger already shipped in `feat/campaign-ap-log-integrity` — both just confirm the client's *declared*
+numbers are internally consistent and within server-truth AP, neither proves any individual frozen cost is
+*correct*. Its real value is DRY/maintainability (one canonical pricing implementation instead of a second,
+hand-written SQL sum that could drift) and broader coverage (could also run `validate()`'s other checks,
+not just the budget sum) — not a bigger security boundary than what's already shipped.
+**Effort:** medium · **Risk:** low — ambiguity is low (the mechanism — bundle `engine.js` for Deno, call
+`compute()`/`validate()` inside a Supabase Edge Function, gate the DB write on the result — is well
+understood); damage scale is low (additive: a new Edge Function alongside the existing PostgREST save
+path, not a replacement, unless a later decision retires direct client writes); damage likelihood is low
+(explicitly deferred — "do only if the SQL-trigger approach proves insufficient in practice," not urgent).
+
+```text
+1. Re-confirm the premise before starting: re-check that feat/campaign-ap-log-integrity's two triggers are
+   actually proving insufficient in practice (a real bypass observed, not a theoretical one) — this task
+   exists to be revisited, not built reflexively once the SQL-trigger PR merges.
+2. Bundle js/engine.js for Deno (an ESM re-export wrapper + esbuild bundle, or confirm engine.js is already
+   Deno-importable as-is — it's pure JS with no browser globals per the 2026-08-10 review batch, but verify
+   directly rather than trusting that claim).
+3. New Edge Function (e.g. supabase/functions/validate-save/): fetches authoritative characters.ap and
+   campaigns.rules server-side (never trusts client-supplied budget figures), runs the real compute()
+   (and optionally validate()) against the client-submitted LOG, rejects the write if over budget or if a
+   validate() check fails, otherwise performs the write itself.
+4. Client integration: CharGen's and Live Sheet's cloud-save paths call the Edge Function instead of (or
+   in addition to, during a transition) a raw PostgREST PATCH on characters.stats.
+5. Decide whether to revoke direct client UPDATE on characters.stats once the Edge Function path is proven
+   — that's the point where this stops being additive and starts being the primary security boundary.
+   Record that decision explicitly; don't let it happen implicitly as a side effect of "the new path works."
+6. Run the Supabase advisor (get_advisors) and skim get_logs after deploying the function, per the
+   per-change checklist step 4.
+```
+
+**Done when:** the premise re-check in step 1 is recorded (with its evidence) before implementation
+starts; the Edge Function runs the real, unmodified `engine.js`; a campaign-bound cloud save that would
+exceed budget is rejected server-side even when submitted via a raw PATCH bypassing the client UI; the
+decision on whether/when to revoke direct client writes is recorded in `DECISIONS.md`; the Supabase
+advisor reports no new findings.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
