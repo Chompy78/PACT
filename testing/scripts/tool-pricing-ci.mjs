@@ -434,6 +434,17 @@ try {
   if (!(await cg.evaluate(READY(`window.DATA&&typeof _creationLockState==='function'&&LOG.length>0`))))
     throw new Error('CharGen never became ready');
 
+  // fix/chargen-rules-label-live: the #cgPactver chip and the <title>'s "Rules" half used to hardcode
+  // a literal rules version (found 2 versions stale at v0.339 while DATA.version was ahead) — assert
+  // both EQUAL DATA.version itself, never a fixed string, so this check never needs a rules bump.
+  console.log('\nCharGen — the rules label reads the live DATA.version, not a hardcoded literal');
+  check('the #cgPactver chip shows the live DATA.version',
+    await cg.evaluate(`(()=>{const el=document.getElementById('cgPactver');
+      return [el?el.textContent:'(missing)', el?el.textContent===('PACT rules · '+DATA.version):false];})()`),
+    [await cg.evaluate(`'PACT rules · '+DATA.version`), true]);
+  check('the <title> "Rules" half shows the live DATA.version',
+    await cg.evaluate(`document.title.includes('Rules '+DATA.version)`), true);
+
   console.log('\nCharGen — armed at boot, notice shown until confirmed');
   // Regression guard for b3b4271: replaceWholeLogFromBuild() reassigns LOG wholesale and bypasses the
   // mutation-API hooks, so a fresh boot used to land here unarmed and un-lockable.

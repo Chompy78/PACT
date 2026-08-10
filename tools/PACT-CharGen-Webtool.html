@@ -571,9 +571,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
     const pactverSpan = document.getElementById('cgPactver');
     if (pactverSpan && window.DATA && window.DATA.version) {
       pactverSpan.textContent = `PACT rules · ${window.DATA.version}`;
-      // Update title to match the new version
-      const newTitle = `PACT Character Generator — Web Tool v0.203 · Rules ${window.DATA.version}`;
-      document.title = newTitle;
+      // Update the title's rules half only — the web-tool build half (BUILD) is a manually-mirrored
+      // literal per docs/VERSION-SYNC.md, not something this script should invent its own copy of.
+      // Read it back from the header .sub label (already the canonical live source for it, see the
+      // #infoVersions composer further down this file) so it can never drift from what's on screen.
+      const subEl = document.querySelector('.hd-row2 .sub');
+      const buildLabel = subEl ? subEl.textContent.replace(/^Web Tool\s*·\s*/, '').trim() : '';
+      document.title = buildLabel
+        ? `PACT Character Generator — Web Tool ${buildLabel} · Rules ${window.DATA.version}`
+        : document.title.replace(/Rules v[\d.]+/, `Rules ${window.DATA.version}`);
     }
   }, {once: true});
 </script>

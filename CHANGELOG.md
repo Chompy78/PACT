@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · fix(chargen): rules-label `<title>` no longer clobbers the web-tool build version** —
+  CharGen's `#cgPactver` chip was already reading `DATA.version` live (found already fixed, contrary to
+  the stale task-board entry that filed this as still-hardcoded); the real live bug was in the
+  `engine-ready` title-rewrite, which hardcoded a stale `v0.203` literal over the correct BUILD number
+  every time it ran. Now reads the web-tool half back from the header `.sub` label (the same
+  manually-mirrored-at-promotion value already on screen) instead of inventing a second copy of it.
+  `docs/VERSION-SYNC.md` gained a "rules version display sites" table confirming all three tools read
+  `DATA.version` live — no rules-label edit is ever needed at a rules bump. Gate added to
+  `tool-pricing-ci.mjs` (confirmed red against the reverted wiring first). Display-only; no
+  `DATA.version`/`BUILD` change.
 - **2026-08-10 · chore(version): promote `preview` → `main`, `BUILD` v1.398 → v1.402 (PR #402)** —
   regular merge commit (never squash, per `docs/VERSION-SYNC.md`). Carries the AP-ledger integrity
   triggers below into production. `dm-console-ui`'s CI failure on the version-bump commit was flake, not
