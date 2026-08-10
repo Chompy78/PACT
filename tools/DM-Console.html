@@ -981,7 +981,7 @@ function dmAnalyze(exported, apOpts){
   (r.discInfo||[]).forEach(function(di){ if(!di) return;
     casting.push({trad:di.tradName||di.trad||'', disc:di.name||'', ab:di.castAb, dc:di.saveDC, atk:di.spellAtk, rank:di.rank, prepared:!!di.prepared}); });
   return {
-    name: b.name||exported.name||'Unnamed Hero',
+    name: b.name||exported.name||'New Character',
     rules: exported.rules||'?',
     species: b.species, species2: b.species2, lineage: b.lineage||'',
     originClass: b.originClass, originClass2: b.originClass2,
@@ -1425,7 +1425,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   function flagCount(a){ return (a.unnamed>0?1:0)+(a.warnings>0?1:0); }
   function flagDisp(a){ var n=flagCount(a); if(!n) return '<span class="flag-none">—</span>'; var tip=(a.warningList||[]).slice(); if(a.unnamed>0) tip.push(a.unnamed+' unnamed spell/feat entr'+(a.unnamed>1?'ies':'y')); return '<span class="flag" title="'+esc(tip.join('\n'))+'">⚠ '+n+'</span>'; }
   var COLS = [
-    {key:'name',     label:'Name',     type:'text', cls:'name', get:function(a){return a.name||'';}, disp:function(a){return esc(a.name||'Unnamed Hero')+tamperBadge(a);}},
+    {key:'name',     label:'Name',     type:'text', cls:'name', get:function(a){return a.name||'';}, disp:function(a){return esc(a.name||'New Character')+tamperBadge(a);}},
     {key:'species',  label:'Species',  type:'text', get:function(a){return speciesText(a);}, disp:function(a){return esc(speciesText(a));}},
     {key:'class',    label:'Class',    type:'text', get:function(a){return classText(a);}, disp:function(a){return esc(classText(a));}},
     {key:'species2', label:'Species 2',type:'text', get:function(a){return (a.species2&&a.species2!=='(none)')?a.species2:'';}, disp:function(a){return esc((a.species2&&a.species2!=='(none)')?a.species2:'—');}},
@@ -1466,7 +1466,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   function kv(k,v){ return '<div class="kv"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>'; }
   function renderHead(){ var tr='<tr><th class="exq"></th>'; visCols().forEach(function(c){ var active=(sort.key===c.key); var arrow=active?(sort.dir>0?'▲':'▼'):''; var cls=(c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':''); tr+='<th data-key="'+c.key+'" class="'+(active?'active ':'')+cls+'">'+esc(c.label)+'<span class="arrow">'+arrow+'</span></th>'; }); tr+='</tr>'; $('thead').innerHTML=tr; Array.prototype.forEach.call($('thead').querySelectorAll('th'),function(th){ th.addEventListener('click',function(){ var k=th.getAttribute('data-key'); if(!k) return; if(sort.key===k) sort.dir=-sort.dir; else { sort.key=k; sort.dir=(colByKey(k).type==='num')?-1:1; } render(); }); }); }
   function renderBody(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, isSel=(expanded===ri); html+='<tr class="data'+(isSel?' sel':'')+'" data-ri="'+ri+'">'; html+='<td class="exq"><span class="exq-chev">▸</span></td>'; visCols().forEach(function(c){ var cls=(c.cls==='name')?'name':((c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':'')); html+='<td class="'+cls+'">'+c.disp(a)+'</td>'; }); html+='</tr>'; if(isSel){ html+='<tr class="detail"><td colspan="'+(visCols().length+1)+'">'+detailHTML(a)+'</td></tr>'; } }); var tb=$('tbody'); tb.innerHTML=html; Array.prototype.forEach.call(tb.querySelectorAll('tr.data'),function(tr){ tr.addEventListener('click',function(){ var ri=+tr.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); }); }); }
-  function renderCards(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, open=(expanded===ri); html+='<div class="ccard"><div class="chead" data-ri="'+ri+'"><div><div class="nm">'+esc(a.name||'Unnamed Hero')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div><div class="sub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div></div><div class="chev">'+(open?'−':'+')+'</div></div>'; if(open){ html+='<div class="cbody">'; html+=kv('HP',a.hp); html+='<div class="kv"><span class="k">AC</span><span class="v">'+acCellHTML(a.ac,a.name)+'</span></div>'; html+=kv('Save DC',dcDisp(a)); html+=kv('AP Earned',a.earned); html+=kv('AP Spent',a.spent); html+='<div class="kv"><span class="k">AP Available</span><span class="v">'+availCell(a.available)+'</span></div>'; html+='<div class="kv"><span class="k">Flags</span><span class="v">'+flagDisp(a)+'</span></div>'; html+=detailHTML(a); html+='</div>'; } html+='</div>'; }); var c=$('cards'); c.innerHTML=html; Array.prototype.forEach.call(c.querySelectorAll('.chead'),function(h){ h.addEventListener('click',function(){ var ri=+h.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); }); }); }
+  function renderCards(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, open=(expanded===ri); html+='<div class="ccard"><div class="chead" data-ri="'+ri+'"><div><div class="nm">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div><div class="sub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div></div><div class="chev">'+(open?'−':'+')+'</div></div>'; if(open){ html+='<div class="cbody">'; html+=kv('HP',a.hp); html+='<div class="kv"><span class="k">AC</span><span class="v">'+acCellHTML(a.ac,a.name)+'</span></div>'; html+=kv('Save DC',dcDisp(a)); html+=kv('AP Earned',a.earned); html+=kv('AP Spent',a.spent); html+='<div class="kv"><span class="k">AP Available</span><span class="v">'+availCell(a.available)+'</span></div>'; html+='<div class="kv"><span class="k">Flags</span><span class="v">'+flagDisp(a)+'</span></div>'; html+=detailHTML(a); html+='</div>'; } html+='</div>'; }); var c=$('cards'); c.innerHTML=html; Array.prototype.forEach.call(c.querySelectorAll('.chead'),function(h){ h.addEventListener('click',function(){ var ri=+h.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); }); }); }
   function renderTable(){ renderHead(); renderBody(); renderCards(); }
   // Dim the local-tools card whenever this campaign actually has characters. Guarded: the
   // campaign-ready block that defines it may not have loaded (cloud bridge failure).
@@ -1624,7 +1624,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       h+='<tr class="'+cls+'"><td>'+tag+esc(r.name)+'</td><td>'+esc(r.ab||'—')+'</td><td class="num">'+_sgnv(r.bonus)+'</td></tr>'; });
     return h+'</tbody></table>';
   }
-  function _chars(){ return _combinedRoster().map(function(r){ return {name:(r.summary&&r.summary.name)||'Unnamed Hero', a:r.summary||{}}; }); }
+  function _chars(){ return _combinedRoster().map(function(r){ return {name:(r.summary&&r.summary.name)||'New Character', a:r.summary||{}}; }); }
   function matrixOverlayHTML(chars){
     if(!chars.length) return '<h2 class="ov-h">Party Skill Matrix</h2><div class="ov-sub">No characters loaded.</div>';
     var skills=(typeof DATA!=='undefined'&&DATA.skillList)?DATA.skillList:[];
@@ -1698,15 +1698,15 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       var sk=t.closest? t.closest('[data-sk]') : null;
       if(sk){ e.preventDefault(); e.stopPropagation(); var id=sk.getAttribute('data-sk');
         var r=findRosterEntry(id);
-        if(r&&r.summary) openOv(skillsOverlayHTML(r.summary.name||'Unnamed Hero', r.summary)); return; }
+        if(r&&r.summary) openOv(skillsOverlayHTML(r.summary.name||'New Character', r.summary)); return; }
       var tl=t.closest? t.closest('[data-tools]') : null;
       if(tl){ e.preventDefault(); e.stopPropagation(); var tid=tl.getAttribute('data-tools');
         var rt=findRosterEntry(tid);
-        if(rt&&rt.summary) openOv(toolsOverlayHTML(rt.summary.name||'Unnamed Hero', rt.summary)); return; }
+        if(rt&&rt.summary) openOv(toolsOverlayHTML(rt.summary.name||'New Character', rt.summary)); return; }
       var kn=t.closest? t.closest('[data-known]') : null;
       if(kn){ e.preventDefault(); e.stopPropagation(); var kid=kn.getAttribute('data-known');
         var rr=findRosterEntry(kid);
-        if(rr&&rr.summary) openOv(knownSpellsOverlayHTML(rr.summary.name||'Unnamed Hero', rr.summary.casting||[])); }
+        if(rr&&rr.summary) openOv(knownSpellsOverlayHTML(rr.summary.name||'New Character', rr.summary.casting||[])); }
     });
     document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeOv(); });
     document.addEventListener('input', function(e){
@@ -1753,13 +1753,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     }
     // Carry the `name` COLUMN through even when hasData is false. A player can name a character and
     // save it before buying anything — the column then holds their real name while the LOG still has
-    // no `buy` event, so the placeholder card below must not fall back to "Unnamed character" and
-    // throw the name away (it did: a correctly-named, correctly-bound character read as nameless).
-    // 'New Character' is the server-assigned default (sql/schema.sql: characters.name's column
-    // default, and redeem_player_invite's v_name fallback), so it carries no more information than
-    // no name at all and is treated as absent here.
+    // no `buy` event, so the placeholder card below must not fall back to the default name and throw
+    // the real one away (it did: a correctly-named, correctly-bound character read as nameless).
+    // 'New Character' (sql/schema.sql: characters.name's column default, and redeem_player_invite's
+    // v_name fallback) is shown AS-IS, same as CharGen and the Live Sheet — D-GH-2026-08-10-
+    // unnamed-character-default: a real stored default name wins everywhere, rather than this tool
+    // converting it back to blank and substituting its own different fallback string.
     var rowName = (row.name||'').trim();
-    if(rowName === 'New Character') rowName = '';
     return {
       id: row.id, summary: summary, hasData: hasData, rowName: rowName,
       dm: { ap: row.ap||0, player: row.player||'', playerLabel: row.playerLabel||'', dmNotes: row.dmNotes||'' }
@@ -1770,7 +1770,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // documents) — show a lightweight placeholder instead of running dmAnalyze() on an empty LOG.
   function cloudCardHTML(rec){
     if(!rec.hasData){
-      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'Unnamed character';
+      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'New Character';
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+

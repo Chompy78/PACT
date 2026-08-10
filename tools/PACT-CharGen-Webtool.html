@@ -860,10 +860,10 @@ document.addEventListener('sync-ready', function () {
       if (!c.hasData) {
         return '<div class="mi" style="display:flex;align-items:center;color:var(--grey);cursor:default;opacity:.65" ' +
           'title="Never saved from CharGen or Live Sheet — there is nothing to load yet.">' +
-          '<span style="flex:1">' + _apEsc(c.name || 'Unnamed') + '</span>' +
+          '<span style="flex:1">' + _apEsc(c.name || 'New Character') + '</span>' +
           '<span style="font-size:10px;margin-left:6px;flex-shrink:0">empty</span></div>';
       }
-      return '<button type="button" class="mi cg-cloud-load-btn" data-cid="' + _apEsc(c.id) + '" data-cname="' + _apEsc(c.name || 'Unnamed') + '">' + _apEsc(c.name || 'Unnamed') +
+      return '<button type="button" class="mi cg-cloud-load-btn" data-cid="' + _apEsc(c.id) + '" data-cname="' + _apEsc(c.name || 'New Character') + '">' + _apEsc(c.name || 'New Character') +
         ' <span style="color:var(--grey);font-weight:400">— ' + _apEsc((c.updated_at || '').slice(0, 10)) + '</span></button>';
     }).join('');
     listEl.querySelectorAll('.cg-cloud-load-btn').forEach(function (btn) {
@@ -2559,7 +2559,7 @@ function _cgSyncSingletonEvent(type,makeEvent){
   render();
 }
 function _cgSyncName(){const nm=val('cname')||'';
-  _cgSyncSingletonEvent('name',function(){return {type:'name',name:nm,label:'Name — '+(nm||'(unnamed)')};});}
+  _cgSyncSingletonEvent('name',function(){return {type:'name',name:nm,label:'Name — '+(nm||'New Character')};});}
 // D-GH41 bug fix: val('budget') is the FULL computed total (foldBuild's economy().earned = raw award +
 // drawback earnings combined) — it is NOT the raw award. Baking that combined total into a new `award`
 // event, while the drawback buy event(s) already in the LOG separately keep contributing their own AP on
@@ -4417,7 +4417,7 @@ function _cgRenderInner(){
      else{wb.style.display='none';}}}
   $('statsbox').innerHTML=sheetStats(r,b);
   renderLedger(r,b); updateSections(r); buildGuide(b,r);
-  const mn=$('mtop-name');if(mn)mn.textContent=val('cname')||'Unnamed hero';
+  const mn=$('mtop-name');if(mn)mn.textContent=val('cname')||'New Character';
   const mtt=$('mtop-tot');if(mtt){mtt.textContent=r.total+' / '+r.budget+' AP';var _mb=r.remaining<0;mtt.style.background=_mb?'#f7c5c5':'#CDEAD3';mtt.style.color=_mb?'#7a0000':'#14501f';}
   const mw=$('mtop-warn');if(mw){var _hi=r.warnings.filter(w=>!isAdvisory(w)).length;mw.style.display=_hi?'inline':'none';}
   _cgUpdateUndoButtons();
@@ -4488,7 +4488,7 @@ function renderCharSheet(b,r,ctx){
   var lvl=b.hd, tier=r.tier;
   // ----- header -----
   H.push('<div class="cs-head">'+
-    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'Unnamed Hero')+'</div></div>'+
+    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'New Character')+'</div></div>'+
     '<div class="cs-fld"><label>Class &amp; Level</label><div class="shsmall">'+_csEsc(b.originClass+(b.originClass2&&b.originClass2!=='(none)'?' / '+b.originClass2:'')+'  ·  Lv '+lvl+' (T'+tier+')')+'</div></div>'+
     '<div class="cs-fld"><label>Player Name</label>'+_mfIn('playerName','','','your name')+'</div>'+
     '<div class="cs-fld"><label>Species / Heritage</label><div class="shsmall">'+_csEsc((b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+'  ·  '+(r.size||'Medium'))+'</div></div>'+

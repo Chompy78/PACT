@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · fix(tools): unify the unnamed-character default to `'New Character'` everywhere** —
+  DM Console converted the DB's own `'New Character'` default back to blank and substituted a different
+  literal (`'Unnamed character'`) at display time, so a freshly-redeemed, never-named character showed
+  one word to the player and another to their DM. Also unified every OTHER divergent placeholder for the
+  same "no name yet" state — `'Unnamed Hero'`/`'Unnamed hero'`/`'Unnamed'`/`'(unnamed)'` across CharGen,
+  the Live Sheet, DM Console's local-import path, `tools/characters.html`, and `index.html`'s
+  recent-characters cards — onto the single stored convention, per D-GH-2026-08-10-unnamed-character-default.
+  Display-only; no `DATA.version` change; existing characters unaffected (only what renders for the
+  absent-name state changed, never what gets written). New DM Console coverage added to
+  `tool-pricing-ci.mjs` (confirmed red against the original divergence first) since `dm-console-ui-e2e.mjs`
+  (Playwright) couldn't run in this session.
 - **2026-08-10 · fix(dm-console): give the three add-player routes a visible hierarchy** — the invite
   link (new character) is now the default, badged "✓ Usual choice — new player, no character yet" and
   shown first; the reusable Players code follows, captioned for the "already has a character" case; the

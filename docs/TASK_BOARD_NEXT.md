@@ -283,30 +283,6 @@ original wording, and parity still reports 0 failed.
 
 ---
 
-## Reconcile the unnamed-character default across CharGen and DM Console — TODO
-Branch fix/unnamed-character-default. From the 2026-08-04 usability review (LOW), recorded NOT DONE
-because resolving it means changing a shared default rather than a display string. CharGen sets a real
-default NAME of `'New Character'`; DM Console shows `'Unnamed character'` as a fallback for a blank name.
-They describe **different states**, so they are not simply inconsistent — but a player sees one word and
-their DM sees another for what looks like the same character.
-**Effort:** small · **Risk:** medium — ambiguity is medium (the choice below is a real fork); damage
-scale is medium (`saveCharacter()`'s `name ?? prev?.name ?? 'New Character'` in `js/sync.js` is on every
-cloud write path, so getting it wrong renames characters); damage likelihood is low (`cloud-e2e` covers
-the save path) — **not** sweep-eligible.
-
-```text
-1. DECIDE (human): should an unnamed character carry a real default name at all, or be stored blank and
-   rendered with a fallback everywhere it is displayed? Record in DECISIONS.md.
-2. Apply it in ONE place: js/sync.js saveCharacter()'s name default, plus each tool's display fallback.
-   Do not leave two different literals in the codebase.
-3. Check the migration case: characters already stored as 'New Character' must not be renamed by this.
-4. Add a cloud-e2e assertion that the same state renders the same string in CharGen, DM Console and
-   My Characters.
-```
-
-**Done when:** one convention is documented in DECISIONS.md, all three surfaces render the same string
-for the same state, existing characters are unaffected, and `cloud-e2e` asserts it.
-
 ## Let an invite link identify its campaign before it is redeemed — TODO
 Branch feat/invite-peek-campaign-name. Closes TWO 2026-08-04 review findings with one change: the
 campaign-join `confirm()` cannot name the campaign (LOW, recorded WON'T FIX for this reason), and a

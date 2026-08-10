@@ -13,6 +13,12 @@
  * binary. It is deliberately a narrow lane — load a page, evaluate expressions, assert numbers — not a
  * replacement for the Playwright flows, which do real UI interaction that CDP would make painful.
  *
+ * The DM Console section below is a deliberate, narrow exception to the "pricing" scope in this file's
+ * name: `dm-console-ui-e2e.mjs` needs Playwright for its real UI-interaction coverage, but a handful of
+ * DM Console checks (fix/unnamed-character-default) only need a pure DOM-render entry point
+ * (`window._dmRenderCloudRoster`) over synthetic data, no sign-in, no interaction — reachable with this
+ * same zero-dependency CDP harness. Added here rather than growing a fourth CI script for two checks.
+ *
  * USAGE   node testing/scripts/tool-pricing-ci.mjs
  *         CHROME_BIN=/path/to/chrome node testing/scripts/tool-pricing-ci.mjs
  * Exits non-zero on any failure, same contract as engine-parity-ci.mjs.
@@ -892,6 +898,37 @@ try {
     1);
 
   await cg.close();
+
+  // ============================ DM Console ============================
+  // No sign-in required: the module bridge loads offline (D-GH-2026-08-03-vendor-supabase-js), and
+  // window._dmRenderCloudRoster() is a pure DOM-render entry point over synthetic rows — the same
+  // technique dm-console-ui-e2e.mjs (Playwright, cannot run in a CLI session per AGENTS.md's no-npm
+  // rule) uses for its own coverage, but reachable here with zero dependencies.
+  const dm = await connect(`http://127.0.0.1:${PORT}/PACT/tools/DM-Console.html`);
+  if (!(await dm.evaluate(READY(`window.DATA&&document.readyState==='complete'&&typeof window._dmRenderCloudRoster==='function'`))))
+    throw new Error('DM Console never became ready');
+
+  // fix/unnamed-character-default: cloudAnalyze() used to special-case the DB's own 'New Character'
+  // default (sql/schema.sql's column default and redeem_player_invite's v_name fallback) back to
+  // blank, then cloudCardHTML() substituted a DIFFERENT literal ('Unnamed character') — so a
+  // freshly-redeemed, never-named invite showed one string in the DB/CharGen/Live Sheet and another in
+  // the DM's own roster. All surfaces now render the same stored default as-is.
+  console.log('\nDM Console — the unnamed-character default matches CharGen and the Live Sheet');
+  await dm.evaluate(`(()=>{const el=document.createElement('div');el.id='__testRoster';document.body.appendChild(el);})()`);
+  check('a roster row holding the DB default name (no LOG data yet) renders it as-is, not a divergent fallback',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('__testRoster'),
+        [{id:'test-1',name:'New Character',stats:{LOG:[{type:'award',amount:36}]},ap:36,player:'',playerLabel:'',dmNotes:''}]);
+      const card=document.getElementById('__testRoster').querySelector('.cname');
+      return card?card.textContent:'(no card)';})()`), 'New Character');
+  check('a roster row with a real player-given name still shows it, unaffected',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('__testRoster'),
+        [{id:'test-2',name:'Anders Tealeaf',stats:{LOG:[{type:'award',amount:36}]},ap:36,player:'',playerLabel:'',dmNotes:''}]);
+      const card=document.getElementById('__testRoster').querySelector('.cname');
+      return card?card.textContent:'(no card)';})()`), 'Anders Tealeaf');
+
+  await dm.close();
 } catch (e) {
   fail++; console.log(`  FAIL harness — ${e.message}`);
 } finally {

@@ -1073,7 +1073,7 @@ function render(){
   {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent / '+eco.earned+' earned'+(_dmAp?' · '+_dmAp+' from DM':'');}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
   const ABCOL={STR:'#DE3520',DEX:'#39843C',CON:'#B36113',INT:'#3F6FD8',WIS:'#008393',CHA:'#9C27B0'};
-  let sh='<div class="shname">'+esc(b.name||'Unnamed Hero')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
+  let sh='<div class="shname">'+esc(b.name||'New Character')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
   const _abGov={STR:'Melee attack & damage · Athletics · carrying & grappling',DEX:'AC (light/medium) · finesse & ranged attacks · Initiative · Acrobatics, Stealth',CON:'Hit Points · concentration · Constitution saves',INT:'Arcana, History, Investigation, Nature, Religion · Wizard-style casting',WIS:'Perception, Insight, Medicine, Survival · Cleric/Druid/Ranger casting',CHA:'Persuasion, Deception, Intimidation, Performance · Bard/Sorcerer/Warlock/Paladin casting'};
   sh+='<div class="abrow">'+ABILS.map(a=>'<div class="abx itip" title="'+esc(a+' '+((r.effScore&&r.effScore[a])||b.stats[a])+' ('+sgn(m[a])+') — governs '+(_abGov[a]||''))+'"><b style="color:'+ABCOL[a]+'">'+a+'</b><span>'+((r.effScore&&r.effScore[a])||b.stats[a])+'</span><i>'+sgn(m[a])+'</i></div>').join('')+'</div>';
   const _hpRed=(b.drawbacks||[]).includes('Frail')||(b.drawbacks||[]).includes('Glass Frame');
@@ -1567,7 +1567,7 @@ function renderCharSheet(b,r,ctx){
   var lvl=b.hd, tier=r.tier;
   // ----- header -----
   H.push('<div class="cs-head">'+
-    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'Unnamed Hero')+'</div></div>'+
+    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'New Character')+'</div></div>'+
     '<div class="cs-fld"><label>Class &amp; Level</label><div class="shsmall">'+_csEsc(b.originClass+(b.originClass2&&b.originClass2!=='(none)'?' / '+b.originClass2:'')+'  ·  Lv '+lvl+' (T'+tier+')')+'</div></div>'+
     '<div class="cs-fld"><label>Player Name</label>'+_mfIn('playerName','','','your name')+'</div>'+
     '<div class="cs-fld"><label>Species / Heritage</label><div class="shsmall">'+_csEsc((b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+'  ·  '+(r.size||'Medium'))+'</div></div>'+
@@ -2365,7 +2365,7 @@ document.addEventListener('sync-ready', function () {
       // any later local-only update (e.g. after a clone) that must NOT re-fetch the whole
       // list from the server just to show one new entry.
       function buildCharRow(c){
-        var nm = esc(c.name||'Unnamed');
+        var nm = esc(c.name||'New Character');
         var ts = (c.updated_at||'').slice(0,10);
         // hasData:false means this row exists (e.g. a redeemed player invite never opened yet, or a
         // stray manual insert) but was never actually saved from CharGen/Live Sheet — nothing to load

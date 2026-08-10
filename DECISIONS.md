@@ -10,6 +10,13 @@
 
 ## Index
 
+- **D-GH-2026-08-10-unnamed-character-default** — CharGen/`js/sync.js` already stamped a real stored
+  default name (`'New Character'`, matching `sql/schema.sql`'s column default), but DM Console converted
+  it back to blank and substituted a different literal (`'Unnamed character'`) at display time, and each
+  tool separately carried its own placeholder for the live pre-save state (`'Unnamed Hero'`/`'Unnamed
+  hero'`/`'Unnamed'`). All unified on `'New Character'` everywhere — one convention, no second literal
+  left in the codebase. Display-only, no `DATA.version` change, existing characters unaffected.
+  Full record: `decisions/2026/D-GH-2026-08-10-unnamed-character-default.md`.
 - **D-GH-2026-08-10-add-player-hierarchy** — DM Console's three add-player routes (Players code,
   invite link, local-file import) had equal visual weight and no guidance. Invite link (new character)
   is now the default, badged "✓ Usual choice" and shown first; Players code follows, captioned for the
