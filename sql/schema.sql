@@ -727,6 +727,36 @@ begin
 end;
 $$;
 
+-- feat/invite-peek-campaign-name (D-GH-2026-08-10-invite-peek-auth-scope): resolve a player-invite
+-- token to its campaign name WITHOUT redeeming it. authenticated-only by decision — see
+-- sql/migrations/2026-08-10-peek-player-invite.sql for the full scope reasoning. Pure SELECT, never
+-- mutates; mirrors redeem_player_invite's own lookup and validity criteria so the two can't disagree.
+create or replace function public.peek_player_invite(p_token text)
+returns table(campaign_name text, valid boolean)
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_invite campaign_invites%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  select * into v_invite from campaign_invites
+    where token = p_token and type = 'player';
+
+  if not found then
+    return query select null::text, false;
+    return;
+  end if;
+
+  return query
+    select c.name,
+      (v_invite.redeemed_by is null and v_invite.revoked_at is null
+       and (v_invite.expires_at is null or v_invite.expires_at > now()))
+    from campaigns c where c.id = v_invite.campaign_id;
+end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- One-character-per-player-per-campaign, enforced at the database level (closes
 -- a TOCTOU race the EXISTS-then-write checks below can't close on their own —

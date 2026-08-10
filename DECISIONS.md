@@ -10,6 +10,12 @@
 
 ## Index
 
+- **D-GH-2026-08-10-invite-peek-auth-scope** — new `peek_player_invite(token)` RPC resolves a player
+  invite to its campaign name without redeeming it, closing the "CharGen's accept confirm() can't name
+  the campaign" gap. Scoped `authenticated`-only (not anon-callable) since `feat/invite-rate-limiting`
+  hasn't landed yet — the signed-out "dead link looks live" gap stays open as an accepted tradeoff.
+  Advisor confirms no new finding class; grants verified directly.
+  Full record: `decisions/2026/D-GH-2026-08-10-invite-peek-auth-scope.md`.
 - **D-GH-2026-08-10-unnamed-character-default** — CharGen/`js/sync.js` already stamped a real stored
   default name (`'New Character'`, matching `sql/schema.sql`'s column default), but DM Console converted
   it back to blank and substituted a different literal (`'Unnamed character'`) at display time, and each

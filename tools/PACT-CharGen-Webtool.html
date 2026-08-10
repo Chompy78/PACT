@@ -593,13 +593,13 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // so this failure must never take engine-ready down with it; keeping it a separate <script
   // type="module"> means a dead CDN only loses the cloud-campaign UI, not the character builder.
   import { currentSession, onSessionChange } from '../js/auth.js';
-  import { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, PENDING_INVITE_KEY } from '../js/campaign.js';
+  import { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY } from '../js/campaign.js';
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
   import { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange };
-  window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign };
+  window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window._syncBridge = { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled };
   document.dispatchEvent(new Event('campaign-ready'));
@@ -1103,11 +1103,23 @@ document.addEventListener('sync-ready', function () {
         if(banner){var a=document.createElement('a');a.href='../login.html';a.textContent='Sign in';a.style.color='#fff';a.style.fontWeight='700';banner.appendChild(a);}
         return;
       }
-      // The campaign's NAME is deliberately absent: it only arrives with redeemPlayerInvite()'s
-      // response, and moving the prompt after that would be confirming an act already taken. So the
-      // copy leans on the consequence the player can actually evaluate — that their current build is
-      // about to be replaced — and says the invite survives a decline, which it now does.
-      if(!confirm('Accept this campaign invite?\n\nThis creates a NEW character bound to the campaign, and replaces the build you have open right now. Anything unsaved in it will be lost.\n\nYou can decline and accept later — the invite stays on this page either way.')){
+      // feat/invite-peek-campaign-name: resolve the campaign name (and whether the token is still
+      // live) BEFORE asking to accept — moving the prompt after redemption would be confirming an act
+      // already taken. Best-effort: a peek failure (network, or a not-yet-migrated database) falls
+      // back to the pre-existing nameless copy rather than blocking the invite outright.
+      var peek = null;
+      try{ peek = await C.peekPlayerInvite(token); }catch(e){ peek = null; }
+      if(peek && !peek.valid){
+        // A dead token (already redeemed/withdrawn/expired) is caught HERE, before ever showing a
+        // confirm() the player would have no way to act on differently.
+        clearPendingToken();
+        showBanner(peek.campaignName
+          ? 'This invite to “'+peek.campaignName+'” is no longer valid — it may have already been used or withdrawn.'
+          : 'This invite is no longer valid — it may have already been used or withdrawn.');
+        return;
+      }
+      var _campName = peek && peek.campaignName;
+      if(!confirm((_campName ? 'Accept this invite to join “'+_campName+'”?' : 'Accept this campaign invite?')+'\n\nThis creates a NEW character bound to the campaign, and replaces the build you have open right now. Anything unsaved in it will be lost.\n\nYou can decline and accept later — the invite stays on this page either way.')){
         // Declining must not re-prompt on every later reload in this tab -- but it must ALSO not be a
         // one-way door. This used to clearPendingToken() and hide the banner outright, so a player who
         // clicked Cancel (or misclicked, or meant "let me think") lost the invite with no explanation and

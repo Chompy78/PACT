@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · feat(campaign): invite links can name their campaign before redemption** — new
+  `peek_player_invite(token)` SECURITY DEFINER RPC (`sql/migrations/2026-08-10-peek-player-invite.sql`)
+  resolves a player-invite token to `{campaign_name, valid}` without redeeming it, mirroring
+  `redeem_player_invite`'s own lookup/validity criteria. Scoped `authenticated`-only (not anon-callable) —
+  `D-GH-2026-08-10-invite-peek-auth-scope` — since `feat/invite-rate-limiting` hasn't landed yet; the
+  signed-out "dead link looks live" half of the original finding stays open, filed as
+  `feat/invite-peek-signed-out-banner`. CharGen's `tryRedeem()` now names the campaign in its accept
+  `confirm()` and short-circuits with a clear message for an already-dead token, before ever showing that
+  prompt. Applied to the live Supabase project; advisor confirms no new finding class (same WARN every
+  other authenticated-only RPC in this schema carries); grants verified directly (`authenticated` +
+  owner only). `cloud-e2e` coverage for the full redemption flow needs a live signed-in session and
+  was not run in this session.
 - **2026-08-10 · fix(tools): unify the unnamed-character default to `'New Character'` everywhere** —
   DM Console converted the DB's own `'New Character'` default back to blank and substituted a different
   literal (`'Unnamed character'`) at display time, so a freshly-redeemed, never-named character showed

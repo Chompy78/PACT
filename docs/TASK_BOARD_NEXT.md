@@ -283,35 +283,33 @@ original wording, and parity still reports 0 failed.
 
 ---
 
-## Let an invite link identify its campaign before it is redeemed — TODO
-Branch feat/invite-peek-campaign-name. Closes TWO 2026-08-04 review findings with one change: the
-campaign-join `confirm()` cannot name the campaign (LOW, recorded WON'T FIX for this reason), and a
-revoked invite link looks identical to a live one when opened signed out (MEDIUM, PARTIALLY FIXED —
-the banner stopped *promising* validity but still cannot check it). Both need the same missing thing: a
-way to resolve a token to `{campaignName, valid}` WITHOUT redeeming it. See
-`tools/PACT-CharGen-Webtool.html`'s `tryRedeem()`, where the constraint is already commented.
-**Effort:** medium · **Risk:** medium — ambiguity is medium (the auth scope below is a genuine security
-call); damage scale is medium (a new anon-reachable RPC widens the attack surface if scoped wrong);
-damage likelihood is low (`cloud-e2e` covers invite paths, and the Supabase advisor catches
-anon-callable functions — it already caught one this session) — **not** sweep-eligible.
+## Signed-out invite banner still can't distinguish a dead link from a live one — TODO
+Branch `feat/invite-peek-signed-out-banner`. Remainder of the 2026-08-04 finding after
+`feat/invite-peek-campaign-name` shipped (2026-08-10): `peek_player_invite(token)` now lets CharGen name
+the campaign in its accept `confirm()` and catch a dead token before ever showing that prompt — but only
+once the player is signed in. Signed OUT, a revoked/expired invite link still looks identical to a live
+one, because `peek_player_invite` was deliberately scoped `authenticated`-only
+(`D-GH-2026-08-10-invite-peek-auth-scope`) rather than anon-callable, to avoid an unrate-limited token-probe
+surface. **Blocked on `feat/invite-rate-limiting`** landing first — that is what would make an
+anon-callable lookup a deliberate, safe decision rather than reopening the exact hole this one avoided.
+**Effort:** small (once unblocked) · **Risk:** medium — the auth-scope call was already made deliberately
+in D-GH-2026-08-10-invite-peek-auth-scope; this task is "make it anon-callable now that rate limiting
+exists," not a fresh design question. Not sweep-eligible — sequenced behind another task.
 
 ```text
-1. DECIDE (human): does the lookup require `authenticated`, or is it anon-callable?
-   - `authenticated` fixes the confirm() naming but NOT the signed-out banner.
-   - anon-callable fixes both, but lets anyone probe whether a token exists — needs rate limiting and a
-     deliberate decision that token-probing is acceptable. Record either way in DECISIONS.md.
-2. Add a SECURITY DEFINER RPC returning {campaign_name, valid} for a token, revoking EXECUTE from PUBLIC
-   explicitly (new functions inherit it — see D-GH-2026-08-03-invite-note-dm-only).
-3. Name the campaign in CharGen's accept confirm(), and remove the now-obsolete comment explaining why
-   it could not.
-4. Make the signed-out banner distinguish a dead invite from a live one.
-5. Run the Supabase advisor and skim get_logs before opening the PR (per AGENTS.md step 4).
-6. Add cloud-e2e coverage for a revoked token and a valid one.
+1. Confirm feat/invite-rate-limiting has actually landed and covers RPC-level probing, not just invite
+   generation/redemption, before starting.
+2. Widen peek_player_invite's grant to anon (or add a second, anon-scoped variant if the rate-limit
+   mechanism needs a distinct code path) — record the change as an amendment to
+   D-GH-2026-08-10-invite-peek-auth-scope, not a fresh decision.
+3. Make the signed-out banner in tools/PACT-CharGen-Webtool.html's tryRedeem() call it and distinguish a
+   dead invite from a live one, mirroring the signed-in copy already shipped.
+4. Add cloud-e2e coverage for a revoked token and a valid one, both signed out.
 ```
 
-**Done when:** a token resolves to its campaign name without redeeming, its auth scope is recorded in
-DECISIONS.md, the confirm names the campaign, the signed-out banner distinguishes dead from live, the
-advisor reports no new findings, and `cloud-e2e` covers both token states.
+**Done when:** the signed-out banner distinguishes a dead invite from a live one, the widened auth scope
+is recorded as an amendment to D-GH-2026-08-10-invite-peek-auth-scope, and `cloud-e2e` covers both token
+states signed out.
 
 ## DM sets how many characters one player may have in a campaign — TODO
 Branch `feat/campaign-character-limit`. Today the limit is hard-wired to exactly **one** character per
