@@ -6,6 +6,13 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · fix(dm-console): give the three add-player routes a visible hierarchy** — the invite
+  link (new character) is now the default, badged "✓ Usual choice — new player, no character yet" and
+  shown first; the reusable Players code follows, captioned for the "already has a character" case; the
+  local-file-import panel gained its own caption distinguishing it as a read-only viewer, not a
+  campaign-roster join. Decision recorded in `D-GH-2026-08-10-add-player-hierarchy`. Copy/ordering-only;
+  no `DATA.version` change. `dm-console-ui-e2e.mjs` (Playwright) couldn't run in this session — verified
+  instead with an ad-hoc CDP check plus a headless screenshot.
 - **2026-08-10 · fix(livesheet): History & ledger now surfaces derived species-pack costs** — Heritage
   pack / 2nd-origin-species pack are lines `compute()` derives from `b.species`/`b.species2` (per
   `fix/species-pack-not-charged`), never LOG events, so the printable sheet's AP Ledger priced them

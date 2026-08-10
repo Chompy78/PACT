@@ -10,6 +10,12 @@
 
 ## Index
 
+- **D-GH-2026-08-10-add-player-hierarchy** — DM Console's three add-player routes (Players code,
+  invite link, local-file import) had equal visual weight and no guidance. Invite link (new character)
+  is now the default, badged "✓ Usual choice" and shown first; Players code follows, captioned for the
+  "already has a character" case; local import gained its own caption distinguishing it as a read-only
+  viewer, not a campaign-roster join. Copy/ordering-only, no `DATA.version` change.
+  Full record: `decisions/2026/D-GH-2026-08-10-add-player-hierarchy.md`.
 - **D-GH-2026-08-10-campaign-ap-log-integrity** — server-side backstop for the AP-overspend trust
   boundary, following a 7-AI external review batch (`z-cold/`). Two BEFORE UPDATE triggers on
   `characters`, campaign-bound only: `pact_enforce_ap_budget_consistency` (frozen-cost-sum, non-regression

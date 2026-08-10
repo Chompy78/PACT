@@ -283,28 +283,6 @@ original wording, and parity still reports 0 failed.
 
 ---
 
-## Give the three ways to add a player an obvious hierarchy — TODO
-Branch fix/add-player-hierarchy. From the 2026-08-04 usability review (MEDIUM), recorded NOT DONE
-because which route to recommend is a product call rather than a mechanical fix. DM Console shows three
-differently-scoped routes together with no guidance: the reusable **Players code** (binds a character the
-player has ALREADY built, grants the campaign's starting tier), a **single-use invite link** (creates a
-NEW character, grants a per-player amount), and the **local-file import** card. A DM meeting this for the
-first time cannot tell which fits their situation.
-**Effort:** small · **Risk:** low — ambiguity is MEDIUM and is the whole task (the decision, not the
-edit); damage scale is low (copy and ordering only); damage likelihood is low — **not** sweep-eligible,
-it needs a human decision first.
-
-```text
-1. DECIDE (human): which of the three is the default recommendation for a DM adding a player, and in
-   what order they should appear. Record it in DECISIONS.md — this is the actual deliverable.
-2. Add a one-line "use this when…" under each of the three, in the decided language.
-3. Mark one visually as the usual choice; de-emphasise the other two rather than hiding them.
-4. Copy-only. Display-only — do NOT bump DATA.version; log in CHANGELOG.
-```
-
-**Done when:** each of the three routes carries a one-line "use this when…", one is visibly the default,
-the ordering matches the decision, and the reasoning is in DECISIONS.md.
-
 ## Reconcile the unnamed-character default across CharGen and DM Console — TODO
 Branch fix/unnamed-character-default. From the 2026-08-04 usability review (LOW), recorded NOT DONE
 because resolving it means changing a shared default rather than a display string. CharGen sets a real

@@ -591,16 +591,12 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <details id="campInviteDetails">
               <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Invite new player <span class="dsum" id="campInviteSummary"></span></summary>
               <div style="margin-top:8px">
-            <div class="codechip">
-              <span class="lbl">Players:</span>
-              <input class="field ro" id="campPlayerCode" readonly>
-              <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
-              <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. A player who enters this code (CharGen's “Join campaign”) binds the character they are CURRENTLY building to this campaign — it does not create a blank one — and is granted this campaign's Starting tier AP. Paid once per character: re-joining the same campaign does not grant it twice.">ⓘ</button>
-            </div>
-            <!-- The single most-asked question about this code is "how much AP does it hand out?", and the
-                 answer lived three collapsed panels away. Show it here, live, with a link that opens the
-                 panel it comes from — so the figure is legible at the moment the code is copied. -->
-            <div class="grantnote" id="campPlayerCodeGrant" style="margin-top:2px"></div>
+            <!-- fix/add-player-hierarchy (DECISIONS.md D-GH-2026-08-10-add-player-hierarchy): the
+                 invite link is the default route, shown first with a "usual choice" badge, because most
+                 players meeting a DM here have no character yet. The reusable Players code follows,
+                 for the less common case of a player who already built one. -->
+            <div class="chip good" style="margin-bottom:6px">✓ Usual choice — new player, no character yet</div>
+            <div class="grantnote" style="margin-top:0;margin-bottom:6px">Single-use link. The first player to open it and sign in gets a brand-new character bound to this campaign, holding the Starting AP below as DM-granted AP.</div>
             <div class="ruleblock" id="playerInviteBlock" style="margin-top:8px">
               <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
                 <label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">
@@ -618,7 +614,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <button type="button" class="btn sm ghost" id="copyInviteLink">Copy</button>
               </div>
               <div id="inviteStatus" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-              <div class="grantnote">Single-use — the first player to open this link and sign in gets a brand-new character bound to this campaign, holding the Starting AP above as DM-granted AP. The reusable Players code above is for a player who has already built a character: it binds that character and grants the campaign's own Starting tier AP instead of the per-invite figure set here. Both routes grant AP; this one lets you set a different amount for one specific player.</div>
               <div id="inviteListWrap" style="margin-top:10px">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <b style="font-size:12px">Invites issued</b>
@@ -629,6 +624,19 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 </div>
                 <div id="inviteList" style="margin-top:6px"></div>
               </div>
+            </div>
+            <div style="margin-top:16px;padding-top:12px;border-top:1px dashed var(--line)">
+            <div class="grantnote" style="margin-top:0;margin-bottom:6px">Use this instead when the player has <b>already built a character</b> elsewhere and just needs to join this campaign — it binds the character they're currently working on and grants the campaign's Starting tier AP.</div>
+            <div class="codechip">
+              <span class="lbl">Players:</span>
+              <input class="field ro" id="campPlayerCode" readonly>
+              <button type="button" class="btn sm ghost" id="copyPlayerCode">Copy</button>
+              <button type="button" class="infobtn" id="campPlayerCodeInfo" title="Reusable — share with players. A player who enters this code (CharGen's “Join campaign”) binds the character they are CURRENTLY building to this campaign — it does not create a blank one — and is granted this campaign's Starting tier AP. Paid once per character: re-joining the same campaign does not grant it twice.">ⓘ</button>
+            </div>
+            <!-- The single most-asked question about this code is "how much AP does it hand out?", and the
+                 answer lived three collapsed panels away. Show it here, live, with a link that opens the
+                 panel it comes from — so the figure is legible at the moment the code is copied. -->
+            <div class="grantnote" id="campPlayerCodeGrant" style="margin-top:2px"></div>
             </div>
               </div>
             </details>
@@ -833,6 +841,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
         <span class="chev">▸</span>
       </summary>
       <div class="importPanelBody">
+        <div class="grantnote" style="margin-top:0;margin-bottom:8px">Use this when you just want to <b>look at</b> a player's exported file — not to add them to a cloud campaign roster (that's the Players code or invite link above, in the Campaign panel).</div>
         <div id="drop">
           <div class="big">Drop your players' exported .json files here</div>
           <div class="sub">Each player exports from the PACT Live Sheet (a <code>.json</code> of <code>{rules, name, LOG, SEQ}</code>). Drop one or many.</div>
