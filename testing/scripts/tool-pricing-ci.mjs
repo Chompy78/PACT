@@ -345,6 +345,25 @@ try {
       return [before, clickable, after];})()`),
     [false, true, true]);
 
+  // code-review finding (this session): the ledger's "dead" styling only ever checked
+  // boughtOff (drawbacks) — a DM-removed boon's original buy row rendered as a normal, fully-priced,
+  // still-active purchase, with the only sign anything happened a separate, uncorrelated dmRemoveBoon
+  // row further down. Mirrors the drawback check just above (retake stays live, only the cancelled
+  // purchase goes dead) but for the boon/boonRemoved side.
+  check('a DM-removed boon\'s original purchase row goes dead in the ledger; a retake afterward stays live',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'award',amount:900,label:'AP award',seq:SEQ++,ts:Date.now()});
+      for(let h=2;h<=17;h++){const b=foldBuild(null);
+        LOG.push({type:'buy',cat:'hd',payload:{to:h},cost:priceOf('hd',{to:h},b),label:'Level up',seq:SEQ++,ts:Date.now(),level:b.hd});}
+      const v='Boon of Combat Prowess';
+      buy('boon',{v},v);
+      LOG.push({type:'dmRemoveBoon',refVal:v,cost:0,dmEdit:true,label:'DM removed boon — '+v,seq:SEQ++,ts:Date.now()});
+      buy('boon',{v},v);   // retaken afterward — must stay live, not swept up by the same removal
+      render();
+      const rows=[...document.querySelectorAll('.led tr')].filter(tr=>/Boon of Combat Prowess/.test(tr.innerText||'')&&!/DM removed/.test(tr.innerText||''));
+      return [foldBuild(null).boons.filter(x=>x===v).length, rows.length, rows.map(tr=>/\\bdead\\b/.test(tr.className))];})()`),
+    [1, 2, [true, false]]);
+
   // fix/sheet-tab-appearance-not-persisted: the Sheet tab's Appearance/Background fields (Description,
   // hometown, faith, etc.) used to go through csSave() only — a local, per-tool, per-character-id
   // scratchpad that never touched the LOG, so an edit here silently never reached a cloud save and
@@ -1261,6 +1280,21 @@ try {
       window._dmCampaignApRules=null;
       return [rec.hasData, rec.summary.apLevel>0, rec.summary.earnedTotal, rec.summary.earned];})()`),
     [true, true, 80, 0]);
+  // code-review finding (this session): renderCards() — the ≤700px fallback layout for the SAME shared
+  // roster table, not the "Card view" toggle's own #campRoster cards — still read raw a.earned directly,
+  // missing the earnedTotal switch the table's own COLS definition got a few lines above. Confirmed via
+  // the exact fully-DM-funded shape as the check above, driven through the real renderCards() function.
+  check('the narrow-viewport card fallback (renderCards) shows earnedTotal, not the raw log-only earned figure',
+    await dm.evaluate(`(()=>{
+      window._dmCampaignApRules={ignorePlayerAp:true};
+      const row={id:'test-6',name:'Fully DM-Funded (cards)',ap:80,player:'',playerLabel:'',dmNotes:'',
+        stats:{LOG:[{type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25}]}};
+      window._dmRenderCardsTest([row],0);
+      window._dmCampaignApRules=null;
+      const html=document.getElementById('cards').innerHTML;
+      window._dmRenderCardsTest([]);
+      return [/AP Earned[\\s\\S]*?<span class="v">80<\\/span>/.test(html), /AP Earned[\\s\\S]*?<span class="v">0<\\/span>/.test(html)];})()`),
+    [true, false]);
 
   await dm.close();
 } catch (e) {

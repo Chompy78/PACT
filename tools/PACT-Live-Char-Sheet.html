@@ -1157,15 +1157,16 @@ function render(){
   // display grouping, not new pricing math, so it stays in sync with the engine by construction.
   const _packLines=r.lines.filter(l=>(l[0]==='Heritage pack'||l[0]==='2nd origin species (x2 pack)')&&l[1]!==0);
   led+=_packLines.map(l=>'<tr class="derived" title="Derived from your current species — not an individual purchase event. Pack-included traits below show 0 AP because this line already paid for them."><td>—</td><td>'+esc(l[0])+'</td><td>'+l[1]+'</td><td></td></tr>').join('');
-  // boff is a Set of INDICES into this same (idx==null?LOG:LOG.slice(0,idx)) array — activeEvents()
-  // resolves cancellation per purchase EVENT, not per drawback value, so a retaken drawback's row is
-  // not "dead" even though an earlier buyoff for the same value exists (D-GH-2026-08-06-buyoff-keyed-by-event).
-  const boff=activeEvents(idx).boughtOff;
+  // boff/bnr are Sets of INDICES into this same (idx==null?LOG:LOG.slice(0,idx)) array — activeEvents()
+  // resolves cancellation per purchase EVENT, not per drawback/boon value, so a retaken drawback's (or
+  // rebought boon's) row is not "dead" even though an earlier buyoff/removal for the same value exists
+  // (D-GH-2026-08-06-buyoff-keyed-by-event; boonRemoved mirrors the same FIFO-by-purchase match).
+  const _ae=activeEvents(idx), boff=_ae.boughtOff, bnr=_ae.boonRemoved;
   (idx==null?LOG:LOG.slice(0,idx)).forEach((e,_li)=>{
     if(e&&e.type==='rulesSnapshot')return;   // offline campaign-rules metadata — not an AP-ledger action (still audit-visible in the raw LOG/export)
     let ap='', cls='', act='', packNote='';
     if(e.type==='award'){ap='+'+e.amount;cls='aw';}
-    else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li));
+    else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li))||(e.cat==='boon'&&bnr.has(_li));
       ap=(e.cost<0?'+'+(-e.cost):'−'+e.cost); cls=dead?'dead':'';
       if(!dead && e.cat==='drawback'){
         if(e.dmEdit&&e.dmLocked){

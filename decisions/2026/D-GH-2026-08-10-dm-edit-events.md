@@ -126,3 +126,26 @@ observed live.
 - `feat/ledger-show-lost-purchases` — still owes the Live Sheet's *AP Ledger* panel (not History &
   ledger, already done here) showing a bought-off drawback's buy-off cost and a removed boon's lost
   value; explicitly deferred there rather than solved twice, per that task's own note.
+
+## Addendum (2026-08-10, pre-merge review) — a removed boon's History row never went dead
+
+Found by `/code-review ultra` on the promotion PR: the Live Sheet's History & ledger table only ever
+checked `boughtOff` (drawbacks) when deciding whether a `buy` row should render as cancelled (`.dead`).
+A removed boon's original purchase row kept normal, fully-priced, apparently-still-active styling — the
+only visible sign anything happened was a separate `dmRemoveBoon` row further down with no visual link
+back to the purchase it cancelled. Fixed by reading `activeEvents(idx).boonRemoved` alongside `boughtOff`
+in the same `dead` check, mirroring the exact FIFO-by-purchase semantics already in place for drawbacks
+(a retake after the removal correctly stays live — same guarantee `D-GH-2026-08-06-buyoff-keyed-by-event`
+established for drawbacks). No engine change — `boonRemoved` already existed on `activeEvents()`'s
+return; only the tool-side row-styling check was missing it. `tool-pricing-ci.mjs` gained 1 check
+(125/0 total); `engine-parity-ci.mjs` unaffected (display-only, no `_replay()`/`compute()` change).
+
+**Deliberately NOT fixed in this pass, flagged instead:** the same review also raised that
+`dm_edit_character_log()` never cross-validates a DM-granted boon's paired `buy` cost against its `award`
+amount — the "always net 0" neutrality invariant is enforced by DM Console's client code always sending
+the pair together, not by the RPC itself. The migration's own header comment (see the SQL file) already
+names this explicitly as an accepted trade-off, on the reasoning that `award_ap()` already lets a DM grant
+arbitrary AP through a separate, existing path — so this isn't a NEW privilege, just a second route to one
+that already exists. Left as-is rather than expanding this PR's scope with a new migration; logged as a
+follow-up task (see `CHANGELOG.md`'s entry for this addendum) for whoever picks it up to weigh whether
+server-side cross-validation is worth adding anyway, independent of whether it's technically a new hole.

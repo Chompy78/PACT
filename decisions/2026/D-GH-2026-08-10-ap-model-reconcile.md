@@ -73,3 +73,16 @@ programmatic string replacement for HTML text destined inside a single-quoted JS
   task's labelling work builds on, unchanged.
 - `feat/ledger-show-lost-purchases` — next in the sequence; its own decision doc should NOT re-litigate
   the compute()-vs-frozen-ledger question, per that task's own note to settle it once, here.
+
+## Addendum (2026-08-10, pre-merge review) — the mobile card fallback missed the same fix
+
+Found by `/code-review ultra` on the promotion PR: DM Console's table view got `earnedTotal` in its
+`COLS` definition (point 2 in the Decision above), but `renderCards()` — the ≤700px fallback layout for
+that SAME shared table, a different code path from the "Card view" toggle's own `#campRoster` cards —
+still read the raw, DM-AP-blind `a.earned` directly. A DM viewing a fully-DM-funded character's roster on
+a narrow screen would have seen exactly the "AP Earned 0" bug this task exists to fix. Fixed in the same
+`kv('AP Earned', …)` call, same ternary as the table's own `get`/`disp`. New test seam
+`window._dmRenderCardsTest(rows, expandIndex)` (renders the card fallback directly, bypassing the
+Card-view/Table-view toggle state which a page-evaluate call can't reach into — closure-local `var`s in
+DM Console's IIFE, same reason `_dmRenderCloudRoster` exists). `tool-pricing-ci.mjs` gained 1 check
+(125/0 total); `engine-parity-ci.mjs` unaffected (display-only).

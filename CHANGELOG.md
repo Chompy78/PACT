@@ -6,6 +6,25 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · fix(dm-console, live-sheet): two `/code-review ultra` findings from PR #403's pre-merge
+  review, fixed before merge** — (1) DM Console's ≤700px roster card fallback (`renderCards()`, a
+  different code path from the table view's own `COLS`) still showed the raw, DM-AP-blind `earned`
+  figure instead of `earnedTotal` — a DM viewing a fully-DM-funded character on a narrow screen would
+  have seen the exact "AP Earned 0" bug `feat/ap-model-reconcile` was written to fix. (2) The Live
+  Sheet's History & ledger only checked `boughtOff` (drawbacks) when marking a row `.dead` — a
+  DM-removed boon's original purchase row stayed styled as a normal, active purchase; now reads
+  `activeEvents().boonRemoved` too, mirroring the existing FIFO-by-purchase drawback logic (a retake
+  afterward correctly stays live). Addenda added to `D-GH-2026-08-10-ap-model-reconcile` and
+  `D-GH-2026-08-10-dm-edit-events`. `tool-pricing-ci.mjs` 125/0 (2 new checks, new
+  `window._dmRenderCardsTest` seam); `engine-parity-ci.mjs` unaffected, 30/0 — both fixes are
+  display-only.
+  **Flagged, not fixed — filed as a follow-up task:** the same review found `dm_edit_character_log()`
+  never cross-validates a DM-granted boon's paired `buy`/`award` amounts server-side; the "always net 0"
+  guarantee is enforced by DM Console's client code only. Already an explicitly-documented trade-off in
+  the migration's own header comment (an `award` alone is exactly what `award_ap()` already permits a DM
+  to do through a separate path, so this isn't a new privilege) — not fixed in this PR to avoid scope
+  creep into a new migration; see the task board for the follow-up (`/add-code-task` was unavailable in
+  this session — added via the documented fallback instead).
 - **2026-08-10 · fix(chargen): a persistent header banner marks a DM-copy character** — the only signal
   that a loaded character was a DM-viewed copy used to be a one-time `flash()` at open plus the
   `"(DM copy)"` name suffix, both easy to miss. New pinned `#cgDmCopyBanner` in the sticky header,
