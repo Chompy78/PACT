@@ -2960,7 +2960,7 @@ const PATCH_FIELD_SLOT={
   // `budget` (id="budget") is deliberately excluded: it's a type:'award' event (see _buildEventBurst),
   // not a cat:'patch', same reason `name` is excluded — both are Category E (Chunk 5) territory.
 };
-// appearance (28 ap_* ids) and innate spells (9 innate_N ids) use prefix matching instead of per-id entries.
+// appearance (32 ap_* ids) and innate spells (9 innate_N ids) use prefix matching instead of per-id entries.
 // Excludes the *_lock ids (ap_gender_lock, ap_overall_lock, etc. — see apField()) that also start with
 // "ap_": those are UI-only "don't randomize this field" checkboxes never read by _domReadBuild(), so
 // matching them would create needless no-op LOG churn (found by independent review).
