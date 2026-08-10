@@ -10,6 +10,13 @@
 
 ## Index
 
+- **D-GH-2026-08-10-chargen-dm-view** — a DM opens a campaign character in CharGen via a safe, freely
+  editable COPY (owner's chosen approach) rather than a locked read-only view — safe by construction
+  (a copy with its own id cannot touch the original) rather than by a twelve-entry-point guard list.
+  Copy id is `SHA-256(source id, viewing DM's id)`, formatted as a UUID: deterministic per (source, DM)
+  pair for overwrite-per-source, structurally asserted to never equal the source id. Cloud-saved, not
+  campaign-bound. "📋 Copy to CharGen" added beside DM Console's existing read-only "👁 View" button.
+  Full record: `decisions/2026/D-GH-2026-08-10-chargen-dm-view.md`.
 - **D-GH-2026-08-10-invite-peek-auth-scope** — new `peek_player_invite(token)` RPC resolves a player
   invite to its campaign name without redeeming it, closing the "CharGen's accept confirm() can't name
   the campaign" gap. Scoped `authenticated`-only (not anon-callable) since `feat/invite-rate-limiting`

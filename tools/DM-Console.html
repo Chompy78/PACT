@@ -1309,7 +1309,12 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // Remove which are rarer actions). Shares the .view-btn class + data-cid convention the delegated
   // click handler (wireCloudRosterDelegation) already listens for.
   function viewBtnHTML(id){
-    return '<button type="button" class="skbtn view-btn" data-cid="'+esc(id)+'" title="Open a read-only view of this character\'s full sheet in a new tab — nothing there can be edited or saved">👁 View</button>';
+    return '<button type="button" class="skbtn view-btn" data-cid="'+esc(id)+'" title="Open a read-only view of this character\'s full sheet in a new tab — nothing there can be edited or saved">👁 View</button>'+
+    // feat/chargen-dm-view (D-GH-2026-08-10-chargen-dm-view): a SEPARATE capability from the read-only
+    // View above — this opens a fresh, freely-editable COPY of the character in CharGen under the DM's
+    // own account. Never edits or overwrites the original (a new id is minted for the copy). Label says
+    // "Copy", not "View", so a DM never mistakes edits made here for changes to the player's real character.
+    '<button type="button" class="skbtn cgcopy-btn" data-cid="'+esc(id)+'" title="Open a copy of this character in CharGen that you can freely edit — never touches the player\'s original. Re-opening it later replaces this copy with a fresh snapshot.">📋 Copy to CharGen</button>';
   }
   // Cloud-only: player label + private DM notes (character_dm_notes — never readable by the
   // character's own owner, see sql/migrations/2026-08-01-dm-remove-character-notes.sql) plus the
@@ -1842,6 +1847,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       if(viewBtn){
         var vcid = viewBtn.getAttribute('data-cid');
         window.open('PACT-Live-Char-Sheet.html?viewChar='+encodeURIComponent(vcid), '_blank');
+        return;
+      }
+
+      var cgCopyBtn = t.closest ? t.closest('.cgcopy-btn') : null;
+      if(cgCopyBtn){
+        var ccid = cgCopyBtn.getAttribute('data-cid');
+        window.open('PACT-CharGen-Webtool.html?viewChar='+encodeURIComponent(ccid), '_blank');
         return;
       }
 

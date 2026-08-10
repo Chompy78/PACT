@@ -691,109 +691,12 @@ Halfling, is quoted **−4** — a refund — where the listed Halfling pack pri
 is already owned, CharGen and the Live Sheet agree on that price, draft re-pricing is unaffected, a gate
 asserts it, and engine-parity still reports 24/0.
 
-## DM: view a campaign character in CharGen (read-only) — TODO
-Branch `feat/chargen-dm-view`. Owner, 2026-08-05: *"it's only for looking at this stage… first step is
-just the view as this is most useful during start of a campaign."* Stage 2 (DM editing) is the separate
-entry below; build this one first and do not let its scope drift into editing.
-
-**Today there is no route at all.** DM Console's roster card offers only "View in Live Sheet"
-(`tools/DM-Console.html:1762` → `PACT-Live-Char-Sheet.html?viewChar=<id>`). CharGen has **no `viewChar`
-handler** — zero matches in the file. The obvious workaround was deliberately closed: the Live Sheet's
-"Open in CharGen" button is hidden in read-only mode (`_lsApplyViewOnlyUi`, ~:1901), because CharGen has
-no read-only concept and would happily edit and persist another player's character.
-
-### Preferred approach — hand the DM a COPY, not a locked view (owner, 2026-08-05)
-
-*"Have a duplicate of the character automatically created in the background that the DM can look at and
-view as if it was their own character. This way the DM can play with a character if they really want and
-there's no risk of damaging the actual original."*
-
-**This is better than the read-only route below on every axis that matters, and it should be built first.**
-
-- **Safe by construction rather than by vigilance.** The read-only route needs twelve mutation entry
-  points gated correctly, and stays correct only while every future edit path remembers to check the flag.
-  A copy with its own id cannot touch the original no matter what CharGen does to it.
-- **Much less code.** No `CG_VIEW_ONLY`, no guards, no hide-list. CharGen works exactly as it does today.
-- **More useful.** "What if I gave them this boon?" is a question a DM actually has at campaign start, and
-  a locked view cannot answer it.
-- **It also sidesteps the re-pricing trap** noted below: a scratch copy showing today's reconciled ledger
-  is unremarkable, whereas the same numbers presented as "the player's character" would read as a bug.
-
-**THE ONE HAZARD, and it is severe: the copy MUST get a fresh `genCharId()`.** The handoff envelope
-carries the original's `id`, and CharGen adopts whatever id it is handed (`currentCharId()`,
-`_cgApplyEnvelope`). A copy that keeps the original id is not a copy — it is the DM's browser autosaving
-and cloud-saving over the player's character. Assert the new id differs from the source id in the gate;
-this is the single thing most likely to be got wrong, and it destroys player data when it is.
-
-**Housekeeping to decide before building:**
-- Where does the copy live — the DM's local storage only, or their cloud character list? Cloud means it
-  shows up among their own characters and needs clear labelling; local-only means it vanishes on another
-  device, which for a scratch copy is probably fine.
-- Naming: something unmistakable, e.g. *"Anders Tealeaf (DM copy)"*, so it is never mistaken for the real
-  character in a roster.
-- It must NOT be campaign-bound, or a save could write into the campaign's roster.
-- Do copies accumulate? A DM checking six characters gets six copies. Overwrite-per-source, or let them
-  pile up and prune manually?
-- It is a **snapshot**: if the player edits afterwards the copy is stale. Fine for "look at it at campaign
-  start", worth stating in the UI so nobody treats it as live.
-
-**The read-only route below is retained as the fallback**, for the case where the DM genuinely needs to
-see the character *as it currently is* rather than a point-in-time copy. Do not build both up front.
-
-**Copy the Live Sheet's shape, which already solved this.** Its `VIEW_ONLY` flag no-ops emit/save/undo/
-redo — *that* is the safety; hiding buttons is cosmetic, so a control missed off the hide-list silently
-does nothing rather than becoming a data risk. Keep that split, it is the reason the Live Sheet version
-is robust.
-
-**CharGen's guard surface is larger than the Live Sheet's** — every one of these mutates the LOG or
-persists it, and all need gating:
-`emit()` · `replacePatchSlot()` · `retractFlatEvent()` · `replaceWholeLogFromBuild()` ·
-`_cgSyncSingletonEvent()` · `undo()` · `redo()` · `resetBuild()` · the local autosave · and the **three**
-`S.saveCharacter(...)` call sites (~:770, ~:800, ~:1011).
-
-**Two traps specific to CharGen:**
-1. **Its boot REGENERATES the log from the DOM** (`applyBuild` → `replaceWholeLogFromBuild`) and, since
-   `fix/species-pack-not-charged`, re-prices a draft ledger via `repriceDraft()`. So a DM viewing a
-   player's character would see a *reconciled* ledger, not the frozen one the player sees in the Live
-   Sheet. That is not wrong exactly — it is "what this costs today" — but two tools showing a DM
-   different totals for the same character will read as a bug. Decide whether the DM view labels this,
-   suppresses the re-price, or shows both. Worth settling before coding.
-2. **Use `peekCharacter()`, not `loadCharacter()`.** `loadCharacter()` caches whatever it fetches into
-   localStorage with no ownership check — the exact mechanism of
-   `D-GH-2026-08-02-listmycharacters-local-cache-leak`. Note `peekCharacter()` (`js/sync.js:172`) prefers
-   an existing local copy, so confirm it cannot serve the DM a stale one.
-
-**Effort:** medium · **Risk:** high — ambiguity is high (trap 1 is a genuine design call about what the
-DM should be shown); damage scale high (a wrong guard means a DM's browser silently overwrites a player's
-character, and it touches the cloud write path); damage likelihood medium (no automated cover — the
-dependency-free gate cannot sign in). Not sweep-eligible.
-
-```text
-1. Build the COPY approach first (see above) - it is safer, smaller and more useful than the read-only
-   route, and it makes trap 1 moot. The steps below describe the read-only fallback; do them only if the
-   copy approach is rejected.
-1b. For the copy: mint a fresh genCharId(), assert in the gate that it differs from the source id, drop
-   the campaign binding, and label the character unmistakably as a DM copy.
-2. Add a CG_VIEW_ONLY flag and gate all twelve entry points listed above. Gate at the function head, as
-   the Live Sheet does, so anything added later no-ops by default rather than needing a list kept current.
-3. Add the ?viewChar=<id> handler, loading via peekCharacter(). Mirror the Live Sheet's banner naming
-   whose character it is.
-4. Add "View in CharGen" to the DM Console roster card beside the existing Live Sheet button.
-5. Hide the visibly-editable controls, but treat that as cosmetic only - never as the safety.
-6. Cover what can be covered without credentials: that CG_VIEW_ONLY makes each entry point a no-op is
-   assertable in testing/scripts/tool-pricing-ci.mjs with no sign-in. The cloud half will need a manual
-   check - say so in the PR rather than implying it was tested.
-7. engine-parity must stay at 0 failed; no DATA.version change (no rules move).
-```
-
-**Done when:** a DM can open a roster character in CharGen from the DM Console, nothing in that view can
-alter or persist the character (verified by trying each entry point), the character is fetched without
-being cached into the DM's local storage, and a gate asserts the no-op behaviour.
-
 ## DM: edit a campaign character, recorded in the log as a DM edit — TODO
 Branch `feat/dm-edit-events`. Owner, 2026-08-05: *"I want to be able to eventually edit, particularly with
 adding or removing boons and drawbacks. But I think this should be an edit to the save file log that
-states it is a DM edit."* **Blocked on `feat/chargen-dm-view` above** — build the read-only view first.
+states it is a DM edit."* **Was blocked on `feat/chargen-dm-view` — that landed 2026-08-10**
+(`D-GH-2026-08-10-chargen-dm-view`) as the owner's preferred COPY approach, not the read-only view this
+entry originally assumed; unblocked.
 
 **The design idea is the good part and should not be lost:** a DM's change is not a silent overwrite, it
 is *an event in the character's log marked as having come from the DM*. That falls straight out of the

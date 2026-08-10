@@ -597,11 +597,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange };
   window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -1212,12 +1212,72 @@ document.addEventListener('sync-ready', function () {
     }
   }
 
+  // feat/chargen-dm-view (D-GH-2026-08-10-chargen-dm-view): DM Console's "Copy to CharGen" button on a
+  // cloud roster card. The DM does not own this character — peekCharacter() reads it via
+  // characters_select's DM-of-campaign grant, and (per its own docstring) never caches into
+  // localStorage under this device's own index, so there is nothing to leak. This is the COPY approach
+  // (owner, 2026-08-05): a scratch character the DM can freely edit, NOT a locked read-only view of the
+  // player's real one — chosen over a read-only mode because it is safe by construction rather than by
+  // vigilance (no entry-point guard list to keep current) and answers "what if I gave them this boon?",
+  // a question a locked view cannot.
+  //
+  // THE ONE HAZARD: the copy MUST get an id that is never the source character's own id, or the DM's
+  // next autosave would silently overwrite the PLAYER's character. _cgDeriveCopyId() derives a
+  // deterministic id from (source id, viewing DM's own user id) via SHA-256 — same source id always
+  // maps to the same copy for a given DM (the decided "overwrite per source character" behaviour,
+  // cross-device correct with no extra query or schema change), while two different DMs copying the
+  // SAME player's character land on two different, independent copies.
+  async function _cgDeriveCopyId(sourceId, dmUserId){
+    var enc = new TextEncoder().encode('pact-dm-copy:'+sourceId+':'+dmUserId);
+    var buf = await crypto.subtle.digest('SHA-256', enc);
+    var hex = Array.prototype.map.call(new Uint8Array(buf), function(b){return b.toString(16).padStart(2,'0');}).join('');
+    return hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20,32);
+  }
+  window._cgDeriveCopyId = _cgDeriveCopyId;   // exposed for tool-pricing-ci.mjs's collision-hazard gate
+  async function _cgConsumeViewChar(){
+    var qs = new URLSearchParams(location.search);
+    var vid = qs.get('viewChar');
+    if(!vid) return false;
+    qs.delete('viewChar');
+    try{ history.replaceState(null,'',location.pathname+(qs.toString()?('?'+qs.toString()):'')+location.hash); }catch(e){}
+    try{
+      var session = await A.currentSession();
+      if(!session){ alert('Sign in to open a copy of this character.'); return false; }
+      var rec = await S.peekCharacter(vid);
+      if(!rec || !rec.stats || !Array.isArray(rec.stats.LOG)){ alert('No character data found.'); return false; }
+      var srcName = rec.name || 'Character';
+      var copyName = srcName+' (DM copy)';
+      var copyId = await _cgDeriveCopyId(vid, session.user.id);
+      // ASSERT the hazard above cannot happen: a copy id equal to its own source id would mean this
+      // whole mechanism failed silently. Refuse rather than proceed if that ever occurs.
+      if(copyId === vid){ alert('Could not safely open a copy of that character (id collision) — nothing was loaded.'); return false; }
+      _cgResetCloudApState();   // never campaign-bound — a save from this copy must not write into the source campaign's roster
+      _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:rec.stats.rules||DATA.version,name:copyName,
+        LOG:rec.stats.LOG,SEQ:rec.stats.SEQ||(rec.stats.LOG.length+1),id:copyId},{clearHistory:true});
+      var stats = _cgEnvelope(false);
+      var saveRes = await S.saveCharacter({id:copyId,name:copyName,kind:'chargen',stats:stats});
+      if(saveRes && saveRes.error) throw saveRes.error;
+      if(saveRes && saveRes.id) __charId = saveRes.id;
+      flash('👁 Opened a DM copy of “'+srcName+'” — a snapshot as of right now. Edits here never touch the original character, and re-opening it later replaces this copy.');
+      return true;
+    }catch(err){
+      console.error('PACT CharGen: view-char copy failed', err);
+      alert('Could not open a copy of that character: '+(err&&err.message?err.message:err));
+      return false;
+    }
+  }
+
   A.onSessionChange(function(session){
     var nowSignedIn = !!session;
     if(nowSignedIn && !_wasSignedIn) tryRedeem(session);
     _wasSignedIn = nowSignedIn;
   });
-  tryRedeem();
+  (async function(){
+    // A ?viewChar= copy takes priority over an ordinary pending invite — both can't happen in one
+    // load, and the copy flow's own alerts/flash calls are clearer if nothing else fires alongside them.
+    var hadViewChar = await _cgConsumeViewChar();
+    if(!hadViewChar) tryRedeem();
+  })();
 });
 </script>
 <script>
@@ -4675,8 +4735,12 @@ _cgWireTraditionDelegation();   // Phase 2 Step 3 (Chunk 4B): traditions/discipl
 _cgWireUndoKeys();   // Phase 2 Step 4 (Chunk D): Ctrl/Cmd-Z undo, Ctrl/Cmd-Shift-Z / Ctrl-Y redo
 _cgWireLocalMenu();   // D-GH-2026-08-08-header-declutter: 📁 Local dropdown (New Character/Save/Load)
 try{sweepExpiredHandoffs();}catch(e){}   // D-GH38: clear orphaned handoff keys from interrupted switches
-let _cgHadShared=false;
-try{_cgHadShared=_cgConsumeHandoff();}catch(e){}                 // 1) incoming character from the Live Sheet
+// feat/chargen-dm-view: a ?viewChar= copy is resolved asynchronously (needs a sign-in check + a
+// network read) by _cgConsumeViewChar(), fired separately once campaign-ready. Skip the synchronous
+// restore-autosave/blank-character steps below for that one load so this device's own unrelated
+// in-progress build doesn't flash on screen before the copy replaces it.
+let _cgHadShared=new URLSearchParams(location.search).has('viewChar');
+if(!_cgHadShared){try{_cgHadShared=_cgConsumeHandoff();}catch(e){}}                 // 1) incoming character from the Live Sheet
 if(!_cgHadShared){try{_cgHadShared=!!loadFromHash();}catch(e){}} // 2) existing #b= share-link
 if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}  // 3) autosave; else 4) blank
 window.addEventListener('hashchange',function(){try{if(loadFromHash())render();}catch(e){}});

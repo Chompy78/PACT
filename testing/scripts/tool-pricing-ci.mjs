@@ -897,6 +897,25 @@ try {
         return calls;});})()`),
     1);
 
+  // fix/chargen-dm-view: the copy-id derivation is THE hazard this task calls out explicitly — a copy
+  // that ever collides with its source id would let a DM's browser silently overwrite a player's
+  // character on its next autosave. Assert it directly: deterministic per (source, dm) pair, distinct
+  // across different sources AND across different DMs viewing the same source, and never equal to the
+  // source id itself.
+  console.log('\nCharGen — the DM-view copy id can never collide with its source character');
+  if (!(await cg.evaluate(READY(`typeof window._cgDeriveCopyId==='function'`))))
+    throw new Error('window._cgDeriveCopyId never appeared (campaign-ready did not fire?)');
+  check('deterministic: the same (source, dm) pair derives the same copy id twice',
+    await cg.evaluate(`Promise.all([window._cgDeriveCopyId('char-A','dm-1'),window._cgDeriveCopyId('char-A','dm-1')]).then(r=>r[0]===r[1])`), true);
+  check('two different source characters (same DM) derive different copy ids',
+    await cg.evaluate(`Promise.all([window._cgDeriveCopyId('char-A','dm-1'),window._cgDeriveCopyId('char-B','dm-1')]).then(r=>r[0]!==r[1])`), true);
+  check('two different DMs copying the SAME source character get independent copies',
+    await cg.evaluate(`Promise.all([window._cgDeriveCopyId('char-A','dm-1'),window._cgDeriveCopyId('char-A','dm-2')]).then(r=>r[0]!==r[1])`), true);
+  check('the copy id is never the source id itself, even adversarially (dm id == char id)',
+    await cg.evaluate(`window._cgDeriveCopyId('char-A','char-A').then(r=>r!=='char-A')`), true);
+  check('the derived id is UUID-shaped (what characters.id, a uuid column, requires)',
+    await cg.evaluate(`window._cgDeriveCopyId('char-A','dm-1').then(r=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(r))`), true);
+
   await cg.close();
 
   // ============================ DM Console ============================
@@ -927,6 +946,33 @@ try {
         [{id:'test-2',name:'Anders Tealeaf',stats:{LOG:[{type:'award',amount:36}]},ap:36,player:'',playerLabel:'',dmNotes:''}]);
       const card=document.getElementById('__testRoster').querySelector('.cname');
       return card?card.textContent:'(no card)';})()`), 'Anders Tealeaf');
+
+  // fix/chargen-dm-view: "Copy to CharGen" must appear beside the existing read-only "View" button, be
+  // labelled distinctly (never "View" — it's a copy, not a lock), and route to CharGen's ?viewChar=
+  // handler with the SAME roster character's id, same convention the Live Sheet's own View button uses.
+  console.log('\nDM Console — "Copy to CharGen" sits beside the read-only View button');
+  check('both buttons render, with distinct labels, for a roster row with no build data yet',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('__testRoster'),
+        [{id:'test-3',name:'Fenwick',stats:{LOG:[{type:'award',amount:36}]},ap:36,player:'',playerLabel:'',dmNotes:''}]);
+      const card=[...document.querySelectorAll('#__testRoster .card')].find(c=>c.dataset.id==='test-3');
+      const v=card&&card.querySelector('.view-btn'), c=card&&card.querySelector('.cgcopy-btn');
+      return [!!v, !!c, v?v.textContent:'', c?c.textContent:'', c?c.getAttribute('data-cid'):''];})()`),
+    [true, true, '👁 View', '📋 Copy to CharGen', 'test-3']);
+  // The click delegation (wireCloudRosterDelegation) is scoped to the real #campRoster element, not a
+  // synthetic test container — render into it directly so this check exercises the actual click path.
+  check('the click handler opens CharGen with ?viewChar= for the same roster row id, not the Live Sheet',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'),
+        [{id:'test-3',name:'Fenwick',stats:{LOG:[{type:'award',amount:36}]},ap:36,player:'',playerLabel:'',dmNotes:''}]);
+      let opened=null; const realOpen=window.open;
+      window.open=(url)=>{opened=url;return {};};
+      try{
+        const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-3');
+        card.querySelector('.cgcopy-btn').click();
+      } finally { window.open=realOpen; }
+      return opened;})()`),
+    'PACT-CharGen-Webtool.html?viewChar=test-3');
 
   await dm.close();
 } catch (e) {

@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · feat(campaign): a DM opens a roster character in CharGen via a safe copy** —
+  DM Console's roster card gained "📋 Copy to CharGen" beside the existing read-only "👁 View" (Live
+  Sheet). Per the owner's stated preference (`D-GH-2026-08-10-chargen-dm-view`), this is a fresh,
+  freely-editable COPY under the DM's own account, not a locked read-only mode — safe by construction
+  rather than by a twelve-entry-point guard list. Copy id is `SHA-256(source id, viewing DM's own id)`
+  formatted as a UUID: deterministic per (source, DM) pair (overwrite-per-source, no schema change),
+  structurally asserted to never equal the source id — the hazard the task doc called "the single thing
+  most likely to be got wrong, and it destroys player data when it is." Cloud-saved immediately, labelled
+  `"<name> (DM copy)"`, explicitly not campaign-bound. Uses `peekCharacter()`, never `loadCharacter()`
+  (no ownership-check-free local cache leak). Gated in `tool-pricing-ci.mjs` (collision hazard + button
+  wiring + real click routing); the full fetch→copy→save round trip needs a live signed-in session and
+  was not run in this session. No `DATA.version`/`js/engine.js` change.
 - **2026-08-10 · feat(campaign): invite links can name their campaign before redemption** — new
   `peek_player_invite(token)` SECURITY DEFINER RPC (`sql/migrations/2026-08-10-peek-player-invite.sql`)
   resolves a player-invite token to `{campaign_name, valid}` without redeeming it, mirroring
