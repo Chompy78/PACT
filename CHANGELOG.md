@@ -6,6 +6,13 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · fix(chargen): a persistent header banner marks a DM-copy character** — the only signal
+  that a loaded character was a DM-viewed copy used to be a one-time `flash()` at open plus the
+  `"(DM copy)"` name suffix, both easy to miss. New pinned `#cgDmCopyBanner` in the sticky header, styled
+  with the existing `.warnbanner.warn` (orange/advisory) palette, driven off the same name-suffix check
+  on every render so it also reappears on a later reload of the same copy. Addendum to
+  `D-GH-2026-08-10-chargen-dm-view`. `tool-pricing-ci.mjs` 123/0 (3 new checks); display-only, no
+  `DATA.version` change.
 - **2026-08-10 · feat(engine): AP ledger shows what was LOST — bought-off drawbacks, DM-removed boons**
   (`DATA.version` v0.341 → v0.342) — a bought-off drawback or DM-removed boon drops out of `_replay()`'s
   fold entirely, so `compute()` (pure over the build) had NO way to show its cost — a drawback taken for

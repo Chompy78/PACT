@@ -93,3 +93,18 @@ unaffected and still report 0 failed.
 - `feat/dm-edit-events` — blocked on this landing; can now proceed.
 - `D-GH-2026-08-02-listmycharacters-local-cache-leak` — the `peekCharacter()`-not-`loadCharacter()`
   precedent this reuses.
+
+## Addendum (2026-08-10, same day) — persistent header banner, not just the one-time flash
+
+Raised in retrospective review: the only signal that a loaded character is a DM copy was the `flash()`
+at open time (easy to miss/dismiss, scrolls away) and the `"(DM copy)"` suffix on the character's own
+name in the header — easy to not notice if the DM isn't reading closely. Added a persistent, pinned
+banner row (`#cgDmCopyBanner`) to the sticky header, styled with the existing `.warnbanner.warn`
+(orange/advisory) palette already used for build-quality notices — not `.bad` (red), since this isn't a
+problem with the build, it's a status notice. Driven off the same `" (DM copy)"` name-suffix check on
+every `render()`, so it reappears correctly on a later reload of the same copy too (the suffix is stored
+in both the DB row's name and the envelope's own embedded name — see step 3 above), not just at the
+moment the copy is first opened. No schema change, no new stored marker — reuses the existing naming
+convention as the signal. Gated in `tool-pricing-ci.mjs` (3 new checks: shows for a `(DM copy)`-suffixed
+name, hidden for an ordinary name, clears when the suffix is removed); `engine-parity-ci.mjs` unaffected
+(display-only, no `DATA.version` change).

@@ -1072,6 +1072,25 @@ try {
   check('the derived id is UUID-shaped (what characters.id, a uuid column, requires)',
     await cg.evaluate(`window._cgDeriveCopyId('char-A','dm-1').then(r=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(r))`), true);
 
+  // feat/chargen-dm-view follow-up (this session): the one-time "you're viewing a copy" flash is easy
+  // to miss/dismiss, so a persistent header banner was added — driven by the SAME " (DM copy)" name
+  // suffix _cgConsumeViewChar() already stamps into both the DB row and the saved envelope, so it
+  // reappears correctly on a later reload too, not just the moment the copy is first opened.
+  console.log('\nCharGen — a persistent header banner marks a DM-copy character, not just a one-time toast');
+  check('an ordinary character (no "(DM copy)" suffix) shows no banner',
+    await cg.evaluate(`(()=>{document.getElementById('cname').value='Doran Quickstep';render();
+      const b=document.getElementById('cgDmCopyBanner');return [b.style.display, b.textContent.length>0];})()`),
+    ['none', true]);
+  check('a character named with the "(DM copy)" suffix shows the persistent banner',
+    await cg.evaluate(`(()=>{document.getElementById('cname').value='Doran Quickstep (DM copy)';render();
+      const b=document.getElementById('cgDmCopyBanner');return [b.style.display, b.className, /DM copy/.test(b.textContent)];})()`),
+    ['flex', 'warnbanner warn', true]);
+  check('the banner clears again once the name no longer carries the suffix',
+    await cg.evaluate(`(()=>{document.getElementById('cname').value='Doran Quickstep (DM copy)';render();
+      document.getElementById('cname').value='Doran Quickstep';render();
+      return document.getElementById('cgDmCopyBanner').style.display;})()`),
+    'none');
+
   // feat/dm-edit-events: CharGen's undo is snapshot-based (HIST), not LIFO-over-events like the Live
   // Sheet's — so its barrier has to be its own guard checked against the tail of the live LOG, not a
   // HIST frame. Assert it directly rather than trusting the Live Sheet's coverage to generalise.
