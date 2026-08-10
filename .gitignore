@@ -22,3 +22,7 @@ for-copilot/
 # throwaway local stack's URLs, seeded invite tokens and test-account password. Machine-local
 # scratch, regenerated on every seed run, never shared.
 .review-stack.json
+
+# Managed via a dedicated git worktree + junction (see ~/dev/zcold-sync)
+z-cold/
+z-uploads/

@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.398.html**-->
+<!--**PACT-CharGen-Webtool v1.402.html**-->
 
 <!doctype html>
 <!--
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.398 · Rules v0.339</title><style>
+<title>PACT Character Generator — Web Tool v1.402 · Rules v0.339</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -497,7 +497,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.398</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.402</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -705,6 +705,12 @@ document.addEventListener('campaign-ready', function () {
 async function _cgResolveDmApStatus(ap, campaignId){
   window._dmAp = ap || 0;
   window._ignorePlayerAp = false;
+  // feat/campaign-ap-budget-enforce: cached alongside _ignorePlayerAp, same lifecycle (resolved here
+  // on boot/handoff/cloud-load, not re-fetched on every autosave tick) and same staleness trade-off —
+  // this is a client-side UX guard, not a security boundary, so a DM's mid-session toggle flip isn't
+  // guaranteed to apply until this character's next resolve. False (no block) until proven otherwise,
+  // matching "not campaign-bound → nothing to enforce".
+  window._cgEnforceApBudget = false;
   // Gate for cloud autosave (below). Keyed on campaign_id ALONE, deliberately: the character is bound
   // whether or not getCampaign() happens to succeed right now, and a failed fetch must not silently
   // downgrade it to "local, save manually" — that is the state this whole change exists to remove.
@@ -717,6 +723,9 @@ async function _cgResolveDmApStatus(ap, campaignId){
     var camp = C && await C.getCampaign(campaignId);
     if(camp){
       window._ignorePlayerAp = !!camp.ignore_player_ap;
+      // Default true when absent/unset (opposite default from ignore_player_ap) — a campaign whose
+      // rules were never saved with this key still enforces.
+      window._cgEnforceApBudget = !(camp.rules && camp.rules.enforceApBudget === false);
       window._dmApStatus = 'active';
       window._cloudCampaign = camp;   // activates rule-filtering (cloudRuleBarred), same as the campaign-rules picker above
       // Adds the campaign to the picker if the list predates the join, selects it, AND re-renders the
@@ -859,6 +868,16 @@ document.addEventListener('sync-ready', function () {
   }
 
   async function onSaveClick() {
+    // feat/campaign-ap-budget-enforce: checked BEFORE the button even shows "Saving…", so a blocked
+    // attempt never flashes a false-progress state. Local file Save (saveBuild()) is a separate
+    // function entirely and is never touched by this check.
+    if (_cgOverApBudget()) {
+      var _rem = compute(readBuild(), _cgDmOpts()).remaining;
+      alert('⛔ Not saved to the cloud — this character is ' + (-_rem) + ' AP over budget, and your DM '
+          + 'has AP-budget enforcement on for this campaign.\n\nSpend back under budget (or ask your DM '
+          + 'to adjust it) before saving to the cloud. Local file Save is not affected.');
+      return;
+    }
     var btn = document.getElementById('cgCloudSaveBtn'); if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
       var id = currentCharId();
@@ -1228,6 +1247,14 @@ window._dmApStatus = window._dmApStatus || 'none';
 // only — matching exactly what _apSourceHTML() labels, so #total and the breakdown line can never disagree.
 // The Live Sheet gates identically (via apCeiling / render's _dmAp), so both tools show the same total.
 function _cgDmOpts(){var a=window._dmApStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp};}
+// feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on,
+// who has actually spent past their budget right now. compute() needs no change — remaining<0
+// already means "over budget" (task step 8). Blocks only the CLOUD save path; Local "Save to file"
+// never calls this.
+function _cgOverApBudget(){
+  if(!window._cgCampaignBound || !window._cgEnforceApBudget) return false;
+  return compute(readBuild(), _cgDmOpts()).remaining < 0;
+}
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
@@ -3529,6 +3556,16 @@ function _cgCloudPush(){
   return _cgCloudPushPromise;
 }
 async function _cgCloudPushOnce(){
+  // feat/campaign-ap-budget-enforce: skip the push silently after one warning per session — this runs
+  // on every debounced edit, so erroring/flashing on every cycle would be noise. Mirrors _cgConflictWarned
+  // exactly. The local autosave (a separate call, already run before this) still holds the work.
+  if(_cgOverApBudget()){
+    if(!_cgBudgetWarned){
+      _cgBudgetWarned=true;
+      if(typeof flash==='function')flash('⚠ Not saving to cloud — over AP budget, and your DM has budget enforcement on for this campaign. Local autosave still holds your work.');
+    }
+    return;
+  }
   try{
     var stats=_cgEnvelope(false);
     var res=await window._syncBridge.saveCharacter({id:currentCharId(),name:stats.name||'Character',kind:'chargen',stats:stats,campaignId:window._cgCampaignId});
@@ -3545,6 +3582,7 @@ async function _cgCloudPushOnce(){
                 record dirty for the next retry — a toast on every failed keystroke would be noise */ }
 }
 var _cgConflictWarned=false;   // one notice per session, not one per keystroke
+var _cgBudgetWarned=false;     // feat/campaign-ap-budget-enforce: same one-notice-per-session shape
 // Flush a pending-or-in-flight cloud autosave right now instead of leaving it on its debounce timer —
 // used before a deliberate in-app navigation (switchToLiveSheet) that would otherwise abandon it. Bounded
 // by timeoutMs so an offline/paused-backend user is never stranded on a dead button; on timeout this
@@ -4395,15 +4433,41 @@ function _csKey(id){return (id&&String(id).trim())||'(none)';}
 function csLoad(id){var all=_csStore();return all[_csKey(id)]||{};}
 function csSave(id,fieldId,val){try{var all=_csStore();var k=_csKey(id);(all[k]=all[k]||{})[fieldId]=val;localStorage.setItem(_sheetStoreKey(),JSON.stringify(all));}catch(e){}}
 var _csId='(none)';
-function onSheetField(el){var f=el.getAttribute('data-mf');if(!f)return;var v=(el.type==='checkbox')?(el.checked?'1':''):el.value;csSave(_csId,f,v);}
+// fix/sheet-tab-appearance-not-persisted: these `data-mf` ids are real character data (b.appearance),
+// unlike Player Name/Alignment/Background-Other/Allies/Backstory-Notes/spell trackers, which have no LOG
+// concept and are genuinely device-local scratch notes. Before this fix ALL of them — appearance included
+// — went through csSave()/csLoad() only: a local, per-tool, per-character-id scratchpad that never
+// touched the LOG, so an edit made here never reached a cloud save, and looked like it "disappeared" the
+// moment the character was opened in the other tool (a different tool = a different scratchpad
+// namespace, see _sheetStoreKey()). _shCommitAppearanceField (tool-local: CharGen routes it through
+// PATCH_SLOTS.APPEARANCE; Live Sheet's own copy of this file has no Setup-panel equivalent and writes
+// the LOG directly) is what makes these fields real now.
+var SHEET_APPEARANCE_FIELDS=['ap_gender','ap_age','ap_height','ap_build','ap_hair','ap_eyes','ap_skin','ap_marks','ap_voice','ap_hometown','ap_faith','ap_ambition','ap_fear','ap_prized','ap_companion','ap_overall'];
+function onSheetField(el){var f=el.getAttribute('data-mf');if(!f)return;var v=(el.type==='checkbox')?(el.checked?'1':''):el.value;
+  if(SHEET_APPEARANCE_FIELDS.indexOf(f)>=0){_shCommitAppearanceField(f.slice(3),v);return;}
+  csSave(_csId,f,v);}
 // after innerHTML is set, fill manual fields from store (seeded with build defaults baked into data-seed) and wire save
 function hydrateSheet(id){_csId=_csKey(id);var data=csLoad(_csId);
   document.querySelectorAll('#sheetbody [data-mf]').forEach(function(el){
-    var id=el.getAttribute('data-mf');var stored=data[id];
+    var id=el.getAttribute('data-mf');
+    // Appearance fields always show the LIVE LOG value (data-seed, freshly computed on every render) —
+    // never a stored scratch override, so this view can no longer silently diverge from what Save/cloud
+    // sync actually persists. Everything else keeps the original stored-or-seed behaviour.
+    var stored=(SHEET_APPEARANCE_FIELDS.indexOf(id)>=0)?null:data[id];
     if(el.type==='checkbox'){el.checked=(stored!=null)?(stored==='1'):(el.getAttribute('data-seed')==='1');}
     else{el.value=(stored!=null)?stored:(el.getAttribute('data-seed')||'');}
     if(el.addEventListener){el.addEventListener('input',function(){onSheetField(el);});el.addEventListener('change',function(){onSheetField(el);});}
   });}
+// Merge the edited key into the FULL current appearance object (so fields the Sheet doesn't show — nose,
+// demeanour, quirk, likes, dislikes, father, mother, profession, familyfor, famevent, secret, drink —
+// survive untouched) and commit through the same coalescing mechanism the Setup panel's own ap_* fields
+// use, so a Sheet-tab edit and a Setup-panel edit of the same character never fight each other.
+function _shCommitAppearanceField(key,v){
+  var merged=Object.assign({},(readBuild().appearance)||{});merged[key]=v;
+  _cgSyncPatchSlot(PATCH_SLOTS.APPEARANCE,{appearance:merged});
+  var setupEl=document.getElementById('ap_'+key);
+  if(setupEl && setupEl!==document.activeElement) setupEl.value=v;   // keep the Setup panel in sync if it's on screen
+}
 var _CSABCOL={STR:'#DE3520',DEX:'#39843C',CON:'#B36113',INT:'#3F6FD8',WIS:'#008393',CHA:'#9C27B0'};
 function _csEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function _mfIn(id,seed,cls,ph,aria){return '<input class="cs-in '+(cls||'')+'" data-mf="'+id+'" data-seed="'+_csEsc(seed)+'" aria-label="'+_csEsc(aria||ph||id)+'"'+(ph?' placeholder="'+_csEsc(ph)+'"':'')+'>';}

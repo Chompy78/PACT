@@ -1347,57 +1347,6 @@ likely surface in manual/visual review rather than persist unnoticed).
 flight, verified by a test that starts a `reconcile()` push and checks `getSyncState()` mid-flight;
 `testing/scripts/sync-state-machine-ci.mjs` still 0 failed.
 
-## Block cloud save for campaign-bound characters over AP budget — TODO
-Branch feat/campaign-ap-budget-enforce. Add a per-campaign `rules.enforceApBudget` toggle (default on)
-that blocks a campaign-bound character's *cloud* save (manual "Save to cloud" and autosave) once
-`compute()`'s `remaining < 0` — local file Save stays unaffected. DM Console gets a lock-guarded toggle
-matching the existing "ignore player-entered AP" UI exactly. Design fully settled below — implementer
-should not need to re-derive any of it.
-**Effort:** high · **Risk:** medium — ambiguity is low (design fully settled in the steps below,
-including setting location/default/exact blocking scope); damage scale is low (client-side only, no
-data loss, no security/trust boundary — a `git revert` fully undoes it); damage likelihood is medium
-(no automated gate exists yet for a new save-blocking UX path — a wrong implementation would surface in
-manual testing, not silently).
-
-```text
-1. New setting: `rules.enforceApBudget` (boolean key inside the campaign's existing `rules` jsonb blob
-   — NOT a new `campaigns` column, no migration/RLS change needed). Default true when absent/unset
-   (opposite default from `ignore_player_ap`). Read/write via the existing `setCampaignRules()`/
-   read-modify-write-the-whole-blob path (js/campaign.js), same as `houseRules`/`levelBudgetCurve`
-   already do.
-2. Enforcement is CLIENT-SIDE ONLY, deliberately — matches `validate()`'s existing banned-item
-   enforcement (also client-side-only today). True DB-level enforcement would mean reimplementing
-   compute()'s AP pricing math in SQL, which violates the hard rule that js/engine.js is the only place
-   rules logic lives. Do not build a Postgres-side check.
-3. Block only the CLOUD save path (Cloud menu's "Save to cloud" + cloud autosave) — never the Local
-   "Save to file" action (a personal backup, not DM-visible). Block when: the character's campaign_id
-   is set AND that campaign's rules.enforceApBudget is true-or-absent AND compute()'s remaining < 0.
-4. Manual "Save to cloud" click while blocked: show a clear message explaining why (over budget by N
-   AP, DM has budget enforcement on). Autosave while blocked: skip the push silently after one warning
-   (mirror the existing `_cgConflictWarned` one-notice-per-session pattern) rather than erroring on
-   every debounce cycle.
-5. Apply to BOTH CharGen (`onSaveClick()`/`_cgCloudPushOnce()`) and Live Sheet's equivalent cloud-save
-   handlers — not DM Console, which has no save path of its own (read-only roster/awards).
-6. Grandfathering: turning the setting ON must never retroactively touch, hide, or revert an
-   already-over-budget character — it only blocks that character's NEXT save attempt.
-7. DM Console UI: copy the EXISTING "ignore player-entered AP" lock pattern verbatim (in
-   tools/DM-Console.html — a disabled checkbox + a separate lock/unlock toggle button + a `confirm()`
-   dialog on change + auto-relock after every attempt, success or failure) for this new toggle, placed
-   alongside it.
-8. `compute()` itself needs no change — `remaining < 0` already means "over budget." All new logic
-   lives at the save call sites plus the DM Console settings UI.
-9. Add a differential regression test (`testing/scripts/`, matching this project's existing
-   `sync-*-ci.mjs` pattern) proving: an over-budget campaign-bound character's cloud save is refused
-   when the setting is on, succeeds when it's off, and a non-campaign or under-budget character is
-   never blocked either way.
-```
-
-**Done when:** a campaign-bound, over-budget character's cloud save (manual and autosave) is refused
-when `rules.enforceApBudget` is true-or-absent, succeeds when explicitly set false, and local file Save
-is never affected either way — verified by the new differential test; DM Console's new toggle uses the
-same lock/confirm pattern as "ignore player-entered AP"; `testing/tests/engine-parity.html` still 0
-failed (`compute()` itself is unchanged).
-
 ## Security audit: privilege boundaries + character/AP integrity against a malicious client — TODO
 Branch `security/privilege-and-character-integrity`. Owner request, 2026-08-08. Assume the attacker has
 the full frontend source, the Supabase URL, the publishable key, complete control of browser JS/
@@ -1549,6 +1498,59 @@ low risk once that's answered.
 (documented, no new code needed), or a new race-safe attempt-tracking mechanism is in place and covered by
 adversarial tests proving both that abuse is throttled and legitimate use isn't blocked; the decision is
 recorded in `DECISIONS.md`; the Supabase advisor reports no new findings.
+
+## Supabase Edge Function running the real engine.js for AP-budget validation — TODO
+Branch `feat/ap-edge-function-validation`. Third of three ideas from the 2026-08-09/10 AP-integrity
+external-review batch (`z-cold/` on the `zcold` branch — 7 independent AI reviews synthesized against the
+actual code). The other two shipped as one change: `feat/campaign-ap-log-integrity` (a frozen-cost-sum
+consistency trigger with a non-regression guard, plus a locked-history append-only protection trigger
+scoped to the same boundary Live Sheet's own `undo()` already enforces — the last non-discretionary
+`award` event). This is the deferred, lower-priority third leg.
+
+**Why it's lower priority, not higher — confirmed by reading the code, not assumed.** Several of the
+external reviews proposed this as the "real"/airtight server-side fix, on the theory that running the
+actual `compute()` server-side re-derives correct prices. Checked directly in `js/engine.js`
+(`_spendCost()`/`_economyFrom()`, ~lines 617-662): `compute()`/`economy()` only **sum** the frozen `cost`
+field already sitting on each LOG event — they never re-derive what a purchase *should* cost from the
+action itself. (Only `repriceDraft()` does real re-derivation, and it deliberately no-ops the instant a
+log is locked — post-lock prices are supposed to diverge from current rules; that's grandfathering, not a
+gap.) So an Edge Function that calls `compute()` server-side gives the exact same guarantee as the SQL
+trigger already shipped in `feat/campaign-ap-log-integrity` — both just confirm the client's *declared*
+numbers are internally consistent and within server-truth AP, neither proves any individual frozen cost is
+*correct*. Its real value is DRY/maintainability (one canonical pricing implementation instead of a second,
+hand-written SQL sum that could drift) and broader coverage (could also run `validate()`'s other checks,
+not just the budget sum) — not a bigger security boundary than what's already shipped.
+**Effort:** medium · **Risk:** low — ambiguity is low (the mechanism — bundle `engine.js` for Deno, call
+`compute()`/`validate()` inside a Supabase Edge Function, gate the DB write on the result — is well
+understood); damage scale is low (additive: a new Edge Function alongside the existing PostgREST save
+path, not a replacement, unless a later decision retires direct client writes); damage likelihood is low
+(explicitly deferred — "do only if the SQL-trigger approach proves insufficient in practice," not urgent).
+
+```text
+1. Re-confirm the premise before starting: re-check that feat/campaign-ap-log-integrity's two triggers are
+   actually proving insufficient in practice (a real bypass observed, not a theoretical one) — this task
+   exists to be revisited, not built reflexively once the SQL-trigger PR merges.
+2. Bundle js/engine.js for Deno (an ESM re-export wrapper + esbuild bundle, or confirm engine.js is already
+   Deno-importable as-is — it's pure JS with no browser globals per the 2026-08-10 review batch, but verify
+   directly rather than trusting that claim).
+3. New Edge Function (e.g. supabase/functions/validate-save/): fetches authoritative characters.ap and
+   campaigns.rules server-side (never trusts client-supplied budget figures), runs the real compute()
+   (and optionally validate()) against the client-submitted LOG, rejects the write if over budget or if a
+   validate() check fails, otherwise performs the write itself.
+4. Client integration: CharGen's and Live Sheet's cloud-save paths call the Edge Function instead of (or
+   in addition to, during a transition) a raw PostgREST PATCH on characters.stats.
+5. Decide whether to revoke direct client UPDATE on characters.stats once the Edge Function path is proven
+   — that's the point where this stops being additive and starts being the primary security boundary.
+   Record that decision explicitly; don't let it happen implicitly as a side effect of "the new path works."
+6. Run the Supabase advisor (get_advisors) and skim get_logs after deploying the function, per the
+   per-change checklist step 4.
+```
+
+**Done when:** the premise re-check in step 1 is recorded (with its evidence) before implementation
+starts; the Edge Function runs the real, unmodified `engine.js`; a campaign-bound cloud save that would
+exceed budget is rejected server-side even when submitted via a raw PATCH bypassing the client UI; the
+decision on whether/when to revoke direct client writes is recorded in `DECISIONS.md`; the Supabase
+advisor reports no new findings.
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.

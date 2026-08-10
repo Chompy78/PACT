@@ -10,6 +10,52 @@
 
 ## Index
 
+- **D-GH-2026-08-10-campaign-ap-log-integrity** — server-side backstop for the AP-overspend trust
+  boundary, following a 7-AI external review batch (`z-cold/`). Two BEFORE UPDATE triggers on
+  `characters`, campaign-bound only: `pact_enforce_ap_budget_consistency` (frozen-cost-sum, non-regression
+  guarded — a genuinely different, complementary check to the client gate's repriced `compute().remaining`,
+  not a mirror of it) and `pact_enforce_locked_history` (makes Live Sheet's own `undo()` boundary — the
+  last non-discretionary `award` event — server-authoritative append-only protection, with `cat:'patch'`
+  events exempt so CharGen's `replacePatchSlot()`/Live Sheet's `_shCommitAppearanceField` keep working).
+  Pure ledger arithmetic, no `DATA`/pricing reference, so neither duplicates `js/engine.js`. The Edge
+  Function idea (N3) was deferred to the task board — confirmed `compute()`/`economy()` only sum frozen
+  costs rather than re-deriving them, so it wouldn't give a stronger guarantee than the SQL trigger for
+  locked characters.
+  Full record: `decisions/2026/D-GH-2026-08-10-campaign-ap-log-integrity.md`.
+- **D-GH-2026-08-09-zcold-autosync-setup** — `z-cold`/`z-uploads` are drop-zone folders: anything placed
+  in them locally gets auto-committed and pushed within seconds by an external background script (not
+  part of this repo). They live on a dedicated `zcold` branch via a **git worktree + Windows
+  junction**, not on `preview` — a plain tracked folder was tried first but broke the moment a sibling
+  repo's working copy switched branches, since git can't check the same branch out twice. Also folds in
+  the pre-existing `z-cold-reviews/` content, moved in during setup.
+  Full record: `decisions/2026/D-GH-2026-08-09-zcold-autosync-setup.md`.
+- **D-GH-2026-08-09-campaign-ap-budget-enforce** — new campaign setting `rules.enforceApBudget`
+  (default true) blocks a campaign-bound character's CLOUD save (manual + autosave, both tools) once
+  `compute()`'s `remaining < 0`; local file Save and DM Console (no save path of its own) are never
+  touched. Client-side only, deliberately — mirrors `validate()`'s existing enforcement style, since
+  true DB-level enforcement would mean reimplementing `compute()`'s pricing math in SQL, violating the
+  hard rule that `js/engine.js` is the only place rules logic lives. DM Console's new toggle copies the
+  existing `ignorePlayerAp` lock-guarded UI pattern verbatim. Grandfathered — turning it on never
+  retroactively touches an already-over-budget character, only blocks the next save attempt. Manual save
+  alerts with a clear reason; autosave skips silently after one warning per session, mirroring
+  `_cgConflictWarned`/`_lsConflictWarned` exactly.
+  Full record: `decisions/2026/D-GH-2026-08-09-campaign-ap-budget-enforce.md`.
+
+- **D-GH-2026-08-09-sheet-tab-appearance-not-persisted** — the fillable "📋 Sheet" tab's Appearance grid
+  and Background & Personality block (gender/age/height/build/hair/eyes/skin/marks/voice/hometown/faith/
+  ambition/fear/prized/companion/Description) are real `b.appearance` data, but were rendered through the
+  same local-`localStorage`-scratchpad mechanism as genuinely scratch fields (Player Name, Notes, spell
+  trackers) — so an edit made there never reached the LOG, never synced to the cloud, and looked like it
+  "disappeared" the moment the character was reopened in the other tool (a different, empty scratchpad
+  namespace per tool). Fixed by routing those 16 fields into the real LOG: CharGen reuses its existing
+  `PATCH_SLOTS.APPEARANCE`/`replacePatchSlot()` coalescing mechanism; Live Sheet (which has no
+  Setup-panel equivalent — the Sheet tab is its only editor for these fields) gained a new
+  position-stable replace-in-place helper mirroring the same "don't move the ledger line, don't let
+  undo() eat it" rule. Both merge into the FULL current appearance object so fields the Sheet doesn't
+  show (nose, demeanour, quirk, likes, dislikes, father, mother, profession, familyfor, famevent, secret,
+  drink) survive untouched.
+  Full record: `decisions/2026/D-GH-2026-08-09-sheet-tab-appearance-not-persisted.md`.
+
 - **D-GH-2026-08-09-harden-invitation-system** — `campaigns.dm_invite_code` was readable by any campaign
   member (row-level RLS, no column exclusion) and redeemable by any authenticated account system-wide via
   `join_as_dm()` with no membership check — a confirmed live privilege-escalation bug. Fixed by dropping
