@@ -1,0 +1,153 @@
+PACT — AP-OVERSPEND ENFORCEMENT: ANALYSIS & RECOMMENDATIONS
+Context handoff for a coding AI. Source: pact-ap-overspend-problem.txt (chompy78/PACT).
+
+====================================================================
+CORE FRAMING
+====================================================================
+Real integrity requires pricing logic to EXECUTE somewhere the attacker
+can't touch. The attacker IS the client, and pricing logic (engine.js)
+ONLY lives on the client. So there are only two honest options:
+  (i)  run the SAME engine.js in a trusted place, or
+  (ii) stop preventing, instead DETECT + let the DM adjudicate.
+Everything else is bar-raising (a speed bump), NOT a trust boundary.
+
+Hard constraints (do not violate):
+  - engine.js is the ONLY home for pricing logic (no SQL/JS reimpl — drift risk).
+  - No custom backend server. GitHub Pages + Supabase/RLS only.
+  - Don't break the 3 tools' existing UI/workflows without good reason.
+
+====================================================================
+THE THREAT MODEL (why AI makes this economical)
+====================================================================
+An AI-assisted cheater:
+  1. Grabs own character JSON (localStorage or own characters.stats row).
+  2. Hands it to an AI with innocent framing ("edit this JSON, keep it
+     internally consistent") — no mention of game/DM/other players.
+  3. AI inserts purchase events with low/zero frozen costs, keeps
+     sum(frozen costs) == declared total.
+  4. Re-signs with existing signPayload() — UNKEYED SHA-256, so the
+     client is the signer and can always re-sign a forged payload.
+  5. PUTs straight to Supabase REST endpoint, bypassing the client gate.
+Manual = not worth it. With AI = ~2 minutes. AI is what makes it viable.
+
+Why "just get the AI to refuse" is leaky (NOT a boundary):
+  - Malicious vs legit request is indistinguishable to the AI once game
+    context is stripped (framing bypass).
+  - Local/older/uncensored models have no scruples (model-swap bypass).
+  - The final write is one HTTP request — no AI needed for the last mile.
+
+====================================================================
+P1 — REAL SERVER-SIDE INTEGRITY
+Recommendation: A1
+====================================================================
+A1 (DEEP, RECOMMENDED) — Supabase Edge Function running the REAL engine.js:
+  - Revoke direct client write on characters.stats; clients save via the
+    Edge Function (RPC), not raw PostgREST.
+  - Function reads DM-trusted characters.ap SERVER-SIDE (client never
+    supplies budget).
+  - Function imports the actual js/engine.js, runs compute(build),
+    RECOMPUTES each purchase cost from the action, rejects if remaining<0.
+    Service-role key does the write.
+  - Engine.js-safe: executes the ONE canonical module, zero drift.
+  - Cost: engine.js must be Deno-importable (small ESM/export shim if it
+    touches browser globals — packaging, NOT logic duplication).
+  - Edge Functions are serverless / part of Supabase => not a "custom
+    backend" in the rules' sense.
+
+  *** PIVOTAL OPEN QUESTION TO CONFIRM IN engine.js ***
+  Does compute() RECOMPUTE an action's price from the action, or just SUM
+  the frozen cost fields in the LOG?
+    - Recomputes  => A1 is airtight.
+    - Only sums   => still trusting client numbers; need a recompute-from-
+      actions export IN engine.js first (no duplication, just an export).
+
+A2 (SHALLOW) — Narrow frozen-cost-sum trigger only (the doc's "option B"):
+  - Postgres trigger checks sum(event.cost)==declared total AND <= spendable AP.
+  - Ceiling: only proves client's numbers are mutually CONSISTENT, not
+    CORRECT. Attacker writes understated costs and passes. Tripwire only.
+  - Pick only if A1 is politically ruled out.
+
+Supabase features beyond RLS+triggers: Edge Functions (the answer, A1).
+PL/v8 exists (JS in Postgres) but off by default & worse to maintain —
+mention only. pg_net/pg_cron are for the detection pattern (C3), not inline.
+
+====================================================================
+P2 — CHARGEN DRAFT-MODE HARDENING
+Recommendation: B1
+====================================================================
+B1 (RECOMMENDED) — Lock/save enforcement + ONE shared invariant check:
+  - Keep draft advisory/exploratory (overspend freely, back out).
+  - Enforce at the two chokepoints that already exist: lock-on-finish
+    transition AND cloud-save path.
+  - For live draft feedback WITHOUT threading all four delegation fns
+    (_cgWirePatchDelegation, _cgWireRowReconcileDelegation,
+     _cgWirePatchClassDelegation, _cgWireTraditionDelegation):
+    add a SINGLE afterMutation() hook that runs compute() once after any
+    edit settles and shows a NON-BLOCKING warning. One checkpoint, not four.
+  - Randomize unaffected (already does tryAct() speculative check + bulk
+    rewrite).
+
+B2 (deep, but wrong-deep here) — Full draft-time hard cap across all four
+  delegations: closes draft overspend up front but kills exploratory UX,
+  higher regression surface, buys little on the real threat (save/lock
+  already covers it). Only if playtesting shows players routinely stuck in
+  confusing over-budget draft states (a UX problem, not security).
+
+====================================================================
+P3 — OTHER IDEAS THAT FIT CONSTRAINTS
+Recommendation: C1 (architecture) + C3 (safety net)
+====================================================================
+C1 — Make characters.stats NOT directly client-writable:
+  Highest-impact single change. Revoke direct client write on stats; force
+  ALL writes through a validating RPC/Edge Function. This is the enabling
+  half of A1. Converts "player can POST any LOG" into "player can only
+  submit LOGs the trusted validator accepts."
+
+C2 — Append-only, server-validated LOG:
+  Expose an RPC that only APPENDS a new event and validates THAT event's
+  cost via engine.js at append time; keep an authoritative server-side
+  running total. Never trust wholesale replacement — only validated
+  increments. Best fit for the event-sourced model; more work than C1.
+
+C3 — Detect + DM-adjudicate (cheapest good-fit):
+  It's a tabletop game with a DM as ultimate authority. Run real engine.js
+  over each character async (Edge Function on pg_cron, or on-write via
+  pg_net) and surface over-budget characters in the DM Console for review.
+  Turns an unwinnable client-trust problem into a moderation problem.
+  Weaker than A1 but often sufficient, and a good extra layer even with A1.
+
+====================================================================
+AI-REFUSAL ANGLE
+Recommendation: D3
+====================================================================
+D1 — Rely on AI refusal as primary defence: NO. Unreliable by construction;
+     gives false safety, de-prioritises the real fix.
+D2 — Self-incriminating artifact: add visible header/comment in payload
+     (e.g. "// tamper-protected competitive game state") + intent-obvious
+     field names so a conscientious AI balks. Cheap rider only; attacker
+     just deletes the header. Catches the careless.
+D3 (RECOMMENDED) — Accept AI-refusal can't be enforced; close the boundary
+     (A1 + C1). Once the server recomputes costs vs DM-trusted ap, it does
+     NOT matter whether a human, frontier model, or local jailbroken model
+     built the forged LOG — the write is rejected on arrival. Police
+     OUTCOMES (trivial once boundary exists), not INTENT (impossible).
+
+Layer effectiveness:
+  AI refusal (D1/D2)           : careless=sometimes, determined=no, local-AI=no
+  Shipped client gate          : careless=yes(UI), determined=no, local-AI=no
+  Server validation (A1/C1)    : careless=yes, determined=YES, local-AI=YES
+
+====================================================================
+RECOMMENDED SEQUENCE
+====================================================================
+1. C1 + A1 together = the real fix (revoke client stats write; validate via
+   Edge Function running the ACTUAL engine.js).
+2. Keep the shipped client-side gate for UX (fast feedback, no round-trip).
+3. Add C3 as a standing audit so anything that slips is visible to the DM.
+4. B1 for CharGen — advisory draft, enforce at lock/save, one shared warning hook.
+
+FIRST ACTION FOR THE CODING AI:
+  Read js/engine.js and sql/rls-policies.sql. Confirm:
+   (a) Does compute() RECOMPUTE prices from actions, or only SUM frozen
+       cost fields? (decides if A1 is airtight or needs a recompute export)
+   (b) Exact RLS line to change for C1 (revoke owner update on stats column).

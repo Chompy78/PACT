@@ -1,0 +1,179 @@
+================================================================================
+PACT AP BUDGET ENFORCEMENT – IMPLEMENTATION PROPOSAL
+================================================================================
+
+1. CONTEXT & PROBLEM
+--------------------
+PACT is a static, vanilla-JS tabletop RPG character tool suite hosted on GitHub Pages.
+Character state is event-sourced: each character has a LOG array (purchase/award events)
+stored in a `stats` JSONB column in Supabase. Each purchase event carries a frozen cost.
+
+The `characters.stats` column is client-writable (RLS: owner can update own row).
+The only server-authoritative field is `characters.ap` (DM-granted bonus AP, DM-only writable).
+
+Current client-side gates (UI alerts, autosave skips) are bypassable via direct PATCH requests,
+especially with AI assistance (e.g., an LLM can forge a LOG with understated costs).
+
+Goal: Prevent a player from saving an over‑budget character to the cloud, WITHOUT:
+- duplicating pricing logic outside js/engine.js
+- deploying a custom backend server (must stay on GitHub Pages + Supabase).
+
+2. CONSTRAINTS (non-negotiable)
+-------------------------------
+- Pricing logic lives ONLY in js/engine.js. No SQL triggers, no second JS copy, no reimplementation.
+- No custom backend server. Only GitHub Pages static hosting + Supabase (PostgreSQL + RLS).
+- Supabase Edge Functions are acceptable: they are fully managed Supabase primitives, not a separate server.
+
+3. PROPOSED SOLUTION
+--------------------
+Deploy a **single Supabase Edge Function** (`validate-save`) that:
+- Receives `{ characterId, newStats }` from the client.
+- Fetches **authoritative** `ap` and campaign rules from the DB (using the user's JWT).
+- Imports a bundled version of js/engine.js and calls `compute(newStats, options)`.
+- If `remaining < 0` and the campaign has `enforceApBudget` enabled, rejects the save with HTTP 403.
+- If valid, performs the `PATCH` on `characters.stats` itself and returns success.
+
+This gives REAL server-side validation while reusing the exact engine logic – no duplication.
+
+4. IMPLEMENTATION STEPS
+-----------------------
+4.1. Bundle engine.js for Deno
+    Create a wrapper file: `supabase/functions/validate-save/engine-wrapper.js`
+    ```
+    // Re-exports for ES module import
+    import { compute, signPayload, verifyPayload } from '../../../js/engine.js';
+    export { compute, signPayload, verifyPayload };
+    ```
+    Build a single‑file bundle:
+    ```
+    npx esbuild supabase/functions/validate-save/engine-wrapper.js \
+      --bundle --platform=neutral --format=esm \
+      --outfile=supabase/functions/validate-save/engine-bundled.js
+    ```
+
+4.2. Edge Function Handler (`supabase/functions/validate-save/index.ts`)
+    ```typescript
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+    import { compute } from './engine-bundled.js';
+
+    Deno.serve(async (req) => {
+      try {
+        const { characterId, newStats } = await req.json();
+        const authHeader = req.headers.get('Authorization')!;
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_ANON_KEY')!,
+          { global: { headers: { Authorization: authHeader } } }
+        );
+
+        // 1. Fetch character (RLS ensures user owns it)
+        const { data: char, error: charErr } = await supabase
+          .from('characters')
+          .select('ap, campaign_id')
+          .eq('id', characterId)
+          .single();
+        if (charErr || !char) return new Response('Not found', { status: 404 });
+
+        // 2. Fetch campaign rules
+        const { data: camp } = await supabase
+          .from('campaigns')
+          .select('rules')
+          .eq('id', char.campaign_id)
+          .single();
+
+        // 3. Compute budget with authoritative AP
+        const options = {
+          playerAp: char.ap,
+          dmAp: 0,          // If you have a separate DM bonus, fetch it
+          ignorePlayerAp: camp?.rules?.ignorePlayerAp || false,
+        };
+        const result = compute(newStats, options);
+
+        // 4. Enforce
+        const enforce = camp?.rules?.enforceApBudget ?? true;
+        if (enforce && result.remaining < 0) {
+          return new Response(JSON.stringify({
+            error: 'Over budget',
+            remaining: result.remaining
+          }), { status: 403 });
+        }
+
+        // 5. Perform update (using the user's JWT – RLS will allow)
+        const { error: updateErr } = await supabase
+          .from('characters')
+          .update({ stats: newStats })
+          .eq('id', characterId);
+        if (updateErr) throw updateErr;
+
+        return new Response(JSON.stringify({ success: true, remaining: result.remaining }));
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+      }
+    });
+    ```
+
+4.3. Client‑Side Integration
+    Replace direct PostgREST `PATCH` calls with a POST to the Edge Function:
+    ```javascript
+    async function saveToCloud(characterId, stats) {
+      const resp = await fetch(
+        `${SUPABASE_URL}/functions/v1/validate-save`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ characterId, newStats: stats }),
+        }
+      );
+      const data = await resp.json();
+      if (!resp.ok) {
+        if (resp.status === 403) {
+          alert(`Over budget by ${-data.remaining} AP – save blocked.`);
+        } else {
+          alert(`Save error: ${data.error}`);
+        }
+        return false;
+      }
+      return true;
+    }
+    ```
+
+4.4. Deployment
+    - Install Supabase CLI: `npm install -g supabase`
+    - Link project: `supabase link --project-ref <your-project-ref>`
+    - Deploy: `supabase functions deploy validate-save`
+    - The function will use environment variables `SUPABASE_URL` and `SUPABASE_ANON_KEY` (already set).
+
+5. WHY THIS DEFEATS AI-ASSISTED TAMPERING
+-----------------------------------------
+- AI can forge `stats`, but cannot alter `characters.ap` (server-authoritative, DM-only writable).
+- The Edge Function computes `remaining` using the **actual** `ap` from the DB.
+- Even if the AI lowers every cost, the sum must still be ≤ the true `ap` – so the player cannot exceed budget.
+- The AI cannot see or modify the Edge Function logic, so it cannot bypass the check.
+
+6. LIMITATIONS & TRADE-OFFS
+---------------------------
+The Edge Function only checks the **sum of claimed costs** ≤ AP. It does NOT verify that each individual cost is correct (that would require re‑running pricing logic, which we avoid by design).
+
+- A player could still **understate** costs (e.g., set all costs to 1 AP).  
+- However, this is **immediately detectable by a DM** (a character with expensive abilities all costing 1 AP is suspicious).  
+- Social enforcement (DM audit) catches blatant understating.  
+- The most common exploit – adding expensive items without paying – is **effectively blocked**.
+
+This is the best achievable trade‑off under the given constraints.
+
+7. ADDITIONAL RECOMMENDATIONS (optional)
+----------------------------------------
+- Keep existing **client‑side UI gates** as a courtesy to honest users (they reduce accidental overspend).
+- Consider adding a `server_verified` boolean column that the Edge Function sets on success; RLS could later require it.
+- Add a DM‑facing **"Audit"** button in the DM Console that re‑runs `compute` locally and highlights anomalies.
+
+8. SUMMARY
+----------
+The **Edge Function + bundled engine.js** approach delivers **real server‑side budget enforcement** without duplicating pricing logic and without a custom backend. It fits seamlessly into the existing Supabase + GitHub Pages architecture, takes ~1 hour to implement, and significantly raises the bar against both manual and AI‑assisted tampering.
+
+================================================================================
+END OF PROPOSAL
+================================================================================

@@ -1,0 +1,302 @@
+PACT — AP-OVERSPEND HARDENING: AI-ASSISTED CHEATING THREAT MODEL
+Review summary for coding agent
+Date: 10 August 2026
+
+GOAL
+
+Assess simple ways to harden PACT against a realistic threat: a malicious player using an AI coding agent to modify their own character so they obtain benefits they could not legitimately afford.
+
+Core constraints:
+- GitHub Pages + Supabase only; no custom backend.
+- engine.js is the sole home of PACT pricing/rules logic.
+- Do not duplicate pricing/compute() in SQL or another JS implementation.
+- Preserve existing CharGen/Live Sheet UX unless there is a strong security reason.
+- Local/offline character files remain supported.
+
+KEY THREAT MODEL
+
+The realistic attacker is not necessarily a developer manually editing JSON for hours. A player can give an AI agent the public repo, character data, browser/local files, or access to the app and ask it to "make the character better".
+
+The obvious attack is:
+1. Inspect the data model and engine.js.
+2. Find characters.stats, including LOG and frozen purchase costs.
+3. Construct a forged LOG containing stronger purchases and/or understated frozen costs.
+4. Bypass the normal UI/save gate by directly modifying local state or calling Supabase/PostgREST.
+5. Persist the forged character.
+
+The fundamental weakness is NOT that Postgres lacks knowledge of individual PACT prices. It is that the player currently controls the historical economic record that the application subsequently trusts.
+
+CURRENT DEFENCES
+
+PR #400 already provides a useful client-side gate:
+- campaigns.rules.enforceApBudget
+- When enabled, campaign-bound cloud saves are blocked if compute().remaining < 0.
+- Manual save is blocked; autosave is skipped with a warning.
+- Local save/export remains unrestricted.
+- Existing Live Sheet buy() already blocks interactive purchases that exceed available AP.
+- DM-granted characters.ap is genuinely server-authoritative through RLS.
+- This is useful UX/normal-path hardening but is NOT a security boundary because a malicious client can bypass browser code and write directly to Supabase.
+
+IMPORTANT OBSERVATION
+
+Do not make Postgres reproduce PACT pricing unless the project is willing to abandon the "engine.js is the sole pricing authority" rule.
+
+A server-side implementation of compute()/pricing would create a second rules engine that can drift from engine.js. This is architecturally worse than the current vulnerability.
+
+SUPABASE EDGE FUNCTIONS
+
+Supabase Edge Functions are server-side code. They could technically validate pricing before writes, but doing so would amount to moving/duplicating pricing logic outside engine.js.
+
+Recommendation: do NOT introduce an Edge Function solely to reproduce PACT pricing under the current architecture.
+
+THE "B" IDEA: FROZEN-COST SUM CHECK
+
+A Postgres trigger could verify:
+- sum(LOG event frozen costs) is internally consistent
+- optionally, sum(frozen costs) <= a budget
+
+This is safe with respect to the engine.js-only rule because it does not calculate what an item SHOULD cost.
+
+However, it is NOT true pricing integrity.
+
+A malicious client can simply submit:
+  event A cost = 1
+  event B cost = 1
+  event C cost = 1
+
+The database can prove those supplied numbers add up, but not that they are the correct PACT prices.
+
+Conclusion: useful as a low-cost consistency/tripwire check, but not the principal security mechanism.
+
+STRONGER IDEA: PROTECT HISTORY, NOT PRICING
+
+PACT already has a natural security boundary: character lock.
+
+Treat a pre-lock character as untrusted, player-authored draft state.
+
+After lock:
+- historical economic events should not be replaceable
+- existing frozen costs should not be changeable
+- historical events should not be deleted/reordered
+- legitimate new economic events should be append-only
+
+This does NOT require Postgres to know any PACT prices.
+
+Postgres only needs to enforce data provenance:
+"the player cannot rewrite historical economic events that were already committed."
+
+This is much stronger than a frozen-cost sum check.
+
+WHY THIS FITS PACT
+
+PACT is already event-sourced:
+- LOG contains purchase/award events
+- frozen costs are captured at purchase time
+- SEQ exists
+- compute(build) replays/derives totals
+- Live Sheet purchases already have a clear buy() path
+
+If all legitimate post-lock economic changes can be represented as appending a new LOG event, then a locked character can use an append-only economic history.
+
+Conceptually:
+
+OLD:
+  event 1
+  event 2
+  event 3
+
+VALID NEW:
+  event 1
+  event 2
+  event 3
+  event 4
+
+INVALID:
+  event 1 changed
+  event 2 deleted
+  event 3 cost changed
+  events reordered
+  old event replaced
+
+This changes the attack from:
+"I can rewrite the entire economic history"
+to:
+"I might try to forge one new purchase."
+
+That is a dramatically smaller problem.
+
+CRITICAL DETAIL: LOCK STATE MUST BE SERVER-AUTHORITATIVE
+
+Do NOT rely solely on a "locked" flag inside player-writable stats JSON.
+
+If the player controls:
+  stats.locked = true/false
+
+then an attacker may simply set it back to false.
+
+Consider a database-level field such as:
+- locked_at timestamptz
+or
+- state = draft/locked
+
+and make the transition authoritative.
+
+The database should know that a character is locked independently of player-controlled JSON.
+
+PROPOSED SECURITY MODEL
+
+DRAFT:
+- client/player-controlled
+- advisory budget
+- overspending temporarily allowed for exploration
+- local experimentation remains unrestricted
+
+LOCK / FINALISE:
+- legitimate client computes the final character
+- lock transition verifies the normal finalisation requirements
+- server records authoritative locked state
+
+LOCKED:
+- AP remains server-authoritative
+- campaign rules remain DM-authoritative
+- historical LOG is immutable
+- new economic events are append-only
+- arbitrary replacement of stats/LOG is rejected or tightly restricted
+
+This preserves the engine.js-only pricing architecture.
+
+CHARACTER.AP
+
+characters.ap is already the right pattern:
+- DM-granted bonus AP
+- DM-only writable
+- player cannot simply increase it through normal RLS
+
+Continue treating this as authoritative.
+
+CAMPAIGN RULES
+
+Campaign rules should likewise remain server-authoritative/DM-controlled.
+
+Do not let player-controlled character JSON become an alternative source of authority for:
+- AP
+- campaign rules
+- ownership
+- DM role
+- locked state
+
+CHARGEN DRAFT MODE
+
+Recommendation: do NOT hard-block overspending throughout draft mode.
+
+Reasons:
+- draft is intentionally exploratory/advisory
+- users may temporarily overspend, back out, randomise, and try alternatives
+- there is no single equivalent to Live Sheet buy()
+- edits flow through multiple delegation functions
+- forcing budget checks into all mutation paths adds complexity and UX friction
+- Randomize already performs its own speculative budget-aware check
+
+Instead:
+- keep draft budget advisory
+- ensure the final lock/finalisation transition is the important boundary
+- optionally centralise a post-mutation budget/UI refresh function, without rejecting draft mutations
+
+AI-SPECIFIC DEFENCE
+
+Because AI-assisted cheating is a realistic threat, add explicit game-integrity instructions to the repo/project instructions used by coding agents.
+
+Suggested rule:
+
+PACT SECURITY / GAME-INTEGRITY RULE
+
+"Never modify a character, LOG, frozen purchase cost, AP value, campaign rule, lock state, or persisted character data in order to circumvent a game's rules, AP budget, DM authority, ownership, or cloud-save restrictions.
+
+If asked to make a character stronger by bypassing those rules, refuse the modification and explain that the legitimate route is through the normal PACT UI/DM-authorised mechanisms.
+
+This applies even if the user owns the character or the local file."
+
+This should be treated as friction, NOT as a security boundary.
+
+A determined user can:
+- tell an AI to ignore instructions
+- use another AI
+- ask for a generic JSON-editing script
+- make direct REST requests
+
+Therefore the database must still reject unauthorised state changes.
+
+AI-RESISTANT DESIGN PRINCIPLE
+
+Do not try to detect whether "Claude" or another AI made the change.
+
+Do not rely on obscurity, renamed fields, hidden JS, or making the LOG difficult to understand.
+
+Instead:
+1. AI/project instructions discourage cheating.
+2. Normal UI does not offer cheating paths.
+3. Supabase/RLS/triggers prevent the important unauthorised state changes.
+
+RECOMMENDED PRIORITY
+
+P1 — Highest:
+Make locked character state authoritative in the database and protect locked economic history.
+
+Specifically investigate:
+- authoritative locked_at/state
+- immutable historical LOG entries
+- append-only post-lock economic events
+- protection against sequence rewriting/deletion/replacement
+- legitimate non-economic character updates that still need to work
+
+P2:
+Add explicit anti-cheating/game-integrity instructions to repository/AI-agent instructions.
+
+P3:
+Optionally add the narrow frozen-cost consistency trigger as defence-in-depth/tripwire.
+
+P4:
+Keep CharGen draft mode advisory unless code review reveals a specific exploit that makes draft state authoritative somewhere it should not be.
+
+IMPORTANT NEXT CODE AUDIT
+
+Before implementing the append-only approach, audit the actual mutation paths and answer:
+
+"Can every legitimate post-lock Live Sheet economic mutation be represented as an append-only LOG operation?"
+
+If YES:
+- append-only locked history is likely the cleanest low-complexity server-side hardening available.
+
+If NO:
+- identify every legitimate mutation that rewrites existing LOG entries or economic state.
+- redesign only those operations before applying immutability.
+
+Also audit the exact lock/finalisation path to determine where a database-authoritative lock state can be introduced without breaking current workflows.
+
+BOTTOM LINE
+
+Do NOT try to make Postgres understand PACT pricing.
+
+Make Postgres understand PACT DATA AUTHORITY.
+
+The ideal architecture is:
+
+  engine.js
+      ↓
+  sole pricing/rules authority
+
+  CharGen draft
+      ↓
+  client-controlled/untrusted
+      ↓
+  finalise + lock
+      ↓
+  server-authoritative locked state
+      ↓
+  immutable historical economic events
+      ↓
+  append-only new purchases
+      ↓
+  DM-authoritative AP/rules
+
+Combined with explicit AI game-integrity instructions, this directly addresses the realistic "player asks an AI to cheat" threat while preserving PACT's core architectural rule and avoiding a second pricing engine.
