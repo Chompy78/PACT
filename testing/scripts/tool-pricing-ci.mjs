@@ -903,6 +903,30 @@ try {
       return [pendingBeforeReady, window._cgCampaignBound, window._cgCampaignId];
     })()`), [true, true, 'fake-test-campaign']);
 
+  // fix/dm-ap-lost-on-handoff (found live in a real Amble campaign, 2026-08-10): window._cloudSignedIn
+  // is synchronously reset to false by the 'campaign-ready' listener itself, the instant it fires, and
+  // only asynchronously flipped true again once that listener's OWN separate auth check resolves —
+  // waiting for 'campaign-ready' (the check just above) does not wait for THAT second resolution. Before
+  // the fix, _cgAdoptEnvelopeBinding() gated its DM-AP refresh on that stale flag, so a genuinely
+  // signed-in user's DM AP silently read as 0 on a fresh handoff/reload even though _dmApStatus still
+  // resolved to 'active' (a separate check that doesn't depend on the flag) — exactly the "🛡 0 AP — DM
+  // only" label. Reproduce the race directly: bridges already exist (so the campaign-ready wait above is
+  // a no-op here), but _cloudSignedIn is still stale-false, while a direct currentSession() call (what
+  // the fix uses instead) would report a real session.
+  check('DM AP still resolves correctly when window._cloudSignedIn is stale-false but the user really is signed in',
+    await cg.evaluate(`(async()=>{
+      const realAuth=window._authBridge, realCamp=window._campaignBridge, realSync=window._syncBridge;
+      window._cloudSignedIn = false;   // the exact stale state the race produces
+      window._authBridge = { currentSession: async()=>({user:{id:'test-user'}}) };
+      window._campaignBridge = { getCampaign: async()=>({id:'test-camp',ignore_player_ap:true,rules:{}}) };
+      window._syncBridge = { refreshServerAp: async(id)=> id==='test-char-id' ? 53 : null };
+      window._dmApStatus='none'; window._dmAp=0; window._cgCampaignBound=false; window._cgCampaignId=null;
+      await _cgAdoptEnvelopeBinding({campaignId:'test-camp', id:'test-char-id'});
+      const result=[window._dmApStatus, window._dmAp];
+      window._authBridge=realAuth; window._campaignBridge=realCamp; window._syncBridge=realSync;
+      return result;
+    })()`), ['active', 53]);
+
   console.log('\nCharGen — the drawbacks ledger line itemises what was taken');
   const LEDGER_ROWS = `(sel)=>{const rows=[...document.getElementById('ledger').querySelectorAll('tr')].map(tr=>
       ({cls:tr.className,label:(tr.cells[0]||{}).innerText||'',val:Number((tr.cells[1]||{}).innerText)}));

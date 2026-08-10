@@ -33,6 +33,15 @@
   doesn't borrow that language. Driven off the same name-suffix check on every render so it also
   reappears on a later reload of the same copy. Addendum to `D-GH-2026-08-10-chargen-dm-view`.
   `tool-pricing-ci.mjs` 123/0 (3 checks); display-only, no `DATA.version` change.
+- **2026-08-10 · fix(chargen): DM AP no longer silently reads 0 after a Live Sheet → CharGen switch** —
+  found live on a real Amble character. `_cgAdoptEnvelopeBinding()` gated its DM-AP refresh on
+  `window._cloudSignedIn`, which the `'campaign-ready'` listener resets to `false` the instant it fires
+  and only asynchronously re-sets afterward — a race that could skip the refresh for a genuinely
+  signed-in user on either boot path (a Live Sheet handoff or a plain reload), while `_dmApStatus` still
+  independently resolved to `'active'` — exactly the "🛡 0 AP — DM only" symptom. Now asks the auth
+  bridge directly (`currentSession()`) instead, matching `_cgConsumeViewChar()`'s existing pattern. New
+  regression test (confirmed to fail pre-fix, pass post-fix by hand-reverting). `tool-pricing-ci.mjs`
+  126/0; `engine-parity-ci.mjs` unaffected, 30/0. See `D-GH-2026-08-10-dm-ap-lost-on-handoff`.
 - **2026-08-10 · feat(engine): AP ledger shows what was LOST — bought-off drawbacks, DM-removed boons**
   (`DATA.version` v0.341 → v0.342) — a bought-off drawback or DM-removed boon drops out of `_replay()`'s
   fold entirely, so `compute()` (pure over the build) had NO way to show its cost — a drawback taken for

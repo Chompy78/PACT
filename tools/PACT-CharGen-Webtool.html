@@ -1361,10 +1361,23 @@ async function _cgAdoptEnvelopeBinding(d){
   if(!window._campaignBridge){
     await new Promise(function(res){ document.addEventListener('campaign-ready', res, {once:true}); });
   }
+  // fix/dm-ap-lost-on-handoff (found live, 2026-08-10 — a real Amble character's DM AP read as
+  // "🛡 0 AP — DM only" on a Live Sheet → CharGen handoff even though it was genuinely signed in): the
+  // guard used to be `window._cloudSignedIn`, a flag the 'campaign-ready' LISTENER ITSELF synchronously
+  // resets to false the instant it fires (see that listener above), only flipping true again once its
+  // OWN separate async onAuthChange/currentSession() call resolves. Waiting for 'campaign-ready' (just
+  // above) does not wait for that second resolution — so on both boot paths that reach this function (a
+  // fresh handoff, a fresh reload) the DM-AP refresh below could be skipped even for a genuinely signed-
+  // in user, leaving `ap` at 0 while _cgResolveDmApStatus() still resolves _dmApStatus to 'active'
+  // regardless (that resolution depends only on the campaign fetch, not on this flag) — active status
+  // plus a silently-zeroed dmAp is exactly the "0 AP — DM only" label. Ask the auth bridge directly
+  // instead, the same way _cgConsumeViewChar() already does — it doesn't depend on a second listener
+  // having already run by this point, so there's no window for this race at all.
   var ap = 0;
   try{
-    var S = window._syncBridge;
-    if(S && window._cloudSignedIn && navigator.onLine && d.id){
+    var S = window._syncBridge, A = window._authBridge;
+    var _session = A && await A.currentSession();
+    if(S && _session && navigator.onLine && d.id){
       // refreshServerAp, not peekCharacter: peek prefers the LOCAL copy, which is right for stats (this
       // device's edits are freshest) but wrong for `ap` — that only ever changes server-side (a DM award,
       // a join grant), so a cached record is stale by definition. Still a pure read: it never reconciles
