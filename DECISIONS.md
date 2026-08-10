@@ -10,6 +10,16 @@
 
 ## Index
 
+- **D-GH-2026-08-10-dm-custom-character-fields** — owner request: campaign-level custom character fields
+  (2 numeric, 2 text) with a per-field "visible to players" toggle (default OFF), plus a new
+  "Customisable" roster card view. Definitions ride `campaigns.rules.customFields` (no new table); values
+  ride a new `character_dm_notes.custom_fields` jsonb column (reuses that table's existing DM-only RLS);
+  visibility is enforced server-side by a new `get_character_visible_fields()` SECURITY DEFINER RPC, not
+  a wider table grant (RLS is row-level, not per-JSON-key — a grant wide enough for a visible field would
+  leak every hidden one in the same row). Box layout is per-device (`localStorage`), matching Table view's
+  hidden-columns precedent. No player-facing consumer of the RPC yet — see `feat/custom-fields-player-
+  display` on `docs/TASK_BOARD_NEXT.md`.
+  Full record: `decisions/2026/D-GH-2026-08-10-dm-custom-character-fields.md`.
 - **D-GH-2026-08-10-expand-random-names** — owner report: "i keep getting the same name." Each of the six
   `NAMEDATA` naming styles held only ~12-16 first / ~8-10 last names; expanded every style ~3-4x (≥40
   first / ≥25 last, gated), additively (originals kept, new names appended, no reshuffle), matching each

@@ -220,6 +220,63 @@ create policy character_dm_notes_all on public.character_dm_notes
 grant select, insert, update, delete on public.character_dm_notes to authenticated;
 
 -- ---------------------------------------------------------------------------
+-- get_character_visible_fields(character) — D-GH-2026-08-10-dm-custom-character-fields.
+-- character_dm_notes.custom_fields holds the campaign's custom-field VALUES for this
+-- character; the DEFINITIONS (label + per-field "visible to players" flag, default
+-- false) live in campaigns.rules.customFields. Because character_dm_notes' own RLS
+-- policy just above is DM-only, a player has no raw-table read path at all — this
+-- SECURITY DEFINER RPC is the one place the "visible" flag is actually enforced: a
+-- campaign DM gets every value unfiltered (they already have raw table access, so
+-- filtering here would just be a confusing extra hop); the character's own owner
+-- gets only the slots the campaign currently marks visible. No tool UI calls this
+-- yet (DM Console — this feature's UI — is DM-only, so it reads the table directly;
+-- see docs/TASK_BOARD_NEXT.md's feat/custom-fields-player-display for the follow-up
+-- that would have a player-facing surface consume it).
+-- ---------------------------------------------------------------------------
+create or replace function public.get_character_visible_fields(p_character uuid)
+returns jsonb language plpgsql security definer stable set search_path = public, pg_temp as $$
+declare
+  v_campaign uuid;
+  v_owner    uuid;
+  v_rules    jsonb;
+  v_values   jsonb;
+  v_out      jsonb := '{}'::jsonb;
+  v_key      text;
+begin
+  select campaign_id, owner_id into v_campaign, v_owner from characters where id = p_character;
+  if v_campaign is null then
+    return '{}'::jsonb;   -- not campaign-bound: no campaign-level fields apply
+  end if;
+  if not (v_owner = auth.uid() or is_campaign_dm(v_campaign)) then
+    raise exception 'Not authorized to read this character''s custom fields';
+  end if;
+
+  if is_campaign_dm(v_campaign) then
+    select coalesce(custom_fields, '{}'::jsonb) into v_values
+      from character_dm_notes where character_id = p_character;
+    return coalesce(v_values, '{}'::jsonb);
+  end if;
+
+  select rules into v_rules from campaigns where id = v_campaign;
+  select coalesce(custom_fields, '{}'::jsonb) into v_values
+    from character_dm_notes where character_id = p_character;
+  v_rules := coalesce(v_rules, '{}'::jsonb);
+  v_values := coalesce(v_values, '{}'::jsonb);
+
+  for v_key in select jsonb_object_keys(coalesce(v_rules->'customFields', '{}'::jsonb))
+  loop
+    if (v_rules->'customFields'->v_key->>'visible') = 'true' then
+      v_out := v_out || jsonb_build_object(v_key, v_values->v_key);
+    end if;
+  end loop;
+  return v_out;
+end;
+$$;
+
+revoke all on function public.get_character_visible_fields(uuid) from public;
+grant execute on function public.get_character_visible_fields(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Column-level ap lockdown — the real ap guard.
 -- Strip blanket UPDATE, then grant UPDATE only on the player-writable columns.
 -- ap is deliberately excluded; it can change ONLY through award_ap().

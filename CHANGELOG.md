@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · feat(dm-console): campaign-level custom character fields + a Customisable card view**
+  — owner request. DM Console gains up to 4 campaign-wide custom fields (2 numeric, 2 text) under
+  Campaign Rules, each with a name and a per-field "visible to players" toggle (default OFF); a DM sets
+  each character's values from that character's DM tools. A new 3rd view mode — "🧩 Customisable view"
+  — lets a DM arrange 6 boxes per roster card from a catalog of built-in stats and the campaign's custom
+  fields, persisted per-device (localStorage), same pattern as Table view's hidden-columns preference.
+  Definitions ride the existing `campaigns.rules` jsonb (no new column); values ride a new
+  `character_dm_notes.custom_fields` jsonb column (same DM-only table/RLS as player-name label/notes).
+  The "visible to players" flag is enforced by a new `get_character_visible_fields()` SECURITY DEFINER
+  RPC — no tool UI calls it yet (DM Console doesn't need to, and no player-facing surface exists yet);
+  see `feat/custom-fields-player-display` on `docs/TASK_BOARD_NEXT.md`. `engine-parity-ci.mjs` unaffected,
+  30/0. See `D-GH-2026-08-10-dm-custom-character-fields`.
 - **2026-08-10 · feat(chargen): random name pools roughly tripled/quadrupled** — owner report: "i keep
   getting the same name." Each of the six naming styles held only ~12-16 first / ~8-10 last names;
   expanded every style to ≥40 first / ≥25 last, additively (originals kept, matching theme per style).
