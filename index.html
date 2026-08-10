@@ -808,7 +808,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
         icon.innerHTML = iconSvg(entry.tool);
         const txt = document.createElement('div'); txt.className = 'card-text';
         const t = document.createElement('div'); t.className = 't';
-        t.textContent = entry.name || 'Unnamed character';       // textContent → XSS-safe
+        t.textContent = entry.name || 'New Character';       // textContent → XSS-safe
         const meta = document.createElement('div'); meta.className = 'meta';
         meta.textContent = [toolOf(entry.tool).label, relTime(entry.ts)].filter(Boolean).join(' · ');
         txt.appendChild(t); txt.appendChild(meta);
@@ -827,7 +827,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
           const a = document.createElement('a');
           a.className = 'recent-save-row';
           const nm = document.createElement('span'); nm.className = 'rs-name';
-          nm.textContent = entry.name || 'Unnamed character';    // textContent → XSS-safe
+          nm.textContent = entry.name || 'New Character';    // textContent → XSS-safe
           const meta = document.createElement('span'); meta.className = 'rs-meta';
           meta.textContent = [toolOf(entry.tool).label, relTime(entry.ts)].filter(Boolean).join(' · ');
           a.appendChild(nm); a.appendChild(meta);

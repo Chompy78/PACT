@@ -74,3 +74,19 @@ Everything else must **match** that value:
 
 Bump only when the rules data actually changes (ladders, prices, gates, `compute()` output), as part
 of whichever feature PR makes that change — same as before this document's build-version change.
+
+### Rules version display sites — all three are LIVE, none need hand-editing
+
+Unlike `BUILD` above, every on-screen "PACT rules · vX" label reads `DATA.version` live at
+`engine-ready` — there is no rules-version literal anywhere in `tools/` that a rules bump must touch
+(fixed for CharGen's chip by `fix/chargen-rules-label-live`; Live Sheet and DM Console were already
+live before that task, per `RULES=(window.DATA&&window.DATA.version)||RULES` in both).
+
+| Tool | Live source |
+|------|-------------|
+| `tools/PACT-CharGen-Webtool.html` | `#cgPactver` chip + `<title>`'s "Rules" half, both set from `window.DATA.version` on `engine-ready` |
+| `tools/PACT-Live-Char-Sheet.html` | `RULES` var + `#lsRulesVer`, set from `window.DATA.version` in `_lsBoot()` |
+| `tools/DM-Console.html` | `RULES` var + `#rulesVer`, set from `window.DATA.version` on `engine-ready` |
+
+A `DATA.version` bump therefore needs **no** rules-label edit in any tool — only `js/engine.js`'s own
+`DATA.version` string, plus `testing/expected/` if `compute()` output moved.

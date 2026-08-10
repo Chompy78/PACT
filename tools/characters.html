@@ -202,7 +202,7 @@ function render(){
 
 function rowHtml(c){
   const tool = TOOL[c.kind] || TOOL.chargen;
-  const name = esc(c.name || 'Unnamed');
+  const name = esc(c.name || 'New Character');
   const ts = (c.updated_at || '').slice(0, 10);
   const archived = !!c.archived_at;
   const openBtn = c.hasData
@@ -342,7 +342,7 @@ async function onExport(){
       // A character with no stats.LOG was never saved from a tool (e.g. a redeemed invite nobody has
       // opened yet). Record it by name rather than dropping it silently — an export that quietly
       // skips rows is worse than one that says what it couldn't take.
-      if (!stats || !Array.isArray(stats.LOG)) { missing.push(c.name || '(unnamed)'); continue; }
+      if (!stats || !Array.isArray(stats.LOG)) { missing.push(c.name || 'New Character'); continue; }
       out.push({
         id: c.id, name: c.name, kind: c.kind, ap: c.ap,
         campaign_id: c.campaign_id || null,

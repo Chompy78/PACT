@@ -155,6 +155,11 @@ table.led{width:100%;border-collapse:collapse;font-size:11.5px}.led th{backgroun
 .led td{padding:2px 5px;border-bottom:1px solid var(--line)}.led td:nth-child(3){text-align:right;font-weight:700}
 .led tr.aw td{color:var(--good)}.led tr.rfnd td{color:#8a6d00}.led tr.dead td{color:var(--grey);text-decoration:line-through}
 .led tr.warnrow td:nth-child(2){color:var(--bad)}
+.led tr.derived td{font-style:italic;color:var(--teal)}
+.led .packnote{font-style:italic;color:var(--grey);font-weight:400}
+.led tr.dmedit td:nth-child(2){border-left:3px solid var(--blue)}
+.led .dmtag{display:inline-block;font-size:9px;font-weight:700;color:#fff;background:var(--blue);border-radius:6px;padding:0 4px;vertical-align:middle;margin-left:3px}
+.led .dmlocked{font-size:11px;color:var(--grey);white-space:nowrap}
 .bg{margin-bottom:8px}.bg h4{margin:6px 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--teal)}
 .ib{display:inline-block;background:var(--inp);border:1px solid var(--line);border-radius:6px;padding:3px 7px;margin:2px;font:inherit;font-size:11.5px;cursor:pointer;color:var(--navytx)}
 .ib em{font-style:normal;color:var(--blue);font-weight:800;margin-left:4px}
@@ -468,6 +473,8 @@ function eventsUpTo(uptoIdx){ return uptoIdx==null ? LOG : LOG.slice(0,uptoIdx);
 function activeEvents(uptoIdx){ return window._engineFold.activeEvents(eventsUpTo(uptoIdx)); }
 function foldBuild(uptoIdx){ return window._engineFold.foldBuild(eventsUpTo(uptoIdx)); }
 function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)); }
+// feat/ap-model-reconcile: no index-scrubbing needed — operates on an already-computed economy() result.
+function earnedWithDm(eco,opts){ return window._engineFold.earnedWithDm(eco,opts); }
 // Composed AP ceiling (Player AP, honoring campaign ignore_player_ap, + DM AP — D-GH-2026-07-12-campaign-ap-model).
 // b.budget stays raw Player AP; DM AP is layered in here at compute() time only, never pre-mixed into
 // b.budget or persisted — see the anti-double-count invariant documented on compute() in js/engine.js.
@@ -642,7 +649,31 @@ function buy(cat,payload,label){
   if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
 }
 function takeDrawback(v){ const refund=DATA.drawbacks[v]||0; emit({type:'buy',cat:'drawback',payload:{v},cost:-refund,label:'Drawback — '+v,level:foldBuild(null).hd}); }
-function buyoffDrawback(v){ const refund=DATA.drawbacks[v]||0; const cost=refund*3; const avail=apAvailable(null);
+// feat/dm-edit-events: finds the drawback-buy event a NEW buyoff would target — the oldest still-open
+// (not yet bought-off) purchase of this value, same FIFO order activeEvents() itself resolves buyoffs
+// in (D-GH-2026-08-06-buyoff-keyed-by-event). Needed here because buyoffDrawback() must consult THAT
+// specific event's dmEdit/dmLocked/dmRemovalCost flags, not just DATA.drawbacks[v].
+function _openDrawbackEvent(v){
+  const {evs,boughtOff}=activeEvents(null);
+  for(let i=0;i<evs.length;i++){const e=evs[i];
+    if(e.type==='buy'&&e.cat==='drawback'&&e.payload&&e.payload.v===v&&!boughtOff.has(i))return e;}
+  return null;
+}
+function buyoffDrawback(v){
+  const refund=DATA.drawbacks[v]||0;
+  const src=_openDrawbackEvent(v);
+  // A DM-imposed drawback (dmEdit:true) carries its own removal rules; an ordinary player-taken one
+  // keeps today's unconditional 3× — that deterrent doesn't apply when the player never took a loan.
+  if(src&&src.dmEdit){
+    if(src.dmLocked){flash('🔒 Your DM has locked this drawback — it can\'t be bought off.');return;}
+    const rate=(src.dmRemovalCost==='expensive')?3:1;
+    const cost=refund*rate;
+    const avail=apAvailable(null);
+    if(cost>avail){flash('Buying off costs '+cost+' AP'+(rate===3?' (3×, your DM set this rate)':' (flat, your DM set this rate)')+'; you have '+avail);return;}
+    emit({type:'buyoff',refVal:v,cost,label:'Bought off — '+v});
+    return;
+  }
+  const cost=refund*3; const avail=apAvailable(null);
   if(cost>avail){flash('Buying off costs '+cost+' AP (3×); you have '+avail);return;} emit({type:'buyoff',refVal:v,cost,label:'Bought off — '+v}); }
 function undo(){
   if(_viewOnlyBlock())return;
@@ -651,6 +682,9 @@ function undo(){
   var _dropped=false; while(LOG.length && LOG[LOG.length-1] && LOG[LOG.length-1].type==='rulesSnapshot'){ LOG.pop(); _dropped=true; }
   if(!LOG.length){ if(_dropped){save();render();} return; }
   if(LOG[LOG.length-1].type==='award'&&!LOG[LOG.length-1].disc){ if(_dropped){save();render();} flash('AP awards lock your history — buys made before an award can\'t be undone.');return; }
+  // feat/dm-edit-events: a DM edit is the same kind of undo barrier as an AP award — the player must
+  // not be able to silently erase what their DM changed. Mirrors the award check above exactly.
+  if(LOG[LOG.length-1].dmEdit){ if(_dropped){save();render();} flash('DM edits lock your history — buys made before one can\'t be undone.');return; }
   REDO.push(LOG.pop()); viewAt=null; save(); render(); }
 function redo(){ if(_viewOnlyBlock())return; if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save(); render(); }
 
@@ -1067,11 +1101,17 @@ function render(){
   // Reprice on the CREATION basis (inPlay:false) so an imported creation character shows no phantom drift.
   // In-play purchases stay frozen at their higher price, so they correctly read as locked > reprice (a kept premium).
   const reprice = compute(Object.assign({},b,{inPlay:false})).total;
-  $('eco').innerHTML=(function(){var ap=eco.earned||0;var _c=_lvlCurve;var L=trackLevel(ap,_c);var nx=(L<20)?(_c.l1+_c.inc*L):null;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):(_dmAp?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b title="Pace based on AP earned so far (including any not yet spent), against the same level-budget curve as the header\'s ≈ Track-Level. This differs from Track-Level whenever you\'re holding unspent AP — Track-Level reflects only AP actually spent.">Earned Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx!=null?(' · <span class="ed">'+(nx-ap)+' AP to reach Earned Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>';})();
+  $('eco').innerHTML=(function(){
+    // feat/ap-model-reconcile: Earned Lv/next-level pace used to read eco.earned alone (log-only), so a
+    // fully DM-funded character showed "Earned Lv 0" even with real AP granted. earnedWithDm() composes
+    // in DM AP the same way compute()'s own spendable formula does — _dmAp/_ignPlr are already the
+    // same gated values compute() itself uses two lines above (_dmOpts() zeroes both when rules status
+    // isn't 'active'), so this can't disagree with the ceiling compute() priced against.
+    var ap=earnedWithDm(eco,{dmAp:_dmAp,ignorePlayerAp:_ignPlr});var _c=_lvlCurve;var L=trackLevel(ap,_c);var nx=(L<20)?(_c.l1+_c.inc*L):null;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):(_dmAp?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b title="Pace based on AP earned so far (including any not yet spent), against the same level-budget curve as the header\'s ≈ Track-Level. This differs from Track-Level whenever you\'re holding unspent AP — Track-Level reflects only AP actually spent.">Earned Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx!=null?(' · <span class="ed">'+(nx-ap)+' AP to reach Earned Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>';})();
   {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent / '+eco.earned+' earned'+(_dmAp?' · '+_dmAp+' from DM':'');}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
   const ABCOL={STR:'#DE3520',DEX:'#39843C',CON:'#B36113',INT:'#3F6FD8',WIS:'#008393',CHA:'#9C27B0'};
-  let sh='<div class="shname">'+esc(b.name||'Unnamed Hero')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
+  let sh='<div class="shname">'+esc(b.name||'New Character')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
   const _abGov={STR:'Melee attack & damage · Athletics · carrying & grappling',DEX:'AC (light/medium) · finesse & ranged attacks · Initiative · Acrobatics, Stealth',CON:'Hit Points · concentration · Constitution saves',INT:'Arcana, History, Investigation, Nature, Religion · Wizard-style casting',WIS:'Perception, Insight, Medicine, Survival · Cleric/Druid/Ranger casting',CHA:'Persuasion, Deception, Intimidation, Performance · Bard/Sorcerer/Warlock/Paladin casting'};
   sh+='<div class="abrow">'+ABILS.map(a=>'<div class="abx itip" title="'+esc(a+' '+((r.effScore&&r.effScore[a])||b.stats[a])+' ('+sgn(m[a])+') — governs '+(_abGov[a]||''))+'"><b style="color:'+ABCOL[a]+'">'+a+'</b><span>'+((r.effScore&&r.effScore[a])||b.stats[a])+'</span><i>'+sgn(m[a])+'</i></div>').join('')+'</div>';
   const _hpRed=(b.drawbacks||[]).includes('Frail')||(b.drawbacks||[]).includes('Glass Frame');
@@ -1109,21 +1149,46 @@ function render(){
   $('sheet').innerHTML=sh;
   // --- ledger / history ---
   let led='<table class="led"><tr><th>#</th><th>Event</th><th>AP</th><th></th></tr>';
-  // boff is a Set of INDICES into this same (idx==null?LOG:LOG.slice(0,idx)) array — activeEvents()
-  // resolves cancellation per purchase EVENT, not per drawback value, so a retaken drawback's row is
-  // not "dead" even though an earlier buyoff for the same value exists (D-GH-2026-08-06-buyoff-keyed-by-event).
-  const boff=activeEvents(idx).boughtOff;
+  // fix/history-shows-derived-lines: Heritage pack / 2nd origin species pack are DERIVED costs —
+  // compute() prices them from b.species/b.species2 (fix/species-pack-not-charged), never from a LOG
+  // event — so history used to show only the individual 0-cost racial-trait buy events with no sign
+  // of the AP the pack actually cost, while the printable sheet's AP Ledger (renderCharSheet, same
+  // r.lines) showed it correctly. Surface the exact same lines here, straight from compute() — this is
+  // display grouping, not new pricing math, so it stays in sync with the engine by construction.
+  const _packLines=r.lines.filter(l=>(l[0]==='Heritage pack'||l[0]==='2nd origin species (x2 pack)')&&l[1]!==0);
+  led+=_packLines.map(l=>'<tr class="derived" title="Derived from your current species — not an individual purchase event. Pack-included traits below show 0 AP because this line already paid for them."><td>—</td><td>'+esc(l[0])+'</td><td>'+l[1]+'</td><td></td></tr>').join('');
+  // boff/bnr are Sets of INDICES into this same (idx==null?LOG:LOG.slice(0,idx)) array — activeEvents()
+  // resolves cancellation per purchase EVENT, not per drawback/boon value, so a retaken drawback's (or
+  // rebought boon's) row is not "dead" even though an earlier buyoff/removal for the same value exists
+  // (D-GH-2026-08-06-buyoff-keyed-by-event; boonRemoved mirrors the same FIFO-by-purchase match).
+  const _ae=activeEvents(idx), boff=_ae.boughtOff, bnr=_ae.boonRemoved;
   (idx==null?LOG:LOG.slice(0,idx)).forEach((e,_li)=>{
     if(e&&e.type==='rulesSnapshot')return;   // offline campaign-rules metadata — not an AP-ledger action (still audit-visible in the raw LOG/export)
-    let ap='', cls='', act='';
+    let ap='', cls='', act='', packNote='';
     if(e.type==='award'){ap='+'+e.amount;cls='aw';}
-    else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li));
+    else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li))||(e.cat==='boon'&&bnr.has(_li));
       ap=(e.cost<0?'+'+(-e.cost):'−'+e.cost); cls=dead?'dead':'';
-      if(!dead && e.cat==='drawback') act='<button class="x" onclick="buyoffDrawback(\''+(e.payload.v||'').replace(/'/g,"\\'")+'\')">buy off 3×</button>';
+      if(!dead && e.cat==='drawback'){
+        if(e.dmEdit&&e.dmLocked){
+          act='<span class="dmlocked" title="Your DM has locked this drawback — it can\'t be bought off">🔒 locked</span>';
+        } else {
+          const rateLabel=(e.dmEdit&&e.dmRemovalCost==='flat')?'buy off (flat)':'buy off 3×';
+          act='<button class="x" onclick="buyoffDrawback(\''+(e.payload.v||'').replace(/'/g,"\\'")+'\')">'+rateLabel+'</button>';
+        }
+      }
+      // Same DATA.racial(...).pack flag the buy panel already reads (line ~1215) — not a new signal.
+      const _rmeta=(e.cat==='racial'&&e.payload)?DATA.racial[e.payload.v]:null;
+      if(_rmeta&&_rmeta.pack) packNote=' <small class="packnote" title="Included in the pack line above — not a separate AP cost">· pack</small>';
       if((e.warns||[]).length) cls+=' warnrow'; }
     else if(e.type==='buyoff'){ap='−'+e.cost;cls='rfnd';}
+    else if(e.type==='dmRemoveBoon'){ap='';cls='dead';}
     else if(e.type==='name'){ap='';}
-    led+='<tr class="'+cls+'"><td>'+e.seq+'</td><td>'+esc(e.label||e.type)+(e.rules?' <span class="vtag">'+e.rules+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+ap+'</td><td>'+act+'</td></tr>';
+    // feat/dm-edit-events: every DM-marked event renders distinctly — the whole point is that the
+    // player can see exactly what their DM changed. A dmEdit event never moves economy().available
+    // (the invariant this whole feature rests on), so this is a display cue only, never a cost.
+    if(e.dmEdit) cls+=' dmedit';
+    const dmTag=e.dmEdit?' <span class="dmtag" title="This was a DM edit — it never changed your spendable AP">🛡 DM</span>':'';
+    led+='<tr class="'+cls+'"><td>'+e.seq+'</td><td>'+esc(e.label||e.type)+dmTag+packNote+(e.rules?' <span class="vtag">'+e.rules+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+ap+'</td><td>'+act+'</td></tr>';
   });
   led+='</table>'; $('ledger').innerHTML=led;
   // --- validation tray ---
@@ -1554,7 +1619,7 @@ function renderCharSheet(b,r,ctx){
   var lvl=b.hd, tier=r.tier;
   // ----- header -----
   H.push('<div class="cs-head">'+
-    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'Unnamed Hero')+'</div></div>'+
+    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'New Character')+'</div></div>'+
     '<div class="cs-fld"><label>Class &amp; Level</label><div class="shsmall">'+_csEsc(b.originClass+(b.originClass2&&b.originClass2!=='(none)'?' / '+b.originClass2:'')+'  ·  Lv '+lvl+' (T'+tier+')')+'</div></div>'+
     '<div class="cs-fld"><label>Player Name</label>'+_mfIn('playerName','','','your name')+'</div>'+
     '<div class="cs-fld"><label>Species / Heritage</label><div class="shsmall">'+_csEsc((b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+'  ·  '+(r.size||'Medium'))+'</div></div>'+
@@ -1644,7 +1709,7 @@ function renderCharSheet(b,r,ctx){
      [['Home town','ap_hometown',ap.hometown],['Faith','ap_faith',ap.faith],['Ambition','ap_ambition',ap.ambition],['Greatest fear','ap_fear',ap.fear],['Prized possession','ap_prized',ap.prized],['Companion','ap_companion',ap.companion]].map(function(f){return '<div class="cs-fld"><label>'+f[0]+'</label>'+_mfIn(f[1],f[2]||'','','')+'</div>';}).join('')+'</div>'+'<div class="cs-fld" style="margin-top:6px"><label>Description</label>'+_mfTa('ap_overall',ap.overall||'','one-paragraph description of how the character looks and comes across…',110)+'</div></div>');}
   H.push('<div class="shbox"><h5>Allies &amp; Organisations</h5>'+_mfTa('allies','','people and factions…',54)+'</div>');
   H.push('<div class="shbox"><h5>Backstory &amp; Notes</h5>'+_mfTa('notes','','backstory, session notes, treasure…',80)+'</div>');
-  H.push('<div class="shbox"><h5>AP Ledger</h5><table class="shledger">'+r.lines.filter(function(l){return l[1]!==0;}).map(function(l){return '<tr><td>'+l[0]+'</td><td>'+l[1]+'</td></tr>';}).join('')+'<tr class="tot"><td>TOTAL</td><td>'+r.total+'</td></tr></table></div>');
+  H.push('<div class="shbox"><h5 title="Priced at TODAY&rsquo;S rules — this can differ from the header&rsquo;s AP left figure (the frozen ledger, what was actually paid) whenever prices or rules moved since a purchase.">AP Ledger</h5><table class="shledger">'+r.lines.filter(function(l){return l[1]!==0;}).map(function(l){return '<tr><td>'+l[0]+'</td><td>'+l[1]+'</td></tr>';}).join('')+'<tr class="tot"><td>TOTAL</td><td>'+r.total+'</td></tr></table></div>');
   return H.join('');
 }
 
@@ -1944,10 +2009,10 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   window._engineBridge = { validate };
-  window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy };
+  window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of
   // hand-copied inline duplicates. UI boot waits on engine-ready.
@@ -2352,7 +2417,7 @@ document.addEventListener('sync-ready', function () {
       // any later local-only update (e.g. after a clone) that must NOT re-fetch the whole
       // list from the server just to show one new entry.
       function buildCharRow(c){
-        var nm = esc(c.name||'Unnamed');
+        var nm = esc(c.name||'New Character');
         var ts = (c.updated_at||'').slice(0,10);
         // hasData:false means this row exists (e.g. a redeemed player invite never opened yet, or a
         // stray manual insert) but was never actually saved from CharGen/Live Sheet — nothing to load

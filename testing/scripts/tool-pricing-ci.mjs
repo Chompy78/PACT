@@ -13,6 +13,12 @@
  * binary. It is deliberately a narrow lane — load a page, evaluate expressions, assert numbers — not a
  * replacement for the Playwright flows, which do real UI interaction that CDP would make painful.
  *
+ * The DM Console section below is a deliberate, narrow exception to the "pricing" scope in this file's
+ * name: `dm-console-ui-e2e.mjs` needs Playwright for its real UI-interaction coverage, but a handful of
+ * DM Console checks (fix/unnamed-character-default) only need a pure DOM-render entry point
+ * (`window._dmRenderCloudRoster`) over synthetic data, no sign-in, no interaction — reachable with this
+ * same zero-dependency CDP harness. Added here rather than growing a fourth CI script for two checks.
+ *
  * USAGE   node testing/scripts/tool-pricing-ci.mjs
  *         CHROME_BIN=/path/to/chrome node testing/scripts/tool-pricing-ci.mjs
  * Exits non-zero on any failure, same contract as engine-parity-ci.mjs.
@@ -339,6 +345,25 @@ try {
       return [before, clickable, after];})()`),
     [false, true, true]);
 
+  // code-review finding (this session): the ledger's "dead" styling only ever checked
+  // boughtOff (drawbacks) — a DM-removed boon's original buy row rendered as a normal, fully-priced,
+  // still-active purchase, with the only sign anything happened a separate, uncorrelated dmRemoveBoon
+  // row further down. Mirrors the drawback check just above (retake stays live, only the cancelled
+  // purchase goes dead) but for the boon/boonRemoved side.
+  check('a DM-removed boon\'s original purchase row goes dead in the ledger; a retake afterward stays live',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'award',amount:900,label:'AP award',seq:SEQ++,ts:Date.now()});
+      for(let h=2;h<=17;h++){const b=foldBuild(null);
+        LOG.push({type:'buy',cat:'hd',payload:{to:h},cost:priceOf('hd',{to:h},b),label:'Level up',seq:SEQ++,ts:Date.now(),level:b.hd});}
+      const v='Boon of Combat Prowess';
+      buy('boon',{v},v);
+      LOG.push({type:'dmRemoveBoon',refVal:v,cost:0,dmEdit:true,label:'DM removed boon — '+v,seq:SEQ++,ts:Date.now()});
+      buy('boon',{v},v);   // retaken afterward — must stay live, not swept up by the same removal
+      render();
+      const rows=[...document.querySelectorAll('.led tr')].filter(tr=>/Boon of Combat Prowess/.test(tr.innerText||'')&&!/DM removed/.test(tr.innerText||''));
+      return [foldBuild(null).boons.filter(x=>x===v).length, rows.length, rows.map(tr=>/\\bdead\\b/.test(tr.className))];})()`),
+    [1, 2, [true, false]]);
+
   // fix/sheet-tab-appearance-not-persisted: the Sheet tab's Appearance/Background fields (Description,
   // hometown, faith, etc.) used to go through csSave() only — a local, per-tool, per-character-id
   // scratchpad that never touched the LOG, so an edit here silently never reached a cloud save and
@@ -427,12 +452,173 @@ try {
         return calls;});})()`),
     1);
 
+  // fix/history-shows-derived-lines: the printable sheet's AP Ledger (renderCharSheet) always priced
+  // Heritage pack / 2nd origin species pack correctly from compute() — but History & ledger (the `led`
+  // table, driven purely off LOG) showed only the 4 individual 0-cost racial-trait buy events with no
+  // sign of the AP the pack actually cost, because there is no LOG event for a derived line. Reproduces
+  // the exact Anders Tealeaf shape: Halfling primary + Gnome 2nd origin, 2 pack traits each.
+  console.log('\nLive Sheet — history surfaces the same derived pack costs the AP Ledger already prices');
+  const PACK_SETUP = `${LS_SETUP}
+    LOG.push({seq:SEQ++,type:'buy',cat:'patch',payload:{patch:{species:'Halfling',species2:'Gnome'}},cost:0,label:'Species — Halfling / Gnome'});
+    ['Halfling: Halfling Nimbleness','Halfling: Luck','Gnome: Darkvision 60 ft','Gnome: Gnomish Cunning']
+      .forEach(v=>LOG.push({seq:SEQ++,type:'buy',cat:'racial',payload:{v:v},cost:0,label:'Species trait — '+v}));
+    render();`;
+  check('the AP Ledger prices both packs (Heritage 5 + 2nd origin x2 pack 10 = 15), for the fixture to be worth anything',
+    await ls.evaluate(`(()=>{${PACK_SETUP}
+      const r=compute(foldBuild(null),_dmOpts());
+      return r.lines.filter(l=>l[0]==='Heritage pack'||l[0]==='2nd origin species (x2 pack)').map(l=>l[1]);})()`),
+    [5, 10]);
+  check('history renders a derived row per pack line, summing to the same 15 AP the AP Ledger charges',
+    await ls.evaluate(`(()=>{${PACK_SETUP}
+      const rows=[...document.querySelectorAll('#ledger tr.derived')];
+      return [rows.length, rows.reduce((s,tr)=>s+Number(tr.children[2].textContent),0)];})()`),
+    [2, 15]);
+  check('each pack-included trait row is marked "· pack" and costs 0, not left looking free with no explanation',
+    await ls.evaluate(`(()=>{${PACK_SETUP}
+      const rows=[...document.querySelectorAll('#ledger tr')].filter(tr=>/Species trait/.test(tr.innerText||''));
+      return [rows.length, rows.every(tr=>/· pack/.test(tr.innerText)), rows.every(tr=>/−0/.test(tr.innerText))];})()`),
+    [4, true, true]);
+  // Regression guard: a non-pack racial trait (bought post-creation, at a real ladder cost) must NOT
+  // get the "· pack" note — only compute()'s own DATA.racial(...).pack flag decides that, never cost===0.
+  check('a genuinely-bought, non-pack racial trait is not mislabelled "· pack"',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'buy',cat:'patch',payload:{patch:{species:'Dragonborn'}},cost:0});
+      LOG.push({seq:SEQ++,type:'buy',cat:'hd',payload:{to:5},cost:0});
+      LOG.push({seq:SEQ++,type:'award',amount:20,label:'AP award'});
+      const b=foldBuild(null); const cost=priceOf('racial',{v:'Dragonborn: Draconic flight'},b);
+      LOG.push({seq:SEQ++,type:'buy',cat:'racial',payload:{v:'Dragonborn: Draconic flight'},cost:cost,label:'Trait: Draconic flight'});
+      render();
+      const row=[...document.querySelectorAll('#ledger tr')].find(tr=>/Draconic flight/.test(tr.innerText||''));
+      return [cost>0, row?/· pack/.test(row.innerText):'(row not found)'];})()`),
+    [true, false]);
+
+  // feat/dm-edit-events: buyoffDrawback() must consult the matched purchase's dmEdit/dmLocked/
+  // dmRemovalCost flags — a DM-imposed drawback carries its own removal rules, distinct from the
+  // unconditional 3x every ordinary player-taken drawback still charges (regression guard below).
+  console.log('\nLive Sheet — buyoffDrawback() honours a DM-imposed drawback\'s own removal rules');
+  check('a normal, player-taken drawback still buys off at the unconditional 3x (regression guard)',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      takeDrawback('Asthmatic');
+      buyoffDrawback('Asthmatic');
+      const ev=LOG[LOG.length-1];
+      return [ev.type, ev.cost];})()`),
+    ['buyoff', 6]);
+  check('a DM-imposed drawback with dmRemovalCost:"flat" buys off at 1x, not 3x',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      LOG.push({seq:SEQ++,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:false,dmRemovalCost:'flat',label:'Drawback — Asthmatic (DM imposed)'});
+      buyoffDrawback('Asthmatic');
+      const ev=LOG[LOG.length-1];
+      return [ev.type, ev.cost];})()`),
+    ['buyoff', 2]);
+  check('a DM-imposed drawback with dmRemovalCost:"expensive" still buys off at 3x',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      LOG.push({seq:SEQ++,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:false,dmRemovalCost:'expensive',label:'Drawback — Asthmatic (DM imposed)'});
+      buyoffDrawback('Asthmatic');
+      const ev=LOG[LOG.length-1];
+      return [ev.type, ev.cost];})()`),
+    ['buyoff', 6]);
+  check('a DM-imposed drawback with dmLocked:true refuses buy-off with a stated reason, not silently',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      LOG.push({seq:SEQ++,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:true,dmRemovalCost:'flat',label:'Drawback — Asthmatic (DM imposed)'});
+      const n=LOG.length;
+      window.__f=[]; window.flash=m=>window.__f.push(String(m));
+      buyoffDrawback('Asthmatic');
+      return [LOG.length===n, /locked/i.test(window.__f[0]||'')];})()`),
+    [true, true]);
+
+  // Ledger rendering: a DM-marked event must render distinctly (the whole point of feat/dm-edit-events)
+  // and a locked drawback's row must show the lock, not an active buy-off button.
+  console.log('\nLive Sheet — history renders DM-marked events distinctly');
+  check('a DM-granted boon\'s buy+award pair both carry the DM badge in history',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25,dmEdit:true,dmId:'dm-1',label:'Boon — Boon of Combat Prowess (DM granted)'});
+      LOG.push({seq:SEQ++,type:'award',amount:25,dmEdit:true,dmId:'dm-1',label:'Award — DM boon grant (25 AP)'});
+      render();
+      const rows=[...document.querySelectorAll('#ledger tr.dmedit')];
+      return [rows.length, rows.every(tr=>/DM/.test(tr.innerText))];})()`),
+    [2, true]);
+  check('a locked DM-imposed drawback shows a lock, not a clickable buy-off button',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:true,dmRemovalCost:'flat',label:'Drawback — Asthmatic (DM imposed)'});
+      render();
+      const row=[...document.querySelectorAll('#ledger tr')].find(tr=>/Asthmatic/.test(tr.innerText||''));
+      return [!!row.querySelector('button.x'), /locked/i.test(row.innerText)];})()`),
+    [false, true]);
+  check('a dmRemoveBoon event itself renders in history, marked as a DM edit',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25,label:'Boon — Boon of Combat Prowess'});
+      LOG.push({seq:SEQ++,type:'award',amount:25,label:'AP award'});
+      LOG.push({seq:SEQ++,type:'dmRemoveBoon',refVal:'Boon of Combat Prowess',cost:0,dmEdit:true,dmId:'dm-1',label:'DM removed boon — Boon of Combat Prowess'});
+      render();
+      const row=[...document.querySelectorAll('#ledger tr')].find(tr=>/DM removed boon/.test(tr.innerText||''));
+      return [!!row, row?row.className.indexOf('dmedit')>=0:false];})()`),
+    [true, true]);
+
+  // Undo barrier: mirrors the existing AP-award check exactly.
+  console.log('\nLive Sheet — a DM edit locks history the same way an AP award does');
+  check('undo refuses when the last event is a DM edit, with a stated reason',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      LOG.push({seq:SEQ++,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:false,dmRemovalCost:'flat',label:'Drawback — Asthmatic (DM imposed)'});
+      const n=LOG.length;
+      window.__f=[]; window.flash=m=>window.__f.push(String(m));
+      undo();
+      return [LOG.length===n, /DM edit/i.test(window.__f[window.__f.length-1]||'')];})()`),
+    [true, true]);
+  check('undo still works normally for an ordinary (non-DM) purchase',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({seq:SEQ++,type:'award',amount:60,label:'AP award'});
+      takeDrawback('Frail');
+      const n=LOG.length;
+      undo();
+      return LOG.length===n-1;})()`), true);
+
+  // feat/ap-model-reconcile (D-GH-2026-08-10-ap-model-reconcile): a fully DM-funded character used to
+  // read "Earned Lv 0" with "0 earned" because trackLevel(eco.earned) can only see the character's own
+  // log — DM AP lives only on characters.ap. earnedWithDm() composes it in, mirroring compute()'s own
+  // spendable formula exactly.
+  console.log('\nLive Sheet — Earned Lv accounts for DM AP (was "Earned Lv 0" even when the DM granted real AP)');
+  check('earnedWithDm composes DM AP correctly for all three campaign shapes',
+    await ls.evaluate(`[
+      earnedWithDm({earned:100},{dmAp:36,ignorePlayerAp:true}),
+      earnedWithDm({earned:20},{dmAp:36,ignorePlayerAp:false}),
+      earnedWithDm({earned:20},{})
+    ]`), [36, 56, 20]);
+  // 80 AP (above the Standard curve's L1=79), not 36 — 36 is genuinely below even L0 on the default
+  // curve (Amble's real-world shape, per the task doc's own note: intended, not a bug, per the owner's
+  // decision — Track-Level reads the curve literally). A dmAp below the curve's floor would show 0
+  // both before AND after this fix, for two different reasons, and prove nothing about which is fixed.
+  check('a fully DM-funded character (0 in their own log, 80 DM AP, ignore_player_ap on) shows a real Earned Lv, not "Earned Lv 0"',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      window._rulesStatus='active'; window._dmAp=80; window._ignorePlayerAp=true;
+      render();
+      const expectedL = trackLevel(earnedWithDm(economy(null), {dmAp:80, ignorePlayerAp:true}), _levelCurve());
+      const text = document.getElementById('eco').innerText;
+      window._rulesStatus='none'; window._dmAp=0; window._ignorePlayerAp=false;
+      return [expectedL>0, text.indexOf('Earned Lv '+expectedL)>=0, text.indexOf('Earned Lv 0')<0];
+    })()`), [true, true, true]);
+
   await ls.close();
 
   // ============================ CharGen ============================
   const cg = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
   if (!(await cg.evaluate(READY(`window.DATA&&typeof _creationLockState==='function'&&LOG.length>0`))))
     throw new Error('CharGen never became ready');
+
+  // fix/chargen-rules-label-live: the #cgPactver chip and the <title>'s "Rules" half used to hardcode
+  // a literal rules version (found 2 versions stale at v0.339 while DATA.version was ahead) — assert
+  // both EQUAL DATA.version itself, never a fixed string, so this check never needs a rules bump.
+  console.log('\nCharGen — the rules label reads the live DATA.version, not a hardcoded literal');
+  check('the #cgPactver chip shows the live DATA.version',
+    await cg.evaluate(`(()=>{const el=document.getElementById('cgPactver');
+      return [el?el.textContent:'(missing)', el?el.textContent===('PACT rules · '+DATA.version):false];})()`),
+    [await cg.evaluate(`'PACT rules · '+DATA.version`), true]);
+  check('the <title> "Rules" half shows the live DATA.version',
+    await cg.evaluate(`document.title.includes('Rules '+DATA.version)`), true);
 
   console.log('\nCharGen — armed at boot, notice shown until confirmed');
   // Regression guard for b3b4271: replaceWholeLogFromBuild() reassigns LOG wholesale and bypasses the
@@ -756,6 +942,52 @@ try {
       renderLedger(compute(b),b);const o=sect('Boons');
       return [o.items.length,o.sum===o.line];})()`), [2, true]);
 
+  // feat/ledger-show-lost-purchases (D-GH-2026-08-10): the reconciliation gate the task itself asks
+  // for — a bought-off drawback (or a DM-removed boon) drops OUT of the fold entirely, so compute()'s
+  // OWN lines can't show it; before this feature the AP it cost was invisible to compute().total while
+  // economy().spent still counted it. Mirrors EV-010's exact measured example (drawback for 2, bought
+  // off for 6) plus EV-018's DM-removed-boon shape (25), independently, then combined.
+  console.log('\nCharGen — the Lost purchases ledger line reconciles with economy().spent');
+  check('a drawback taken then bought off (EV-010\'s shape: +2, then 3x = 6) shows a 6 AP lost-purchase line, total===economy().spent',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const evs=[{type:'award',amount:20},
+        {type:'buy',cat:'drawback',payload:{v:'Superstitious'},cost:-2},
+        {type:'buyoff',refVal:'Superstitious',cost:6}];
+      const b=foldBuild(evs);const r=compute(b);renderLedger(r,b);const lp=sect('Lost purchases');
+      const eco=economy(evs);
+      return [lp.items, lp.line, r.total, eco.spent, r.total===eco.spent];})()`),
+    [[['Bought off — Superstitious', 6]], 6, 6, 6, true]);
+  check('a DM-removed boon (EV-018\'s shape: cost 25) shows a 25 AP lost-purchase line, total===economy().spent',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const evs=[{type:'award',amount:25},
+        {type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25},
+        {type:'dmRemoveBoon',refVal:'Boon of Combat Prowess',cost:0}];
+      const b=foldBuild(evs);const r=compute(b);renderLedger(r,b);const lp=sect('Lost purchases');
+      const eco=economy(evs);
+      return [lp.items, lp.line, r.total, eco.spent, r.total===eco.spent];})()`),
+    [[['Removed by DM — Boon of Combat Prowess', 25]], 25, 25, 25, true]);
+  check('both a bought-off drawback AND a DM-removed boon on the same build itemise separately and still reconcile',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const evs=[{type:'award',amount:50},
+        {type:'buy',cat:'drawback',payload:{v:'Superstitious'},cost:-2},
+        {type:'buyoff',refVal:'Superstitious',cost:6},
+        {type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25},
+        {type:'dmRemoveBoon',refVal:'Boon of Combat Prowess',cost:0}];
+      const b=foldBuild(evs);const r=compute(b);renderLedger(r,b);const lp=sect('Lost purchases');
+      const eco=economy(evs);
+      return [lp.items.length, lp.sum, lp.line, r.total, eco.spent, r.total===eco.spent];})()`),
+    [2, 31, 31, 31, 31, true]);
+  check('a bought-off-then-retaken drawback (EV-017\'s shape) shows BOTH the active retake AND the lost buyoff, never silently dropping either',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const evs=[{type:'award',amount:200},
+        {type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:-2},
+        {type:'buyoff',refVal:'Asthmatic',cost:6},
+        {type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:-2}];
+      const b=foldBuild(evs);const r=compute(b);renderLedger(r,b);
+      const draw=sect('Drawbacks (refund)'),lp=sect('Lost purchases');
+      return [draw.line, lp.line, r.total];})()`),
+    [-2, 6, 4]);
+
   // fix/sheet-tab-appearance-not-persisted: the Sheet tab's Appearance/Background fields (Description,
   // hometown, faith, etc.) used to go through csSave() only — a local, per-tool, per-character-id
   // scratchpad that never touched the LOG, so an edit here silently never reached a cloud save and
@@ -840,7 +1072,231 @@ try {
         return calls;});})()`),
     1);
 
+  // fix/chargen-dm-view: the copy-id derivation is THE hazard this task calls out explicitly — a copy
+  // that ever collides with its source id would let a DM's browser silently overwrite a player's
+  // character on its next autosave. Assert it directly: deterministic per (source, dm) pair, distinct
+  // across different sources AND across different DMs viewing the same source, and never equal to the
+  // source id itself.
+  console.log('\nCharGen — the DM-view copy id can never collide with its source character');
+  if (!(await cg.evaluate(READY(`typeof window._cgDeriveCopyId==='function'`))))
+    throw new Error('window._cgDeriveCopyId never appeared (campaign-ready did not fire?)');
+  check('deterministic: the same (source, dm) pair derives the same copy id twice',
+    await cg.evaluate(`Promise.all([window._cgDeriveCopyId('char-A','dm-1'),window._cgDeriveCopyId('char-A','dm-1')]).then(r=>r[0]===r[1])`), true);
+  check('two different source characters (same DM) derive different copy ids',
+    await cg.evaluate(`Promise.all([window._cgDeriveCopyId('char-A','dm-1'),window._cgDeriveCopyId('char-B','dm-1')]).then(r=>r[0]!==r[1])`), true);
+  check('two different DMs copying the SAME source character get independent copies',
+    await cg.evaluate(`Promise.all([window._cgDeriveCopyId('char-A','dm-1'),window._cgDeriveCopyId('char-A','dm-2')]).then(r=>r[0]!==r[1])`), true);
+  check('the copy id is never the source id itself, even adversarially (dm id == char id)',
+    await cg.evaluate(`window._cgDeriveCopyId('char-A','char-A').then(r=>r!=='char-A')`), true);
+  check('the derived id is UUID-shaped (what characters.id, a uuid column, requires)',
+    await cg.evaluate(`window._cgDeriveCopyId('char-A','dm-1').then(r=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(r))`), true);
+
+  // feat/chargen-dm-view follow-up (this session): the one-time "you're viewing a copy" flash is easy
+  // to miss/dismiss, so a persistent header banner was added — driven by the SAME " (DM copy)" name
+  // suffix _cgConsumeViewChar() already stamps into both the DB row and the saved envelope, so it
+  // reappears correctly on a later reload too, not just the moment the copy is first opened.
+  console.log('\nCharGen — a persistent header banner marks a DM-copy character, not just a one-time toast');
+  check('an ordinary character (no "(DM copy)" suffix) shows no banner',
+    await cg.evaluate(`(()=>{document.getElementById('cname').value='Doran Quickstep';render();
+      const b=document.getElementById('cgDmCopyBanner');return [b.style.display, b.textContent.length>0];})()`),
+    ['none', true]);
+  check('a character named with the "(DM copy)" suffix shows the persistent banner, styled distinctly purple (not the red/orange issue palette)',
+    await cg.evaluate(`(()=>{document.getElementById('cname').value='Doran Quickstep (DM copy)';render();
+      const b=document.getElementById('cgDmCopyBanner');
+      return [b.style.display, /warn(?!banner)/.test(b.className), getComputedStyle(b).backgroundColor, /DM copy/.test(b.textContent)];})()`),
+    ['flex', false, 'rgb(90, 61, 153)', true]);
+  check('the banner clears again once the name no longer carries the suffix',
+    await cg.evaluate(`(()=>{document.getElementById('cname').value='Doran Quickstep (DM copy)';render();
+      document.getElementById('cname').value='Doran Quickstep';render();
+      return document.getElementById('cgDmCopyBanner').style.display;})()`),
+    'none');
+
+  // feat/dm-edit-events: CharGen's undo is snapshot-based (HIST), not LIFO-over-events like the Live
+  // Sheet's — so its barrier has to be its own guard checked against the tail of the live LOG, not a
+  // HIST frame. Assert it directly rather than trusting the Live Sheet's coverage to generalise.
+  console.log('\nCharGen — a DM edit locks history the same way it does in the Live Sheet');
+  check('undo refuses when the last LOG event is a DM edit, with a stated reason',
+    await cg.evaluate(`(()=>{
+      LOG.push({seq:(SEQ=SEQ||1)+1,type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:0,dmEdit:true,dmLocked:false,dmRemovalCost:'flat',label:'Drawback — Asthmatic (DM imposed)'});
+      const n=LOG.length;
+      window.__f=[]; const realFlash=window.flash; window.flash=m=>window.__f.push(String(m));
+      undo();
+      const refused = LOG.length===n;
+      window.flash=realFlash;
+      if(!refused) LOG.pop();   // clean up if the guard failed, so it doesn't bleed into later checks
+      return [refused, /DM edit/i.test(window.__f[window.__f.length-1]||'')];})()`),
+    [true, true]);
+
   await cg.close();
+
+  // ============================ DM Console ============================
+  // No sign-in required: the module bridge loads offline (D-GH-2026-08-03-vendor-supabase-js), and
+  // window._dmRenderCloudRoster() is a pure DOM-render entry point over synthetic rows — the same
+  // technique dm-console-ui-e2e.mjs (Playwright, cannot run in a CLI session per AGENTS.md's no-npm
+  // rule) uses for its own coverage, but reachable here with zero dependencies.
+  const dm = await connect(`http://127.0.0.1:${PORT}/PACT/tools/DM-Console.html`);
+  if (!(await dm.evaluate(READY(`window.DATA&&document.readyState==='complete'&&typeof window._dmRenderCloudRoster==='function'`))))
+    throw new Error('DM Console never became ready');
+
+  // fix/unnamed-character-default: cloudAnalyze() used to special-case the DB's own 'New Character'
+  // default (sql/schema.sql's column default and redeem_player_invite's v_name fallback) back to
+  // blank, then cloudCardHTML() substituted a DIFFERENT literal ('Unnamed character') — so a
+  // freshly-redeemed, never-named invite showed one string in the DB/CharGen/Live Sheet and another in
+  // the DM's own roster. All surfaces now render the same stored default as-is.
+  console.log('\nDM Console — the unnamed-character default matches CharGen and the Live Sheet');
+  await dm.evaluate(`(()=>{const el=document.createElement('div');el.id='__testRoster';document.body.appendChild(el);})()`);
+  check('a roster row holding the DB default name (no LOG data yet) renders it as-is, not a divergent fallback',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('__testRoster'),
+        [{id:'test-1',name:'New Character',stats:{LOG:[{type:'award',amount:36}]},ap:80,player:'',playerLabel:'',dmNotes:''}]);
+      const card=document.getElementById('__testRoster').querySelector('.cname');
+      return card?card.textContent:'(no card)';})()`), 'New Character');
+  check('a roster row with a real player-given name still shows it, unaffected',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('__testRoster'),
+        [{id:'test-2',name:'Anders Tealeaf',stats:{LOG:[{type:'award',amount:36}]},ap:80,player:'',playerLabel:'',dmNotes:''}]);
+      const card=document.getElementById('__testRoster').querySelector('.cname');
+      return card?card.textContent:'(no card)';})()`), 'Anders Tealeaf');
+
+  // fix/chargen-dm-view: "Copy to CharGen" must appear beside the existing read-only "View" button, be
+  // labelled distinctly (never "View" — it's a copy, not a lock), and route to CharGen's ?viewChar=
+  // handler with the SAME roster character's id, same convention the Live Sheet's own View button uses.
+  console.log('\nDM Console — "Copy to CharGen" sits beside the read-only View button');
+  check('both buttons render, with distinct labels, for a roster row with no build data yet',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('__testRoster'),
+        [{id:'test-3',name:'Fenwick',stats:{LOG:[{type:'award',amount:36}]},ap:80,player:'',playerLabel:'',dmNotes:''}]);
+      const card=[...document.querySelectorAll('#__testRoster .card')].find(c=>c.dataset.id==='test-3');
+      const v=card&&card.querySelector('.view-btn'), c=card&&card.querySelector('.cgcopy-btn');
+      return [!!v, !!c, v?v.textContent:'', c?c.textContent:'', c?c.getAttribute('data-cid'):''];})()`),
+    [true, true, '👁 View', '📋 Copy to CharGen', 'test-3']);
+  // The click delegation (wireCloudRosterDelegation) is scoped to the real #campRoster element, not a
+  // synthetic test container — render into it directly so this check exercises the actual click path.
+  check('the click handler opens CharGen with ?viewChar= for the same roster row id, not the Live Sheet',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'),
+        [{id:'test-3',name:'Fenwick',stats:{LOG:[{type:'award',amount:36}]},ap:80,player:'',playerLabel:'',dmNotes:''}]);
+      let opened=null; const realOpen=window.open;
+      window.open=(url)=>{opened=url;return {};};
+      try{
+        const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-3');
+        card.querySelector('.cgcopy-btn').click();
+      } finally { window.open=realOpen; }
+      return opened;})()`),
+    'PACT-CharGen-Webtool.html?viewChar=test-3');
+
+  // feat/dm-edit-events: DM Console's grant-boon/remove-boon/impose-drawback controls. A row needs a
+  // real 'buy' event to reach hasData:true (cloudAnalyze) and therefore the full cardHTML→
+  // buildSections→dmToolsBody render path the remove-boon dropdown depends on.
+  console.log('\nDM Console — grant/remove/impose controls call dm_edit_character_log with the right shape');
+  const DM_EDIT_ROW = `[{id:'test-4',name:'Anders',
+    stats:{LOG:[{type:'award',amount:60},{type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25}]},
+    ap:60,player:'',playerLabel:'',dmNotes:''}]`;
+  check('all three controls render for a roster row with real build data',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      const g=card.querySelector('.dm-grant-boon-sel[data-cid="test-4"]');
+      const r=card.querySelector('.dm-remove-boon-sel[data-cid="test-4"]');
+      const i=card.querySelector('.dm-impose-draw-sel[data-cid="test-4"]');
+      return [!!g, !!r, !!i, r?[...r.options].map(o=>o.value):[]];})()`),
+    [true, true, true, ['Boon of Combat Prowess']]);
+  check('grant boon calls dm_edit_character_log with a matched [buy,award] pair at the SAME cost',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      let captured=null; const realFn=window._campBridge.dmEditCharacterLog;
+      window._campBridge.dmEditCharacterLog=(id,events)=>{captured=[id,events];return Promise.resolve(events);};
+      const realReload=window._dmReloadRoster; window._dmReloadRoster=()=>{};
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      card.querySelector('.dm-grant-boon-sel[data-cid="test-4"]').value='Boon of Irresistible Offense';
+      card.querySelector('.dm-grant-boon-btn[data-cid="test-4"]').click();
+      window._campBridge.dmEditCharacterLog=realFn; window._dmReloadRoster=realReload;
+      if(!captured) return 'not called';
+      const [id,events]=captured;
+      return [id, events.length, events[0].type, events[0].cat, events[1].type, events[0].cost===events[1].amount];})()`),
+    ['test-4', 2, 'buy', 'boon', 'award', true]);
+  check('remove boon asks for confirmation, then calls dm_edit_character_log with a dmRemoveBoon event',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      let captured=null, confirmed=null; const realFn=window._campBridge.dmEditCharacterLog;
+      window._campBridge.dmEditCharacterLog=(id,events)=>{captured=[id,events];return Promise.resolve(events);};
+      const realReload=window._dmReloadRoster; window._dmReloadRoster=()=>{};
+      const realConfirm=window.confirm; window.confirm=(m)=>{confirmed=m;return true;};
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      card.querySelector('.dm-remove-boon-sel[data-cid="test-4"]').value='Boon of Combat Prowess';
+      card.querySelector('.dm-remove-boon-btn[data-cid="test-4"]').click();
+      window._campBridge.dmEditCharacterLog=realFn; window._dmReloadRoster=realReload; window.confirm=realConfirm;
+      if(!captured) return 'not called';
+      const [id,events]=captured;
+      return [id, !!confirmed, events.length, events[0].type, events[0].refVal];})()`),
+    ['test-4', true, 1, 'dmRemoveBoon', 'Boon of Combat Prowess']);
+  check('impose drawback sends cost:0 plus the chosen locked/removal-cost flags',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      let captured=null; const realFn=window._campBridge.dmEditCharacterLog;
+      window._campBridge.dmEditCharacterLog=(id,events)=>{captured=[id,events];return Promise.resolve(events);};
+      const realReload=window._dmReloadRoster; window._dmReloadRoster=()=>{};
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      card.querySelector('.dm-impose-draw-sel[data-cid="test-4"]').value='Asthmatic';
+      card.querySelector('.dm-impose-draw-locked[data-cid="test-4"]').checked=true;
+      card.querySelector('.dm-impose-draw-rate[data-cid="test-4"]').value='expensive';
+      card.querySelector('.dm-impose-draw-btn[data-cid="test-4"]').click();
+      window._campBridge.dmEditCharacterLog=realFn; window._dmReloadRoster=realReload;
+      if(!captured) return 'not called';
+      const [id,events]=captured;
+      return [id, events.length, events[0].type, events[0].cat, events[0].cost, events[0].dmLocked, events[0].dmRemovalCost];})()`),
+    ['test-4', 1, 'buy', 'drawback', 0, true, 'expensive']);
+  // Archived-campaign peek must block these exactly like Award AP/notes/unbind already are — same
+  // handler, same guard, same class of write action.
+  check('archived-campaign peek blocks all three DM-edit buttons, same as Award AP',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      let calls=0; const realFn=window._campBridge.dmEditCharacterLog;
+      window._campBridge.dmEditCharacterLog=()=>{calls++;return Promise.resolve([]);};
+      let blocked=0; const realBlocks=window._dmPeekBlocks; window._dmPeekBlocks=()=>{blocked++;};
+      window._dmPeekActive=true;
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      card.querySelector('.dm-grant-boon-sel[data-cid="test-4"]').value='Boon of Irresistible Offense';
+      card.querySelector('.dm-grant-boon-btn[data-cid="test-4"]').click();
+      card.querySelector('.dm-remove-boon-sel[data-cid="test-4"]').value='Boon of Combat Prowess';
+      card.querySelector('.dm-remove-boon-btn[data-cid="test-4"]').click();
+      card.querySelector('.dm-impose-draw-sel[data-cid="test-4"]').value='Asthmatic';
+      card.querySelector('.dm-impose-draw-btn[data-cid="test-4"]').click();
+      window._dmPeekActive=false; window._campBridge.dmEditCharacterLog=realFn; window._dmPeekBlocks=realBlocks;
+      return [calls, blocked];})()`),
+    [0, 3]);
+
+  // feat/ap-model-reconcile: a fully DM-funded character (0 in their own log, ignore_player_ap on)
+  // used to show apLevel 0 (trackLevel(eco.earned) alone). earnedWithDm() fixes it identically to the
+  // Live Sheet, reusing the same engine export — not a second, independently-drifting fix.
+  console.log('\nDM Console — apLevel/earnedTotal account for DM AP the same way the Live Sheet does');
+  // 80 AP (above the Standard curve's L1=79), not 36 — see the matching Live Sheet comment above for why.
+  check('a fully DM-funded roster character (0 in their own log, 80 DM AP, ignore_player_ap on) gets a real apLevel/earnedTotal, not 0',
+    await dm.evaluate(`(()=>{
+      window._dmCampaignApRules={ignorePlayerAp:true};
+      const row={id:'test-5',name:'Fully DM-Funded',ap:80,player:'',playerLabel:'',dmNotes:'',
+        stats:{LOG:[{type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25}]}};
+      const rec=window._dmAnalyzeTest(row);
+      window._dmCampaignApRules=null;
+      return [rec.hasData, rec.summary.apLevel>0, rec.summary.earnedTotal, rec.summary.earned];})()`),
+    [true, true, 80, 0]);
+  // code-review finding (this session): renderCards() — the ≤700px fallback layout for the SAME shared
+  // roster table, not the "Card view" toggle's own #campRoster cards — still read raw a.earned directly,
+  // missing the earnedTotal switch the table's own COLS definition got a few lines above. Confirmed via
+  // the exact fully-DM-funded shape as the check above, driven through the real renderCards() function.
+  check('the narrow-viewport card fallback (renderCards) shows earnedTotal, not the raw log-only earned figure',
+    await dm.evaluate(`(()=>{
+      window._dmCampaignApRules={ignorePlayerAp:true};
+      const row={id:'test-6',name:'Fully DM-Funded (cards)',ap:80,player:'',playerLabel:'',dmNotes:'',
+        stats:{LOG:[{type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25}]}};
+      window._dmRenderCardsTest([row],0);
+      window._dmCampaignApRules=null;
+      const html=document.getElementById('cards').innerHTML;
+      window._dmRenderCardsTest([]);
+      return [/AP Earned[\\s\\S]*?<span class="v">80<\\/span>/.test(html), /AP Earned[\\s\\S]*?<span class="v">0<\\/span>/.test(html)];})()`),
+    [true, false]);
+
+  await dm.close();
 } catch (e) {
   fail++; console.log(`  FAIL harness — ${e.message}`);
 } finally {
