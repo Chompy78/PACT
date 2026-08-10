@@ -6,6 +6,21 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · feat(engine): AP ledger shows what was LOST — bought-off drawbacks, DM-removed boons**
+  (`DATA.version` v0.341 → v0.342) — a bought-off drawback or DM-removed boon drops out of `_replay()`'s
+  fold entirely, so `compute()` (pure over the build) had NO way to show its cost — a drawback taken for
+  2 then bought off for 6 appeared in no ledger line, while `economy()` correctly reported 6 spent. New
+  "Lost purchases" ledger line (owner's chosen shape: adds to `compute().total`), itemising
+  `"Bought off — X"`/`"Removed by DM — X"` rows. `activeEvents()` gained a `lost` key, built in its
+  existing FIFO buyoff/removal-match pass; `_replay()` stamps it onto `b._lostPurchases` (same pattern as
+  `_raceTraitLocked`/`_vigorRankTier`) for `compute()` to itemise — `compute()` still never reads the log
+  directly. A repurchase (bought, bought off, bought again) shows both the active retake and the lost
+  buyoff at once, by construction. Both tools' ledger renderers already itemise any line generically, so
+  no new renderer plumbing was needed — just grouping (`LGROUPS`/`LG`/`SECTIONS`) and an explain-text
+  entry in CharGen. Three existing fixtures' totals moved (EV-010 +6, EV-017 +6, EV-018 +25) —
+  `testing/expected/expected-results.csv` updated; `engine-parity-ci.mjs` 30/0; `tool-pricing-ci.mjs`
+  120/0 (4 new checks asserting the reconciliation identity `compute().total === economy().spent` for the
+  single-buyoff no-repurchase case). See `D-GH-2026-08-10-ledger-show-lost-purchases`.
 - **2026-08-10 · feat(campaign): Earned Lv accounts for DM AP; frozen-vs-repriced disagreement is now
   labelled** — a fully DM-funded character used to read "Earned Lv 0" with "0 earned" because
   `trackLevel(eco.earned)` can only see the character's own log — DM AP lives only on `characters.ap`.

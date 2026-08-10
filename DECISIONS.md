@@ -10,6 +10,16 @@
 
 ## Index
 
+- **D-GH-2026-08-10-ledger-show-lost-purchases** — the AP ledger showed NOTHING for a bought-off drawback
+  or a DM-removed boon: `compute()` is pure over the build, and both drop out of `_replay()`'s fold
+  entirely, so their AP (still real, permanent spend) was invisible to `compute().total` while
+  `economy().spent` still counted it. New "Lost purchases" ledger line (owner's chosen shape, adds to
+  total) itemises `"Bought off — X"`/`"Removed by DM — X"` rows, sourced from a new `lost` key on
+  `activeEvents()`'s existing FIFO-match pass and stamped onto the build as `b._lostPurchases` by
+  `_replay()` (same pattern as `_raceTraitLocked`/`_vigorRankTier`) — `compute()` still never reads the log
+  directly. A repurchase (bought, bought off, bought again) shows both the active retake AND the lost
+  buyoff simultaneously, by construction. `DATA.version` bumped (three existing fixtures' totals moved).
+  Full record: `decisions/2026/D-GH-2026-08-10-ledger-show-lost-purchases.md`.
 - **D-GH-2026-08-10-ap-model-reconcile** — Earned Lv/apLevel used `trackLevel(eco.earned)`, log-only, so
   a fully DM-funded character read "Earned Lv 0" even with real AP granted. New pure `earnedWithDm(eco,
   opts)` engine export (display-time composition, `economy()` itself untouched) mirrors `compute()`'s own

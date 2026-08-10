@@ -4279,14 +4279,14 @@ const SECTIONS=[
  {t:'Classes',lines:['Class unlocks','2nd origin class','Class features','Ki / Focus points','Sorcery points'],warns:[]},
  {t:'Subclasses',lines:['Subclass abilities','Subclass unlocks'],warns:['subclass']},
  {t:'Spellcasting',lines:['Trad ','Cantrips (','Innate spells'],warns:['Rank','Foundation','Mystic','Warlock','antrip','spell','Spell','slots','known','gate','Discipline','Magically']},
- {t:'Arts & Boons',lines:['Arts & Techniques','Boons','Drawbacks','Martially Bound'],warns:['boon','Boon','needs '],},
+ {t:'Arts & Boons',lines:['Arts & Techniques','Boons','Drawbacks','Lost purchases','Martially Bound'],warns:['boon','Boon','needs '],},
 ];
 const LGROUPS=[
  {t:'Core',lines:['Ability scores','Hit Dice','Proficiency bonus','Vigor','Grit','Saving throws','Skills','Tools & instruments','Expertise','Tool expertise','Languages','Attunement slots']},
  {t:'Combat',lines:['Weapon proficiency','Weapon masteries','Armour proficiency']},
  {t:'Class & Heritage',lines:['Heritage pack','2nd origin species','Species traits','Class unlocks','2nd origin class','Class features','Ki / Focus points','Sorcery points','Subclass abilities','Subclass unlocks']},
  {t:'Magic',lines:['Trad ','Cantrips (','Innate spells']},
- {t:'Boons & Gold',lines:['Boons','Drawbacks','Martially Bound','Starting gold']},
+ {t:'Boons & Gold',lines:['Boons','Drawbacks','Lost purchases','Martially Bound','Starting gold']},
 ];
 // Bug fix (this session, found via the switch-tool feature's manual testing): st_STR/DEX/etc are
 // readonly — the +/- stepper is the ONLY way a player can change an ability score. Setting .value
@@ -4398,6 +4398,7 @@ function explainParas(label,b,r){
   else if(L.indexOf('Subclass unlocks')===0){P('Reaching into a <b>second</b> subclass of the same class costs a one-time 15 AP unlock — the brake on cherry-picking.');}
   else if(L==='Boons'){P('Boons are flat-priced extra abilities, Hit-Dice-gated by price (≤7 AP from 1 HD, 8–10 from 3 HD, 11–12 from 5 HD, 13+ from 9 HD). DM-tunable.');}
   else if(L==='Drawbacks (refund)'){P('Drawbacks <b>refund</b> AP up front for accepting a hindrance. Buying one off later costs 3× the AP it gave (and a story).');}
+  else if(L==='Lost purchases'){P('A drawback you bought off, or a boon your DM removed, drops off the sheet above — but the AP is still spent for good. This line keeps that spend visible instead of letting it vanish from the ledger.');}
   else if(L.indexOf('Innate spells')===0){P('Any one spell as a stand-alone casting (1/long rest) costs <b>3× its spell-slot cost</b> — no discounts — and is still Hit-Dice gated by spell level.');}
   else if(L.indexOf('Cantrips (Wizard list')===0){P('No-Foundation cantrips (Wizard list, cast with INT) ride the <b>Steep</b> curve (base 4, +2 each) and cap at prof + INT modifier. They never scale (single die).');}
   else if(L.indexOf('Starting gold')===0){P('You may convert AP to starting gold at <b>1 AP = 50 gp</b> (on top of a free 25 gp purse), suggested cap 8 AP.');}

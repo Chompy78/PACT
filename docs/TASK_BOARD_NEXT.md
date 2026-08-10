@@ -487,54 +487,6 @@ sweep-eligible.
 been applied to every affected saved character, over-budget outcomes have an owner decision recorded, and
 a gate asserts the invariant for corrected characters.
 
-## AP ledger doesn't show what was LOST — bought-off drawbacks, removed boons — TODO
-Branch `feat/ledger-show-lost-purchases`. Successor to `feat/ledger-itemise-drawbacks`, whose
-active-drawback half shipped 2026-08-06 (PR #364): `Drawbacks (refund)` now expands into named rows that
-sum to the line, house-rule values included. What remains is the 2026-08-05 owner scope extension — the
-ledger must also show what was **lost**, not only what is currently held.
-**Effort:** medium · **Risk:** high — ambiguity high (whether historical spend belongs in `compute()`'s
-ledger at all is a model call only the owner can make, and it collides head-on with
-`feat/ap-model-reconcile`); damage scale high (would touch `compute()`'s `lines`/`total`, the app's own
-record of what a player paid); damage likelihood low (the parity gate catches any total movement) —
-worst-of lands at high. **NOT sweep-eligible** — this needs the owner's decision first, not an
-implementation.
-
-```text
-0. MEASURED 2026-08-05: a drawback taken for 2 and then bought off for 6 appears in NO ledger line.
-   The categorised lines sum to 0 while economy() reports 6 spent. compute() is a pure function of the
-   BUILD, and a bought-off drawback is no longer on the build — the buy-off cost lives only in the LOG,
-   on the `buyoff` event. So this cannot be fixed by another addItems() call the way the taken-drawback
-   half was; the information is not in compute()'s input.
-1. THE DECISION COMES FIRST, and it is the owner's: should historical spend appear in compute()'s
-   ledger? Three shapes, none obviously right —
-   a) a new ledger line ("Drawbacks bought off") that ADDS to compute().total. Simplest to render, but
-      it changes compute() output — bump DATA.version, refresh testing/expected/, and expect it to
-      double-count in any tool that already adds economy().spent separately.
-   b) a new top-level field on compute()'s return (e.g. `lost`) that no ledger LINE reads, rendered as
-      its own section by each tool. Leaves total untouched, but needs a renderer change in CharGen and
-      the Live Sheet, so it is no longer the display-only job the taken-drawback half was.
-   c) leave compute() alone and derive the section from activeEvents()/the LOG at the tool layer. Fastest,
-      but re-implements ledger logic outside the engine — AGENTS.md forbids exactly this.
-   This is the same question as `feat/ap-model-reconcile` (compute() vs the frozen ledger). Settle it
-   ONCE, there, and let this task follow — do not answer it twice in two places.
-2. Design the line shape for all three cases at once, per the owner's 2026-08-05 note: a bought-off
-   drawback (bought, then bought off, then possibly re-taken), a DM-removed boon, and a re-purchase.
-   The ledger must show that the player DID buy it and then lost it — the event is never deleted.
-3. feat/dm-edit-events landed 2026-08-10 (D-GH-2026-08-10-dm-edit-events) — DM-removed boons now exist
-   (a `dmRemoveBoon` event, `js/engine.js`'s `activeEvents().boonRemoved`), so the boon half's line shape
-   can be verified against a real fixture. No longer blocked.
-4. Gate: whatever shape is chosen, assert that the categorised ledger lines reconcile with
-   economy().spent for a character who has bought off a drawback — that identity failing is the bug.
-   testing/scripts/tool-pricing-ci.mjs already drives renderLedger() directly (see the three
-   drawback-itemisation checks added by PR #364) and is the right place for it.
-5. If compute() output moves, bump DATA.version and refresh testing/expected/ in the same PR; if it does
-   not, say so explicitly rather than leaving it unstated. engine-parity must stay at 0 failed either way.
-```
-**Done when:** the owner's decision from step 1 is recorded as a `D-GH-<date>-ledger-show-lost-purchases`
-record, a character who bought a drawback and then bought it off shows both the purchase and the buy-off
-in the ledger, the categorised lines reconcile with `economy().spent` for that character, a gate asserts
-that identity, and engine-parity still reports 0 failed.
-
 ## Tune CharGen's random character generator — TODO
 Branch `feat/randomize-tuning`. `randomizeRoll()` (`tools/PACT-CharGen-Webtool.html:3232`) rolls a
 character but nobody has written down what a *good* roll looks like.
@@ -874,9 +826,10 @@ AGENTS.md's "verify before writing an absence claim") before treating anything h
 - DM-applied creation-lock enforcement is already scoped as its own task, `feat/dm-creation-lock` (below)
   — its "server is the enforcement point, not the LOG" framing is exactly this task's model; don't
   re-derive the lock design here, cross-check against it instead.
-- `feat/ap-model-reconcile` (below) already covers the *display* divergence between `compute()` and the
-  frozen ledger; this task covers whether a malicious client can *create* that divergence server-side —
-  related, not overlapping. Sequence awareness, not a merge.
+- `feat/ap-model-reconcile` (shipped 2026-08-10, `D-GH-2026-08-10-ap-model-reconcile`) already covers the
+  *display* divergence between `compute()` and the frozen ledger; this task covers whether a malicious
+  client can *create* that divergence server-side — related, not overlapping. Sequence awareness, not a
+  merge.
 
 **1. Role boundaries (Owner / DM / Player) — audit and enforce server-side, don't introduce new roles.**
 Do not add finer-grained roles unless the audit finds a concrete vulnerability that requires it. For each

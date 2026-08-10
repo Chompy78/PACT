@@ -923,6 +923,52 @@ try {
       renderLedger(compute(b),b);const o=sect('Boons');
       return [o.items.length,o.sum===o.line];})()`), [2, true]);
 
+  // feat/ledger-show-lost-purchases (D-GH-2026-08-10): the reconciliation gate the task itself asks
+  // for — a bought-off drawback (or a DM-removed boon) drops OUT of the fold entirely, so compute()'s
+  // OWN lines can't show it; before this feature the AP it cost was invisible to compute().total while
+  // economy().spent still counted it. Mirrors EV-010's exact measured example (drawback for 2, bought
+  // off for 6) plus EV-018's DM-removed-boon shape (25), independently, then combined.
+  console.log('\nCharGen — the Lost purchases ledger line reconciles with economy().spent');
+  check('a drawback taken then bought off (EV-010\'s shape: +2, then 3x = 6) shows a 6 AP lost-purchase line, total===economy().spent',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const evs=[{type:'award',amount:20},
+        {type:'buy',cat:'drawback',payload:{v:'Superstitious'},cost:-2},
+        {type:'buyoff',refVal:'Superstitious',cost:6}];
+      const b=foldBuild(evs);const r=compute(b);renderLedger(r,b);const lp=sect('Lost purchases');
+      const eco=economy(evs);
+      return [lp.items, lp.line, r.total, eco.spent, r.total===eco.spent];})()`),
+    [[['Bought off — Superstitious', 6]], 6, 6, 6, true]);
+  check('a DM-removed boon (EV-018\'s shape: cost 25) shows a 25 AP lost-purchase line, total===economy().spent',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const evs=[{type:'award',amount:25},
+        {type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25},
+        {type:'dmRemoveBoon',refVal:'Boon of Combat Prowess',cost:0}];
+      const b=foldBuild(evs);const r=compute(b);renderLedger(r,b);const lp=sect('Lost purchases');
+      const eco=economy(evs);
+      return [lp.items, lp.line, r.total, eco.spent, r.total===eco.spent];})()`),
+    [[['Removed by DM — Boon of Combat Prowess', 25]], 25, 25, 25, true]);
+  check('both a bought-off drawback AND a DM-removed boon on the same build itemise separately and still reconcile',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const evs=[{type:'award',amount:50},
+        {type:'buy',cat:'drawback',payload:{v:'Superstitious'},cost:-2},
+        {type:'buyoff',refVal:'Superstitious',cost:6},
+        {type:'buy',cat:'boon',payload:{v:'Boon of Combat Prowess'},cost:25},
+        {type:'dmRemoveBoon',refVal:'Boon of Combat Prowess',cost:0}];
+      const b=foldBuild(evs);const r=compute(b);renderLedger(r,b);const lp=sect('Lost purchases');
+      const eco=economy(evs);
+      return [lp.items.length, lp.sum, lp.line, r.total, eco.spent, r.total===eco.spent];})()`),
+    [2, 31, 31, 31, 31, true]);
+  check('a bought-off-then-retaken drawback (EV-017\'s shape) shows BOTH the active retake AND the lost buyoff, never silently dropping either',
+    await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      const evs=[{type:'award',amount:200},
+        {type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:-2},
+        {type:'buyoff',refVal:'Asthmatic',cost:6},
+        {type:'buy',cat:'drawback',payload:{v:'Asthmatic'},cost:-2}];
+      const b=foldBuild(evs);const r=compute(b);renderLedger(r,b);
+      const draw=sect('Drawbacks (refund)'),lp=sect('Lost purchases');
+      return [draw.line, lp.line, r.total];})()`),
+    [-2, 6, 4]);
+
   // fix/sheet-tab-appearance-not-persisted: the Sheet tab's Appearance/Background fields (Description,
   // hometown, faith, etc.) used to go through csSave() only — a local, per-tool, per-character-id
   // scratchpad that never touched the LOG, so an edit here silently never reached a cloud save and

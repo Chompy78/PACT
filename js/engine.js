@@ -14,12 +14,16 @@
  *   compute(b, opts?) — price a build & derive the sheet. opts:{dmAp?, ignorePlayerAp?}. Returns
  *                       {total, spendable, remaining, budget(=spendable), playerAp, dmAp, warnings,
  *                        lines, itemize, hp, baseHP, prof, tier, mods, effScore, size, …}. Pure over
- *                       (b, opts). NEVER store its output — derive at runtime.
+ *                       (b, opts). Reads b._lostPurchases (stamped by _replay/foldBuild — see below) to
+ *                       itemize a "Lost purchases" ledger line for bought-off drawbacks/DM-removed
+ *                       boons (feat/ledger-show-lost-purchases); absent on a hand-built b, same as
+ *                       b._raceTraitLocked/b._vigorRankTier. NEVER store its output — derive at runtime.
  *   baseBuild()       — a fresh blank level-1 build object (the fold/replay starting point).
  *   MUT               — { cat: (build, payload) => void }; replay applies MUT[e.cat] per buy event.
  * Event-sourcing (append-only LOG):
- *   activeEvents(events) — {evs, boughtOff, boonRemoved}: live events + a bought-off-drawback map +
- *                          a DM-removed-boon map (feat/dm-edit-events).
+ *   activeEvents(events) — {evs, boughtOff, boonRemoved, lost}: live events + a bought-off-drawback map +
+ *                          a DM-removed-boon map (feat/dm-edit-events) + the FIFO-matched lost-purchases
+ *                          list ({kind,label,cost}[], feat/ledger-show-lost-purchases) compute() itemizes.
  *   economy(events)      — {earned, spent, available, drawbackEarned}: AP tally from a LOG (no fold/compute).
  *   earnedWithDm(eco, opts?) — eco.earned composed with DM AP (opts:{dmAp?, ignorePlayerAp?}), mirroring
  *                       compute()'s own spendable formula — feeds Track-Level in both tools
@@ -474,6 +478,26 @@ export function compute(b, opts){
   add("Drawbacks (refund)",-drawGain);addItems("Drawbacks (refund)",_DI);
   if(drawGain>14) W.push("Drawbacks grant "+drawGain+" AP — note most tables cap at 14 AP (check with your DM)");
   if((b.drawbacks||[]).length>3) W.push((b.drawbacks||[]).length+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
+  // Lost purchases (feat/ledger-show-lost-purchases, D-GH-2026-08-10): a bought-off drawback or a
+  // DM-removed boon drops OUT of the fold entirely (see _replay's boughtOff/boonRemoved guards) — it's
+  // absent from b.drawbacks/b.boons, so neither line above nor the Boons line below can show it. Yet the
+  // AP is genuinely, permanently spent: a buyoff's cost always counts toward economy().spent, and a
+  // removed boon's original purchase cost is never refunded. _replay() stamps the match (it alone knows
+  // WHICH purchase a buyoff/removal actually cancelled — compute() has no log to re-derive that from,
+  // only the post-fold build) onto b._lostPurchases; this just itemises it, the same add()/addItems()
+  // pattern as every other ledger line. Chosen shape (owner decision, recorded in
+  // decisions/2026/D-GH-2026-08-10-ledger-show-lost-purchases.md): a new line that ADDS to total, so a
+  // character who bought a drawback for 2 and then bought it off for 6 shows total=6, reconciling with
+  // economy().spent for that exact case (no repurchase, no price drift) — the gate this line exists to
+  // satisfy. A later repurchase of the same drawback/boon is unaffected: it's a fresh, still-open
+  // purchase, priced normally by the lines above; this line only ever reflects purchases that stayed lost.
+  let lostAP=0;const _LI=[];
+  for(const it of (b._lostPurchases||[])){
+    const c=Number(it&&it.cost)||0;
+    const lab=(it&&it.kind==='drawback'?'Bought off — ':'Removed by DM — ')+(it&&it.label||'?');
+    lostAP+=c; _LI.push([lab,c]);
+  }
+  add("Lost purchases",lostAP);addItems("Lost purchases",_LI);
   add("Starting gold",b.gold||0);
   // --- AP composition: the two-pool model (see docs/plans/2026-07-12-campaign-ap-model-cold-review.md) ---
   // Spendable AP is composed HERE, once, from two independently-stored pools so every tool shows ONE total:
@@ -615,22 +639,32 @@ export function activeEvents(events) {
   // boon name) exactly like `buyoff` carries it for drawbacks.
   const boonRemoved = new Set();
   const _openBoons = {};   // boon value -> queue of still-open purchase indices, oldest first
+  // lost (feat/ledger-show-lost-purchases): a bought-off drawback or DM-removed boon drops OUT of the
+  // fold (see _replay's boughtOff/boonRemoved guards), so it never reaches compute() via b.drawbacks/
+  // b.boons — yet the AP it cost is still real, permanent spend (a buyoff's cost always counts via
+  // _spendCost; a removed boon's original purchase cost was never refunded). Built HERE, in the same
+  // FIFO pass that resolves the match, because only this pass knows WHICH purchase a buyoff/removal
+  // actually cancelled — compute() sees only the post-fold build and has no log to re-derive it from.
+  // Only pushed when the match actually lands (`q && q.length`), same gating as boughtOff/boonRemoved
+  // themselves — an unmatched buyoff/removal is a no-op the UI should never emit, and defensively
+  // shouldn't manufacture a phantom ledger line either.
+  const lost = [];
   evs.forEach((e, i) => {
     if (e.type === 'buy' && e.cat === 'drawback') {
       const v = e.payload && e.payload.v;
       (_openDraws[v] = _openDraws[v] || []).push(i);
     } else if (e.type === 'buyoff') {
       const q = _openDraws[e.refVal];
-      if (q && q.length) boughtOff.add(q.shift());
+      if (q && q.length) { boughtOff.add(q.shift()); lost.push({ kind: 'drawback', label: e.refVal, cost: Number(e.cost) || 0 }); }
     } else if (e.type === 'buy' && e.cat === 'boon') {
       const v = e.payload && e.payload.v;
       (_openBoons[v] = _openBoons[v] || []).push(i);
     } else if (e.type === 'dmRemoveBoon') {
       const q = _openBoons[e.refVal];
-      if (q && q.length) boonRemoved.add(q.shift());
+      if (q && q.length) { const _idx = q.shift(); boonRemoved.add(_idx); const _orig = evs[_idx]; lost.push({ kind: 'boon', label: e.refVal, cost: Number(_orig && _orig.cost) || 0 }); }
     }
   });
-  return { evs, boughtOff, boonRemoved };
+  return { evs, boughtOff, boonRemoved, lost };
 }
 
 // AP-spend contribution of a single event — 0 for anything that isn't a spend-bearing buy/buyoff/names
@@ -776,6 +810,10 @@ export function earnedWithDm(eco, opts) {
 function _replay(b, log, onApplied) {
   const ae = activeEvents(log);
   const { evs, boughtOff, boonRemoved } = ae;
+  // Stamp the lost-purchases list straight from activeEvents()'s own FIFO match (feat/ledger-show-
+  // lost-purchases) — same idea as _raceTraitLocked/_vigorRankTier just below: record log-only context
+  // on the build so compute(), which only ever sees `b`, can itemize it without re-deriving anything.
+  b._lostPurchases = ae.lost;
   let _locked = false, _spent = 0, _campaignBound = false;
   // creationLockConfig / creationUnlocked bookkeeping (see the block comment above this function).
   // _cfgAuto: undefined = "not configured" (legacy: campaignBound alone arms the auto-lock, which is
