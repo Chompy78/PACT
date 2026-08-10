@@ -1447,19 +1447,53 @@ const NAMESTYLES=[
  {key:'mystic',label:'Mystic',on:false,hint:'Arcane, ethereal, otherworldly'},
  {key:'common',label:'Common',on:false,hint:'Plain village folk names'},
 ];
+// feat/expand-random-names (owner request, 2026-08-10 — "i keep getting the same name"): each pool
+// roughly tripled/quadrupled from the original set (kept in full, at the front of each array, so no
+// existing save data or expectations shift) — the original ~12-16 first / ~8-10 last names per style
+// made a repeat likely within a handful of rolls; ~45-60 first / ~30-40 last per style pushes that much
+// further out. Same shape, same six styles, same RACE_STYLE/CLASS_STYLE mapping — genName() needs no change.
 const NAMEDATA={
- heroic:{first:['Aldric','Roland','Garrick','Bryn','Thane','Cedric','Marius','Owain','Lyle','Darion','Sera','Eleyna','Mira','Rowan','Kaelen','Brennan'],
-         last:['Brightblade','Stormholt','Ironheart','Hawke','Valor','Dawnbreaker','Stronghand','Marsh','Vale','Lionsworn']},
- rugged:{first:['Borin','Dargan','Hrothan','Korga','Bralk','Durn','Mauga','Hilda','Greta','Vurok','Stigr','Halla'],
-         last:['Stonefist','Grimbeard','Oakenshield','Coalvein','Hammerfall','Boulderborn','Frosthelm','Ironknuckle']},
- elvish:{first:['Aelar','Thalindra','Erevan','Sylvaine','Caelynn','Lirael','Faelar','Illy','Naivara','Aramil','Yllarie','Theren'],
-         last:['Moonwhisper','Silverleaf','Nightbreeze','Starwind','Dawnmere','Amakir','Galanodel','Liadon']},
- dark:{first:['Mordecai','Vesper','Raith','Nyx','Korvath','Mallory','Drusilla','Soren','Vraxx','Lilith','Carrow','Mortis'],
-       last:['Blackthorn','Gravemoor','Ashfall','Nightshade','Hollowend','Direwood','Mournhold','Crowsworn']},
- mystic:{first:['Zephyrine','Orrin','Sibylla','Caelum','Astraea','Veyra','Thessaly','Lumen','Oriel','Isolde','Aurelian','Calyx'],
-         last:['Stargazer','Aetherborn','Wyrmsong','Veilwalker','Spellweaver','Duskglimmer','Runehollow','Skyloom']},
- common:{first:['Tom','Bess','Hal','Will','Nan','Jeb','Mary','Pip','Dot','Sam','Edda','Cob'],
-         last:['Miller','Fields','Cooper','Brook','Hill','Tanner','Greenway','Barrow','Wheeler','Stout']},
+ heroic:{first:['Aldric','Roland','Garrick','Bryn','Thane','Cedric','Marius','Owain','Lyle','Darion','Sera','Eleyna','Mira','Rowan','Kaelen','Brennan',
+   'Alaric','Edmund','Godfrey','Percival','Tristan','Gareth','Leoric','Corwin','Emeric','Fenwick','Harwin','Ivor','Joric','Kendrick','Lucan','Merrick',
+   'Osric','Quintus','Reynard','Silas','Tobias','Ulric','Varian','Wulfric','Aiden','Bastian','Callum','Dorian','Everard','Finnian','Grayson','Halden',
+   'Isolde','Jocelyn','Kira','Lyanna','Maren','Nessa','Orianna','Perrin','Rosalind','Talia','Wren'],
+         last:['Brightblade','Stormholt','Ironheart','Hawke','Valor','Dawnbreaker','Stronghand','Marsh','Vale','Lionsworn',
+   'Ashford','Blackwood','Crestfall','Duskhaven','Emberlyn','Fairwind','Goldleaf','Highmoor','Ironwood','Kingsley','Lightbringer','Moorland',
+   'Northgate','Oakheart','Proudmoor','Ravencrest','Silverbrook','Thornfield','Underhill','Wyndham','Ashworth','Blackthorne','Coldwater','Deverell',
+   'Everhart','Frostwind','Greycastle','Hollowell','Ironforge','Justwind']},
+ rugged:{first:['Borin','Dargan','Hrothan','Korga','Bralk','Durn','Mauga','Hilda','Greta','Vurok','Stigr','Halla',
+   'Brogar','Dolgrim','Grimna','Hrolf','Kazgar','Morka','Norda','Ragna','Skarr','Thrask','Ulga','Vex','Yorna','Zulra','Balgor','Crenna','Drask','Fenra',
+   'Gorm','Hulda','Ingra','Jorik','Kolva','Lomba','Marka','Norga','Orsk','Pruka','Ragnar','Snorra','Tulga','Ubra','Volgar','Wredna','Yalka','Zorn'],
+         last:['Stonefist','Grimbeard','Oakenshield','Coalvein','Hammerfall','Boulderborn','Frosthelm','Ironknuckle',
+   'Battlehorn','Copperfist','Deepdelver','Emberforge','Flintlock','Granitehide','Hardaxe','Ironjaw','Mountainheart','Oreheart','Quarryborn','Rockjaw',
+   'Steelgrip','Stonehammer','Thickskull','Undermountain','Warhide','Bloodaxe','Brokenhorn','Coldiron','Dragonslayer','Firebeard','Graniteback','Hollowpeak']},
+ elvish:{first:['Aelar','Thalindra','Erevan','Sylvaine','Caelynn','Lirael','Faelar','Illy','Naivara','Aramil','Yllarie','Theren',
+   'Aerith','Bellanore','Caelith','Dariel','Elenwe','Faelynn','Galathil','Hylwen','Ithlorel','Jaelith','Keladris','Lorelian','Mirelle','Nienna','Oriveth',
+   'Peliade','Quilathe','Rialynn','Silmara','Talvaris','Uthiel','Vaelora','Wynleth','Xaelith','Yavara','Zephyrae','Aithne','Belarion','Cirien','Dellamire',
+   'Elowyn','Falivere','Glorindel'],
+         last:['Moonwhisper','Silverleaf','Nightbreeze','Starwind','Dawnmere','Amakir','Galanodel','Liadon',
+   'Ambervale','Brightwood','Duskmere','Evenglow','Frostleaf','Glimmerhollow','Hollowbrook','Ivyshade','Larkwood','Mistwillow','Nightshade','Opalvine',
+   'Ravenbrook','Silverwind','Starweave','Sunwhisper','Twilightglen','Whisperwind','Willowmere','Wintervale','Amberleaf','Brookhaven']},
+ dark:{first:['Mordecai','Vesper','Raith','Nyx','Korvath','Mallory','Drusilla','Soren','Vraxx','Lilith','Carrow','Mortis',
+   'Azrael','Belladonna','Cassius','Damaris','Erebus','Fenwick','Gorath','Hexa','Irenya','Jarek','Kryss','Lysandra','Malachai','Nocturna','Orpheus',
+   'Persephone','Quintessa','Ravena','Selwyn','Thanos','Umbra','Valentin','Wraith','Ysolde','Zaphira','Anathema','Balthazar','Cressida','Draven',
+   'Ebonwake','Fenris','Grimalkin'],
+       last:['Blackthorn','Gravemoor','Ashfall','Nightshade','Hollowend','Direwood','Mournhold','Crowsworn',
+   'Ashbourne','Bloodmoor','Coldgrave','Deathwhisper','Emberfall','Frostbane','Gloomhaven','Hollowgrave','Ironshroud','Kingsblight','Mourningstar',
+   'Nighthollow','Obsidianveil','Painweaver','Quietus','Ravensworn','Shadowmere','Thornveil','Umbrashade','Voidcaller','Wraithborne','Ashenholt']},
+ mystic:{first:['Zephyrine','Orrin','Sibylla','Caelum','Astraea','Veyra','Thessaly','Lumen','Oriel','Isolde','Aurelian','Calyx',
+   'Aetheris','Bryony','Celestine','Dawnwhisper','Elowen','Fenwyn','Gwendolin','Halcyon','Ithriel','Jovienne','Kaelestis','Lyria','Meridian','Nocturne',
+   'Oberon','Prisma','Quorren','Solvaine','Thalassa','Umbriel','Vesperine','Wrenna','Xanthe','Ysabel','Zenith','Aetherwyn','Belisandra','Corvina',
+   'Dulcinea','Elysium'],
+         last:['Stargazer','Aetherborn','Wyrmsong','Veilwalker','Spellweaver','Duskglimmer','Runehollow','Skyloom',
+   'Astralwind','Brightmoon','Celestwind','Dreamweaver','Etherfall','Fatewhisper','Glimmerveil','Hallowmere','Illumina','Jadewind','Kaleidosong',
+   'Lunarveil','Moonshadow','Nightglass','Oraclewind','Prismglow','Quicksilver','Runeweaver','Starfall','Truthseeker','Undertide','Voidgazer']},
+ common:{first:['Tom','Bess','Hal','Will','Nan','Jeb','Mary','Pip','Dot','Sam','Edda','Cob',
+   'Alf','Betty','Cliff','Doris','Ellis','Fanny','George','Hattie','Ike','Jenny','Kit','Lottie','Milo','Nell','Otto','Peg','Quince','Ruth','Stan','Tilly',
+   'Vic','Wally','Yvette','Zeke','Agnes','Barnaby','Clara','Dennis','Enid','Fred','Gladys','Herbert'],
+         last:['Miller','Fields','Cooper','Brook','Hill','Tanner','Greenway','Barrow','Wheeler','Stout',
+   'Ashby','Baker','Carter','Dyer','Fletcher','Grainger','Hobbs','Kettle','Ledger','Mason','Nash','Ostler','Potter','Quarrell','Reed','Sawyer',
+   'Thatcher','Underwood','Vance','Weaver']},
 };
 // Influence toggles map the chosen species/class onto flavour pools, blended with any manual flavours.
 const NAMEINFLU=[
@@ -1858,6 +1892,13 @@ function buildForm(F){
   const styleChips=NAMESTYLES.map(s=>'<label title="'+s.hint+'"><input type="checkbox" class="namesty-ck" value="'+s.key+'"'+(s.on?' checked':'')+'> '+s.label+'</label>').join('');
   const influChips=NAMEINFLU.map(s=>'<label title="'+s.hint+'"><input type="checkbox" class="nameinflu-ck" value="'+s.key+'"> '+s.label+'</label>').join('');
   function apField(id,label,field,info){return '<div class="row"><label class="l" for="'+id+'">'+label+'</label><input type="text" id="'+id+'" class="apin" aria-label="'+label+'"><button class="btn ghost dicebtn" type="button" aria-label="Roll '+label+'" title="Roll '+label+' (species/class-guided)" onclick="randField(\''+field+'\')">🎲</button><label class="locklab" title="Lock so &quot;Randomise all&quot; skips this field"><input type="checkbox" id="'+id+'_lock" aria-label="Lock '+label+'">🔒</label>'+(info?'<span class="hint" id="'+id+'_info"></span>':'')+'</div>';}
+  // Two free-form, player-labeled detail fields (owner request, 2026-08-10) — unlike every other
+  // appearance field above, these have no fixed prompt and no random table backing them (there's
+  // nothing sensible to roll for a field whose MEANING the player invents), so no 🎲/🔒 controls.
+  // Both inputs carry an 'ap_' id, so the EXISTING _cgPatchSlotForId() prefix match already routes them
+  // into PATCH_SLOTS.APPEARANCE with zero new wiring — see that function's own comment on why 'ap_'-
+  // prefixed ids need no per-field entry in PATCH_FIELD_SLOT.
+  function apCustomField(idx){return '<div class="row apcustom"><input type="text" id="ap_custom'+idx+'Label" class="apin apcustomlabel" placeholder="Label (e.g. Catchphrase)" aria-label="Custom detail '+idx+' label"><input type="text" id="ap_custom'+idx+'Text" class="apin" placeholder="One sentence…" aria-label="Custom detail '+idx+' text"></div>';}
   grp('1 · Setup &amp; Character Description',
     '<div class="row"><label class="l">Character name</label><input type="text" id="cname"><button class="btn ghost" type="button" onclick="genName()" title="Roll a random name in the chosen style(s)">🎲 Generate</button></div>'+
     '<div class="namelab">Name flavour</div><div class="namesty">'+styleChips+'</div>'+
@@ -1911,6 +1952,8 @@ function buildForm(F){
       apField('ap_prized','Prized possession','prized',false)+apField('ap_faith','Faith','faith',false)+
       apField('ap_companion','Companion','companion',false)+
     '</div>'+
+    '<div class="sublab2">Custom details <span class="hint">your own label, your own sentence — never randomised</span></div>'+
+    '<div class="apcols">'+apCustomField(1)+apCustomField(2)+'</div>'+
     '<div class="sublab2">Overall description <label class="locklab" title="Lock so Randomise/Auto-write won’t change it"><input type="checkbox" id="ap_overall_lock">🔒</label></div>'+
     '<textarea id="ap_overall" class="apoverall" placeholder="Click 🪶 Auto-write to compose a one-paragraph description from the fields above — or write your own."></textarea>');
 
@@ -3147,6 +3190,8 @@ function _domReadBuild(){
       father:val('ap_father'),mother:val('ap_mother'),hometown:val('ap_hometown'),profession:val('ap_profession'),
       familyfor:val('ap_familyfor'),famevent:val('ap_famevent'),secret:val('ap_secret'),drink:val('ap_drink'),
       ambition:val('ap_ambition'),fear:val('ap_fear'),prized:val('ap_prized'),faith:val('ap_faith'),companion:val('ap_companion'),
+      custom1Label:val('ap_custom1Label'),custom1Text:val('ap_custom1Text'),
+      custom2Label:val('ap_custom2Label'),custom2Text:val('ap_custom2Text'),
       overall:val('ap_overall')},
     size:val('charsize')||'Small',
     houseRules:{...HOUSE,dmAllows:{bound:!($('dm_bound')&&!$('dm_bound').checked),boons:!($('dm_boons')&&!$('dm_boons').checked),drawbacks:!($('dm_draws')&&!$('dm_draws').checked),tasha:!($('dm_tasha')&&!$('dm_tasha').checked)}}, version:DATA.version, id:currentCharId()};
@@ -3572,7 +3617,7 @@ function applyBuild(b,opts){
    if($('dm_draws'))$('dm_draws').checked=da.drawbacks!==false;}
   buildArtGrid(); buildBoonGrid(b);buildDrawGrid();buildDmList();
   buildSpeciesSelects(b); buildOriginClassSelects(b); buildMasteryGrid(b);   // D-GH44 fix: pass the build being loaded, NOT readBuild()'s stale pre-load LOG — the "keep already-owned banned items visible" exemption must check the build actually being loaded, since LOG itself isn't rebuilt from it until replaceWholeLogFromBuild(_domReadBuild()) at the end of this function
-  {const ap=b.appearance||{};['gender','age','height','build','hair','eyes','nose','skin','marks','voice','demeanour','quirk','likes','dislikes','father','mother','hometown','profession','familyfor','famevent','secret','drink','ambition','fear','prized','faith','companion','overall'].forEach(k=>set('ap_'+k,ap[k]||''));}
+  {const ap=b.appearance||{};['gender','age','height','build','hair','eyes','nose','skin','marks','voice','demeanour','quirk','likes','dislikes','father','mother','hometown','profession','familyfor','famevent','secret','drink','ambition','fear','prized','faith','companion','custom1Label','custom1Text','custom2Label','custom2Text','overall'].forEach(k=>set('ap_'+k,ap[k]||''));}
   const ck=(cls,arr)=>document.querySelectorAll('.'+cls).forEach(e=>e.checked=(arr||[]).includes(e.value));
   ck('saveck',b.saves);ck('skillck',b.skills);ck('expck',b.expertise);ck('mastck',b.masteries);ck('boonck',b.boons);ck('racck',b.racialTraits);ck('drawck',b.drawbacks);ck('toolck',b.tools);ck('instck',b.instruments);ck('toolexpck',b.toolExpertise);ck('linspellck',b.racialSpells);
   ck('artck',b.arts||[]);
