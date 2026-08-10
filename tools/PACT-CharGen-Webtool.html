@@ -1594,7 +1594,13 @@ function _rollField(field){
   // instead of manual typing — that fix wired onSheetField()'s real input events through
   // _shCommitAppearanceField(); _rollField() (🎲 Randomise all / the per-field 🎲) never got the same
   // treatment. `id` is always 'ap_<field>' here, matching _shCommitAppearanceField's own key naming.
-  const set=(id,v)=>{const e=$(id);if(e)e.value=v;_shCommitAppearanceField(id.slice(3),v);};
+  // Skip the commit while _histSuspended: that's randomizeRoll()'s whole-character flow, which calls
+  // randomiseAppearance() then unconditionally rebuilds the ENTIRE LOG from the DOM a few lines later
+  // (replaceWholeLogFromBuild(_domReadBuild()), see its own comment) — committing here too would be up
+  // to ~20 wasted fold+compute passes per random roll (code-review finding, this session) for state a
+  // resync three lines later throws away anyway. The DOM value this function sets either way is exactly
+  // what that resync reads, so appearance still ends up correct in the final LOG either path.
+  const set=(id,v)=>{const e=$(id);if(e)e.value=v;if(!_histSuspended)_shCommitAppearanceField(id.slice(3),v);};
   if(field==='gender')set('ap_gender',_pick(APPEAR.gender));
   else if(field==='age'){const a=S.age;const span=Math.max(0,a[1]-a[0]);let off;const r=Math.random();
     // strongly weight "young adult" (a few years past adulthood; ~18–24 for Humans) with a thin tail to old age
@@ -1673,9 +1679,11 @@ function genDescription(){
   if(misc.length)pcs.push('They '+_joinList(misc)+'.');
   // fix/randomise-appearance-not-persisted: same DOM-only bug as _rollField() above — the composed
   // paragraph rendered on screen but was never written to the LOG, so it never survived past this render.
+  // Same _histSuspended skip as _rollField() above, same reason (randomizeRoll()'s resync makes this
+  // redundant work there).
   const composed=pcs.join(' ');
   const e=$('ap_overall');if(e)e.value=composed;
-  _shCommitAppearanceField('overall',composed);
+  if(!_histSuspended)_shCommitAppearanceField('overall',composed);
 }
 // portrait prompt now uses the shared builder (sheet_assets.py) so both tools are identical
 function genPortrait(){genPortraitFor(readBuild());}
@@ -3989,8 +3997,11 @@ function randomizeRoll(){
   try{
     applyBuild(b);
     try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}
-    // Phase 2 Step 3 (Chunk 5): randomiseAppearance()/genName() write appearance + name straight to the DOM
-    // (direct .value, no events) AFTER applyBuild's own resync — so re-sync LOG once more to capture them.
+    // Phase 2 Step 3 (Chunk 5): genName() writes the name straight to the DOM (direct .value, no
+    // events) AFTER applyBuild's own resync — so re-sync LOG once more to capture it. (Appearance used
+    // to be DOM-only here too; fix/randomise-appearance-not-persisted made randomiseAppearance() commit
+    // to the LOG on its own — but it skips that commit while _histSuspended, exactly because THIS
+    // resync already covers it a few lines later; see that fix's comment on _rollField's `set`.)
     if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
   }finally{_histSuspended=_prevSusp;}
   const spent=C(b).total;

@@ -77,14 +77,42 @@ using established infrastructure, not new design. No alternative considered: the
 `randomiseAppearance()`, rather than per-field) would change the coalescing behaviour for no benefit, since
 `_shCommitAppearanceField` already coalesces on the LOG side.
 
+## Addendum (2026-08-10, pre-merge review) — the fix was correct but wasteful inside randomizeRoll()
+
+`/code-review` (medium effort) on the PR found two real issues in how the fix interacts with
+`randomizeRoll()` (the full "🎲 Random" character button), both confirmed by reading the code directly
+before acting:
+
+1. **Wasted work, not a correctness bug.** `randomizeRoll()` calls `randomiseAppearance()` while
+   `_histSuspended` is true, then unconditionally rebuilds the *entire* LOG from the DOM a few lines
+   later (`replaceWholeLogFromBuild(_domReadBuild())` — pre-existing code, there specifically because
+   `genName()`'s DOM-only name write needs the same resync). With this fix's new per-field commits, that
+   meant up to ~20 extra `_shCommitAppearanceField()` calls — each a full `fold+compute` pass over the
+   in-progress build — for state the resync three lines later discards regardless. Confirmed directly:
+   an instrumented count showed **28 calls** during one `randomizeRoll()` run before the fix below, all
+   pure waste (the final appearance data was already correct either way, since the resync reads the same
+   DOM values `_rollField` sets).
+2. **A stale comment.** The resync's own comment said appearance was "straight to the DOM… no events",
+   which this fix made false — left uncorrected, a future maintainer could reasonably conclude the resync
+   is now redundant for appearance and remove it, silently reintroducing the original bug.
+
+**Fix:** both `_rollField`'s `set` helper and `genDescription()`'s final commit now skip
+`_shCommitAppearanceField()` while `_histSuspended` — the signal that a bulk resync governs and per-field
+LOG writes would be immediately overwritten anyway (the same convention already used elsewhere for
+suspended-history bulk flows). The standalone "🎲 Randomise all"/"🪶 Auto-write" buttons are **not**
+inside a suspended block when clicked directly, so this guard doesn't affect their behavior at all — only
+`randomizeRoll()`'s internal call is skipped. Comment at the resync call site rewritten to state the
+current, accurate reason.
+
 ## Verification
 
-`testing/scripts/tool-pricing-ci.mjs`: 2 new checks — `randomiseAppearance()` writes to the LOG (not just
-the DOM), coalesced into one patch event; `genDescription()`'s standalone "🪶 Auto-write" path also
-commits. **Both confirmed to fail without the fix** (hand-verified by reverting just the fix and
-re-running before committing — DOM showed the text, LOG match count was 0/the composed text never reached
-`foldBuild()`'s output) and pass with it. 128/0 overall (was 126/0). `engine-parity-ci.mjs` unaffected,
-30/0 — display/commit-path only, no `DATA.version` change.
+`testing/scripts/tool-pricing-ci.mjs`: 3 checks — `randomiseAppearance()` writes to the LOG (not just the
+DOM), coalesced into one patch event; `genDescription()`'s standalone "🪶 Auto-write" path also commits;
+`randomizeRoll()` performs **zero** `_shCommitAppearanceField()` calls (spied directly) while still
+producing correct final appearance data. **All three confirmed to fail without their respective fix**
+(hand-verified by reverting just the fix and re-running before committing each time — the first two showed
+DOM populated/LOG empty; the third showed 28 wasted calls instead of 0) and pass with it. 129/0 overall
+(was 126/0). `engine-parity-ci.mjs` unaffected, 30/0 — display/commit-path only, no `DATA.version` change.
 
 **Not independently re-verified against a live browser session** — same caveat as the DM-AP fix; the
 reporting user can confirm by re-running the same randomise-then-switch-tools sequence that surfaced it.

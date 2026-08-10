@@ -1070,6 +1070,24 @@ try {
       const b=foldBuild(LOG);
       return [n, matches.length, b.appearance.hometown, /Rewritten-by-hand/.test(b.appearance.overall)];})()`),
     [1, 1, 'Rewritten-by-hand', true]);
+  // code-review finding (this session): randomizeRoll() (the full "🎲 Random" button) calls
+  // randomiseAppearance() while _histSuspended, then unconditionally rebuilds the WHOLE LOG from the DOM
+  // a few lines later (replaceWholeLogFromBuild) — committing appearance mid-roll would be ~20 wasted
+  // fold+compute passes per click for state that resync immediately discards. Assert both halves: the
+  // commit is skipped while suspended (spy on _shCommitAppearanceField's call count), AND the final
+  // result still ends up with real appearance data (the resync captures the DOM values either way).
+  check('randomizeRoll() skips the per-field LOG commit (suspended — a full resync follows) but the final build still has real appearance data',
+    await cg.evaluate(`(()=>{
+      const real=_shCommitAppearanceField; let calls=0;
+      // _rollField/genDescription call the bare identifier — reassigning window.X redirects it too,
+      // since a top-level "function name(){}" declaration in a classic script IS a window property
+      // (unlike let/const), the same mechanism the existing "compute gates" test above already relies on.
+      window._shCommitAppearanceField=function(){calls++;return real.apply(this,arguments);};
+      randomizeRoll();
+      window._shCommitAppearanceField=real;
+      const b=foldBuild(LOG);
+      return [calls, b.appearance.overall.length>0, b.appearance.hometown.length>0];})()`),
+    [0, true, true]);
 
   // feat/campaign-ap-budget-enforce: a campaign-bound character's CLOUD save (manual + autosave) is
   // refused once compute()'s remaining<0, when the campaign's rules.enforceApBudget is true-or-absent.

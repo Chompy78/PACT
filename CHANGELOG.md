@@ -12,8 +12,11 @@
   reload, save, or Live Sheet ⇆ CharGen switch. A second, adjacent code path to
   `fix/sheet-tab-appearance-not-persisted` (the Setup-tab randomiser, not the Sheet tab's manual typing,
   which that fix already covers) that never got the same fix. Now routes both through the existing
-  `_shCommitAppearanceField()`. New regression tests (confirmed to fail pre-fix, pass post-fix by
-  hand-reverting). `tool-pricing-ci.mjs` 128/0; `engine-parity-ci.mjs` unaffected, 30/0. See
+  `_shCommitAppearanceField()`, skipping the commit while `_histSuspended` so `randomizeRoll()`'s "🎲
+  Random" full-character button (which already does its own full LOG resync right after) doesn't waste
+  ~20 redundant fold+compute passes per click (`/code-review` finding, fixed pre-merge — confirmed 28
+  wasted calls before the guard, 0 after). New regression tests (confirmed to fail pre-fix, pass post-fix
+  by hand-reverting each one). `tool-pricing-ci.mjs` 129/0; `engine-parity-ci.mjs` unaffected, 30/0. See
   `D-GH-2026-08-10-randomise-appearance-not-persisted`.
 
 - **2026-08-10 · fix(dm-console, live-sheet): two `/code-review ultra` findings from PR #403's pre-merge
