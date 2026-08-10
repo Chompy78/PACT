@@ -10,6 +10,17 @@
 
 ## Index
 
+- **D-GH-2026-08-10-dm-ap-lost-on-handoff** — found live on a real Amble character: DM AP read as "🛡 0
+  AP — DM only" in CharGen after switching from the Live Sheet, despite showing correctly in both the
+  Live Sheet and DM Console. Root cause: `_cgAdoptEnvelopeBinding()` gated its DM-AP refresh on
+  `window._cloudSignedIn`, a flag the `'campaign-ready'` listener itself resets to `false` the instant it
+  fires and only asynchronously re-sets afterward — a race that could skip the refresh for a genuinely
+  signed-in user while `_dmApStatus` (resolved separately, from the campaign fetch alone) still reported
+  `'active'`. Fixed by asking the auth bridge directly (`currentSession()`) instead of trusting the flag,
+  matching `_cgConsumeViewChar()`'s existing pattern. New regression test confirmed to fail without the
+  fix and pass with it (hand-verified by reverting just the fix). `tool-pricing-ci.mjs` 126/0;
+  `engine-parity-ci.mjs` unaffected, 30/0 — display/timing only.
+  Full record: `decisions/2026/D-GH-2026-08-10-dm-ap-lost-on-handoff.md`.
 - **D-GH-2026-08-10-ledger-show-lost-purchases** — the AP ledger showed NOTHING for a bought-off drawback
   or a DM-removed boon: `compute()` is pure over the build, and both drop out of `_replay()`'s fold
   entirely, so their AP (still real, permanent spend) was invisible to `compute().total` while
