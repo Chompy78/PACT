@@ -1089,6 +1089,57 @@ try {
       return [calls, b.appearance.overall.length>0, b.appearance.hometown.length>0];})()`),
     [0, true, true]);
 
+  // feat/expand-random-names (owner request, 2026-08-10 — "i keep getting the same name"): each of the
+  // 6 styles roughly tripled/quadrupled from its original ~12-16 first / ~8-10 last names. Floor checks
+  // (not exact counts, so future additions don't need this test touched) guard against an accidental
+  // shrink back toward the old, repeat-prone size; every original name is still present (additive, not
+  // a rewrite) and pool contents are unique within each list (a literal typo'd duplicate reduces real
+  // variety without showing up as a count regression).
+  console.log('\nCharGen — the random name pools were genuinely expanded, not just re-labelled');
+  check('every style has at least 40 first names and 25 last names, each style internally duplicate-free',
+    await cg.evaluate(`(()=>{
+      const styles=Object.keys(NAMEDATA);
+      const sizesOk=styles.every(k=>NAMEDATA[k].first.length>=40&&NAMEDATA[k].last.length>=25);
+      const noDupes=styles.every(k=>new Set(NAMEDATA[k].first).size===NAMEDATA[k].first.length&&new Set(NAMEDATA[k].last).size===NAMEDATA[k].last.length);
+      return [styles.length, sizesOk, noDupes];})()`),
+    [6, true, true]);
+  check('the original heroic names are still present (additive expansion, not a replacement)',
+    await cg.evaluate(`(()=>{
+      const orig=['Aldric','Roland','Garrick','Bryn','Brightblade','Stormholt'];
+      return orig.every(n=>NAMEDATA.heroic.first.includes(n)||NAMEDATA.heroic.last.includes(n));})()`),
+    true);
+
+  // feat/custom-appearance-fields (owner request, 2026-08-10): two free-form, player-labeled detail
+  // fields — unlike every other appearance field, no fixed prompt, no random table, so no 🎲/🔒. Their
+  // 'ap_'-prefixed ids ride the EXISTING generic patch delegation (_cgPatchSlotForId's prefix match), so
+  // manual typing needs zero new wiring — assert that directly. Also assert the DOM-restore direction
+  // (applyBuild's explicit field list), which is easy to silently miss when adding a new appearance key —
+  // exactly the gap this test would have caught (found by re-reading applyBuild's own list by hand before
+  // this test existed, not by the test itself, but locked in here so it can't silently regress).
+  console.log('\nCharGen — the two custom-labeled appearance fields commit and reload correctly');
+  check('typing into a custom field commits to the LOG via the existing ap_* patch delegation, no new wiring',
+    await cg.evaluate(`(()=>{
+      const lab=document.getElementById('ap_custom1Label'), txt=document.getElementById('ap_custom1Text');
+      lab.value='Catchphrase'; lab.dispatchEvent(new Event('input',{bubbles:true}));
+      txt.value='Never met a lock I couldn\\'t pick.'; txt.dispatchEvent(new Event('input',{bubbles:true}));
+      const b=foldBuild(LOG);
+      return [b.appearance.custom1Label, b.appearance.custom1Text];})()`),
+    ['Catchphrase', "Never met a lock I couldn't pick."]);
+  check('a loaded build repopulates both custom fields\' DOM inputs (the reverse, applyBuild direction)',
+    await cg.evaluate(`(()=>{
+      const b=readBuild();
+      b.appearance=Object.assign({},b.appearance,{custom2Label:'Motto',custom2Text:'Slow is smooth, smooth is fast.'});
+      applyBuild(b);
+      return [document.getElementById('ap_custom2Label').value, document.getElementById('ap_custom2Text').value];})()`),
+    ['Motto', 'Slow is smooth, smooth is fast.']);
+  check('custom fields are never touched by 🎲 Randomise all (no random table backs a player-invented label)',
+    await cg.evaluate(`(()=>{
+      const before=[document.getElementById('ap_custom1Label').value,document.getElementById('ap_custom2Label').value];
+      randomiseAppearance();
+      const after=[document.getElementById('ap_custom1Label').value,document.getElementById('ap_custom2Label').value];
+      return [before[0]===after[0], before[1]===after[1]];})()`),
+    [true, true]);
+
   // feat/campaign-ap-budget-enforce: a campaign-bound character's CLOUD save (manual + autosave) is
   // refused once compute()'s remaining<0, when the campaign's rules.enforceApBudget is true-or-absent.
   // compute() itself needs no change (task step 8), so these isolate _cgOverApBudget()'s own gating

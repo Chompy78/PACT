@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · feat(chargen): random name pools roughly tripled/quadrupled** — owner report: "i keep
+  getting the same name." Each of the six naming styles held only ~12-16 first / ~8-10 last names;
+  expanded every style to ≥40 first / ≥25 last, additively (originals kept, matching theme per style).
+  `genName()` itself unchanged. `tool-pricing-ci.mjs` 134/0; `engine-parity-ci.mjs` unaffected, 30/0. See
+  `D-GH-2026-08-10-expand-random-names`.
+- **2026-08-10 · feat(chargen): two free-form, player-labeled custom description fields** — owner request.
+  Own label, own sentence, no fixed prompt/random table (so no 🎲/🔒, unlike every other Appearance
+  field). Rides the existing `ap_`-prefix patch delegation with no new commit wiring; the build→DOM
+  reload direction needed its own fix (a real gap caught before shipping — a loaded character would have
+  shown blank custom fields and the next edit would have overwritten the real saved value). See
+  `D-GH-2026-08-10-custom-appearance-fields`.
+
 - **2026-08-10 · fix(chargen): 🎲 Randomise all / 🪶 Auto-write now actually save the description they
   generate** — found live on a real Amble character: both set the DOM field's `.value` directly with no
   LOG write, so the randomised appearance/description looked correct on screen but vanished on the next
