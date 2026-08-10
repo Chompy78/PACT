@@ -1587,7 +1587,14 @@ const WPOOL={
 // roll one appearance field, species- and class-guided, weighted so common traits dominate (no render — caller renders)
 function _rollField(field){
   const sp=val('spec')||'Human'; const S=SPECIES_APPEAR[sp]||SPECIES_APPEAR.Human; const cls=val('oclass')||'Fighter';
-  const set=(id,v)=>{const e=$(id);if(e)e.value=v;};
+  // fix/randomise-appearance-not-persisted: this used to set the DOM field's .value directly, with no
+  // 'input'/'change' event and no LOG write — it LOOKED committed (the field showed the rolled text)
+  // but nothing survived a reload, a save, or a tool switch, because compute()/readBuild() only ever
+  // see the LOG. Same bug class as fix/sheet-tab-appearance-not-persisted, just in the randomiser
+  // instead of manual typing — that fix wired onSheetField()'s real input events through
+  // _shCommitAppearanceField(); _rollField() (🎲 Randomise all / the per-field 🎲) never got the same
+  // treatment. `id` is always 'ap_<field>' here, matching _shCommitAppearanceField's own key naming.
+  const set=(id,v)=>{const e=$(id);if(e)e.value=v;_shCommitAppearanceField(id.slice(3),v);};
   if(field==='gender')set('ap_gender',_pick(APPEAR.gender));
   else if(field==='age'){const a=S.age;const span=Math.max(0,a[1]-a[0]);let off;const r=Math.random();
     // strongly weight "young adult" (a few years past adulthood; ~18–24 for Humans) with a thin tail to old age
@@ -1664,7 +1671,11 @@ function genDescription(){
   // belongings / companion
   const misc=[v('prized')&&('carry '+v('prized')),v('companion')&&v('companion').indexOf('no companion')<0&&('are accompanied by '+v('companion'))].filter(Boolean);
   if(misc.length)pcs.push('They '+_joinList(misc)+'.');
-  const e=$('ap_overall');if(e)e.value=pcs.join(' ');
+  // fix/randomise-appearance-not-persisted: same DOM-only bug as _rollField() above — the composed
+  // paragraph rendered on screen but was never written to the LOG, so it never survived past this render.
+  const composed=pcs.join(' ');
+  const e=$('ap_overall');if(e)e.value=composed;
+  _shCommitAppearanceField('overall',composed);
 }
 // portrait prompt now uses the shared builder (sheet_assets.py) so both tools are identical
 function genPortrait(){genPortraitFor(readBuild());}

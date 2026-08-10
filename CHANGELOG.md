@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · fix(chargen): 🎲 Randomise all / 🪶 Auto-write now actually save the description they
+  generate** — found live on a real Amble character: both set the DOM field's `.value` directly with no
+  LOG write, so the randomised appearance/description looked correct on screen but vanished on the next
+  reload, save, or Live Sheet ⇆ CharGen switch. A second, adjacent code path to
+  `fix/sheet-tab-appearance-not-persisted` (the Setup-tab randomiser, not the Sheet tab's manual typing,
+  which that fix already covers) that never got the same fix. Now routes both through the existing
+  `_shCommitAppearanceField()`. New regression tests (confirmed to fail pre-fix, pass post-fix by
+  hand-reverting). `tool-pricing-ci.mjs` 128/0; `engine-parity-ci.mjs` unaffected, 30/0. See
+  `D-GH-2026-08-10-randomise-appearance-not-persisted`.
+
 - **2026-08-10 · fix(dm-console, live-sheet): two `/code-review ultra` findings from PR #403's pre-merge
   review, fixed before merge** — (1) DM Console's ≤700px roster card fallback (`renderCards()`, a
   different code path from the table view's own `COLS`) still showed the raw, DM-AP-blind `earned`

@@ -1046,6 +1046,31 @@ try {
       return csLoad(currentCharId()).playerName;})()`),
     'Jamie');
 
+  // fix/randomise-appearance-not-persisted: found live (a real Amble character's randomised description
+  // vanished after a Live Sheet <-> CharGen round trip). _rollField()/genDescription() set DOM .value
+  // directly with no 'input' event and no LOG write — looked committed on screen, was never actually
+  // saved anywhere. Assert the fix: after 🎲 Randomise all, the LOG carries exactly ONE coalesced
+  // appearance patch event (same coalescing behaviour as manual typing, PR #364's pattern) with the
+  // fields actually populated, and it survives a fold — not just a DOM read.
+  console.log('\nCharGen — 🎲 Randomise all / 🪶 Auto-write actually commit to the LOG, not just the DOM');
+  check('randomiseAppearance() writes to the LOG (not just the DOM), still coalesced into ONE patch event',
+    await cg.evaluate(`(()=>{
+      randomiseAppearance();
+      const matches=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance);
+      const domOverall=document.getElementById('ap_overall')?document.getElementById('ap_overall').value:'';
+      const b=foldBuild(LOG);
+      return [matches.length, domOverall.length>0, domOverall===b.appearance.overall, b.appearance.hometown.length>0];})()`),
+    [1, true, true, true]);
+  check('🪶 Auto-write (genDescription alone) also commits, coalescing into the same single patch event',
+    await cg.evaluate(`(()=>{
+      const n=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance).length;
+      _shCommitAppearanceField('hometown','Rewritten-by-hand');   // updates both LOG and the DOM field genDescription() reads
+      genDescription();
+      const matches=LOG.filter(e=>e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&e.payload.patch.appearance);
+      const b=foldBuild(LOG);
+      return [n, matches.length, b.appearance.hometown, /Rewritten-by-hand/.test(b.appearance.overall)];})()`),
+    [1, 1, 'Rewritten-by-hand', true]);
+
   // feat/campaign-ap-budget-enforce: a campaign-bound character's CLOUD save (manual + autosave) is
   // refused once compute()'s remaining<0, when the campaign's rules.enforceApBudget is true-or-absent.
   // compute() itself needs no change (task step 8), so these isolate _cgOverApBudget()'s own gating
