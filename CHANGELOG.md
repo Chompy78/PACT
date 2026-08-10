@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · feat(campaign): server-side AP-ledger integrity backstop for campaign-bound
+  characters** — two BEFORE UPDATE Postgres triggers on `characters`
+  (`sql/migrations/2026-08-10-campaign-ap-log-integrity.sql`), following a 7-AI external review of
+  `pact-ap-overspend-problem.txt` (`z-cold/` on the `zcold` branch). `pact_enforce_ap_budget_consistency`
+  sums frozen `buy`/`buyoff`/`names`/`award` LOG fields (never re-derives a price) and rejects a write
+  only if that sum both increases and exceeds spendable AP, grandfathering already-over-budget
+  characters. `pact_enforce_locked_history` makes Live Sheet's own `undo()` boundary — everything
+  at-or-before the last non-discretionary `award` event — append-only server-side, with `cat:'patch'`
+  events (CharGen's `replacePatchSlot()`, Live Sheet's `_shCommitAppearanceField`) exempt so appearance/
+  identity edits keep working. Closes the gap the 2026-08-09 client-side gate below can't: a raw
+  PostgREST write bypassing the UI entirely. Applied to the live project and verified end-to-end against
+  disposable test data (never touching real characters); see
+  `D-GH-2026-08-10-campaign-ap-log-integrity`. The Edge Function idea from the same review batch was
+  deferred to the task board (`feat/ap-edge-function-validation`).
 - **2026-08-09 · chore(repo): `z-cold`/`z-uploads` drop-zone folders, auto-synced to a dedicated
   `zcold` branch** — external background script watches both folders and auto-pushes anything
   dropped in them within seconds, via a git worktree + junction (not tracked on `preview`). See

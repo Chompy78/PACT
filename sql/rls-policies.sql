@@ -312,6 +312,172 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Campaign-bound AP-ledger integrity (D-GH-2026-08-10-campaign-ap-log-integrity;
+-- sql/migrations/2026-08-10-campaign-ap-log-integrity.sql). Two BEFORE UPDATE triggers on
+-- characters, both pure ledger arithmetic over numbers already declared on the LOG -- neither
+-- re-derives what anything SHOULD cost, so neither duplicates js/engine.js's pricing tables.
+--
+-- pact_ap_ledger_spend / pact_ap_ledger_protected are the shared helpers (no table access, no
+-- SECURITY DEFINER needed). pact_enforce_ap_budget_consistency (N1) sums frozen buy/buyoff/names
+-- costs and award/drawback earnings and rejects a write only if that sum both INCREASES and
+-- exceeds spendable AP (characters.ap + player-logged awards unless the campaign ignores player
+-- AP) -- NOT the same quantity as the client-side gate (_lsOverApBudget/_cgOverApBudget), which
+-- checks compute().remaining, a REPRICED total only engine.js's pricing tables can produce; see
+-- the migration file's header for the full reasoning and the accepted boughtOff approximation.
+-- pact_enforce_locked_history (O3) makes PACT-Live-Char-Sheet.html's own undo() boundary --
+-- everything at-or-before the LAST non-discretionary `award` event -- server-authoritative:
+-- once such an award exists, that prefix of "protected" (non-cat:'patch') events may never be
+-- rewritten, reordered, or removed. cat:'patch' events (CharGen's replacePatchSlot(), Live
+-- Sheet's _shCommitAppearanceField) are exempt -- they are legitimately rewritten/reordered in
+-- place by design, verified directly in both tools' source.
+-- ---------------------------------------------------------------------------
+create or replace function public.pact_ap_ledger_spend(p_log jsonb)
+returns table(spent numeric, player_earned numeric)
+language plpgsql set search_path = public, pg_temp as $$
+declare
+  ev jsonb;
+  v_spent numeric := 0;
+  v_earned numeric := 0;
+begin
+  for ev in select * from jsonb_array_elements(coalesce(p_log, '[]'::jsonb)) loop
+    if (ev->>'type') = 'award' then
+      v_earned := v_earned + coalesce((ev->>'amount')::numeric, 0);
+    elsif (ev->>'type') = 'buy' and coalesce(ev->>'cat','') = 'drawback' then
+      -- drawback cost is stored negative (a refund); js/engine.js's economy() negates it into earned.
+      v_earned := v_earned + (coalesce((ev->>'cost')::numeric, 0) * -1);
+    elsif (ev->>'type') in ('buy','buyoff','names') then
+      v_spent := v_spent + coalesce((ev->>'cost')::numeric, 0);
+    end if;
+  end loop;
+  spent := v_spent; player_earned := v_earned;
+  return next;
+end;
+$$;
+
+create or replace function public.pact_ap_ledger_protected(p_log jsonb)
+returns jsonb language sql immutable set search_path = public, pg_temp as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'type', ev->>'type', 'cat', ev->>'cat',
+           'cost', ev->>'cost', 'amount', ev->>'amount', 'refVal', ev->>'refVal'
+         ) order by ord), '[]'::jsonb)
+  from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
+  where (ev->>'type') in ('buyoff','names','award')
+     or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch');
+$$;
+
+create or replace function public.pact_enforce_ap_budget_consistency()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_campaign public.campaigns%rowtype;
+  v_enforce boolean;
+  v_old_spent numeric; v_old_earned numeric;
+  v_new_spent numeric; v_new_earned numeric;
+  v_spendable numeric;
+begin
+  if NEW.campaign_id is null then
+    return NEW;
+  end if;
+  if NEW.stats is not distinct from OLD.stats then
+    return NEW;
+  end if;
+
+  select * into v_campaign from public.campaigns where id = NEW.campaign_id;
+  if not found then
+    return NEW;  -- dangling campaign_id shouldn't happen; fail open rather than block on it here
+  end if;
+
+  v_enforce := coalesce((v_campaign.rules->>'enforceApBudget')::boolean, true);
+  if not v_enforce then
+    return NEW;
+  end if;
+
+  select spent, player_earned into v_new_spent, v_new_earned
+    from public.pact_ap_ledger_spend(NEW.stats->'LOG');
+  select spent, player_earned into v_old_spent, v_old_earned
+    from public.pact_ap_ledger_spend(OLD.stats->'LOG');
+
+  v_spendable := NEW.ap + (case when v_campaign.ignore_player_ap then 0 else v_new_earned end);
+
+  if v_new_spent > v_old_spent and v_new_spent > v_spendable then
+    raise exception 'PACT: over AP budget by % (spent % of % spendable)',
+      (v_new_spent - v_spendable), v_new_spent, v_spendable;
+  end if;
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_pact_ap_budget_consistency on public.characters;
+create trigger trg_pact_ap_budget_consistency
+  before update on public.characters
+  for each row execute function public.pact_enforce_ap_budget_consistency();
+
+create or replace function public.pact_enforce_locked_history()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old_log jsonb;
+  v_award_idx int;
+  v_protected_old jsonb;
+  v_protected_new jsonb;
+  i int;
+begin
+  if NEW.campaign_id is null then
+    return NEW;
+  end if;
+  if NEW.stats is not distinct from OLD.stats then
+    return NEW;
+  end if;
+
+  v_old_log := coalesce(OLD.stats->'LOG', '[]'::jsonb);
+
+  -- The same boundary undo() already enforces client-side: the LAST non-discretionary award
+  -- event. No such event yet = nothing protected -- CharGen's own award events are always
+  -- noLock:true budget seeds, never non-discretionary, so a still-drafting character never
+  -- trips this.
+  select max(ord) into v_award_idx
+  from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
+  where (ev->>'type') = 'award' and not coalesce((ev->>'disc')::boolean, false);
+
+  if v_award_idx is null then
+    return NEW;
+  end if;
+
+  v_protected_old := public.pact_ap_ledger_protected(
+    (select jsonb_agg(ev order by ord)
+       from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
+       where ord <= v_award_idx)
+  );
+  v_protected_new := public.pact_ap_ledger_protected(coalesce(NEW.stats->'LOG', '[]'::jsonb));
+
+  if jsonb_array_length(v_protected_new) < jsonb_array_length(v_protected_old) then
+    raise exception 'PACT: locked character history cannot shrink (an AP award already locked it)';
+  end if;
+
+  for i in 0 .. jsonb_array_length(v_protected_old) - 1 loop
+    if (v_protected_old -> i) is distinct from (v_protected_new -> i) then
+      raise exception 'PACT: locked character history cannot be rewritten (protected event % changed)', i;
+    end if;
+  end loop;
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_pact_locked_history on public.characters;
+create trigger trg_pact_locked_history
+  before update on public.characters
+  for each row execute function public.pact_enforce_locked_history();
+
+grant execute on function public.pact_ap_ledger_spend(jsonb)     to authenticated;
+grant execute on function public.pact_ap_ledger_protected(jsonb) to authenticated;
+grant execute on function public.pact_enforce_ap_budget_consistency() to authenticated;
+grant execute on function public.pact_enforce_locked_history()        to authenticated;
+revoke execute on function public.pact_ap_ledger_spend(jsonb)     from public;
+revoke execute on function public.pact_ap_ledger_protected(jsonb) from public;
+revoke execute on function public.pact_enforce_ap_budget_consistency() from public;
+revoke execute on function public.pact_enforce_locked_history()        from public;
+
+-- ---------------------------------------------------------------------------
 -- campaign_invites — unified player+dm invite tokens (extended from player-only by
 -- D-GH-2026-08-09-harden-invitation-system). A DM sees all invites for their campaign; a redeemer can
 -- read their own redeemed row. Writes happen only through create_player_invite()/redeem_player_invite()
