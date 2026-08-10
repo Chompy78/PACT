@@ -99,12 +99,17 @@ unaffected and still report 0 failed.
 Raised in retrospective review: the only signal that a loaded character is a DM copy was the `flash()`
 at open time (easy to miss/dismiss, scrolls away) and the `"(DM copy)"` suffix on the character's own
 name in the header — easy to not notice if the DM isn't reading closely. Added a persistent, pinned
-banner row (`#cgDmCopyBanner`) to the sticky header, styled with the existing `.warnbanner.warn`
-(orange/advisory) palette already used for build-quality notices — not `.bad` (red), since this isn't a
-problem with the build, it's a status notice. Driven off the same `" (DM copy)"` name-suffix check on
-every `render()`, so it reappears correctly on a later reload of the same copy too (the suffix is stored
-in both the DB row's name and the envelope's own embedded name — see step 3 above), not just at the
-moment the copy is first opened. No schema change, no new stored marker — reuses the existing naming
-convention as the signal. Gated in `tool-pricing-ci.mjs` (3 new checks: shows for a `(DM copy)`-suffixed
-name, hidden for an ordinary name, clears when the suffix is removed); `engine-parity-ci.mjs` unaffected
+banner row (`#cgDmCopyBanner`) to the sticky header. First pass reused the existing `.warnbanner.warn`
+(orange/advisory) palette; owner feedback (same day) preferred a colour outside the existing red/orange
+issue-severity language entirely, since this isn't a build-quality signal at all — reassigning orange to
+a third, unrelated meaning would have made the red/orange pair mean less everywhere else they're used.
+Switched to **purple** (`#5a3d99`, white text) — matching the family of the existing `#cgInviteBanner`
+just above it in the same header stack (`#3b3060`), a shade apart so the two remain visually
+distinguishable if both were ever showing at once, though that's not expected in practice. Driven off
+the same `" (DM copy)"` name-suffix check on every `render()`, so it reappears correctly on a later
+reload of the same copy too (the suffix is stored in both the DB row's name and the envelope's own
+embedded name — see step 3 above), not just at the moment the copy is first opened. No schema change, no
+new stored marker — reuses the existing naming convention as the signal. Gated in `tool-pricing-ci.mjs`
+(3 checks: shows for a `(DM copy)`-suffixed name at the purple background and NOT the `.warn` class,
+hidden for an ordinary name, clears when the suffix is removed); `engine-parity-ci.mjs` unaffected
 (display-only, no `DATA.version` change).

@@ -1081,10 +1081,11 @@ try {
     await cg.evaluate(`(()=>{document.getElementById('cname').value='Doran Quickstep';render();
       const b=document.getElementById('cgDmCopyBanner');return [b.style.display, b.textContent.length>0];})()`),
     ['none', true]);
-  check('a character named with the "(DM copy)" suffix shows the persistent banner',
+  check('a character named with the "(DM copy)" suffix shows the persistent banner, styled distinctly purple (not the red/orange issue palette)',
     await cg.evaluate(`(()=>{document.getElementById('cname').value='Doran Quickstep (DM copy)';render();
-      const b=document.getElementById('cgDmCopyBanner');return [b.style.display, b.className, /DM copy/.test(b.textContent)];})()`),
-    ['flex', 'warnbanner warn', true]);
+      const b=document.getElementById('cgDmCopyBanner');
+      return [b.style.display, /warn(?!banner)/.test(b.className), getComputedStyle(b).backgroundColor, /DM copy/.test(b.textContent)];})()`),
+    ['flex', false, 'rgb(90, 61, 153)', true]);
   check('the banner clears again once the name no longer carries the suffix',
     await cg.evaluate(`(()=>{document.getElementById('cname').value='Doran Quickstep (DM copy)';render();
       document.getElementById('cname').value='Doran Quickstep';render();
