@@ -56,64 +56,74 @@ unverified) — worst-of lands at high, never eligible for /sweep-code-tasks.
 **Done when:** compute() is a dispatcher over named `_price*` helpers (shared-context design), unchanged
 signature/return shape; full-payload output identical across all fixtures; engine-parity still 20/0.
 
-## DM manually adds/imports a character to a campaign, then hands off ownership via a claim link — TODO
+## DM builds/imports a character, then hands a player their own copy via a claim link — TODO
 Branch feat/character-ownership-claim-link. Today a DM can only get a NEW character into their campaign
 by generating a player-invite link that creates a **blank** character owned by whoever redeems it
 (`createPlayerInvite`/`redeemPlayerInvite`), or a player can bind an **already-owned** character to a
 campaign via a reusable code (`bindCharacterToCampaign`). Neither covers: a DM building or importing a
 fully-formed character themselves (e.g. an NPC promoted to PC, or a file a player emailed them) and then
-handing *ownership* of that specific character to a player. Confirmed via `grep -n "owner_id"
-sql/rls-policies.sql`: no ownership-transfer path exists anywhere today — `characters_update`'s RLS
-policy requires `owner_id = auth.uid()` in **both** its `using` and `with check` clauses, so even a raw
-table update can never reassign `owner_id`; the only insert grant (`grant insert (id, owner_id, name,
-kind, stats)`) sets it once at creation. This is a brand-new SECURITY DEFINER RPC + invite-token flow,
-not a wiring-up-an-existing-function task like `createCampaign`/`joinAsDm` were.
-**Effort:** high · **Risk:** high — ambiguity is high (real open design questions below, no single
-obviously-right answer); damage scale is high (a new ownership-transfer RPC is a genuine security/
-trust-boundary change touching live character data — same class of decision `DECISIONS.md` already
-treats carefully, e.g. the feedback-widget anon-write table call); damage likelihood is medium-to-high
-(nothing automated would catch an authorization bug in a brand-new RPC until it's actually misused) —
-worst-of high, never eligible for `/sweep-code-tasks`; recommend `/make-code-cold-plan-review` before
-implementation given the trust-boundary + design-call nature.
+getting a player their own copy of it.
+
+**Design changed 2026-08-11 (session decision — see `D-GH-2026-08-11-character-claim-link-copy-not-
+transfer`): COPY, not transfer.** The original draft assumed reassigning `owner_id` on the DM's existing
+character row — a genuine ownership-transfer RPC, and the reason this was rated high-risk (RLS today
+hard-blocks any `owner_id` reassignment on purpose: `characters_update`'s policy requires `owner_id =
+auth.uid()` in both `using` and `with check`). Redesigned to instead **create a brand-new character row
+owned by the redeeming player**, seeded from the DM's character as a template — the DM's original is left
+untouched. This needs **no RLS/ownership-model change at all**: a player creating their own character row
+(even one seeded from someone else's data) is already exactly what the existing insert grant (`id,
+owner_id, name, kind, stats`, `owner_id = auth.uid()`) allows.
+
+**Effort:** medium · **Risk:** medium — ambiguity is medium (the core mechanism — copy character data
+into a new player-owned row — is settled; open items below are narrower UX/lifecycle questions, not "is
+this safe" questions); damage scale is medium (creates new rows via a normal insert path, does not touch
+the ownership/RLS trust boundary at all); damage likelihood is low (no new authorization surface — the
+redeeming player is inserting their own row, exactly as CharGen's normal Save already does). Still not
+sweep-eligible (new player-facing feature touching character/campaign data), but a cold plan review is no
+longer required — the trust-boundary risk that motivated it is gone.
 
 ```text
-Open design questions to resolve BEFORE implementing (don't guess — surface for a human/cold-review):
-1. How does the DM get the character into the campaign in the first place, while keeping DM Console's
-   own stated "read-only, never edits a character" design principle intact? Options: (a) DM builds/
-   imports it in CharGen under their own account, bound to the campaign, then generates the claim link
-   from CharGen or DM Console; (b) DM Console gains a new, explicit non-read-only capability for this
-   one flow, breaking its current invariant; (c) something else.
-2. Claim-link semantics: single-use (like campaign_invites/redeem_player_invite) vs. a reusable code?
-   Expiry? Can the DM revoke/regenerate it before redemption?
-3. What happens to `ap` (DM-awarded, server-authoritative) across the transfer — it should carry over
-   untouched per "store raw, derive the rest," but does `ap_awards.dm_id` still make sense pointing at
-   the original DM after ownership moves?
-4. Authorization for the new RPC: must verify the redeemer isn't already the owner, the character is
-   actually unclaimed/transferable, and the caller is a genuine distinct user — mirroring
-   redeem_player_invite's idempotency guard (a repeat call by the same user returns the same result
-   instead of erroring).
-5. Does the player need to consent/confirm before ownership silently changes hands to them, or is
-   redeeming the link itself the confirmation?
+Open design questions to resolve before implementing:
+1. How does the DM get the source character built in the first place, while keeping DM Console's own
+   stated "read-only, never edits a character" design principle intact? Likely: DM builds/imports it in
+   CharGen under their own account (not bound to a campaign, or bound and later detached), then generates
+   the claim link from there.
+2. Claim-link semantics: single-use (mirrors campaign_invites/redeem_player_invite) vs. reusable? Expiry?
+   Can the DM revoke/regenerate before redemption? Single-use is the simpler default — recommend it
+   unless a reason to deviate surfaces.
+3. What happens to the DM's original character after the copy is made — stays as a reusable template
+   (recommended: no cleanup needed, DM may reuse it for the next promotion), or does the flow offer to
+   delete/archive it? Default to leaving it alone; say so in the UI copy so it isn't confusing.
+4. AP: does DM-awarded `ap` on the source carry into the copy, or does the copy start at 0 and get
+   awarded fresh? Recommend carrying it over — the player is meant to inherit the character as built,
+   awards included.
+5. Does the copy auto-bind to the DM's campaign on redemption (the whole point of the flow), or does the
+   player still need a separate bind step? Recommend auto-bind.
+6. Consent: is redeeming the link itself sufficient confirmation, or does the player need an extra "yes,
+   this is mine now" step? Low-stakes either way since the source character is untouched — lean toward
+   redeeming-is-confirming, same as today's player-invite redemption.
 
 Steps (once the above are resolved, not before):
 1. Design the schema: likely a new invite-token table/column (or extend campaign_invites with a
-   character_id + a kind discriminator) for "claim an existing character" tokens, distinct from today's
-   "create a new character" tokens.
-2. New SECURITY DEFINER RPCs (e.g. create_character_claim(character_id) / redeem_character_claim(token)),
-   owner-of-the-character-gated on creation, single-use on redemption, updating characters.owner_id —
-   the only path that may ever do so.
-3. UI: wherever the DM actually gets the character into the campaign (per design question 1), add a
-   "Generate claim link" action; the redemption side likely reuses the existing invite-redemption
-   page pattern.
-4. Log the ownership-transfer design decision in DECISIONS.md — exactly the kind of security-model
-   choice AGENTS.md asks to be recorded.
+   source_character_id + a kind discriminator) for "claim a copy of this character" tokens, distinct from
+   today's "create a blank character" tokens.
+2. New RPCs: create_character_claim(character_id) (owner-of-the-source-gated) and
+   redeem_character_claim(token) — the redemption RPC INSERTs a new characters row with owner_id =
+   auth.uid() of the caller, copying stats/LOG/kind from the source, and (per design question 5) sets
+   campaign_id to the source's campaign. No UPDATE of the source row's owner_id anywhere — that is the
+   whole point of the redesign, so it needs no elevated privilege beyond a normal authenticated insert.
+   Single-use per design question 2: mark the token redeemed on success, same idempotency pattern as
+   redeem_player_invite.
+3. UI: wherever the DM builds the source character (per design question 1), add a "Generate claim link"
+   action; redemption side likely reuses the existing invite-redemption page pattern.
+4. Log the design decision (copy vs. transfer, and the answers to questions 2-6) in DECISIONS.md as an
+   amendment to `D-GH-2026-08-11-character-claim-link-copy-not-transfer`.
 ```
 
-**Done when:** a DM can get a specific, already-built character into their campaign under their own
-account, generate a link, and have a named player redeem it to become that character's owner — with the
-RPC-level authorization verified (only the current owner can create a claim link; only a genuine distinct
-redemption can consume it) and the design questions above resolved and recorded in DECISIONS.md before
-merging.
+**Done when:** a DM can build/import a character under their own account, generate a claim link, and have
+a named player redeem it to get their own independently-owned copy — the source character is left
+untouched, the copy is auto-bound to the campaign, DM-awarded AP carries over, and the design answers
+above are recorded in DECISIONS.md before merging.
 
 ## Purge the "pace curve" mislabel from the historical records — TODO
 Branch docs/pace-curve-terminology. `D-GH-2026-08-03-ap-budget-curve-standard` established that PACT has
@@ -636,8 +646,10 @@ AGENTS.md's "verify before writing an absence claim") before treating anything h
   or only true by convention.
 - `characters_update`'s RLS already requires `owner_id = auth.uid()` in both `USING` and `WITH CHECK`
   (confirmed via `grep -n "owner_id" sql/rls-policies.sql`, see the `feat/character-ownership-claim-link`
-  task below) — so raw ownership reassignment is already blocked; that task is where a *deliberate*
-  transfer RPC belongs if one gets built, not this one.
+  task below) — so raw ownership reassignment is already blocked; that task now deliberately avoids
+  needing to touch this boundary at all, by copying the character to a new player-owned row rather than
+  transferring the original (redesigned 2026-08-11, `D-GH-2026-08-11-character-claim-link-copy-not-
+  transfer`) — confirm no other path in this audit reopens what that redesign closed.
 - DM-applied creation-lock enforcement is already scoped as its own task, `feat/dm-creation-lock` (below)
   — its "server is the enforcement point, not the LOG" framing is exactly this task's model; don't
   re-derive the lock design here, cross-check against it instead.

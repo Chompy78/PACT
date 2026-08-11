@@ -6,6 +6,11 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-11 · docs: re-scoped `feat/character-ownership-claim-link` from transfer to copy** — the
+  not-yet-started claim-link task now creates a new player-owned character row seeded from the DM's
+  source character, instead of reassigning `owner_id` on the existing row. No RLS/ownership-model change
+  needed; drops the task's risk from high to medium and removes the recommended cold-plan-review step.
+  Recorded as `D-GH-2026-08-11-character-claim-link-copy-not-transfer`.
 - **2026-08-11 · docs: dropped the "Port the AGENTS.md/skills scaffold to another repo" task** — removed
   from `docs/TASK_BOARD_NEXT.md` (owner: no longer relevant). No skill/scaffold work was done; this is a
   board-hygiene removal, not a graduation.
