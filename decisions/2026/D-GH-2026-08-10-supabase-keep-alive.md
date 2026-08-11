@@ -47,16 +47,26 @@ before the next scheduled run closes the gap.
 
 ## Verified
 
+- The core ping logic (URL/key extraction shape + the actual HTTP call) run directly, outside the
+  workflow, against the live project: `curl -H "apikey: <the committed key>" ".../auth/v1/health"`
+  returns `200` with `{"version":"...","name":"GoTrue",...}` — confirmed genuinely reachable and correct,
+  not assumed.
 - `get_advisors(security)` after adding the workflow (CI/ops-only, no schema/RLS change): no new findings.
-- Manually triggered via `workflow_dispatch` against this branch's own ref before merging — see the
-  linked run for the actual result; a synchronous confirmation of the workflow's mechanics (correct
-  URL/key extraction, a genuine `200` from the live project) is what's achievable in this session. The
-  full "confirmed to keep the project `ACTIVE_HEALTHY` across at least one full auto-pause window" bar
-  in the task's own Done-when is inherently a multi-day observation — not something any single session
-  can close synchronously. Left open as a standing, ongoing confirmation (the schedule itself, plus
-  whoever next notices a pause — or doesn't — over the following week or two), not a follow-up task.
+- **NOT verified, and could not be from this branch:** an actual `workflow_dispatch` run of the committed
+  YAML. Attempted (`actions_run_trigger`, ref = this feature branch) and got a `404` — GitHub only
+  registers a workflow for manual dispatch once its file exists on the repository's **default** branch
+  (`preview` here), regardless of which `ref` the dispatch call targets. This is a real, documented
+  GitHub Actions limitation, not a defect in the workflow file — every cron-scheduled trigger has the
+  same constraint (a `schedule:` trigger on a non-default branch never fires at all). The YAML itself was
+  checked against this repo's own convention (every existing workflow uses the identical bare `on:` key
+  a generic YAML 1.1 parser mis-reads as a boolean — a well-known, harmless GitHub Actions non-issue, not
+  something specific to this file) and its job structure mirrors `lighthouse-ci.yml`/`engine-parity.yml`
+  exactly. Real end-to-end confirmation (the scheduled cron actually firing, or a manual dispatch
+  succeeding) can only happen once this lands on `preview` — flagged here rather than glossed over.
 
 ## Status
 
-**Active.** Workflow committed; manual `workflow_dispatch` run confirmed the mechanics work end-to-end
-against the live project. The scheduled cadence is now the standing safeguard.
+**Active.** Workflow committed to this branch; the underlying health-check call is confirmed live and
+correct. The GitHub Actions wrapper itself (schedule registration, manual dispatch) remains unverified
+until merged to `preview` — see "Verified" above for exactly why, and don't treat this record as having
+closed that gap.

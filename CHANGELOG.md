@@ -12,8 +12,11 @@
   Supabase's `/auth/v1/health` endpoint every 3 days using only the already-committed anon key (URL/key
   read directly from `js/supabase-client.js`, no duplicated literal). Chosen over a direct table read
   because every RLS-protected table correctly 401s an anonymous request, which would make a real outage
-  indistinguishable from healthy RLS in the workflow's own pass/fail check. `get_advisors(security)` no
-  new findings. See `D-GH-2026-08-10-supabase-keep-alive`.
+  indistinguishable from healthy RLS in the workflow's own pass/fail check. The ping call itself is
+  confirmed live (a direct `curl` against the real project returns 200); the GitHub Actions wrapper
+  (schedule/manual-dispatch) can't be confirmed from a non-default branch — GitHub 404s a dispatch
+  attempt until the workflow lands on `preview` — see `D-GH-2026-08-10-supabase-keep-alive`'s "Verified"
+  section for why, not glossed over. `get_advisors(security)` no new findings.
 - **2026-08-10 · fix(campaign): `dm_edit_character_log` cross-validates a boon grant's buy/award
   amounts** — `fix/dm-edit-boon-amount-check`, from `/sweep-code-tasks`. Flagged by `/code-review ultra`
   on PR #403 and deliberately deferred at the time (see `D-GH-2026-08-10-dm-edit-events`'s addenda): the
