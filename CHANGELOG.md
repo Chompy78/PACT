@@ -6,6 +6,13 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-11 · chore(version): BUILD → v1.413** — owner-requested bump outside the normal
+  preview→main promotion-PR cadence (PR #413 merged claim-link straight to `main`, bypassing that
+  flow; see the session's own note on the mismatch this created). Carried the major number (`1`)
+  forward unchanged, PR-number half set to `413` per `docs/VERSION-SYNC.md`'s convention. Mirrored in
+  all three tools (`PACT-CharGen-Webtool.html` line-1 comment/`<title>`/header `.sub`,
+  `PACT-Live-Char-Sheet.html` line-1 comment, `DM-Console.html`'s `TOOL_VERSION`); `index.html`
+  untouched (reads `BUILD` live). `DATA.version` unchanged. `tool-pricing-ci.mjs` 134/0.
 - **2026-08-11 · fix: character claim-link tokens switched to plaintext storage** — owner decision,
   same day the feature shipped: "keep the plaintext, shown-once is fine for now." Flipped
   `character_claim` from the hash-only storage group (`dm`-invite bar) to the plaintext group
