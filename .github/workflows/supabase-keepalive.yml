@@ -1,0 +1,51 @@
+name: Supabase keep-alive
+
+# Prevents the free-tier Supabase project (PACT's only backend) from auto-pausing after ~7 days of
+# inactivity, which silently breaks login/register app-wide with "Failed to fetch" until manually
+# restored -- this actually happened on 2026-07-25 (see the migration/plan history and
+# decisions/2026/D-GH-2026-08-10-supabase-keep-alive.md for the full record).
+#
+# Pings Supabase's standard GoTrue auth health-check endpoint on a cadence well inside the ~7-day
+# auto-pause window, using only the already-committed publishable/anon key (js/supabase-client.js) --
+# CI/ops tooling, not app backend code, so it doesn't conflict with the "GitHub Pages only, no custom
+# backend" rule (same class as lighthouse-ci.yml/engine-parity.yml). URL/key are read directly from
+# js/supabase-client.js at run time rather than duplicated here, so there's one source of truth and
+# this workflow can't silently drift from the app's real credentials.
+#
+# /auth/v1/health was chosen over a direct table read (e.g. GET /rest/v1/campaigns) because every
+# RLS-protected table correctly 401s an anonymous, unauthenticated request -- a non-200 status makes a
+# genuine outage indistinguishable from expected RLS behaviour in this workflow's own pass/fail check.
+# The auth health endpoint needs no session/RLS context at all and reliably returns 200.
+
+on:
+  schedule:
+    - cron: '0 6 */3 * *'   # every 3 days at 06:00 UTC -- worst-case gap across a month boundary is
+                             # ~3-4 days (day 28/29/30/31 -> day 1 of the next month), still comfortably
+                             # inside the ~7-day auto-pause window
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: false   # a scheduled run should never be cancelled by a manual dispatch mid-flight
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ping Supabase auth health endpoint
+        run: |
+          URL=$(grep "export const SUPABASE_URL" js/supabase-client.js | sed -E "s/.*'(https:\/\/[^']+)'.*/\1/")
+          KEY=$(grep "export const SUPABASE_PUBLISHABLE_KEY" js/supabase-client.js | sed -E "s/.*'([^']+)'.*/\1/")
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "::error::Could not extract SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY from js/supabase-client.js -- has its shape changed?"
+            exit 1
+          fi
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "apikey: $KEY" "$URL/auth/v1/health")
+          echo "Supabase auth health check returned HTTP $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Expected HTTP 200 from Supabase's auth health check, got $STATUS -- project may be paused or unreachable"
+            exit 1
+          fi

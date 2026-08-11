@@ -1085,7 +1085,7 @@ export function rebuildStateFromEvents(baseSnapshot, events, opts) {
  * `rules` is the campaign's `rules` JSON column (DM-authoritative, read-only
  * to players): { bannedSpecies, bannedOriginSpecies, bannedMasteries,
  * bannedBoons, bannedDrawbacks, bannedArts, bannedOriginClasses,
- * multiDisciplineAllowed, houseRules }.
+ * bannedOriginClasses2, multiDisciplineAllowed, houseRules }.
  * Pure and side-effect-free; does not touch compute() or pricing. Returns
  * { ok, violations: [{code, message}] } — never throws on a malformed/empty
  * rules object (every field defaults to "no restriction").
@@ -1107,6 +1107,12 @@ export function validate(b, rules) {
     if (cls && cls !== '(none)' && has(r.bannedOriginClasses, cls)) {
       violations.push({ code: 'bannedOriginClasses', message: 'Origin class "' + cls + '" is banned in this campaign.' });
     }
+  }
+  // Asymmetric ban, mirroring bannedOriginSpecies above: a class may be allowed as a PRIMARY origin
+  // (originClass) but banned as a stacked 2nd origin (originClass2) only. bannedOriginClasses (just
+  // above) already bans a class in BOTH slots — this is a separate, narrower list, not a replacement.
+  if (b.originClass2 && b.originClass2 !== '(none)' && has(r.bannedOriginClasses2, b.originClass2)) {
+    violations.push({ code: 'bannedOriginClasses2', message: 'Class "' + b.originClass2 + '" cannot be taken as a 2nd origin class in this campaign.' });
   }
   for (const m of (b.masteries || [])) {
     if (has(r.bannedMasteries, m)) {
@@ -1148,6 +1154,7 @@ export const RULE_BAN_FIELDS = {
   species: 'bannedSpecies',
   originSpecies: 'bannedOriginSpecies',
   originClasses: 'bannedOriginClasses',
+  originClasses2: 'bannedOriginClasses2',
   masteries: 'bannedMasteries',
   boons: 'bannedBoons',
   drawbacks: 'bannedDrawbacks',   // canonical kind

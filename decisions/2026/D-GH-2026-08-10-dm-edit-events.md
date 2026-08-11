@@ -149,3 +149,32 @@ arbitrary AP through a separate, existing path — so this isn't a NEW privilege
 that already exists. Left as-is rather than expanding this PR's scope with a new migration; logged as a
 follow-up task (see `CHANGELOG.md`'s entry for this addendum) for whoever picks it up to weigh whether
 server-side cross-validation is worth adding anyway, independent of whether it's technically a new hole.
+
+## Addendum (2026-08-10, `/sweep-code-tasks`) — the boon buy/award cross-validation, fixed
+
+Picked up the follow-up flagged in the addendum immediately above. Step 1 was re-verifying the
+security-equivalence reasoning before touching anything (`award_ap()`'s grant/RLS, re-read directly, not
+assumed): confirmed — any campaign DM can already call `award_ap()` to grant arbitrary AP with no cap and
+no matching-cost requirement, so a bare/mismatched `award` through `dm_edit_character_log` is a second
+route to a capability the DM already unconditionally has, not a new privilege escalation. That conclusion
+stands, and this fix does **not** reject a standalone award with no boon-buy — only a genuinely mismatched
+*pair* (or a boon-buy with no matching award at all in the same call) is rejected. The remaining reason to
+fix it anyway, per the earlier addendum's own framing: it's a correctness gap, not just a security one — a
+client bug (not necessarily a malicious caller) could otherwise silently violate the documented net-0
+invariant the AP-integrity triggers partly rely on, with nothing server-side to catch it.
+
+Implementation: `sql/migrations/2026-08-10-dm-edit-boon-amount-check.sql`. FIFO-by-VALUE matching (not
+by-name — an `award` event carries only an `amount`, no reference to which buy it pays for, unlike
+`buyoff`/`dmRemoveBoon` which carry `refVal`), mirroring `js/engine.js`'s `activeEvents()`
+`boughtOff`/`boonRemoved` reasoning for why a single shared flag isn't enough the moment a batch could
+hold more than one boon grant — verified today's only real caller (DM Console) always sends exactly one
+`[buy, award]` pair, but the RPC itself places no such limit on `p_events`, so the check has to handle
+the general case, not just today's actual usage.
+
+Verified: a standalone PL/pgSQL `do` block exercising the matching algorithm directly against 4 cases
+(matched pair accepted; mismatched amount rejected; a solo boon-buy with no award rejected; two boon-buys
+sharing one cost with only one award correctly flags exactly one as unmatched, proving one award can't be
+spent twice) — all passed against the live function body before it was applied. `get_advisors(security)`
+shows no new findings beyond this schema's existing SECURITY DEFINER pattern. `tool-pricing-ci.mjs`
+134/0 (the existing "grant boon calls dm_edit_character_log with a matched pair at the SAME cost" check
+still covers the legitimate-caller shape, unaffected). `engine-parity-ci.mjs` unaffected, 30/0.

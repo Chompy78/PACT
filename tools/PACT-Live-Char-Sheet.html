@@ -516,7 +516,23 @@ function apAvailable(uptoIdx){ return _apRemaining(apCeiling(uptoIdx),economy(up
 // cloud module (and 'sync-ready') has had a chance to load. Set by the cloud-load handler /
 // refreshCloudCampaignRules(); reset by every non-cloud load path.
 window._rulesStatus = window._rulesStatus || 'none';
-function _lsResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._rulesStatus='none';window._lsCampaignId=null;}
+function _lsResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._rulesStatus='none';window._lsCampaignId=null;window._lsVisibleCustomFields={};}
+// feat/custom-fields-player-display (D-GH-2026-08-10-dm-custom-character-fields follow-up): this
+// character's DM-set custom field VALUES the campaign currently marks visible to players — the read-
+// only counterpart to DM Console's custom-fields feature. Field LABELS come from
+// window._cloudCampaignRules.customFields (already fetched by refreshCloudCampaignRules()/
+// loadCloudChar() — no separate call needed for those); this is the one extra network call, for
+// values only, via the SECURITY DEFINER RPC (get_character_visible_fields — server-filtered, so a
+// field the DM hasn't marked visible never reaches this device at all, not just hidden in the UI).
+// Non-fatal on failure, same tolerance refreshCloudCampaignRules() itself uses for rules: the panel
+// just doesn't render for this load.
+window._lsVisibleCustomFields = window._lsVisibleCustomFields || {};
+async function _lsRefreshVisibleCustomFields(characterId){
+  window._lsVisibleCustomFields = {};
+  if(VIEW_ONLY || !characterId || !window._dmBridge || typeof window._dmBridge.getVisibleCustomFields !== 'function') return;
+  try { window._lsVisibleCustomFields = await window._dmBridge.getVisibleCustomFields(characterId) || {}; }
+  catch(e) { /* non-fatal — see comment above */ }
+}
 // Resolve DM AP for a character whose campaign we know but which did NOT arrive via a cloud load (a
 // handoff from CharGen). Reads the authoritative `ap` from the server when signed in; otherwise leaves
 // the interim 'unavailable' status, which the AP-source line already explains as "not the same as none".
@@ -725,13 +741,27 @@ function _lsCloudAutosave(){
   _lsCloudSaveTimer=setTimeout(function(){_lsCloudSaveTimer=null;_lsCloudPush();},3000);
 }
 function _lsCloudPush(){
-  if(_lsCloudSaveBusy){_lsCloudSaveAgain=true;return _lsCloudPushPromise;}
+  // fix/autosave-flush-latest-push (D-GH-2026-08-10-autosave-flush-latest-push): mirrors CharGen's
+  // identical fix exactly — see that copy's comment for the full reasoning. The busy branch used to
+  // return the STALE, already-in-flight _lsCloudPushPromise; now chains past it, then (recursively)
+  // past any further retry, via the read-only _lsCloudPushSettled() below — never by calling
+  // _lsCloudPush() itself while waiting, which would spuriously mark _lsCloudSaveAgain on every check.
+  if(_lsCloudSaveBusy){
+    _lsCloudSaveAgain=true;
+    return _lsCloudPushPromise.catch(function(){}).then(_lsCloudPushSettled);
+  }
   _lsCloudSaveBusy=true;
   _lsCloudPushPromise=_lsCloudPushOnce().finally(function(){
     _lsCloudSaveBusy=false;
     if(_lsCloudSaveAgain){_lsCloudSaveAgain=false;_lsCloudPush();}
   });
   return _lsCloudPushPromise;
+}
+// Read-only wait: resolves once every push currently in flight or queued has genuinely settled. See
+// CharGen's _cgCloudPushSettled() for the full reasoning (identical pattern).
+function _lsCloudPushSettled(){
+  if(!_lsCloudSaveBusy) return undefined;
+  return _lsCloudPushPromise.catch(function(){}).then(_lsCloudPushSettled);
 }
 async function _lsCloudPushOnce(){
   // feat/campaign-ap-budget-enforce: skip the push silently after one warning per session — this runs
@@ -765,9 +795,12 @@ function _lsFlushCloudSaveNow(timeoutMs){
   if(_lsCloudSaveTimer!=null){clearTimeout(_lsCloudSaveTimer);_lsCloudSaveTimer=null;}
   if(!pending) return Promise.resolve();
   if(!_lsAutosaveGate()) return Promise.resolve();
-  var pushed=_lsCloudPush();
-  if(!pushed) return Promise.resolve();
-  return Promise.race([pushed.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
+  _lsCloudPush();   // ensure a push is running or (if one already was) marked to retry with this edit
+  // Wait on _lsCloudPushSettled(), not _lsCloudPush()'s own return value — see CharGen's identical fix
+  // for why even the not-busy branch's raw return value can't be trusted to track a later retry.
+  var settled=_lsCloudPushSettled();
+  if(!settled) return Promise.resolve();
+  return Promise.race([settled.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
 }
 // Best-effort cloud flush on page exit — see CharGen's identical pagehide handler for the full
 // keepalive/why-not-sendBeacon reasoning; not repeated here.
@@ -777,7 +810,9 @@ window.addEventListener('pagehide',function(){
   if(!pending) return;
   if(!_lsAutosaveGate()) return;
   try{
-    if(window._syncBridge&&window._syncBridge.withKeepalive) window._syncBridge.withKeepalive(_lsCloudPush);
+    // fix/autosave-flush-latest-push: keep the keepalive flag set for the whole queue-drain span,
+    // including any retry that chains on before it actually drains — see CharGen's identical handler.
+    if(window._syncBridge&&window._syncBridge.withKeepalive) window._syncBridge.withKeepalive(function(){ _lsCloudPush(); return _lsCloudPushSettled(); });
     else _lsCloudPush();
   }catch(e){ /* best-effort only */ }
 });
@@ -1145,6 +1180,17 @@ function render(){
   // V3: weapon masteries — descriptions authored in DATA.masteryFx; PHB page appended when present (John fills page:null)
   if((b.masteries||[]).length)sh+='<div class="seg"><b>Weapon Masteries:</b> '+b.masteries.map(x=>{var o=(DATA.masteryFx||{})[x]||{};return _ftip(x,(o.fx||'')+(o.page?' (PHB p.'+o.page+')':''));}).join(' · ')+'</div>';
   if(b.drawbacks.length)sh+='<div class="seg" style="color:var(--bad)"><b>Drawbacks:</b> '+b.drawbacks.map(x=>_ftip(x,(DATA.drawbacks[x]||{}).fx||'')).join(', ')+'</div>';
+  // feat/custom-fields-player-display (D-GH-2026-08-10-dm-custom-character-fields follow-up):
+  // campaign-defined custom fields the DM has marked visible to players, read-only — labels from
+  // window._cloudCampaignRules.customFields (already fetched alongside the rest of the campaign's
+  // rules), values from window._lsVisibleCustomFields (server-filtered by _lsRefreshVisibleCustomFields()
+  // — a field the DM hasn't marked visible is never present here at all, not just hidden). Renders
+  // nothing when there are none: a standalone/not-signed-in/DM-peek view, or a campaign with no fields
+  // configured, all leave both objects empty, so this naturally no-ops for every one of those cases.
+  const _cfDefs=(window._cloudCampaignRules&&window._cloudCampaignRules.customFields)||{};
+  const _cfVals=window._lsVisibleCustomFields||{};
+  const _cfRows=Object.keys(_cfDefs).filter(k=>_cfDefs[k]&&_cfDefs[k].label&&_cfVals[k]!=null&&_cfVals[k]!=='').map(k=>esc(_cfDefs[k].label)+': '+esc(String(_cfVals[k])));
+  if(_cfRows.length)sh+='<div class="seg"><b>From your DM:</b> '+_cfRows.join(' · ')+'</div>';
   sh+=spellPanel(b,r);
   $('sheet').innerHTML=sh;
   // --- ledger / history ---
@@ -2030,11 +2076,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, withKeepalive } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
   import { listMyCampaigns, getCampaign } from '../js/campaign.js';
-  import { getAwardHistory } from '../js/dm.js';
+  import { getAwardHistory, getVisibleCustomFields } from '../js/dm.js';
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, withKeepalive };
   window._authBridge = { currentSession, onAuthChange };
   window._campaignBridge = { listMyCampaigns, getCampaign };
-  window._dmBridge = { getAwardHistory };
+  window._dmBridge = { getAwardHistory, getVisibleCustomFields };
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
 </script>
@@ -2143,13 +2189,14 @@ document.addEventListener('sync-ready', function () {
       window._dmAp = rec ? (rec.ap || 0) : 0;
       window._ignorePlayerAp = false;
       window._lsCampaignId = (rec && rec.campaign_id) || null;   // binding only — see buildCharacterEnvelope
-      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; if(rec && typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(null); /* rec present but no campaign_id = confirmed standalone → clear the offline snapshot (a logged leave) */ renderCloudStatusBadge(); return; }
+      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; window._lsVisibleCustomFields = {}; if(rec && typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(null); /* rec present but no campaign_id = confirmed standalone → clear the offline snapshot (a logged leave) */ renderCloudStatusBadge(); return; }
       window._rulesStatus = 'unavailable';   // interim, resolved just below — correctly NOT "no DM AP" if getCampaign throws
       var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
       window._cloudCampaignRules = camp ? (camp.rules || {}) : null;
       _campaignName = camp ? camp.name : null;
       window._rulesStatus = camp ? 'active' : 'unavailable';
       if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; if(typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(window._cloudCampaignRules); /* refresh the offline snapshot from the live rules */ }
+      await _lsRefreshVisibleCustomFields(_cid);   // independent of whether the getCampaign() call above succeeded — the RPC re-derives campaign membership itself
     } catch(e) { window._rulesStatus = 'unavailable'; /* non-fatal — pickers/AP just fall back until this succeeds */ }
     renderCloudStatusBadge();
     if(typeof window.render === 'function') window.render();
@@ -2184,6 +2231,9 @@ document.addEventListener('sync-ready', function () {
         var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
         if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; window._rulesStatus = 'active'; }
       } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds; window._rulesStatus correctly stays 'unavailable', not silently 'none' */ }
+      await _lsRefreshVisibleCustomFields(id);   // independent of whether the listMyCampaigns() lookup above succeeded — the RPC re-derives campaign membership itself
+    } else {
+      window._lsVisibleCustomFields = {};
     }
     renderCloudStatusBadge();
     var d = rec.stats;

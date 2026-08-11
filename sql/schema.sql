@@ -213,6 +213,10 @@ create table if not exists public.character_dm_notes (
   character_id uuid primary key references public.characters(id) on delete cascade,
   player_label text,
   notes        text,
+  -- Values for the campaign's custom character fields (D-GH-2026-08-10), keyed by
+  -- fixed slot id (num1/num2/text1/text2). Definitions (label, visible-to-players)
+  -- live in campaigns.rules.customFields, not here — see get_character_visible_fields().
+  custom_fields jsonb not null default '{}'::jsonb,
   updated_at   timestamptz not null default now()
 );
 

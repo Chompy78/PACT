@@ -27,7 +27,7 @@ import { supabase } from './supabase-client.js';
 export async function getRoster(campaignId) {
   const { data, error } = await supabase
     .from('characters')
-    .select('id, name, kind, ap, stats, updated_at, owner_id, owner:profiles(display_name), dm_notes:character_dm_notes(player_label, notes)')
+    .select('id, name, kind, ap, stats, updated_at, owner_id, owner:profiles(display_name), dm_notes:character_dm_notes(player_label, notes, custom_fields)')
     .eq('campaign_id', campaignId)
     .order('name');
   if (error) throw error;
@@ -47,6 +47,11 @@ export async function getRoster(campaignId) {
       player: c.owner?.display_name || '',
       playerLabel: notesRow?.player_label || '',
       dmNotes: notesRow?.notes || '',
+      // feat/dm-custom-character-fields (D-GH-2026-08-10): raw values for the campaign's
+      // custom field slots (num1/num2/text1/text2), keyed exactly as stored — the DM
+      // already has full table access, so no visibility filtering happens here (that
+      // filtering only exists for a player-facing read, via get_character_visible_fields()).
+      customFields: notesRow?.custom_fields || {},
     };
   });
 }
@@ -72,6 +77,40 @@ export async function setCharacterDmNotes(characterId, { playerLabel, notes } = 
     .from('character_dm_notes')
     .upsert({ character_id: characterId, player_label: playerLabel ?? null, notes: notes ?? null });
   if (error) throw error;
+}
+
+/**
+ * feat/dm-custom-character-fields (D-GH-2026-08-10): DM-only, set this character's
+ * values for the campaign's custom field slots. `values` is a plain object keyed by
+ * slot id (e.g. {num1: '12', text1: 'Owes the guild a favour'}) — pass only the slots
+ * you want to change; a full merge with any existing row must be done by the caller
+ * first (this upserts `values` as-is into the custom_fields column, replacing it
+ * whole, same partial-update caveat as setCharacterDmNotes above). Field-name display
+ * and the per-field "visible to players" flag live in the campaign's rules
+ * (js/campaign.js's setCampaignRules), not here — this only stores raw values.
+ */
+export async function setCharacterCustomFields(characterId, values) {
+  const { error } = await supabase
+    .from('character_dm_notes')
+    .upsert({ character_id: characterId, custom_fields: values || {} });
+  if (error) throw error;
+}
+
+/**
+ * feat/custom-fields-player-display (D-GH-2026-08-10-dm-custom-character-fields follow-up): the
+ * player-facing read counterpart to setCharacterCustomFields() above, via the
+ * get_character_visible_fields() SECURITY DEFINER RPC (sql/rls-policies.sql). Server-filtered, not
+ * client-filtered: for the character's own owner it returns only the slots the campaign currently
+ * marks visible:true in campaigns.rules.customFields — a hidden field's value never leaves the server
+ * for that caller. A campaign DM instead gets every defined value unfiltered (they already have raw
+ * table access via character_dm_notes' own RLS, same as setCharacterCustomFields above). Returns {}
+ * for a not-campaign-bound character, or a caller who is neither the owner nor a campaign DM.
+ * @returns {Promise<Object<string,string>>} e.g. {num1: '12', text1: 'Owes the guild a favour'}
+ */
+export async function getVisibleCustomFields(characterId) {
+  const { data, error } = await supabase.rpc('get_character_visible_fields', { p_character: characterId });
+  if (error) throw error;
+  return data || {};
 }
 
 /**
