@@ -6,6 +6,9 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-11 · docs: dropped the "Port the AGENTS.md/skills scaffold to another repo" task** — removed
+  from `docs/TASK_BOARD_NEXT.md` (owner: no longer relevant). No skill/scaffold work was done; this is a
+  board-hygiene removal, not a graduation.
 - **2026-08-11 · fix: keepalive scope narrowed back down + manual save routed through the push queue**
   — the two follow-ups tracked (not fixed) by the 2026-08-10 `/code-review ultra` cleanup, both resolved.
   (1) `feat/keepalive-scope-narrowing`: decided A2 (narrow, not accept-as-trade-off) — `withKeepalive()`
