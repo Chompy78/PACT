@@ -459,8 +459,14 @@ async function reconcile(id) {
   if (localNewer) {
     // A refused push is NOT "retry later" — retrying can never succeed, because the server has moved
     // and this copy's base never will. Report it so an explicit Load can offer the only real way out.
+    // _pushInFlight tracked here too, same as saveCharacter()'s own push above — without it,
+    // getSyncState() has no way to see this recovery push as SAVING and falls through to a stale
+    // dirty/conflict/idle read for its whole duration (found by /code-review ultra on the B3 branch;
+    // pre-existing since this branch was written, freshly noticed once B3 leaned on getSyncState() more).
+    _pushInFlight.add(id);
     try { await pushCharacter(local, local.editSeq || 0); }
     catch (err) { if (err && err.conflict) return { behind: true }; /* transient: retry later */ }
+    finally { _pushInFlight.delete(id); }
   } else {
     // Server wins: take its stats AND its ap. Same markInSyncWithServer() reasoning as the !local
     // branch above.

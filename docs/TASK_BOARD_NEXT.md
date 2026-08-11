@@ -819,32 +819,6 @@ and confirms the flush waits for the LATEST edit's push (not a stale one), with 
 any retry that fires after navigation starts; fix applied to both CharGen and Live Sheet; `testing/
 tests/engine-parity.html` still 0 failed.
 
-## reconcile()'s pushCharacter() calls bypass _pushInFlight tracking — TODO
-Branch fix/reconcile-push-inflight-tracking. `js/sync.js`: `reconcile()`'s `localNewer` branch calls
-`pushCharacter(local, ...)` directly without `_pushInFlight.add()`/`delete()` (unlike `saveCharacter()`,
-the only other `pushCharacter()` caller that tracks it). While that network push is running (at boot or
-during `syncAll()`/reconnect), `getSyncState(id)` for the same id has no way to see it and falls
-through to dirty/conflict/idle based on stale flags instead of the documented `SAVING` precedence — so
-a status chip refreshed during this window can show a wrong/flickering state until the push resolves
-and `applyServerMeta()` catches up. Found by `/code-review ultra` on the B3 branch; pre-existing since
-B1 (`docs/plans/2026-08-08-shared-sync-chip-part-b.md`), display-only impact.
-**Effort:** low · **Risk:** medium — ambiguity is low (one obviously right way to do it — mirror
-`saveCharacter()`'s own already-existing `_pushInFlight` pattern exactly); damage scale is low (single
-file, display-only, no security/data implication, trivially revertible); damage likelihood is medium
-(no automated gate exists yet for this specific window, though it's a narrow display glitch that would
-likely surface in manual/visual review rather than persist unnoticed).
-
-```text
-1. Wrap reconcile()'s pushCharacter() call the same way saveCharacter() does: _pushInFlight.add(id)
-   before the call, delete(id) in a finally.
-2. Add a test that starts a reconcile()-triggered push and checks getSyncState() mid-flight reports
-   SAVING, not a stale dirty/conflict/idle read.
-```
-
-**Done when:** `getSyncState()` correctly reports `SAVING` while a `reconcile()`-triggered push is in
-flight, verified by a test that starts a `reconcile()` push and checks `getSyncState()` mid-flight;
-`testing/scripts/sync-state-machine-ci.mjs` still 0 failed.
-
 ## Security audit: privilege boundaries + character/AP integrity against a malicious client — TODO
 Branch `security/privilege-and-character-integrity`. Owner request, 2026-08-08. Assume the attacker has
 the full frontend source, the Supabase URL, the publishable key, complete control of browser JS/

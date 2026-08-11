@@ -6,6 +6,15 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · fix(sync): reconcile()'s own recovery push is now tracked by `_pushInFlight` too** —
+  `fix/reconcile-push-inflight-tracking`, from `/sweep-code-tasks`. `js/sync.js`'s `reconcile()`
+  `localNewer` branch called `pushCharacter()` directly, unlike `saveCharacter()`'s own already-tracked
+  push — so while a device's offline edit was being recovered at boot/reconnect, `getSyncState(id)` had
+  no way to see it as `SAVING` and fell through to a stale dirty/conflict/idle read for the whole
+  duration. Fixed by wrapping it in `_pushInFlight.add()`/`.delete()`, mirroring `saveCharacter()`
+  exactly. New differential test in `testing/scripts/sync-state-machine-ci.mjs` (confirmed to fail
+  against the pre-fix code, not just pass vacuously): 24/0. `engine-parity-ci.mjs` 30/0,
+  `sync-concurrency-ci.mjs` 12/0, `sync-autosave-toggle-ci.mjs` 4/0 — all unaffected.
 - **2026-08-10 · feat(livesheet): show a signed-in player any campaign custom fields their DM marked
   visible** — `feat/custom-fields-player-display`, the player-facing follow-up to the DM Console custom
   fields feature below. The Live Sheet now calls the existing `get_character_visible_fields()` RPC on
