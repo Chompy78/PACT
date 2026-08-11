@@ -375,43 +375,59 @@ $$;
 -- max_redemptions (see campaign_invite_redemptions below for how reusable-invite redeemers are
 -- tracked, since a single redeemed_by/redeemed_at pair can only ever record one redeemer).
 -- ---------------------------------------------------------------------------
+-- type='character_claim' rows: a DM hands off their OWN campaign-bound character to a player as a
+-- claim link (feat/character-ownership-claim-link, D-GH-2026-08-11-character-claim-link-copy-not-
+-- transfer). Redemption COPIES the source character into a new row owned by the redeemer; the
+-- source's owner_id is never changed. Hash-only storage like a DM invite (Security Invariant 1's
+-- strict default) -- a claim link hands off something of real value (a fully-built character), not a
+-- blank one, so it gets the same bar as a co-DM invite rather than the player-invite exception.
 create table if not exists public.campaign_invites (
-  id              uuid primary key default gen_random_uuid(),
-  campaign_id     uuid not null references public.campaigns(id) on delete cascade,
-  type            text not null default 'player' check (type in ('player','dm')),
-  mode            text not null default 'single_use' check (mode in ('single_use','reusable')),
-  redeemed_count  integer not null default 0,
-  max_redemptions integer,
-  token           text unique,        -- player invites only (plaintext, deliberately -- see header)
-  token_hash      text unique,        -- dm invites only (SHA-256 hex, Security Invariant 1)
-  starting_ap     integer not null default 0,
-  starting_budget integer not null default 0,
-  created_by      uuid references public.profiles(id) on delete set null,
-  created_at      timestamptz not null default now(),
-  expires_at      timestamptz,                                    -- enforced on redemption for both types
-  note            text,                                           -- DM label; see D-GH-2026-08-03-dm-invite-manager
-  revoked_at      timestamptz,                                    -- soft revocation; a revoked invite cannot redeem
-  redeemed_by     uuid references public.profiles(id) on delete set null,
-  redeemed_at     timestamptz,
+  id                  uuid primary key default gen_random_uuid(),
+  campaign_id         uuid not null references public.campaigns(id) on delete cascade,
+  type                text not null default 'player' check (type in ('player','dm','character_claim')),
+  mode                text not null default 'single_use' check (mode in ('single_use','reusable')),
+  redeemed_count      integer not null default 0,
+  max_redemptions     integer,
+  token               text unique,        -- player invites only (plaintext, deliberately -- see header)
+  token_hash          text unique,        -- dm + character_claim invites (SHA-256 hex, Security Invariant 1)
+  starting_ap         integer not null default 0,
+  starting_budget     integer not null default 0,
+  source_character_id uuid references public.characters(id) on delete cascade,  -- character_claim only
+  created_by          uuid references public.profiles(id) on delete set null,
+  created_at          timestamptz not null default now(),
+  expires_at          timestamptz,                                    -- enforced on redemption for all types
+  note                text,                                           -- DM label; see D-GH-2026-08-03-dm-invite-manager
+  revoked_at          timestamptz,                                    -- soft revocation; a revoked invite cannot redeem
+  redeemed_by         uuid references public.profiles(id) on delete set null,
+  redeemed_at         timestamptz,
   constraint campaign_invites_redemption_limit_check check (
     (mode = 'single_use' and max_redemptions is null)
     or (mode = 'reusable' and max_redemptions is not null and max_redemptions >= 1)
   ),
-  -- Reusable mode is a DM-invite-only capability today (create_player_invite() always hardcodes
-  -- single_use) -- enforced here, not just left as an application convention, so a future helper or
-  -- manual fix-up can't silently create a type='player', mode='reusable' row that redeem_player_invite()
-  -- would then treat as single-use anyway while the data claims otherwise (code-review, 2026-08-09).
+  -- Reusable mode is a DM-invite-only capability today (create_player_invite() and
+  -- create_character_claim() always hardcode single_use) -- enforced here, not just left as an
+  -- application convention, so a future helper or manual fix-up can't silently create a
+  -- mode='reusable' row for a type redeem_*() would then treat as single-use anyway while the data
+  -- claims otherwise (code-review, 2026-08-09; extended 2026-08-11 for the new type).
   constraint campaign_invites_reusable_dm_only_check check (
     mode = 'single_use' or type = 'dm'
   ),
   -- Each type owns exactly one storage column -- player rows carry plaintext token and never
-  -- token_hash; dm rows carry token_hash and never plaintext token. See this table's header comment.
+  -- token_hash; dm and character_claim rows carry token_hash and never plaintext token. See this
+  -- table's header comment.
   constraint campaign_invites_token_storage_check check (
     (type = 'player' and token is not null and token_hash is null)
-    or (type = 'dm' and token is null and token_hash is not null)
+    or (type in ('dm','character_claim') and token is null and token_hash is not null)
+  ),
+  -- source_character_id is exclusively a character_claim column, same pattern as the token/token_hash
+  -- split above -- every other type must leave it null.
+  constraint campaign_invites_source_character_check check (
+    (type = 'character_claim' and source_character_id is not null)
+    or (type <> 'character_claim' and source_character_id is null)
   )
 );
 create index if not exists idx_campaign_invites_campaign on public.campaign_invites(campaign_id);
+create index if not exists idx_campaign_invites_source_character on public.campaign_invites(source_character_id);
 
 -- campaign_invite_redemptions — per-redeemer tracking for REUSABLE (dm-only) invites, since a single
 -- redeemed_by/redeemed_at pair on campaign_invites can only ever record one redeemer. Single-use
@@ -845,6 +861,137 @@ begin
   end if;
 
   return v_campaign.id;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- create_character_claim() / redeem_character_claim() — feat/character-ownership-claim-link
+-- (D-GH-2026-08-11-character-claim-link-copy-not-transfer). A DM who owns a campaign-bound character
+-- (built/imported under their own account, then bound via bind_character_to_campaign() like any other
+-- character -- no new capability needed for that step) generates a single-use link a player redeems to
+-- get their OWN new character, copied from the DM's. The source character's owner_id is NEVER written
+-- by this flow -- redeem_character_claim() only ever INSERTs a row the redeeming player already has
+-- the right to own, exactly what CharGen's normal Save already does, so this needs no RLS/ownership-
+-- model change at all. Token handling mirrors create_dm_invite()/redeem_dm_invite() (hash-only
+-- storage, CSPRNG token, collision-retry loop, plaintext returned once).
+-- ---------------------------------------------------------------------------
+create or replace function public.create_character_claim(p_character_id uuid, p_note text default null)
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_char  characters%rowtype;
+  v_token text;
+  v_hash  text;
+  v_note  text := nullif(trim(coalesce(p_note, '')), '');
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  select * into v_char from characters where id = p_character_id and owner_id = auth.uid();
+  if not found then
+    raise exception 'Character not found';
+  end if;
+  if v_char.campaign_id is null then
+    raise exception 'Bind this character to a campaign before generating a claim link';
+  end if;
+  if not is_campaign_dm(v_char.campaign_id) then
+    raise exception 'Only a DM of this character''s campaign can generate a claim link';
+  end if;
+  if v_note is not null and length(v_note) > 200 then v_note := left(v_note, 200); end if;
+
+  loop
+    v_token := encode(extensions.gen_random_bytes(16), 'hex');
+    v_hash  := encode(extensions.digest(v_token, 'sha256'), 'hex');
+    exit when not exists (select 1 from campaign_invites where token_hash = v_hash);
+  end loop;
+
+  insert into campaign_invites (campaign_id, token_hash, type, mode, source_character_id, created_by, note)
+    values (v_char.campaign_id, v_hash, 'character_claim', 'single_use', p_character_id, auth.uid(), v_note);
+
+  return v_token;   -- plaintext returned ONCE; no API retrieves it again (Security Invariant 1/5).
+end;
+$$;
+
+create or replace function public.redeem_character_claim(p_token text)
+returns table(character_id uuid, campaign_id uuid, is_new boolean)
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_hash   text;
+  v_invite campaign_invites%rowtype;
+  v_source characters%rowtype;
+  v_new_id uuid;
+  v_stats  jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  v_hash := encode(extensions.digest(p_token, 'sha256'), 'hex');
+
+  -- FOR UPDATE serializes concurrent redemption attempts against this exact invite row.
+  select * into v_invite from campaign_invites where token_hash = v_hash and type = 'character_claim' for update;
+
+  if not found then
+    raise exception 'Claim link is invalid or already used';
+  end if;
+
+  -- Idempotency FIRST (Security Invariant 10): a repeat call from the original redeemer returns the
+  -- same copy instead of erroring or creating a second one. The one-character-per-player-per-campaign
+  -- unique index means that copy is unambiguously identifiable by (owner, campaign), same lookup
+  -- redeem_player_invite() already uses for its own idempotent branch.
+  if v_invite.redeemed_by = auth.uid() then
+    select id into v_new_id from characters
+      where owner_id = auth.uid() and campaign_id = v_invite.campaign_id limit 1;
+    if v_new_id is null then
+      raise exception 'Claim link already redeemed but the resulting character was not found';
+    end if;
+    return query select v_new_id, v_invite.campaign_id, false;
+    return;
+  end if;
+
+  -- Generic validity check (Security Invariant 8): nonexistent (handled above), expired, revoked, or
+  -- already redeemed by someone else all produce the same error.
+  if v_invite.revoked_at is not null
+     or (v_invite.expires_at is not null and v_invite.expires_at <= now())
+     or v_invite.redeemed_by is not null
+  then
+    raise exception 'Claim link is invalid or already used';
+  end if;
+
+  if is_campaign_member(v_invite.campaign_id) then
+    raise exception 'You already have a character in this campaign';
+  end if;
+
+  select * into v_source from characters where id = v_invite.source_character_id;
+  if not found then
+    raise exception 'The source character no longer exists';
+  end if;
+
+  -- The copy gets its own fresh id -- the source's stats envelope carries its OWN id inline (D-GH40's
+  -- unified save format), so that has to be rewritten to the new row's id or the copy would boot
+  -- pointing at the wrong character (same hazard _cgDeriveCopyId()'s DM-copy path in CharGen guards
+  -- against client-side; here it's server-side and unconditional, so there is nothing to assert).
+  v_new_id := gen_random_uuid();
+  v_stats  := coalesce(v_source.stats, '{}'::jsonb) || jsonb_build_object('id', v_new_id);
+
+  begin
+    insert into characters (id, owner_id, campaign_id, name, kind, stats, ap)
+      values (v_new_id, auth.uid(), v_invite.campaign_id, v_source.name, v_source.kind, v_stats, v_source.ap);
+  exception when unique_violation then
+    raise exception 'You already have a character in this campaign';
+  end;
+
+  -- AP carries over (design decision: the player inherits the character as built, awards included) --
+  -- recorded as its own ap_awards row for provenance, same "why does this already have AP" trail any
+  -- other grant leaves, not silently folded into the insert alone.
+  if v_source.ap <> 0 then
+    insert into ap_awards (character_id, dm_id, campaign_id, amount, note)
+      values (v_new_id, v_invite.created_by, v_invite.campaign_id, v_source.ap, 'Carried over from claimed character');
+  end if;
+
+  update campaign_invites set redeemed_by = auth.uid(), redeemed_at = now() where id = v_invite.id;
+
+  return query select v_new_id, v_invite.campaign_id, true;
 end;
 $$;
 

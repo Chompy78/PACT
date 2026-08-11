@@ -593,13 +593,13 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // so this failure must never take engine-ready down with it; keeping it a separate <script
   // type="module"> means a dead CDN only loses the cloud-campaign UI, not the character builder.
   import { currentSession, onSessionChange } from '../js/auth.js';
-  import { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY } from '../js/campaign.js';
+  import { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY, createCharacterClaim, redeemCharacterClaim } from '../js/campaign.js';
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
   import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange };
-  window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite };
+  window._campaignBridge = { listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled };
   document.dispatchEvent(new Event('campaign-ready'));
@@ -829,7 +829,14 @@ document.addEventListener('sync-ready', function () {
         // Already bound: no input/button -- bind_character_to_campaign always rejects binding to a
         // DIFFERENT campaign once bound (no rebind/transfer feature in v1), so offering a "switch"
         // action here would be a guaranteed-to-fail affordance, not a real option.
-        ? '<div style="font-size:12px;color:var(--grey)">Bound to <b>' + _apEsc(window._cloudCampaign.name || '') + '</b>. Rebinding to a different campaign isn’t supported yet.</div>'
+        ? '<div style="font-size:12px;color:var(--grey)">Bound to <b>' + _apEsc(window._cloudCampaign.name || '') + '</b>. Rebinding to a different campaign isn’t supported yet.</div>' +
+          // feat/character-ownership-claim-link: visible whenever the loaded character is campaign-bound
+          // -- the real gate (owner AND a DM of this campaign) is enforced server-side by
+          // create_character_claim() itself, same "let the RPC be the authority" pattern the rest of
+          // this menu already uses. A non-DM/non-owner sees the RPC's own error, not a broken button.
+          '<div style="margin-top:6px"><button type="button" class="btn" id="cgClaimLinkBtn" style="padding:4px 9px;font-size:12px" title="Generate a single-use link a player can redeem to get their own copy of THIS character, bound to this campaign">🔗 Generate claim link</button>' +
+          '<div id="cgClaimLinkStatus" style="font-size:11px;color:var(--grey);margin-top:4px"></div>' +
+          '<div id="cgClaimLinkRow" style="display:none;gap:6px;margin-top:4px"><input type="text" id="cgClaimLinkOut" readonly style="flex:1;min-width:0;font-size:11px" onclick="this.select()"><button type="button" class="btn" id="cgClaimLinkCopy" style="padding:2px 8px;font-size:11px">Copy</button></div></div>'
         : '<div style="display:flex;gap:6px;align-items:center">' +
           '<input type="text" id="cgJoinCode" placeholder="Invite code" maxlength="6" style="flex:1;min-width:0;text-transform:uppercase">' +
           '<button type="button" class="btn" id="cgJoinBtn" style="padding:4px 9px;font-size:12px">Join</button>' +
@@ -842,6 +849,15 @@ document.addEventListener('sync-ready', function () {
     _cgWireCloudNewBtn();
     var _joinBtn = document.getElementById('cgJoinBtn');
     if (_joinBtn) _joinBtn.addEventListener('click', onJoinCampaignClick);
+    var _claimBtn = document.getElementById('cgClaimLinkBtn');
+    if (_claimBtn) _claimBtn.addEventListener('click', onGenerateClaimLinkClick);
+    var _claimCopyBtn = document.getElementById('cgClaimLinkCopy');
+    if (_claimCopyBtn) _claimCopyBtn.addEventListener('click', function(){
+      var outEl = document.getElementById('cgClaimLinkOut'), statusEl = document.getElementById('cgClaimLinkStatus');
+      navigator.clipboard.writeText(outEl ? outEl.value : '').catch(function(){
+        if (statusEl) statusEl.textContent = 'Could not copy — select and copy the link manually.';
+      });
+    });
     var chars;
     try { chars = await S.listMyCharacters(); } catch (err) { chars = []; }
     if (gen !== _cloudMenuGen) return;   // a newer open (or a close) superseded this fetch — discard it
@@ -981,6 +997,39 @@ document.addEventListener('sync-ready', function () {
       if (typeof flash === 'function') flash('☁ Joined ' + campName);   // flash() uses textContent -- safe with an unescaped name
     } catch (err) {
       if (statusEl) statusEl.textContent = 'Could not join: ' + (err && err.message ? err.message : err);
+    }
+    if (btn) btn.disabled = false;
+  }
+
+  // feat/character-ownership-claim-link (D-GH-2026-08-11-character-claim-link-copy-not-transfer):
+  // generate a single-use link a player redeems to get their OWN COPY of the currently-open character,
+  // bound to this campaign. Only shown when the loaded character is campaign-bound (see the "Bound to"
+  // branch above); the real authorization (must own this character AND be a DM of its campaign) is
+  // enforced server-side by create_character_claim() itself, not duplicated here.
+  async function onGenerateClaimLinkClick() {
+    var statusEl = document.getElementById('cgClaimLinkStatus'), rowEl = document.getElementById('cgClaimLinkRow'),
+        outEl = document.getElementById('cgClaimLinkOut'), btn = document.getElementById('cgClaimLinkBtn');
+    if (btn) btn.disabled = true;
+    if (statusEl) statusEl.textContent = 'Generating…';
+    if (rowEl) rowEl.style.display = 'none';
+    try {
+      // Same reasoning as onJoinCampaignClick: the RPC reads THIS character's row (owner + campaign),
+      // so whatever's on screen must actually be saved first, or the link would be generated against
+      // stale/missing server state.
+      var id = currentCharId();
+      var stats = _cgEnvelope(false);
+      var saveRes = await _cgQueuedSaveCharacter({ id: id, name: stats.name || 'Character', kind: 'chargen', stats: stats, campaignId: window._cgCampaignId });
+      if (saveRes && saveRes.error) throw saveRes.error;
+      if (saveRes && saveRes.synced === false) throw new Error("You're offline — reconnect, then try generating a claim link again.");
+      if (saveRes && saveRes.id) { id = saveRes.id; __charId = saveRes.id; }
+
+      var token = await C.createCharacterClaim(id, null);
+      var url = new URL(location.pathname + '?claim=' + encodeURIComponent(token), location.href).href;
+      if (outEl) outEl.value = url;
+      if (rowEl) rowEl.style.display = 'flex';
+      if (statusEl) statusEl.textContent = 'Single-use — shown once. Copy it now and share it with the player; it cannot be retrieved again after this.';
+    } catch (err) {
+      if (statusEl) statusEl.textContent = 'Could not generate claim link: ' + (err && err.message ? err.message : err);
     }
     if (btn) btn.disabled = false;
   }
@@ -1216,6 +1265,63 @@ document.addEventListener('sync-ready', function () {
     }
   }
 
+  // feat/character-ownership-claim-link (D-GH-2026-08-11-character-claim-link-copy-not-transfer):
+  // redeem a DM-issued claim link. Own token/sessionStorage space (CLAIM_KEY, separate from
+  // PENDING_KEY above) so an invite and a claim link pending in the same tab can never collide.
+  var CLAIM_KEY = 'pact_pending_claim';
+  function clearPendingClaim(){ try{ sessionStorage.removeItem(CLAIM_KEY); }catch(e){} }
+  (function stashClaimToken(){
+    var qs = new URLSearchParams(location.search);
+    var urlToken = qs.get('claim');
+    if(!urlToken) return;
+    try{ sessionStorage.setItem(CLAIM_KEY, urlToken); }catch(e){}
+    qs.delete('claim');
+    var clean = location.pathname + (qs.toString()?('?'+qs.toString()):'') + location.hash;
+    try{ history.replaceState(null,'',clean); }catch(e){}
+  })();
+
+  // Mirrors tryRedeem()'s shape above, but simpler: unlike a player invite, the resulting character
+  // is ALREADY fully built server-side (redeem_character_claim() copies it, it does not hand back a
+  // blank one) -- so both the "first redemption" and "repeat call" cases just LOAD the result, no
+  // seedLog branch to burst here.
+  var _claiming = false;
+  async function tryRedeemClaim(session){
+    if(_claiming) return;
+    var token; try{ token = sessionStorage.getItem(CLAIM_KEY); }catch(e){ token = null; }
+    if(!token) return;
+    _claiming = true;
+    try{
+      if(!session) session = await A.currentSession();
+      if(!session){
+        showBanner('You’ve been given a character to claim. Sign in to accept it. → ');
+        if(banner){var a=document.createElement('a');a.href='../login.html';a.textContent='Sign in';a.style.color='#fff';a.style.fontWeight='700';banner.appendChild(a);}
+        return;
+      }
+      if(!confirm('Accept this character?\n\nThis adds a COPY of it to your own account (the original is untouched) and replaces the build you have open right now. Anything unsaved in it will be lost.')){
+        clearPendingClaim();
+        showBanner('Claim link not accepted. → ');
+        return;
+      }
+      showBanner('Claiming character…');
+      var res = await C.redeemCharacterClaim(token);
+      var rec = await S.loadCharacter(res.characterId);
+      if(rec && rec.stats && Array.isArray(rec.stats.LOG)){
+        if(rec.id) __charId = rec.id;
+        _cgApplyEnvelope(rec.stats,{clearHistory:true});
+      }
+      await _cgResolveDmApStatus(rec ? (rec.ap||0) : 0, (rec && rec.campaign_id) || res.campaignId);
+      clearPendingClaim();
+      render();
+      showBanner('☁ Claimed — character added to your account.');
+      hideBannerSoon();
+    }catch(err){
+      clearPendingClaim();   // a terminal RPC error (already used, invalid, etc.) must not keep re-prompting either
+      showBanner('Could not claim character: '+(err&&err.message?err.message:String(err)));
+    }finally{
+      _claiming = false;
+    }
+  }
+
   // feat/chargen-dm-view (D-GH-2026-08-10-chargen-dm-view): DM Console's "Copy to CharGen" button on a
   // cloud roster card. The DM does not own this character — peekCharacter() reads it via
   // characters_select's DM-of-campaign grant, and (per its own docstring) never caches into
@@ -1273,14 +1379,14 @@ document.addEventListener('sync-ready', function () {
 
   A.onSessionChange(function(session){
     var nowSignedIn = !!session;
-    if(nowSignedIn && !_wasSignedIn) tryRedeem(session);
+    if(nowSignedIn && !_wasSignedIn){ tryRedeem(session); tryRedeemClaim(session); }
     _wasSignedIn = nowSignedIn;
   });
   (async function(){
     // A ?viewChar= copy takes priority over an ordinary pending invite — both can't happen in one
     // load, and the copy flow's own alerts/flash calls are clearer if nothing else fires alongside them.
     var hadViewChar = await _cgConsumeViewChar();
-    if(!hadViewChar) tryRedeem();
+    if(!hadViewChar){ tryRedeem(); tryRedeemClaim(); }
   })();
 });
 </script>

@@ -25,6 +25,14 @@ const CAMPAIGN_COLS = 'id, name, invite_code, ignore_player_ap, rules, dm_id, ar
  */
 export const PENDING_INVITE_KEY = 'pact_pending_invite';
 
+/**
+ * sessionStorage key for a pending character-claim-link token (feat/character-ownership-claim-link,
+ * D-GH-2026-08-11-character-claim-link-copy-not-transfer). Same same-tab-round-trip-through-login
+ * purpose as PENDING_INVITE_KEY above, kept as a separate key/token space — a claim link resolves to
+ * redeemCharacterClaim(), not redeemPlayerInvite(), and the two must never be confused mid-flow.
+ */
+export const PENDING_CLAIM_KEY = 'pact_pending_claim';
+
 /** Create a campaign you will own/DM. The player invite code is generated server-side; co-DM invites
  * are separate, discrete tokens created on demand via createDmInvite(). */
 export async function createCampaign(name) {
@@ -270,6 +278,43 @@ export async function bindCharacterToCampaign(characterId, code) {
   });
   if (error) throw error;
   return data;
+}
+
+/**
+ * DM-only, and only for a character they own that is already bound to the campaign they DM (see
+ * server-side create_character_claim() for the enforced checks — both are re-verified there, not
+ * just here). Generates a single-use claim link a player redeems to get their OWN independently-owned
+ * COPY of this character (feat/character-ownership-claim-link, D-GH-2026-08-11-character-claim-link-
+ * copy-not-transfer) — the source character's owner_id is never changed by this flow.
+ * Hash-only storage, same as a DM invite: the plaintext is returned ONCE here and never retrievable
+ * again (no list/reissue UI in v1 — copy it now).
+ * @returns {Promise<string>} the plaintext claim token
+ */
+export async function createCharacterClaim(characterId, note) {
+  const { data, error } = await supabase.rpc('create_character_claim', {
+    p_character_id: characterId,
+    p_note: (note == null ? null : String(note)),
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Redeem a character-claim token as the signed-in user. Idempotent, same shape as
+ * redeemPlayerInvite(): a repeat call by the original redeemer returns the same result rather than
+ * erroring or creating a second copy. Unlike a player invite, the resulting character is ALREADY
+ * fully built server-side (the RPC copies it) — there is no blank-character seeding step for the
+ * caller to do afterward, just a load.
+ * @returns {Promise<{characterId:string, campaignId:string, isNew:boolean}>}
+ */
+export async function redeemCharacterClaim(token) {
+  const { data, error } = await supabase.rpc('redeem_character_claim', {
+    p_token: (token || '').trim(),
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error('Claim redemption returned no character');
+  return { characterId: row.character_id, campaignId: row.campaign_id, isNew: row.is_new };
 }
 
 /** DM-only: set the "ignore player-granted AP" campaign toggle. */

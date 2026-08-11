@@ -6,6 +6,24 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-11 · feat: DM hands off a character to a player via a claim link
+  (`feat/character-ownership-claim-link`)** — a DM who owns a campaign-bound character (built/imported
+  under their own account, then bound via the existing `bindCharacterToCampaign` — no new capability
+  needed for that step) can now generate a single-use claim link from CharGen's ☁ Cloud menu; a player
+  who redeems it gets their OWN new character, **copied** from the DM's (never a transfer — the source's
+  `owner_id` is never written). New `campaign_invites` type `character_claim` (hash-only token storage,
+  same bar as a co-DM invite, not the player-invite plaintext exception — see the decision record) plus
+  two new RPCs, `create_character_claim`/`redeem_character_claim` (owner-of-source + DM-of-campaign gated
+  to create; idempotent-on-repeat, single-use to redeem). DM-awarded `ap` carries over to the copy
+  (recorded as its own `ap_awards` provenance row); the copy auto-binds to the source's campaign.
+  CharGen-only in v1 (redemption via `?claim=` mirrors the existing `?invite=` flow); DM Console has no
+  UI for this. Migration `sql/migrations/2026-08-11-character-claim-link.sql` applied to the live
+  Supabase project; `get_advisors` clean after fixing a first-pass miss (the two new RPCs needed an
+  explicit `revoke execute … from public` — Postgres grants EXECUTE to PUBLIC by default on every new
+  function, same pattern every other RPC in `rls-policies.sql` already follows, just missed on the first
+  apply). `tool-pricing-ci.mjs` 134/0, `engine-parity-ci.mjs` 30/0 (display/feature-only, `DATA.version`
+  unchanged). Design record: `D-GH-2026-08-11-character-claim-link-copy-not-transfer` (Addendum,
+  implementation).
 - **2026-08-11 · docs: re-scoped `feat/character-ownership-claim-link` from transfer to copy** — the
   not-yet-started claim-link task now creates a new player-owned character row seeded from the DM's
   source character, instead of reassigning `owner_id` on the existing row. No RLS/ownership-model change

@@ -51,3 +51,63 @@ and are left as open items on the task's own entry rather than settled here.
 Active. Re-scoped `feat/character-ownership-claim-link` task entry in `docs/TASK_BOARD_NEXT.md` to match;
 the branch name is unchanged (kept for continuity with existing cross-references in the security-audit
 task) even though the mechanism is now a copy, not a transfer.
+
+## Addendum (2026-08-11, same day) — implemented
+
+Built directly against this redesign; the open design questions left on the task-board entry were
+resolved as follows (all recorded here rather than re-litigated):
+
+1. **Getting the source character in.** No new capability needed. A DM builds/imports the character in
+   CharGen under their own account, then binds it to their own campaign via the existing
+   `bindCharacterToCampaign` (works for any owner, including a DM binding an extra character of their
+   own) — `characters_update`'s owner-only column grants never gate `campaign_id` directly, only the
+   SECURITY DEFINER RPCs do, and this one was already general enough. DM Console's "read-only, never
+   edits a character" principle stays intact — it plays no role in this flow at all.
+2. **Token storage: hash-only, not plaintext.** `campaign_invites` gained a third `type`,
+   `character_claim`, sharing the `token_hash` column with `dm`-type rows rather than the plaintext
+   `token` player-invite rows use. Decided this gets the *strict* default (Security Invariant 1) rather
+   than the player-invite exception: a claim link hands off something of real value (a fully-built
+   character), and there is no re-display/reissue UI in v1 that would justify the plaintext exception the
+   way `list_campaign_invites()` does for player invites — shown once at creation, copy it now, same as a
+   co-DM invite.
+3. **Single-use, no expiry, no revoke UI in v1.** Matches the recommendation; `campaign_invites`'
+   existing `campaign_invites_reusable_dm_only_check` needed no change since `create_character_claim`
+   always hardcodes `mode = 'single_use'`. `expires_at`/`revoked_at` columns are shared with the other
+   invite types and honoured by `redeem_character_claim`'s validity check, but nothing in v1 sets them for
+   a claim link — a later task can add DM-facing expiry/revoke UI without any schema change.
+4. **DM's original character: left alone, no cleanup offered.** Matches the recommendation. Nothing
+   marks it "already claimed" beyond the now-redeemed `campaign_invites` row itself; a DM can generate a
+   second claim link from the same source character at any time (no "already claimed" guard was added —
+   out of scope for v1, and not obviously wanted: a DM might legitimately want more than one player to
+   start from the same NPC template, each getting an independent copy).
+5. **AP carries over.** `redeem_character_claim` sets the copy's `characters.ap` to the source's `ap`
+   directly (not zero), and records a matching `ap_awards` row ("Carried over from claimed character",
+   attributed to the *original* invite's `created_by`) so the provenance trail reads the same as any other
+   grant rather than appearing from nowhere.
+6. **Auto-bind.** The copy's `campaign_id` is set to the claim invite's `campaign_id` (the source's
+   campaign at the time the link was generated) unconditionally on redemption — the whole point of the
+   flow. No separate bind step.
+7. **Consent: redeeming is confirming**, matching player-invite precedent — CharGen shows a `confirm()`
+   dialog before calling `redeemCharacterClaim` (mirrors `tryRedeem()`'s existing invite-acceptance
+   prompt), but the server enforces nothing beyond authentication; declining is a pure client-side no-op
+   (the token stays valid, same "kept, not burned by Cancel" behaviour player-invite decline already has).
+
+**Implementation notes beyond the open questions:**
+- The copy's stats envelope needs its inline `id` field rewritten to the new row's id (`D-GH40`'s unified
+  save format stores the character's own id inside `stats`) — done server-side in
+  `redeem_character_claim` via `jsonb_build_object('id', v_new_id)`, unconditional, no client-side
+  assertion needed (unlike `_cgDeriveCopyId`'s collision guard for the *unrelated* DM-views-a-character-
+  in-CharGen copy flow, which derives a deterministic id and therefore has to prove it never equals the
+  source — this flow always mints a fresh `gen_random_uuid()`, so there is no collision to guard against).
+- CharGen-only in v1: the "Generate claim link" action lives in the ☁ Cloud menu's existing "Bound to
+  campaign" panel (shown once a character-bound-to-a-campaign is loaded); redemption reuses the
+  `?claim=`→sessionStorage→`tryRedeemClaim()` pattern that mirrors `?invite=`/`tryRedeem()` exactly, in
+  its own token/state namespace so an invite and a claim link pending in the same tab never collide.
+  DM Console has no UI for this — a DM builds the source character in CharGen, not DM Console.
+- **First-pass advisor catch:** `get_advisors` flagged both new RPCs as callable by `anon` after the
+  first apply — Postgres grants `EXECUTE` to `PUBLIC` by default on every newly created function, and the
+  first pass only added the `grant … to authenticated` half without the paired `revoke … from public`
+  every other RPC in `rls-policies.sql` already carries. Fixed in a follow-up migration before this was
+  considered done; re-ran the advisor clean afterward. Worth calling out explicitly since this is exactly
+  the class of drift `AGENTS.md`'s per-change checklist step 4 (run the advisor before opening the PR)
+  exists to catch — it did.
