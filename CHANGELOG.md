@@ -6,6 +6,36 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-11 · fix: keepalive scope narrowed back down + manual save routed through the push queue**
+  — the two follow-ups tracked (not fixed) by the 2026-08-10 `/code-review ultra` cleanup, both resolved.
+  (1) `feat/keepalive-scope-narrowing`: decided A2 (narrow, not accept-as-trade-off) — `withKeepalive()`
+  is no longer called from the `pagehide` handler wrapping the whole settle-wait chain; each push attempt
+  (the initial push and any chained retry) now opens its own narrow `withKeepalive()` span via a new
+  `_cg/_lsKeepaliveWrap()` helper, called from inside `_cgCloudPushOnce()`/`_lsCloudPushOnce()` itself, so
+  the shared `_keepaliveNext` flag no longer stays true for however long a retry chain takes — just for
+  each attempt's own fetch. (2) `fix/manual-save-queue-bypass`: CharGen's `onSaveClick()`/
+  `onJoinCampaignClick()` and Live Sheet's manual "☁ Save to cloud" button called `saveCharacter()`
+  directly, racing the autosave queue's own push for the same character — fixed with a shared
+  `_cg/_lsQueuedSaveCharacter()` helper that waits for any in-flight push to settle and shares the
+  autosave queue's own busy-flag coordination, while keeping each caller's own success/failure UI (unlike
+  the silent autosave path). Both fixes recorded as Addenda on `D-GH-2026-08-08-chargen-cloud-autosave-
+  flush.md`. `testing/scripts/autosave-flush-latest-push-ci.mjs` extended to 14/14 (was 8/8): the pagehide
+  scenario now proves per-attempt narrow spans (not one wide span) via a two-retry chain, and a new
+  scenario proves a manual save waits for an in-flight autosave push instead of racing it.
+- **2026-08-10 · docs/fix: `/code-review ultra` cleanup on the autosave-flush fix** — two confirmed findings
+  fixed directly: (1) the fix's own code comments and CHANGELOG cited a decision-record ID
+  (`D-GH-2026-08-10-autosave-flush-latest-push`) that was never actually created — corrected into a proper
+  Addendum on the existing, directly-related `D-GH-2026-08-08-chargen-cloud-autosave-flush` record instead
+  of inventing a new one; (2) `_cgFlushCloudSaveNow()`/`_lsFlushCloudSaveNow()`'s `if(!settled)
+  return Promise.resolve();` guard was dead code — `_cgCloudPush()`/`_lsCloudPush()` unconditionally set
+  `_cgCloudSaveBusy=true` before returning on every path, so `_cgCloudPushSettled()`/`_lsCloudPushSettled()`
+  can never observe it false at that call site — removed, with a comment explaining why re-adding it would
+  again be dead. Two other findings from the same review (the `withKeepalive()` scope now spanning
+  multiple retries instead of one push; the manual "☁ Save to cloud" button bypassing the push queue
+  entirely) are real but represent design/scope calls, not drive-by fixes — tracked as
+  `feat/keepalive-scope-narrowing` and `fix/manual-save-queue-bypass` on `docs/TASK_BOARD_NEXT.md`.
+  `engine-parity-ci.mjs` 30/0, `tool-pricing-ci.mjs` 134/0, `autosave-flush-latest-push-ci.mjs` 8/8 —
+  all unaffected.
 - **2026-08-10 · fix(tools): cloud-autosave flush waits for the LATEST push, not a stale one** —
   `fix/autosave-flush-latest-push`, from `/sweep-code-tasks`. Found by `/code-review ultra` on the B3
   branch: when a cloud autosave push was already in flight, `_cgCloudPush()`/`_lsCloudPush()`'s busy
@@ -19,7 +49,9 @@
   instead of the push's own return value. New differential test,
   `testing/scripts/autosave-flush-latest-push-ci.mjs` — extracts the real push-queue functions from both
   tools' source, confirms a hand-reverted pre-fix copy actually reproduces the bug, then confirms the
-  live code doesn't: 8/8. `engine-parity-ci.mjs` 30/0, `tool-pricing-ci.mjs` 134/0 — unaffected.
+  live code doesn't: 8/8. `engine-parity-ci.mjs` 30/0, `tool-pricing-ci.mjs` 134/0 — unaffected. See the
+  Addendum on `D-GH-2026-08-08-chargen-cloud-autosave-flush` (this fix's own decision record cited an ID
+  that didn't exist until a `/code-review ultra` pass caught it — corrected there, not a new record).
 - **2026-08-10 · feat(engine): ban a class as a 2nd-origin-only pick** — `feat/banned-2nd-origin-class`,
   from `/sweep-code-tasks`. Mirrors the existing species asymmetric-ban pattern
   (`bannedOriginSpecies`/species2): `js/engine.js`'s `validate()` gains a new `bannedOriginClasses2` rule

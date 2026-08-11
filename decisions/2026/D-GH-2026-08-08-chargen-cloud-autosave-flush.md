@@ -61,3 +61,82 @@ request.
 status chip, the sync-state machine, universal (non-campaign-bound) autosave, and the still-open
 eligibility/consent question — is deliberately deferred; see the plan document's "Deferred to Part B"
 section and its Review outcome table for the full cold-review triage.
+
+## Addendum (2026-08-10, `/sweep-code-tasks` — `fix/autosave-flush-latest-push`)
+
+Found by `/code-review ultra` on the B3 (universal autosave) branch: this record's own `_cgCloudPush()`
+"tracks its promise so a flush never... resolves before the real request finishes" claim (Decision 1,
+above) was incomplete. When a push was already **busy**, `_cgCloudPush()`'s busy branch returned the
+*stale, already-in-flight* promise instead of the promise for the retry `_cgCloudSaveAgain` queues up —
+the retry that actually carries whatever edit arrived mid-flight. `_cgFlushCloudSaveNow()`'s
+`Promise.race` resolved on that stale push, the in-app navigation proceeded, and the real retry fired
+later from a `.finally()` callback with **no keepalive at all** — exactly the failure mode Decision C
+above was written to close, just for the retry case specifically rather than the first push. Freshly
+replicated, unfixed, into Live Sheet's new B3 autosave scaffolding built on top of this pattern.
+
+**Fix:** both `_cgCloudPush()`/`_lsCloudPush()` gained a read-only `_cgCloudPushSettled()`/
+`_lsCloudPushSettled()` waiter that recursively tracks however many retries the queue actually needs
+(without itself ever triggering one — that would spuriously re-save unchanged state on every check).
+`_cgFlushCloudSaveNow()`/`_lsFlushCloudSaveNow()` and the `pagehide` handler's `withKeepalive()` call now
+await that instead of `_cgCloudPush()`'s own return value.
+
+**A real trade-off this reopens, not fully closed here:** this record's own "`withKeepalive()`'s scope"
+paragraph above already flagged that a second, unrelated request racing during `withKeepalive`'s "narrow
+window" would also pick up `keepalive:true`, judged harmless *because the window was narrow* (one push's
+`fetch()`). The fix above widens that window to however long the retry chain takes — no longer
+necessarily narrow. `get_advisors`/manual testing found no live incident from this, but it's a real,
+reviewer-confirmed widening of the exposure this record originally accepted only in its narrow form, not
+something this addendum resolves — see `feat/keepalive-scope-narrowing` on `docs/TASK_BOARD_NEXT.md` for
+the follow-up decision (narrow the window back down vs. accept it, formalized either way).
+
+New differential test: `testing/scripts/autosave-flush-latest-push-ci.mjs` (extracts the real functions
+from both tools, confirms a hand-reverted pre-fix copy reproduces the bug before trusting the live code
+doesn't). `engine-parity-ci.mjs`/`tool-pricing-ci.mjs` unaffected.
+
+## Addendum (2026-08-11, `feat/keepalive-scope-narrowing` — the widened window, resolved: A2, narrowed)
+
+The trade-off the previous addendum reopened is resolved as **A2 — narrow the window back down**, not
+formalized as an accepted trade-off. Reasoning: the narrow fix was low effort, mirrored an already-drafted
+shape, and had existing CI coverage to lean on — there was no real cost to restoring the original "wrap
+exactly one call" contract instead of writing an exception to it.
+
+**Fix:** `withKeepalive()` is no longer called from the `pagehide` handler at all. Both tools gained a
+`_cgPageHiding`/`_lsPageHiding` flag (set `true` by `pagehide`, reset `false` once the push queue fully
+drains) and a small `_cgKeepaliveWrap(fn)`/`_lsKeepaliveWrap(fn)` helper that `_cgCloudPushOnce()`/
+`_lsCloudPushOnce()` calls around just its own `saveCharacter()` call. Each push **attempt** — the initial
+push and any chained retry — independently decides for itself whether to open a `withKeepalive()` span,
+rather than one outer span held open for however long the whole settle-wait takes. This closes the same
+gap the previous addendum's fix closed (a retry chained after `pagehide` still gets keepalive) through a
+different mechanism: instead of widening the outer wrap to still be open when the retry fires, each
+attempt opens its own span exactly when it actually dispatches, so a concurrent unrelated fetch (e.g.
+Supabase's `autoRefreshToken`) landing in the gap *between* attempts no longer inherits `keepalive:true`.
+
+`testing/scripts/autosave-flush-latest-push-ci.mjs`'s pagehide scenario was restructured to prove this
+directly (extended to a two-retry chain so span *count* is a meaningful signal — a single wide wrap and
+two narrow per-attempt wraps were otherwise indistinguishable in the original one-retry scenario): asserts
+`keepaliveSpans.length === 2` (both retries independently covered) and every span has `endCall-startCall
+=== 0` (each stayed narrow — no other call happened while it was open). 10/10 (was 8/8).
+
+## Addendum (2026-08-11, `fix/manual-save-queue-bypass`)
+
+Found alongside the keepalive finding, same `/code-review ultra` pass: CharGen's `onSaveClick()`/
+`onJoinCampaignClick()` and Live Sheet's manual "☁ Save to cloud" button all called `S.saveCharacter(...)`
+directly, bypassing `_cgCloudSaveBusy`/`_cgCloudPush()` (or the `_ls*` twins) entirely — so a manual save
+could fire a second, uncoordinated write while an autosave push for the same character was already in
+flight, with no ordering guarantee over which one landed last.
+
+**Fix:** a new shared `_cgQueuedSaveCharacter(args)`/`_lsQueuedSaveCharacter(args)` helper — waits for any
+push already in flight to settle (`_cgCloudPushSettled()`), then claims the same busy/again coordination
+the autosave queue itself uses for the duration of its own `saveCharacter()` call. Deliberately does NOT
+delegate to `_cgCloudPushOnce()`: that function swallows errors/conflicts silently (correct for a
+background autosave), while manual saves are user-initiated and must surface their own success/failure UI
+— so the caller (`onSaveClick()`, `onJoinCampaignClick()`, Live Sheet's button handler) keeps its own
+result handling, just routed through the shared coordination instead of a raw call. Live Sheet's
+clone-to-standalone save and CharGen's two new-character-id save paths (Randomize seed, DM-view copy) are
+out of scope — they mint a brand-new character id per save and can never race the autosave queue's push
+for the *currently open* character.
+
+New scenario in the same differential test file: an autosave push in flight, then a manual save — the
+reverted leg (literal pre-fix `_cgQueuedSaveCharacter` body: a raw, uncoordinated `saveCharacter()` call)
+proves the race reproduces first; the live leg proves the manual save's own network call waits until the
+autosave push has settled. 14/14 (was 10/10 after the keepalive-narrowing addition above).

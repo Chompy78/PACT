@@ -730,6 +730,9 @@ function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localS
 // why the debounce interval was kept identical rather than independently tuned for live play: no
 // measurement exists yet to justify a different number.
 var _lsCloudSaveTimer=null, _lsCloudSaveBusy=false, _lsCloudSaveAgain=false, _lsCloudPushPromise=null, _lsConflictWarned=false, _lsBudgetWarned=false;
+// feat/keepalive-scope-narrowing (A2, Addendum on D-GH-2026-08-08-chargen-cloud-autosave-flush): mirrors
+// CharGen's identical _cgPageHiding exactly — see that copy's comment for the full reasoning.
+var _lsPageHiding=false;
 function _lsAutosaveGate(){
   if(VIEW_ONLY||!window._lsSignedIn||!window._syncBridge||!navigator.onLine) return false;   // offline edits stay in the local save; sync.js retries dirty records on reconnect
   if(window._syncBridge.getAutosaveEnabled && !window._syncBridge.getAutosaveEnabled(currentCharId())) return false;
@@ -741,7 +744,7 @@ function _lsCloudAutosave(){
   _lsCloudSaveTimer=setTimeout(function(){_lsCloudSaveTimer=null;_lsCloudPush();},3000);
 }
 function _lsCloudPush(){
-  // fix/autosave-flush-latest-push (D-GH-2026-08-10-autosave-flush-latest-push): mirrors CharGen's
+  // fix/autosave-flush-latest-push (Addendum on D-GH-2026-08-08-chargen-cloud-autosave-flush): mirrors CharGen's
   // identical fix exactly — see that copy's comment for the full reasoning. The busy branch used to
   // return the STALE, already-in-flight _lsCloudPushPromise; now chains past it, then (recursively)
   // past any further retry, via the read-only _lsCloudPushSettled() below — never by calling
@@ -754,6 +757,7 @@ function _lsCloudPush(){
   _lsCloudPushPromise=_lsCloudPushOnce().finally(function(){
     _lsCloudSaveBusy=false;
     if(_lsCloudSaveAgain){_lsCloudSaveAgain=false;_lsCloudPush();}
+    else{_lsPageHiding=false;}   // queue fully drained -- stop opting future pushes into keepalive
   });
   return _lsCloudPushPromise;
 }
@@ -762,6 +766,25 @@ function _lsCloudPush(){
 function _lsCloudPushSettled(){
   if(!_lsCloudSaveBusy) return undefined;
   return _lsCloudPushPromise.catch(function(){}).then(_lsCloudPushSettled);
+}
+// fix/manual-save-queue-bypass: mirrors CharGen's identical _cgQueuedSaveCharacter exactly — see that
+// copy's comment for the full reasoning. Shared by the manual "☁ Save to cloud" button below (NOT the
+// clone-to-standalone save further down this file, which mints a brand-new character id and so can
+// never race the autosave queue's push for the currently-open character).
+async function _lsQueuedSaveCharacter(args){
+  if(_lsCloudSaveBusy) await _lsCloudPushSettled();
+  _lsCloudSaveBusy=true;
+  var pushPromise=window._syncBridge.saveCharacter(args);
+  _lsCloudPushPromise=pushPromise.finally(function(){
+    _lsCloudSaveBusy=false;
+    if(_lsCloudSaveAgain){_lsCloudSaveAgain=false;_lsCloudPush();}
+  });
+  return pushPromise;
+}
+// feat/keepalive-scope-narrowing (A2, Addendum on D-GH-2026-08-08-chargen-cloud-autosave-flush): mirrors
+// CharGen's identical _cgKeepaliveWrap exactly — see that copy's comment for the full reasoning.
+function _lsKeepaliveWrap(fn){
+  return (_lsPageHiding&&window._syncBridge&&window._syncBridge.withKeepalive)?window._syncBridge.withKeepalive(fn):fn();
 }
 async function _lsCloudPushOnce(){
   // feat/campaign-ap-budget-enforce: skip the push silently after one warning per session — this runs
@@ -778,7 +801,8 @@ async function _lsCloudPushOnce(){
     var b=foldBuild(null);
     var id=currentCharId();
     var stats=window.buildCharacterEnvelope({name:b.name,rules:RULES,LOG:LOG,SEQ:SEQ,id:id,campaignId:window._lsCampaignId||null},{sign:false});
-    var res=await window._syncBridge.saveCharacter({id:id,name:b.name||'Character',kind:'livesheet',stats:stats,campaignId:window._lsCampaignId||null});
+    var doSave=function(){ return window._syncBridge.saveCharacter({id:id,name:b.name||'Character',kind:'livesheet',stats:stats,campaignId:window._lsCampaignId||null}); };
+    var res=await _lsKeepaliveWrap(doSave);
     if(res&&res.id) __charId=res.id;   // adopt a migrated pre-UUID id, same as the manual save
     if(res&&res.conflict&&!_lsConflictWarned){
       _lsConflictWarned=true;
@@ -798,9 +822,10 @@ function _lsFlushCloudSaveNow(timeoutMs){
   _lsCloudPush();   // ensure a push is running or (if one already was) marked to retry with this edit
   // Wait on _lsCloudPushSettled(), not _lsCloudPush()'s own return value — see CharGen's identical fix
   // for why even the not-busy branch's raw return value can't be trusted to track a later retry.
-  var settled=_lsCloudPushSettled();
-  if(!settled) return Promise.resolve();
-  return Promise.race([settled.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
+  //
+  // No falsy-return guard here (code review, 2026-08-10) — see CharGen's identical comment: _lsCloudPush()
+  // always sets _lsCloudSaveBusy=true before returning, so _lsCloudPushSettled() can never be falsy here.
+  return Promise.race([_lsCloudPushSettled().catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
 }
 // Best-effort cloud flush on page exit — see CharGen's identical pagehide handler for the full
 // keepalive/why-not-sendBeacon reasoning; not repeated here.
@@ -810,10 +835,13 @@ window.addEventListener('pagehide',function(){
   if(!pending) return;
   if(!_lsAutosaveGate()) return;
   try{
-    // fix/autosave-flush-latest-push: keep the keepalive flag set for the whole queue-drain span,
-    // including any retry that chains on before it actually drains — see CharGen's identical handler.
-    if(window._syncBridge&&window._syncBridge.withKeepalive) window._syncBridge.withKeepalive(function(){ _lsCloudPush(); return _lsCloudPushSettled(); });
-    else _lsCloudPush();
+    // feat/keepalive-scope-narrowing (A2): _lsPageHiding marks "any push dispatched while this is true
+    // opens its own narrow withKeepalive() span" — _lsCloudPushOnce() reads it and wraps just its own
+    // saveCharacter() call, covering the initial push AND any chained retry without holding the shared
+    // withKeepalive flag open across the whole wait. See CharGen's identical handler for the full
+    // reasoning.
+    _lsPageHiding=true;
+    _lsCloudPush();
   }catch(e){ /* best-effort only */ }
 });
 // Refresh the Autosave checkbox from the character currently open — same triggers as the chip.
@@ -2428,7 +2456,9 @@ document.addEventListener('sync-ready', function () {
         // so the CharGen->Live Sheet->CharGen round trip could silently strand an orphaned copy of a
         // bound character, frozen at its pre-handoff state and invisible to the DM. See saveCharacter()
         // in js/sync.js, whose own comment describes this exact failure.
-        var res   = await S.saveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet',
+        // fix/manual-save-queue-bypass: routed through the shared push-queue coordination instead of a
+        // raw S.saveCharacter(...) call — see _lsQueuedSaveCharacter's own comment for why.
+        var res   = await _lsQueuedSaveCharacter({ id: id, name: b.name||'Character', kind: 'livesheet',
                                             stats: stats, campaignId: window._lsCampaignId || null });
         // Adopt the id the sync layer used — it differs when a legacy pre-UUID id was migrated, and
         // not adopting it would migrate again on the next save and strand a second row. Bare

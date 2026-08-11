@@ -253,7 +253,21 @@
   Uncontrolled exit is documented as best-effort, not guaranteed, on any browser — the durable fallback
   stays the local autosave plus the dirty-record retry on next boot. Split from the larger plan (Part A of
   2), which is otherwise deferred pending the sync-state-machine and autosave-consent design work the
-  review surfaced. Full record: `decisions/2026/D-GH-2026-08-08-chargen-cloud-autosave-flush.md`.
+  review surfaced. **Addendum, 2026-08-10 (`fix/autosave-flush-latest-push`):** the busy branch's
+  promise-tracking claim above was incomplete — it returned a stale in-flight push, not the retry that
+  actually carried the latest edit; fixed with a recursive `*CloudPushSettled()` waiter. Reopens, without
+  fully resolving, this record's own "narrow window" assumption for `withKeepalive()`'s shared toggle —
+  see `feat/keepalive-scope-narrowing` on `docs/TASK_BOARD_NEXT.md`.
+  **Addendum, 2026-08-11 (`feat/keepalive-scope-narrowing`):** resolved as A2 — narrowed the window back
+  down (each push attempt opens its own `withKeepalive()` span via a new `_cg/_lsKeepaliveWrap()` helper,
+  instead of one span held open for the whole settle-wait) rather than formalizing the widened window as
+  an accepted trade-off. **Addendum, 2026-08-11 (`fix/manual-save-queue-bypass`):** the manual "☁ Save to
+  cloud" button in both tools (and CharGen's campaign-join flow) called `saveCharacter()` directly,
+  racing the autosave queue's own push for the same character — fixed with a shared
+  `_cg/_lsQueuedSaveCharacter()` helper that waits for any in-flight push to settle and shares the same
+  busy-flag coordination, while still surfacing its own success/failure UI (unlike the silent autosave
+  path).
+  Full record: `decisions/2026/D-GH-2026-08-08-chargen-cloud-autosave-flush.md`.
 - **D-GH-2026-08-07-optimistic-character-save** — cloud saves were last-write-wins, so two devices on one
   character silently destroyed each other's **entire** history (the whole event log lives in `stats`).
   Guarded on the server's `updated_at`, carried client-side as a separate `base_updated_at`. Took four

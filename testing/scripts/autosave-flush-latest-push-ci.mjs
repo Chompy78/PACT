@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * autosave-flush-latest-push-ci.mjs — the gate for fix/autosave-flush-latest-push
- * (D-GH-2026-08-10-autosave-flush-latest-push).
+ * (Addendum on D-GH-2026-08-08-chargen-cloud-autosave-flush — decisions/2026/
+ * D-GH-2026-08-08-chargen-cloud-autosave-flush.md).
  *
  * WHY THIS EXISTS. `_cgFlushCloudSaveNow()`/`_lsFlushCloudSaveNow()` (tools/PACT-CharGen-Webtool.html,
  * tools/PACT-Live-Char-Sheet.html) exist so a deliberate tool-switch navigation (switchToLiveSheet/
@@ -90,6 +91,10 @@ function preFixBodies(p) {
   return {
     push: `{\n  if(${p}CloudSaveBusy){${p}CloudSaveAgain=true;return ${p}CloudPushPromise;}\n  ${p}CloudSaveBusy=true;\n  ${p}CloudPushPromise=${p}CloudPushOnce().finally(function(){\n    ${p}CloudSaveBusy=false;\n    if(${p}CloudSaveAgain){${p}CloudSaveAgain=false;${p}CloudPush();}\n  });\n  return ${p}CloudPushPromise;\n}`,
     flush: `{\n  var pending=${p}CloudSaveTimer!=null||${p}CloudSaveBusy;\n  if(${p}CloudSaveTimer!=null){clearTimeout(${p}CloudSaveTimer);${p}CloudSaveTimer=null;}\n  if(!pending) return Promise.resolve();\n  if(!${p}AutosaveGate()) return Promise.resolve();\n  var pushed=${p}CloudPush();\n  if(!pushed) return Promise.resolve();\n  return Promise.race([pushed.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);\n}`,
+    // fix/manual-save-queue-bypass: the shape onSaveClick()/onJoinCampaignClick() used before this fix
+    // — a raw, uncoordinated call straight to saveCharacter, with no regard for whether an autosave push
+    // was already in flight for the same character.
+    queuedSave: `{\n  return window._syncBridge.saveCharacter(args);\n}`,
   };
 }
 
@@ -104,18 +109,31 @@ function wrapModule(block, p) {
   // real Supabase writes), so their bodies are swapped for stubs here rather than declared a second
   // time (which would be a duplicate-declaration SyntaxError, not a silent shadow, in an ES module).
   block = replaceFunctionBody(block, `${p}AutosaveGate`, '{ return true; }');
+  // feat/keepalive-scope-narrowing (A2): _cgCloudPushOnce/_lsCloudPushOnce's real body is still stubbed
+  // out (it does real DOM/network work this test has no business exercising), but the stub now routes
+  // its fake delayed "network call" through the REAL, unstubbed ${p}KeepaliveWrap — that's the function
+  // the narrowing fix actually lives in, so this is what makes the per-attempt keepalive-scoping logic
+  // itself part of what's under test, not just faked away along with the network call.
   block = replaceFunctionBody(block, `${p}CloudPushOnce`, `{
     const delay = delays.length ? delays.shift() : 20;
     const idx = calls.length;
     calls.push({ start: Date.now(), end: null });
-    return new Promise((res) => setTimeout(() => { calls[idx].end = Date.now(); res(); }, delay));
+    return ${p}KeepaliveWrap(function(){
+      return new Promise((res) => setTimeout(() => { calls[idx].end = Date.now(); res(); }, delay));
+    });
   }`);
   return `
 export const calls = [];            // one entry per ${p}CloudPushOnce() invocation: {start, end}
+export const directCalls = [];      // one entry per window._syncBridge.saveCharacter() invocation made
+                                     // DIRECTLY (i.e. the manual-save path, not the autosave queue's own
+                                     // ${p}CloudPushOnce()) -- {start, end}. fix/manual-save-queue-bypass.
 export const delays = [];           // per-call delay in ms, shift()ed off; default 20ms once empty
-export const keepaliveSpans = [];   // {startCall, endCall}: which call indices ran while the
-                                     // keepalive flag was set -- proves a retry is covered, not just
-                                     // the first push.
+export const directDelays = [];     // same, for directCalls; default 20ms once empty
+export const keepaliveSpans = [];   // {startCall, endCall}: one entry per push ATTEMPT that opted into
+                                     // keepalive (feat/keepalive-scope-narrowing, A2) -- startCall/endCall
+                                     // are both the calls.length snapshot around just that one attempt,
+                                     // so a span's own delta (endCall-startCall) being 0 proves it stayed
+                                     // narrow (didn't stay open while some OTHER call also ran).
 const pagehideHandlers = [];
 const window = {
   _syncBridge: {
@@ -124,6 +142,15 @@ const window = {
       keepaliveSpans.push(span);
       try { return await fn(); } finally { span.endCall = calls.length; }
     },
+    // fix/manual-save-queue-bypass: a separate stub/log from ${p}CloudPushOnce()'s (calls) on purpose —
+    // the whole point of this scenario is to observe whether a manual save's OWN network call starts
+    // while an autosave push's network call is still in flight, so they need independent timelines.
+    saveCharacter: (args) => {
+      const delay = directDelays.length ? directDelays.shift() : 20;
+      const idx = directCalls.length;
+      directCalls.push({ start: Date.now(), end: null, args });
+      return new Promise((res) => setTimeout(() => { directCalls[idx].end = Date.now(); res({ id: args.id }); }, delay));
+    },
   },
   addEventListener: (name, fn) => { if (name === 'pagehide') pagehideHandlers.push(fn); },
 };
@@ -131,6 +158,7 @@ ${block}
 export function push(){ return ${p}CloudPush(); }
 export function flush(ms){ return ${p}FlushCloudSaveNow(ms); }
 export function firePagehide(){ pagehideHandlers.forEach((fn) => fn()); }
+export function manualSave(args){ return ${p}QueuedSaveCharacter(args); }
 `;
 }
 
@@ -147,6 +175,23 @@ async function runOverlapThenFlush(mod) {
   await flushed;
   await pA.catch(() => {});
   return mod.calls;
+}
+
+// fix/manual-save-queue-bypass: an autosave push starts (slow), then — while it's still in flight — the
+// user clicks the manual "Save to cloud" button. A correct queuedSave() waits for the in-flight autosave
+// push to fully settle before dispatching its OWN network call, instead of racing it (see
+// _cgQueuedSaveCharacter's own comment for why an unguarded second concurrent write is unsafe).
+async function runAutosaveThenManualSave(mod) {
+  mod.delays.push(60);        // the in-flight autosave push's own network call: 60ms
+  mod.directDelays.push(20);  // the manual save's own network call: 20ms
+  const pA = mod.push();      // autosave push starts, busy=true
+  await new Promise((r) => setTimeout(r, 10));   // well inside the 60ms autosave window
+  await mod.manualSave({ id: 'c1', name: 'Test', kind: 'chargen', stats: {} });
+  // The reverted (bypass) leg's manual save resolves in 20ms — well before the still-running 60ms
+  // autosave push does — so calls[0].end wouldn't be set yet without also waiting on the autosave
+  // push's own promise here. Awaiting it is itself part of what proves the race, not just a cleanup step.
+  await pA.catch(() => {});
+  return { calls: mod.calls, directCalls: mod.directCalls };
 }
 
 for (const { file, prefix: p, label } of TOOLS) {
@@ -178,22 +223,52 @@ for (const { file, prefix: p, label } of TOOLS) {
   ok(`${label}: the flush waits for the retry (call #2) to actually complete, not just call #1`,
      afterCalls.length === 2 && afterCalls[1].end != null);
 
-  // pagehide/keepalive: fire it mid-flight (a fresh module instance — the one above is already spent)
-  // and confirm the keepalive span covers BOTH the push already running AND the retry chained on
-  // before the queue drains — the second half of this fix (withKeepalive(_cgCloudPush) alone only
-  // ever covered call #1, since that call's OWN returned promise settled before any retry started).
+  // pagehide/keepalive: fire it mid-flight (a fresh module instance — the one above is already spent),
+  // then let a SECOND edit land mid-flight of the retry pagehide's own drain kicks off, forcing a
+  // second retry. feat/keepalive-scope-narrowing (A2) means _cgPageHiding/_lsPageHiding stays true
+  // across the whole drain, so BOTH retries independently open their own narrow keepalive span (proving
+  // the original bug — a retry losing keepalive — stays fixed) as two SEPARATE, zero-delta spans, not
+  // one wide span covering the whole chain (the pre-A2 shape). Call #1, already in flight before
+  // pagehide fires, gets no span in either design — keepalive can't be retroactively added to an
+  // already-dispatched request — so 2 spans (not 3) is itself part of what's asserted.
   const pagehideFile = freshFile(`${p}-pagehide`);
   writeFileSync(join(dir, pagehideFile), wrapModule(liveBlock, p));
   const forPagehide = await import(pathToFileURL(join(dir, pagehideFile)).href);
-  forPagehide.delays.push(60, 20);
+  forPagehide.delays.push(60, 30, 20);   // call 1: 60ms.  call 2 (retry): 30ms.  call 3 (2nd retry): 20ms.
   forPagehide.push();
   await new Promise((r) => setTimeout(r, 10));
-  forPagehide.push();   // mid-flight edit, same as above
-  forPagehide.firePagehide();
-  await new Promise((r) => setTimeout(r, 120));   // let both calls fully resolve
-  const span = forPagehide.keepaliveSpans[0];
-  ok(`${label}: pagehide's keepalive span covers the retry too, not just the first push`,
-     !!span && span.endCall === 2);
+  forPagehide.push();          // mid-flight edit -> marks retry #1, chains onto call 1
+  forPagehide.firePagehide();  // sets _cgPageHiding/_lsPageHiding true; queue's already busy, so this
+                                // particular push() call itself is a no-op beyond setting the flag
+  await new Promise((r) => setTimeout(r, 65));   // call 1 finishes ~t60; call 2 (retry) is now running
+  forPagehide.push();          // mid-flight edit during the retry -> marks retry #2, chains onto call 2
+  await new Promise((r) => setTimeout(r, 80));   // let call 2 (~t90) and call 3 (~t110) fully resolve
+  ok(`${label}: both retries the pagehide drain chains on get their own keepalive span (bug stays fixed)`,
+     forPagehide.keepaliveSpans.length === 2);
+  ok(`${label}: each span is narrow — opened/closed around just its own push, not the whole drain`,
+     forPagehide.keepaliveSpans.every((s) => s.endCall - s.startCall === 0));
+
+  // fix/manual-save-queue-bypass: an in-flight autosave push, then a manual save click. The reverted
+  // leg splices in the literal pre-fix ${p}QueuedSaveCharacter body (a raw, uncoordinated
+  // saveCharacter() call — what onSaveClick()/onJoinCampaignClick() used to do directly) to prove the
+  // race actually reproduces before trusting the live code's fix for it.
+  const bypassRevertedBlock = replaceFunctionBody(liveBlock, `${p}QueuedSaveCharacter`, bodies.queuedSave);
+  const bypassRevertedFile = freshFile(`${p}-bypass-reverted`);
+  writeFileSync(join(dir, bypassRevertedFile), wrapModule(bypassRevertedBlock, p));
+  const bypassReverted = await import(pathToFileURL(join(dir, bypassRevertedFile)).href);
+  const beforeBypass = await runAutosaveThenManualSave(bypassReverted);
+  const raceReproduced = beforeBypass.directCalls[0] && beforeBypass.calls[0] &&
+    beforeBypass.calls[0].end != null && beforeBypass.directCalls[0].start < beforeBypass.calls[0].end;
+  ok(`${label}: reverted copy's manual save starts BEFORE the in-flight autosave push settles (race reproduces)`,
+     raceReproduced);
+
+  const bypassLiveFile = freshFile(`${p}-bypass-live`);
+  writeFileSync(join(dir, bypassLiveFile), wrapModule(liveBlock, p));
+  const bypassLive = await import(pathToFileURL(join(dir, bypassLiveFile)).href);
+  const afterBypass = await runAutosaveThenManualSave(bypassLive);
+  ok(`${label}: manual save waits for the in-flight autosave push to settle before its own network call`,
+     afterBypass.directCalls[0] && afterBypass.calls[0] && afterBypass.calls[0].end != null &&
+     afterBypass.directCalls[0].start >= afterBypass.calls[0].end);
 }
 
 rmSync(dir, { recursive: true, force: true });
