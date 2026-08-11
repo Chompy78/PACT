@@ -299,6 +299,23 @@
   .homelink:hover{background:rgba(255,255,255,.26)}
   #viewToggle{min-width:7.6em;text-align:center;}
   .cardactions{margin-top:9px;}
+  /* Customisable card view (feat/dm-custom-character-fields) — a per-device box grid on each
+     campaign-roster card, distinct from the fixed .stats/.ap grids the default card view uses. */
+  .xgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line)}
+  .xbox{background:#fff;padding:9px 10px;min-width:0}
+  .xbox .xk{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;display:block}
+  .xbox .xv{font-size:15px;font-weight:700;color:var(--ink);display:block;margin-top:2px;word-break:break-word}
+  .xbox-empty .xk{color:var(--muted)}
+  /* #xToolbar reuses the .colbtn/.colpanel look Table view's Columns picker already established
+     (scoped there to #tableRoot) — redeclared here since this toolbar lives inside #campSection, a
+     sibling container, not a descendant of #tableRoot. */
+  #xToolbar{position:relative;margin:8px 0}
+  #xToolbar .colbtn{background:#fff;border:1px solid var(--line);border-radius:7px;padding:5px 11px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--navy);font-weight:700}
+  #xToolbar .colpanel{position:absolute;top:calc(100% - 2px);left:0;z-index:30;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 24px rgba(20,40,80,.18);padding:8px;min-width:240px;display:none;max-height:min(60vh,420px);overflow-y:auto;overscroll-behavior:contain}
+  #xToolbar .colpanel.open{display:block}
+  #xToolbar .xprow{display:flex;align-items:center;gap:6px;padding:3px 2px;font-size:12px}
+  #xToolbar .xprow span{flex:0 0 48px;color:var(--muted);font-size:11px}
+  #xToolbar .xprow select{flex:1;font:inherit;font-size:12px;min-width:0}
   .detail-actions{margin:2px 0 10px;}
   .skbtn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--heading);border-radius:7px;padding:4px 10px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;}
   .skbtn:hover{filter:brightness(1.04);}
@@ -456,6 +473,18 @@
   .rulegrid label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap}
   .hrchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:3px 8px;margin:2px 4px 2px 0}
   .hrchip button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;padding:0}
+  /* Custom character field definitions (feat/dm-custom-character-fields) — 4 fixed rows,
+     campaign-wide, edited alongside the rest of Campaign Rules. */
+  .customfielddefs .cfrow{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+  .customfielddefs .cfrow:last-child{margin-bottom:0}
+  .customfielddefs .cftype{font-size:11px;color:var(--muted);flex:0 0 62px}
+  .customfielddefs .cf-label{flex:1 1 160px;min-width:0}
+  .customfielddefs .cfvis{font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer}
+  /* Per-character custom field VALUE inputs (DM tools body) — same 2-column layout, tighter. */
+  .cfvalrow{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+  .cfvalrow:last-child{margin-bottom:0}
+  .cfvalrow .cfvlbl{font-size:11px;color:var(--muted);flex:0 0 auto;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cfvalrow .cfvin{flex:1 1 100px;min-width:0}
   /* ---- archived-campaign peek (feat/archived-campaign-peek) ----
      An archived campaign is openable read-only, so the panel needs to say so loudly: greyed controls
      alone read as "broken", not as "deliberately locked". The banner is the state's only unambiguous
@@ -525,6 +554,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       Campaign Roster — <span id="campRosterName"></span>
       <button type="button" class="btn sm" id="refreshRosterBtn" style="margin-left:auto">⟳ Refresh</button>
     </div>
+    <div class="tbtoolbar" id="xToolbar" style="display:none"><button class="colbtn" id="xBtn" type="button">🧩 Customise boxes ▾</button><div class="colpanel" id="xPanel"></div></div>
     <div id="campRoster"><div class="camp-empty">Select a campaign in the panel above to load the live roster.</div></div>
   </div>
 
@@ -702,6 +732,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <div class="ruleblock"><div class="lbl">Banned species</div><div class="rulegrid" id="ruleBannedSpecies"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned as 2nd origin species</div><div class="rulegrid" id="ruleBannedOriginSpecies"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned origin classes</div><div class="rulegrid" id="ruleBannedOriginClasses"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned as 2nd origin classes</div><div class="rulegrid" id="ruleBannedOriginClasses2"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned weapon masteries</div><div class="rulegrid" id="ruleBannedMasteries"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned drawbacks</div><div class="rulegrid" id="ruleBannedDrawbacks"></div></div>
@@ -772,6 +803,24 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               </div>
               <div class="grantnote">Used for <b>both</b> ways into the campaign: it pre-fills the &ldquo;Starting AP&rdquo; field when you generate a player invite (still editable per invite), <b>and</b> it is granted automatically to a character that joins with the Players code above. Type over the AP figure to set your own number; changing either dropdown recomputes it. <b>&ldquo;&mdash; none &mdash;&rdquo; grants nothing</b>, and a campaign that has never saved a tier also grants nothing &mdash; players then join with 0 AP and cannot build until you award some.</div>
             </div>
+              </div>
+            </details>
+          </div>
+
+          <div class="subtile" id="campCustomFieldsTile">
+            <details id="campCustomFieldsDetails">
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Custom character fields <span class="dsum" id="campCustomFieldsSummary"></span></summary>
+              <div style="margin-top:8px">
+                <div class="ruleblock" style="margin-bottom:0">
+                  <div class="lbl">Up to 4 fields shown on every roster card — 2 numeric, 2 text <button type="button" class="infobtn" title="Definitions are campaign-wide, shared by the whole roster — name a field here once and every character gets it. Each field defaults to DM-only ('Visible to players' off); tick it on to also let it show wherever a player views their own character. This only sets the field's name and visibility — set each character's actual value from that character's DM tools below. Leave a name blank to remove that field.">ⓘ</button></div>
+                  <div class="customfielddefs" id="ruleCustomFields">
+                    <div class="cfrow"><span class="cftype">Number 1</span><input class="field cf-label" type="text" data-slot="num1" placeholder="e.g. Renown" maxlength="40"><label class="cfvis"><input type="checkbox" class="cf-visible" data-slot="num1"> Visible to players</label></div>
+                    <div class="cfrow"><span class="cftype">Number 2</span><input class="field cf-label" type="text" data-slot="num2" placeholder="e.g. Faction standing" maxlength="40"><label class="cfvis"><input type="checkbox" class="cf-visible" data-slot="num2"> Visible to players</label></div>
+                    <div class="cfrow"><span class="cftype">Text 1</span><input class="field cf-label" type="text" data-slot="text1" placeholder="e.g. Contact" maxlength="40"><label class="cfvis"><input type="checkbox" class="cf-visible" data-slot="text1"> Visible to players</label></div>
+                    <div class="cfrow"><span class="cftype">Text 2</span><input class="field cf-label" type="text" data-slot="text2" placeholder="e.g. Notes" maxlength="40"><label class="cfvis"><input type="checkbox" class="cf-visible" data-slot="text2"> Visible to players</label></div>
+                  </div>
+                  <div class="grantnote">Saved with the “Save rules” button below, same as the other campaign-wide settings on this panel.</div>
+                </div>
               </div>
             </details>
           </div>
@@ -1036,7 +1085,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.411';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.412';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1067,6 +1116,11 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   var esc = function(s){ return String(s==null?'':s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;'); };
+
+  // feat/dm-custom-character-fields (D-GH-2026-08-10): the 4 fixed slots. Declared again here (this
+  // closure can't see the campaign-settings script's own copy, a separate <script> block/IIFE) rather
+  // than plumbed across the window seam — it's a static constant, not campaign state.
+  var CUSTOM_FIELD_SLOTS = ['num1','num2','text1','text2'];
 
   try{ if(typeof RULES!=='undefined') $('rulesVer').textContent = RULES; }catch(e){}
   try{ var _tv=$('toolVer'); if(_tv) _tv.textContent = TOOL_VERSION; }catch(e){}
@@ -1340,6 +1394,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     h += '<div style="display:flex;align-items:center;gap:8px;margin:2px 0 10px">' +
          '<button type="button" class="btn sm dm-notes-save" data-cid="'+esc(id)+'">Save label &amp; notes</button>' +
          '<span class="dm-notes-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
+    h += customFieldValuesBody(id, dm);
     h += '<div class="ruleblock"><div class="lbl">Award AP</div><div class="award-form">' +
          '<input type="number" value="0" step="1" class="award-amt" data-cid="'+esc(id)+'" title="AP amount (negative to deduct)">' +
          '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">' +
@@ -1349,6 +1404,29 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     h += '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'">📒 AP history</button>' +
          '<button type="button" class="btn sm danger unbind-btn" data-cid="'+esc(id)+'" style="margin-left:8px">Remove from campaign</button>';
     return h;
+  }
+  // feat/dm-custom-character-fields (D-GH-2026-08-10): per-character VALUES for whatever fields this
+  // campaign currently defines. Definitions (label/type/visible) live in
+  // window._dmCampaignApRules.customFields — set by selectCampaign()/the rules-save handler over in the
+  // campaign-settings <script> block (cross-boundary seam, the same one cloudAnalyze already uses for
+  // ignorePlayerAp). Renders nothing if the campaign has no fields defined yet.
+  function customFieldValuesBody(id, dm){
+    var defs = (window._dmCampaignApRules && window._dmCampaignApRules.customFields) || {};
+    var slots = CUSTOM_FIELD_SLOTS.filter(function(s){ return defs[s] && defs[s].label; });
+    if(!slots.length) return '';
+    var vals = dm.customFields || {};
+    var rows = slots.map(function(slot){
+      var def = defs[slot];
+      var isNum = (def.type||'')==='number' || slot.indexOf('num')===0;
+      var v = vals[slot];
+      return '<div class="cfvalrow"><span class="cfvlbl" title="'+esc(def.label)+(def.visible?' — visible to the player':' — DM-only')+'">'+esc(def.label)+(def.visible?' 👁':'')+'</span>' +
+        '<input class="field cfvin cf-val-in" type="'+(isNum?'number':'text')+'" data-cid="'+esc(id)+'" data-slot="'+slot+'" value="'+esc(v==null?'':v)+'"'+(isNum?' step="any"':'')+'></div>';
+    }).join('');
+    return '<div class="ruleblock"><div class="lbl">Custom fields <button type="button" class="infobtn" title="Field names and player-visibility are defined campaign-wide under Campaign Rules → Custom character fields. 👁 marks a field this campaign shows to the player.">&#9432;</button></div>' +
+      rows +
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
+      '<button type="button" class="btn sm cf-val-save" data-cid="'+esc(id)+'">Save custom fields</button>' +
+      '<span class="cf-val-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div></div>';
   }
   // feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events): grant/remove a boon, impose a drawback.
   // Every write goes through dm_edit_character_log (SECURITY DEFINER) — this UI never touches
@@ -1457,7 +1535,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   }
 
   /* ============ Table view (merged from the DataTable console) ============ */
-  var view='card';                                   // 'card' | 'table'
+  var view='card';                                   // 'card' | 'table' | 'custom'
   var sort={ key:'name', dir:1 };
   var expanded=null;                                 // roster index expanded in table view
   var COLKEY='pact_dm_v3_cols';
@@ -1522,23 +1600,96 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // campaign-ready block that defines it may not have loaded (cloud bridge failure).
   function syncLocalToolsDim(){ try{ if(window._pactSetLocalToolsDimmed) window._pactSetLocalToolsDimmed(cloudRoster.length); }catch(e){} }
   function wireColumns(){ var btn=$('colBtn'), panel=$('colPanel'); if(!btn||!panel) return; function build(){ panel.innerHTML=COLS.map(function(c){ var locked=c.key==='name'; var checked=locked||!hiddenCols.has(c.key); return '<label class="'+(locked?'locked':'')+'"><input type="checkbox" data-k="'+c.key+'"'+(checked?' checked':'')+(locked?' disabled':'')+'>'+esc(c.label)+'</label>'; }).join(''); Array.prototype.forEach.call(panel.querySelectorAll('input[data-k]'),function(inp){ inp.addEventListener('change',function(){ var k=inp.getAttribute('data-k'); if(inp.checked) hiddenCols.delete(k); else hiddenCols.add(k); saveCols(); render(); }); }); } btn.addEventListener('click',function(e){ e.stopPropagation(); build(); panel.classList.toggle('open'); }); document.addEventListener('click',function(e){ if(!panel.contains(e.target) && e.target!==btn) panel.classList.remove('open'); }); }
-  function wireToggle(){ var b=$('viewToggle'); if(!b) return; function lbl(){ b.textContent=(view==='card')?'▦ Table view':'▤ Card view'; b.title=(view==='card')?'Switch to the data-table view':'Switch to the card-grid view'; } lbl(); b.addEventListener('click',function(){ view=(view==='card')?'table':'card'; lbl(); render(); }); }
+  // Card view → Table view → Customisable view → back to Card view. Label always shows what the next
+  // click switches TO (existing convention this just extends from 2 states to 3).
+  var VIEW_CYCLE = { card:'table', table:'custom', custom:'card' };
+  var VIEW_LABEL = { card:'▦ Table view', table:'🧩 Customisable view', custom:'▤ Card view' };
+  var VIEW_TITLE = { card:'Switch to the data-table view', table:'Switch to the customisable card view', custom:'Switch to the card-grid view' };
+  function wireToggle(){ var b=$('viewToggle'); if(!b) return; function lbl(){ b.textContent=VIEW_LABEL[view]; b.title=VIEW_TITLE[view]; } lbl(); b.addEventListener('click',function(){ view=VIEW_CYCLE[view]; lbl(); render(); }); }
+  // feat/dm-custom-character-fields (D-GH-2026-08-10): per-device box layout for the Customisable card
+  // view — same localStorage-preference pattern as COLKEY/hiddenCols just above, not campaign data.
+  // XBOX_COUNT is fixed (not DM-configurable) to keep the layout picker a simple per-box dropdown.
+  var XKEY='pact_dm_v3_customlayout';
+  var XBOX_COUNT=6;
+  var XBOX_DEFAULT=['col_hp','col_ac','col_dc','col_available','col_earned','col_spent'];
+  function loadXLayout(){
+    try{
+      var r=localStorage.getItem(XKEY);
+      if(r){ var a=JSON.parse(r); if(Array.isArray(a)){ a=a.slice(0,XBOX_COUNT); while(a.length<XBOX_COUNT) a.push(''); return a; } }
+    }catch(e){}
+    return XBOX_DEFAULT.slice();
+  }
+  function saveXLayout(layout){ try{ localStorage.setItem(XKEY, JSON.stringify(layout)); }catch(e){} }
+  // Built-ins wrap the same COLS entries Table view uses (minus 'name', which is always the card
+  // header) so both views stay in lockstep if a column is ever added/renamed. `rec` here is a
+  // cloudRoster record ({id, summary, hasData, rowName, dm} — see cloudAnalyze), not the bare
+  // analyzed-character `a` COLS.disp() expects, since a custom-field box needs rec.dm.customFields too.
+  function builtinFieldCatalog(){
+    return COLS.filter(function(c){ return c.key!=='name'; }).map(function(c){
+      return { key:'col_'+c.key, label:c.label, disp:function(rec){ return rec.summary ? c.disp(rec.summary) : '<span class="flag-none">—</span>'; } };
+    });
+  }
+  function customFieldCatalog(){
+    var defs = (window._dmCampaignApRules && window._dmCampaignApRules.customFields) || {};
+    var out = [];
+    CUSTOM_FIELD_SLOTS.forEach(function(slot){
+      var def = defs[slot];
+      if(!def || !def.label) return;
+      out.push({ key:'cf_'+slot, label:def.label+(def.visible?' 👁':''), disp:function(rec){
+        var v = rec.dm && rec.dm.customFields ? rec.dm.customFields[slot] : null;
+        return (v==null||v==='') ? '<span class="flag-none">—</span>' : esc(String(v));
+      }});
+    });
+    return out;
+  }
+  function fieldCatalog(){ return builtinFieldCatalog().concat(customFieldCatalog()); }
+  function fieldByKey(k){ var all=fieldCatalog(); for(var i=0;i<all.length;i++) if(all[i].key===k) return all[i]; return null; }
+  function wireCustomize(){
+    var btn=$('xBtn'), panel=$('xPanel'); if(!btn||!panel) return;
+    function build(){
+      var layout = loadXLayout();
+      var opts = fieldCatalog();
+      panel.innerHTML = layout.map(function(key, i){
+        var optsHtml = '<option value="">— empty —</option>' + opts.map(function(f){
+          return '<option value="'+esc(f.key)+'"'+(f.key===key?' selected':'')+'>'+esc(f.label)+'</option>';
+        }).join('');
+        return '<div class="xprow"><span>Box '+(i+1)+'</span><select data-box="'+i+'">'+optsHtml+'</select></div>';
+      }).join('');
+      Array.prototype.forEach.call(panel.querySelectorAll('select[data-box]'), function(sel){
+        sel.addEventListener('change', function(){
+          var i = +sel.getAttribute('data-box');
+          var layout2 = loadXLayout();
+          layout2[i] = sel.value;
+          saveXLayout(layout2);
+          render();
+        });
+      });
+    }
+    btn.addEventListener('click', function(e){ e.stopPropagation(); build(); panel.classList.toggle('open'); });
+    document.addEventListener('click', function(e){ if(!panel.contains(e.target) && e.target!==btn) panel.classList.remove('open'); });
+  }
 
-  /* ---------- render dispatcher (card grid OR data table) ----------
+  /* ---------- render dispatcher (card grid OR data table OR customisable card grid) ----------
      The Table view toggle used to only ever affect `roster` (locally-imported files) — clicking it
      visibly did nothing for a DM working purely from a cloud campaign, since #campRoster was a
      separate container the toggle never touched. Table view now merges local + cloud (via
      _combinedRoster()/_rows()) into one shared table, and #campRoster itself switches between its
-     own rich cards (Card view) and stepping aside for that shared table (Table view). */
+     own rich cards (Card view), the Customisable card view, and stepping aside for that shared table
+     (Table view). The Customisable view is campaign-scoped only (custom fields are a campaign concept)
+     — `roster` (locally-imported, not-campaign-bound files) keeps rendering as ordinary cards in it,
+     same as it already does today when Table view is on, rather than growing its own placeholder. */
   function render(){
     $('summary').innerHTML = summaryLine();
     syncLocalToolsDim();   // local-tools card dims once this campaign has characters (see above)
     var hasLocal = roster.length>0;
     var hasAny = hasLocal || _cloudHasData();
-    var cardOn = (view==='card');
-    var grid = $('grid'); if(grid) grid.style.display = (hasLocal&&cardOn) ? '' : 'none';
-    var tr = $('tableRoot'); if(tr) tr.style.display = (hasAny&&!cardOn) ? '' : 'none';
-    if(hasLocal && cardOn){
+    var tableOn = (view==='table');
+    var customOn = (view==='custom');
+    var localCardOn = !tableOn;   // local files render as ordinary cards in both Card and Customisable view
+    var grid = $('grid'); if(grid) grid.style.display = (hasLocal&&localCardOn) ? '' : 'none';
+    var tr = $('tableRoot'); if(tr) tr.style.display = (hasAny&&tableOn) ? '' : 'none';
+    var xt = $('xToolbar'); if(xt) xt.style.display = customOn ? '' : 'none';
+    if(hasLocal && localCardOn){
       // Explicit single-arg call, not roster.map(cardHTML): Array#map also passes (index, array) to
       // its callback, and cardHTML now takes an optional second `dm` arg — bare `.map(cardHTML)` would
       // silently pass every local card's numeric index in as `dm` (truthy for every index >0).
@@ -1546,9 +1697,10 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     } else if(grid){
       grid.innerHTML = '';
     }
-    if(hasAny && !cardOn){ renderTable(); }
+    if(hasAny && tableOn){ renderTable(); }
     if(_cloudRosterEl){
-      if(cardOn){ renderCloudRoster(_cloudRosterEl); }
+      if(customOn){ renderCustomRoster(_cloudRosterEl); }
+      else if(!tableOn){ renderCloudRoster(_cloudRosterEl); }
       else { _cloudRosterEl.innerHTML = cloudRoster.length ? '<div class="camp-empty">Shown in the table below while Table view is on.</div>' : '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; }
     }
   }
@@ -1818,7 +1970,8 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     var rowName = (row.name||'').trim();
     return {
       id: row.id, summary: summary, hasData: hasData, rowName: rowName,
-      dm: { ap: row.ap||0, player: row.player||'', playerLabel: row.playerLabel||'', dmNotes: row.dmNotes||'' }
+      dm: { ap: row.ap||0, player: row.player||'', playerLabel: row.playerLabel||'', dmNotes: row.dmNotes||'',
+            customFields: row.customFields || {} }
     };
   }
   // A roster row can exist with no character data yet — e.g. a redeemed invite the player hasn't
@@ -1839,6 +1992,38 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     if(!container) return;
     if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; return; }
     container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
+  }
+  // feat/dm-custom-character-fields (D-GH-2026-08-10): the Customisable card view — a lean header plus
+  // the DM's own box layout (see wireCustomize()/loadXLayout() above), with the same collapsible "DM
+  // tools" section the regular Card view's cardHTML() gives every cloud card, so a DM can still edit a
+  // character's custom-field values (and everything else DM tools offers) without switching views.
+  function customCardHTML(rec){
+    if(!rec.hasData){
+      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'New Character';
+      return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
+        '<div class="cname">'+esc(nm)+'</div>'+
+        '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
+        '<div class="cardactions">'+viewBtnHTML(rec.id)+'</div>'+
+        '</div><div style="padding:0 16px 16px">'+dmToolsBody(rec.id, rec.dm)+'</div></div>';
+    }
+    var a = rec.summary;
+    var layout = loadXLayout();
+    var boxesHtml = layout.map(function(key){
+      var f = key ? fieldByKey(key) : null;
+      if(!f) return '<div class="xbox xbox-empty"><span class="xk">—</span></div>';
+      return '<div class="xbox"><span class="xk">'+esc(f.label)+'</span><span class="xv">'+f.disp(rec)+'</span></div>';
+    }).join('');
+    return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
+      '<div class="cname">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div>'+
+      '<div class="csub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div>'+
+      '<div class="cardactions">'+viewBtnHTML(rec.id)+'</div>'+
+      '</div><div class="xgrid">'+boxesHtml+'</div>'+
+      '<div style="padding:0 16px 16px">'+secBlock('DM tools (private)', dmToolsBody(rec.id, rec.dm, a.boons))+'</div></div>';
+  }
+  function renderCustomRoster(container){
+    if(!container) return;
+    if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; return; }
+    container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return customCardHTML(rec); }).join('') + '</div>';
   }
   window._dmAnalyzeTest = cloudAnalyze;   // test seam: lets tool-pricing-ci.mjs assert on the analyzed summary directly, no DOM traversal needed
   // test seam: renderCards() (the ≤700px table-view fallback, NOT the Card-view toggle's own #campRoster
@@ -1879,7 +2064,8 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       // "View sheet" and "AP history" are reads and fall through untouched.
       if(window._dmPeekActive && t.closest &&
          (t.closest('.award-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
-          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn'))){
+          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') ||
+          t.closest('.cf-val-save'))){
         if(window._dmPeekBlocks) window._dmPeekBlocks();
         return;
       }
@@ -2031,6 +2217,25 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         return;
       }
 
+      var cfSaveBtn = t.closest ? t.closest('.cf-val-save') : null;
+      if(cfSaveBtn && card){
+        var cfcid = cfSaveBtn.getAttribute('data-cid');
+        var cfStatus = card.querySelector('.cf-val-status[data-cid="'+cfcid+'"]');
+        var cfVals = {};
+        Array.prototype.forEach.call(card.querySelectorAll('.cf-val-in[data-cid="'+cfcid+'"]'), function(inp){
+          cfVals[inp.getAttribute('data-slot')] = inp.value;
+        });
+        cfSaveBtn.disabled = true;
+        if(cfStatus) cfStatus.textContent = 'Saving…';
+        B.setCharacterCustomFields(cfcid, cfVals).then(function(){
+          cfSaveBtn.disabled = false;
+          if(cfStatus) cfStatus.textContent = 'Saved.';
+          var cfEntry = cloudRoster.filter(function(x){return String(x.id)===String(cfcid);})[0];
+          if(cfEntry) cfEntry.dm.customFields = cfVals;
+        }).catch(function(err){ cfSaveBtn.disabled=false; if(cfStatus) cfStatus.textContent = 'Error: '+err.message; });
+        return;
+      }
+
       var unbindBtn = t.closest ? t.closest('.unbind-btn') : null;
       if(unbindBtn){
         var ucid = unbindBtn.getAttribute('data-cid');
@@ -2055,6 +2260,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   initSkillUI();
   wireColumns();
   wireToggle();
+  wireCustomize();
   }
   if(window.compute){_dmBoot();}else{document.addEventListener('engine-ready',_dmBoot,{once:true});}
 })();
@@ -2081,13 +2287,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
-  import { getRoster, awardAp, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes } from '../js/dm.js';
+  import { getRoster, awardAp, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -2222,7 +2428,7 @@ document.addEventListener('campaign-ready', function () {
   // Campaign-scoped controls only. #campManageTile is deliberately absent — "+ Create campaign" and
   // the Unarchive buttons belong to the DM, not to the campaign being peeked, and locking the way
   // back out would be a trap.
-  var _PEEK_SCOPES = ['campOwnerTile','campInviteTile','campDmInviteTile','campRulesTile','campAdvancementTile','dmNotesTile','campRoster'];
+  var _PEEK_SCOPES = ['campOwnerTile','campInviteTile','campDmInviteTile','campRulesTile','campAdvancementTile','campCustomFieldsTile','dmNotesTile','campRoster'];
 
   /* Shared by _peekLockEls() and _ruleLockEls() below: both are "every input/select/textarea/button
      under these tile ids, plus these extra elements that live outside any tile, minus the ⓘ info
@@ -2294,6 +2500,7 @@ document.addEventListener('campaign-ready', function () {
     ['ruleBannedSpecies', function(){ return Object.keys(_D.pack||{}); }],
     ['ruleBannedOriginSpecies', function(){ return Object.keys(_D.pack||{}); }],
     ['ruleBannedOriginClasses', function(){ return _D.classes||[]; }],
+    ['ruleBannedOriginClasses2', function(){ return _D.classes||[]; }],
     ['ruleBannedMasteries', function(){ return Object.keys(_D.masteryFx||{}); }],
     ['ruleBannedBoons', function(){ return Object.keys(_D.boons||{}); },
       function(name){ return (_D.boons && _D.boons[name] && _D.boons[name].fx) || ''; }],
@@ -2342,6 +2549,7 @@ document.addEventListener('campaign-ready', function () {
     setRuleGridChecked('ruleBannedSpecies', r.bannedSpecies);
     setRuleGridChecked('ruleBannedOriginSpecies', r.bannedOriginSpecies);
     setRuleGridChecked('ruleBannedOriginClasses', r.bannedOriginClasses);
+    setRuleGridChecked('ruleBannedOriginClasses2', r.bannedOriginClasses2);
     setRuleGridChecked('ruleBannedMasteries', r.bannedMasteries);
     setRuleGridChecked('ruleBannedBoons', r.bannedBoons);
     setRuleGridChecked('ruleBannedDrawbacks', r.bannedDrawbacks);
@@ -2379,16 +2587,50 @@ document.addEventListener('campaign-ready', function () {
     }
     currentHouseRules = Object.assign({}, r.houseRules || {});
     renderHouseRules();
+    loadCustomFieldDefsIntoPanel(r.customFields);
     ruleSaveStatus.textContent = '';
     renderRulesSummary(r);
+  }
+  // feat/dm-custom-character-fields (D-GH-2026-08-10): the 4 fixed slots (num1/num2/text1/text2),
+  // each {label, visible}. Populates the definitions panel from a campaign's saved rules.customFields;
+  // collectCustomFieldDefs() below is the inverse, read by the shared "Save rules" handler. A slot with
+  // no label is dropped on save (that's how a DM removes a field), so on load an absent slot just shows
+  // blank/unchecked defaults rather than special-casing "never configured" vs "cleared".
+  var CUSTOM_FIELD_SLOTS = ['num1','num2','text1','text2'];
+  function loadCustomFieldDefsIntoPanel(customFields){
+    var cf = customFields || {};
+    CUSTOM_FIELD_SLOTS.forEach(function(slot){
+      var def = cf[slot] || {};
+      var labelEl = document.querySelector('#ruleCustomFields .cf-label[data-slot="'+slot+'"]');
+      var visEl = document.querySelector('#ruleCustomFields .cf-visible[data-slot="'+slot+'"]');
+      if(labelEl) labelEl.value = def.label || '';
+      if(visEl) visEl.checked = !!def.visible;
+    });
+    renderCustomFieldsSummary(cf);
+  }
+  function collectCustomFieldDefs(){
+    var out = {};
+    CUSTOM_FIELD_SLOTS.forEach(function(slot){
+      var labelEl = document.querySelector('#ruleCustomFields .cf-label[data-slot="'+slot+'"]');
+      var visEl = document.querySelector('#ruleCustomFields .cf-visible[data-slot="'+slot+'"]');
+      var label = labelEl ? labelEl.value.trim() : '';
+      if(!label) return;   // blank name = field not defined (also how a DM removes one on save)
+      out[slot] = { label: label, type: (slot.indexOf('num')===0 ? 'number' : 'text'), visible: !!(visEl && visEl.checked) };
+    });
+    return out;
+  }
+  function renderCustomFieldsSummary(customFields){
+    var el = document.getElementById('campCustomFieldsSummary'); if(!el) return;
+    var n = Object.keys(customFields || {}).length;
+    el.textContent = n ? (n+' defined') : '';
   }
   /* Badge on the collapsed advancement/rules row: how many bans and house rules are actually set, so a
      DM can see at a glance whether this campaign has been configured at all. */
   function renderRulesSummary(r){
     var el = document.getElementById('campRulesSummary'); if(!el) return;
     r = r || {};
-    var bans = ['bannedSpecies','bannedOriginSpecies','bannedOriginClasses','bannedMasteries',
-                'bannedBoons','bannedDrawbacks','bannedArts']
+    var bans = ['bannedSpecies','bannedOriginSpecies','bannedOriginClasses','bannedOriginClasses2',
+                'bannedMasteries','bannedBoons','bannedDrawbacks','bannedArts']
       .reduce(function(n,k){ return n + ((r[k]||[]).length); }, 0);
     var house = Object.keys(r.houseRules || {}).length;
     var bits = [];
@@ -2560,6 +2802,7 @@ document.addEventListener('campaign-ready', function () {
       bannedSpecies: getRuleGridChecked('ruleBannedSpecies'),
       bannedOriginSpecies: getRuleGridChecked('ruleBannedOriginSpecies'),
       bannedOriginClasses: getRuleGridChecked('ruleBannedOriginClasses'),
+      bannedOriginClasses2: getRuleGridChecked('ruleBannedOriginClasses2'),
       bannedMasteries: getRuleGridChecked('ruleBannedMasteries'),
       bannedBoons: getRuleGridChecked('ruleBannedBoons'),
       bannedDrawbacks: getRuleGridChecked('ruleBannedDrawbacks'),
@@ -2588,7 +2831,10 @@ document.addEventListener('campaign-ready', function () {
       // dedicated save call — carry the live checkbox state through so this save never clobbers it.
       // enforceChk.checked always reflects the current persisted value between campaign selects (see
       // its own change handler and the campaign-select init above), never a stale/locked DOM default.
-      enforceApBudget: enforceChk.checked
+      enforceApBudget: enforceChk.checked,
+      // feat/dm-custom-character-fields (D-GH-2026-08-10) — {num1,num2,text1,text2} definitions, each
+      // {label,type,visible}. Same "one shared Save rules button" flow as everything else here.
+      customFields: collectCustomFieldDefs()
     };
     if(_peekBlocks()) return;
     ruleSaveStatus.textContent = 'Saving…';
@@ -2598,6 +2844,14 @@ document.addEventListener('campaign-ready', function () {
       if(camp) camp.rules = rules;
       ruleSaveStatus.textContent = 'Saved.';
       _renderPlayerCodeGrant();   // the code's advertised grant must follow the save that changed it
+      renderCustomFieldsSummary(rules.customFields);
+      // Roster cards (and the DM-tools value editors on each of them) read field labels/visibility off
+      // window._dmCampaignApRules.customFields (see cloudAnalyze, the earlier UI-layer IIFE — a separate
+      // closure, same cross-boundary seam _dmCampaignApRules already exists for). Refresh it and
+      // re-render so a definition change (a renamed/removed/newly-visible field) shows immediately,
+      // without needing a campaign reselect.
+      if(window._dmCampaignApRules) window._dmCampaignApRules.customFields = rules.customFields;
+      loadRoster(currentCampId);
     } catch(err){
       ruleSaveStatus.textContent = 'Error: '+err.message;
     }
@@ -2782,7 +3036,8 @@ document.addEventListener('campaign-ready', function () {
     // earlier UI-layer IIFE — a separate closure, hence the window seam). Set BEFORE loadRoster()
     // below, so the first paint already has it; a campaign switch re-fetches the roster, so the two
     // can't disagree.
-    window._dmCampaignApRules = { ignorePlayerAp: !!camp.ignore_player_ap, campaignId: camp.id };
+    window._dmCampaignApRules = { ignorePlayerAp: !!camp.ignore_player_ap, campaignId: camp.id,
+                                   customFields: (camp.rules && camp.rules.customFields) || {} };
     // "Archive this campaign" is meaningless on one that already is — hide it outright rather than
     // show a disabled danger button the DM has to reason about.
     campArchiveBlock.style.display = (camp.isOwner && !peekCamp) ? '' : 'none';
@@ -2951,7 +3206,7 @@ document.addEventListener('campaign-ready', function () {
   // toggling a ban checkbox or a curve field before that click ever happens. ruleMultiDisc stands in for
   // ignoreChk as the "am I currently locked" source of truth on toggle (same disabled-state trick).
   function _ruleLockEls(){
-    return _scopedControlEls(['campRulesTile', 'campAdvancementTile'], [document.getElementById('ruleSaveBtn')]);
+    return _scopedControlEls(['campRulesTile', 'campAdvancementTile', 'campCustomFieldsTile'], [document.getElementById('ruleSaveBtn')]);
   }
   function _setRulesLocked(locked){
     _ruleLockEls().forEach(function(el){ el.disabled = locked; });

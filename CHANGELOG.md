@@ -6,6 +6,114 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-11 · fix: keepalive scope narrowed back down + manual save routed through the push queue**
+  — the two follow-ups tracked (not fixed) by the 2026-08-10 `/code-review ultra` cleanup, both resolved.
+  (1) `feat/keepalive-scope-narrowing`: decided A2 (narrow, not accept-as-trade-off) — `withKeepalive()`
+  is no longer called from the `pagehide` handler wrapping the whole settle-wait chain; each push attempt
+  (the initial push and any chained retry) now opens its own narrow `withKeepalive()` span via a new
+  `_cg/_lsKeepaliveWrap()` helper, called from inside `_cgCloudPushOnce()`/`_lsCloudPushOnce()` itself, so
+  the shared `_keepaliveNext` flag no longer stays true for however long a retry chain takes — just for
+  each attempt's own fetch. (2) `fix/manual-save-queue-bypass`: CharGen's `onSaveClick()`/
+  `onJoinCampaignClick()` and Live Sheet's manual "☁ Save to cloud" button called `saveCharacter()`
+  directly, racing the autosave queue's own push for the same character — fixed with a shared
+  `_cg/_lsQueuedSaveCharacter()` helper that waits for any in-flight push to settle and shares the
+  autosave queue's own busy-flag coordination, while keeping each caller's own success/failure UI (unlike
+  the silent autosave path). Both fixes recorded as Addenda on `D-GH-2026-08-08-chargen-cloud-autosave-
+  flush.md`. `testing/scripts/autosave-flush-latest-push-ci.mjs` extended to 14/14 (was 8/8): the pagehide
+  scenario now proves per-attempt narrow spans (not one wide span) via a two-retry chain, and a new
+  scenario proves a manual save waits for an in-flight autosave push instead of racing it.
+- **2026-08-10 · docs/fix: `/code-review ultra` cleanup on the autosave-flush fix** — two confirmed findings
+  fixed directly: (1) the fix's own code comments and CHANGELOG cited a decision-record ID
+  (`D-GH-2026-08-10-autosave-flush-latest-push`) that was never actually created — corrected into a proper
+  Addendum on the existing, directly-related `D-GH-2026-08-08-chargen-cloud-autosave-flush` record instead
+  of inventing a new one; (2) `_cgFlushCloudSaveNow()`/`_lsFlushCloudSaveNow()`'s `if(!settled)
+  return Promise.resolve();` guard was dead code — `_cgCloudPush()`/`_lsCloudPush()` unconditionally set
+  `_cgCloudSaveBusy=true` before returning on every path, so `_cgCloudPushSettled()`/`_lsCloudPushSettled()`
+  can never observe it false at that call site — removed, with a comment explaining why re-adding it would
+  again be dead. Two other findings from the same review (the `withKeepalive()` scope now spanning
+  multiple retries instead of one push; the manual "☁ Save to cloud" button bypassing the push queue
+  entirely) are real but represent design/scope calls, not drive-by fixes — tracked as
+  `feat/keepalive-scope-narrowing` and `fix/manual-save-queue-bypass` on `docs/TASK_BOARD_NEXT.md`.
+  `engine-parity-ci.mjs` 30/0, `tool-pricing-ci.mjs` 134/0, `autosave-flush-latest-push-ci.mjs` 8/8 —
+  all unaffected.
+- **2026-08-10 · fix(tools): cloud-autosave flush waits for the LATEST push, not a stale one** —
+  `fix/autosave-flush-latest-push`, from `/sweep-code-tasks`. Found by `/code-review ultra` on the B3
+  branch: when a cloud autosave push was already in flight, `_cgCloudPush()`/`_lsCloudPush()`'s busy
+  branch returned that STALE push's promise instead of the retry `_cgCloudSaveAgain` queues — so a
+  deliberate tool-switch flush (`switchToLiveSheet`/`switchToCharGen`) raced against the wrong promise,
+  navigated away, and the real retry (carrying whatever the latest edit actually was) fired later with
+  no keepalive, right as the page tore down. Fixed in both tools identically: the busy branch now chains
+  onto a new read-only `_cgCloudPushSettled()`/`_lsCloudPushSettled()` waiter that recursively tracks
+  however many retries the queue actually needs (without itself triggering any — that would spuriously
+  re-save unchanged state forever); the flush and the `pagehide` keepalive wrapper both await that
+  instead of the push's own return value. New differential test,
+  `testing/scripts/autosave-flush-latest-push-ci.mjs` — extracts the real push-queue functions from both
+  tools' source, confirms a hand-reverted pre-fix copy actually reproduces the bug, then confirms the
+  live code doesn't: 8/8. `engine-parity-ci.mjs` 30/0, `tool-pricing-ci.mjs` 134/0 — unaffected. See the
+  Addendum on `D-GH-2026-08-08-chargen-cloud-autosave-flush` (this fix's own decision record cited an ID
+  that didn't exist until a `/code-review ultra` pass caught it — corrected there, not a new record).
+- **2026-08-10 · feat(engine): ban a class as a 2nd-origin-only pick** — `feat/banned-2nd-origin-class`,
+  from `/sweep-code-tasks`. Mirrors the existing species asymmetric-ban pattern
+  (`bannedOriginSpecies`/species2): `js/engine.js`'s `validate()` gains a new `bannedOriginClasses2` rule
+  field, checked only against `originClass2`, alongside the existing `bannedOriginClasses` (which already
+  bans a class in both slots — unaffected, still enforced). New "Banned as 2nd origin classes" grid in DM
+  Console's Campaign Rules panel; CharGen's `oclass2` picker now live-filters against both
+  `originClasses`/`originClasses2` (mirroring `spec2`'s `species`/`originSpecies` filter). No existing
+  fixture sets the new field, so `compute()` output is unchanged for every current fixture — no
+  `DATA.version` bump. Verified directly (4 cases: primary use allowed, 2nd-origin use rejected, existing
+  symmetric ban still fires in both slots, `RULE_BAN_FIELDS` mapping present).
+  `engine-parity-ci.mjs` 30/0, `tool-pricing-ci.mjs` 134/0 — both unaffected.
+- **2026-08-10 · chore(ci): scheduled Supabase keep-alive workflow** — `chore/supabase-keep-alive`, from
+  `/sweep-code-tasks`. The free-tier project auto-paused from inactivity on 2026-07-25, silently breaking
+  login/register app-wide until manually restored. New `.github/workflows/supabase-keepalive.yml` pings
+  Supabase's `/auth/v1/health` endpoint every 3 days using only the already-committed anon key (URL/key
+  read directly from `js/supabase-client.js`, no duplicated literal). Chosen over a direct table read
+  because every RLS-protected table correctly 401s an anonymous request, which would make a real outage
+  indistinguishable from healthy RLS in the workflow's own pass/fail check. The ping call itself is
+  confirmed live (a direct `curl` against the real project returns 200); the GitHub Actions wrapper
+  (schedule/manual-dispatch) can't be confirmed from a non-default branch — GitHub 404s a dispatch
+  attempt until the workflow lands on `preview` — see `D-GH-2026-08-10-supabase-keep-alive`'s "Verified"
+  section for why, not glossed over. `get_advisors(security)` no new findings.
+- **2026-08-10 · fix(campaign): `dm_edit_character_log` cross-validates a boon grant's buy/award
+  amounts** — `fix/dm-edit-boon-amount-check`, from `/sweep-code-tasks`. Flagged by `/code-review ultra`
+  on PR #403 and deliberately deferred at the time (see `D-GH-2026-08-10-dm-edit-events`'s addenda): the
+  RPC allowlisted event type/cat but never checked a boon grant's `buy` cost against its accompanying
+  `award` amount, so the "net 0 to spendable AP" promise DM Console's tooltip and the migration's own
+  header comment both make was enforced only by the client always sending the pair together. Now
+  FIFO-matched by value (mirroring `js/engine.js`'s `activeEvents()` `boughtOff`/`boonRemoved` pattern) —
+  a mismatched or unmatched boon-buy is rejected; a standalone `award` stays permitted, since `award_ap()`
+  already lets any campaign DM grant arbitrary AP unconditionally, so this was never a new privilege, only
+  a correctness gap. Verified against 4 cases directly on the live function body; `get_advisors(security)`
+  no new findings; `tool-pricing-ci.mjs` 134/0; `engine-parity-ci.mjs` unaffected, 30/0.
+- **2026-08-10 · fix(sync): reconcile()'s own recovery push is now tracked by `_pushInFlight` too** —
+  `fix/reconcile-push-inflight-tracking`, from `/sweep-code-tasks`. `js/sync.js`'s `reconcile()`
+  `localNewer` branch called `pushCharacter()` directly, unlike `saveCharacter()`'s own already-tracked
+  push — so while a device's offline edit was being recovered at boot/reconnect, `getSyncState(id)` had
+  no way to see it as `SAVING` and fell through to a stale dirty/conflict/idle read for the whole
+  duration. Fixed by wrapping it in `_pushInFlight.add()`/`.delete()`, mirroring `saveCharacter()`
+  exactly. New differential test in `testing/scripts/sync-state-machine-ci.mjs` (confirmed to fail
+  against the pre-fix code, not just pass vacuously): 24/0. `engine-parity-ci.mjs` 30/0,
+  `sync-concurrency-ci.mjs` 12/0, `sync-autosave-toggle-ci.mjs` 4/0 — all unaffected.
+- **2026-08-10 · feat(livesheet): show a signed-in player any campaign custom fields their DM marked
+  visible** — `feat/custom-fields-player-display`, the player-facing follow-up to the DM Console custom
+  fields feature below. The Live Sheet now calls the existing `get_character_visible_fields()` RPC on
+  load and on an explicit cloud Load, and shows a `From your DM:` segment on the character sheet with
+  each visible field's DM-set label and value (nothing rendered when none are configured/visible).
+  Gated off for a DM's own read-only `?viewChar=` peek. `js/dm.js` gains `getVisibleCustomFields()`,
+  co-located with the existing `setCharacterCustomFields()`. `engine-parity-ci.mjs` unaffected, 30/0. See
+  the Addendum on `D-GH-2026-08-10-dm-custom-character-fields`.
+- **2026-08-10 · feat(dm-console): campaign-level custom character fields + a Customisable card view**
+  — owner request. DM Console gains up to 4 campaign-wide custom fields (2 numeric, 2 text) under
+  Campaign Rules, each with a name and a per-field "visible to players" toggle (default OFF); a DM sets
+  each character's values from that character's DM tools. A new 3rd view mode — "🧩 Customisable view"
+  — lets a DM arrange 6 boxes per roster card from a catalog of built-in stats and the campaign's custom
+  fields, persisted per-device (localStorage), same pattern as Table view's hidden-columns preference.
+  Definitions ride the existing `campaigns.rules` jsonb (no new column); values ride a new
+  `character_dm_notes.custom_fields` jsonb column (same DM-only table/RLS as player-name label/notes).
+  The "visible to players" flag is enforced by a new `get_character_visible_fields()` SECURITY DEFINER
+  RPC — no tool UI calls it yet (DM Console doesn't need to, and no player-facing surface exists yet);
+  see `feat/custom-fields-player-display` on `docs/TASK_BOARD_NEXT.md`. `engine-parity-ci.mjs` unaffected,
+  30/0. See `D-GH-2026-08-10-dm-custom-character-fields`.
 - **2026-08-10 · feat(chargen): random name pools roughly tripled/quadrupled** — owner report: "i keep
   getting the same name." Each of the six naming styles held only ~12-16 first / ~8-10 last names;
   expanded every style to ≥40 first / ≥25 last, additively (originals kept, matching theme per style).

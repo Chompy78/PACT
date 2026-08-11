@@ -299,6 +299,36 @@ console.log('\n  reconcile() adopt branches clear a stale `behind` (the gap the 
   ok('a character with no prior local record adopts cleanly (idle, not stuck behind)', state.state === 'idle');
 }
 
+// --- (f) reconcile()'s own recovery push must be tracked too (fix/reconcile-push-inflight-tracking) ---
+// Unlike saveCharacter() (tested in (a) above), reconcile()'s `localNewer` branch pushed a dirty,
+// newer-than-server local record WITHOUT wrapping it in _pushInFlight — so getSyncState() had no way
+// to see that push as SAVING for its whole duration. Found by /code-review ultra on the B3 branch.
+console.log('\n  reconcile()\'s localNewer recovery push is tracked by _pushInFlight too');
+{
+  // A genuinely offline save leaves a dirty, newer-than-server local record with NO network attempt
+  // made at all (saveCharacter()'s own `if (!navigator.onLine) return ...` early exit) — exactly the
+  // shape reconcile()'s `localNewer` branch exists to recover once this device is back online.
+  world.server.rows.clear(); world.server.clock = 0; _online = true; _authOK = true;
+  const ID = 'reconcilepush-aaaa-bbbb'; world.seed(ID, { spent: 1 });
+  const A = await openPage(fresh());
+  await A.loadCharacter(ID);
+  _online = false;
+  A.noteEdit(ID);
+  const offlineSave = await A.saveCharacter({ id: ID, name: 'X', kind: 'chargen', stats: { spent: 2, __delayMs: 30 } });
+  ok('the offline save leaves the edit dirty/unsynced rather than lost', offlineSave.synced === false);
+  _online = true;
+  const p = A.loadCharacter(ID);   // reconcile()'s localNewer branch fires: local is dirty AND newer
+  // Let reconcile() past its own (undelayed) "fetch the server row" select before checking — the
+  // __delayMs:30 above is on the RECOVERY PUSH itself, not that earlier read.
+  await new Promise(r => setTimeout(r, 10));
+  const mid = await A.getSyncState(ID);
+  await p;
+  const after = await A.getSyncState(ID);
+  ok('saving while reconcile()\'s recovery push is genuinely in flight (not a stale dirty/conflict/idle read)',
+     mid.state === 'saving');
+  ok('  and settles once that push confirms', after.state === 'idle');
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(`\n✓ ${pass} passed / ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

@@ -10,6 +10,27 @@
 
 ## Index
 
+- **D-GH-2026-08-10-supabase-keep-alive** — the PACT Supabase project auto-paused from inactivity on
+  2026-07-25, silently breaking login/register app-wide until manually restored. Fixed with a scheduled
+  GitHub Actions workflow (`.github/workflows/supabase-keepalive.yml`, every 3 days) pinging Supabase's
+  `/auth/v1/health` endpoint with the already-committed anon key — chosen over a direct table read
+  because every RLS-protected table correctly 401s an anonymous request, which would make a genuine
+  outage indistinguishable from expected RLS behaviour in the workflow's own pass/fail check. Paid-tier
+  upgrade (removes auto-pause entirely) considered and deferred — a recurring cost only the project
+  owner can approve, not decided unilaterally.
+  Full record: `decisions/2026/D-GH-2026-08-10-supabase-keep-alive.md`.
+- **D-GH-2026-08-10-dm-custom-character-fields** — owner request: campaign-level custom character fields
+  (2 numeric, 2 text) with a per-field "visible to players" toggle (default OFF), plus a new
+  "Customisable" roster card view. Definitions ride `campaigns.rules.customFields` (no new table); values
+  ride a new `character_dm_notes.custom_fields` jsonb column (reuses that table's existing DM-only RLS);
+  visibility is enforced server-side by a new `get_character_visible_fields()` SECURITY DEFINER RPC, not
+  a wider table grant (RLS is row-level, not per-JSON-key — a grant wide enough for a visible field would
+  leak every hidden one in the same row). Box layout is per-device (`localStorage`), matching Table view's
+  hidden-columns precedent. **Addendum, same day:** the player-facing consumer
+  (`feat/custom-fields-player-display`) shipped too — the Live Sheet now shows a `From your DM:` segment
+  on a signed-in player's own campaign-bound character, sourced from the same RPC, escaped, and gated off
+  for a DM's own read-only `?viewChar=` peek.
+  Full record: `decisions/2026/D-GH-2026-08-10-dm-custom-character-fields.md`.
 - **D-GH-2026-08-10-expand-random-names** — owner report: "i keep getting the same name." Each of the six
   `NAMEDATA` naming styles held only ~12-16 first / ~8-10 last names; expanded every style ~3-4x (≥40
   first / ≥25 last, gated), additively (originals kept, new names appended, no reshuffle), matching each
@@ -73,7 +94,11 @@
   neutrality through existing mechanics with no `DATA.version` bump. DM Console gained grant/remove/impose
   controls; the Live Sheet renders DM-marked events distinctly and enforces its own undo barrier + a
   DM-imposed drawback's locked/removal-cost flags; CharGen gets the undo barrier only (no per-event
-  history view to mark, a documented scope boundary).
+  history view to mark, a documented scope boundary). **Addendum, same day (`/sweep-code-tasks`):**
+  `dm_edit_character_log` now cross-validates a boon grant's paired `buy`/`award` amounts (FIFO-by-value),
+  closing a correctness gap the pre-merge review flagged and deliberately deferred — see the file's own
+  addendum for why a standalone `award` stays permitted (not a new privilege; `award_ap()` already grants
+  arbitrary AP unconditionally).
   Full record: `decisions/2026/D-GH-2026-08-10-dm-edit-events.md`.
 - **D-GH-2026-08-10-chargen-dm-view** — a DM opens a campaign character in CharGen via a safe, freely
   editable COPY (owner's chosen approach) rather than a locked read-only view — safe by construction
@@ -228,7 +253,21 @@
   Uncontrolled exit is documented as best-effort, not guaranteed, on any browser — the durable fallback
   stays the local autosave plus the dirty-record retry on next boot. Split from the larger plan (Part A of
   2), which is otherwise deferred pending the sync-state-machine and autosave-consent design work the
-  review surfaced. Full record: `decisions/2026/D-GH-2026-08-08-chargen-cloud-autosave-flush.md`.
+  review surfaced. **Addendum, 2026-08-10 (`fix/autosave-flush-latest-push`):** the busy branch's
+  promise-tracking claim above was incomplete — it returned a stale in-flight push, not the retry that
+  actually carried the latest edit; fixed with a recursive `*CloudPushSettled()` waiter. Reopens, without
+  fully resolving, this record's own "narrow window" assumption for `withKeepalive()`'s shared toggle —
+  see `feat/keepalive-scope-narrowing` on `docs/TASK_BOARD_NEXT.md`.
+  **Addendum, 2026-08-11 (`feat/keepalive-scope-narrowing`):** resolved as A2 — narrowed the window back
+  down (each push attempt opens its own `withKeepalive()` span via a new `_cg/_lsKeepaliveWrap()` helper,
+  instead of one span held open for the whole settle-wait) rather than formalizing the widened window as
+  an accepted trade-off. **Addendum, 2026-08-11 (`fix/manual-save-queue-bypass`):** the manual "☁ Save to
+  cloud" button in both tools (and CharGen's campaign-join flow) called `saveCharacter()` directly,
+  racing the autosave queue's own push for the same character — fixed with a shared
+  `_cg/_lsQueuedSaveCharacter()` helper that waits for any in-flight push to settle and shares the same
+  busy-flag coordination, while still surfacing its own success/failure UI (unlike the silent autosave
+  path).
+  Full record: `decisions/2026/D-GH-2026-08-08-chargen-cloud-autosave-flush.md`.
 - **D-GH-2026-08-07-optimistic-character-save** — cloud saves were last-write-wins, so two devices on one
   character silently destroyed each other's **entire** history (the whole event log lives in `stats`).
   Guarded on the server's `updated_at`, carried client-side as a separate `base_updated_at`. Took four
