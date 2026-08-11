@@ -716,6 +716,8 @@ grant execute on function public.list_campaign_invites(uuid)                    
 grant execute on function public.set_invite_revoked(uuid, boolean)                  to authenticated;
 grant execute on function public.peek_player_invite(text)                           to authenticated;
 grant execute on function public.dm_edit_character_log(uuid, jsonb)                 to authenticated;
+grant execute on function public.create_character_claim(uuid, text)                 to authenticated;
+grant execute on function public.redeem_character_claim(text)                       to authenticated;
 
 -- create_player_invite gained a 4th (p_note) parameter on 2026-08-03. `create or replace` with a new
 -- signature CREATES a second function rather than replacing the old one, so the 3-argument version was
@@ -729,6 +731,8 @@ revoke execute on function public.dm_edit_character_log(uuid, jsonb)           f
 revoke execute on function public.bind_character_to_campaign(uuid, text)       from public;
 revoke execute on function public.dm_unbind_character(uuid)                    from public;
 revoke execute on function public.is_campaign_dm_of_character(uuid)            from public;
+revoke execute on function public.create_character_claim(uuid, text)          from public;
+revoke execute on function public.redeem_character_claim(text)                from public;
 
 -- Postgres grants EXECUTE to PUBLIC by default on every new function; revoke it here
 -- so award_ap is authenticated-only rather than relying solely on its internal

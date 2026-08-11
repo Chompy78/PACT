@@ -6,6 +6,41 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-11 · fix: character claim-link tokens switched to plaintext storage** — owner decision,
+  same day the feature shipped: "keep the plaintext, shown-once is fine for now." Flipped
+  `character_claim` from the hash-only storage group (`dm`-invite bar) to the plaintext group
+  (`player`-invite bar) in `campaign_invites_token_storage_check`, and rewrote
+  `create_character_claim`/`redeem_character_claim` to store/look up the token directly, no
+  `digest()` step. Zero `character_claim` rows existed yet, so this was a clean schema/RPC flip, not a
+  data migration (`sql/migrations/2026-08-11-character-claim-plaintext-token.sql`, applied to the live
+  Supabase project; `get_advisors` re-run clean). No client change needed. `tool-pricing-ci.mjs` 134/0.
+  Recorded as an Addendum on `D-GH-2026-08-11-character-claim-link-copy-not-transfer`.
+- **2026-08-11 · feat: DM hands off a character to a player via a claim link
+  (`feat/character-ownership-claim-link`)** — a DM who owns a campaign-bound character (built/imported
+  under their own account, then bound via the existing `bindCharacterToCampaign` — no new capability
+  needed for that step) can now generate a single-use claim link from CharGen's ☁ Cloud menu; a player
+  who redeems it gets their OWN new character, **copied** from the DM's (never a transfer — the source's
+  `owner_id` is never written). New `campaign_invites` type `character_claim` (plaintext token storage,
+  same bar as a player invite — see the follow-up entry immediately below and the decision record) plus
+  two new RPCs, `create_character_claim`/`redeem_character_claim` (owner-of-source + DM-of-campaign gated
+  to create; idempotent-on-repeat, single-use to redeem). DM-awarded `ap` carries over to the copy
+  (recorded as its own `ap_awards` provenance row); the copy auto-binds to the source's campaign.
+  CharGen-only in v1 (redemption via `?claim=` mirrors the existing `?invite=` flow); DM Console has no
+  UI for this. Migration `sql/migrations/2026-08-11-character-claim-link.sql` applied to the live
+  Supabase project; `get_advisors` clean after fixing a first-pass miss (the two new RPCs needed an
+  explicit `revoke execute … from public` — Postgres grants EXECUTE to PUBLIC by default on every new
+  function, same pattern every other RPC in `rls-policies.sql` already follows, just missed on the first
+  apply). `tool-pricing-ci.mjs` 134/0, `engine-parity-ci.mjs` 30/0 (display/feature-only, `DATA.version`
+  unchanged). Design record: `D-GH-2026-08-11-character-claim-link-copy-not-transfer` (Addendum,
+  implementation).
+- **2026-08-11 · docs: re-scoped `feat/character-ownership-claim-link` from transfer to copy** — the
+  not-yet-started claim-link task now creates a new player-owned character row seeded from the DM's
+  source character, instead of reassigning `owner_id` on the existing row. No RLS/ownership-model change
+  needed; drops the task's risk from high to medium and removes the recommended cold-plan-review step.
+  Recorded as `D-GH-2026-08-11-character-claim-link-copy-not-transfer`.
+- **2026-08-11 · docs: dropped the "Port the AGENTS.md/skills scaffold to another repo" task** — removed
+  from `docs/TASK_BOARD_NEXT.md` (owner: no longer relevant). No skill/scaffold work was done; this is a
+  board-hygiene removal, not a graduation.
 - **2026-08-11 · fix: keepalive scope narrowed back down + manual save routed through the push queue**
   — the two follow-ups tracked (not fixed) by the 2026-08-10 `/code-review ultra` cleanup, both resolved.
   (1) `feat/keepalive-scope-narrowing`: decided A2 (narrow, not accept-as-trade-off) — `withKeepalive()`

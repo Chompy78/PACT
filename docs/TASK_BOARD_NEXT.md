@@ -27,56 +27,6 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-
-## Port the AGENTS.md/skills scaffold to another repo — TODO
-Branch docs/port-agents-scaffold-skill. Generalize this session's manual copy-and-adapt work (porting
-AGENTS.md + .claude/commands/ + hooks to chompy78/petdetective and chompy78/homelife — see
-docs/sessions/2026-07-17-port-agents-scaffold-to-petdetective-homelife.md) into a repeatable PACT skill,
-so a future "bring this workflow to repo X" request doesn't redo the analysis from scratch.
-**Effort:** high · **Risk:** high — ambiguity is high (how prescriptive vs. flexible the skill should be —
-auto-detect target conventions vs. always ask, how much to generalize vs. leave as human judgment — is a
-genuine design call with no single obviously-right answer, the same way this session had to improvise two
-different adaptations for two differently-shaped repos); damage scale is low (only touches
-.claude/commands/ in whichever repo it's run against, and per this session's established practice should
-always draft-then-show-for-approval before writing to a foreign repo, so a bad output is caught before
-landing); damage likelihood is medium (nothing automated gates a skill's own prompt content — a flawed
-skill design only surfaces the next time someone actually runs it against a real target repo) — worst-of
-lands at high on ambiguity alone, so never eligible for /sweep-code-tasks; recommend `/make-code-cold-plan-review` before
-implementation given the design-call nature.
-
-```text
-1. Read this session's session note (docs/sessions/2026-07-17-port-agents-scaffold-to-petdetective-homelife.md)
-   and the two target repos' actual results (chompy78/petdetective's docs/agent-scaffold branch/PR #4,
-   chompy78/homelife's commit ede0496) as the worked examples to generalize from.
-
-2. Design a new skill, e.g. `.claude/commands/port-agents-scaffold.md`, that:
-   - Takes a target repo as its argument.
-   - Reads the target's actual current state first — does it already have AGENTS.md/CHANGELOG.md/
-     DECISIONS.md/a task board? Does it have a test suite/CI? What's its branch model (single branch vs.
-     branch-per-task, main vs. some other default)?
-   - Branches its own behavior on what it finds: a blank-slate target gets the full scaffold built fresh
-     (per the petdetective pattern); a target with existing mature governance docs gets only the missing
-     pieces added, with small additive notes in the existing docs rather than any rewrite (per the
-     homelife pattern).
-   - **Explicitly handles the main-only case:** if the target's own stated or observed convention is
-     commit-and-push-straight-to-main (no feature-branch workflow), the ported pick-code-task/run-code-task/
-     sweep-code-tasks/cleanup-code-branches skills must drop all worktree/branch/PR machinery and work directly
-     against that branch instead — never introduce branches/PRs into a repo whose established convention
-     is branch-less, even for consistency with PACT's own model.
-   - Always drafts the adapted files and shows them (or a summary) for approval before writing/committing/
-     pushing anything to the target repo — same draft-before-write discipline `/add-code-task`,
-     `/log-code-lesson`, and `/make-code-cold-plan-review` already use.
-   - Pauses before pushing to the target repo if that repo has no PR gate (a direct push to its main
-     branch may trigger an immediate live deploy, as it did for homelife) — flag this explicitly rather
-     than pushing straight through.
-
-3. Update `docs/SKILLS.md` to document the new skill alongside the existing eight.
-```
-
-**Done when:** the new skill exists, is documented in `docs/SKILLS.md`, and has been dry-run (or actually
-run) against at least one real target repo of each shape (a blank-slate repo and a repo with existing,
-possibly-conflicting governance docs) with correct behavior in both cases.
-
 ## REV-14b — split js/engine.js's compute() into named sub-pricers — TODO
 Branch refactor/rev-14b-compute-subpricers. Second half of REV-14 (REV-14a — the DATA extraction — shipped
 in PR #251); decompose compute()'s single ~370-line body (~lines 76–446) into named `_price*` helpers. Full
@@ -105,65 +55,6 @@ unverified) — worst-of lands at high, never eligible for /sweep-code-tasks.
 
 **Done when:** compute() is a dispatcher over named `_price*` helpers (shared-context design), unchanged
 signature/return shape; full-payload output identical across all fixtures; engine-parity still 20/0.
-
-## DM manually adds/imports a character to a campaign, then hands off ownership via a claim link — TODO
-Branch feat/character-ownership-claim-link. Today a DM can only get a NEW character into their campaign
-by generating a player-invite link that creates a **blank** character owned by whoever redeems it
-(`createPlayerInvite`/`redeemPlayerInvite`), or a player can bind an **already-owned** character to a
-campaign via a reusable code (`bindCharacterToCampaign`). Neither covers: a DM building or importing a
-fully-formed character themselves (e.g. an NPC promoted to PC, or a file a player emailed them) and then
-handing *ownership* of that specific character to a player. Confirmed via `grep -n "owner_id"
-sql/rls-policies.sql`: no ownership-transfer path exists anywhere today — `characters_update`'s RLS
-policy requires `owner_id = auth.uid()` in **both** its `using` and `with check` clauses, so even a raw
-table update can never reassign `owner_id`; the only insert grant (`grant insert (id, owner_id, name,
-kind, stats)`) sets it once at creation. This is a brand-new SECURITY DEFINER RPC + invite-token flow,
-not a wiring-up-an-existing-function task like `createCampaign`/`joinAsDm` were.
-**Effort:** high · **Risk:** high — ambiguity is high (real open design questions below, no single
-obviously-right answer); damage scale is high (a new ownership-transfer RPC is a genuine security/
-trust-boundary change touching live character data — same class of decision `DECISIONS.md` already
-treats carefully, e.g. the feedback-widget anon-write table call); damage likelihood is medium-to-high
-(nothing automated would catch an authorization bug in a brand-new RPC until it's actually misused) —
-worst-of high, never eligible for `/sweep-code-tasks`; recommend `/make-code-cold-plan-review` before
-implementation given the trust-boundary + design-call nature.
-
-```text
-Open design questions to resolve BEFORE implementing (don't guess — surface for a human/cold-review):
-1. How does the DM get the character into the campaign in the first place, while keeping DM Console's
-   own stated "read-only, never edits a character" design principle intact? Options: (a) DM builds/
-   imports it in CharGen under their own account, bound to the campaign, then generates the claim link
-   from CharGen or DM Console; (b) DM Console gains a new, explicit non-read-only capability for this
-   one flow, breaking its current invariant; (c) something else.
-2. Claim-link semantics: single-use (like campaign_invites/redeem_player_invite) vs. a reusable code?
-   Expiry? Can the DM revoke/regenerate it before redemption?
-3. What happens to `ap` (DM-awarded, server-authoritative) across the transfer — it should carry over
-   untouched per "store raw, derive the rest," but does `ap_awards.dm_id` still make sense pointing at
-   the original DM after ownership moves?
-4. Authorization for the new RPC: must verify the redeemer isn't already the owner, the character is
-   actually unclaimed/transferable, and the caller is a genuine distinct user — mirroring
-   redeem_player_invite's idempotency guard (a repeat call by the same user returns the same result
-   instead of erroring).
-5. Does the player need to consent/confirm before ownership silently changes hands to them, or is
-   redeeming the link itself the confirmation?
-
-Steps (once the above are resolved, not before):
-1. Design the schema: likely a new invite-token table/column (or extend campaign_invites with a
-   character_id + a kind discriminator) for "claim an existing character" tokens, distinct from today's
-   "create a new character" tokens.
-2. New SECURITY DEFINER RPCs (e.g. create_character_claim(character_id) / redeem_character_claim(token)),
-   owner-of-the-character-gated on creation, single-use on redemption, updating characters.owner_id —
-   the only path that may ever do so.
-3. UI: wherever the DM actually gets the character into the campaign (per design question 1), add a
-   "Generate claim link" action; the redemption side likely reuses the existing invite-redemption
-   page pattern.
-4. Log the ownership-transfer design decision in DECISIONS.md — exactly the kind of security-model
-   choice AGENTS.md asks to be recorded.
-```
-
-**Done when:** a DM can get a specific, already-built character into their campaign under their own
-account, generate a link, and have a named player redeem it to become that character's owner — with the
-RPC-level authorization verified (only the current owner can create a claim link; only a genuine distinct
-redemption can consume it) and the design questions above resolved and recorded in DECISIONS.md before
-merging.
 
 ## Purge the "pace curve" mislabel from the historical records — TODO
 Branch docs/pace-curve-terminology. `D-GH-2026-08-03-ap-budget-curve-standard` established that PACT has
@@ -685,9 +576,13 @@ AGENTS.md's "verify before writing an absence claim") before treating anything h
   (`AGENTS.md` File & data map) — audit whether that's actually *enforced* in `sql/rls-policies.sql`/RPCs
   or only true by convention.
 - `characters_update`'s RLS already requires `owner_id = auth.uid()` in both `USING` and `WITH CHECK`
-  (confirmed via `grep -n "owner_id" sql/rls-policies.sql`, see the `feat/character-ownership-claim-link`
-  task below) — so raw ownership reassignment is already blocked; that task is where a *deliberate*
-  transfer RPC belongs if one gets built, not this one.
+  (confirmed via `grep -n "owner_id" sql/rls-policies.sql`) — so raw ownership reassignment is already
+  blocked, and `feat/character-ownership-claim-link` (shipped 2026-08-11, deliberately as a COPY into a
+  new player-owned row rather than a transfer — see `D-GH-2026-08-11-character-claim-link-copy-not-
+  transfer`) never needed to touch this boundary at all. `create_character_claim`/`redeem_character_claim`
+  are new SECURITY DEFINER RPCs, though — confirm they're correctly gated (owner-of-source AND DM-of-
+  campaign to create; single-use, idempotent-on-repeat to redeem) and that no other path in this audit
+  reopens what that redesign closed.
 - DM-applied creation-lock enforcement is already scoped as its own task, `feat/dm-creation-lock` (below)
   — its "server is the enforcement point, not the LOG" framing is exactly this task's model; don't
   re-derive the lock design here, cross-check against it instead.

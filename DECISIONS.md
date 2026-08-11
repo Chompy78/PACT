@@ -10,6 +10,14 @@
 
 ## Index
 
+- **D-GH-2026-08-11-character-claim-link-copy-not-transfer** — re-scoped the not-yet-started
+  `feat/character-ownership-claim-link` task from an ownership-*transfer* RPC (reassigning `owner_id` on
+  the DM's existing character row) to a *copy* (a new row seeded from the DM's character, owned by the
+  redeeming player from creation). Needs no RLS/ownership-model change — a player inserting their own row
+  is already what the existing insert grant allows — which drops the task's risk from high to medium and
+  removes the recommended cold-plan-review step, since the trust-boundary risk it existed to catch no
+  longer exists.
+  Full record: `decisions/2026/D-GH-2026-08-11-character-claim-link-copy-not-transfer.md`.
 - **D-GH-2026-08-10-supabase-keep-alive** — the PACT Supabase project auto-paused from inactivity on
   2026-07-25, silently breaking login/register app-wide until manually restored. Fixed with a scheduled
   GitHub Actions workflow (`.github/workflows/supabase-keepalive.yml`, every 3 days) pinging Supabase's
