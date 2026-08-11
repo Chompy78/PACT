@@ -286,8 +286,9 @@ export async function bindCharacterToCampaign(characterId, code) {
  * just here). Generates a single-use claim link a player redeems to get their OWN independently-owned
  * COPY of this character (feat/character-ownership-claim-link, D-GH-2026-08-11-character-claim-link-
  * copy-not-transfer) — the source character's owner_id is never changed by this flow.
- * Hash-only storage, same as a DM invite: the plaintext is returned ONCE here and never retrievable
- * again (no list/reissue UI in v1 — copy it now).
+ * Plaintext storage, same as a player invite (owner decision, 2026-08-11 — shown-once is enough for
+ * v1, no persistent redisplay/reissue UI planned). The token is still returned only ONCE from this
+ * call — copy it now, there is no list-invites UI for this type in v1.
  * @returns {Promise<string>} the plaintext claim token
  */
 export async function createCharacterClaim(characterId, note) {

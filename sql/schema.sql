@@ -378,9 +378,9 @@ $$;
 -- type='character_claim' rows: a DM hands off their OWN campaign-bound character to a player as a
 -- claim link (feat/character-ownership-claim-link, D-GH-2026-08-11-character-claim-link-copy-not-
 -- transfer). Redemption COPIES the source character into a new row owned by the redeemer; the
--- source's owner_id is never changed. Hash-only storage like a DM invite (Security Invariant 1's
--- strict default) -- a claim link hands off something of real value (a fully-built character), not a
--- blank one, so it gets the same bar as a co-DM invite rather than the player-invite exception.
+-- source's owner_id is never changed. Plaintext storage like a player invite (owner decision,
+-- 2026-08-11 -- see that record's Addendum): shown-once is enough for v1, and there is no persistent
+-- redisplay/reissue UI planned that would need the hash-only bar co-DM invites use.
 create table if not exists public.campaign_invites (
   id                  uuid primary key default gen_random_uuid(),
   campaign_id         uuid not null references public.campaigns(id) on delete cascade,
@@ -388,8 +388,8 @@ create table if not exists public.campaign_invites (
   mode                text not null default 'single_use' check (mode in ('single_use','reusable')),
   redeemed_count      integer not null default 0,
   max_redemptions     integer,
-  token               text unique,        -- player invites only (plaintext, deliberately -- see header)
-  token_hash          text unique,        -- dm + character_claim invites (SHA-256 hex, Security Invariant 1)
+  token               text unique,        -- player + character_claim invites (plaintext, deliberately -- see header)
+  token_hash          text unique,        -- dm invites only (SHA-256 hex, Security Invariant 1)
   starting_ap         integer not null default 0,
   starting_budget     integer not null default 0,
   source_character_id uuid references public.characters(id) on delete cascade,  -- character_claim only
@@ -412,12 +412,12 @@ create table if not exists public.campaign_invites (
   constraint campaign_invites_reusable_dm_only_check check (
     mode = 'single_use' or type = 'dm'
   ),
-  -- Each type owns exactly one storage column -- player rows carry plaintext token and never
-  -- token_hash; dm and character_claim rows carry token_hash and never plaintext token. See this
-  -- table's header comment.
+  -- Each type owns exactly one storage column -- player and character_claim rows carry plaintext
+  -- token and never token_hash; dm rows carry token_hash and never plaintext token. See this table's
+  -- header comment.
   constraint campaign_invites_token_storage_check check (
-    (type = 'player' and token is not null and token_hash is null)
-    or (type in ('dm','character_claim') and token is null and token_hash is not null)
+    (type in ('player','character_claim') and token is not null and token_hash is null)
+    or (type = 'dm' and token is null and token_hash is not null)
   ),
   -- source_character_id is exclusively a character_claim column, same pattern as the token/token_hash
   -- split above -- every other type must leave it null.
@@ -872,15 +872,15 @@ $$;
 -- get their OWN new character, copied from the DM's. The source character's owner_id is NEVER written
 -- by this flow -- redeem_character_claim() only ever INSERTs a row the redeeming player already has
 -- the right to own, exactly what CharGen's normal Save already does, so this needs no RLS/ownership-
--- model change at all. Token handling mirrors create_dm_invite()/redeem_dm_invite() (hash-only
--- storage, CSPRNG token, collision-retry loop, plaintext returned once).
+-- model change at all. Token handling mirrors create_player_invite()/redeem_player_invite() (plaintext
+-- storage -- owner decision, 2026-08-11, see the decision record's Addendum for why: shown-once is
+-- enough for v1, no persistent redisplay/reissue UI planned that would need hash-only).
 -- ---------------------------------------------------------------------------
 create or replace function public.create_character_claim(p_character_id uuid, p_note text default null)
 returns text language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_char  characters%rowtype;
   v_token text;
-  v_hash  text;
   v_note  text := nullif(trim(coalesce(p_note, '')), '');
 begin
   if auth.uid() is null then
@@ -901,14 +901,13 @@ begin
 
   loop
     v_token := encode(extensions.gen_random_bytes(16), 'hex');
-    v_hash  := encode(extensions.digest(v_token, 'sha256'), 'hex');
-    exit when not exists (select 1 from campaign_invites where token_hash = v_hash);
+    exit when not exists (select 1 from campaign_invites where token = v_token);
   end loop;
 
-  insert into campaign_invites (campaign_id, token_hash, type, mode, source_character_id, created_by, note)
-    values (v_char.campaign_id, v_hash, 'character_claim', 'single_use', p_character_id, auth.uid(), v_note);
+  insert into campaign_invites (campaign_id, token, type, mode, source_character_id, created_by, note)
+    values (v_char.campaign_id, v_token, 'character_claim', 'single_use', p_character_id, auth.uid(), v_note);
 
-  return v_token;   -- plaintext returned ONCE; no API retrieves it again (Security Invariant 1/5).
+  return v_token;
 end;
 $$;
 
@@ -916,7 +915,6 @@ create or replace function public.redeem_character_claim(p_token text)
 returns table(character_id uuid, campaign_id uuid, is_new boolean)
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
-  v_hash   text;
   v_invite campaign_invites%rowtype;
   v_source characters%rowtype;
   v_new_id uuid;
@@ -926,10 +924,8 @@ begin
     raise exception 'Not authenticated';
   end if;
 
-  v_hash := encode(extensions.digest(p_token, 'sha256'), 'hex');
-
   -- FOR UPDATE serializes concurrent redemption attempts against this exact invite row.
-  select * into v_invite from campaign_invites where token_hash = v_hash and type = 'character_claim' for update;
+  select * into v_invite from campaign_invites where token = p_token and type = 'character_claim' for update;
 
   if not found then
     raise exception 'Claim link is invalid or already used';

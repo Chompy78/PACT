@@ -63,13 +63,9 @@ resolved as follows (all recorded here rather than re-litigated):
    own) — `characters_update`'s owner-only column grants never gate `campaign_id` directly, only the
    SECURITY DEFINER RPCs do, and this one was already general enough. DM Console's "read-only, never
    edits a character" principle stays intact — it plays no role in this flow at all.
-2. **Token storage: hash-only, not plaintext.** `campaign_invites` gained a third `type`,
-   `character_claim`, sharing the `token_hash` column with `dm`-type rows rather than the plaintext
-   `token` player-invite rows use. Decided this gets the *strict* default (Security Invariant 1) rather
-   than the player-invite exception: a claim link hands off something of real value (a fully-built
-   character), and there is no re-display/reissue UI in v1 that would justify the plaintext exception the
-   way `list_campaign_invites()` does for player invites — shown once at creation, copy it now, same as a
-   co-DM invite.
+2. **Token storage: plaintext, not hash-only** (revised same day — see Addendum below). `campaign_invites`
+   gained a third `type`, `character_claim`, sharing the plaintext `token` column with `player`-type
+   rows.
 3. **Single-use, no expiry, no revoke UI in v1.** Matches the recommendation; `campaign_invites`'
    existing `campaign_invites_reusable_dm_only_check` needed no change since `create_character_claim`
    always hardcodes `mode = 'single_use'`. `expires_at`/`revoked_at` columns are shared with the other
@@ -111,3 +107,25 @@ resolved as follows (all recorded here rather than re-litigated):
   considered done; re-ran the advisor clean afterward. Worth calling out explicitly since this is exactly
   the class of drift `AGENTS.md`'s per-change checklist step 4 (run the advisor before opening the PR)
   exists to catch — it did.
+
+## Addendum (2026-08-11, same day) — token storage flipped to plaintext, per owner
+
+Point 2 above (hash-only, the initial implementation choice) was overridden by the owner the same day:
+**"Keep the plaintext, shown-once is fine for now."** Applied as a clean follow-up migration
+(`sql/migrations/2026-08-11-character-claim-plaintext-token.sql`) — confirmed zero `character_claim` rows
+existed at the time (`select count(*) from campaign_invites where type = 'character_claim'`), so this was
+a schema/RPC flip, not a data migration:
+
+- `campaign_invites_token_storage_check` moved `character_claim` from the hash-only group (with `dm`) to
+  the plaintext group (with `player`).
+- `create_character_claim()` now inserts into `token` directly (no `digest()`/`token_hash`), mirroring
+  `create_player_invite()`'s token-generation loop exactly.
+- `redeem_character_claim()` now looks up by `token = p_token` directly, no `digest()` step.
+- No client-side change needed — the token was always an opaque string to CharGen; only its server-side
+  storage/lookup changed.
+- Grants unchanged (same function signatures) — re-ran `get_advisors` after, still clean, no new
+  `anon`-executable warning introduced by this follow-up.
+
+Net effect: a claim link now behaves exactly like a player invite for storage purposes (plaintext, shown
+once, no persistent redisplay), not like a co-DM invite. If a DM loses the link before sharing it, they
+generate a new one — no recovery path in v1, same as today for a lost DM-invite token.
