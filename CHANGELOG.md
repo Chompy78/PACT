@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · fix(tools): cloud-autosave flush waits for the LATEST push, not a stale one** —
+  `fix/autosave-flush-latest-push`, from `/sweep-code-tasks`. Found by `/code-review ultra` on the B3
+  branch: when a cloud autosave push was already in flight, `_cgCloudPush()`/`_lsCloudPush()`'s busy
+  branch returned that STALE push's promise instead of the retry `_cgCloudSaveAgain` queues — so a
+  deliberate tool-switch flush (`switchToLiveSheet`/`switchToCharGen`) raced against the wrong promise,
+  navigated away, and the real retry (carrying whatever the latest edit actually was) fired later with
+  no keepalive, right as the page tore down. Fixed in both tools identically: the busy branch now chains
+  onto a new read-only `_cgCloudPushSettled()`/`_lsCloudPushSettled()` waiter that recursively tracks
+  however many retries the queue actually needs (without itself triggering any — that would spuriously
+  re-save unchanged state forever); the flush and the `pagehide` keepalive wrapper both await that
+  instead of the push's own return value. New differential test,
+  `testing/scripts/autosave-flush-latest-push-ci.mjs` — extracts the real push-queue functions from both
+  tools' source, confirms a hand-reverted pre-fix copy actually reproduces the bug, then confirms the
+  live code doesn't: 8/8. `engine-parity-ci.mjs` 30/0, `tool-pricing-ci.mjs` 134/0 — unaffected.
 - **2026-08-10 · feat(engine): ban a class as a 2nd-origin-only pick** — `feat/banned-2nd-origin-class`,
   from `/sweep-code-tasks`. Mirrors the existing species asymmetric-ban pattern
   (`bannedOriginSpecies`/species2): `js/engine.js`'s `validate()` gains a new `bannedOriginClasses2` rule

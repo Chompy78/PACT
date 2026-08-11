@@ -670,44 +670,6 @@ drawback-derived AP "player AP"; `testing/expected/` updated and `DATA.version` 
 engine-parity **0 failed**.
 
 
-## Cloud-autosave flush doesn't wait for the freshest edit when a push is already in flight — TODO
-Branch fix/autosave-flush-latest-push. `_cgFlushCloudSaveNow()` (`tools/PACT-CharGen-Webtool.html`) and
-its Live Sheet twin `_lsFlushCloudSaveNow()` don't actually wait for the freshest pending edit when a
-push is already in flight, and neither the flush nor the retry it triggers use `withKeepalive` — so a
-deliberate tool-switch navigation (`switchToLiveSheet()`/`switchToCharGen()`) can still outrun the save
-it was added to guarantee. Found by `/code-review ultra` on the B3 (universal autosave) branch — a
-pre-existing bug in CharGen's already-shipped push-overlap machinery, freshly replicated into Live
-Sheet's new B3 autosave scaffolding rather than something either branch introduced from scratch.
-**Effort:** medium · **Risk:** medium — ambiguity is medium (a clear direction exists — track the
-LATEST queued push, not just "a" push — but the exact mechanism has a few reasonable shapes); damage
-scale is medium (spans two tools' autosave scaffolding, though fully contained and revertible — no
-security/data-model impact, and local autosave never loses the edit, only the cloud copy can lag until
-reconnect); damage likelihood is medium (no automated gate exists yet, but the fix's own differential
-test would catch a wrong implementation before merge).
-
-```text
-1. Reproduce first: a user edits while an earlier debounced push is in flight, then immediately
-   switches tools. _cgFlushCloudSaveNow()/_lsFlushCloudSaveNow() call _cgCloudPush()/_lsCloudPush(),
-   which (busy branch) just sets *SaveAgain=true and returns the OLD in-flight promise — not one
-   representing the newer edit. The Promise.race resolves on that stale push, the switch function
-   navigates away, and the retry carrying the actual latest edit fires later from the old push's
-   .finally() callback, dispatched WITHOUT keepalive.
-2. Fix direction: _cgCloudPush()/_lsCloudPush() need to return a promise that resolves only once the
-   LATEST queued push (not just "a" push) has completed, so the flush's Promise.race actually waits on
-   the right thing.
-3. The retry triggered from .finally() should go through withKeepalive too, since it can fire after the
-   page has already started navigating away.
-4. Apply the same fix to both CharGen and Live Sheet — they're independent copies of the same pattern,
-   not a shared function, so fixing one does not fix the other.
-5. Write a differential regression test (testing/scripts/, matching sync-concurrency-ci.mjs's own
-   pattern) that reproduces the overlapping-push-then-navigate scenario and fails on the pre-fix code.
-```
-
-**Done when:** a differential regression test reproduces the overlapping-push-then-navigate scenario
-and confirms the flush waits for the LATEST edit's push (not a stale one), with keepalive applied to
-any retry that fires after navigation starts; fix applied to both CharGen and Live Sheet; `testing/
-tests/engine-parity.html` still 0 failed.
-
 ## Security audit: privilege boundaries + character/AP integrity against a malicious client — TODO
 Branch `security/privilege-and-character-integrity`. Owner request, 2026-08-08. Assume the attacker has
 the full frontend source, the Supabase URL, the publishable key, complete control of browser JS/

@@ -3711,13 +3711,33 @@ function _cgCloudAutosave(){
 function _cgCloudPush(){
   // Never overlap two pushes for the same character — pushCharacter() is a bare update-then-insert with
   // no dirty check, so a slow request overtaken by a fast one could land the older build last.
-  if(_cgCloudSaveBusy){_cgCloudSaveAgain=true;return _cgCloudPushPromise;}
+  //
+  // fix/autosave-flush-latest-push (D-GH-2026-08-10-autosave-flush-latest-push): the busy branch used to
+  // return the STALE, already-in-flight _cgCloudPushPromise — so a caller like _cgFlushCloudSaveNow()
+  // that raced against it would resolve on the OLD push, not the retry .finally() below queues up to
+  // carry whatever edit actually arrived. Now returns a promise chained past that stale push, then
+  // (recursively) past any further retry that's already running by the time it settles — this is what
+  // makes the returned promise track the LATEST queued push, not just whichever one happened to be
+  // running when this particular call was made.
+  if(_cgCloudSaveBusy){
+    _cgCloudSaveAgain=true;
+    return _cgCloudPushPromise.catch(function(){}).then(_cgCloudPushSettled);
+  }
   _cgCloudSaveBusy=true;
   _cgCloudPushPromise=_cgCloudPushOnce().finally(function(){
     _cgCloudSaveBusy=false;
     if(_cgCloudSaveAgain){_cgCloudSaveAgain=false;_cgCloudPush();}
   });
   return _cgCloudPushPromise;
+}
+// Read-only wait: resolves once every push currently in flight or queued has genuinely settled.
+// Deliberately does NOT call _cgCloudPush() itself while recursing (unlike the busy branch above,
+// which legitimately wants a NEW push) — doing so would mark _cgCloudSaveAgain on every recursive
+// check purely as a side effect of waiting, forcing an unbounded chain of spurious re-saves of
+// unchanged state. Only reads _cgCloudSaveBusy/_cgCloudPushPromise.
+function _cgCloudPushSettled(){
+  if(!_cgCloudSaveBusy) return undefined;
+  return _cgCloudPushPromise.catch(function(){}).then(_cgCloudPushSettled);
 }
 async function _cgCloudPushOnce(){
   // feat/campaign-ap-budget-enforce: skip the push silently after one warning per session — this runs
@@ -3758,9 +3778,14 @@ function _cgFlushCloudSaveNow(timeoutMs){
   if(_cgCloudSaveTimer!=null){clearTimeout(_cgCloudSaveTimer);_cgCloudSaveTimer=null;}
   if(!pending) return Promise.resolve();
   if(!_cgAutosaveGate()) return Promise.resolve();
-  var pushed=_cgCloudPush();
-  if(!pushed) return Promise.resolve();
-  return Promise.race([pushed.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
+  _cgCloudPush();   // ensure a push is running or (if one already was) marked to retry with this edit
+  // Wait on _cgCloudPushSettled(), NOT _cgCloudPush()'s own return value — even post-fix, a push started
+  // by the NOT-busy branch just above returns that push's own promise directly, which would still
+  // resolve before a LATER retry another caller's edit triggers mid-flight. _cgCloudPushSettled() is the
+  // one thing that always tracks the actual current tail of the queue, however it got there.
+  var settled=_cgCloudPushSettled();
+  if(!settled) return Promise.resolve();
+  return Promise.race([settled.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
 }
 // Best-effort cloud flush on page exit (tab/browser close, back/forward away from the tool). `pagehide`
 // is preferred over `beforeunload`, which is throttled or skipped outright on mobile and some browsers —
@@ -3778,7 +3803,13 @@ window.addEventListener('pagehide',function(){
   if(!pending) return;
   if(!_cgAutosaveGate()) return;
   try{
-    if(window._syncBridge.withKeepalive) window._syncBridge.withKeepalive(_cgCloudPush);
+    // fix/autosave-flush-latest-push: withKeepalive(_cgCloudPush) alone only ever covered the FIRST
+    // push's own fetch — a retry .finally() triggers (the one that actually carries whatever the
+    // latest edit was) fired from inside a separate, later promise chain the withKeepalive wrapper was
+    // never still awaiting, so it went out with no keepalive at exactly the moment the page is tearing
+    // down. Wrapping a function that also awaits _cgCloudPushSettled() keeps the keepalive flag set for
+    // the whole span, including any retry that chains on before the queue actually drains.
+    if(window._syncBridge.withKeepalive) window._syncBridge.withKeepalive(function(){ _cgCloudPush(); return _cgCloudPushSettled(); });
     else _cgCloudPush();
   }catch(e){ /* best-effort only — see comment above */ }
 });

@@ -741,13 +741,27 @@ function _lsCloudAutosave(){
   _lsCloudSaveTimer=setTimeout(function(){_lsCloudSaveTimer=null;_lsCloudPush();},3000);
 }
 function _lsCloudPush(){
-  if(_lsCloudSaveBusy){_lsCloudSaveAgain=true;return _lsCloudPushPromise;}
+  // fix/autosave-flush-latest-push (D-GH-2026-08-10-autosave-flush-latest-push): mirrors CharGen's
+  // identical fix exactly — see that copy's comment for the full reasoning. The busy branch used to
+  // return the STALE, already-in-flight _lsCloudPushPromise; now chains past it, then (recursively)
+  // past any further retry, via the read-only _lsCloudPushSettled() below — never by calling
+  // _lsCloudPush() itself while waiting, which would spuriously mark _lsCloudSaveAgain on every check.
+  if(_lsCloudSaveBusy){
+    _lsCloudSaveAgain=true;
+    return _lsCloudPushPromise.catch(function(){}).then(_lsCloudPushSettled);
+  }
   _lsCloudSaveBusy=true;
   _lsCloudPushPromise=_lsCloudPushOnce().finally(function(){
     _lsCloudSaveBusy=false;
     if(_lsCloudSaveAgain){_lsCloudSaveAgain=false;_lsCloudPush();}
   });
   return _lsCloudPushPromise;
+}
+// Read-only wait: resolves once every push currently in flight or queued has genuinely settled. See
+// CharGen's _cgCloudPushSettled() for the full reasoning (identical pattern).
+function _lsCloudPushSettled(){
+  if(!_lsCloudSaveBusy) return undefined;
+  return _lsCloudPushPromise.catch(function(){}).then(_lsCloudPushSettled);
 }
 async function _lsCloudPushOnce(){
   // feat/campaign-ap-budget-enforce: skip the push silently after one warning per session — this runs
@@ -781,9 +795,12 @@ function _lsFlushCloudSaveNow(timeoutMs){
   if(_lsCloudSaveTimer!=null){clearTimeout(_lsCloudSaveTimer);_lsCloudSaveTimer=null;}
   if(!pending) return Promise.resolve();
   if(!_lsAutosaveGate()) return Promise.resolve();
-  var pushed=_lsCloudPush();
-  if(!pushed) return Promise.resolve();
-  return Promise.race([pushed.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
+  _lsCloudPush();   // ensure a push is running or (if one already was) marked to retry with this edit
+  // Wait on _lsCloudPushSettled(), not _lsCloudPush()'s own return value — see CharGen's identical fix
+  // for why even the not-busy branch's raw return value can't be trusted to track a later retry.
+  var settled=_lsCloudPushSettled();
+  if(!settled) return Promise.resolve();
+  return Promise.race([settled.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
 }
 // Best-effort cloud flush on page exit — see CharGen's identical pagehide handler for the full
 // keepalive/why-not-sendBeacon reasoning; not repeated here.
@@ -793,7 +810,9 @@ window.addEventListener('pagehide',function(){
   if(!pending) return;
   if(!_lsAutosaveGate()) return;
   try{
-    if(window._syncBridge&&window._syncBridge.withKeepalive) window._syncBridge.withKeepalive(_lsCloudPush);
+    // fix/autosave-flush-latest-push: keep the keepalive flag set for the whole queue-drain span,
+    // including any retry that chains on before it actually drains — see CharGen's identical handler.
+    if(window._syncBridge&&window._syncBridge.withKeepalive) window._syncBridge.withKeepalive(function(){ _lsCloudPush(); return _lsCloudPushSettled(); });
     else _lsCloudPush();
   }catch(e){ /* best-effort only */ }
 });
