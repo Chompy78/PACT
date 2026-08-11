@@ -888,7 +888,9 @@ document.addEventListener('sync-ready', function () {
     try {
       var id = currentCharId();
       var stats = _cgEnvelope(false);   // unsigned — matches the Live Sheet's cloud stats shape; never signature-checked on the way back in
-      var res = await S.saveCharacter({ id: id, name: stats.name || 'Character', kind: 'chargen', stats: stats, campaignId: window._cgCampaignId });
+      // fix/manual-save-queue-bypass: routed through the shared push-queue coordination instead of a
+      // raw S.saveCharacter(...) call — see _cgQueuedSaveCharacter's own comment for why.
+      var res = await _cgQueuedSaveCharacter({ id: id, name: stats.name || 'Character', kind: 'chargen', stats: stats, campaignId: window._cgCampaignId });
       // Adopt the id the sync layer actually used. It differs from what we passed when this character
       // still carried a legacy pre-UUID id — without adopting it, the next save would migrate AGAIN and
       // strand a second row. Bare assignment: __charId is a top-level `let`, so window.__charId= would
@@ -940,7 +942,9 @@ document.addEventListener('sync-ready', function () {
       // NOT a no-op when unchanged: saveCharacter/pushCharacter (js/sync.js) always issues a
       // network write when online, with no dirty-check.
       var stats = _cgEnvelope(false);
-      var saveRes = await S.saveCharacter({ id: id, name: stats.name || 'Character', kind: 'chargen', stats: stats, campaignId: window._cgCampaignId });
+      // fix/manual-save-queue-bypass: routed through the shared push-queue coordination — see
+      // _cgQueuedSaveCharacter's own comment for why.
+      var saveRes = await _cgQueuedSaveCharacter({ id: id, name: stats.name || 'Character', kind: 'chargen', stats: stats, campaignId: window._cgCampaignId });
       if (saveRes && saveRes.error) throw saveRes.error;
       if (saveRes && saveRes.synced === false) throw new Error("You're offline — reconnect, then try joining again.");
       // A legacy pre-UUID id is migrated by the save above, so the bind below MUST target the new id
@@ -3687,6 +3691,12 @@ function _cgEnvelope(sign){return buildCharacterEnvelope({name:val('cname')||'',
 // see _cgAutosaveGate() below and the decision record for why campaign-bound characters are no longer
 // special-cased. Still debounced so it fires after editing stops, not during it.
 var _cgCloudSaveTimer=null,_cgCloudSaveBusy=false,_cgCloudSaveAgain=false,_cgCloudPushPromise=null;
+// feat/keepalive-scope-narrowing (A2, Addendum on D-GH-2026-08-08-chargen-cloud-autosave-flush): set by
+// the pagehide handler, read by _cgCloudPushOnce() below to decide whether THIS push attempt's own fetch
+// opts into withKeepalive() -- reset back to false once the push queue fully drains (_cgCloudPush()'s
+// finally), so an ordinary later autosave never inherits keepalive just because pagehide once fired
+// (some browsers fire pagehide on tab-switch/bfcache without the page actually unloading).
+var _cgPageHiding=false;
 // Universal cloud autosave gate (D-GH-2026-08-08-universal-autosave-toggle, B3): every signed-in
 // character autosaves by default now, campaign-bound or not -- this deliberately no longer checks
 // window._cgCampaignBound. The one thing that CAN still turn it off is the player's own toggle
@@ -3727,6 +3737,7 @@ function _cgCloudPush(){
   _cgCloudPushPromise=_cgCloudPushOnce().finally(function(){
     _cgCloudSaveBusy=false;
     if(_cgCloudSaveAgain){_cgCloudSaveAgain=false;_cgCloudPush();}
+    else{_cgPageHiding=false;}   // queue fully drained -- stop opting future pushes into keepalive
   });
   return _cgCloudPushPromise;
 }
@@ -3738,6 +3749,39 @@ function _cgCloudPush(){
 function _cgCloudPushSettled(){
   if(!_cgCloudSaveBusy) return undefined;
   return _cgCloudPushPromise.catch(function(){}).then(_cgCloudPushSettled);
+}
+// fix/manual-save-queue-bypass: shared by the manual "☁ Save to cloud" button (onSaveClick) and the
+// campaign-join flow (onJoinCampaignClick) below — both used to call S.saveCharacter(...) directly,
+// racing the debounced autosave queue's own push (_cgCloudPush()) instead of being sequenced by it, so
+// a slow autosave overtaken by a fast manual save (or vice versa) could land the older build last (see
+// _cgCloudPush()'s own overlap-guard comment). Waits for any push already in flight to fully settle
+// first, then claims the SAME _cgCloudSaveBusy/_cgCloudSaveAgain coordination the autosave queue uses
+// for the duration of THIS call, so a debounce firing mid-request queues behind it instead of racing it.
+// Deliberately does NOT delegate to _cgCloudPushOnce() itself: that function swallows errors/conflicts
+// silently (right for a background autosave) — these are user-initiated actions whose caller needs the
+// raw result (or a thrown error) to show its own success/failure UI.
+async function _cgQueuedSaveCharacter(args){
+  if(_cgCloudSaveBusy) await _cgCloudPushSettled();
+  _cgCloudSaveBusy=true;
+  var pushPromise=window._syncBridge.saveCharacter(args);
+  _cgCloudPushPromise=pushPromise.finally(function(){
+    _cgCloudSaveBusy=false;
+    if(_cgCloudSaveAgain){_cgCloudSaveAgain=false;_cgCloudPush();}
+  });
+  return pushPromise;
+}
+// feat/keepalive-scope-narrowing (A2, Addendum on D-GH-2026-08-08-chargen-cloud-autosave-flush): only
+// THIS push attempt's own fetch opts into keepalive, and only when we're mid-pagehide (_cgPageHiding) —
+// a normal debounced/flush push never does. Narrower than wrapping the whole outer settle-wait chain:
+// called once per push ATTEMPT (_cgCloudPushOnce() below calls it on every invocation), so the initial
+// push and any chained retry each get their own separate withKeepalive() span instead of one span
+// covering the whole wait — a gap opens between attempts where the shared _keepaliveNext flag is back
+// to false, so an unrelated concurrent fetch (e.g. Supabase's own autoRefreshToken) landing in that gap
+// no longer silently inherits keepalive:true. Factored out of _cgCloudPushOnce() as its own function
+// (rather than inlined) so it stays real, exercisable code that survives that function's own body being
+// swapped out in autosave-flush-latest-push-ci.mjs's differential stub.
+function _cgKeepaliveWrap(fn){
+  return (_cgPageHiding&&window._syncBridge.withKeepalive)?window._syncBridge.withKeepalive(fn):fn();
 }
 async function _cgCloudPushOnce(){
   // feat/campaign-ap-budget-enforce: skip the push silently after one warning per session — this runs
@@ -3752,7 +3796,8 @@ async function _cgCloudPushOnce(){
   }
   try{
     var stats=_cgEnvelope(false);
-    var res=await window._syncBridge.saveCharacter({id:currentCharId(),name:stats.name||'Character',kind:'chargen',stats:stats,campaignId:window._cgCampaignId});
+    var doSave=function(){ return window._syncBridge.saveCharacter({id:currentCharId(),name:stats.name||'Character',kind:'chargen',stats:stats,campaignId:window._cgCampaignId}); };
+    var res=await _cgKeepaliveWrap(doSave);
     if(res&&res.id)__charId=res.id;   // adopt a migrated pre-UUID id, same as the manual save
     // A conflict is the one autosave outcome worth breaking the silence for. An offline or transient
     // failure fixes itself on the next retry; this one never will, and every further keystroke is being
@@ -3807,14 +3852,16 @@ window.addEventListener('pagehide',function(){
   if(!pending) return;
   if(!_cgAutosaveGate()) return;
   try{
-    // fix/autosave-flush-latest-push: withKeepalive(_cgCloudPush) alone only ever covered the FIRST
-    // push's own fetch — a retry .finally() triggers (the one that actually carries whatever the
-    // latest edit was) fired from inside a separate, later promise chain the withKeepalive wrapper was
-    // never still awaiting, so it went out with no keepalive at exactly the moment the page is tearing
-    // down. Wrapping a function that also awaits _cgCloudPushSettled() keeps the keepalive flag set for
-    // the whole span, including any retry that chains on before the queue actually drains.
-    if(window._syncBridge.withKeepalive) window._syncBridge.withKeepalive(function(){ _cgCloudPush(); return _cgCloudPushSettled(); });
-    else _cgCloudPush();
+    // fix/autosave-flush-latest-push found that withKeepalive(_cgCloudPush) alone only ever covered the
+    // FIRST push's own fetch — a retry .finally() triggers (the one that actually carries whatever the
+    // latest edit was) fired from a separate, later promise chain with no keepalive at exactly the moment
+    // the page is tearing down. feat/keepalive-scope-narrowing (A2) fixes that WITHOUT holding the shared
+    // `_keepaliveNext` flag open across the whole wait: _cgPageHiding just marks "any push dispatched
+    // while this is true should open its own narrow withKeepalive() span" — _cgCloudPushOnce() reads it
+    // and wraps just its own saveCharacter() call, and this applies equally to the initial push AND any
+    // chained retry (each gets its own separate span), reset false once the queue drains.
+    _cgPageHiding=true;
+    _cgCloudPush();
   }catch(e){ /* best-effort only — see comment above */ }
 });
 function _cgAutosave(){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(_cgEnvelope(false)));}catch(e){}
