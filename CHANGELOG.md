@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · feat(engine): ban a class as a 2nd-origin-only pick** — `feat/banned-2nd-origin-class`,
+  from `/sweep-code-tasks`. Mirrors the existing species asymmetric-ban pattern
+  (`bannedOriginSpecies`/species2): `js/engine.js`'s `validate()` gains a new `bannedOriginClasses2` rule
+  field, checked only against `originClass2`, alongside the existing `bannedOriginClasses` (which already
+  bans a class in both slots — unaffected, still enforced). New "Banned as 2nd origin classes" grid in DM
+  Console's Campaign Rules panel; CharGen's `oclass2` picker now live-filters against both
+  `originClasses`/`originClasses2` (mirroring `spec2`'s `species`/`originSpecies` filter). No existing
+  fixture sets the new field, so `compute()` output is unchanged for every current fixture — no
+  `DATA.version` bump. Verified directly (4 cases: primary use allowed, 2nd-origin use rejected, existing
+  symmetric ban still fires in both slots, `RULE_BAN_FIELDS` mapping present).
+  `engine-parity-ci.mjs` 30/0, `tool-pricing-ci.mjs` 134/0 — both unaffected.
 - **2026-08-10 · chore(ci): scheduled Supabase keep-alive workflow** — `chore/supabase-keep-alive`, from
   `/sweep-code-tasks`. The free-tier project auto-paused from inactivity on 2026-07-25, silently breaking
   login/register app-wide until manually restored. New `.github/workflows/supabase-keepalive.yml` pings

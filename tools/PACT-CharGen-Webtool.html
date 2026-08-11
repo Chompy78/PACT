@@ -3397,10 +3397,12 @@ function buildSpeciesSelects(bOverride){
 function buildOriginClassSelects(bOverride){
   var elA=$('oclass'),elB=$('oclass2'); if(!elA||!elB)return;
   var b=bOverride||readBuild(); var cur=b.originClass||'(none)', cur2=b.originClass2||'(none)';
-  function opts(sel){return cloudAllowedList(DATA.classes,'originClasses',function(c){return c===sel;}).map(function(c){
+  // elB (the 2nd-origin slot) is also subject to 'originClasses2' — an asymmetric ban mirroring
+  // species2's ['species','originSpecies'] pattern just above (see js/engine.js validate()).
+  function opts(sel,kinds){return cloudAllowedList(DATA.classes,kinds,function(c){return c===sel;}).map(function(c){
     return '<option value="'+c+'"'+(c===sel?' selected':'')+'>'+c+'</option>';}).join('');}
-  elA.innerHTML='<option value="(none)"'+(cur==='(none)'?' selected':'')+'>(none)</option>'+opts(cur);
-  elB.innerHTML='<option value="(none)"'+(cur2==='(none)'?' selected':'')+'>(none)</option>'+opts(cur2);
+  elA.innerHTML='<option value="(none)"'+(cur==='(none)'?' selected':'')+'>(none)</option>'+opts(cur,'originClasses');
+  elB.innerHTML='<option value="(none)"'+(cur2==='(none)'?' selected':'')+'>(none)</option>'+opts(cur2,['originClasses','originClasses2']);
 }
 function buildMasteryGrid(bOverride){
   var g=$('mastgrid'); if(!g)return;

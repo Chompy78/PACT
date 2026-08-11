@@ -732,6 +732,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <div class="ruleblock"><div class="lbl">Banned species</div><div class="rulegrid" id="ruleBannedSpecies"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned as 2nd origin species</div><div class="rulegrid" id="ruleBannedOriginSpecies"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned origin classes</div><div class="rulegrid" id="ruleBannedOriginClasses"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned as 2nd origin classes</div><div class="rulegrid" id="ruleBannedOriginClasses2"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned weapon masteries</div><div class="rulegrid" id="ruleBannedMasteries"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned drawbacks</div><div class="rulegrid" id="ruleBannedDrawbacks"></div></div>
@@ -2499,6 +2500,7 @@ document.addEventListener('campaign-ready', function () {
     ['ruleBannedSpecies', function(){ return Object.keys(_D.pack||{}); }],
     ['ruleBannedOriginSpecies', function(){ return Object.keys(_D.pack||{}); }],
     ['ruleBannedOriginClasses', function(){ return _D.classes||[]; }],
+    ['ruleBannedOriginClasses2', function(){ return _D.classes||[]; }],
     ['ruleBannedMasteries', function(){ return Object.keys(_D.masteryFx||{}); }],
     ['ruleBannedBoons', function(){ return Object.keys(_D.boons||{}); },
       function(name){ return (_D.boons && _D.boons[name] && _D.boons[name].fx) || ''; }],
@@ -2547,6 +2549,7 @@ document.addEventListener('campaign-ready', function () {
     setRuleGridChecked('ruleBannedSpecies', r.bannedSpecies);
     setRuleGridChecked('ruleBannedOriginSpecies', r.bannedOriginSpecies);
     setRuleGridChecked('ruleBannedOriginClasses', r.bannedOriginClasses);
+    setRuleGridChecked('ruleBannedOriginClasses2', r.bannedOriginClasses2);
     setRuleGridChecked('ruleBannedMasteries', r.bannedMasteries);
     setRuleGridChecked('ruleBannedBoons', r.bannedBoons);
     setRuleGridChecked('ruleBannedDrawbacks', r.bannedDrawbacks);
@@ -2626,8 +2629,8 @@ document.addEventListener('campaign-ready', function () {
   function renderRulesSummary(r){
     var el = document.getElementById('campRulesSummary'); if(!el) return;
     r = r || {};
-    var bans = ['bannedSpecies','bannedOriginSpecies','bannedOriginClasses','bannedMasteries',
-                'bannedBoons','bannedDrawbacks','bannedArts']
+    var bans = ['bannedSpecies','bannedOriginSpecies','bannedOriginClasses','bannedOriginClasses2',
+                'bannedMasteries','bannedBoons','bannedDrawbacks','bannedArts']
       .reduce(function(n,k){ return n + ((r[k]||[]).length); }, 0);
     var house = Object.keys(r.houseRules || {}).length;
     var bits = [];
@@ -2799,6 +2802,7 @@ document.addEventListener('campaign-ready', function () {
       bannedSpecies: getRuleGridChecked('ruleBannedSpecies'),
       bannedOriginSpecies: getRuleGridChecked('ruleBannedOriginSpecies'),
       bannedOriginClasses: getRuleGridChecked('ruleBannedOriginClasses'),
+      bannedOriginClasses2: getRuleGridChecked('ruleBannedOriginClasses2'),
       bannedMasteries: getRuleGridChecked('ruleBannedMasteries'),
       bannedBoons: getRuleGridChecked('ruleBannedBoons'),
       bannedDrawbacks: getRuleGridChecked('ruleBannedDrawbacks'),
