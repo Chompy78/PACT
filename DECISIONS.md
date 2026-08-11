@@ -10,6 +10,15 @@
 
 ## Index
 
+- **D-GH-2026-08-10-supabase-keep-alive** — the PACT Supabase project auto-paused from inactivity on
+  2026-07-25, silently breaking login/register app-wide until manually restored. Fixed with a scheduled
+  GitHub Actions workflow (`.github/workflows/supabase-keepalive.yml`, every 3 days) pinging Supabase's
+  `/auth/v1/health` endpoint with the already-committed anon key — chosen over a direct table read
+  because every RLS-protected table correctly 401s an anonymous request, which would make a genuine
+  outage indistinguishable from expected RLS behaviour in the workflow's own pass/fail check. Paid-tier
+  upgrade (removes auto-pause entirely) considered and deferred — a recurring cost only the project
+  owner can approve, not decided unilaterally.
+  Full record: `decisions/2026/D-GH-2026-08-10-supabase-keep-alive.md`.
 - **D-GH-2026-08-10-dm-custom-character-fields** — owner request: campaign-level custom character fields
   (2 numeric, 2 text) with a per-field "visible to players" toggle (default OFF), plus a new
   "Customisable" roster card view. Definitions ride `campaigns.rules.customFields` (no new table); values

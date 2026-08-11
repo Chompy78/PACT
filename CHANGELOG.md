@@ -6,6 +6,14 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · chore(ci): scheduled Supabase keep-alive workflow** — `chore/supabase-keep-alive`, from
+  `/sweep-code-tasks`. The free-tier project auto-paused from inactivity on 2026-07-25, silently breaking
+  login/register app-wide until manually restored. New `.github/workflows/supabase-keepalive.yml` pings
+  Supabase's `/auth/v1/health` endpoint every 3 days using only the already-committed anon key (URL/key
+  read directly from `js/supabase-client.js`, no duplicated literal). Chosen over a direct table read
+  because every RLS-protected table correctly 401s an anonymous request, which would make a real outage
+  indistinguishable from healthy RLS in the workflow's own pass/fail check. `get_advisors(security)` no
+  new findings. See `D-GH-2026-08-10-supabase-keep-alive`.
 - **2026-08-10 · fix(campaign): `dm_edit_character_log` cross-validates a boon grant's buy/award
   amounts** — `fix/dm-edit-boon-amount-check`, from `/sweep-code-tasks`. Flagged by `/code-review ultra`
   on PR #403 and deliberately deferred at the time (see `D-GH-2026-08-10-dm-edit-events`'s addenda): the
