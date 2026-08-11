@@ -97,6 +97,23 @@ export async function setCharacterCustomFields(characterId, values) {
 }
 
 /**
+ * feat/custom-fields-player-display (D-GH-2026-08-10-dm-custom-character-fields follow-up): the
+ * player-facing read counterpart to setCharacterCustomFields() above, via the
+ * get_character_visible_fields() SECURITY DEFINER RPC (sql/rls-policies.sql). Server-filtered, not
+ * client-filtered: for the character's own owner it returns only the slots the campaign currently
+ * marks visible:true in campaigns.rules.customFields — a hidden field's value never leaves the server
+ * for that caller. A campaign DM instead gets every defined value unfiltered (they already have raw
+ * table access via character_dm_notes' own RLS, same as setCharacterCustomFields above). Returns {}
+ * for a not-campaign-bound character, or a caller who is neither the owner nor a campaign DM.
+ * @returns {Promise<Object<string,string>>} e.g. {num1: '12', text1: 'Owes the guild a favour'}
+ */
+export async function getVisibleCustomFields(characterId) {
+  const { data, error } = await supabase.rpc('get_character_visible_fields', { p_character: characterId });
+  if (error) throw error;
+  return data || {};
+}
+
+/**
  * DM-only: add (or, with a negative amount, deduct) AP for a character, with an
  * optional note. Returns the new AP total. Throws if the caller is not a DM of
  * the character's campaign. The award is recorded in the ap_awards ledger.

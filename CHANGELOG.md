@@ -6,6 +6,14 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · feat(livesheet): show a signed-in player any campaign custom fields their DM marked
+  visible** — `feat/custom-fields-player-display`, the player-facing follow-up to the DM Console custom
+  fields feature below. The Live Sheet now calls the existing `get_character_visible_fields()` RPC on
+  load and on an explicit cloud Load, and shows a `From your DM:` segment on the character sheet with
+  each visible field's DM-set label and value (nothing rendered when none are configured/visible).
+  Gated off for a DM's own read-only `?viewChar=` peek. `js/dm.js` gains `getVisibleCustomFields()`,
+  co-located with the existing `setCharacterCustomFields()`. `engine-parity-ci.mjs` unaffected, 30/0. See
+  the Addendum on `D-GH-2026-08-10-dm-custom-character-fields`.
 - **2026-08-10 · feat(dm-console): campaign-level custom character fields + a Customisable card view**
   — owner request. DM Console gains up to 4 campaign-wide custom fields (2 numeric, 2 text) under
   Campaign Rules, each with a name and a per-field "visible to players" toggle (default OFF); a DM sets

@@ -95,5 +95,21 @@ which would leak hidden fields the moment it shipped.
 `sql/rls-policies.sql`. `get_advisors(security)` run after applying — no new findings beyond the
 project's existing, expected "SECURITY DEFINER callable by authenticated" pattern shared by every DM RPC
 in this schema (`award_ap`, `dm_edit_character_log`, etc.). `engine-parity-ci.mjs` unaffected (30/0) —
-this feature never touches `js/engine.js`. Follow-up: `feat/custom-fields-player-display` on
-`docs/TASK_BOARD_NEXT.md`.
+this feature never touches `js/engine.js`.
+
+**Addendum (2026-08-10) — `feat/custom-fields-player-display` shipped.** The Option D2 follow-up (a
+player-facing display) landed same-day: `getVisibleCustomFields(characterId)` added to `js/dm.js`
+(co-located with `setCharacterCustomFields`, not `js/campaign.js` — keeps the read/write pair together)
+wrapping the RPC. `tools/PACT-Live-Char-Sheet.html` calls it from both cloud-load paths
+(`refreshCloudCampaignRules()` on boot/refresh, `loadCloudChar()` on an explicit Load), caching the
+result in `window._lsVisibleCustomFields` (reset alongside the rest of `_lsResetCloudApState()`'s cloud
+state, and explicitly on the "not campaign-bound" branch to avoid a stale cross-character leak on the
+same device when switching characters). `render()` renders a `From your DM:` segment only when a visible
+field has both a DM-set label (from the already-cached `window._cloudCampaignRules.customFields`) and a
+non-empty value — no empty section for a campaign with nothing configured. Explicitly gated off for
+`VIEW_ONLY` (a DM's own `?viewChar=` read-only peek of a player's character) — that panel is framed as
+"what your DM shared with you," which doesn't fit a DM looking at their own peek copy. Every label/value
+pair is escaped through the shared `esc()` helper before rendering (cross-user string, same hard
+invariant as everywhere else in this codebase). Verified: no new console/page errors on load (Playwright
+smoke test), `engine-parity-ci.mjs` unaffected (30/0, untouched). Follow-up graduated off
+`docs/TASK_BOARD_NEXT.md` into `CHANGELOG.md` in the same change.

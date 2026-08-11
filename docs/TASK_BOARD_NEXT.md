@@ -28,38 +28,6 @@ to `CHANGELOG.md`.
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
 
-## feat/custom-fields-player-display: surface DM Console's visible custom fields to the player — TODO
-Branch `feat/custom-fields-player-display`. Follow-up from `D-GH-2026-08-10-dm-custom-character-fields`
-(DM Console's campaign-level custom character fields + Customisable card view, 2026-08-10) — that work
-built and server-side enforced the "visible to players" flag but shipped no player-facing UI to consume it.
-
-**Effort:** medium · **Risk:** low — ambiguity is medium (exactly where/how to surface the fields in the
-Live Sheet — a new panel section vs. folding into an existing one — is a real but bounded UI choice, not
-an architecture question); damage scale is low (display-only: a bug here shows/hides a read-only field,
-never touches AP/rules/character stats); damage likelihood is low (an isolated new fetch+render path with
-no interaction with the rules engine or existing state) — worst-of lands at low.
-
-```text
-0. The contract already exists and is live: get_character_visible_fields(character_id) (SECURITY
-   DEFINER RPC, sql/rls-policies.sql) returns only the campaign's custom fields marked visible:true in
-   campaigns.rules.customFields, for the character's own owner (a campaign DM gets everything unfiltered
-   instead, since they already have raw table access). See
-   decisions/2026/D-GH-2026-08-10-dm-custom-character-fields.md for the full design/why.
-1. In tools/PACT-Live-Char-Sheet.html: when a signed-in player is viewing their own campaign-bound
-   character, call the RPC (via a new small helper in js/campaign.js or js/dm.js — whichever already
-   fits the existing import-bridge pattern) and render any returned fields with their DM-set labels.
-   Render nothing (no empty section) when the RPC returns {} — most campaigns won't have configured any
-   visible fields.
-2. Escape every field label/value through esc() (or the tool's equivalent) before rendering — this is a
-   cross-user string (DM-set label + DM-set value, rendered in the player's browser), same as every other
-   player/DM-controlled string in this codebase (hard invariant, see AGENTS.md).
-3. Do NOT add a write path here — this is read-only for the player; values stay DM-set only, from DM
-   Console.
-```
-**Done when:** a signed-in player viewing their own campaign-bound character in the Live Sheet sees any
-custom field the DM has marked visible (with its DM-set label), and sees nothing when the campaign has no
-visible fields configured.
-
 ## dm_edit_character_log doesn't cross-validate a DM boon grant's buy/award amounts — TODO
 Branch `fix/dm-edit-boon-amount-check`. Found by `/code-review ultra` on PR #403 (2026-08-10, see
 `decisions/2026/D-GH-2026-08-10-dm-edit-events.md`'s "Addendum (2026-08-10, pre-merge review)").
