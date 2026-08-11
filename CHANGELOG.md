@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · docs/fix: `/code-review ultra` cleanup on the autosave-flush fix** — two confirmed findings
+  fixed directly: (1) the fix's own code comments and CHANGELOG cited a decision-record ID
+  (`D-GH-2026-08-10-autosave-flush-latest-push`) that was never actually created — corrected into a proper
+  Addendum on the existing, directly-related `D-GH-2026-08-08-chargen-cloud-autosave-flush` record instead
+  of inventing a new one; (2) `_cgFlushCloudSaveNow()`/`_lsFlushCloudSaveNow()`'s `if(!settled)
+  return Promise.resolve();` guard was dead code — `_cgCloudPush()`/`_lsCloudPush()` unconditionally set
+  `_cgCloudSaveBusy=true` before returning on every path, so `_cgCloudPushSettled()`/`_lsCloudPushSettled()`
+  can never observe it false at that call site — removed, with a comment explaining why re-adding it would
+  again be dead. Two other findings from the same review (the `withKeepalive()` scope now spanning
+  multiple retries instead of one push; the manual "☁ Save to cloud" button bypassing the push queue
+  entirely) are real but represent design/scope calls, not drive-by fixes — tracked as
+  `feat/keepalive-scope-narrowing` and `fix/manual-save-queue-bypass` on `docs/TASK_BOARD_NEXT.md`.
+  `engine-parity-ci.mjs` 30/0, `tool-pricing-ci.mjs` 134/0, `autosave-flush-latest-push-ci.mjs` 8/8 —
+  all unaffected.
 - **2026-08-10 · fix(tools): cloud-autosave flush waits for the LATEST push, not a stale one** —
   `fix/autosave-flush-latest-push`, from `/sweep-code-tasks`. Found by `/code-review ultra` on the B3
   branch: when a cloud autosave push was already in flight, `_cgCloudPush()`/`_lsCloudPush()`'s busy
@@ -19,7 +33,9 @@
   instead of the push's own return value. New differential test,
   `testing/scripts/autosave-flush-latest-push-ci.mjs` — extracts the real push-queue functions from both
   tools' source, confirms a hand-reverted pre-fix copy actually reproduces the bug, then confirms the
-  live code doesn't: 8/8. `engine-parity-ci.mjs` 30/0, `tool-pricing-ci.mjs` 134/0 — unaffected.
+  live code doesn't: 8/8. `engine-parity-ci.mjs` 30/0, `tool-pricing-ci.mjs` 134/0 — unaffected. See the
+  Addendum on `D-GH-2026-08-08-chargen-cloud-autosave-flush` (this fix's own decision record cited an ID
+  that didn't exist until a `/code-review ultra` pass caught it — corrected there, not a new record).
 - **2026-08-10 · feat(engine): ban a class as a 2nd-origin-only pick** — `feat/banned-2nd-origin-class`,
   from `/sweep-code-tasks`. Mirrors the existing species asymmetric-ban pattern
   (`bannedOriginSpecies`/species2): `js/engine.js`'s `validate()` gains a new `bannedOriginClasses2` rule

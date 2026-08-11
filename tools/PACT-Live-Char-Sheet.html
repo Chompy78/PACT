@@ -741,7 +741,7 @@ function _lsCloudAutosave(){
   _lsCloudSaveTimer=setTimeout(function(){_lsCloudSaveTimer=null;_lsCloudPush();},3000);
 }
 function _lsCloudPush(){
-  // fix/autosave-flush-latest-push (D-GH-2026-08-10-autosave-flush-latest-push): mirrors CharGen's
+  // fix/autosave-flush-latest-push (Addendum on D-GH-2026-08-08-chargen-cloud-autosave-flush): mirrors CharGen's
   // identical fix exactly — see that copy's comment for the full reasoning. The busy branch used to
   // return the STALE, already-in-flight _lsCloudPushPromise; now chains past it, then (recursively)
   // past any further retry, via the read-only _lsCloudPushSettled() below — never by calling
@@ -798,9 +798,10 @@ function _lsFlushCloudSaveNow(timeoutMs){
   _lsCloudPush();   // ensure a push is running or (if one already was) marked to retry with this edit
   // Wait on _lsCloudPushSettled(), not _lsCloudPush()'s own return value — see CharGen's identical fix
   // for why even the not-busy branch's raw return value can't be trusted to track a later retry.
-  var settled=_lsCloudPushSettled();
-  if(!settled) return Promise.resolve();
-  return Promise.race([settled.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
+  //
+  // No falsy-return guard here (code review, 2026-08-10) — see CharGen's identical comment: _lsCloudPush()
+  // always sets _lsCloudSaveBusy=true before returning, so _lsCloudPushSettled() can never be falsy here.
+  return Promise.race([_lsCloudPushSettled().catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
 }
 // Best-effort cloud flush on page exit — see CharGen's identical pagehide handler for the full
 // keepalive/why-not-sendBeacon reasoning; not repeated here.

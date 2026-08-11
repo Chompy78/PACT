@@ -3712,7 +3712,7 @@ function _cgCloudPush(){
   // Never overlap two pushes for the same character — pushCharacter() is a bare update-then-insert with
   // no dirty check, so a slow request overtaken by a fast one could land the older build last.
   //
-  // fix/autosave-flush-latest-push (D-GH-2026-08-10-autosave-flush-latest-push): the busy branch used to
+  // fix/autosave-flush-latest-push (Addendum on D-GH-2026-08-08-chargen-cloud-autosave-flush): the busy branch used to
   // return the STALE, already-in-flight _cgCloudPushPromise — so a caller like _cgFlushCloudSaveNow()
   // that raced against it would resolve on the OLD push, not the retry .finally() below queues up to
   // carry whatever edit actually arrived. Now returns a promise chained past that stale push, then
@@ -3783,9 +3783,13 @@ function _cgFlushCloudSaveNow(timeoutMs){
   // by the NOT-busy branch just above returns that push's own promise directly, which would still
   // resolve before a LATER retry another caller's edit triggers mid-flight. _cgCloudPushSettled() is the
   // one thing that always tracks the actual current tail of the queue, however it got there.
-  var settled=_cgCloudPushSettled();
-  if(!settled) return Promise.resolve();
-  return Promise.race([settled.catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
+  //
+  // No falsy-return guard here (code review, 2026-08-10): _cgCloudPush() just above unconditionally sets
+  // _cgCloudSaveBusy=true on every path before returning, so _cgCloudPushSettled() can never see
+  // busy===false at this call site — a prior `if(!settled)` guard here was dead code depending on that
+  // invariant without documenting it. If _cgCloudPush() ever grows an early-return path that skips
+  // setting busy, this line needs revisiting, not silently re-adding a guard that can't fire either.
+  return Promise.race([_cgCloudPushSettled().catch(function(){}),new Promise(function(res){setTimeout(res,timeoutMs);})]);
 }
 // Best-effort cloud flush on page exit (tab/browser close, back/forward away from the tool). `pagehide`
 // is preferred over `beforeunload`, which is throttled or skipped outright on mobile and some browsers —

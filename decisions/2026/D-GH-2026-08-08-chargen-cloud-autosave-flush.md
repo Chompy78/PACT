@@ -61,3 +61,34 @@ request.
 status chip, the sync-state machine, universal (non-campaign-bound) autosave, and the still-open
 eligibility/consent question — is deliberately deferred; see the plan document's "Deferred to Part B"
 section and its Review outcome table for the full cold-review triage.
+
+## Addendum (2026-08-10, `/sweep-code-tasks` — `fix/autosave-flush-latest-push`)
+
+Found by `/code-review ultra` on the B3 (universal autosave) branch: this record's own `_cgCloudPush()`
+"tracks its promise so a flush never... resolves before the real request finishes" claim (Decision 1,
+above) was incomplete. When a push was already **busy**, `_cgCloudPush()`'s busy branch returned the
+*stale, already-in-flight* promise instead of the promise for the retry `_cgCloudSaveAgain` queues up —
+the retry that actually carries whatever edit arrived mid-flight. `_cgFlushCloudSaveNow()`'s
+`Promise.race` resolved on that stale push, the in-app navigation proceeded, and the real retry fired
+later from a `.finally()` callback with **no keepalive at all** — exactly the failure mode Decision C
+above was written to close, just for the retry case specifically rather than the first push. Freshly
+replicated, unfixed, into Live Sheet's new B3 autosave scaffolding built on top of this pattern.
+
+**Fix:** both `_cgCloudPush()`/`_lsCloudPush()` gained a read-only `_cgCloudPushSettled()`/
+`_lsCloudPushSettled()` waiter that recursively tracks however many retries the queue actually needs
+(without itself ever triggering one — that would spuriously re-save unchanged state on every check).
+`_cgFlushCloudSaveNow()`/`_lsFlushCloudSaveNow()` and the `pagehide` handler's `withKeepalive()` call now
+await that instead of `_cgCloudPush()`'s own return value.
+
+**A real trade-off this reopens, not fully closed here:** this record's own "`withKeepalive()`'s scope"
+paragraph above already flagged that a second, unrelated request racing during `withKeepalive`'s "narrow
+window" would also pick up `keepalive:true`, judged harmless *because the window was narrow* (one push's
+`fetch()`). The fix above widens that window to however long the retry chain takes — no longer
+necessarily narrow. `get_advisors`/manual testing found no live incident from this, but it's a real,
+reviewer-confirmed widening of the exposure this record originally accepted only in its narrow form, not
+something this addendum resolves — see `feat/keepalive-scope-narrowing` on `docs/TASK_BOARD_NEXT.md` for
+the follow-up decision (narrow the window back down vs. accept it, formalized either way).
+
+New differential test: `testing/scripts/autosave-flush-latest-push-ci.mjs` (extracts the real functions
+from both tools, confirms a hand-reverted pre-fix copy reproduces the bug before trusting the live code
+doesn't). `engine-parity-ci.mjs`/`tool-pricing-ci.mjs` unaffected.

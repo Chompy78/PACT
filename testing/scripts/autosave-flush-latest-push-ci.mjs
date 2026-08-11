@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * autosave-flush-latest-push-ci.mjs — the gate for fix/autosave-flush-latest-push
- * (D-GH-2026-08-10-autosave-flush-latest-push).
+ * (Addendum on D-GH-2026-08-08-chargen-cloud-autosave-flush — decisions/2026/
+ * D-GH-2026-08-08-chargen-cloud-autosave-flush.md).
  *
  * WHY THIS EXISTS. `_cgFlushCloudSaveNow()`/`_lsFlushCloudSaveNow()` (tools/PACT-CharGen-Webtool.html,
  * tools/PACT-Live-Char-Sheet.html) exist so a deliberate tool-switch navigation (switchToLiveSheet/
