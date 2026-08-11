@@ -85,7 +85,11 @@
   neutrality through existing mechanics with no `DATA.version` bump. DM Console gained grant/remove/impose
   controls; the Live Sheet renders DM-marked events distinctly and enforces its own undo barrier + a
   DM-imposed drawback's locked/removal-cost flags; CharGen gets the undo barrier only (no per-event
-  history view to mark, a documented scope boundary).
+  history view to mark, a documented scope boundary). **Addendum, same day (`/sweep-code-tasks`):**
+  `dm_edit_character_log` now cross-validates a boon grant's paired `buy`/`award` amounts (FIFO-by-value),
+  closing a correctness gap the pre-merge review flagged and deliberately deferred — see the file's own
+  addendum for why a standalone `award` stays permitted (not a new privilege; `award_ap()` already grants
+  arbitrary AP unconditionally).
   Full record: `decisions/2026/D-GH-2026-08-10-dm-edit-events.md`.
 - **D-GH-2026-08-10-chargen-dm-view** — a DM opens a campaign character in CharGen via a safe, freely
   editable COPY (owner's chosen approach) rather than a locked read-only view — safe by construction

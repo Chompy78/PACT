@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-10 · fix(campaign): `dm_edit_character_log` cross-validates a boon grant's buy/award
+  amounts** — `fix/dm-edit-boon-amount-check`, from `/sweep-code-tasks`. Flagged by `/code-review ultra`
+  on PR #403 and deliberately deferred at the time (see `D-GH-2026-08-10-dm-edit-events`'s addenda): the
+  RPC allowlisted event type/cat but never checked a boon grant's `buy` cost against its accompanying
+  `award` amount, so the "net 0 to spendable AP" promise DM Console's tooltip and the migration's own
+  header comment both make was enforced only by the client always sending the pair together. Now
+  FIFO-matched by value (mirroring `js/engine.js`'s `activeEvents()` `boughtOff`/`boonRemoved` pattern) —
+  a mismatched or unmatched boon-buy is rejected; a standalone `award` stays permitted, since `award_ap()`
+  already lets any campaign DM grant arbitrary AP unconditionally, so this was never a new privilege, only
+  a correctness gap. Verified against 4 cases directly on the live function body; `get_advisors(security)`
+  no new findings; `tool-pricing-ci.mjs` 134/0; `engine-parity-ci.mjs` unaffected, 30/0.
 - **2026-08-10 · fix(sync): reconcile()'s own recovery push is now tracked by `_pushInFlight` too** —
   `fix/reconcile-push-inflight-tracking`, from `/sweep-code-tasks`. `js/sync.js`'s `reconcile()`
   `localNewer` branch called `pushCharacter()` directly, unlike `saveCharacter()`'s own already-tracked
