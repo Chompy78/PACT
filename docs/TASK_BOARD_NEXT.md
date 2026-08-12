@@ -771,6 +771,89 @@ exceed budget is rejected server-side even when submitted via a raw PATCH bypass
 decision on whether/when to revoke direct client writes is recorded in `DECISIONS.md`; the Supabase
 advisor reports no new findings.
 
+## Reconcile guide↔engine rules-version drift (the `documents-rules:` pointer) — TODO
+Branch `docs/guide-engine-version-pointer`. The Players Guide is maintained in a **separate project**
+(`pact-guide`, on the home server at `/data/projects/creative/PACT-guide` — not on GitHub), which
+hand-copies this repo's `DATA.version` and `BUILD` into several of its own files. Those copies go stale
+repeatedly: that project's own `CHANGELOG.md` records "drifted again", and they were hand-corrected on
+2026-07-17 and again on 2026-08-11. Verified live 2026-08-12: `PROJECT_KNOWLEDGE.md` said rules v0.332 /
+build v0.107 against actual v0.342 / v1.413, and `CURRENT-WORK.md`'s 2026-08-11 correction went stale
+again the same week. Separately, this repo serves its own copy of the guide at
+`docs/PACT-Players-Guide.html` with nothing syncing it to that project — the file players actually read
+lives in a repo where nobody edits the guide.
+**Effort:** medium · **Risk:** medium — ambiguity is medium (the target design is settled: the guide
+declares ONE `documents-rules:` pointer and keeps its own independent doc revision, never a copy of
+`DATA.version`; what's unsettled is the mechanism, see the blockers below); damage scale is low (docs and
+a version string, no rules logic, no player data); damage likelihood is low (nothing silently breaks if
+the pointer is wrong — it's wrong today and the app works fine). Not sweep-eligible: it spans two
+projects and one of them isn't in this repo.
+
+```text
+0. TWO FINDINGS FROM 2026-08-12 THAT CHANGE THE OBVIOUS APPROACH — check both before planning:
+   a) `pact-guide`'s py/PACT-staleness.py looked like the natural place to add a fourth "rules" anchor.
+      It is currently DEAD CODE: HERE is the py/ directory, and it looks for VERSION, INDEX.md and
+      pact-class-builds.jsonl inside py/ (none exist there) plus PACT-Players-Guide-v0.332.html (the
+      guide is now v0.333). real_release()/real_data() return None, so main() returns exit 2 before
+      checking anything. Do not "extend" it without first confirming whether it is being repaired or
+      retired.
+   b) That project already has `plans/2026-08-11-engine-js-auto-sync-pipeline-plan.md` — an engine.js
+      auto-sync pipeline was being built there on 2026-08-11, and may already cover version syncing.
+      READ IT FIRST. Two overlapping sync mechanisms would be a fresh instance of this same problem.
+1. Settle which branch the guide mirrors. `preview` and `main` legitimately carry different
+   DATA.version values (v0.343 vs v0.342 as of 2026-08-12). "The version" is ambiguous between them and
+   that ambiguity is part of the drift. Pick one, say which in the file.
+2. Target design: the guide stops carrying copies. ONE machine-readable `documents-rules:` declaration,
+   stamped from the public `engine-data.js` rather than hand-typed; the guide keeps its own independent
+   document revision that moves on typos and rewrites (which are not rules changes). Delete the BUILD
+   mirror outright — the guide has no reason to track a cosmetic tool build number at all.
+3. Drop the version from the guide's FILENAME. It is currently embedded (`PACT-Players-Guide-v0.333.html`),
+   which guarantees churn on every bump and has already broken a hardcoded path in PACT-staleness.py.
+4. Decide how this repo's served copy (`docs/PACT-Players-Guide.html`) gets updated, since that is the
+   one players read. Today the answer is "by hand, when someone remembers" — which is how it came to
+   disagree with the engine for ~6 days over Grit.
+5. Cross-project work: the pact-guide half is NOT in this repo. Draft it as a patch set for that
+   project rather than editing it from here (see docs/sessions/ for the 2026-08-12 precedent).
+```
+
+**Done when:** the guide declares a single `documents-rules:` pointer that is generated rather than
+hand-typed, carries its own independent doc revision, no longer mirrors `BUILD` at all, and this repo's
+served copy has a defined update path; the branch-ambiguity answer from step 1 is written down; and the
+decision is recorded in `DECISIONS.md` here and in that project's own decision log.
+
+## Write the cross-project atomicity rule into AGENTS.md — TODO
+Branch `docs/rules-change-atomicity`. Nothing currently states that a mechanics change has to land in
+BOTH `js/engine.js` and the Players Guide before it is finished. As a direct result, Grit's pricing
+diverged between the two for ~6 days (2026-08-06 → 2026-08-12): `pact-guide` deliberately moved to the
+2N Steep curve and documented the divergence, while this repo's engine kept the older ladder, and each
+side's records read as authoritative on its own. See `D-GH-2026-08-12-grit-steep-ladder` (and its
+Addendum) for the full account, including how a stale "we deliberately diverge" warning becomes its own
+hazard once the divergence is resolved.
+**Effort:** low · **Risk:** low — ambiguity is low (the rule itself is already agreed and written in
+prose in the decision record; this is transcription into the place agents actually read); damage scale
+is low (one docs paragraph, `git revert`-able); damage likelihood is low (no code, no gate, no data).
+Sweep-eligible **only** for the half in this repo — the `pact-guide` half must be handed over as a patch.
+
+```text
+1. Add to AGENTS.md, near the Versioning section: a mechanics change is not finished until the engine
+   AND the guide both land it, with `DATA.version` bumped exactly once, in the engine. Name
+   `pact-guide` as the guide's upstream master and give its actual location, so a future session
+   doesn't have to discover it the hard way.
+2. State plainly which artefact wins when they disagree: `js/engine.js` is the single source of truth
+   for rules (this is already AGENTS.md's position elsewhere — make it explicit for the guide case too,
+   because that project's own PYTHON-FILES-OVERVIEW.md describes its Python model as the "pricing
+   authority", a directly competing claim that has already misled at least one session).
+3. Note the known copies that can drift, so nobody assumes there are only two: this repo's engine, this
+   repo's served guide copy, pact-guide's master guide, pact-guide's py/pricing.py, and
+   pact-guide's py/vendor/engine/engine.js (a vendored snapshot of this repo's engine).
+4. Mirror the rule into pact-guide's own AGENTS.md — as a patch handed to that project, not edited
+   from here.
+5. Docs-only: do NOT bump `DATA.version` or `BUILD`; log the change in `CHANGELOG.md`.
+```
+
+**Done when:** `AGENTS.md` states the atomicity rule, names where the guide master lives, resolves the
+engine-vs-Python authority question explicitly, and lists the five known rules-carrying copies; and the
+matching patch for `pact-guide`'s `AGENTS.md` has been drafted and handed over.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
