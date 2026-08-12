@@ -90,3 +90,37 @@ live before that task, per `RULES=(window.DATA&&window.DATA.version)||RULES` in 
 
 A `DATA.version` bump therefore needs **no** rules-label edit in any tool — only `js/engine.js`'s own
 `DATA.version` string, plus `testing/expected/` if `compute()` output moved.
+
+## Cross-project: the Players Guide (`pact-guide`)
+
+The Players Guide's prose is authored in a **separate, non-GitHub project** (`pact-guide`, on the home
+server) — not this repo. This repo only serves a static copy at `docs/PACT-Players-Guide.html`. See
+`D-GH-2026-08-12-guide-engine-version-pointer` for the full decision.
+
+**Mirrored branch: `main`** (not `preview`) — `pact-guide`'s vendoring pipeline already made this call for
+its pricing sync; the guide follows the same choice since `main` is what's actually live for players.
+
+**Two markers, both HTML comments in the guide, distinct meanings — don't conflate them:**
+
+| Marker | Means | Who maintains it |
+|---|---|---|
+| `content-version: vX.XXX` | This prose was last edited at this doc revision | `pact-guide`, hand-maintained, unrelated to rules version |
+| `documents-rules: version=vX.XXX; branch=main; commit=<7-hex>; reconciled=<date>` | This prose was reconciled against this exact engine rules version | `pact-guide`'s `py/tools/stamp_guide_rules.mjs` — stamped only as a deliberate reconciliation action, never auto-advanced by a vendor refresh |
+
+**This repo never carries `BUILD`** (the cosmetic build number above) in the guide — it has no reason to
+track it.
+
+**Update procedure for `docs/PACT-Players-Guide.html` (manual, not automated):** `pact-guide` has no
+GitHub remote or CI, so there is no fully-automatic push. Whenever `pact-guide`'s canonical guide file
+changes, **the session that made that change** copies the finished HTML into this repo's
+`docs/PACT-Players-Guide.html` and commits, verifying:
+1. both markers parse and are present exactly once each;
+2. `documents-rules`'s `version`/`branch`/`commit` match `pact-guide`'s `py/vendor/engine/SYNCED_FROM.txt`
+   at the time of the copy (three-way check: vendored snapshot ↔ `pact-guide` canonical ↔ this repo's
+   served copy — not just a two-file diff);
+3. no stray `BUILD`/web-tool-version mentions crept into guide body prose.
+
+**Current state (2026-08-12):** this repo's served copy still shows its old `v0.332` marker and carries no
+`documents-rules` marker at all — landing this section doesn't fix that by itself. It's corrected the next
+time `pact-guide`'s canonical file (now stamped, once that project's own pending first-stamp task closes)
+is transferred here.

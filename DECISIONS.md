@@ -10,6 +10,15 @@
 
 ## Index
 
+- **D-GH-2026-08-12-guide-engine-version-pointer** — Players Guide (separate `pact-guide` project) now
+  declares a machine-generated `documents-rules:` pointer (version/branch/commit, sourced from
+  `pact-guide`'s existing vendoring pipeline, stamped only on deliberate reconciliation — never
+  auto-advanced by a vendor refresh), kept distinct from its own independent `content-version` doc
+  revision. Mirrored branch is `main`. This repo's served `docs/PACT-Players-Guide.html` gets a
+  documented (manual) update procedure in `docs/VERSION-SYNC.md`; content itself not yet updated — that
+  lands with the next transfer. Docs/tooling only, no `DATA.version`/`compute()` change. Cold-reviewed
+  (4 reviewers, `z-cold/` on branch `zcold`).
+  Full record: `decisions/2026/D-GH-2026-08-12-guide-engine-version-pointer.md`.
 - **D-GH-2026-08-12-grit-steep-ladder** — Grit now costs **2N for the Nth purchase** (the Steep ladder),
   replacing the `2/4/6/9/12/15/18` table and its `m*(m+1)` tail. Owner's balance call, but also removes an
   outlier: every other track in `DATA` escalates linearly per purchase, and the old Grit tail was the only
