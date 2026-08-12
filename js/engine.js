@@ -130,12 +130,14 @@ function _tierForHD(hd){
   return t;
 }
 
-const _GRIT_LADDER = [2,4,6,9,12,15,18];
-function _gritPrice(n){
-  if (n <= _GRIT_LADDER.length) return _GRIT_LADDER[n-1];
-  const m = n - _GRIT_LADDER.length;
-  return _GRIT_LADDER[_GRIT_LADDER.length-1] + m*(m+1);
-}
+// Grit runs on the STEEP ladder — the Nth purchase costs 2N (2/4/6/8/10/12…), the same shape
+// py/pricing.py's metamagic_ap() already names "Steep" in the pact-guide project, and the same
+// linear-per-purchase escalation every other track in DATA uses (attune 4/6/8/10…, expertise
+// 5/6/7/8…, mastery 2/3/4/5…, rankCum 5/6/7/8…). Superseded the earlier hand-written
+// [2,4,6,9,12,15,18] table plus its quadratic m*(m+1) tail, which was the only cubic-cumulative
+// track in the game — see D-GH-2026-08-12-grit-steep-ladder. Defined for every N, so there is no
+// table to run off the end of and no extrapolation branch.
+function _gritPrice(n){ return 2 * n; }
 
 export function compute(b, opts){
   b=Object.assign({},b);

@@ -10,6 +10,15 @@
 
 ## Index
 
+- **D-GH-2026-08-12-grit-steep-ladder** — Grit now costs **2N for the Nth purchase** (the Steep ladder),
+  replacing the `2/4/6/9/12/15/18` table and its `m*(m+1)` tail. Owner's balance call, but also removes an
+  outlier: every other track in `DATA` escalates linearly per purchase, and the old Grit tail was the only
+  cubic-cumulative one. "Steep" is the project's own existing name for this shape
+  (`pact-guide/py/pricing.py`). Level-independence and the flat +1-past-CON-mod surcharge are unchanged.
+  Zero saved characters had any Grit purchase, so no migration. `DATA.version` v0.342 → v0.343;
+  CG-010 165→135, CG-011 197→167; parity 30/0. Supersedes the pricing half of
+  `D-GH-2026-08-05-grit-ladder-correction`.
+  Full record: `decisions/2026/D-GH-2026-08-12-grit-steep-ladder.md`.
 - **D-GH-2026-08-11-character-claim-link-copy-not-transfer** — re-scoped the not-yet-started
   `feat/character-ownership-claim-link` task from an ownership-*transfer* RPC (reassigning `owner_id` on
   the DM's existing character row) to a *copy* (a new row seeded from the DM's character, owned by the
