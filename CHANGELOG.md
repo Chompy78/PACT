@@ -13,6 +13,18 @@
   all three tools (`PACT-CharGen-Webtool.html` line-1 comment/`<title>`/header `.sub`,
   `PACT-Live-Char-Sheet.html` line-1 comment, `DM-Console.html`'s `TOOL_VERSION`); `index.html`
   untouched (reads `BUILD` live). `DATA.version` unchanged. `tool-pricing-ci.mjs` 134/0.
+- **2026-08-12 · rules: Grit moves onto the Steep ladder — Nth purchase costs 2N** (`DATA.version`
+  v0.342 → **v0.343**) — replaces the `[2,4,6,9,12,15,18]` table and its `m*(m+1)` extrapolation with a
+  one-line `_gritPrice(n) => 2*n`. Owner's balance decision; also removes the only cubic-cumulative track
+  in the game (every other `DATA` ladder already escalates linearly per purchase), and reuses the
+  project's own existing name for this shape from `pact-guide/py/pricing.py`'s "Steep". Level-independence
+  and the flat +1-per-purchase-past-CON-mod surcharge are both unchanged. No migration needed — verified
+  against the live database that none of the 23 saved characters has a single Grit purchase.
+  `testing/expected/` updated in the same change (CG-010 165 → 135, CG-011 197 → 167; the whole 30-AP
+  delta is the Grit line, 147 → 117). `engine-parity-ci` 30/0, `tool-pricing-ci` 134/0. Supersedes the
+  pricing half of `D-GH-2026-08-05-grit-ladder-correction`; recorded as
+  `D-GH-2026-08-12-grit-steep-ladder`, whose Outstanding section tracks the guide reconciliation and the
+  `pact-guide` version-drift fix.
 - **2026-08-11 · fix: character claim-link tokens switched to plaintext storage** — owner decision,
   same day the feature shipped: "keep the plaintext, shown-once is fine for now." Flipped
   `character_claim` from the hash-only storage group (`dm`-invite bar) to the plaintext group
