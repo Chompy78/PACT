@@ -771,54 +771,30 @@ exceed budget is rejected server-side even when submitted via a raw PATCH bypass
 decision on whether/when to revoke direct client writes is recorded in `DECISIONS.md`; the Supabase
 advisor reports no new findings.
 
-## Reconcile guide↔engine rules-version drift (the `documents-rules:` pointer) — TODO
-Branch `docs/guide-engine-version-pointer`. The Players Guide is maintained in a **separate project**
-(`pact-guide`, on the home server at `/data/projects/creative/PACT-guide` — not on GitHub), which
-hand-copies this repo's `DATA.version` and `BUILD` into several of its own files. Those copies go stale
-repeatedly: that project's own `CHANGELOG.md` records "drifted again", and they were hand-corrected on
-2026-07-17 and again on 2026-08-11. Verified live 2026-08-12: `PROJECT_KNOWLEDGE.md` said rules v0.332 /
-build v0.107 against actual v0.342 / v1.413, and `CURRENT-WORK.md`'s 2026-08-11 correction went stale
-again the same week. Separately, this repo serves its own copy of the guide at
-`docs/PACT-Players-Guide.html` with nothing syncing it to that project — the file players actually read
-lives in a repo where nobody edits the guide.
-**Effort:** medium · **Risk:** medium — ambiguity is medium (the target design is settled: the guide
-declares ONE `documents-rules:` pointer and keeps its own independent doc revision, never a copy of
-`DATA.version`; what's unsettled is the mechanism, see the blockers below); damage scale is low (docs and
-a version string, no rules logic, no player data); damage likelihood is low (nothing silently breaks if
-the pointer is wrong — it's wrong today and the app works fine). Not sweep-eligible: it spans two
-projects and one of them isn't in this repo.
+## Reconcile guide↔engine rules-version drift (the `documents-rules:` pointer) — MOSTLY DONE, one step left
+Branch `claude/merge-pact-guide-version-132ppm`. Mechanism, tooling, and both projects' decision/docs
+records shipped 2026-08-12 — see `D-GH-2026-08-12-guide-engine-version-pointer` (full record:
+`decisions/2026/D-GH-2026-08-12-guide-engine-version-pointer.md`) and the cold-reviewed plan at
+`docs/plans/2026-08-12-guide-engine-version-pointer.md` (4 reviewers, `z-cold/` on branch `zcold`).
+Summary: mirrored branch settled as `main`; guide now declares two distinct markers (`content-version`
+unchanged, new `documents-rules` — a *reconciliation* assertion, never auto-advanced by a vendor refresh);
+`pact-guide`'s canonical file renamed off its version (`PACT-Players-Guide-v0.333.html` →
+`PACT-Players-Guide.html`), with its three stale hardcoded references fixed; `pact-guide`'s new
+`py/tools/stamp_guide_rules.mjs` (`stamp`/`--check`) implements the pointer; this repo's
+`docs/VERSION-SYNC.md` documents the manual, three-way-verified transfer procedure for
+`docs/PACT-Players-Guide.html`.
 
-```text
-0. TWO FINDINGS FROM 2026-08-12 THAT CHANGE THE OBVIOUS APPROACH — check both before planning:
-   a) `pact-guide`'s py/PACT-staleness.py looked like the natural place to add a fourth "rules" anchor.
-      It is currently DEAD CODE: HERE is the py/ directory, and it looks for VERSION, INDEX.md and
-      pact-class-builds.jsonl inside py/ (none exist there) plus PACT-Players-Guide-v0.332.html (the
-      guide is now v0.333). real_release()/real_data() return None, so main() returns exit 2 before
-      checking anything. Do not "extend" it without first confirming whether it is being repaired or
-      retired.
-   b) That project already has `plans/2026-08-11-engine-js-auto-sync-pipeline-plan.md` — an engine.js
-      auto-sync pipeline was being built there on 2026-08-11, and may already cover version syncing.
-      READ IT FIRST. Two overlapping sync mechanisms would be a fresh instance of this same problem.
-1. Settle which branch the guide mirrors. `preview` and `main` legitimately carry different
-   DATA.version values (v0.343 vs v0.342 as of 2026-08-12). "The version" is ambiguous between them and
-   that ambiguity is part of the drift. Pick one, say which in the file.
-2. Target design: the guide stops carrying copies. ONE machine-readable `documents-rules:` declaration,
-   stamped from the public `engine-data.js` rather than hand-typed; the guide keeps its own independent
-   document revision that moves on typos and rewrites (which are not rules changes). Delete the BUILD
-   mirror outright — the guide has no reason to track a cosmetic tool build number at all.
-3. Drop the version from the guide's FILENAME. It is currently embedded (`PACT-Players-Guide-v0.333.html`),
-   which guarantees churn on every bump and has already broken a hardcoded path in PACT-staleness.py.
-4. Decide how this repo's served copy (`docs/PACT-Players-Guide.html`) gets updated, since that is the
-   one players read. Today the answer is "by hand, when someone remembers" — which is how it came to
-   disagree with the engine for ~6 days over Grit.
-5. Cross-project work: the pact-guide half is NOT in this repo. Draft it as a patch set for that
-   project rather than editing it from here (see docs/sessions/ for the 2026-08-12 precedent).
-```
+**Still open** (tracked in `pact-guide`'s own `TASK_BOARD.md`, not sweep-eligible from this repo — spans
+a project not in this repo): the first real `documents-rules` stamp requires an actual guide-content
+reconciliation pass against the live vendored snapshot, deliberately not done blind. Once that stamp
+exists, transfer `pact-guide`'s canonical HTML into this repo's `docs/PACT-Players-Guide.html` per the
+new `VERSION-SYNC.md` procedure — that transfer is also what corrects this repo's currently-stale
+`v0.332` marker. **Effort:** low (the design/tooling work is done) · **Risk:** low — display-only, no
+rules-logic or player-data impact.
 
-**Done when:** the guide declares a single `documents-rules:` pointer that is generated rather than
-hand-typed, carries its own independent doc revision, no longer mirrors `BUILD` at all, and this repo's
-served copy has a defined update path; the branch-ambiguity answer from step 1 is written down; and the
-decision is recorded in `DECISIONS.md` here and in that project's own decision log.
+**Done when:** `pact-guide`'s guide carries a real `documents-rules` marker (not blank), that transfer has
+landed in `docs/PACT-Players-Guide.html`, and the three-way check (vendored snapshot ↔ `pact-guide`
+canonical ↔ this repo's served copy) passes.
 
 ## Write the cross-project atomicity rule into AGENTS.md — TODO
 Branch `docs/rules-change-atomicity`. Nothing currently states that a mechanics change has to land in
