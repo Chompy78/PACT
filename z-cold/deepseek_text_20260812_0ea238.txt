@@ -1,0 +1,107 @@
+Review: Reconcile guide↔engine rules-version drift
+
+Model/version: Claude 3.5 Sonnet (20241022)
+Review date: 2026-08-12
+Review file: guide-engine-version-pointer-review-claude-3.5-sonnet.md
+
+---
+
+Executive Summary
+
+This is an unusually well-structured plan. The author has done thorough verification work, identified real failure modes (including the already-stale comment in this repo), and proposed a pragmatic solution that reuses existing infrastructure rather than inventing new mechanisms. The plan correctly distinguishes between the two projects' scopes and respects their existing workflows.
+
+Verdict: APPROVE with minor clarifications (see below).
+
+---
+
+1. Does this plan actually achieve the stated goal?
+
+Yes, with high confidence. The plan directly addresses all three components of the stated goal:
+
+| Goal component | How the plan addresses it |
+|---|---|
+| Stop guide↔engine rules-version drift | Adds machine-generated `documents-rules:` pointer sourced from existing vendored snapshot; no hand-typed versions |
+| Replace hand-typed copies | Uses `SYNCED_FROM.txt` (already maintained) as authoritative source; script stamps comment |
+| Define update path for this repo's served copy | Documents explicit manual copy procedure in `VERSION-SYNC.md` |
+
+The two-marker design (`content-version:` for prose edits, `documents-rules:` for rules version) is clean and correctly separates concerns. Dropping the version from the filename addresses the stale-reference problem that already bit this project (commit `3bd8e70`).
+
+---
+
+2. Are any of the "Assumed" items shaky enough that they should have been verified before proposing an approach built on them?
+
+The assumptions are reasonable, but one is worth a closer look:
+
+Assumption 1: "pact-guide's guide-authoring workflow can add a small generation step"
+Risk: LOW-MEDIUM. The author notes this is "reasonable given that project already has Node tooling and a documented pattern for 'version-stamped' generated files." This is plausible, but the assumption could have been validated with a quick check of what that Node tooling actually does and whether it's already invoked as part of the guide build. If the tooling is only used for the pricing sync and not integrated into the guide's publish flow, adding the stamp step might require more work than anticipated.
+
+Recommendation: The patch should include a concrete command (`npm run stamp-guide-version` or similar) that the pact-guide owner can run manually, rather than assuming it integrates seamlessly into an existing automated build.
+
+Assumption 2: "Copying the finished guide HTML from pact-guide into this repo remains a manual step"
+Risk: LOW. The author correctly identifies that there's no evidence of automation. Documenting an explicit manual procedure is honest and appropriate. The risk here is that people forget to run it, but that's already the status quo.
+
+Assumption 3: "pact-guide is a private, local-only project with no GitHub remote"
+Risk: VERIFIED. The author states this was checked and is factual.
+
+---
+
+3. Is there a better alternative that this plan didn't consider?
+
+No, the alternatives the plan considered and rejected are appropriate:
+
+| Rejected alternative | Reason for rejection | Is it correct? |
+|---|---|---|
+| Fully automate cross-repo copy | pact-guide is private/local; CI doesn't exist; not what "defined update path" requires | ✅ Yes |
+| Live client-side read of `engine-data.js` | Conflicts with "GitHub Pages only — no custom backend code"; fragile cross-origin dependency | ✅ Yes |
+| Build new vendoring script | Redundant; would create "two overlapping sync mechanisms" | ✅ Yes |
+
+One alternative not explicitly mentioned, but which the plan effectively avoids: using `BUILD` (the web-tool build number) as a proxy for rules version. The plan correctly rejects this and documents it as out-of-scope.
+
+The reuse of `SYNCED_FROM.txt` is the best possible approach given the constraints.
+
+---
+
+4. What's missing?
+
+Minor gaps (not blockers):
+
+1. Who runs the manual copy step? The plan says "the same session that made the edit copies the finished HTML" — this should be more explicit about whether this is the author's responsibility, a reviewer's, or some other person. Add a "Responsibility:" line.
+
+2. How does the pact-guide-side patch get applied? The plan says "draft them as a patch and hand it to the owner's other AI session." This is fine, but the plan should specify:
+   - Where the patch file lives (in this repo? in a gist? emailed?)
+   - What the handoff criteria are (does it need to be reviewed first? by whom?)
+   - How the owner knows the patch was applied successfully before this repo's docs are considered "done"
+
+3. `VERSION-SYNC.md` already exists — the plan says "add a new section," which is fine. But the plan should specify whether the new section goes at the top, bottom, or in a specific place relative to existing content.
+
+4. Test criteria for the `documents-rules:` comment itself — the plan says "re-run `engine-parity.html`" but that test probably doesn't know about the new comment. Either:
+   - It should, and the test should be updated (if applicable), or
+   - The plan should explicitly note that this is a docs-only change and `engine-parity.html` serves only as a regression check on the rest of the repo, not as a validator of the new comment.
+
+5. pact-guide's own `DECISIONS.md` entry — the plan says to record the decision there, but it doesn't specify what needs to be recorded. The same three facts as in this repo: (a) branch = `main`, (b) two-marker convention, (c) filename dropped.
+
+6. Backward compatibility: What happens to existing readers of `PACT-Players-Guide-v0.333.html`? If this file is deleted/renamed, will any internal or external links break? The plan says "update any pact-guide-internal reference" but doesn't mention external links (e.g., someone bookmarking it). Given this is a local-only project, this is probably fine, but worth a note.
+
+---
+
+5. Is the Verification section objectively checkable by someone who isn't the plan's author?
+
+Mostly yes, with one caveat.
+
+| Check | Objectively checkable? | Notes |
+|---|---|---|
+| Re-run `engine-parity.html` and confirm 0 failed | ✅ Yes | Clear command, clear pass/fail condition |
+| Confirm `content-version` and `documents-rules` comments match pact-guide's canonical file, character-for-character | ✅ Yes | Requires access to both repos, but the procedure is clear: compare files |
+| Confirm branch decision (`main`) is written down in both projects | ✅ Yes | The reviewer can grep for `main` in the relevant docs |
+
+Caveat: The second check ("character-for-character") depends on the pact-guide patch having been applied. If the patch isn't applied yet, the verification fails — but that's a coordination issue, not a flaw in the verification plan itself. The plan could add: "If pact-guide-side patch hasn't landed yet, skip this check and mark it as pending."
+
+Improvement suggestion: Add a "Verification script" section with concrete commands the reviewer can run:
+
+```bash
+# In pact-guide repo:
+grep 'documents-rules:' PACT-Players-Guide.html
+
+# In this repo:
+grep 'documents-rules:' docs/PACT-Players-Guide.html
+diff <(grep 'documents-rules:' ../pact-guide/PACT-Players-Guide.html) <(grep 'documents-rules:' docs/PACT-Players-Guide.html)
