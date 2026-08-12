@@ -6,6 +6,14 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-12 · docs(version-sync): guide↔engine rules-version pointer, cross-project** — cold-reviewed
+  plan (4 reviewers) at `docs/plans/2026-08-12-guide-engine-version-pointer.md`; implemented the PACT-repo
+  half directly (`docs/VERSION-SYNC.md` new cross-project section, this decision record) and the
+  `pact-guide` half via the home-server MCP connector (canonical guide renamed off its version, new
+  `py/tools/stamp_guide_rules.mjs`, that project's own decision/task-board records). Mirrored branch:
+  `main`. `documents-rules` is a deliberate reconciliation assertion, never auto-advanced by a vendor
+  refresh — no first stamp applied yet (open follow-up in `pact-guide`'s `TASK_BOARD.md`). No
+  `DATA.version`/`compute()` change. See `D-GH-2026-08-12-guide-engine-version-pointer`.
 - **2026-08-11 · chore(version): BUILD → v1.413** — owner-requested bump outside the normal
   preview→main promotion-PR cadence (PR #413 merged claim-link straight to `main`, bypassing that
   flow; see the session's own note on the mismatch this created). Carried the major number (`1`)
