@@ -93,3 +93,40 @@ change was finalised there before this one landed. Two follow-ups came out of th
 - `decisions/2026/D-GH-2026-08-05-grit-ladder-correction.md` — superseded on pricing, upheld on
   level-independence.
 - `pact-guide/py/pricing.py` — the "Steep" ladder naming precedent.
+
+## Addendum (2026-08-12, same day) — the Context section above was WRONG about the bug brief
+
+The Context section says the brief's third source "turned out to be `metamagic_ap()`… There is no Grit
+pricing function anywhere in that Python model." **Both statements are false**, and the conclusion drawn
+from them ("the brief reached the right destination by the wrong route") is false too.
+
+**Cause of the error:** the home-server MCP connector's `pact-guide` project key was pointing at a
+retired Dropbox folder the project moved out of on 2026-07-27. Every search I ran against "pact-guide"
+hit a copy frozen before the relevant work. Once the connector was repointed at the live repo
+(`/data/projects/creative/PACT-guide`, fixed 2026-08-12), the real state was visible.
+
+**What is actually true**, verified against the live repo:
+
+- `py/pricing.py:123-124` defines `grit_ap(n, con_mod)` with `base = 2 * n`, commented
+  *"Steep curve, base 2: 2,4,6,8,10,12,14…"*. It has been 2N since **2026-08-06**
+  (`2*n+1` → `2*n`, per that project's `DECISIONS.md:213` and its 2026-08-06 session note).
+- The divergence was **known and deliberate**. `pricing.py:118-122` carries an explicit warning that
+  this is *"the guide's INTENDED design, KNOWINGLY diverging from what engine.js currently does…
+  do not 'fix' this back to match engine.js without a new DECISIONS.md entry."*
+- It had already been through **two documented reversals**: `D-2026-08-11-grit-pricing-correction`
+  first changed `pricing.py` to match engine.js's `2/4/6/9/…`, then
+  `D-2026-08-11-grit-steep-curve-final` reversed that the same day, the owner choosing to keep the
+  Steep curve as intended design. `py/regress_grit.py` was added to pin it.
+
+**So the bug brief was substantively correct.** The engine really had drifted from the guide's and the
+Python model's agreed pricing, for ~6 days. This change closes that divergence in the direction
+pact-guide had already chosen — it is not a fresh unilateral decision, and the brief's evidence deserved
+more credit than the Context section gave it. The one thing that section got right stands: applying its
+patch *as written* would have silently broken CG-010/CG-011, which it told the reader to overwrite.
+
+**Consequence for the other project — not yet actioned.** `pact-guide`'s divergence warnings are now
+stale in the opposite direction: engine.js matches, so there is nothing left to diverge from. Left
+uncorrected, a future session reading `py/pricing.py`'s comment block or `py/regress_grit.py`'s docstring
+will believe a live divergence still exists and may "restore" it. Needs a note in that project's
+`pricing.py`, `regress_grit.py`, and both `D-2026-08-11-grit-*` records saying the divergence was
+resolved on 2026-08-12 by engine.js adopting 2N.
