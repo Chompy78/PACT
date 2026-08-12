@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-12 · fix(chargen): bound the invite-peek call so it can't hang the accept/decline prompt** —
+  `tryRedeem()`'s `peekPlayerInvite()` call (added by `feat/invite-peek-campaign-name`) had no timeout;
+  an unresolved request left the whole accept/decline `confirm()` unreachable, silently — no error, no
+  fallback, the prompt just never appeared. Caught via `testing/scripts/chargen-flows-e2e.mjs`'s
+  "declining an invite is recoverable" check, which had failed identically on every `preview`→`main`
+  promotion attempt since 2026-08-10 (PRs #402 through #417, all closed unmerged rather than fixed).
+  Wrapped the peek in a 3000ms `Promise.race`, falling back to the existing nameless-prompt path (the
+  same one already used for a caught peek failure) if it doesn't resolve in time — real players on a
+  slow/flaky connection get the same protection. Test's own wait bumped to clear the new bound.
+  `chargen-flows-e2e.mjs` 46/46, `engine-parity-ci.mjs` 30/0 (untouched — no `js/engine.js`/`DATA` change).
 - **2026-08-11 · chore(version): BUILD → v1.413** — owner-requested bump outside the normal
   preview→main promotion-PR cadence (PR #413 merged claim-link straight to `main`, bypassing that
   flow; see the session's own note on the mismatch this created). Carried the major number (`1`)

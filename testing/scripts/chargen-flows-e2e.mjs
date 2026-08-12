@@ -112,7 +112,11 @@ section('declining an invite is recoverable, not a one-way door');
     // builds fresh closures per dispatch, so this is a clean second run rather than a resumed one.
     window._authBridge.currentSession = async()=>({user:{id:'test-session'}});
     document.dispatchEvent(new Event('sync-ready'));
-    await new Promise(r=>setTimeout(r,600));
+    // fix/invite-peek-timeout: tryRedeem() now races peekPlayerInvite() against a 3000ms bound (a real
+    // network call that used to be able to hang the accept/decline prompt forever -- see that fix's own
+    // comment in PACT-CharGen-Webtool.html). This offline test environment never resolves the peek at
+    // all, so the wait here has to clear that bound with margin, not the old near-instant 600ms.
+    await new Promise(r=>setTimeout(r,3400));
     const bn = document.getElementById('cgInviteBanner');
     let tok=null; try{ tok = sessionStorage.getItem(window.PENDING_INVITE_KEY); }catch(e){}
     return { visible: bn.style.display!=='none', text: bn.textContent.slice(0,80),
