@@ -1160,8 +1160,21 @@ document.addEventListener('sync-ready', function () {
       // live) BEFORE asking to accept — moving the prompt after redemption would be confirming an act
       // already taken. Best-effort: a peek failure (network, or a not-yet-migrated database) falls
       // back to the pre-existing nameless copy rather than blocking the invite outright.
+      // fix/invite-peek-timeout: that fallback only fires on a REJECTED peek — an unbounded, un-timed-out
+      // request just hangs, and with it the whole accept/decline prompt never appears at all. Found via
+      // testing/scripts/chargen-flows-e2e.mjs's "declining an invite is recoverable" check going red on
+      // every preview->main promotion since 2026-08-10 (PRs #402-#417): peekPlayerInvite() never settled
+      // within the test's wait window, so confirm() was never reached. Same risk for a real player on a
+      // slow/flaky connection -- the invite prompt would just never show up, with no error and no way to
+      // tell it's stuck. A bounded race resolves to null (identical to a caught rejection) if the peek
+      // hasn't answered in time, so the existing nameless-prompt fallback below covers this case too.
       var peek = null;
-      try{ peek = await C.peekPlayerInvite(token); }catch(e){ peek = null; }
+      try{
+        peek = await Promise.race([
+          C.peekPlayerInvite(token),
+          new Promise(function(res){ setTimeout(function(){ res(null); }, 3000); })
+        ]);
+      }catch(e){ peek = null; }
       if(peek && !peek.valid){
         // A dead token (already redeemed/withdrawn/expired) is caught HERE, before ever showing a
         // confirm() the player would have no way to act on differently.
