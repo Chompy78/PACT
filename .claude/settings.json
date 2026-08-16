@@ -1,4 +1,20 @@
 {
+  "permissions": {
+    "allow": [
+      "Edit(docs/PACT-Players-Guide.html)",
+      "Write(docs/PACT-Players-Guide.html)",
+      "mcp__home-server-mcp__list_projects",
+      "mcp__home-server-mcp__list_project_files",
+      "mcp__home-server-mcp__read_project_file",
+      "mcp__home-server-mcp__search_project_files",
+      "mcp__home-server-mcp__write_project_file",
+      "mcp__home-server-mcp__edit_project_file"
+    ],
+    "deny": [
+      "mcp__home-server-mcp__delete_project_file",
+      "mcp__home-server-mcp__rename_project_file"
+    ]
+  },  
   "hooks": {
     "SessionStart": [
       {
