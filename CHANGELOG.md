@@ -6,6 +6,19 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-16 · feat(rules): heritage-pack membership + pricing model corrected — `DATA.version` v0.344** —
+  In-pack species traits were stored `origin: 0`, which coupled a trait's *price* to its *pack membership*, so
+  a trait leaving a pack silently became free. Already live as a defect (`Goliath: Long Stride (Speed 35)`
+  was a free T1 trait) and about to bite three more. In-pack traits now carry their real
+  `MASTER[tier][band]` origin price and `compute()` guards `r.pack && isO → 0`, so the pack — not a zeroed
+  field — is what makes them free. Output-neutral: parity 30/0 throughout, `testing/expected/` unchanged.
+  Rules changes in the same bump (owner-specified): `Elf: Fey Ancestry`, `Orc: Relentless Endurance` and
+  `Dragonborn: Breath Weapon` leave their heritage packs; `Orc: Adrenaline Rush` corrected T2 → T1 with
+  `cross: 4`; `Goliath: Long Stride` repriced to At-Will 4 (5); new `Elf: Wood Elf speed` At-Will 4 (5) —
+  the guide listed it as an Elf lineage option but the engine had no entry for it. Pack prices unchanged at
+  5 (Human −2); value spread narrows 7–13 → 7–10 AP. Guide landed the same change (atomicity rule): Ch10
+  basics, Appendix B in-pack flags and prices, plus `DATA.packBasics`. All 29 Appendix B trait rows now
+  reconcile against the engine with zero mismatches. See `D-GH-2026-08-16-heritage-pack-pricing`.
 - **2026-08-16 · fix(guide): drop the guide's three PWA `<head>` tags so served copy == `pact-guide` master
   byte-for-byte** — `docs/PACT-Players-Guide.html` used to carry `<link rel="manifest">`, `<link rel="icon">`
   and `<link rel="apple-touch-icon">` that the master doesn't, and `docs/VERSION-SYNC.md`'s transfer

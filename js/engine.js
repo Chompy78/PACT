@@ -257,7 +257,11 @@ export function compute(b, opts){
   let racAP=0;const _SI=[];for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;const isO=(r.race===b.species||r.race===b.species2);
     const _hasLockEntry=!!(b._raceTraitLocked&&Object.prototype.hasOwnProperty.call(b._raceTraitLocked,lab));
     const _locked=_hasLockEntry?!!b._raceTraitLocked[lab]:!!b.inPlay;
-    let _rc; if(_locked && isO && !r.pack){const _tt=Math.min(7,Math.max(r.tier||1,tier));const _row=DATA.MASTER[_tt];if(r.band==null){_rc=r.origin;}else{_rc=(_row&&_row[r.band])??r.origin;}} else if(isO){_rc=r.origin;} else if(r.cross==null){W.push((lab.split(": ")[1]||lab)+" is origin-race only — it can't be taken cross-race.");continue;} else {_rc=r.cross;}
+    // In-pack traits carry their real MASTER[tier][band] origin price (v0.344) so that moving a
+    // trait in or out of a heritage pack never silently makes it free — but the pack itself is what
+    // grants them, so the origin race pays 0 here rather than paying twice. Cross-race buyers still
+    // pay `cross` via the branches below.
+    let _rc; if(_locked && isO && !r.pack){const _tt=Math.min(7,Math.max(r.tier||1,tier));const _row=DATA.MASTER[_tt];if(r.band==null){_rc=r.origin;}else{_rc=(_row&&_row[r.band])??r.origin;}} else if(isO){_rc=r.pack?0:r.origin;} else if(r.cross==null){W.push((lab.split(": ")[1]||lab)+" is origin-race only — it can't be taken cross-race.");continue;} else {_rc=r.cross;}
     racAP+=_rc;_SI.push([lab,_rc]);}
   add("Species traits",racAP);addItems("Species traits",_SI);
   // §10 cross-species T2+ rule: traits above T1 can only be purchased by the origin species

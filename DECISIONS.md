@@ -10,6 +10,15 @@
 
 ## Index
 
+## D-GH-2026-08-16-heritage-pack-pricing — In-pack species traits carry their real MASTER price; the pack, not a zeroed field, is what makes them free
+- Every in-pack trait was stored `origin: 0`, coupling *price* to *pack membership* — so a trait leaving a
+  pack silently became **free**. That had already happened (`Goliath: Long Stride`, free and unnoticed) and
+  was about to happen to three more traits being unpacked in the same change. The guide had it right all
+  along: Appendix B printed real `MASTER[tier][band]` prices with a separate `In pack` column. Engine now
+  matches, with a `r.pack && isO → 0` guard in `compute()`. Output-neutral (parity 30/0, no
+  `testing/expected/` change). `DATA.version` v0.343 → v0.344.
+  Full record: `decisions/2026/D-GH-2026-08-16-heritage-pack-pricing.md`.
+
 - **D-GH-2026-08-12-guide-engine-version-pointer** — Players Guide (separate `pact-guide` project) now
   declares a machine-generated `documents-rules:` pointer (version/branch/commit, sourced from
   `pact-guide`'s existing vendoring pipeline, stamped only on deliberate reconciliation — never
