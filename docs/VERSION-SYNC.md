@@ -110,15 +110,30 @@ its pricing sync; the guide follows the same choice since `main` is what's actua
 **This repo never carries `BUILD`** (the cosmetic build number above) in the guide — it has no reason to
 track it.
 
-**Update procedure for `docs/PACT-Players-Guide.html` (manual, not automated):** `pact-guide` has no
-GitHub remote or CI, so there is no fully-automatic push. Whenever `pact-guide`'s canonical guide file
-changes, **the session that made that change** copies the finished HTML into this repo's
-`docs/PACT-Players-Guide.html` and commits, verifying:
-1. both markers parse and are present exactly once each;
-2. `documents-rules`'s `version`/`branch`/`commit` match `pact-guide`'s `py/vendor/engine/SYNCED_FROM.txt`
+**Update procedure for `docs/PACT-Players-Guide.html` (scripted — do NOT hand-copy):** `pact-guide` has
+no GitHub remote or CI, so there is no fully-automatic push. Run:
+
+```
+node testing/scripts/sync-guide-from-master.mjs <path-to-pact-guide>/PACT-Players-Guide.html
+node testing/scripts/sync-guide-from-master.mjs --check <same-path>   # verify only, exits 1 on drift
+```
+
+> **Never `cp` the master over the served copy.** The served copy is **not** a byte-copy of the master:
+> it carries three PACT-repo-only `<head>` tags — `<link rel="manifest">`, `<link rel="icon">` and
+> `<link rel="apple-touch-icon">` — that make the served guide part of the installable PWA (manifest and
+> service-worker scope are pinned to `/PACT/`). The master has no reason to carry them and doesn't. A
+> plain `cp` silently strips all three and breaks the guide's PWA integration on GitHub Pages, with no
+> visible error. This procedure said "copies the finished HTML" and never mentioned the tags until
+> 2026-08-16, when a hand-copy dropped them and it was caught by diffing the two files' `<head>`.
+> `sync-guide-from-master.mjs` re-injects them, is idempotent, and refuses obviously-wrong source files.
+
+Then commit, verifying:
+1. the three PWA `<head>` links survived (the script guarantees this; `--check` re-verifies it);
+2. both markers parse and are present exactly once each;
+3. `documents-rules`'s `version`/`branch`/`commit` match `pact-guide`'s `py/vendor/engine/SYNCED_FROM.txt`
    at the time of the copy (three-way check: vendored snapshot ↔ `pact-guide` canonical ↔ this repo's
    served copy — not just a two-file diff);
-3. no stray `BUILD`/web-tool-version mentions crept into guide body prose.
+4. no stray `BUILD`/web-tool-version mentions crept into guide body prose.
 
 **Current state (2026-08-12):** this repo's served copy still shows its old `v0.332` marker and carries no
 `documents-rules` marker at all — landing this section doesn't fix that by itself. It's corrected the next
