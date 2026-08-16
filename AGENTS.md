@@ -248,7 +248,7 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   there and how the optimized-vs-source split works.
 
 ## Versioning — TWO separate numbers (don't conflate or over-bump)
-- **Build version** (`BUILD`, currently `v1.293`) — the cosmetic web-tool/build number, format
+- **Build version** (`BUILD`, currently `v1.421`) — the cosmetic web-tool/build number, format
   `v<major>.<PR#>`. As of D-GH-2026-08-02-build-version-pr-linked, the number after the dot is **the
   GitHub PR number that promotes `preview` → `main`** (e.g. `v1.268` for PR #268 under major `1`), not
   an independently-incremented counter — bumped exactly once, as part of that promotion PR, never
@@ -259,10 +259,56 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   `<title>`, header `.sub` label), Live Sheet (line-1 comment), DM Console (`TOOL_VERSION`).
   `index.html` reads `BUILD` live, so **never hand-edit its version.** Full promotion/bump procedure:
   `docs/VERSION-SYNC.md`.
-- **Rules version** (`DATA.version`, currently `v0.336`) — the rules dataset. Bump ONLY when mechanics
+- **Rules version** (`DATA.version`, currently `v0.343`) — the rules dataset. Bump ONLY when mechanics
   change (ladders, prices, gates, `compute()` output). The display-only maps `masteryFx`, `drawbackFx`,
   `racialFx` and `page` fields are never read by `compute()` — editing them is a docs change, so don't
   bump it; just log it in `CHANGELOG.md`.
+
+## A mechanics change isn't finished until the engine AND the guide land it
+A rules change that ships in `js/engine.js` but not in the Players Guide is **half-done, not done** —
+players read the guide, so a guide that disagrees with the engine is a live rules bug with a human
+audience. The reverse is equally unfinished. Both sides land before the task closes, and `DATA.version`
+is bumped **exactly once, in the engine** — the guide never carries its own rules version (see
+`docs/VERSION-SYNC.md` for the `documents-rules:` pointer that records which engine version the prose
+was last reconciled against).
+
+**Why this is a rule and not a nicety.** Grit's pricing diverged between the two for ~6 days
+(2026-08-06 → 2026-08-12) precisely because nothing stated this: `pact-guide` deliberately moved to the
+2N Steep curve and documented the divergence, while this repo's engine kept the older ladder, and each
+side's records read as authoritative on its own. See `D-GH-2026-08-12-grit-steep-ladder` and its
+Addendum — including how a stale "we deliberately diverge" warning becomes its own hazard once the
+divergence is resolved. For scale: `pact-guide`'s August 2026 guide-vs-engine audit found **171**
+discrepancies, so Grit was the symptom that happened to get noticed, not the extent of the drift.
+
+**Where the guide master lives.** The Players Guide's prose is authored in `pact-guide` — a separate,
+**non-GitHub** project on the home server, reachable from an AI session via the home-server MCP
+connector under project key `pact-guide`, canonical file `PACT-Players-Guide.html` at that project's
+root. This repo's `docs/PACT-Players-Guide.html` is a **served copy, not the master**: never treat an
+edit here as having updated the guide. Transfers are manual and three-way-verified — procedure in
+`docs/VERSION-SYNC.md`.
+
+**Which artefact wins when they disagree: `js/engine.js`.** That is already this file's position
+everywhere else, but it needs stating for the guide case specifically, because `pact-guide` carries two
+directly competing claims that have each already misled a session: its `PYTHON-FILES-OVERVIEW.md`
+describes the Python tooling as the "pricing authority", and its own `AGENTS.md` "Tool-specific gotchas"
+note says *"`engine.js` does not belong to this project… this project's engine is `/py/engine.py`"*. The
+question is settled in this repo's favour by that project's own record —
+`D-2026-08-16-guide-audit-reconciliation-target`: `js/engine.js` + `js/engine-data.js` are the
+reconciliation target by explicit owner instruction, and `py/engine.py` is a *separate*, later
+reconciliation. In fairness to `PYTHON-FILES-OVERVIEW.md`, its "pricing authority" line is hedged
+("appears to…", "[VERIFY] Located but not yet fully inspected") — it is a survey doc, not a rival
+declaration, and shouldn't be read as one.
+
+**The rules-carrying copies that can drift — there are six, not two:**
+1. `js/engine.js` + `js/engine-data.js` (this repo) — **the single source of truth.**
+2. `docs/PACT-Players-Guide.html` (this repo) — served copy of the guide.
+3. `PACT-Players-Guide.html` (`pact-guide`) — the guide **master**.
+4. `py/pricing.py` (`pact-guide`) — the Python pricing model.
+5. `py/engine.py` (`pact-guide`) — a *second* engine whose name collides with this repo's; slated for
+   its own reconciliation and a probable rename to end the ambiguity.
+6. `py/vendor/engine/` (`pact-guide`) — a vendored point-in-time snapshot of **this repo's**
+   `engine.js`, `engine-data.js`, `ap-by-level.js`, `advancement.js`, with provenance recorded in that
+   folder's `SYNCED_FROM.txt`. Refreshed by re-running that project's sync; never hand-edited.
 
 ## Technical Access ≠ Scope
 Any AI session without real technical permission-scoping (i.e. most sessions — Claude Code with enforced

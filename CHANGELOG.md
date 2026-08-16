@@ -6,6 +6,19 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-16 · docs(agents): cross-project rules-change atomicity rule** — `AGENTS.md` now states that a
+  mechanics change isn't finished until BOTH `js/engine.js` and the Players Guide land it, with
+  `DATA.version` bumped exactly once (in the engine); names `pact-guide` (home-server MCP, project key
+  `pact-guide`) as the guide **master** and this repo's `docs/PACT-Players-Guide.html` as a served copy;
+  resolves the engine-vs-Python authority question explicitly in favour of `js/engine.js`, citing
+  `pact-guide`'s own `D-2026-08-16-guide-audit-reconciliation-target`; and lists **six** rules-carrying
+  copies that can drift — the task board said five, but `pact-guide`'s `py/engine.py` is a second,
+  name-colliding engine that on 2026-08-16 nearly caused a completed 171-finding audit to be redone
+  against the wrong file. Also corrected two stale version claims in the same section (`BUILD` v1.293 →
+  v1.421, `DATA.version` v0.336 → v0.343) — both were wrong immediately above a new rule about version
+  drift. Matching patch for `pact-guide`'s own `AGENTS.md` drafted for handover at
+  `docs/plans/2026-08-16-pact-guide-agents-atomicity-patch.md` (not applied from here, per *Technical
+  Access ≠ Scope*). Docs-only: no `DATA.version`/`BUILD` bump, no `compute()` change.
 - **2026-08-12 · docs(version-sync): guide↔engine rules-version pointer, cross-project** — cold-reviewed
   plan (4 reviewers) at `docs/plans/2026-08-12-guide-engine-version-pointer.md`; implemented the PACT-repo
   half directly (`docs/VERSION-SYNC.md` new cross-project section, this decision record) and the
