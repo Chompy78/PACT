@@ -227,6 +227,33 @@ for (const t of tables(html)) {
       continue;
     }
 
+    // A row that reached its engine entry only by PREFIX carries a step qualifier the engine key
+    // does not ("Extra Attack (3 attacks, L11)" -> "Extra Attack"). Comparing it against the BASE
+    // feature's price is meaningless and produced false price-mismatches. Two real cases:
+    //   - the engine has explicit sibling variants ("Fighter: Extra Attack (2nd)/(3rd)") -> the row
+    //     maps to one of those, so report the variants and let a human pick, don't assert a mismatch;
+    //   - the engine has no siblings and the base is buy-once -> the row describes a purchase that
+    //     does not exist at all, which is the actual defect worth reporting.
+    if (res.viaPrefix && /\(\s*(?:\d+(?:st|nd|rd|th)?\b|\+\d+|d\d+)/i.test(name)) {
+      const bare = res.key.includes(': ') ? res.key.split(': ').slice(1).join(': ') : res.key;
+      // The FIRST step of a ladder legitimately prints the base feature's own price
+      // ("Extra Attack (2 attacks, L5)" is just "Extra Attack"). If the cell already matches the
+      // base exactly, the row is correct — say nothing rather than manufacturing a finding.
+      const pr = parsePrice(priceCell);
+      if (pr && pr.sticker === stickerOf(f) && (pr.origin == null || pr.origin === f.origin)) continue;
+      const sibs = Object.entries(DATA.features || {})
+        .filter(([k, v]) => k !== res.key && k.startsWith(res.key + ' (') && v.tier != null)
+        .map(([k, v]) => `${k.slice(res.key.length + 1)} ${v.tb} ${stickerOf(v)} (${v.origin})`);
+      findings.push({ ...base,
+        kind: sibs.length ? 'variant-row' : 'phantom-step-row',
+        engineKey: res.key,
+        detail: sibs.length
+          ? `stepped row resolves to base "${bare}"; engine has explicit variants — check against those, not the base`
+          : `engine has only "${res.key}" (rep:false) and no variant keys — this stepped purchase does not exist`,
+        engine: sibs.length ? sibs.join(' · ') : `${f.tb} ${stickerOf(f)} (${f.origin}), buy-once` });
+      continue;
+    }
+
     if (!price) {
       findings.push({ ...base, kind: 'unparsed-price', engineKey: res.key,
         detail: `engine says ${stickerOf(f)} (${f.origin})`, engine });
@@ -259,7 +286,7 @@ console.log(`guide-price-check — ${guidePath}`);
 console.log(`engine DATA.version = ${DATA.version}`);
 console.log(`scanned ${tablesScanned} priced tables, ${rowsChecked} feature rows\n`);
 
-const order = ['price-mismatch', 'no-engine-key', 'stepped-feature', 'ambiguous', 'unparsed-price'];
+const order = ['price-mismatch', 'phantom-step-row', 'no-engine-key', 'variant-row', 'stepped-feature', 'ambiguous', 'unparsed-price'];
 for (const kind of order) {
   const group = findings.filter(f => f.kind === kind);
   if (!group.length) continue;
@@ -285,4 +312,4 @@ if (jsonOut) {
   console.log(`wrote ${jsonOut}`);
 }
 
-process.exit(findings.some(f => f.kind === 'price-mismatch' || f.kind === 'no-engine-key') ? 1 : 0);
+process.exit(findings.some(f => ['price-mismatch','phantom-step-row','no-engine-key'].includes(f.kind)) ? 1 : 0);
