@@ -283,9 +283,20 @@ discrepancies, so Grit was the symptom that happened to get noticed, not the ext
 **Where the guide master lives.** The Players Guide's prose is authored in `pact-guide` — a separate,
 **non-GitHub** project on the home server, reachable from an AI session via the home-server MCP
 connector under project key `pact-guide`, canonical file `PACT-Players-Guide.html` at that project's
-root. This repo's `docs/PACT-Players-Guide.html` is a **served copy, not the master**: never treat an
-edit here as having updated the guide. Transfers are manual and three-way-verified — procedure in
+root. This repo's `docs/PACT-Players-Guide.html` is a **served copy, not the master**: an edit here has
+not updated the guide until it is copied back. Transfers are manual and verified — procedure in
 `docs/VERSION-SYNC.md`.
+
+> **The prohibition is divergence, not the keystrokes.** Editing the served copy and *leaving* it
+> diverged is the actual hazard — the next transfer from `pact-guide` silently wipes it. Editing here
+> deliberately and copying back before the session ends is fine. Since 2026-08-16 the two files are
+> byte-identical (see the PWA-tag removal in `CHANGELOG.md`), so a reverse `cp` is exactly as safe as a
+> forward one, and `diff` proves it either way. **Prefer local editing for bulk guide work:** this repo
+> has a shell, scripts, and `testing/scripts/guide-price-check.mjs` to verify against the live engine,
+> whereas the home-server connector costs a round trip per edit. Use the connector for `pact-guide`'s
+> *other* files — `TASK_BOARD.md`, `DECISIONS.md`, `CHANGELOG.md`, `plans/`, `py/tools/` — which have no
+> copy here. Written the same day this rule was added, after a session made 20 single-cell edits over
+> the connector that one local script would have done in one pass.
 
 **Which artefact wins when they disagree: `js/engine.js`.** That is already this file's position
 everywhere else, but it needs stating for the guide case specifically, because `pact-guide` carries two
