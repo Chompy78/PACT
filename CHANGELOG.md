@@ -6,6 +6,23 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-16 · feat(rules): stepped-purchase ladders that the guide advertised but the engine lacked —
+  `DATA.version` v0.345** — nine features added. The guide listed stepped purchases (Second Wind 3/4 uses,
+  Action Surge 2nd use, Indomitable 2/3 uses, Channel Divinity 3/4 uses, Brutal Strike improved L13/L17)
+  that had no engine key at all, so they were unbuyable. Owner confirmed these purchases *should* exist,
+  making it an engine addition rather than a guide deletion. Every price is `MASTER[tier][band]`-derived and
+  matches the guide's printed cell exactly; entries follow the existing `Fighter: Extra Attack (2nd)/(3rd)`
+  variant convention and are registered in `featureList` beside their base. Brutal Strike gained its missing
+  **L13** rung in both engine and guide (T6 At-Will 19 (14)) — the guide had L9 and L17 but nothing between.
+  Guide also: Star Map corrected `Bundle 5` → `T3 Situational 6 (4)`; `Agonising` → `Agonizing` ×7 to match
+  the engine key. Parity 30/0, tool-pricing 134/0. **Two audit items needed no change at all** — the guide's
+  `Extra Attack (3/4 attacks)` rows already matched `Fighter: Extra Attack (2nd)/(3rd)` exactly; the earlier
+  triage's claim otherwise was a checker resolution failure, not a defect.
+- **2026-08-16 · fix(testing): guide-price-check resolves variants and punctuation** — sibling variants are
+  now found by bare name rather than the resolved key's class prefix (a class-agnostic table resolved to
+  whichever class matched first, so `Fighter: Extra Attack (2nd)` was invisible), and typographic
+  apostrophes are normalised for comparison only — the guide sets 111 of them as house style, and rewriting
+  a player document's punctuation to match a data key would be a visible regression. `price-mismatch` 2 → 0.
 - **2026-08-16 · feat(rules): heritage-pack membership + pricing model corrected — `DATA.version` v0.344** —
   In-pack species traits were stored `origin: 0`, which coupled a trait's *price* to its *pack membership*, so
   a trait leaving a pack silently became free. Already live as a defect (`Goliath: Long Stride (Speed 35)`

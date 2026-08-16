@@ -66,6 +66,10 @@ function ladderOf(f, steps) {
 // ---- html helpers -----------------------------------------------------------------------
 const decode = s => s
   .replace(/&#x27;|&#39;|&apos;/g, "'").replace(/&quot;/g, '"')
+  // The guide sets typographic apostrophes (111 of them) as house style; engine keys use the
+  // straight ASCII form ("Warlock: Devil's Sight"). Normalise for COMPARISON only — rewriting the
+  // guide's punctuation to match a data key would be a visible regression in a player document.
+  .replace(/[\u2018\u2019]/g, "'")
   .replace(/&nbsp;/g, ' ').replace(/&ndash;/g, '–').replace(/&mdash;/g, '—')
   .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 const strip = s => decode(s.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
@@ -241,9 +245,16 @@ for (const t of tables(html)) {
       // base exactly, the row is correct — say nothing rather than manufacturing a finding.
       const pr = parsePrice(priceCell);
       if (pr && pr.sticker === stickerOf(f) && (pr.origin == null || pr.origin === f.origin)) continue;
+      // Search variants by BARE name, not by the resolved key's class prefix: a row in a
+      // class-agnostic table resolves to whichever class happened to match first, and
+      // "Bard: Extra Attack (2nd)" does not exist while "Fighter: Extra Attack (2nd)" does.
       const sibs = Object.entries(DATA.features || {})
-        .filter(([k, v]) => k !== res.key && k.startsWith(res.key + ' (') && v.tier != null)
-        .map(([k, v]) => `${k.slice(res.key.length + 1)} ${v.tb} ${stickerOf(v)} (${v.origin})`);
+        .filter(([k, v]) => {
+          if (k === res.key || v.tier == null) return false;
+          const kb = k.includes(': ') ? k.split(': ').slice(1).join(': ') : k;
+          return kb !== bare && kb.startsWith(bare + ' (');
+        })
+        .map(([k, v]) => `${k} ${v.tb} ${stickerOf(v)} (${v.origin})`);
       findings.push({ ...base,
         kind: sibs.length ? 'variant-row' : 'phantom-step-row',
         engineKey: res.key,
