@@ -111,6 +111,19 @@ const push = (name, rec) => {
 for (const [key, entry] of Object.entries(DATA.features || {})) {
   const bare = decode(key.split(': ').slice(1).join(': ')) || decode(key);
   push(bare, { key, entry, kind: 'feature', cls: entry.cls });
+  // Engine keys bundle several guide-facing names into one entry. Index the unambiguous
+  // restatements too, so a guide row naming either half still resolves:
+  //   "Elemental Fury / Improved circle" -> also "Elemental Fury", "Improved circle"
+  //   "Combat Superiority (maneuvers)"   -> also "Combat Superiority"
+  //   "Bardic Inspiration die"           -> also "Bardic Inspiration"
+  // These are aliases for MATCHING only; the price compared is always the one entry's.
+  const alts = new Set();
+  if (bare.includes(' / ')) bare.split(' / ').forEach(x => alts.add(x.trim()));
+  const paren = bare.match(/^(.+?)\s*\(([^)]*)\)$/);
+  if (paren && !/\d/.test(paren[2])) alts.add(paren[1].trim());
+  const die = bare.match(/^(.+?) die$/i);
+  if (die) alts.add(die[1].trim());
+  for (const a of alts) if (a && a.toLowerCase() !== bare.toLowerCase()) push(a, { key, entry, kind: 'feature', cls: entry.cls, viaAlias: bare });
 }
 for (const [key, entry] of Object.entries(DATA.subAbilMap || {})) {
   push(decode(entry.name || key.split('|').pop()), { key, entry, kind: 'subAbil', cls: entry.cls });
@@ -124,13 +137,25 @@ for (const [cls, subs] of Object.entries(DATA.subclasses || {})) {
     // Bundles have no tier; synthesise an entry whose "sticker" is the cross price so the
     // normal comparison path works unchanged.
     const entry = { cls, tier: 0, tb: 'Bundle', origin: bn.origin, cross: bn.cross, rep: false, _bundle: true };
-    for (const alias of [`${sub} spells`, `${sub} spells + cantrip`, `${sub} bonus spells`]) push(alias, { key: `${cls}|${sub}|spellBundle`, entry, kind: 'bundle', cls });
+    const GENERIC = { Cleric: 'Domain', Paladin: 'Oath', Sorcerer: 'Origin', Warlock: 'Patron', Druid: 'Circle' };
+    const aliases = [`${sub} spells`, `${sub} spells + cantrip`, `${sub} bonus spells`, sub];
+    // "Circle of the Land" is printed per land type in the guide; the engine has one bundle.
+    if (sub === 'Circle of the Land') for (const land of ['Arid', 'Polar', 'Temperate', 'Tropical'])
+      aliases.push(`${land}: Circle Spells + cantrip`, `↳ ${land}: Circle Spells + cantrip`);
+    if (GENERIC[cls]) aliases.push(`${GENERIC[cls]} bonus spells`, `${GENERIC[cls]} spells`);
+    for (const alias of aliases) push(alias, { key: `${cls}|${sub}|spellBundle`, entry, kind: 'bundle', cls });
   }
 }
 
 /** Resolve a guide row name to a single engine entry, using class context to disambiguate. */
 function resolveFeature(name, cls) {
   let cands = featureIndex.get(name.toLowerCase()) || [];
+  // "Second Wind (3 uses, L4)" -> "Second Wind (3 uses)": the guide appends the unlocking level,
+  // the engine key does not. Exact-match on the level-stripped form before any prefix guessing.
+  if (cands.length === 0) {
+    const noLevel = name.replace(/,\s*L\d+\s*\)/, ')').trim();
+    if (noLevel !== name) cands = featureIndex.get(noLevel.toLowerCase()) || [];
+  }
   // Stepped ladder rows print the step in the name ("Sneak Attack 1d6", "Extra Attack (2
   // attacks, L5)", "Martial Arts die (d8, L5)"). Fall back to the longest engine bare-name
   // that prefixes the row name, so the row resolves to its base repeatable feature.
