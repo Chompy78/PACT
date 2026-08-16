@@ -6,6 +6,28 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-16 · fix(guide): drop the guide's three PWA `<head>` tags so served copy == `pact-guide` master
+  byte-for-byte** — `docs/PACT-Players-Guide.html` used to carry `<link rel="manifest">`, `<link rel="icon">`
+  and `<link rel="apple-touch-icon">` that the master doesn't, and `docs/VERSION-SYNC.md`'s transfer
+  procedure never mentioned them — so every hand-copy silently stripped them with no visible error (caught
+  today when a `cp` of the v0.333 master did exactly that, before it was committed). Fixed by **removing**
+  the tags rather than scripting their re-injection: they were near-inert. `manifest.json` already sets
+  `scope:"/PACT/"` so the guide is in scope and opens in the installed app regardless, and
+  `service-worker.js:26` already precaches the guide so offline never depended on them. Only real loss is
+  the guide tab's favicon (LATER task raised). The two files are now byte-identical, `diff` is the transfer
+  check, and a plain `cp` is correct — one whole class of transfer bug removed instead of automated around.
+  Supersedes the `sync-guide-from-master.mjs` injector added earlier the same day (now deleted).
+  No `DATA.version`/`BUILD` change.
+- **2026-08-16 · feat(testing): mechanical guide-vs-engine price checker** — `testing/scripts/guide-price-check.mjs`
+  diffs every priced feature row in the Players Guide against live `DATA`, encoding the pricing rule nothing
+  had written down (non-repeatable `sticker = max(1, cross − tier)`, `engine.js:290`; repeatable stepped
+  `MASTER[tier][band]` ladder, `engine.js:289`). Built because re-verifying the 2026-08 171-finding guide
+  audit found its `Fix:` lines quote `origin`/`cross` where the guide's column needs `sticker` — wrong for
+  findings #36, #41, #42 — so applying that audit verbatim would introduce new errors. Independently
+  reproduces audit findings #24, #27, #29, #30, #31, #32, #35, #39, #40, #43, #45 without reading it, and
+  flags rows its range never covered. **Established that the v0.333 master carries every one of these
+  defects unchanged**, i.e. the 2026-08-16 session's claimed "applied and verified #22–48" never landed in
+  Appendix A. Read-only. No `DATA.version`/`BUILD` change.
 - **2026-08-16 · docs(agents): cross-project rules-change atomicity rule** — `AGENTS.md` now states that a
   mechanics change isn't finished until BOTH `js/engine.js` and the Players Guide land it, with
   `DATA.version` bumped exactly once (in the engine); names `pact-guide` (home-server MCP, project key

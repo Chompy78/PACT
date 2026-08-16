@@ -110,25 +110,27 @@ its pricing sync; the guide follows the same choice since `main` is what's actua
 **This repo never carries `BUILD`** (the cosmetic build number above) in the guide — it has no reason to
 track it.
 
-**Update procedure for `docs/PACT-Players-Guide.html` (scripted — do NOT hand-copy):** `pact-guide` has
-no GitHub remote or CI, so there is no fully-automatic push. Run:
+**Update procedure for `docs/PACT-Players-Guide.html` — a plain copy, and the two files must stay
+byte-identical.** `pact-guide` has no GitHub remote or CI, so there is no fully-automatic push. Whenever
+`pact-guide`'s canonical guide file changes, **the session that made that change** copies the finished
+HTML over `docs/PACT-Players-Guide.html` and commits. A straight `cp` is correct — and
+`diff <master> docs/PACT-Players-Guide.html` must come back clean afterwards. **That diff is the check:**
+if the two files ever differ, something has been edited on the served side, which is exactly what must
+not happen (the master is canonical — see `AGENTS.md`).
 
-```
-node testing/scripts/sync-guide-from-master.mjs <path-to-pact-guide>/PACT-Players-Guide.html
-node testing/scripts/sync-guide-from-master.mjs --check <same-path>   # verify only, exits 1 on drift
-```
-
-> **Never `cp` the master over the served copy.** The served copy is **not** a byte-copy of the master:
-> it carries three PACT-repo-only `<head>` tags — `<link rel="manifest">`, `<link rel="icon">` and
-> `<link rel="apple-touch-icon">` — that make the served guide part of the installable PWA (manifest and
-> service-worker scope are pinned to `/PACT/`). The master has no reason to carry them and doesn't. A
-> plain `cp` silently strips all three and breaks the guide's PWA integration on GitHub Pages, with no
-> visible error. This procedure said "copies the finished HTML" and never mentioned the tags until
-> 2026-08-16, when a hand-copy dropped them and it was caught by diffing the two files' `<head>`.
-> `sync-guide-from-master.mjs` re-injects them, is idempotent, and refuses obviously-wrong source files.
+> **Why this used to be more complicated (2026-08-16).** The served copy used to carry three
+> PACT-repo-only `<head>` tags — `<link rel="manifest">`, `<link rel="icon">` and
+> `<link rel="apple-touch-icon">` — that the master has no reason to know about. This procedure never
+> mentioned them, so every hand-copy silently stripped them with no visible error. Rather than script
+> the re-injection, the tags were **removed** and the two files made byte-identical, because the tags
+> turned out to be almost entirely redundant: `manifest.json` already sets `scope: "/PACT/"`, so the
+> guide is in scope and opens inside the installed app anyway, and `service-worker.js` already
+> precaches `/PACT/docs/PACT-Players-Guide.html`, so offline support never depended on them either.
+> The only real loss is the tab favicon on the guide page — tracked as a LATER task. Deleting three
+> near-inert tags removed a whole class of transfer bug permanently; see `CHANGELOG.md`.
 
 Then commit, verifying:
-1. the three PWA `<head>` links survived (the script guarantees this; `--check` re-verifies it);
+1. `diff` against the master is clean — no PACT-side edits, no stray tags reintroduced;
 2. both markers parse and are present exactly once each;
 3. `documents-rules`'s `version`/`branch`/`commit` match `pact-guide`'s `py/vendor/engine/SYNCED_FROM.txt`
    at the time of the copy (three-way check: vendored snapshot ↔ `pact-guide` canonical ↔ this repo's
