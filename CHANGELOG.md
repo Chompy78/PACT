@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-16 · feat(rules): split a conflated Druid key, add three missing features, reprice Cunning
+  Strike — `DATA.version` v0.346** — closes the last four guide↔engine name mismatches, all owner-adjudicated.
+  (1) `Druid: Elemental Fury / Improved circle` fused two unrelated abilities — Elemental Fury (Druid L7)
+  with an "Improved circle" that already exists separately as `Druid: Improved Circle Forms` at the *same*
+  T4 Passive 14 (11). Renamed to `Druid: Elemental Fury`; added the genuinely missing
+  `Druid: Improved Elemental Fury` (Druid L15) T6 Passive 21 (16). (2) Added
+  `Monk: Disciplined Survivor (Focus)` T6 Premium 24 (19), absent from the engine entirely.
+  (3) Renamed `Paladin: Aura expansions` → `Paladin: Aura range → 30 ft (L18)` — same feature, same price,
+  the two sides just named it differently. (4) `Rogue: Cunning Strike` was **Situational** in both engine and
+  guide; it is At-Will — repriced T4 At-Will 13 (10) (was 9 (6)) and the missing
+  `Rogue: Improved Cunning Strike (L11)` T5 At-Will 16 (12) added, with the guide's two rows corrected to
+  match. **Two key renames**: any saved character referencing the old names would be orphaned — acceptable
+  only because the app is pre-launch (D-GH37). Parity 30/0, tool-pricing 134/0. Checker now reports
+  **0 price-mismatch and 0 no-engine-key** across 421 rows.
 - **2026-08-16 · feat(rules): stepped-purchase ladders that the guide advertised but the engine lacked —
   `DATA.version` v0.345** — nine features added. The guide listed stepped purchases (Second Wind 3/4 uses,
   Action Surge 2nd use, Indomitable 2/3 uses, Channel Divinity 3/4 uses, Brutal Strike improved L13/L17)
