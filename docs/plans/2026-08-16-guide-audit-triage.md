@@ -60,7 +60,38 @@ duplicate engine entries. **A `no-engine-key` result means "the checker could no
   resolves to whichever class matches first.
 - 23 `stepped-feature` rows print one cell for a whole ladder; the real ladder is shown alongside.
 
-## Still unverified — no work done
+## Chunk 3 and Appendices H/I — now checked (2026-08-16, second tool)
+
+`testing/scripts/guide-spell-check.mjs` verifies what `guide-price-check.mjs` structurally cannot: the
+spell-economy grids (keyed on spell level, not feature name) and the worked examples' running totals.
+
+**Result: 0 mismatches across 667 checked cells, 700 data rows, 34 tables.**
+
+Coverage:
+
+| Range | What | Verdict |
+|---|---|---|
+| L340–406 | Ch12–13 spell grids: HD gate, slot sticker, origin/bound discounts, innate 3×, spell-known | **all match the engine** |
+| L394–406 | Ch12–13 worked examples | running totals **all correct** |
+| L955–1120 | **Appendix H (Multiclass Builds) + Appendix I (The Emberwatch)** — 24 tables, ~600 rows | running totals **all correct** |
+
+The checker is mutation-tested: injecting a wrong slot sticker and a wrong running total makes it exit 1
+and name both. A 0 result therefore means something.
+
+**What this does NOT verify — read before treating Chunk 3 as closed:**
+
+1. **Line-item values inside worked examples.** The check proves `Running` accumulates `AP` correctly.
+   It does not prove each `AP` figure is the right price for that purchase. A build with a wrong line
+   item that sums consistently still passes.
+2. **Prose claims.** Half-caster Rank-5 cap, Wizard "uncapped spellbook", Warlock known-spell formula —
+   these are assertions in text, not table cells. Several are `[UNCLEAR]` wording calls in the audit.
+   Untouched.
+
+So Chunk 3's *arithmetic* is sound and Appendices H/I contain no running-total errors. Whether the
+individual purchases in those builds are correctly priced is still open, and is the natural next step:
+it needs a build-replay check that feeds each worked example through `compute()`.
+
+## Previously unverified — status
 
 - **Chunk 3 (#49–70)** — Ch12–13 and Appendix D spellcasting. **Needs a separate tool, not an extension
   of this one** (see below).
