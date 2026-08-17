@@ -5,7 +5,7 @@ Cleric,Trickery Domain,6,4,8,6,8,6,0,0,2,2,no - applied exactly once,yes,1+1+1+1
 Cleric,War Domain,6,4,8,6,8,6,0,0,2,2,no - applied exactly once,yes,1+1+1+1+2+2 = 8  |  origin 1+1+1+1+1+1 = 6
 Druid,Circle of the Land,4,2,8,7,8,7,0,0,1,1,no - applied exactly once,yes,1+1+4+2 = 8  |  origin 1+1+4+1 = 7
 Druid,Circle of the Moon,4,2,8,7,8,7,0,0,1,1,no - applied exactly once,yes,1+1+4+2 = 8  |  origin 1+1+4+1 = 7
-Druid,Circle of the Sea,7,4,12,10,11,9,-1,-1,2,2,no - applied exactly once,NO,1+1+4+1+1+2+2 = 12  |  origin 1+1+4+1+1+1+1 = 10
+Druid,Circle of the Sea,7,4,12,10,12,10,0,0,2,2,no - applied exactly once,yes,1+1+4+1+1+2+2 = 12  |  origin 1+1+4+1+1+1+1 = 10
 Druid,Circle of the Stars,2,0,5,5,5,5,0,0,0,0,no - applied exactly once,yes,4+1 = 5  |  origin 4+1 = 5
 Paladin,Oath of Devotion,4,6,4,4,4,4,0,0,0,0,no - applied exactly once,yes,1+1+1+1 = 4  |  origin 1+1+1+1 = 4
 Paladin,Oath of Glory,4,6,4,4,4,4,0,0,0,0,no - applied exactly once,yes,1+1+1+1 = 4  |  origin 1+1+1+1 = 4

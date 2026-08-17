@@ -66,13 +66,11 @@ Audit #44. Resolved as U1 + V2 + a new appendix: the summary rows now carry the 
 "none" out loud where a subclass sells nothing, and **Appendix J** gives the per-subclass detail. See
 `CHANGELOG.md` 2026-08-17. `guide-bundle-check` now enforces all of it.
 
-**One genuine outlier, down from a wrongly-reported five.** Reading the real spell lists out of
-`DATA.spellGrants.subclassSpells` (a bundle prices the grants unlocking at charLevel ≤ 5; the rest ride
-free) reproduces **20 of the 21** stored prices exactly. The lone miss is **Circle of the Sea**, charged
-11 (9) where its seven paid grants total 12 (10). Its list is the same shape as Aberrant Sorcery's — a
-cantrip plus two spells each at 1st, 2nd and 3rd — and that one *is* charged 12 (10). So it reads as a
-1 AP slip rather than a deliberate discount. Engine and guide agree on the figure, so nothing is broken;
-correcting it is an owner call.
+**Closed.** Reading the real spell lists out of `DATA.spellGrants.subclassSpells` (a bundle prices the
+grants unlocking at charLevel ≤ 5; the rest ride free) reproduced 20 of the 21 stored prices. The lone
+miss, **Circle of the Sea**, was charged 11 (9) where its seven paid grants total 12 (10) — the same
+shape as Aberrant Sorcery, which was charged 12 (10). Repriced to 12 (10) in v0.348, so **all 21 bundles
+now derive exactly from their own spell lists** and Appendix J carries no outlier note.
 
 > **How this was got wrong first.** An earlier pass *assumed* the grant shape (two spells each at
 > 1st/2nd/3rd) after wrongly concluding the spell lists weren't stored anywhere. That reproduced only 16

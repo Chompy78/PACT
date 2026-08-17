@@ -11,7 +11,8 @@ can be checked and re-run against changed inputs.
 THE PRICING RULE
   A bundle charges for the grants unlocking at character level <= 5; every grant above that rides free.
   Per-spell cost is DATA.knownUnit[spellLevel]; as origin each drops by 1 with a floor of 1 AP. A granted
-  cantrip (spellLevel 0) is a flat DATA.cantCum[1] and takes no discount. That reproduces 20 of 21 prices.
+  cantrip (spellLevel 0) is a flat DATA.cantCum[1] and takes no discount. Since v0.348 that reproduces
+  all 21 stored prices exactly.
 
   Do NOT "simplify" this by assuming a grant shape. An earlier version assumed two spells each at
   1st/2nd/3rd, reproduced only 16 prices, and wrongly reported five bundles as hand-set.
@@ -97,8 +98,8 @@ r = put(r + 1, "Where the spell lists come from", bold=True)
 for line in [
     "DATA.spellGrants.subclassSpells - the engine's own index of every 2024 ability that grants spells,",
     "with each spell's level and the character level its grant unlocks at. Nothing here is reconstructed.",
-    "This reproduces 20 of the 21 stored prices exactly; Circle of the Sea is the single miss (charged",
-    "11/9 where its seven paid grants total 12/10 - the same shape as Aberrant Sorcery, charged 12/10).",
+    "As of DATA.version v0.348 this reproduces ALL 21 stored prices exactly. Circle of the Sea used to be",
+    "the one miss - charged 11/9 where its list totals 12/10 - and was repriced to 12/10 in that version.",
 ]:
     r = put(r, line)
 

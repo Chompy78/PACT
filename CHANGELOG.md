@@ -39,6 +39,15 @@
   > hence 5 AP flat). **The real lone outlier is Circle of the Sea**, charged 11 (9) where its seven paid
   > grants total 12 (10) — the identical shape to Aberrant Sorcery, which *is* charged 12 (10). That is a
   > discrepancy, not a discount, and is now the only caveat printed in the appendix.
+- **2026-08-17 · fix(rules): reprice Circle of the Sea to match its own spell list — `DATA.version`
+  v0.347 → v0.348** — the bundle was charged 11 (9) where its seven paid grants (Fog Cloud, Gust of Wind,
+  Ray of Frost, Shatter, Thunderwave, Lightning Bolt, Water Breathing) total `1+1+4+1+1+2+2 = 12`, and
+  10 as origin. Its list is exactly the shape of Aberrant Sorcery's — a cantrip plus two spells each at
+  1st, 2nd and 3rd — and that one *was* charged 12 (10), so this was a 1 AP slip rather than a deliberate
+  discount. Now 12 (10). **All 21 bundles derive exactly from their own spell lists**, so Appendix J no
+  longer carries an outlier note. Guide updated in the same change: the Sea row and the Druid class
+  summary (`varies 5–11` → `varies 5–12`). No `testing/expected/` update was needed — no fixture prices
+  this bundle.
 - **2026-08-17 · fix(rules): gate subclass abilities and spell bundles behind class access —
   `DATA.version` v0.346 → v0.347** — the guide says "each class you can build from gives you one subclass
   for free: pick it, and you may buy its expanded spell list and any of its abilities", but nothing
