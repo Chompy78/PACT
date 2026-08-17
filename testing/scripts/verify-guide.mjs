@@ -85,7 +85,44 @@ record('embedded art   ', missingArt.length === 0 && strayArt.length === 0 && no
   : nonWebp.length ? `${nonWebp.length} image(s) not WebP: ${[...new Set(nonWebp)].join(', ')}`
   : `all ${EXPECTED_ART.length} present, all WebP`);
 
-// ---- 7. version markers ---------------------------------------------------------------------
+// ---- 7. theming ------------------------------------------------------------------------------
+// Lost in the same sync that took the artwork, and for the same reason: the pact-guide master carries
+// a single hardcoded Parchment palette, so syncing to it flattened every custom property and deleted
+// the pre-paint script. The guide is the only page in the app that reads the theme index.html writes,
+// so losing it made the guide silently ignore the user's choice — including their dark mode.
+//
+// The check is threefold because each part failed independently: the script must be present, every
+// theme must define the FULL variable set (a partial override leaks Parchment colours into Midnight),
+// and no variable may be self-referential — the pre-sync :root had nine `--bg:var(--bg)` declarations,
+// which are cyclic and therefore invalid, so restoring it verbatim would have shipped a broken default.
+const style = (html.match(/<style>[\s\S]*?<\/style>/) || [''])[0];
+const themeBlocks = [...style.matchAll(/\[data-theme="([a-z]+)"\]\s*\{([\s\S]*?)\}/g)];
+const rootKeys = new Set([...((style.match(/:root\s*\{[\s\S]*?\}/) || [''])[0])
+  .matchAll(/(--[a-z-]+)\s*:/g)].map(m => m[1]));
+const cyclic = [...style.matchAll(/(--[a-z-]+)\s*:\s*var\(\1\)/g)].map(m => m[1]);
+const partial = themeBlocks
+  .map(b => ({ name: b[1], keys: new Set([...b[2].matchAll(/(--[a-z-]+)\s*:/g)].map(m => m[1])) }))
+  .filter(t => [...rootKeys].some(k => !t.keys.has(k)))
+  .map(t => t.name);
+// Resolve against :root ONLY, not the union of every block. A variable declared solely inside a
+// [data-theme] block is undefined in the default Parchment theme — which is precisely the failure a
+// union check waves through, since the theme blocks would still "declare" it.
+const danglingVars = [...new Set([...html.matchAll(/var\((--[a-z-]+)\)/g)].map(m => m[1]))]
+  .filter(v => !rootKeys.has(v));
+const EXPECTED_THEMES = ['midnight', 'dragonfire', 'contrast'];
+const missingThemes = EXPECTED_THEMES.filter(t => !themeBlocks.some(b => b[1] === t));
+record('theming        ',
+  html.includes('pact-theme') && html.includes('prefers-color-scheme')
+    && !missingThemes.length && !cyclic.length && !partial.length && !danglingVars.length,
+  !html.includes('pact-theme') ? 'pre-paint theme script MISSING — the guide will ignore the app theme'
+  : !html.includes('prefers-color-scheme') ? 'no prefers-color-scheme fallback'
+  : missingThemes.length ? `theme(s) MISSING: ${missingThemes.join(', ')}`
+  : cyclic.length ? `self-referential (cyclic, invalid): ${cyclic.join(' ')}`
+  : partial.length ? `incomplete override, will leak Parchment: ${partial.join(', ')}`
+  : danglingVars.length ? `undefined var(): ${danglingVars.join(' ')}`
+  : `script + ${themeBlocks.length} themes, all ${rootKeys.size} vars covered, 0 dangling`);
+
+// ---- 8. version markers ---------------------------------------------------------------------
 const cv = (html.match(/content-version:\s*(v[\d.]+)/) || [])[1];
 const dr = (html.match(/documents-rules:\s*version=(v[\d.]+)/) || [])[1];
 record('version markers', !!cv,

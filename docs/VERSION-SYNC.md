@@ -110,8 +110,35 @@ its pricing sync; the guide follows the same choice since `main` is what's actua
 **This repo never carries `BUILD`** (the cosmetic build number above) in the guide — it has no reason to
 track it.
 
-**Update procedure for `docs/PACT-Players-Guide.html` — a plain copy, and the two files must stay
-byte-identical.** `pact-guide` has no GitHub remote or CI, so there is no fully-automatic push. Whenever
+> ### ⛔ The byte-identical rule is WRONG — corrected 2026-08-17
+>
+> This section used to require the served copy and the `pact-guide` master to be **byte-identical**, and
+> on 2026-08-16 that was "achieved" by deleting the PACT-side extras. It caused a real, silent loss:
+> commit `e0c5e9f` synced to the master and removed **nine chapter illustrations**, the optimised WebP
+> cover, and the **entire four-theme system** (`pact-theme` persistence, `data-theme`, the Midnight dark
+> theme, and `prefers-color-scheme` auto-detection). Nobody noticed for a day, because prose grew in the
+> same window and the 324 KB drop read as expected compaction.
+>
+> **The two files legitimately differ.** A served PWA page and an authoring master have different needs.
+> The served copy carries, and must keep:
+>
+> | Served-copy-only | Why |
+> |---|---|
+> | 10 embedded WebP images (cover + 9 chapter openers) | the master carries one JPEG cover |
+> | The `[data-theme]` blocks + pre-paint theme script | `index.html` writes `pact-theme`; the guide reads it |
+> | `.chapter-banner` CSS | styles the chapter openers |
+>
+> **Run `node testing/scripts/verify-guide.mjs` before AND after any transfer.** It checks all three of
+> the above explicitly, as fixed inventories rather than counts, so none can leave as a side effect.
+> A transfer that drops one now fails loudly instead of silently.
+>
+> One trap worth naming: the pre-sync stylesheet's `:root` contained **nine self-referential
+> declarations** (`--bg:var(--bg)`), which are cyclic and therefore invalid — the default Parchment
+> theme was already broken. Do not restore that block verbatim; the Parchment palette recovered from
+> the master's flattened CSS is what is now in the file.
+
+**Update procedure for `docs/PACT-Players-Guide.html` — a plain copy, with the documented
+served-copy-only additions re-applied afterwards (see the box above).** `pact-guide` has no GitHub remote or CI, so there is no fully-automatic push. Whenever
 `pact-guide`'s canonical guide file changes, **the session that made that change** copies the finished
 HTML over `docs/PACT-Players-Guide.html` and commits. A straight `cp` is correct — and
 `diff <master> docs/PACT-Players-Guide.html` must come back clean afterwards. **That diff is the check:**
