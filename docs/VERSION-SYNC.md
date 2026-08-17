@@ -131,11 +131,13 @@ not happen (the master is canonical — see `AGENTS.md`).
 
 **Before any transfer in either direction, run the verifier:**
 
-
+```
+node testing/scripts/verify-guide.mjs
+```
 
 It runs all three content checkers plus structural and anchor checks and prints one PASS/FAIL. A green
 run is the evidence that this repo's copy agrees with the engine. It deliberately does **not** claim the
-copy is newer than the master — only a  against the master shows that, and the two questions get
+copy is newer than the master — only a `diff` against the master shows that, and the two questions get
 confused precisely when it matters most.
 
 Then commit, verifying:
