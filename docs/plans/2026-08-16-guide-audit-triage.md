@@ -1,11 +1,12 @@
 # Guide-audit triage — state of the guide↔engine reconciliation
 
-**Updated 2026-08-16** (third pass, end of session). Guide v0.333 · engine **v0.346**.
-Both checkers are the source of truth; this file is a snapshot.
+**Updated 2026-08-17** (fourth pass). Guide v0.333 · engine **v0.346**.
+The checkers are the source of truth; this file is a snapshot.
 
 ```
-node testing/scripts/guide-price-check.mjs docs/PACT-Players-Guide.html   # feature tables
-node testing/scripts/guide-spell-check.mjs docs/PACT-Players-Guide.html   # spell economy + worked examples
+node testing/scripts/guide-price-check.mjs  docs/PACT-Players-Guide.html   # feature tables
+node testing/scripts/guide-spell-check.mjs  docs/PACT-Players-Guide.html   # spell economy + worked examples
+node testing/scripts/guide-bundle-check.mjs docs/PACT-Players-Guide.html   # subclass bonus-spell bundles
 ```
 
 ## Read this first
@@ -26,10 +27,20 @@ not a source of fixes.** Confirmed failures in it:
 
 | Checker | Result |
 |---|---|
-| `guide-price-check` — 421 feature rows | **0 price-mismatch · 0 no-engine-key** |
+| `guide-price-check` — 424 feature rows | **0 price-mismatch · 0 no-engine-key** |
 | `guide-spell-check` — 667 cells / 700 rows / 34 tables | **0 mismatches** |
+| `guide-bundle-check` — 24 bundle rows + Appendix J | **0 findings** |
 
-Both are mutation-tested: injecting a wrong value makes them exit 1 and name it.
+All three are mutation-tested: injecting a wrong value makes them exit 1 and name it.
+
+`guide-bundle-check` (added 2026-08-17) covers a gap the first two structurally could not reach —
+`guide-price-check` resolves a row name to a `DATA.features` key and bundles aren't in `DATA.features`;
+`guide-spell-check` keys on spell level and bundles have none. Both therefore reported every bundle row as
+`ambiguous`/unparsed. It checks four things the others can't: each row's price against
+`DATA.subclasses[*].spellBundle`, that every engine bundle is printed *somewhere* (a missing row is
+invisible to a row-by-row checker — this is how Circle of the Stars stayed unpriced), that a class with
+bundles has a summary row at all (Ranger had none), and that Appendix J lists every subclass of a
+bundle-granting class including the ones selling nothing.
 
 ### What got fixed along the way
 
@@ -49,17 +60,17 @@ Appendices H/I are the `#102–171` range that had never been inventoried at all
 
 ## Still open
 
-### 1. Three "varies per subclass" rows — needs a wording decision
+### 1. ~~Three "varies per subclass" rows~~ — **closed 2026-08-17**
 
-The guide prints one flat price where the engine genuinely differs. Audit #44.
+Audit #44. Resolved as U1 + V2 + a new appendix: the summary rows now carry the real range and say
+"none" out loud where a subclass sells nothing, and **Appendix J** gives the per-subclass detail. See
+`CHANGELOG.md` 2026-08-17. `guide-bundle-check` now enforces all of it.
 
-| Line | Row | Engine range |
-|---|---|---|
-| 648 | `Circle bonus spells` | Moon 7/8 · Sea 9/11 · Stars 5/5 · Land 7/8 |
-| 678 | `Origin bonus spells` | Draconic 6/8 · Aberrant 10/12 · **Wild Magic has none** |
-| 683 | `Patron bonus spells` | Fiend & GOO 6/8 · Archfey 7/9 · Celestial 14/16 |
-
-Wild Magic is the sharp case: any single number quotes a price for something that cannot be bought.
+**One rules question fell out of the fix and is still open.** 16 of the 21 bundles derive exactly from the
+spell economy; five do not — all four Druid circles (charged 8/7, 8/7, 11/9, 5/5 where the working gives
+12/10) and Warlock Archfey (9/7 where the working gives 8/6). Appendix J prints them as hand-set. Whether
+they should be repriced to the derivation, or the derivation is only ever a rough guide, is an owner call,
+not a mechanical one. Nothing is broken either way — the engine and guide agree on all five.
 
 ### 2. What the checkers structurally cannot prove
 
@@ -86,7 +97,11 @@ still overclaim until item 2's build-replay check exists and the prose claims ar
 
 ## Suggested order
 
-1. Decide the three "varies" rows.
+1. ~~Decide the three "varies" rows.~~ Done 2026-08-17.
 2. Build the worked-example build-replay check (item 2) — mechanical, no content decisions.
-3. Settle the prose claims — needs owner wording.
-4. Then stamp `documents-rules`, honestly.
+3. Settle the prose claims — needs owner wording. Two of the four are already fixed in the live guide
+   (the half-caster Rank-5 cap now says the tool doesn't enforce it; the wizard says "no wizard-specific
+   exception"), and two more were corrected on 2026-08-17 (bundle cantrips, half-caster spell counts).
+   The Warlock known-spell formula is the one left unchecked.
+4. Decide the five hand-set bundles (item 1) — a rules call, not a defect.
+5. Then stamp `documents-rules`, honestly.

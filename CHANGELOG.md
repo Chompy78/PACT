@@ -6,6 +6,31 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-17 · docs(guide): split the bonus-spell rules out of "Prepared casters", add Appendix J, and
+  add a third checker that proves subclass bundles** — no rules change, so no `DATA.version` bump.
+  The bonus-spell rules were buried inside the *Prepared casters* section even though they apply to every
+  caster whose subclass grants an expanded list, known casters included — so a Sorcerer's and a Warlock's
+  rules sat under a heading naming four classes neither of them is. Split into its own **Subclass bonus
+  spells** section; *Prepared casters* shrinks to what it actually describes (Cleric, Druid, Paladin,
+  Ranger). New **`testing/scripts/guide-bundle-check.mjs`** verifies every bundle against
+  `DATA.subclasses[*].spellBundle` — a gap neither existing checker could reach (`guide-price-check` keys on
+  `DATA.features`, `guide-spell-check` keys on spell level, so both reported bundle rows as
+  `ambiguous`/unparsed and neither could prove one). It found four real defects plus one absence:
+  **Circle of the Stars** sold a 5 AP bundle the guide never priced; the **Ranger** class table had no
+  bonus-spells row at all despite two of its subclasses selling one; and the **Sorcerer** and **Warlock**
+  rows printed a flat `8 (6)` where the real spread is 8–12 and 8–16 — the Sorcerer row quoting a price for
+  Wild Magic, which has no bundle to buy. All four fixed; the checker is mutation-tested (7 injected faults,
+  7 caught) and now also verifies Appendix J's own figures, so the table cannot drift from the engine.
+  New **Appendix J: Subclass Bonus Spells** lists all 24 subclasses of the six bundle-granting classes with
+  price, cantrips and the working — including explicit **none** rows for Wild Magic Sorcery, Beast Master
+  and Hunter, because an omitted row reads as an oversight while a stated "none" reads as a rule. It is
+  generated from the engine by `testing/scripts/gen-appendix-j.mjs`, not hand-typed. The working is real:
+  **16 of 21 bundles derive exactly** from the spell economy (a full-caster list prices two spells each at
+  1st/2nd/3rd = 8 AP, dropping to 6 as origin; a Paladin Oath's four spells sit on the 1 AP floor, which is
+  *why* those bundles are flat-cost). The other five — all four Druid circles and Archfey Patron — are
+  hand-set and now say so in print. Also corrected two prose claims: bundle cantrips are charged a flat
+  4 AP inside the bundle price rather than on the escalating §12 ladder, and a half-caster bundle prices
+  four spells (Paladin) or two (Ranger), not four in both cases.
 - **2026-08-16 · feat(rules): split a conflated Druid key, add three missing features, reprice Cunning
   Strike — `DATA.version` v0.346** — closes the last four guide↔engine name mismatches, all owner-adjudicated.
   (1) `Druid: Elemental Fury / Improved circle` fused two unrelated abilities — Elemental Fury (Druid L7)
