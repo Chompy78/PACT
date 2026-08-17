@@ -6,6 +6,26 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-17 · feat(guide): the Players Guide gets its own theme switcher, so one file can serve all
+  three homes** — docs change, no `DATA.version` bump. Groundwork for collapsing the guide's three
+  divergent copies into a single canonical artifact. Until now the guide only ever *read*
+  `localStorage['pact-theme']`; PACT's `index.html` was the only thing that wrote it. That is fine while
+  the guide lives behind the PWA, and useless everywhere else — a reader on the `pact-guide` master or
+  on `pact-guide-public` got Parchment, or Midnight if their OS was dark, with **no way to change it**.
+  A four-button switcher now sits in the nav sidebar under the section filter, writing the same key and
+  the same four names `index.html` uses, so a choice made in either place carries to the other. Hidden in
+  print. One asymmetry worth knowing: Parchment is the bare `:root`, so selecting it **removes**
+  `data-theme` rather than setting `data-theme="parchment"` — there is no such block to match, and a
+  switcher that set it would silently do nothing. New gate **`testing/scripts/guide-theme-e2e.mjs`** (24
+  checks, its own workflow) drives a real browser: every theme applies, repaints, persists, marks its
+  button and survives a reload, plus the no-choice defaults in both light and dark OS modes. That is the
+  half `verify-guide.mjs` structurally cannot cover — it proves the theme CSS is *present*, never that
+  clicking anything does something.
+  **Context for the three copies:** they are `preview` (1,436,285 B, 10 WebP, 4 themes, Appendix J),
+  the `pact-guide` master (1,164 lines, 1 JPEG, no themes, no Appendix J) and `pact-guide-public`
+  (1,059,878 B, same shape as the master, plus a `survey/survey-prompt.js` hook whose own comment says
+  it is harmless when unreachable). All three still claim `content-version: v0.333` while differing by
+  ~376 KB and a whole appendix.
 - **2026-08-17 · fix(chargen): the class-unlock checkbox was a dead control — the unlocked price tier was
   unreachable; plus three-tier row prices, a renamed-feature alias map, and four fixtures** — no
   `DATA.version` change (no price moved). Adding an end-to-end test that CharGen's displayed row price
