@@ -39,6 +39,29 @@
   > hence 5 AP flat). **The real lone outlier is Circle of the Sea**, charged 11 (9) where its seven paid
   > grants total 12 (10) — the identical shape to Aberrant Sorcery, which *is* charged 12 (10). That is a
   > discrepancy, not a discount, and is now the only caveat printed in the appendix.
+- **2026-08-17 · feat(rules): subclass spell bundles get the normal three price tiers — `DATA.version`
+  v0.349 → v0.350** — bundles had only two (`isO ? origin : cross`), so a character who paid 7 AP to
+  unlock a class and one who had never touched it paid the **same** bundle price. Unlocking bought a
+  0 AP reduction on a bundle while saving real AP on that class's abilities. Bundles now price on the
+  same three steps as any subclass ability: **origin / unlocked (sticker) / cross-class (sticker + 3)**,
+  Tier 3 being where subclasses open. Life Domain is now 6 / 8 / 11.
+  **No origin price changed and no unlocked price changed** — today's figure was already the sticker,
+  it just wasn't labelled as one. The only new number is the cross-class price, which is the rung that
+  didn't exist. Unlocking Cleric now repays itself inside two purchases (3 AP off a domain bundle plus
+  4 AP off each domain ability) where it previously never repaid on a bundle at all.
+  `spellBundle` gains `sticker` and `tier`; the old `cross` field becomes `sticker` and `cross` is the
+  new surcharged figure. Guide rows need no edit — a bundle now prints `Sticker (Origin)` exactly like
+  every other feature row, with cross-class implied by the ordinary +Tier rule.
+  > **Why §13's spell-access exemption does not cover bundles.** "Spell access is free of the class tax"
+  > governs the spell *economy* — Foundations, Ranks, slots, spells known, cantrips — where a per-purchase
+  > +Tier surcharge compounds into something crushing. It was never meant to exempt one-off
+  > spell-*granting* features, and the engine has always agreed: `Bard: Magical Secrets` (13/17/22),
+  > `Warlock: Pact of the Tome` (18/18/19), `Wizard: Signature Spells` (14/20/27) and every other
+  > spell-granting feature carry the full +Tier surcharge. Pact of the Tome is the exact analogue of a
+  > bundle — one purchase, a fixed set of granted spells — so bundles taking the surcharge is the
+  > *consistent* treatment, not an exception. Three of the four cold reviewers argued the opposite from
+  > the guide's §13 wording alone; the guide now carries an explicit clarifying paragraph so the next
+  > reader doesn't repeat it. See `docs/plans/cold-reviews/`.
 - **2026-08-17 · fix(rules): split Circle of the Stars' spells from Star Map's free-cast — `DATA.version`
   v0.348 → v0.349** — the Stars bundle (Guidance + Guiding Bolt, 5 AP) and the Star Map ability were the
   same content sold twice: the guide's own row read *"Star Map (Guiding Bolt prepared + free-cast +

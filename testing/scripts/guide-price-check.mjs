@@ -134,9 +134,12 @@ for (const [cls, subs] of Object.entries(DATA.subclasses || {})) {
   for (const [sub, def] of Object.entries(subs || {})) {
     const bn = def && def.spellBundle;
     if (!bn) continue;
-    // Bundles have no tier; synthesise an entry whose "sticker" is the cross price so the
-    // normal comparison path works unchanged.
-    const entry = { cls, tier: 0, tb: 'Bundle', origin: bn.origin, cross: bn.cross, rep: false, _bundle: true };
+    // Since v0.350 a bundle is a Tier-3 subclass purchase with the normal three tiers, so it feeds the
+    // ordinary comparison path unchanged: pass the real cross and tier, and the checker derives the
+    // printed sticker as cross - tier itself. (Passing bn.sticker as `cross` here double-subtracts the
+    // tier and reports every bundle row as a mismatch.)
+    const entry = { cls, tier: bn.tier ?? 0, tb: 'Bundle', origin: bn.origin,
+                    cross: bn.cross, rep: false, _bundle: true };
     const GENERIC = { Cleric: 'Domain', Paladin: 'Oath', Sorcerer: 'Origin', Warlock: 'Patron', Druid: 'Circle' };
     const aliases = [`${sub} spells`, `${sub} spells + cantrip`, `${sub} bonus spells`, sub];
     // "Circle of the Land" is printed per land type in the guide; the engine has one bundle.

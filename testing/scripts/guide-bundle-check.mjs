@@ -9,13 +9,18 @@
  * bundles have no spell level. Both checkers therefore report bundle rows as `ambiguous`/unparsed and
  * neither can prove a single one of them. This closes that hole.
  *
- * THE COLUMN CONVENTION (this differs from the rest of Appendix A — read this before "fixing" it)
- * -----------------------------------------------------------------------------------------------
- * Ordinary feature rows print `Sticker (Origin)`. A bundle has no sticker: engine.js:341 charges
- * `_isO ? bundle.origin : bundle.cross` and nothing else. So a bundle row's price cell is really
- * `Cross (Origin)` — e.g. Life Domain {origin:6, cross:8} prints "8 (6)". When origin === cross the
- * guide prints the bare number ("4" for the Paladin Oaths), because a parenthetical repeating the same
- * figure reads as a discount that doesn't exist.
+ * THE COLUMN CONVENTION
+ * ---------------------
+ * Since v0.350 a bundle prices on the same three tiers as any other subclass ability — origin /
+ * unlocked (sticker) / cross-class (sticker + Tier 3) — so a bundle row prints `Sticker (Origin)`
+ * exactly like every other feature row, with cross-class implied by the ordinary +Tier rule. Life
+ * Domain {origin:6, sticker:8, cross:11} prints "8 (6)". When origin === sticker the guide prints the
+ * bare number ("4" for the Paladin Oaths), because a parenthetical repeating the same figure reads as
+ * a discount that doesn't exist — those are the bundles whose spells all sit on the 1 AP floor.
+ *
+ * Before v0.350 bundles had only two tiers and the middle column really was `cross`, so unlocking a
+ * class bought a 0 AP reduction on a bundle. Don't reintroduce that by reading `bn.cross` as the
+ * printed figure — the printed figure is `bn.sticker`.
  *
  * WHAT IT CHECKS
  *   1. Every per-subclass bundle row's price equals that subclass's spellBundle.
@@ -89,7 +94,10 @@ function parsePrice(cell) {
 }
 
 /** How the guide should print a given bundle. */
-const fmt = bn => bn.origin === bn.cross ? String(bn.cross) : `${bn.cross} (${bn.origin})`;
+// As of v0.350 a bundle has three tiers like any subclass ability. The guide's ability tables print
+// `Sticker (Origin)` — the unlocked price and the origin price — with cross-class implied by the
+// ordinary +Tier rule, so a bundle row is now printed exactly like every other feature row.
+const fmt = bn => bn.origin === bn.sticker ? String(bn.sticker) : `${bn.sticker} (${bn.origin})`;
 
 // The spells a bundle actually charges for. A bundle prices the grants unlocking at character level
 // <= 5; everything above rides free. Circle of the Land is stored per terrain, so fall back to a
@@ -131,7 +139,7 @@ for (const m of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/g)) {
     summarised.add(cls);
     const subsTotal = (DATA.subList[cls] || []).length;
     const anyNone = mine.length < subsTotal;
-    const lo = Math.min(...mine.map(b => b.cross)), hi = Math.max(...mine.map(b => b.cross));
+    const lo = Math.min(...mine.map(b => b.sticker)), hi = Math.max(...mine.map(b => b.sticker));
     // A summary row must carry the real figure — the flat price when every bundle agrees, the range
     // when they don't — and must say "none" out loud when some subclass sells nothing, because no
     // number and no range can express "there is nothing here to buy".
@@ -153,7 +161,7 @@ for (const m of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/g)) {
   if (!seen.has(key)) seen.set(key, []);
   seen.get(key).push(line);
   if (!price) { note(line, 'unparsed-price', `${key}: "${label}"`, `cell "${cells[2]}"`); continue; }
-  if (price.cross !== bn.cross || price.origin !== bn.origin)
+  if (price.cross !== bn.sticker || price.origin !== bn.origin)
     note(line, 'price-mismatch', `${key}: "${label}"`, `guide "${cells[2]}" — engine ${fmt(bn)}`);
 }
 
@@ -182,7 +190,7 @@ else {
     if (!price) { note(appxLine, 'unparsed-price', `Appendix J · ${key}`, `cell "${c[2]}"`); continue; }
     if (!bn) { if (!price.none) note(appxLine, 'appendix-phantom', `Appendix J · ${key}`, `prices this at "${c[2]}" but the engine sells no bundle — it must read "none"`); continue; }
     if (price.none) { note(appxLine, 'appendix-mismatch', `Appendix J · ${key}`, `says "none" but the engine charges ${fmt(bn)}`); continue; }
-    if (price.cross !== bn.cross || price.origin !== bn.origin)
+    if (price.cross !== bn.sticker || price.origin !== bn.origin)
       note(appxLine, 'appendix-mismatch', `Appendix J · ${key}`, `guide "${c[2]}" — engine ${fmt(bn)}`);
     // Appendix J names the spells you pay for. Check that list against DATA.spellGrants rather than
     // trusting prose: a renamed or dropped spell would otherwise sit there indefinitely.

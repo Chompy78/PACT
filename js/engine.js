@@ -349,8 +349,16 @@ export function compute(b, opts){
   // v0.196: paid subclass "expanded spell list" bundles — opt-in, one buy = whole bundle
   //   (always-prepared bonus spells + free cap-exempt cantrips are granted in eligibleSpells, gated on purchase).
   for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");const _sc=(DATA.subclasses[_p[0]]||{})[_p[1]];const _bn=_sc&&_sc.spellBundle;if(!_bn)continue;
+    // v0.350: bundles now price on the same three tiers as any other subclass ability —
+    // origin / unlocked (sticker) / cross-class (sticker + Tier). They used to have only two, so
+    // unlocking a class bought a 0 AP reduction on a bundle while saving real AP on that class's
+    // abilities. §13's "spell access is free of the class tax" governs the spell ECONOMY — Foundations,
+    // Ranks, slots, spells known — where a +Tier surcharge would compound per purchase. It was never
+    // meant to exempt one-off spell-GRANTING features: Bard: Magical Secrets, Warlock: Pact of the Tome
+    // and Wizard: Signature Spells all carry the full +Tier surcharge, and a bundle is the same shape.
     const _isO=(_p[0]===b.originClass||_p[0]===b.originClass2);
-    add("Spell list — "+_p[1], _isO?_bn.origin:_bn.cross);}
+    const _isU=!_isO&&_unlkSet.has(_p[0]);
+    add("Spell list — "+_p[1], _isO?_bn.origin:(_isU?(_bn.sticker??_bn.cross):_bn.cross));}
   // spellcasting: per tradition -> per discipline. Casting ability is per discipline (auto by class).
   let mbGain=0; const discInfo=[]; const tradInfo=[]; let primaryMod=0, primaryAb="—", havePrimary=false;
   (b.traditions||[]).forEach((t,ti)=>{

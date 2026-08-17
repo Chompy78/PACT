@@ -46,7 +46,7 @@ const bundleClasses = DATA.classes.filter(c => (DATA.subList[c] || [])
   .some(s => ((DATA.subclasses[c] || {})[s] || {}).spellBundle));
 
 const out = [];
-out.push(`<tr>${['Class', 'Subclass', 'Bundle AP<br>Cross (Origin)', 'What you pay for', 'The working']
+out.push(`<tr>${['Class', 'Subclass', 'Bundle AP<br>Sticker (Origin)', 'What you pay for', 'The working']
   .map(h => `<td style="background:${HDR}"><span style="color:#58180D"><strong>${h}</strong></span></td>`).join('')}</tr>`);
 
 const outliers = [];
@@ -68,7 +68,7 @@ for (const cls of bundleClasses) {
       const dx = paid.reduce((a, s) => a + cost(s.spellLevel, 0), 0);
       const dor = paid.reduce((a, s) => a + cost(s.spellLevel, 1), 0);
 
-      price = bn.origin === bn.cross ? `<strong>${bn.cross}</strong>` : `<strong>${bn.cross}</strong> (${bn.origin})`;
+      price = bn.origin === bn.sticker ? `<strong>${bn.sticker}</strong>` : `<strong>${bn.sticker}</strong> (${bn.origin})`;
       paidCol = paid.map(s => `${esc(s.name)} <em>(${ord(s.spellLevel)})</em>`).join(', ') || '—';
 
       const sumX = paid.map(s => cost(s.spellLevel, 0)).join(' + ');
@@ -81,9 +81,9 @@ for (const cls of bundleClasses) {
         : `Nothing further rides free — this list is fully paid for.`;
       if (paid.some(s => s.spellLevel === 0))
         working += ` The cantrip is a flat ${CANTRIP} AP inside the price, takes no discount, and never counts against your cantrip cap.`;
-      if (dx !== bn.cross || dor !== bn.origin) {
+      if (dx !== bn.sticker || dor !== bn.origin) {
         outliers.push({ cls, sub, dx, dor, bn });
-        working += ` <strong>Note:</strong> the working gives ${dx} (${dor}); the bundle is charged at ${bn.cross}${bn.origin === bn.cross ? '' : ` (${bn.origin})`}. The charged figure is what you pay.`;
+        working += ` <strong>Note:</strong> the working gives ${dx} (${dor}); the bundle is charged at ${bn.sticker}${bn.origin === bn.sticker ? '' : ` (${bn.origin})`}. The charged figure is what you pay.`;
       }
     }
     out.push(row(band, ['&nbsp;', `<strong>${esc(sub)}</strong>`, price, paidCol, working]));
@@ -97,12 +97,13 @@ const total = bundleClasses.reduce((a, c) => a + (DATA.subList[c] || [])
 
 console.log(`<h2 id="appendix-j-subclass-bonus-spells">Appendix J: Subclass Bonus Spells</h2>`);
 console.log(`<p>Six classes have subclasses that grant bonus spells: <strong>${bundleClasses.join(', ')}</strong>. No subclass of ${noneClasses.slice(0, -1).join(', ')} or ${noneClasses.slice(-1)} grants any — where those classes gain extra magic they gain it through a priced feature instead, on the Master Cost Table like any other ability.</p>`);
-console.log(`<p>Every bundle below is one purchase at one price, covering the subclass&#x27;s whole expanded list. The <em>Cross (Origin)</em> column follows the same convention as Appendix B: the bold figure is what anyone pays, the bracketed figure what you pay when that class is your origin class. A single bold figure with no bracket means the price is the same either way — and the working shows why, which is almost always that every spell in the list already sits on the 1 AP floor.</p>`);
+console.log(`<p>Every bundle below is one purchase at one price, covering the subclass&#x27;s whole expanded list. The <em>Sticker (Origin)</em> column follows the same convention as every other ability table: the bold figure is what you pay once you have <strong>unlocked</strong> that class, and the bracketed figure what you pay when it is your <strong>origin</strong> class. If you have done neither, the ordinary cross-class surcharge applies on top — these are Tier&nbsp;3 purchases, so <strong>+3 AP</strong>. A single bold figure with no bracket means origin and unlocked cost the same, and the working shows why: every spell in that list already sits on the 1 AP floor, so there is no discount left to give.</p>`);
 console.log(`<p><strong>How a bundle&#x27;s price is reached.</strong> You pay for the spells the subclass grants up to character level 5; everything it grants above that comes free. A spell costs its normal per-spell price from §12 (1st- and 2nd-level spells 1 AP, 3rd-level 2 AP), reduced by 1 with a floor of 1 AP when the class is your origin class. A granted cantrip is a flat ${CANTRIP} AP, takes no discount, and does not count against your cantrip cap. The free higher-level spells are a reward for commitment: you cannot cast them until your Rank and Hit Dice reach their level, many levels after you buy the list.</p>`);
 console.log(`<div class="tablewrap"><table class="tbl">`);
 console.log(out.join(''));
 console.log(`</table></div>`);
 if (outliers.length) {
   const o = outliers.map(x => `${x.cls}&#x27;s ${x.sub}`).join(', ');
-  console.log(`<p><strong>The one bundle whose price does not match its own list.</strong> ${o} is charged ${outliers[0].bn.cross} (${outliers[0].bn.origin}) where its spells add up to ${outliers[0].dx} (${outliers[0].dor}). Its list is exactly the same shape as Aberrant Sorcery&#x27;s — a cantrip plus two spells each at 1st, 2nd and 3rd level — and that one is charged the full ${outliers[0].dx} (${outliers[0].dor}), so the difference is a discrepancy rather than a deliberate discount. The charged figure is what the tools use. Every other bundle in this appendix falls out of its spell list exactly.</p>`);
+  const o1 = outliers[0];
+  console.log(`<p><strong>Bundles whose price does not match their own list.</strong> ${o} — ${o1.sub} is charged ${o1.bn.sticker} (${o1.bn.origin}) where its spells add up to ${o1.dx} (${o1.dor}). The charged figure is what the tools use. Every other bundle in this appendix falls out of its spell list exactly.</p>`);
 }
