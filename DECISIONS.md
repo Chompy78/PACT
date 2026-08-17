@@ -10,6 +10,45 @@
 
 ## Index
 
+## D-GH-2026-08-17-bundle-three-tier-pricing — §13's spell-access exemption covers the spell *economy*, not spell-*granting* features, so subclass bundles carry the ordinary cross-class surcharge
+- Bundles had two prices, not three: unlocking a class bought a **0 AP** reduction on a bundle while saving
+  real AP on that class's abilities. §13 reads as though anything spell-shaped is exempt from +Tier, and
+  **three of four cold reviewers** concluded exactly that — but the engine has always priced spell-*granting*
+  features with the full surcharge (`Bard: Magical Secrets` 13/17/22, `Warlock: Pact of the Tome` 18/18/19,
+  `Wizard: Signature Spells` 14/20/27). Pact of the Tome is a bundle's structural twin. §13 protects the spell
+  *economy* — Foundations, Ranks, slots, spells known — where +Tier **compounds**. Bundles now price
+  origin / unlocked / cross-class; Life Domain 6 / 8 / 11. No origin or unlocked price moved: storing the
+  **undiscounted** sum as the basis makes double-discounting impossible by construction. `DATA.version` v0.350.
+  Full record: `decisions/2026/D-GH-2026-08-17-bundle-three-tier-pricing.md`.
+
+## D-GH-2026-08-17-subclass-class-access-gate — Subclass purchases warn when the class is neither origin nor unlocked; the framing that motivated it was wrong, and the gate is provisional
+- `compute()` now raises a ⛔ warning (not a refusal) when a subclass ability or bundle is bought from a class
+  that is neither origin nor unlocked — the guide's *"each class you can build from"* was never enforced, and
+  three foreign spell lists cost 35 AP with no unlock and no warning. **Recorded with its own correction:** the
+  motivating analysis called the per-feature cross-class route a "ladder dodge", but §11 blesses it explicitly
+  (*"the per-feature surcharge is cheaper for a single dip"*). What survives is narrower — the unlock **ladder
+  does not accrue**, so a permanent dabbler never pays for breadth. Reviewers split 3–1 against gating bundles,
+  2–2 on abilities. **Contested; do not treat as settled.** `DATA.version` v0.347.
+  Full record: `decisions/2026/D-GH-2026-08-17-subclass-class-access-gate.md`.
+
+## D-GH-2026-08-17-stars-starmap-split — Circle of the Stars' spells belong to the bundle; Star Map is repriced to cover only the free-cast
+- The 5 AP Stars bundle (Guidance + Guiding Bolt) and the `Star Map` ability were the same content sold twice —
+  the guide's own row read *"Star Map (Guiding Bolt prepared + free-cast + Guidance cantrip)"* — so a player
+  could buy both for 11 AP. The bundle keeps the spells; Star Map repriced **T3 Situational 6 (4) → T2 Per-Rest
+  5 (4)**, covering only the free-cast. Anchored on two 1st-level slots costing an origin caster 6 AP, verified
+  through `compute()`; 5 sits under it because the free-cast only ever casts one spell. Stars is now 9 AP
+  all-in at origin. `DATA.version` v0.349.
+  Full record: `decisions/2026/D-GH-2026-08-17-stars-starmap-split.md`.
+
+## D-GH-2026-08-17-subclass-features-mirror — Every subclass ability has two purchase routes with separate dedup domains; removing the mirror is deferred rather than rushed
+- All 192 subclass abilities are mirrored into `DATA.features` (188 in `featureList`, so CharGen's *feature*
+  picker offers them alongside its *subclass* picker). The two routes have separate dedup domains, so the same
+  ability bought in both pickers charges **twice with no warning**, skips subclass-unlock accounting, and
+  bypasses the v0.347 gate. **Identified and measured, not fixed** — unifying needs a LOG-migration decision
+  (`b.subSpellBundles` is in saved characters) and a fix for Circle of the Land's terrain variants, which don't
+  fit `subAbilMap`'s key shape. Filed as `refactor/subclass-purchase-unify`. No `DATA.version` change.
+  Full record: `decisions/2026/D-GH-2026-08-17-subclass-features-mirror.md`.
+
 ## D-GH-2026-08-16-heritage-pack-pricing — In-pack species traits carry their real MASTER price; the pack, not a zeroed field, is what makes them free
 - Every in-pack trait was stored `origin: 0`, coupling *price* to *pack membership* — so a trait leaving a
   pack silently became **free**. That had already happened (`Goliath: Long Stride`, free and unnoticed) and
