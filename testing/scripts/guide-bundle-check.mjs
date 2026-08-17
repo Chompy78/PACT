@@ -91,6 +91,15 @@ function parsePrice(cell) {
 /** How the guide should print a given bundle. */
 const fmt = bn => bn.origin === bn.cross ? String(bn.cross) : `${bn.cross} (${bn.origin})`;
 
+// The spells a bundle actually charges for. A bundle prices the grants unlocking at character level
+// <= 5; everything above rides free. Circle of the Land is stored per terrain, so fall back to a
+// prefix match. Returns null when a subclass has no grant entry at all.
+const SG = (DATA.spellGrants || {}).subclassSpells || {};
+function paidGrants(cls, sub) {
+  const e = SG[`${cls}: ${sub}`] || SG[Object.keys(SG).find(k => k.startsWith(`${cls}: ${sub} (`)) || ''];
+  return e && e.spells ? e.spells.filter(s => s.charLevel <= 5) : null;
+}
+
 // Bundle rows that are deliberately not subclass spell lists.
 const NOT_A_SUBCLASS_BUNDLE = [/^Pact of the Tome\b/];
 
@@ -175,8 +184,16 @@ else {
     if (price.none) { note(appxLine, 'appendix-mismatch', `Appendix J · ${key}`, `says "none" but the engine charges ${fmt(bn)}`); continue; }
     if (price.cross !== bn.cross || price.origin !== bn.origin)
       note(appxLine, 'appendix-mismatch', `Appendix J · ${key}`, `guide "${c[2]}" — engine ${fmt(bn)}`);
-    const cant = (c[3] || '').trim(), wantCant = bn.cantrips ? String(bn.cantrips) : '—';
-    if (cant !== wantCant) note(appxLine, 'appendix-cantrip-mismatch', `Appendix J · ${key}`, `guide "${cant}" — engine grants ${bn.cantrips || 0}`);
+    // Appendix J names the spells you pay for. Check that list against DATA.spellGrants rather than
+    // trusting prose: a renamed or dropped spell would otherwise sit there indefinitely.
+    const want = paidGrants(subToClass.get(c[1]), c[1]);
+    if (want) {
+      const printed = (c[3] || '');
+      const missing = want.filter(s => !printed.includes(s.name));
+      if (missing.length)
+        note(appxLine, 'appendix-spell-gap', `Appendix J · ${key}`,
+          `paid grants not named in the row: ${missing.map(s => s.name).join(', ')}`);
+    }
   }
   for (const cls of bundleClasses)
     for (const sub of (DATA.subList[cls] || []))

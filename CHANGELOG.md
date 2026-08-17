@@ -24,13 +24,32 @@
   New **Appendix J: Subclass Bonus Spells** lists all 24 subclasses of the six bundle-granting classes with
   price, cantrips and the working — including explicit **none** rows for Wild Magic Sorcery, Beast Master
   and Hunter, because an omitted row reads as an oversight while a stated "none" reads as a rule. It is
-  generated from the engine by `testing/scripts/gen-appendix-j.mjs`, not hand-typed. The working is real:
-  **16 of 21 bundles derive exactly** from the spell economy (a full-caster list prices two spells each at
-  1st/2nd/3rd = 8 AP, dropping to 6 as origin; a Paladin Oath's four spells sit on the 1 AP floor, which is
-  *why* those bundles are flat-cost). The other five — all four Druid circles and Archfey Patron — are
-  hand-set and now say so in print. Also corrected two prose claims: bundle cantrips are charged a flat
-  4 AP inside the bundle price rather than on the escalating §12 ladder, and a half-caster bundle prices
-  four spells (Paladin) or two (Ranger), not four in both cases.
+  generated from the engine by `testing/scripts/gen-appendix-j.mjs`, not hand-typed. The working is real
+  and **names the actual spells**, read from `DATA.spellGrants.subclassSpells`: a bundle prices the grants
+  unlocking at character level ≤ 5 and everything above rides free, so Life Domain charges Bless, Cure
+  Wounds, Aid, Lesser Restoration, Mass Healing Word and Revivify at `1+1+1+1+2+2 = 8`, dropping to 6 as
+  origin. **20 of the 21 stored prices reproduce exactly.** Also corrected two prose claims: bundle
+  cantrips are charged a flat 4 AP inside the bundle price rather than on the escalating §12 ladder, and
+  a half-caster bundle prices four spells (Paladin) or two (Ranger), not four in both cases.
+  > **Correction (same day, before this shipped).** A first pass at Appendix J *assumed* a grant shape
+  > (two spells each at 1st/2nd/3rd) instead of reading `DATA.spellGrants`, whose existence had been
+  > wrongly written off as "the engine stores only the lump price". That assumption reproduced only 16
+  > prices and wrongly printed four Druid circles and Archfey Patron as "hand-set" — none of them are;
+  > their lists simply aren't that shape (Circle of the Stars grants just a cantrip and Guiding Bolt,
+  > hence 5 AP flat). **The real lone outlier is Circle of the Sea**, charged 11 (9) where its seven paid
+  > grants total 12 (10) — the identical shape to Aberrant Sorcery, which *is* charged 12 (10). That is a
+  > discrepancy, not a discount, and is now the only caveat printed in the appendix.
+- **2026-08-17 · fix(rules): gate subclass abilities and spell bundles behind class access —
+  `DATA.version` v0.346 → v0.347** — the guide says "each class you can build from gives you one subclass
+  for free: pick it, and you may buy its expanded spell list and any of its abilities", but nothing
+  enforced the *"you can build from"* half. A Fighter with no Cleric access could buy Life Domain's spell
+  list for 8 AP, and since a bought bundle registers in `subUsed` it also claimed that domain as the
+  class's free subclass — so no 15 AP subclass unlock landed either. Three lists from three foreign
+  classes cost 35 AP with no class unlock, no subclass unlock, and no warning. `compute()` now pushes a
+  ⛔ warning when a subclass purchase's class is neither an origin class nor unlocked. Warn rather than
+  refuse, matching every other ⛔ prerequisite in `engine.js`; prices are unchanged, so no
+  `testing/expected/` update was needed. Applies to subclass **abilities** as well as bundles — they
+  share the `subUsed` mechanism and the one guide sentence covers both.
 - **2026-08-16 · feat(rules): split a conflated Druid key, add three missing features, reprice Cunning
   Strike — `DATA.version` v0.346** — closes the last four guide↔engine name mismatches, all owner-adjudicated.
   (1) `Druid: Elemental Fury / Improved circle` fused two unrelated abilities — Elemental Fury (Druid L7)

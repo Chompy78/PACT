@@ -1,118 +1,190 @@
-Key,Class,Subclass,Item,Spell level,Cross AP (no discount),"Origin AP (-1, floor 1)",Discount saved
-Cleric|Life Domain,Cleric,Life Domain,Spell 1,1,1,1,0
-Cleric|Life Domain,Cleric,Life Domain,Spell 2,1,1,1,0
-Cleric|Life Domain,Cleric,Life Domain,Spell 3,2,1,1,0
-Cleric|Life Domain,Cleric,Life Domain,Spell 4,2,1,1,0
-Cleric|Life Domain,Cleric,Life Domain,Spell 5,3,2,1,1
-Cleric|Life Domain,Cleric,Life Domain,Spell 6,3,2,1,1
-Cleric|Light Domain,Cleric,Light Domain,Spell 1,1,1,1,0
-Cleric|Light Domain,Cleric,Light Domain,Spell 2,1,1,1,0
-Cleric|Light Domain,Cleric,Light Domain,Spell 3,2,1,1,0
-Cleric|Light Domain,Cleric,Light Domain,Spell 4,2,1,1,0
-Cleric|Light Domain,Cleric,Light Domain,Spell 5,3,2,1,1
-Cleric|Light Domain,Cleric,Light Domain,Spell 6,3,2,1,1
-Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 1,1,1,1,0
-Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 2,1,1,1,0
-Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 3,2,1,1,0
-Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 4,2,1,1,0
-Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 5,3,2,1,1
-Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 6,3,2,1,1
-Cleric|War Domain,Cleric,War Domain,Spell 1,1,1,1,0
-Cleric|War Domain,Cleric,War Domain,Spell 2,1,1,1,0
-Cleric|War Domain,Cleric,War Domain,Spell 3,2,1,1,0
-Cleric|War Domain,Cleric,War Domain,Spell 4,2,1,1,0
-Cleric|War Domain,Cleric,War Domain,Spell 5,3,2,1,1
-Cleric|War Domain,Cleric,War Domain,Spell 6,3,2,1,1
-Druid|Circle of the Land,Druid,Circle of the Land,Spell 1,1,1,1,0
-Druid|Circle of the Land,Druid,Circle of the Land,Spell 2,1,1,1,0
-Druid|Circle of the Land,Druid,Circle of the Land,Spell 3,2,1,1,0
-Druid|Circle of the Land,Druid,Circle of the Land,Spell 4,2,1,1,0
-Druid|Circle of the Land,Druid,Circle of the Land,Spell 5,3,2,1,1
-Druid|Circle of the Land,Druid,Circle of the Land,Spell 6,3,2,1,1
-Druid|Circle of the Land,Druid,Circle of the Land,Cantrip 1,0,4,4,0
-Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 1,1,1,1,0
-Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 2,1,1,1,0
-Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 3,2,1,1,0
-Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 4,2,1,1,0
-Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 5,3,2,1,1
-Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 6,3,2,1,1
-Druid|Circle of the Moon,Druid,Circle of the Moon,Cantrip 1,0,4,4,0
-Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 1,1,1,1,0
-Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 2,1,1,1,0
-Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 3,2,1,1,0
-Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 4,2,1,1,0
-Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 5,3,2,1,1
-Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 6,3,2,1,1
-Druid|Circle of the Sea,Druid,Circle of the Sea,Cantrip 1,0,4,4,0
-Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 1,1,1,1,0
-Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 2,1,1,1,0
-Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 3,2,1,1,0
-Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 4,2,1,1,0
-Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 5,3,2,1,1
-Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 6,3,2,1,1
-Druid|Circle of the Stars,Druid,Circle of the Stars,Cantrip 1,0,4,4,0
-Paladin|Oath of Devotion,Paladin,Oath of Devotion,Spell 1,1,1,1,0
-Paladin|Oath of Devotion,Paladin,Oath of Devotion,Spell 2,1,1,1,0
-Paladin|Oath of Devotion,Paladin,Oath of Devotion,Spell 3,2,1,1,0
-Paladin|Oath of Devotion,Paladin,Oath of Devotion,Spell 4,2,1,1,0
-Paladin|Oath of Glory,Paladin,Oath of Glory,Spell 1,1,1,1,0
-Paladin|Oath of Glory,Paladin,Oath of Glory,Spell 2,1,1,1,0
-Paladin|Oath of Glory,Paladin,Oath of Glory,Spell 3,2,1,1,0
-Paladin|Oath of Glory,Paladin,Oath of Glory,Spell 4,2,1,1,0
-Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Spell 1,1,1,1,0
-Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Spell 2,1,1,1,0
-Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Spell 3,2,1,1,0
-Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Spell 4,2,1,1,0
-Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Spell 1,1,1,1,0
-Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Spell 2,1,1,1,0
-Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Spell 3,2,1,1,0
-Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Spell 4,2,1,1,0
-Ranger|Fey Wanderer,Ranger,Fey Wanderer,Spell 1,1,1,1,0
-Ranger|Fey Wanderer,Ranger,Fey Wanderer,Spell 2,2,1,1,0
-Ranger|Gloom Stalker,Ranger,Gloom Stalker,Spell 1,1,1,1,0
-Ranger|Gloom Stalker,Ranger,Gloom Stalker,Spell 2,2,1,1,0
-Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 1,1,1,1,0
-Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 2,1,1,1,0
-Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 3,2,1,1,0
-Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 4,2,1,1,0
-Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 5,3,2,1,1
-Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 6,3,2,1,1
-Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Cantrip 1,0,4,4,0
-Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 1,1,1,1,0
-Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 2,1,1,1,0
-Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 3,2,1,1,0
-Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 4,2,1,1,0
-Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 5,3,2,1,1
-Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 6,3,2,1,1
-Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 1,1,1,1,0
-Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 2,1,1,1,0
-Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 3,2,1,1,0
-Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 4,2,1,1,0
-Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 5,3,2,1,1
-Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 6,3,2,1,1
-Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 1,1,1,1,0
-Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 2,1,1,1,0
-Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 3,2,1,1,0
-Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 4,2,1,1,0
-Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 5,3,2,1,1
-Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 6,3,2,1,1
-Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 1,1,1,1,0
-Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 2,1,1,1,0
-Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 3,2,1,1,0
-Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 4,2,1,1,0
-Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 5,3,2,1,1
-Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 6,3,2,1,1
-Warlock|Celestial Patron,Warlock,Celestial Patron,Cantrip 1,0,4,4,0
-Warlock|Celestial Patron,Warlock,Celestial Patron,Cantrip 2,0,4,4,0
-Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 1,1,1,1,0
-Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 2,1,1,1,0
-Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 3,2,1,1,0
-Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 4,2,1,1,0
-Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 5,3,2,1,1
-Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 6,3,2,1,1
-Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 1,1,1,1,0
-Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 2,1,1,1,0
-Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 3,2,1,1,0
-Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 4,2,1,1,0
-Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 5,3,2,1,1
-Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 6,3,2,1,1
+Key,Class,Subclass,Spell,Spell level,Unlocks at char level,Paid or free,Cross AP,"Origin AP (-1, floor 1)",Discount saved
+Cleric|Life Domain,Cleric,Life Domain,Aid,2nd,3,PAID,1,1,0
+Cleric|Life Domain,Cleric,Life Domain,Bless,1st,3,PAID,1,1,0
+Cleric|Life Domain,Cleric,Life Domain,Cure Wounds,1st,3,PAID,1,1,0
+Cleric|Life Domain,Cleric,Life Domain,Lesser Restoration,2nd,3,PAID,1,1,0
+Cleric|Life Domain,Cleric,Life Domain,Mass Healing Word,3rd,5,PAID,2,1,1
+Cleric|Life Domain,Cleric,Life Domain,Revivify,3rd,5,PAID,2,1,1
+Cleric|Life Domain,Cleric,Life Domain,Aura of Life,4th,7,free with bundle,0,0,0
+Cleric|Life Domain,Cleric,Life Domain,Death Ward,4th,7,free with bundle,0,0,0
+Cleric|Life Domain,Cleric,Life Domain,Greater Restoration,5th,9,free with bundle,0,0,0
+Cleric|Life Domain,Cleric,Life Domain,Mass Cure Wounds,5th,9,free with bundle,0,0,0
+Cleric|Light Domain,Cleric,Light Domain,Burning Hands,1st,3,PAID,1,1,0
+Cleric|Light Domain,Cleric,Light Domain,Faerie Fire,1st,3,PAID,1,1,0
+Cleric|Light Domain,Cleric,Light Domain,Scorching Ray,2nd,3,PAID,1,1,0
+Cleric|Light Domain,Cleric,Light Domain,See Invisibility,2nd,3,PAID,1,1,0
+Cleric|Light Domain,Cleric,Light Domain,Daylight,3rd,5,PAID,2,1,1
+Cleric|Light Domain,Cleric,Light Domain,Fireball,3rd,5,PAID,2,1,1
+Cleric|Light Domain,Cleric,Light Domain,Arcane Eye,4th,7,free with bundle,0,0,0
+Cleric|Light Domain,Cleric,Light Domain,Wall of Fire,4th,7,free with bundle,0,0,0
+Cleric|Light Domain,Cleric,Light Domain,Flame Strike,5th,9,free with bundle,0,0,0
+Cleric|Light Domain,Cleric,Light Domain,Scrying,5th,9,free with bundle,0,0,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Charm Person,1st,3,PAID,1,1,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Disguise Self,1st,3,PAID,1,1,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Invisibility,2nd,3,PAID,1,1,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Pass without Trace,2nd,3,PAID,1,1,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Hypnotic Pattern,3rd,5,PAID,2,1,1
+Cleric|Trickery Domain,Cleric,Trickery Domain,Nondetection,3rd,5,PAID,2,1,1
+Cleric|Trickery Domain,Cleric,Trickery Domain,Confusion,4th,7,free with bundle,0,0,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Dimension Door,4th,7,free with bundle,0,0,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Dominate Person,5th,9,free with bundle,0,0,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Modify Memory,5th,9,free with bundle,0,0,0
+Cleric|War Domain,Cleric,War Domain,Guiding Bolt,1st,3,PAID,1,1,0
+Cleric|War Domain,Cleric,War Domain,Shield of Faith,1st,3,PAID,1,1,0
+Cleric|War Domain,Cleric,War Domain,Magic Weapon,2nd,3,PAID,1,1,0
+Cleric|War Domain,Cleric,War Domain,Spiritual Weapon,2nd,3,PAID,1,1,0
+Cleric|War Domain,Cleric,War Domain,Crusader's Mantle,3rd,5,PAID,2,1,1
+Cleric|War Domain,Cleric,War Domain,Spirit Guardians,3rd,5,PAID,2,1,1
+Cleric|War Domain,Cleric,War Domain,Fire Shield,4th,7,free with bundle,0,0,0
+Cleric|War Domain,Cleric,War Domain,Freedom of Movement,4th,7,free with bundle,0,0,0
+Cleric|War Domain,Cleric,War Domain,Hold Monster,5th,9,free with bundle,0,0,0
+Cleric|War Domain,Cleric,War Domain,Steel Wind Strike,5th,9,free with bundle,0,0,0
+Druid|Circle of the Land,Druid,Circle of the Land,Blur,2nd,3,PAID,1,1,0
+Druid|Circle of the Land,Druid,Circle of the Land,Burning Hands,1st,3,PAID,1,1,0
+Druid|Circle of the Land,Druid,Circle of the Land,Fire Bolt,cantrip,3,PAID,4,4,0
+Druid|Circle of the Land,Druid,Circle of the Land,Fireball,3rd,5,PAID,2,1,1
+Druid|Circle of the Land,Druid,Circle of the Land,Blight,4th,7,free with bundle,0,0,0
+Druid|Circle of the Land,Druid,Circle of the Land,Wall of Stone,5th,9,free with bundle,0,0,0
+Druid|Circle of the Moon,Druid,Circle of the Moon,Cure Wounds,1st,3,PAID,1,1,0
+Druid|Circle of the Moon,Druid,Circle of the Moon,Moonbeam,2nd,3,PAID,1,1,0
+Druid|Circle of the Moon,Druid,Circle of the Moon,Starry Wisp,cantrip,3,PAID,4,4,0
+Druid|Circle of the Moon,Druid,Circle of the Moon,Conjure Animals,3rd,5,PAID,2,1,1
+Druid|Circle of the Moon,Druid,Circle of the Moon,Fount of Moonlight,4th,7,free with bundle,0,0,0
+Druid|Circle of the Moon,Druid,Circle of the Moon,Mass Cure Wounds,5th,9,free with bundle,0,0,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Fog Cloud,1st,3,PAID,1,1,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Gust of Wind,2nd,3,PAID,1,1,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Ray of Frost,cantrip,3,PAID,4,4,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Shatter,2nd,3,PAID,1,1,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Thunderwave,1st,3,PAID,1,1,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Lightning Bolt,3rd,5,PAID,2,1,1
+Druid|Circle of the Sea,Druid,Circle of the Sea,Water Breathing,3rd,5,PAID,2,1,1
+Druid|Circle of the Sea,Druid,Circle of the Sea,Control Water,4th,7,free with bundle,0,0,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Ice Storm,4th,7,free with bundle,0,0,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Conjure Elemental,5th,9,free with bundle,0,0,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Hold Monster,5th,9,free with bundle,0,0,0
+Druid|Circle of the Stars,Druid,Circle of the Stars,Guidance,cantrip,3,PAID,4,4,0
+Druid|Circle of the Stars,Druid,Circle of the Stars,Guiding Bolt,1st,3,PAID,1,1,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Protection from Evil and Good,1st,3,PAID,1,1,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Shield of Faith,1st,3,PAID,1,1,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Aid,2nd,5,PAID,1,1,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Zone of Truth,2nd,5,PAID,1,1,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Beacon of Hope,3rd,9,free with bundle,0,0,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Dispel Magic,3rd,9,free with bundle,0,0,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Freedom of Movement,4th,13,free with bundle,0,0,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Guardian of Faith,4th,13,free with bundle,0,0,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Commune,5th,17,free with bundle,0,0,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Flame Strike,5th,17,free with bundle,0,0,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Guiding Bolt,1st,3,PAID,1,1,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Heroism,1st,3,PAID,1,1,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Enhance Ability,2nd,5,PAID,1,1,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Magic Weapon,2nd,5,PAID,1,1,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Haste,3rd,9,free with bundle,0,0,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Protection from Energy,3rd,9,free with bundle,0,0,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Compulsion,4th,13,free with bundle,0,0,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Freedom of Movement,4th,13,free with bundle,0,0,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Legend Lore,5th,17,free with bundle,0,0,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Yolande's Regal Presence,5th,17,free with bundle,0,0,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Ensnaring Strike,1st,3,PAID,1,1,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Speak with Animals,1st,3,PAID,1,1,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Misty Step,2nd,5,PAID,1,1,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Moonbeam,2nd,5,PAID,1,1,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Plant Growth,3rd,9,free with bundle,0,0,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Protection from Energy,3rd,9,free with bundle,0,0,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Ice Storm,4th,13,free with bundle,0,0,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Stoneskin,4th,13,free with bundle,0,0,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Commune with Nature,5th,17,free with bundle,0,0,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Tree Stride,5th,17,free with bundle,0,0,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Bane,1st,3,PAID,1,1,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Hunter's Mark,1st,3,PAID,1,1,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Hold Person,2nd,5,PAID,1,1,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Misty Step,2nd,5,PAID,1,1,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Haste,3rd,9,free with bundle,0,0,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Protection from Energy,3rd,9,free with bundle,0,0,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Banishment,4th,13,free with bundle,0,0,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Dimension Door,4th,13,free with bundle,0,0,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Hold Monster,5th,17,free with bundle,0,0,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Scrying,5th,17,free with bundle,0,0,0
+Ranger|Fey Wanderer,Ranger,Fey Wanderer,Charm Person,1st,3,PAID,1,1,0
+Ranger|Fey Wanderer,Ranger,Fey Wanderer,Misty Step,2nd,5,PAID,1,1,0
+Ranger|Fey Wanderer,Ranger,Fey Wanderer,Summon Fey,3rd,9,free with bundle,0,0,0
+Ranger|Fey Wanderer,Ranger,Fey Wanderer,Dimension Door,4th,13,free with bundle,0,0,0
+Ranger|Fey Wanderer,Ranger,Fey Wanderer,Mislead,5th,17,free with bundle,0,0,0
+Ranger|Gloom Stalker,Ranger,Gloom Stalker,Disguise Self,1st,3,PAID,1,1,0
+Ranger|Gloom Stalker,Ranger,Gloom Stalker,Rope Trick,2nd,5,PAID,1,1,0
+Ranger|Gloom Stalker,Ranger,Gloom Stalker,Fear,3rd,9,free with bundle,0,0,0
+Ranger|Gloom Stalker,Ranger,Gloom Stalker,Greater Invisibility,4th,13,free with bundle,0,0,0
+Ranger|Gloom Stalker,Ranger,Gloom Stalker,Seeming,5th,17,free with bundle,0,0,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Mind Sliver,cantrip,3,PAID,4,4,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Arms of Hadar,1st,3,PAID,1,1,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Dissonant Whispers,1st,3,PAID,1,1,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Calm Emotions,2nd,3,PAID,1,1,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Detect Thoughts,2nd,3,PAID,1,1,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Hunger of Hadar,3rd,5,PAID,2,1,1
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Sending,3rd,5,PAID,2,1,1
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Evard's Black Tentacles,4th,7,free with bundle,0,0,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Summon Aberration,4th,7,free with bundle,0,0,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Rary's Telepathic Bond,5th,9,free with bundle,0,0,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Telekinesis,5th,9,free with bundle,0,0,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Alarm,1st,3,PAID,1,1,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Protection from Evil and Good,1st,3,PAID,1,1,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Aid,2nd,3,PAID,1,1,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Lesser Restoration,2nd,3,PAID,1,1,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Dispel Magic,3rd,5,PAID,2,1,1
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Protection from Energy,3rd,5,PAID,2,1,1
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Freedom of Movement,4th,7,free with bundle,0,0,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Summon Construct,4th,7,free with bundle,0,0,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Greater Restoration,5th,9,free with bundle,0,0,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Wall of Force,5th,9,free with bundle,0,0,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Chromatic Orb,1st,3,PAID,1,1,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Command,1st,3,PAID,1,1,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Alter Self,2nd,3,PAID,1,1,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Dragon's Breath,2nd,3,PAID,1,1,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Fear,3rd,5,PAID,2,1,1
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Fly,3rd,5,PAID,2,1,1
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Arcane Eye,4th,7,free with bundle,0,0,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Charm Monster,4th,7,free with bundle,0,0,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Legend Lore,5th,9,free with bundle,0,0,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Summon Dragon,5th,9,free with bundle,0,0,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Faerie Fire,1st,3,PAID,1,1,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Sleep,1st,3,PAID,1,1,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Calm Emotions,2nd,3,PAID,1,1,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Misty Step,2nd,3,PAID,1,1,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Phantasmal Force,2nd,3,PAID,1,1,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Blink,3rd,5,PAID,2,1,1
+Warlock|Archfey Patron,Warlock,Archfey Patron,Plant Growth,3rd,5,PAID,2,1,1
+Warlock|Archfey Patron,Warlock,Archfey Patron,Dominate Beast,4th,7,free with bundle,0,0,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Greater Invisibility,4th,7,free with bundle,0,0,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Dominate Person,5th,9,free with bundle,0,0,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Seeming,5th,9,free with bundle,0,0,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Light,cantrip,3,PAID,4,4,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Sacred Flame,cantrip,3,PAID,4,4,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Cure Wounds,1st,3,PAID,1,1,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Guiding Bolt,1st,3,PAID,1,1,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Aid,2nd,3,PAID,1,1,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Lesser Restoration,2nd,3,PAID,1,1,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Daylight,3rd,5,PAID,2,1,1
+Warlock|Celestial Patron,Warlock,Celestial Patron,Revivify,3rd,5,PAID,2,1,1
+Warlock|Celestial Patron,Warlock,Celestial Patron,Guardian of Faith,4th,7,free with bundle,0,0,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Wall of Fire,4th,7,free with bundle,0,0,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Greater Restoration,5th,9,free with bundle,0,0,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Summon Celestial,5th,9,free with bundle,0,0,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Burning Hands,1st,3,PAID,1,1,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Command,1st,3,PAID,1,1,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Scorching Ray,2nd,3,PAID,1,1,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Suggestion,2nd,3,PAID,1,1,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Fireball,3rd,5,PAID,2,1,1
+Warlock|Fiend Patron,Warlock,Fiend Patron,Stinking Cloud,3rd,5,PAID,2,1,1
+Warlock|Fiend Patron,Warlock,Fiend Patron,Fire Shield,4th,7,free with bundle,0,0,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Wall of Fire,4th,7,free with bundle,0,0,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Geas,5th,9,free with bundle,0,0,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Insect Plague,5th,9,free with bundle,0,0,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Dissonant Whispers,1st,3,PAID,1,1,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Tasha's Hideous Laughter,1st,3,PAID,1,1,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Detect Thoughts,2nd,3,PAID,1,1,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Phantasmal Force,2nd,3,PAID,1,1,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Clairvoyance,3rd,5,PAID,2,1,1
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Hunger of Hadar,3rd,5,PAID,2,1,1
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Confusion,4th,7,free with bundle,0,0,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Summon Aberration,4th,7,free with bundle,0,0,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Modify Memory,5th,9,free with bundle,0,0,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Telekinesis,5th,9,free with bundle,0,0,0

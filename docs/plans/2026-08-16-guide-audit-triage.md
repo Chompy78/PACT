@@ -66,11 +66,18 @@ Audit #44. Resolved as U1 + V2 + a new appendix: the summary rows now carry the 
 "none" out loud where a subclass sells nothing, and **Appendix J** gives the per-subclass detail. See
 `CHANGELOG.md` 2026-08-17. `guide-bundle-check` now enforces all of it.
 
-**One rules question fell out of the fix and is still open.** 16 of the 21 bundles derive exactly from the
-spell economy; five do not — all four Druid circles (charged 8/7, 8/7, 11/9, 5/5 where the working gives
-12/10) and Warlock Archfey (9/7 where the working gives 8/6). Appendix J prints them as hand-set. Whether
-they should be repriced to the derivation, or the derivation is only ever a rough guide, is an owner call,
-not a mechanical one. Nothing is broken either way — the engine and guide agree on all five.
+**One genuine outlier, down from a wrongly-reported five.** Reading the real spell lists out of
+`DATA.spellGrants.subclassSpells` (a bundle prices the grants unlocking at charLevel ≤ 5; the rest ride
+free) reproduces **20 of the 21** stored prices exactly. The lone miss is **Circle of the Sea**, charged
+11 (9) where its seven paid grants total 12 (10). Its list is the same shape as Aberrant Sorcery's — a
+cantrip plus two spells each at 1st, 2nd and 3rd — and that one *is* charged 12 (10). So it reads as a
+1 AP slip rather than a deliberate discount. Engine and guide agree on the figure, so nothing is broken;
+correcting it is an owner call.
+
+> **How this was got wrong first.** An earlier pass *assumed* the grant shape (two spells each at
+> 1st/2nd/3rd) after wrongly concluding the spell lists weren't stored anywhere. That reproduced only 16
+> prices and labelled four Druid circles and Archfey Patron "hand-set" — none are. `DATA.spellGrants`
+> exists and is authoritative; never reconstruct a shape when the data is sitting there.
 
 ### 2. What the checkers structurally cannot prove
 

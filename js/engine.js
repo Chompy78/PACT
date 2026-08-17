@@ -334,6 +334,18 @@ export function compute(b, opts){
     for(const sub of used){if(sub!==free){subUnlockAP+=DATA.subUnlock;subUnlockN++;}}}
   {const _vc={};for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");if(_p.length>=3){const _k=_p[0]+"|"+_p[1];(_vc[_k]=_vc[_k]||{})[_p[2]]=1;}}for(const _k in _vc){const _x=Object.keys(_vc[_k]).length-1;if(_x>0){subUnlockAP+=_x*DATA.subUnlock;subUnlockN+=_x;}}}
   if(subUnlockAP) add("Subclass unlocks ("+subUnlockN+" × 15)",subUnlockAP);
+  // §11 gate (v0.347): a subclass belongs to its class, so its abilities and its expanded spell list
+  // are only available from a class you can actually build from — your origin class, or one you have
+  // unlocked. The guide already says this ("each class you can build from gives you one subclass for
+  // free: pick it, and you may buy its expanded spell list and any of its abilities"), but nothing
+  // enforced it: a Fighter with no Cleric access could buy Life Domain's spell list for 8 AP, and
+  // because a bought bundle registers in subUsed above, it also claimed that domain as the class's
+  // free subclass — so no 15 AP subclass unlock landed either. Warn rather than refuse, matching how
+  // every other ⛔ prerequisite in this file behaves; the price is still charged.
+  for(const cls in subUsed){
+    if(cls===b.originClass||cls===b.originClass2||_unlkSet.has(cls))continue;
+    W.push("⛔ "+cls+": you cannot build from this class — unlock "+cls+" (§11) before taking its subclass abilities or its expanded spell list");
+  }
   // v0.196: paid subclass "expanded spell list" bundles — opt-in, one buy = whole bundle
   //   (always-prepared bonus spells + free cap-exempt cantrips are granted in eligibleSpells, gated on purchase).
   for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");const _sc=(DATA.subclasses[_p[0]]||{})[_p[1]];const _bn=_sc&&_sc.spellBundle;if(!_bn)continue;
