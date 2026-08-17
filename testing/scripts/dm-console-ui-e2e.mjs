@@ -512,21 +512,30 @@ const dmap = await page.evaluate(async ()=>{
     warn: c.querySelector('.warnicon')?.getAttribute('title') || ''
   }));
   const out = {};
+  // Wait for the NEW render instead of a fixed delay: empty the container, call the renderer, then
+  // poll until a card is actually back. The old `setTimeout(r,40)` raced a contended CI runner —
+  // this suite failed 5 of its last 12 runs on `preview`, always on the LAST of these three
+  // sequential renders, because read() picked up the PREVIOUS render's DOM and asserted against it.
+  // Emptying first is what makes the poll sound: without it, a stale card satisfies the condition
+  // immediately and the race is unchanged.
+  const render = async (rows) => {
+    el.innerHTML = '';
+    window._dmRenderCloudRoster(el, rows);
+    for (let i = 0; i < 300; i++) {                       // ≤3 s, vs the old fixed 40 ms
+      if (el.querySelector('.card .stat .v')) break;
+      await new Promise(r => setTimeout(r, 10));
+    }
+    return read()[0];   // if it never rendered, return whatever is there and let the check report it
+  };
   // (a) campaign with ignore_player_ap ON — the ceiling is DM AP alone
   window._dmCampaignApRules = { ignorePlayerAp: true };
-  window._dmRenderCloudRoster(el, [anders]);
-  await new Promise(r=>setTimeout(r,40));
-  out.ignoreOn = read()[0];
+  out.ignoreOn = await render([anders]);
   // (b) same character, ignore OFF — player's own +6 now counts on top of the 33
   window._dmCampaignApRules = { ignorePlayerAp: false };
-  window._dmRenderCloudRoster(el, [anders]);
-  await new Promise(r=>setTimeout(r,40));
-  out.ignoreOff = read()[0];
+  out.ignoreOff = await render([anders]);
   // (c) no DM AP at all (a locally-imported file / unbound character) — unchanged from before
   window._dmCampaignApRules = null;
-  window._dmRenderCloudRoster(el, [{...anders, ap:0}]);
-  await new Promise(r=>setTimeout(r,40));
-  out.noDm = read()[0];
+  out.noDm = await render([{...anders, ap:0}]);
   return out;
 });
 check('the roster stat strip is still the AP cell', dmap.ignoreOn && dmap.ignoreOn.k === 'AP left', JSON.stringify(dmap.ignoreOn));
