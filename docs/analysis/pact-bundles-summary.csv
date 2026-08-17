@@ -1,0 +1,25 @@
+Class,Subclass,Paid spells,Free spells,Cross AP derived,Origin AP derived,Cross AP ENGINE,Origin AP ENGINE,Cross diff,Origin diff,Origin gap derived,Origin gap ENGINE,Is the discount applied twice?,Derivation reproduces engine?,The arithmetic
+Cleric,Life Domain,6,4,8,6,8,6,0,0,2,2,no - applied exactly once,yes,1+1+1+1+2+2 = 8  |  origin 1+1+1+1+1+1 = 6
+Cleric,Light Domain,6,4,8,6,8,6,0,0,2,2,no - applied exactly once,yes,1+1+1+1+2+2 = 8  |  origin 1+1+1+1+1+1 = 6
+Cleric,Trickery Domain,6,4,8,6,8,6,0,0,2,2,no - applied exactly once,yes,1+1+1+1+2+2 = 8  |  origin 1+1+1+1+1+1 = 6
+Cleric,War Domain,6,4,8,6,8,6,0,0,2,2,no - applied exactly once,yes,1+1+1+1+2+2 = 8  |  origin 1+1+1+1+1+1 = 6
+Druid,Circle of the Land,4,2,8,7,8,7,0,0,1,1,no - applied exactly once,yes,1+1+4+2 = 8  |  origin 1+1+4+1 = 7
+Druid,Circle of the Moon,4,2,8,7,8,7,0,0,1,1,no - applied exactly once,yes,1+1+4+2 = 8  |  origin 1+1+4+1 = 7
+Druid,Circle of the Sea,7,4,12,10,12,10,0,0,2,2,no - applied exactly once,yes,1+1+4+1+1+2+2 = 12  |  origin 1+1+4+1+1+1+1 = 10
+Druid,Circle of the Stars,2,0,5,5,5,5,0,0,0,0,no - applied exactly once,yes,4+1 = 5  |  origin 4+1 = 5
+Paladin,Oath of Devotion,4,6,4,4,4,4,0,0,0,0,no - applied exactly once,yes,1+1+1+1 = 4  |  origin 1+1+1+1 = 4
+Paladin,Oath of Glory,4,6,4,4,4,4,0,0,0,0,no - applied exactly once,yes,1+1+1+1 = 4  |  origin 1+1+1+1 = 4
+Paladin,Oath of the Ancients,4,6,4,4,4,4,0,0,0,0,no - applied exactly once,yes,1+1+1+1 = 4  |  origin 1+1+1+1 = 4
+Paladin,Oath of Vengeance,4,6,4,4,4,4,0,0,0,0,no - applied exactly once,yes,1+1+1+1 = 4  |  origin 1+1+1+1 = 4
+Ranger,Fey Wanderer,2,3,2,2,2,2,0,0,0,0,no - applied exactly once,yes,1+1 = 2  |  origin 1+1 = 2
+Ranger,Gloom Stalker,2,3,2,2,2,2,0,0,0,0,no - applied exactly once,yes,1+1 = 2  |  origin 1+1 = 2
+Sorcerer,Aberrant Sorcery,7,4,12,10,12,10,0,0,2,2,no - applied exactly once,yes,4+1+1+1+1+2+2 = 12  |  origin 4+1+1+1+1+1+1 = 10
+Sorcerer,Clockwork Sorcery,6,4,8,6,8,6,0,0,2,2,no - applied exactly once,yes,1+1+1+1+2+2 = 8  |  origin 1+1+1+1+1+1 = 6
+Sorcerer,Draconic Sorcery,6,4,8,6,8,6,0,0,2,2,no - applied exactly once,yes,1+1+1+1+2+2 = 8  |  origin 1+1+1+1+1+1 = 6
+Warlock,Archfey Patron,7,4,9,7,9,7,0,0,2,2,no - applied exactly once,yes,1+1+1+1+1+2+2 = 9  |  origin 1+1+1+1+1+1+1 = 7
+Warlock,Celestial Patron,8,4,16,14,16,14,0,0,2,2,no - applied exactly once,yes,4+4+1+1+1+1+2+2 = 16  |  origin 4+4+1+1+1+1+1+1 = 14
+Warlock,Fiend Patron,6,4,8,6,8,6,0,0,2,2,no - applied exactly once,yes,1+1+1+1+2+2 = 8  |  origin 1+1+1+1+1+1 = 6
+Warlock,Great Old One Patron,6,4,8,6,8,6,0,0,2,2,no - applied exactly once,yes,1+1+1+1+2+2 = 8  |  origin 1+1+1+1+1+1 = 6
+Ranger,Beast Master,0,0,,,none,none,,,,,n/a - nothing to buy,n/a,no spell grants at all
+Ranger,Hunter,0,0,,,none,none,,,,,n/a - nothing to buy,n/a,no spell grants at all
+Sorcerer,Wild Magic Sorcery,0,0,,,none,none,,,,,n/a - nothing to buy,n/a,no spell grants at all

@@ -1,0 +1,25 @@
+Class,Subclass,Grant shape assumed,Spells,Cantrips,Cross AP derived,Origin AP derived,Cross AP ENGINE,Origin AP ENGINE,Cross diff,Origin diff,Origin gap derived,Origin gap ENGINE,Is the discount applied twice?,Derivation reproduces engine?
+Cleric,Life Domain,Full caster - 2 spells each at 1st/2nd/3rd,6,0,8,6,8,6,0,0,2,2,no - applied exactly once,yes
+Cleric,Light Domain,Full caster - 2 spells each at 1st/2nd/3rd,6,0,8,6,8,6,0,0,2,2,no - applied exactly once,yes
+Cleric,Trickery Domain,Full caster - 2 spells each at 1st/2nd/3rd,6,0,8,6,8,6,0,0,2,2,no - applied exactly once,yes
+Cleric,War Domain,Full caster - 2 spells each at 1st/2nd/3rd,6,0,8,6,8,6,0,0,2,2,no - applied exactly once,yes
+Druid,Circle of the Land,Full caster - 2 spells each at 1st/2nd/3rd,6,1,12,10,8,7,-4,-3,2,1,no - applied LESS than once,NO - hand-set
+Druid,Circle of the Moon,Full caster - 2 spells each at 1st/2nd/3rd,6,1,12,10,8,7,-4,-3,2,1,no - applied LESS than once,NO - hand-set
+Druid,Circle of the Sea,Full caster - 2 spells each at 1st/2nd/3rd,6,1,12,10,11,9,-1,-1,2,2,no - applied exactly once,NO - hand-set
+Druid,Circle of the Stars,Full caster - 2 spells each at 1st/2nd/3rd,6,1,12,10,5,5,-7,-5,2,0,no - applied LESS than once,NO - hand-set
+Paladin,Oath of Devotion,Half caster - 2 spells each at 1st/2nd,4,0,4,4,4,4,0,0,0,0,no - applied exactly once,yes
+Paladin,Oath of Glory,Half caster - 2 spells each at 1st/2nd,4,0,4,4,4,4,0,0,0,0,no - applied exactly once,yes
+Paladin,Oath of the Ancients,Half caster - 2 spells each at 1st/2nd,4,0,4,4,4,4,0,0,0,0,no - applied exactly once,yes
+Paladin,Oath of Vengeance,Half caster - 2 spells each at 1st/2nd,4,0,4,4,4,4,0,0,0,0,no - applied exactly once,yes
+Ranger,Fey Wanderer,Half caster - 1 spell each at 1st/2nd,2,0,2,2,2,2,0,0,0,0,no - applied exactly once,yes
+Ranger,Gloom Stalker,Half caster - 1 spell each at 1st/2nd,2,0,2,2,2,2,0,0,0,0,no - applied exactly once,yes
+Sorcerer,Aberrant Sorcery,Full caster - 2 spells each at 1st/2nd/3rd,6,1,12,10,12,10,0,0,2,2,no - applied exactly once,yes
+Sorcerer,Clockwork Sorcery,Full caster - 2 spells each at 1st/2nd/3rd,6,0,8,6,8,6,0,0,2,2,no - applied exactly once,yes
+Sorcerer,Draconic Sorcery,Full caster - 2 spells each at 1st/2nd/3rd,6,0,8,6,8,6,0,0,2,2,no - applied exactly once,yes
+Warlock,Archfey Patron,Full caster - 2 spells each at 1st/2nd/3rd,6,0,8,6,9,7,1,1,2,2,no - applied exactly once,NO - hand-set
+Warlock,Celestial Patron,Full caster - 2 spells each at 1st/2nd/3rd,6,2,16,14,16,14,0,0,2,2,no - applied exactly once,yes
+Warlock,Fiend Patron,Full caster - 2 spells each at 1st/2nd/3rd,6,0,8,6,8,6,0,0,2,2,no - applied exactly once,yes
+Warlock,Great Old One Patron,Full caster - 2 spells each at 1st/2nd/3rd,6,0,8,6,8,6,0,0,2,2,no - applied exactly once,yes
+Ranger,Beast Master,no spellBundle in the engine,,,,,none,none,,,,,n/a - nothing to buy,n/a - nothing to buy
+Ranger,Hunter,no spellBundle in the engine,,,,,none,none,,,,,n/a - nothing to buy,n/a - nothing to buy
+Sorcerer,Wild Magic Sorcery,no spellBundle in the engine,,,,,none,none,,,,,n/a - nothing to buy,n/a - nothing to buy

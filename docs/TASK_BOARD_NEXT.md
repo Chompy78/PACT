@@ -796,40 +796,6 @@ rules-logic or player-data impact.
 landed in `docs/PACT-Players-Guide.html`, and the three-way check (vendored snapshot ↔ `pact-guide`
 canonical ↔ this repo's served copy) passes.
 
-## Write the cross-project atomicity rule into AGENTS.md — TODO
-Branch `docs/rules-change-atomicity`. Nothing currently states that a mechanics change has to land in
-BOTH `js/engine.js` and the Players Guide before it is finished. As a direct result, Grit's pricing
-diverged between the two for ~6 days (2026-08-06 → 2026-08-12): `pact-guide` deliberately moved to the
-2N Steep curve and documented the divergence, while this repo's engine kept the older ladder, and each
-side's records read as authoritative on its own. See `D-GH-2026-08-12-grit-steep-ladder` (and its
-Addendum) for the full account, including how a stale "we deliberately diverge" warning becomes its own
-hazard once the divergence is resolved.
-**Effort:** low · **Risk:** low — ambiguity is low (the rule itself is already agreed and written in
-prose in the decision record; this is transcription into the place agents actually read); damage scale
-is low (one docs paragraph, `git revert`-able); damage likelihood is low (no code, no gate, no data).
-Sweep-eligible **only** for the half in this repo — the `pact-guide` half must be handed over as a patch.
-
-```text
-1. Add to AGENTS.md, near the Versioning section: a mechanics change is not finished until the engine
-   AND the guide both land it, with `DATA.version` bumped exactly once, in the engine. Name
-   `pact-guide` as the guide's upstream master and give its actual location, so a future session
-   doesn't have to discover it the hard way.
-2. State plainly which artefact wins when they disagree: `js/engine.js` is the single source of truth
-   for rules (this is already AGENTS.md's position elsewhere — make it explicit for the guide case too,
-   because that project's own PYTHON-FILES-OVERVIEW.md describes its Python model as the "pricing
-   authority", a directly competing claim that has already misled at least one session).
-3. Note the known copies that can drift, so nobody assumes there are only two: this repo's engine, this
-   repo's served guide copy, pact-guide's master guide, pact-guide's py/pricing.py, and
-   pact-guide's py/vendor/engine/engine.js (a vendored snapshot of this repo's engine).
-4. Mirror the rule into pact-guide's own AGENTS.md — as a patch handed to that project, not edited
-   from here.
-5. Docs-only: do NOT bump `DATA.version` or `BUILD`; log the change in `CHANGELOG.md`.
-```
-
-**Done when:** `AGENTS.md` states the atomicity rule, names where the guide master lives, resolves the
-engine-vs-Python authority question explicitly, and lists the five known rules-carrying copies; and the
-matching patch for `pact-guide`'s `AGENTS.md` has been drafted and handed over.
-
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.

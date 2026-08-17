@@ -6,6 +6,207 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-17 · fix(chargen): the class-unlock checkbox was a dead control — the unlocked price tier was
+  unreachable; plus three-tier row prices, a renamed-feature alias map, and four fixtures** — no
+  `DATA.version` change (no price moved). Adding an end-to-end test that CharGen's displayed row price
+  equals `compute()`'s charged ledger price turned up a bug the display fix would have papered over:
+  **ticking "unlock \<class\>" did nothing at all.** No `unlockclass` event reached the LOG and the box
+  sprang back — an inline `onchange="render()"` and `#form`'s own `input -> render()` both re-derived
+  `checked` from a LOG that had no entry yet, un-ticked it, and the delegated handler then read
+  `checked === false` and *retracted*. So the entire middle price tier shipped in v0.350 was unreachable
+  from the UI. Fixed by binding the checklist delegation in the **capture** phase for both `input` and
+  `change` (see `D-GH-2026-08-17-unlock-checkbox-dead-control`). The display half is fixed too: the row
+  `.price` spans for features, subclass abilities and bundles knew only origin/cross and showed `cross`
+  for an unlocked class while the ledger charged the sticker — a bundle read 11 AP and cost 8. All three
+  now route through one `PRC(o,u,x)` helper. Also: **`DATA.featureAliases`** — this branch removed two
+  `DATA.features` keys with no migration, and `compute()` drops an unknown key *silently*, so every saved
+  character holding one lost the feature and its AP (`D-GH-2026-08-17-renamed-feature-aliases`);
+  **`Elf: Wood Elf speed`** existed in `DATA.racial` but not `racialList`, so it was unbuyable; and a 0 AP
+  `Species traits` line is now emitted when it has itemized detail under it, instead of leaving free
+  heritage-pack traits filed under a heading `add()` had suppressed. Gates: **four new fixtures**
+  (`CG-012`–`CG-015`) covering the three price tiers for bundles and for subclass abilities, pack traits,
+  and the alias map — parity 30 → **34**; `chargen-flows-e2e` 46 → **56** with a real-click test of all
+  three tiers and of retraction. Two checker holes closed: `guide-bundle-check`'s summary rows compared by
+  `cell.includes()` (a mutation of `4` to `14 (9)` passed — six mutations now caught), and
+  `engine-parity.html`'s hardcoded manifest had silently gone stale by six fixtures while `AGENTS.md`
+  points humans at that page as the gate, so CI now fails if it drifts again. `launchChromium` was
+  factored into `testing/scripts/lib/launch-chromium.mjs` and given to `sw-cache-e2e`, which had none and
+  so could not run at all on a pre-provisioned machine. The commit message on `ee8dc41` is **wrong** about
+  its own root cause — `renderCloudRoster` is a synchronous chain ending in one `innerHTML =`, so the
+  40 ms sleep it replaced was never a race and the poll breaks on iteration 0; corrected in a comment at
+  the site, and the real cause of those two CI failures is **not** diagnosed.
+- **2026-08-17 · docs(guide): split the bonus-spell rules out of "Prepared casters", add Appendix J, and
+  add a third checker that proves subclass bundles** — no rules change, so no `DATA.version` bump.
+  The bonus-spell rules were buried inside the *Prepared casters* section even though they apply to every
+  caster whose subclass grants an expanded list, known casters included — so a Sorcerer's and a Warlock's
+  rules sat under a heading naming four classes neither of them is. Split into its own **Subclass bonus
+  spells** section; *Prepared casters* shrinks to what it actually describes (Cleric, Druid, Paladin,
+  Ranger). New **`testing/scripts/guide-bundle-check.mjs`** verifies every bundle against
+  `DATA.subclasses[*].spellBundle` — a gap neither existing checker could reach (`guide-price-check` keys on
+  `DATA.features`, `guide-spell-check` keys on spell level, so both reported bundle rows as
+  `ambiguous`/unparsed and neither could prove one). It found four real defects plus one absence:
+  **Circle of the Stars** sold a 5 AP bundle the guide never priced; the **Ranger** class table had no
+  bonus-spells row at all despite two of its subclasses selling one; and the **Sorcerer** and **Warlock**
+  rows printed a flat `8 (6)` where the real spread is 8–12 and 8–16 — the Sorcerer row quoting a price for
+  Wild Magic, which has no bundle to buy. All four fixed; the checker is mutation-tested (7 injected faults,
+  7 caught) and now also verifies Appendix J's own figures, so the table cannot drift from the engine.
+  New **Appendix J: Subclass Bonus Spells** lists all 24 subclasses of the six bundle-granting classes with
+  price, cantrips and the working — including explicit **none** rows for Wild Magic Sorcery, Beast Master
+  and Hunter, because an omitted row reads as an oversight while a stated "none" reads as a rule. It is
+  generated from the engine by `testing/scripts/gen-appendix-j.mjs`, not hand-typed. The working is real
+  and **names the actual spells**, read from `DATA.spellGrants.subclassSpells`: a bundle prices the grants
+  unlocking at character level ≤ 5 and everything above rides free, so Life Domain charges Bless, Cure
+  Wounds, Aid, Lesser Restoration, Mass Healing Word and Revivify at `1+1+1+1+2+2 = 8`, dropping to 6 as
+  origin. **20 of the 21 stored prices reproduce exactly.** Also corrected two prose claims: bundle
+  cantrips are charged a flat 4 AP inside the bundle price rather than on the escalating §12 ladder, and
+  a half-caster bundle prices four spells (Paladin) or two (Ranger), not four in both cases.
+  > **Correction (same day, before this shipped).** A first pass at Appendix J *assumed* a grant shape
+  > (two spells each at 1st/2nd/3rd) instead of reading `DATA.spellGrants`, whose existence had been
+  > wrongly written off as "the engine stores only the lump price". That assumption reproduced only 16
+  > prices and wrongly printed four Druid circles and Archfey Patron as "hand-set" — none of them are;
+  > their lists simply aren't that shape (Circle of the Stars grants just a cantrip and Guiding Bolt,
+  > hence 5 AP flat). **The real lone outlier is Circle of the Sea**, charged 11 (9) where its seven paid
+  > grants total 12 (10) — the identical shape to Aberrant Sorcery, which *is* charged 12 (10). That is a
+  > discrepancy, not a discount, and is now the only caveat printed in the appendix.
+- **2026-08-17 · feat(rules): subclass spell bundles get the normal three price tiers — `DATA.version`
+  v0.349 → v0.350** — bundles had only two (`isO ? origin : cross`), so a character who paid 7 AP to
+  unlock a class and one who had never touched it paid the **same** bundle price. Unlocking bought a
+  0 AP reduction on a bundle while saving real AP on that class's abilities. Bundles now price on the
+  same three steps as any subclass ability: **origin / unlocked (sticker) / cross-class (sticker + 3)**,
+  Tier 3 being where subclasses open. Life Domain is now 6 / 8 / 11.
+  **No origin price changed and no unlocked price changed** — today's figure was already the sticker,
+  it just wasn't labelled as one. The only new number is the cross-class price, which is the rung that
+  didn't exist. Unlocking Cleric now repays itself inside two purchases (3 AP off a domain bundle plus
+  4 AP off each domain ability) where it previously never repaid on a bundle at all.
+  `spellBundle` gains `sticker` and `tier`; the old `cross` field becomes `sticker` and `cross` is the
+  new surcharged figure. Guide rows need no edit — a bundle now prints `Sticker (Origin)` exactly like
+  every other feature row, with cross-class implied by the ordinary +Tier rule.
+  > **Why §13's spell-access exemption does not cover bundles.** "Spell access is free of the class tax"
+  > governs the spell *economy* — Foundations, Ranks, slots, spells known, cantrips — where a per-purchase
+  > +Tier surcharge compounds into something crushing. It was never meant to exempt one-off
+  > spell-*granting* features, and the engine has always agreed: `Bard: Magical Secrets` (13/17/22),
+  > `Warlock: Pact of the Tome` (18/18/19), `Wizard: Signature Spells` (14/20/27) and every other
+  > spell-granting feature carry the full +Tier surcharge. Pact of the Tome is the exact analogue of a
+  > bundle — one purchase, a fixed set of granted spells — so bundles taking the surcharge is the
+  > *consistent* treatment, not an exception. Three of the four cold reviewers argued the opposite from
+  > the guide's §13 wording alone; the guide now carries an explicit clarifying paragraph so the next
+  > reader doesn't repeat it. See `docs/plans/cold-reviews/`.
+- **2026-08-17 · fix(rules): split Circle of the Stars' spells from Star Map's free-cast — `DATA.version`
+  v0.348 → v0.349** — the Stars bundle (Guidance + Guiding Bolt, 5 AP) and the Star Map ability were the
+  same content sold twice: the guide's own row read *"Star Map (Guiding Bolt prepared + free-cast +
+  Guidance cantrip)"*, so a player could buy both and pay 11 AP for one feature. Under the owner's call
+  (AA2) the bundle keeps the spells and **Star Map now covers only the free-cast** — cast Guiding Bolt
+  without a slot, proficiency-bonus times per long rest. Repriced **T3 Situational 6 (4) → T2 Per-Rest
+  5 (4)**: the band was wrong (an attack spell that recharges on a long rest is Per-Rest, not Situational),
+  and 5 sits just under the 6 AP that two 1st-level slots cost an origin caster — right, since the
+  free-cast only ever casts one spell. Circle of the Stars is now 9 AP all-in at origin (5 bundle + 4 Star
+  Map), against Land and Moon at 7 and Sea at 10.
+  > **Star Map is stored in three places** — `DATA.features`, `DATA.subAbilMap`, and
+  > `DATA.subclasses[…].abilities` — all pre-existing and all carrying the price. Editing only
+  > `subclasses` left `compute()` charging the old figure and `guide-price-check` reporting a
+  > `price-mismatch`, which is how the duplication was caught. **All 192 subclass abilities are mirrored
+  > into `DATA.features` at the same price**; `subAbilMap` and `subclasses` agree everywhere else (0
+  > drift), so this is a systematic mirror rather than a Star Map anomaly — but any future subclass-ability
+  > reprice must touch all three.
+- **2026-08-17 · fix(rules): reprice Circle of the Sea to match its own spell list — `DATA.version`
+  v0.347 → v0.348** — the bundle was charged 11 (9) where its seven paid grants (Fog Cloud, Gust of Wind,
+  Ray of Frost, Shatter, Thunderwave, Lightning Bolt, Water Breathing) total `1+1+4+1+1+2+2 = 12`, and
+  10 as origin. Its list is exactly the shape of Aberrant Sorcery's — a cantrip plus two spells each at
+  1st, 2nd and 3rd — and that one *was* charged 12 (10), so this was a 1 AP slip rather than a deliberate
+  discount. Now 12 (10). **All 21 bundles derive exactly from their own spell lists**, so Appendix J no
+  longer carries an outlier note. Guide updated in the same change: the Sea row and the Druid class
+  summary (`varies 5–11` → `varies 5–12`). No `testing/expected/` update was needed — no fixture prices
+  this bundle.
+- **2026-08-17 · fix(rules): gate subclass abilities and spell bundles behind class access —
+  `DATA.version` v0.346 → v0.347** — the guide says "each class you can build from gives you one subclass
+  for free: pick it, and you may buy its expanded spell list and any of its abilities", but nothing
+  enforced the *"you can build from"* half. A Fighter with no Cleric access could buy Life Domain's spell
+  list for 8 AP, and since a bought bundle registers in `subUsed` it also claimed that domain as the
+  class's free subclass — so no 15 AP subclass unlock landed either. Three lists from three foreign
+  classes cost 35 AP with no class unlock, no subclass unlock, and no warning. `compute()` now pushes a
+  ⛔ warning when a subclass purchase's class is neither an origin class nor unlocked. Warn rather than
+  refuse, matching every other ⛔ prerequisite in `engine.js`; prices are unchanged, so no
+  `testing/expected/` update was needed. Applies to subclass **abilities** as well as bundles — they
+  share the `subUsed` mechanism and the one guide sentence covers both.
+- **2026-08-16 · feat(rules): split a conflated Druid key, add three missing features, reprice Cunning
+  Strike — `DATA.version` v0.346** — closes the last four guide↔engine name mismatches, all owner-adjudicated.
+  (1) `Druid: Elemental Fury / Improved circle` fused two unrelated abilities — Elemental Fury (Druid L7)
+  with an "Improved circle" that already exists separately as `Druid: Improved Circle Forms` at the *same*
+  T4 Passive 14 (11). Renamed to `Druid: Elemental Fury`; added the genuinely missing
+  `Druid: Improved Elemental Fury` (Druid L15) T6 Passive 21 (16). (2) Added
+  `Monk: Disciplined Survivor (Focus)` T6 Premium 24 (19), absent from the engine entirely.
+  (3) Renamed `Paladin: Aura expansions` → `Paladin: Aura range → 30 ft (L18)` — same feature, same price,
+  the two sides just named it differently. (4) `Rogue: Cunning Strike` was **Situational** in both engine and
+  guide; it is At-Will — repriced T4 At-Will 13 (10) (was 9 (6)) and the missing
+  `Rogue: Improved Cunning Strike (L11)` T5 At-Will 16 (12) added, with the guide's two rows corrected to
+  match. **Two key renames**: any saved character referencing the old names would be orphaned — acceptable
+  only because the app is pre-launch (D-GH37). Parity 30/0, tool-pricing 134/0. Checker now reports
+  **0 price-mismatch and 0 no-engine-key** across 421 rows.
+- **2026-08-16 · feat(rules): stepped-purchase ladders that the guide advertised but the engine lacked —
+  `DATA.version` v0.345** — nine features added. The guide listed stepped purchases (Second Wind 3/4 uses,
+  Action Surge 2nd use, Indomitable 2/3 uses, Channel Divinity 3/4 uses, Brutal Strike improved L13/L17)
+  that had no engine key at all, so they were unbuyable. Owner confirmed these purchases *should* exist,
+  making it an engine addition rather than a guide deletion. Every price is `MASTER[tier][band]`-derived and
+  matches the guide's printed cell exactly; entries follow the existing `Fighter: Extra Attack (2nd)/(3rd)`
+  variant convention and are registered in `featureList` beside their base. Brutal Strike gained its missing
+  **L13** rung in both engine and guide (T6 At-Will 19 (14)) — the guide had L9 and L17 but nothing between.
+  Guide also: Star Map corrected `Bundle 5` → `T3 Situational 6 (4)`; `Agonising` → `Agonizing` ×7 to match
+  the engine key. Parity 30/0, tool-pricing 134/0. **Two audit items needed no change at all** — the guide's
+  `Extra Attack (3/4 attacks)` rows already matched `Fighter: Extra Attack (2nd)/(3rd)` exactly; the earlier
+  triage's claim otherwise was a checker resolution failure, not a defect.
+- **2026-08-16 · fix(testing): guide-price-check resolves variants and punctuation** — sibling variants are
+  now found by bare name rather than the resolved key's class prefix (a class-agnostic table resolved to
+  whichever class matched first, so `Fighter: Extra Attack (2nd)` was invisible), and typographic
+  apostrophes are normalised for comparison only — the guide sets 111 of them as house style, and rewriting
+  a player document's punctuation to match a data key would be a visible regression. `price-mismatch` 2 → 0.
+- **2026-08-16 · feat(rules): heritage-pack membership + pricing model corrected — `DATA.version` v0.344** —
+  In-pack species traits were stored `origin: 0`, which coupled a trait's *price* to its *pack membership*, so
+  a trait leaving a pack silently became free. Already live as a defect (`Goliath: Long Stride (Speed 35)`
+  was a free T1 trait) and about to bite three more. In-pack traits now carry their real
+  `MASTER[tier][band]` origin price and `compute()` guards `r.pack && isO → 0`, so the pack — not a zeroed
+  field — is what makes them free. Output-neutral: parity 30/0 throughout, `testing/expected/` unchanged.
+  Rules changes in the same bump (owner-specified): `Elf: Fey Ancestry`, `Orc: Relentless Endurance` and
+  `Dragonborn: Breath Weapon` leave their heritage packs; `Orc: Adrenaline Rush` corrected T2 → T1 with
+  `cross: 4`; `Goliath: Long Stride` repriced to At-Will 4 (5); new `Elf: Wood Elf speed` At-Will 4 (5) —
+  the guide listed it as an Elf lineage option but the engine had no entry for it. Pack prices unchanged at
+  5 (Human −2); value spread narrows 7–13 → 7–10 AP. Guide landed the same change (atomicity rule): Ch10
+  basics, Appendix B in-pack flags and prices, plus `DATA.packBasics`. All 29 Appendix B trait rows now
+  reconcile against the engine with zero mismatches. See `D-GH-2026-08-16-heritage-pack-pricing`.
+- **2026-08-16 · fix(guide): drop the guide's three PWA `<head>` tags so served copy == `pact-guide` master
+  byte-for-byte** — `docs/PACT-Players-Guide.html` used to carry `<link rel="manifest">`, `<link rel="icon">`
+  and `<link rel="apple-touch-icon">` that the master doesn't, and `docs/VERSION-SYNC.md`'s transfer
+  procedure never mentioned them — so every hand-copy silently stripped them with no visible error (caught
+  today when a `cp` of the v0.333 master did exactly that, before it was committed). Fixed by **removing**
+  the tags rather than scripting their re-injection: they were near-inert. `manifest.json` already sets
+  `scope:"/PACT/"` so the guide is in scope and opens in the installed app regardless, and
+  `service-worker.js:26` already precaches the guide so offline never depended on them. Only real loss is
+  the guide tab's favicon (LATER task raised). The two files are now byte-identical, `diff` is the transfer
+  check, and a plain `cp` is correct — one whole class of transfer bug removed instead of automated around.
+  Supersedes the `sync-guide-from-master.mjs` injector added earlier the same day (now deleted).
+  No `DATA.version`/`BUILD` change.
+- **2026-08-16 · feat(testing): mechanical guide-vs-engine price checker** — `testing/scripts/guide-price-check.mjs`
+  diffs every priced feature row in the Players Guide against live `DATA`, encoding the pricing rule nothing
+  had written down (non-repeatable `sticker = max(1, cross − tier)`, `engine.js:290`; repeatable stepped
+  `MASTER[tier][band]` ladder, `engine.js:289`). Built because re-verifying the 2026-08 171-finding guide
+  audit found its `Fix:` lines quote `origin`/`cross` where the guide's column needs `sticker` — wrong for
+  findings #36, #41, #42 — so applying that audit verbatim would introduce new errors. Independently
+  reproduces audit findings #24, #27, #29, #30, #31, #32, #35, #39, #40, #43, #45 without reading it, and
+  flags rows its range never covered. **Established that the v0.333 master carries every one of these
+  defects unchanged**, i.e. the 2026-08-16 session's claimed "applied and verified #22–48" never landed in
+  Appendix A. Read-only. No `DATA.version`/`BUILD` change.
+- **2026-08-16 · docs(agents): cross-project rules-change atomicity rule** — `AGENTS.md` now states that a
+  mechanics change isn't finished until BOTH `js/engine.js` and the Players Guide land it, with
+  `DATA.version` bumped exactly once (in the engine); names `pact-guide` (home-server MCP, project key
+  `pact-guide`) as the guide **master** and this repo's `docs/PACT-Players-Guide.html` as a served copy;
+  resolves the engine-vs-Python authority question explicitly in favour of `js/engine.js`, citing
+  `pact-guide`'s own `D-2026-08-16-guide-audit-reconciliation-target`; and lists **six** rules-carrying
+  copies that can drift — the task board said five, but `pact-guide`'s `py/engine.py` is a second,
+  name-colliding engine that on 2026-08-16 nearly caused a completed 171-finding audit to be redone
+  against the wrong file. Also corrected two stale version claims in the same section (`BUILD` v1.293 →
+  v1.421, `DATA.version` v0.336 → v0.343) — both were wrong immediately above a new rule about version
+  drift. Matching patch for `pact-guide`'s own `AGENTS.md` drafted for handover at
+  `docs/plans/2026-08-16-pact-guide-agents-atomicity-patch.md` (not applied from here, per *Technical
+  Access ≠ Scope*). Docs-only: no `DATA.version`/`BUILD` bump, no `compute()` change.
 - **2026-08-12 · docs(version-sync): guide↔engine rules-version pointer, cross-project** — cold-reviewed
   plan (4 reviewers) at `docs/plans/2026-08-12-guide-engine-version-pointer.md`; implemented the PACT-repo
   half directly (`docs/VERSION-SYNC.md` new cross-project section, this decision record) and the

@@ -20,9 +20,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const { chromium } = require('playwright');
+import { launchChromium } from './lib/launch-chromium.mjs';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
 const PORT = 7973;   // not cloud-e2e's 7970 or the seed stack's 7971
@@ -41,26 +39,6 @@ await new Promise(r=>server.listen(PORT,r));
 let pass=0, fail=0;
 const check=(n,ok,d='')=>{ ok?pass++:fail++; console.log(`  ${ok?'PASS':'FAIL'}  ${n}${d?' — '+d:''}`); };
 
-/* Launch the browser Playwright expects; if the pinned client and the installed browser builds don't
-   line up (common on a machine where the browsers are pre-provisioned rather than downloaded per
-   version), fall back to whatever chromium IS on disk instead of failing the gate over a build number.
-   CI installs a matching browser and never reaches the fallback. */
-async function launchChromium() {
-  try { return await chromium.launch(); }
-  catch (e) {
-    const root = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers';
-    const candidates = [path.join(root, 'chromium')];
-    try {
-      for (const d of fs.readdirSync(root).filter(n => /^chromium-\d+$/.test(n)).sort().reverse()) {
-        candidates.push(path.join(root, d, 'chrome-linux', 'chrome'));
-      }
-    } catch { /* no browsers dir — the original error is the useful one */ }
-    for (const exe of candidates) {
-      try { if (fs.existsSync(exe)) return await chromium.launch({ executablePath: exe }); } catch { /* next */ }
-    }
-    throw e;
-  }
-}
 const browser = await launchChromium();
 const page = await browser.newPage();
 const errors = [];
@@ -512,21 +490,38 @@ const dmap = await page.evaluate(async ()=>{
     warn: c.querySelector('.warnicon')?.getAttribute('title') || ''
   }));
   const out = {};
+  // Deterministic render helper: empty the container, call the renderer, read.
+  //
+  // CORRECTION (the commit that introduced this, ee8dc41, is wrong on its own root cause).
+  // That commit claimed the previous `setTimeout(r,40)` raced a contended runner. It cannot:
+  // `_dmRenderCloudRoster` → `render()` → `renderCloudRoster()` is a synchronous chain that ends in
+  // one `container.innerHTML = …` (DM-Console.html:1991-1995, :2036-2044) with no await, promise,
+  // setTimeout, rAF or fetch anywhere in it. The DOM is already correct when the call returns, so
+  // the old 40 ms sleep was never load-bearing and the poll below breaks on iteration 0 every time.
+  //
+  // The real cause of the two CI failures on PR #422 is NOT diagnosed. Do not read this helper as a
+  // fix for one. It is kept because waiting on a condition beats sleeping on a guess even when the
+  // guess is currently harmless — and because emptying first means a future async renderer cannot
+  // silently satisfy the read from a stale card. If these checks flake again, start from scratch:
+  // the answer is not in this function.
+  const render = async (rows) => {
+    el.innerHTML = '';
+    window._dmRenderCloudRoster(el, rows);
+    for (let i = 0; i < 300; i++) {                       // ≤3 s; today this always breaks at i=0
+      if (el.querySelector('.card .stat .v')) break;
+      await new Promise(r => setTimeout(r, 10));
+    }
+    return read()[0];   // if it never rendered, return whatever is there and let the check report it
+  };
   // (a) campaign with ignore_player_ap ON — the ceiling is DM AP alone
   window._dmCampaignApRules = { ignorePlayerAp: true };
-  window._dmRenderCloudRoster(el, [anders]);
-  await new Promise(r=>setTimeout(r,40));
-  out.ignoreOn = read()[0];
+  out.ignoreOn = await render([anders]);
   // (b) same character, ignore OFF — player's own +6 now counts on top of the 33
   window._dmCampaignApRules = { ignorePlayerAp: false };
-  window._dmRenderCloudRoster(el, [anders]);
-  await new Promise(r=>setTimeout(r,40));
-  out.ignoreOff = read()[0];
+  out.ignoreOff = await render([anders]);
   // (c) no DM AP at all (a locally-imported file / unbound character) — unchanged from before
   window._dmCampaignApRules = null;
-  window._dmRenderCloudRoster(el, [{...anders, ap:0}]);
-  await new Promise(r=>setTimeout(r,40));
-  out.noDm = read()[0];
+  out.noDm = await render([{...anders, ap:0}]);
   return out;
 });
 check('the roster stat strip is still the AP cell', dmap.ignoreOn && dmap.ignoreOn.k === 'AP left', JSON.stringify(dmap.ignoreOn));
