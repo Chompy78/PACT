@@ -125,6 +125,20 @@ for (const [key, entry] of Object.entries(DATA.features || {})) {
   if (die) alts.add(die[1].trim());
   for (const a of alts) if (a && a.toLowerCase() !== bare.toLowerCase()) push(a, { key, entry, kind: 'feature', cls: entry.cls, viaAlias: bare });
 }
+// A few guide rows name a step by its in-play EFFECT ("3 attacks, L11") where the engine names it by
+// ordinal ("Extra Attack (2nd)"). Nothing in the bare-name or parenthetical rules can bridge that, and
+// because "Extra Attack" alone resolves to the first matching class (a buy-once Bard entry), these rows
+// were reported as `phantom-step-row` — a checker false positive, not a guide defect: the engine really
+// does carry Fighter: Extra Attack (2nd) at T5 Premium 20 (16) and (3rd) at T7 Premium 28 (22), exactly
+// what the guide prints. Map them explicitly rather than loosening the general rules.
+const EFFECT_NAMED_STEPS = {
+  'Extra Attack (3 attacks, L11)': 'Fighter: Extra Attack (2nd)',
+  'Extra Attack (4 attacks, L20)': 'Fighter: Extra Attack (3rd)',
+};
+for (const [rowName, key] of Object.entries(EFFECT_NAMED_STEPS)) {
+  const entry = (DATA.features || {})[key];
+  if (entry) push(rowName, { key, entry, kind: 'feature', cls: entry.cls, viaAlias: key });
+}
 for (const [key, entry] of Object.entries(DATA.subAbilMap || {})) {
   push(decode(entry.name || key.split('|').pop()), { key, entry, kind: 'subAbil', cls: entry.cls });
 }

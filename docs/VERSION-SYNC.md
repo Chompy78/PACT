@@ -129,6 +129,15 @@ not happen (the master is canonical — see `AGENTS.md`).
 > The only real loss is the tab favicon on the guide page — tracked as a LATER task. Deleting three
 > near-inert tags removed a whole class of transfer bug permanently; see `CHANGELOG.md`.
 
+**Before any transfer in either direction, run the verifier:**
+
+
+
+It runs all three content checkers plus structural and anchor checks and prints one PASS/FAIL. A green
+run is the evidence that this repo's copy agrees with the engine. It deliberately does **not** claim the
+copy is newer than the master — only a  against the master shows that, and the two questions get
+confused precisely when it matters most.
+
 Then commit, verifying:
 1. `diff` against the master is clean — no PACT-side edits, no stray tags reintroduced;
 2. both markers parse and are present exactly once each;
