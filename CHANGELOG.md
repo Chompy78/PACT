@@ -39,6 +39,23 @@
   > hence 5 AP flat). **The real lone outlier is Circle of the Sea**, charged 11 (9) where its seven paid
   > grants total 12 (10) — the identical shape to Aberrant Sorcery, which *is* charged 12 (10). That is a
   > discrepancy, not a discount, and is now the only caveat printed in the appendix.
+- **2026-08-17 · fix(rules): split Circle of the Stars' spells from Star Map's free-cast — `DATA.version`
+  v0.348 → v0.349** — the Stars bundle (Guidance + Guiding Bolt, 5 AP) and the Star Map ability were the
+  same content sold twice: the guide's own row read *"Star Map (Guiding Bolt prepared + free-cast +
+  Guidance cantrip)"*, so a player could buy both and pay 11 AP for one feature. Under the owner's call
+  (AA2) the bundle keeps the spells and **Star Map now covers only the free-cast** — cast Guiding Bolt
+  without a slot, proficiency-bonus times per long rest. Repriced **T3 Situational 6 (4) → T2 Per-Rest
+  5 (4)**: the band was wrong (an attack spell that recharges on a long rest is Per-Rest, not Situational),
+  and 5 sits just under the 6 AP that two 1st-level slots cost an origin caster — right, since the
+  free-cast only ever casts one spell. Circle of the Stars is now 9 AP all-in at origin (5 bundle + 4 Star
+  Map), against Land and Moon at 7 and Sea at 10.
+  > **Star Map is stored in three places** — `DATA.features`, `DATA.subAbilMap`, and
+  > `DATA.subclasses[…].abilities` — all pre-existing and all carrying the price. Editing only
+  > `subclasses` left `compute()` charging the old figure and `guide-price-check` reporting a
+  > `price-mismatch`, which is how the duplication was caught. **All 192 subclass abilities are mirrored
+  > into `DATA.features` at the same price**; `subAbilMap` and `subclasses` agree everywhere else (0
+  > drift), so this is a systematic mirror rather than a Star Map anomaly — but any future subclass-ability
+  > reprice must touch all three.
 - **2026-08-17 · fix(rules): reprice Circle of the Sea to match its own spell list — `DATA.version`
   v0.347 → v0.348** — the bundle was charged 11 (9) where its seven paid grants (Fog Cloud, Gust of Wind,
   Ray of Frost, Shatter, Thunderwave, Lightning Bolt, Water Breathing) total `1+1+4+1+1+2+2 = 12`, and
