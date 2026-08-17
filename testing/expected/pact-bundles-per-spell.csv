@@ -1,0 +1,118 @@
+Key,Class,Subclass,Item,Spell level,Cross AP (no discount),"Origin AP (-1, floor 1)",Discount saved
+Cleric|Life Domain,Cleric,Life Domain,Spell 1,1,1,1,0
+Cleric|Life Domain,Cleric,Life Domain,Spell 2,1,1,1,0
+Cleric|Life Domain,Cleric,Life Domain,Spell 3,2,1,1,0
+Cleric|Life Domain,Cleric,Life Domain,Spell 4,2,1,1,0
+Cleric|Life Domain,Cleric,Life Domain,Spell 5,3,2,1,1
+Cleric|Life Domain,Cleric,Life Domain,Spell 6,3,2,1,1
+Cleric|Light Domain,Cleric,Light Domain,Spell 1,1,1,1,0
+Cleric|Light Domain,Cleric,Light Domain,Spell 2,1,1,1,0
+Cleric|Light Domain,Cleric,Light Domain,Spell 3,2,1,1,0
+Cleric|Light Domain,Cleric,Light Domain,Spell 4,2,1,1,0
+Cleric|Light Domain,Cleric,Light Domain,Spell 5,3,2,1,1
+Cleric|Light Domain,Cleric,Light Domain,Spell 6,3,2,1,1
+Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 1,1,1,1,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 2,1,1,1,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 3,2,1,1,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 4,2,1,1,0
+Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 5,3,2,1,1
+Cleric|Trickery Domain,Cleric,Trickery Domain,Spell 6,3,2,1,1
+Cleric|War Domain,Cleric,War Domain,Spell 1,1,1,1,0
+Cleric|War Domain,Cleric,War Domain,Spell 2,1,1,1,0
+Cleric|War Domain,Cleric,War Domain,Spell 3,2,1,1,0
+Cleric|War Domain,Cleric,War Domain,Spell 4,2,1,1,0
+Cleric|War Domain,Cleric,War Domain,Spell 5,3,2,1,1
+Cleric|War Domain,Cleric,War Domain,Spell 6,3,2,1,1
+Druid|Circle of the Land,Druid,Circle of the Land,Spell 1,1,1,1,0
+Druid|Circle of the Land,Druid,Circle of the Land,Spell 2,1,1,1,0
+Druid|Circle of the Land,Druid,Circle of the Land,Spell 3,2,1,1,0
+Druid|Circle of the Land,Druid,Circle of the Land,Spell 4,2,1,1,0
+Druid|Circle of the Land,Druid,Circle of the Land,Spell 5,3,2,1,1
+Druid|Circle of the Land,Druid,Circle of the Land,Spell 6,3,2,1,1
+Druid|Circle of the Land,Druid,Circle of the Land,Cantrip 1,0,4,4,0
+Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 1,1,1,1,0
+Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 2,1,1,1,0
+Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 3,2,1,1,0
+Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 4,2,1,1,0
+Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 5,3,2,1,1
+Druid|Circle of the Moon,Druid,Circle of the Moon,Spell 6,3,2,1,1
+Druid|Circle of the Moon,Druid,Circle of the Moon,Cantrip 1,0,4,4,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 1,1,1,1,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 2,1,1,1,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 3,2,1,1,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 4,2,1,1,0
+Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 5,3,2,1,1
+Druid|Circle of the Sea,Druid,Circle of the Sea,Spell 6,3,2,1,1
+Druid|Circle of the Sea,Druid,Circle of the Sea,Cantrip 1,0,4,4,0
+Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 1,1,1,1,0
+Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 2,1,1,1,0
+Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 3,2,1,1,0
+Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 4,2,1,1,0
+Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 5,3,2,1,1
+Druid|Circle of the Stars,Druid,Circle of the Stars,Spell 6,3,2,1,1
+Druid|Circle of the Stars,Druid,Circle of the Stars,Cantrip 1,0,4,4,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Spell 1,1,1,1,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Spell 2,1,1,1,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Spell 3,2,1,1,0
+Paladin|Oath of Devotion,Paladin,Oath of Devotion,Spell 4,2,1,1,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Spell 1,1,1,1,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Spell 2,1,1,1,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Spell 3,2,1,1,0
+Paladin|Oath of Glory,Paladin,Oath of Glory,Spell 4,2,1,1,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Spell 1,1,1,1,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Spell 2,1,1,1,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Spell 3,2,1,1,0
+Paladin|Oath of the Ancients,Paladin,Oath of the Ancients,Spell 4,2,1,1,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Spell 1,1,1,1,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Spell 2,1,1,1,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Spell 3,2,1,1,0
+Paladin|Oath of Vengeance,Paladin,Oath of Vengeance,Spell 4,2,1,1,0
+Ranger|Fey Wanderer,Ranger,Fey Wanderer,Spell 1,1,1,1,0
+Ranger|Fey Wanderer,Ranger,Fey Wanderer,Spell 2,2,1,1,0
+Ranger|Gloom Stalker,Ranger,Gloom Stalker,Spell 1,1,1,1,0
+Ranger|Gloom Stalker,Ranger,Gloom Stalker,Spell 2,2,1,1,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 1,1,1,1,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 2,1,1,1,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 3,2,1,1,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 4,2,1,1,0
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 5,3,2,1,1
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Spell 6,3,2,1,1
+Sorcerer|Aberrant Sorcery,Sorcerer,Aberrant Sorcery,Cantrip 1,0,4,4,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 1,1,1,1,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 2,1,1,1,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 3,2,1,1,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 4,2,1,1,0
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 5,3,2,1,1
+Sorcerer|Clockwork Sorcery,Sorcerer,Clockwork Sorcery,Spell 6,3,2,1,1
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 1,1,1,1,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 2,1,1,1,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 3,2,1,1,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 4,2,1,1,0
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 5,3,2,1,1
+Sorcerer|Draconic Sorcery,Sorcerer,Draconic Sorcery,Spell 6,3,2,1,1
+Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 1,1,1,1,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 2,1,1,1,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 3,2,1,1,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 4,2,1,1,0
+Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 5,3,2,1,1
+Warlock|Archfey Patron,Warlock,Archfey Patron,Spell 6,3,2,1,1
+Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 1,1,1,1,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 2,1,1,1,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 3,2,1,1,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 4,2,1,1,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 5,3,2,1,1
+Warlock|Celestial Patron,Warlock,Celestial Patron,Spell 6,3,2,1,1
+Warlock|Celestial Patron,Warlock,Celestial Patron,Cantrip 1,0,4,4,0
+Warlock|Celestial Patron,Warlock,Celestial Patron,Cantrip 2,0,4,4,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 1,1,1,1,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 2,1,1,1,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 3,2,1,1,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 4,2,1,1,0
+Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 5,3,2,1,1
+Warlock|Fiend Patron,Warlock,Fiend Patron,Spell 6,3,2,1,1
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 1,1,1,1,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 2,1,1,1,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 3,2,1,1,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 4,2,1,1,0
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 5,3,2,1,1
+Warlock|Great Old One Patron,Warlock,Great Old One Patron,Spell 6,3,2,1,1
