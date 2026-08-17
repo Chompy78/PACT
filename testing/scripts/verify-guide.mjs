@@ -63,7 +63,29 @@ const dead = [...html.matchAll(/href=["']#([^"']+)["']/g)].map(m => m[1]).filter
 record('nav anchors    ', dead.length === 0,
   dead.length ? `${dead.length} dead link(s): ${[...new Set(dead)].slice(0, 4).join(', ')}` : `all resolve (${anchors.size} anchors)`);
 
-// ---- 6. version markers ---------------------------------------------------------------------
+// ---- 6. embedded artwork ---------------------------------------------------------------------
+// Added after a real loss: a sync that made the served copy byte-identical to the pact-guide master
+// silently deleted NINE chapter illustrations, because the master carries one JPEG cover where this
+// repo carries ten optimised WebPs. Prose grew in the same change, so the 324 KB drop read as the
+// compaction the sync was expected to produce. Nothing above notices — prices, structure and anchors
+// were all still perfect. This is deliberately a fixed inventory, not a count: it must be edited on
+// purpose, so an image can never leave the guide as a side effect of something else.
+const EXPECTED_ART = [
+  'PACT cover banner', 'The Unwritten Future', 'Growth Through Choice', 'Lessons Learned',
+  'Coin Into Capability', 'Echoes of the Past', 'Many Roads', 'Shaping Possibility',
+  'Every Choice Has Weight', 'The Ever-Unwritten Future',
+];
+const artAlts = [...html.matchAll(/<img[^>]*\balt=["']([^"']*)["']/g)].map(m => m[1]);
+const missingArt = EXPECTED_ART.filter(a => !artAlts.includes(a));
+const strayArt = artAlts.filter(a => !EXPECTED_ART.includes(a));
+const nonWebp = [...html.matchAll(/<img[^>]*src=["']data:(image\/[a-z]+)/g)].map(m => m[1]).filter(t => t !== 'image/webp');
+record('embedded art   ', missingArt.length === 0 && strayArt.length === 0 && nonWebp.length === 0,
+  missingArt.length ? `MISSING: ${missingArt.join(', ')}`
+  : strayArt.length ? `unexpected: ${strayArt.join(', ')} — update EXPECTED_ART if deliberate`
+  : nonWebp.length ? `${nonWebp.length} image(s) not WebP: ${[...new Set(nonWebp)].join(', ')}`
+  : `all ${EXPECTED_ART.length} present, all WebP`);
+
+// ---- 7. version markers ---------------------------------------------------------------------
 const cv = (html.match(/content-version:\s*(v[\d.]+)/) || [])[1];
 const dr = (html.match(/documents-rules:\s*version=(v[\d.]+)/) || [])[1];
 record('version markers', !!cv,
