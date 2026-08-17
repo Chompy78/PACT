@@ -24,9 +24,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const { chromium } = require('playwright');
+import { launchChromium } from './lib/launch-chromium.mjs';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
 const PORT = 7979;   // distinct from cloud-e2e 7970 / seed 7971 / dm-console-ui 7973
@@ -46,19 +44,6 @@ let pass=0, fail=0;
 const check=(n,ok,d='')=>{ ok?pass++:fail++; console.log(`  ${ok?'PASS':'FAIL'}  ${n}${d?' — '+d:''}`); };
 const section=t=>console.log(`\n[chargen-flows] == ${t} ==`);
 
-/* Fall back to whatever chromium is on disk when the pinned client and the pre-provisioned browser
-   builds disagree; CI installs a matching one and never reaches this. */
-async function launchChromium(){
-  try { return await chromium.launch(); }
-  catch (e) {
-    const root = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers';
-    const cands = [path.join(root,'chromium')];
-    try { for (const d of fs.readdirSync(root).filter(n=>/^chromium-\d+$/.test(n)).sort().reverse())
-            cands.push(path.join(root,d,'chrome-linux','chrome')); } catch {}
-    for (const exe of cands) { try { if (fs.existsSync(exe)) return await chromium.launch({executablePath:exe}); } catch {} }
-    throw e;
-  }
-}
 const browser = await launchChromium();
 const base = `http://localhost:${PORT}/PACT`;
 const PROBE = `window.__pactProbeId = function(){ try { return currentCharId(); } catch(e){ return 'ERR:'+e.message; } };`;
@@ -399,6 +384,76 @@ section('the mobile fixes do not regress desktop');
   });
   check('class grid keeps TWO columns on desktop', d.cols===2, `${d.cols} column(s)`);
   check('desktop does not scroll sideways', d.sw <= d.cw+1, `scrollW=${d.sw} clientW=${d.cw}`);
+  await ctx.close();
+}
+
+// -------------------------------------------------------------------------------------------------
+// Every class-gated purchase has THREE prices (origin / unlocked-sticker / cross-class) and
+// compute() charges all three. The picker rows used to know only two, so an unlocked class showed
+// the CROSS price on the row while the ledger charged the sticker — a bundle read "11 AP" and cost
+// 8. The invariant is not "the number is 8", it is "the number on the row equals the number in the
+// ledger", so this asserts them against each other rather than against a hardcoded table.
+section('row prices agree with the ledger at all three price tiers');
+{
+  const ctx = await browser.newContext({ viewport:{width:1280,height:1000} });
+  const p = await ctx.newPage();
+  await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, {waitUntil:'load'});
+  await p.waitForTimeout(3000);
+  await p.selectOption('#oclass', 'Cleric');
+  await p.waitForTimeout(200);
+  // A REAL click, not a synthetic change event: the bug this section exists for lived in the event
+  // plumbing, and a dispatched event would have papered straight over it. Leave Warlock alone so it
+  // stays a genuine cross-class purchase.
+  await p.click('.classunlock[data-cls="Druid"]');
+  await p.waitForTimeout(200);
+  const r = await p.evaluate(() => {
+    for (const k of ['Cleric|Life Domain','Druid|Circle of the Moon','Warlock|Archfey Patron']) addRow('subbundle', k);
+    for (const k of ['Cleric|Life Domain|Preserve Life (Channel Divinity)',
+                     "Druid|Circle of the Land|Land's Aid",
+                     'Warlock|Archfey Patron|Steps of the Fey']) addRow('subabil', k);
+    render();
+    const num = el => { const m = (el.textContent||'').match(/(-?\d+)\s*AP/); return m ? +m[1] : null; };
+    const rows = {};
+    document.querySelectorAll('.line').forEach(line => {
+      const sb = line.querySelector('.subbundlerow'), sa = line.querySelector('.subabilrow');
+      const pr = line.querySelector('.price');
+      if (sb && pr) rows['bundle:' + sb.value] = num(pr);
+      if (sa && pr) rows['abil:' + sa.value] = num(pr);
+    });
+    const c = compute(readBuild());
+    const ledger = {};
+    for (const [lab, ap] of c.lines) if (lab.startsWith('Spell list — ')) ledger['bundle:' + lab.slice('Spell list — '.length)] = ap;
+    for (const [lab, ap] of (c.itemize['Subclass abilities'] || [])) ledger['abil:' + lab] = ap;
+    return { rows, ledger, unlocked: readBuild().unlockedClasses };
+  });
+  const pairs = [
+    ['origin (Cleric)',        'bundle:Cleric|Life Domain',        'bundle:Life Domain'],
+    ['unlocked (Druid)',       'bundle:Druid|Circle of the Moon',  'bundle:Circle of the Moon'],
+    ['cross-class (Warlock)',  'bundle:Warlock|Archfey Patron',    'bundle:Archfey Patron'],
+    ['origin ability',         'abil:Cleric|Life Domain|Preserve Life (Channel Divinity)', 'abil:Cleric › Life Domain: Preserve Life (Channel Divinity)'],
+    ['unlocked ability',       "abil:Druid|Circle of the Land|Land's Aid",                 "abil:Druid › Circle of the Land: Land's Aid"],
+    ['cross-class ability',    'abil:Warlock|Archfey Patron|Steps of the Fey',             'abil:Warlock › Archfey Patron: Steps of the Fey'],
+  ];
+  check('Druid registers as an unlocked class', (r.unlocked||[]).includes('Druid'), JSON.stringify(r.unlocked));
+  for (const [name, rowKey, ledgerKey] of pairs) {
+    const shown = r.rows[rowKey], charged = r.ledger[ledgerKey];
+    check(`row price = ledger price — ${name}`, shown != null && shown === charged, `row ${shown} vs ledger ${charged}`);
+  }
+  // The three tiers must actually differ, or the check above would pass on a collapsed ladder.
+  const tiers = ['bundle:Cleric|Life Domain','bundle:Druid|Circle of the Moon','bundle:Warlock|Archfey Patron'].map(k => r.rows[k]);
+  check('and the three bundle tiers are genuinely distinct', new Set(tiers).size === 3, tiers.join(' / '));
+  // The unlock must be reversible too — a control that only latches on is half-dead.
+  await p.click('.classunlock[data-cls="Druid"]');
+  await p.waitForTimeout(200);
+  const back = await p.evaluate(() => {
+    const line = [...document.querySelectorAll('.line')].find(l => (l.querySelector('.subbundlerow')||{}).value === 'Druid|Circle of the Moon');
+    const m = (line.querySelector('.price').textContent||'').match(/(-?\d+)\s*AP/);
+    return { unlocked: readBuild().unlockedClasses, row: m ? +m[1] : null,
+             ledger: compute(readBuild()).lines.find(([lab]) => lab === 'Spell list — Circle of the Moon')[1] };
+  });
+  check('un-ticking the unlock retracts it', !(back.unlocked||[]).includes('Druid'), JSON.stringify(back.unlocked));
+  check('and the row falls back to the cross-class price, still matching the ledger',
+        back.row === back.ledger && back.row === 11, `row ${back.row} vs ledger ${back.ledger}`);
   await ctx.close();
 }
 

@@ -37,5 +37,16 @@
   "EV-015": [],
   "EV-016": [],
   "EV-017": [],
-  "EV-018": ["Boon of Combat Prowess: choose an ability to raise (+2)", "Boon of Combat Prowess: boon needs 17+ Hit Dice"]
+  "EV-018": [
+    "Boon of Combat Prowess: choose an ability to raise (+2)",
+    "Boon of Combat Prowess: boon needs 17+ Hit Dice"
+  ],
+  "CG-012": [
+    "⛔ Warlock: you cannot build from this class — unlock Warlock (§11) before taking its subclass abilities or its expanded spell list"
+  ],
+  "CG-013": [
+    "⛔ Paladin: you cannot build from this class — unlock Paladin (§11) before taking its subclass abilities or its expanded spell list"
+  ],
+  "CG-014": [],
+  "CG-015": []
 }

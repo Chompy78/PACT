@@ -145,7 +145,16 @@ for (const m of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/g)) {
     // number and no range can express "there is nothing here to buy".
     const wantPrice = lo === hi ? fmt(mine[0]) : `varies ${lo}–${hi}`;
     const cell = (cells[2] || '').replace(/[–—−]/g, '-');
-    if (!cell.includes(wantPrice.replace(/[–—−]/g, '-')))
+    // Parse the leading price token and compare NUMBERS. A substring test (`cell.includes("4 (2)")`)
+    // silently passes for "14 (2)" and "4 (12)" — verified by mutation, which is how this check
+    // came to be rewritten. The trailing prose ("— Wild Magic: none") is handled by the `anyNone`
+    // check below, so only the leading token is parsed here.
+    const lead = (cell.match(/^\s*(varies\s+\d+\s*-\s*\d+|\d+\s*\(\d+\)|\d+)(?![\d(])/i) || [, ''])[1];
+    const got = lead ? parsePrice(lead) : null;
+    const ok = lo === hi
+      ? !!got && got.cross === mine[0].sticker && got.origin === mine[0].origin
+      : !!got && got.lo === lo && got.hi === hi;
+    if (!ok)
       note(line, 'summary-mismatch', `${cls}: "${label}"`, `guide "${cells[2]}" should carry "${wantPrice}"`);
     if (anyNone && !/none/i.test(cell))
       note(line, 'summary-hides-none', `${cls}: "${label}"`,

@@ -6,6 +6,35 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-17 · fix(chargen): the class-unlock checkbox was a dead control — the unlocked price tier was
+  unreachable; plus three-tier row prices, a renamed-feature alias map, and four fixtures** — no
+  `DATA.version` change (no price moved). Adding an end-to-end test that CharGen's displayed row price
+  equals `compute()`'s charged ledger price turned up a bug the display fix would have papered over:
+  **ticking "unlock \<class\>" did nothing at all.** No `unlockclass` event reached the LOG and the box
+  sprang back — an inline `onchange="render()"` and `#form`'s own `input -> render()` both re-derived
+  `checked` from a LOG that had no entry yet, un-ticked it, and the delegated handler then read
+  `checked === false` and *retracted*. So the entire middle price tier shipped in v0.350 was unreachable
+  from the UI. Fixed by binding the checklist delegation in the **capture** phase for both `input` and
+  `change` (see `D-GH-2026-08-17-unlock-checkbox-dead-control`). The display half is fixed too: the row
+  `.price` spans for features, subclass abilities and bundles knew only origin/cross and showed `cross`
+  for an unlocked class while the ledger charged the sticker — a bundle read 11 AP and cost 8. All three
+  now route through one `PRC(o,u,x)` helper. Also: **`DATA.featureAliases`** — this branch removed two
+  `DATA.features` keys with no migration, and `compute()` drops an unknown key *silently*, so every saved
+  character holding one lost the feature and its AP (`D-GH-2026-08-17-renamed-feature-aliases`);
+  **`Elf: Wood Elf speed`** existed in `DATA.racial` but not `racialList`, so it was unbuyable; and a 0 AP
+  `Species traits` line is now emitted when it has itemized detail under it, instead of leaving free
+  heritage-pack traits filed under a heading `add()` had suppressed. Gates: **four new fixtures**
+  (`CG-012`–`CG-015`) covering the three price tiers for bundles and for subclass abilities, pack traits,
+  and the alias map — parity 30 → **34**; `chargen-flows-e2e` 46 → **56** with a real-click test of all
+  three tiers and of retraction. Two checker holes closed: `guide-bundle-check`'s summary rows compared by
+  `cell.includes()` (a mutation of `4` to `14 (9)` passed — six mutations now caught), and
+  `engine-parity.html`'s hardcoded manifest had silently gone stale by six fixtures while `AGENTS.md`
+  points humans at that page as the gate, so CI now fails if it drifts again. `launchChromium` was
+  factored into `testing/scripts/lib/launch-chromium.mjs` and given to `sw-cache-e2e`, which had none and
+  so could not run at all on a pre-provisioned machine. The commit message on `ee8dc41` is **wrong** about
+  its own root cause — `renderCloudRoster` is a synchronous chain ending in one `innerHTML =`, so the
+  40 ms sleep it replaced was never a race and the poll breaks on iteration 0; corrected in a comment at
+  the site, and the real cause of those two CI failures is **not** diagnosed.
 - **2026-08-17 · docs(guide): split the bonus-spell rules out of "Prepared casters", add Appendix J, and
   add a third checker that proves subclass bundles** — no rules change, so no `DATA.version` bump.
   The bonus-spell rules were buried inside the *Prepared casters* section even though they apply to every

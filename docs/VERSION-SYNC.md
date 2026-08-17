@@ -140,10 +140,16 @@ track it.
 **Update procedure for `docs/PACT-Players-Guide.html` — a plain copy, with the documented
 served-copy-only additions re-applied afterwards (see the box above).** `pact-guide` has no GitHub remote or CI, so there is no fully-automatic push. Whenever
 `pact-guide`'s canonical guide file changes, **the session that made that change** copies the finished
-HTML over `docs/PACT-Players-Guide.html` and commits. A straight `cp` is correct — and
-`diff <master> docs/PACT-Players-Guide.html` must come back clean afterwards. **That diff is the check:**
-if the two files ever differ, something has been edited on the served side, which is exactly what must
-not happen (the master is canonical — see `AGENTS.md`).
+HTML over `docs/PACT-Players-Guide.html` and commits — **then re-applies the served-copy-only additions
+listed in the ⛔ box above and re-runs `node testing/scripts/verify-guide.mjs`.**
+
+**A clean `diff` is NOT the check and must not be used as one.** The two files are expected to differ, by
+the three items in that box. Chasing a clean diff is precisely what destroyed nine illustrations and the
+whole theme system in `e0c5e9f`. The check is `verify-guide.mjs` passing on the served copy — it asserts
+each served-copy-only addition against a fixed inventory, so a transfer that drops one fails loudly.
+`diff` is still useful for *reviewing* a transfer — it should show the served-copy-only additions and
+nothing else — but its output is read, not required to be empty. The master remains canonical for prose
+(see `AGENTS.md`); the served copy is canonical for the PWA/presentation layer.
 
 > **Why this used to be more complicated (2026-08-16).** The served copy used to carry three
 > PACT-repo-only `<head>` tags — `<link rel="manifest">`, `<link rel="icon">` and

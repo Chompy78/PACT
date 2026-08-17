@@ -69,6 +69,33 @@ Recorded because the pattern matters more than any single fix.
 The common shape: **an absence claim asserted without the two independent checks `AGENTS.md` requires.**
 Each was cheap to check and expensive to have wrong.
 
+## The review pass — and the bug it found by accident
+
+`/code-review ultra` on the finished PR returned findings; ten were confirmed by execution rather
+than by reading. The merge was declined and they were fixed first. Three are worth keeping:
+
+- **The class-unlock checkbox was a dead control.** Not a display bug — ticking "unlock \<class\>"
+  in CharGen emitted nothing and the box sprang back, so the *unlocked* price tier this whole session
+  built was unreachable from the UI. Found only because the new end-to-end test asserted
+  `unlockedClasses` alongside the price it was checking; the first draft of that test used a synthetic
+  `change` event and **passed**, printing `[]` for the unlocked classes one line above. A checkbox
+  click fires `input` first, and `#form` renders on `input`. See
+  `D-GH-2026-08-17-unlock-checkbox-dead-control`.
+- **Two `DATA.features` keys were removed with no migration.** `compute()` drops an unknown feature
+  key silently, so every saved character holding one loses the feature *and its AP* with no warning
+  anywhere. Nothing in the repo said a rename was a breaking change. See
+  `D-GH-2026-08-17-renamed-feature-aliases`.
+- **The parity numbers were partly vacuous.** 30/0 looked like coverage, but no fixture exercised
+  `subSpellBundles`, `subAbilities` or `unlockedClasses` — i.e. nothing this session changed. Four
+  fixtures were added; the browser harness's hardcoded manifest also turned out to be six fixtures
+  stale, while `AGENTS.md` points humans at that page as *the* gate. CI now fails if it drifts again.
+
+And one correction to this session's own record: `ee8dc41`'s commit message confidently diagnoses a
+render race in `dm-console-ui-e2e`. There is no race — `renderCloudRoster` is a synchronous chain
+ending in a single `innerHTML =`, so the 40 ms sleep it replaced was never load-bearing and the poll
+that replaced it breaks on iteration 0. The change is kept (waiting on a condition beats sleeping on
+a guess) but the real cause of those two CI failures is **not** diagnosed, and the file now says so.
+
 ## Decisions taken
 
 - Bundles get three price tiers, with the cross-class surcharge (**v0.350**) — the load-bearing one.

@@ -60,6 +60,16 @@ export const BUILD = "v1.421";
 import { DATA } from './engine-data.js';
 export { DATA };
 
+/* Renamed-feature migration (v0.350). A saved character is a LOG of events, so a `feature`
+ * event holds whatever key existed the day it was recorded. When a key is split or renamed in
+ * DATA.features, compute()'s `if(!f)continue;` silently DROPS the purchase — the character
+ * loses the feature and the AP it cost, with no warning anywhere. v0.346 split
+ * "Druid: Elemental Fury / Improved circle" and v0.345 renamed "Paladin: Aura expansions"; this
+ * map is what keeps those characters whole. Applied at both funnels — MUT.feature (so replay
+ * normalises the build) and compute()'s lookup (so a build handed in directly still prices).
+ * Add an entry here whenever a DATA.features key is renamed or removed; never rename one silently. */
+export const FEAT_ALIAS = lab => (DATA.featureAliases && DATA.featureAliases[lab]) || lab;
+
 /* AP-by-level ladder — externalized to js/ap-by-level.js (feat/ap-by-level) and
  * surfaced on DATA so all three tools read it through the engine bridge. apByLevel/
  * defaultAp are the current names; levelAP/level1AP are back-compat aliases for the
@@ -146,7 +156,10 @@ export function compute(b, opts){
   b.hd=Math.min(20,Math.max(1,Math.floor(Number(b.hd)||1)));
   if(b.stats&&typeof b.stats==='object'){const s={};for(const k in b.stats)s[k]=Number(b.stats[k])||10;b.stats=s;}else b.stats={};
   const W=[]; const L=[]; let total=0;
-  function add(lab,ap){ if(ap!==0){L.push([lab,ap]);} total+=ap; } const _ITEMS={}; function addItems(lab,items){ const a=(items||[]).filter(x=>x); if(a.length)_ITEMS[lab]=a; }
+  // `force` keeps a 0 AP line visible when it still has itemized detail under it. Without it,
+  // a character whose only species traits are free heritage-pack traits got itemized entries
+  // filed under a "Species traits" heading that `add` had suppressed — detail with no heading.
+  function add(lab,ap,force){ if(ap!==0||force){L.push([lab,ap]);} total+=ap; } const _ITEMS={}; function addItems(lab,items){ const a=(items||[]).filter(x=>x); if(a.length)_ITEMS[lab]=a; }
   const st=b.stats||{};
   // base AP is paid on the purchased scores only
   let abilAP=0;for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){abilAP+=(DATA.ABIL[st[a]||10]||0);} add("Ability scores",abilAP);
@@ -263,7 +276,7 @@ export function compute(b, opts){
     // pay `cross` via the branches below.
     let _rc; if(_locked && isO && !r.pack){const _tt=Math.min(7,Math.max(r.tier||1,tier));const _row=DATA.MASTER[_tt];if(r.band==null){_rc=r.origin;}else{_rc=(_row&&_row[r.band])??r.origin;}} else if(isO){_rc=r.pack?0:r.origin;} else if(r.cross==null){W.push((lab.split(": ")[1]||lab)+" is origin-race only — it can't be taken cross-race.");continue;} else {_rc=r.cross;}
     racAP+=_rc;_SI.push([lab,_rc]);}
-  add("Species traits",racAP);addItems("Species traits",_SI);
+  add("Species traits",racAP,_SI.length>0);addItems("Species traits",_SI);
   // §10 cross-species T2+ rule: traits above T1 can only be purchased by the origin species
   for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;const isO=(r.race===b.species||r.race===b.species2);if(!isO&&(r.tier||1)>1)W.push((lab.split(': ')[1]||lab)+': only Tier 1 traits are available cross-species');}{var _rtSet=new Set(b.racialTraits||[]);var _ownsR=function(nm){if(_rtSet.has(nm))return true;var _r=DATA.racial[nm];return !!(_r&&_r.pack&&(_r.race===b.species||_r.race===b.species2));};for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;var _sn=(lab.split(": ")[1]||lab);if(r.reqRace&&!_ownsR(r.reqRace))W.push("⛔ "+_sn+" requires "+((r.reqRace.split(": ")[1])||r.reqRace));if(r.minHD&&hd<r.minHD)W.push("⛔ "+_sn+" needs "+r.minHD+" Hit Dice (level "+r.minHD+")");}}
   // §10 lineage spell-likes: cap-exempt cantrips + half-price 1/long-rest spells (Appendix B prices)
@@ -286,7 +299,7 @@ export function compute(b, opts){
   const _unlkSet=new Set(b.unlockedClasses||[]);
   // features — non-stepped: buy once. Stepped (rep): each re-buy is the next tier up.
   let featAP=0; const fcount={}; const _FI=[];
-  for(const lab of (b.features||[])){const f=DATA.features[lab];if(!f)continue;
+  for(const _lab0 of (b.features||[])){const lab=FEAT_ALIAS(_lab0);const f=DATA.features[lab];if(!f)continue;
     fcount[lab]=(fcount[lab]||0)+1; const n=fcount[lab];
     if(!f.rep && n>1){W.push((lab.split(": ")[1]||lab)+": already bought — can only be taken once (not a stepped feature)");continue;}
     let origin,cross,stick;
@@ -612,7 +625,7 @@ export const MUT = {
  hd:(b,p)=>b.hd=p.to, prof:(b,p)=>b.profBonus=p.to, abil:(b,p)=>b.stats[p.ab]=p.to,
  skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
  lineage:(b,p)=>b.lineage=p.v,wornArmour:(b,p)=>b.wornArmour=p.v, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
- feat:()=>0, feature:(b,p)=>b.features.push(p.v), art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v), mvbuy:(b,p)=>{b.maneuverBuys=(b.maneuverBuys||0)+1;},
+ feat:()=>0, feature:(b,p)=>b.features.push(FEAT_ALIAS(p.v)), art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v), mvbuy:(b,p)=>{b.maneuverBuys=(b.maneuverBuys||0)+1;},
  tool:(b,p)=>b.tools.push(p.v), instrument:(b,p)=>b.instruments.push(p.v), mastery:(b,p)=>b.masteries.push(p.v),
  language:(b,p)=>b.languages=p.to, vigor:(b,p)=>b.hardy=p.to, grit:(b,p)=>b.tough=p.to,
  armour:(b,p)=>b.armour[p.v]=true, wprof:(b,p)=>b.weaponProf=clone(p.wp),

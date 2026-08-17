@@ -10,6 +10,27 @@
 
 ## Index
 
+## D-GH-2026-08-17-unlock-checkbox-dead-control — the class-unlock checkbox was a dead control, so the unlocked price tier was unreachable; the fix is capture-phase delegation, not ordering luck
+- Ticking "unlock \<class\>" in CharGen did **nothing**: no `unlockclass` event reached the LOG and the box
+  sprang back. Two layered causes — an inline `onchange="render()"` (target phase, runs before any bubble
+  listener) and `#form`'s own `input -> render()` (a checkbox click fires `input` first). Either way `render()`
+  re-derived `checked` from a LOG with no entry yet, un-ticked the box, and the delegated handler read
+  `checked === false` and **retracted**. So the whole middle price tier — the entire point of
+  `bundle-three-tier-pricing` — was unreachable from the UI. Fixed by binding the checklist delegation in the
+  **capture** phase for both `input` and `change`, which beats every bubble listener by construction rather
+  than by registration order. Invisible to synthetic events: `dispatchEvent(new Event('change'))` skips
+  `input` and passes. No `DATA.version` change.
+  Full record: `decisions/2026/D-GH-2026-08-17-unlock-checkbox-dead-control.md`.
+
+## D-GH-2026-08-17-renamed-feature-aliases — a renamed `DATA.features` key silently deletes the purchase from every saved character, so renames need an alias map
+- `compute()`'s `if(!f) continue;` means a removed feature key is dropped from a saved character **with its AP**,
+  silently. This branch removed two (`Druid: Elemental Fury / Improved circle` split by v0.346;
+  `Paladin: Aura expansions` renamed by v0.345) with no migration. A backfill can't reach a JSON file on
+  someone's disk, so the fix is read-time: `DATA.featureAliases` + `FEAT_ALIAS()`, applied at `MUT.feature`
+  (replay normalises the build) and at `compute()`'s lookup (a directly-supplied build still prices).
+  **Add an entry whenever a `DATA.features` key is renamed or removed.** Fixture `CG-015` asserts it.
+  Full record: `decisions/2026/D-GH-2026-08-17-renamed-feature-aliases.md`.
+
 ## D-GH-2026-08-17-bundle-three-tier-pricing — §13's spell-access exemption covers the spell *economy*, not spell-*granting* features, so subclass bundles carry the ordinary cross-class surcharge
 - Bundles had two prices, not three: unlocking a class bought a **0 AP** reduction on a bundle while saving
   real AP on that class's abilities. §13 reads as though anything spell-shaped is exempt from +Tier, and

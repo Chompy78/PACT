@@ -259,7 +259,7 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   `<title>`, header `.sub` label), Live Sheet (line-1 comment), DM Console (`TOOL_VERSION`).
   `index.html` reads `BUILD` live, so **never hand-edit its version.** Full promotion/bump procedure:
   `docs/VERSION-SYNC.md`.
-- **Rules version** (`DATA.version`, currently `v0.343`) — the rules dataset. Bump ONLY when mechanics
+- **Rules version** (`DATA.version`, currently `v0.350`) — the rules dataset. Bump ONLY when mechanics
   change (ladders, prices, gates, `compute()` output). The display-only maps `masteryFx`, `drawbackFx`,
   `racialFx` and `page` fields are never read by `compute()` — editing them is a docs change, so don't
   bump it; just log it in `CHANGELOG.md`.
@@ -289,9 +289,13 @@ not updated the guide until it is copied back. Transfers are manual and verified
 
 > **The prohibition is divergence, not the keystrokes.** Editing the served copy and *leaving* it
 > diverged is the actual hazard — the next transfer from `pact-guide` silently wipes it. Editing here
-> deliberately and copying back before the session ends is fine. Since 2026-08-16 the two files are
-> byte-identical (see the PWA-tag removal in `CHANGELOG.md`), so a reverse `cp` is exactly as safe as a
-> forward one, and `diff` proves it either way. **Prefer local editing for bulk guide work:** this repo
+> deliberately and copying back before the session ends is fine. **The two files are NOT byte-identical
+> and must not be made so** — corrected 2026-08-17, see the ⛔ box in `docs/VERSION-SYNC.md`. The served
+> copy legitimately carries three things the master does not: 10 embedded WebP images, the `[data-theme]`
+> blocks + pre-paint theme script, and `.chapter-banner` CSS. A plain `cp` in *either* direction destroys
+> them, which is exactly what commit `e0c5e9f` did on 2026-08-16 while chasing a clean `diff`. Run
+> `node testing/scripts/verify-guide.mjs` before **and** after any transfer; a clean `diff` is no longer
+> the success condition, that script is. **Prefer local editing for bulk guide work:** this repo
 > has a shell, scripts, and `testing/scripts/guide-price-check.mjs` to verify against the live engine,
 > whereas the home-server connector costs a round trip per edit. Use the connector for `pact-guide`'s
 > *other* files — `TASK_BOARD.md`, `DECISIONS.md`, `CHANGELOG.md`, `plans/`, `py/tools/` — which have no
