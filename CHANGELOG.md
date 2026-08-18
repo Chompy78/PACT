@@ -6,6 +6,13 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · chore(version): `BUILD` → `v1.424` for PR #424 (`preview` → `main` promotion)** — second
+  promotion of the night, carrying rules **v0.354** (the drawback single-count fix) to the live site. The
+  number after the dot is the promoting PR's number per `docs/VERSION-SYNC.md`; mirrored in `js/engine.js`
+  (`export const BUILD`), CharGen (line-1 comment, `<title>`, header `.sub`), Live Sheet (line-1 comment)
+  and DM Console (`TOOL_VERSION`). The pre-release manual QA checklist was **not** run — flagged in the PR
+  body and in `docs/plans/2026-08-19-morning-review.md`.
+
 - **2026-08-19 · fix(rules): a drawback is income, not negative spending — model (b) (`DATA.version`
   **v0.354**)** — drawbacks were worth **double**. `foldBuild()` sets `b.budget = economy().earned`, which
   already includes `drawbackEarned`, and `compute()` *also* subtracted the grant from `total`. A level-1
