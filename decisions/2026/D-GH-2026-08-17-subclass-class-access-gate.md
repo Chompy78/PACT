@@ -1,6 +1,37 @@
 # D-GH-2026-08-17-subclass-class-access-gate — Subclass purchases warn when the class is neither origin nor unlocked; the framing that motivated it was wrong, and the gate is provisional
 
-**Status:** Implemented as a ⛔ warning (`DATA.version` v0.347). **Contested — do not treat as settled.**
+**Status:** **SUPERSEDED — the gate was removed in `DATA.version` v0.353**, one version after it was
+added. Kept as a record of a decision that was wrong and of how it was caught. Do not implement anything
+from this document.
+
+## Why it was removed (2026-08-18)
+
+Four reasons, in ascending order of seriousness:
+
+1. **The premise was wrong**, as the "Why" section below already conceded on the day it shipped. §11
+   blesses the cross-class per-feature route in as many words, so the gate warned against a purchase the
+   published rules endorse.
+2. **Three of four cold reviewers said do not gate**, two of them noting independently that PACT prices
+   class boundaries rather than forbidding them.
+3. **It contradicted §1**, whose *"just a shopping list, not a multiclass puzzle"* is the same line that
+   settled the flat unlock in `D-GH-2026-08-18-flat-class-unlock` a day later. The engine was carrying
+   both messages at once.
+4. **It did not work.** Measured on v0.352: the identical ability bought through the *feature* picker
+   cost the same 23 AP and raised **no warning at all**, because all 192 subclass abilities are mirrored
+   into `DATA.features`. Its only effect was to scold one of two identical purchase paths — which teaches
+   players something false about the path it does not cover.
+
+Removing it moved **no price**: `CG-012`/`CG-013` keep their totals (34 and 33) and simply lose a
+warning, which is the cleanest possible evidence that the three-tier pricing never depended on it.
+
+If a gate is ever wanted again, close the mirror first (`refactor/subclass-purchase-unify` on the NEXT
+board). A rule that guards one of two doors is worse than no rule.
+
+---
+
+*Original record follows, unedited.*
+
+**Status (as written 2026-08-17):** Implemented as a ⛔ warning (`DATA.version` v0.347). **Contested — do not treat as settled.**
 
 ## Context
 

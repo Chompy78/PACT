@@ -10,6 +10,16 @@
 
 ## Index
 
+## D-GH-2026-08-18-remove-subclass-access-gate — the §11 access gate is removed one version after it shipped
+- v0.347 warned *"⛔ \<class\>: you cannot build from this class"* on a subclass ability or bundle from a class
+  that was neither origin nor unlocked. Removed in **v0.353**. Its premise was wrong (§11 endorses the
+  cross-class route explicitly), three of four cold reviewers said do not gate, it contradicted the §1 line that
+  settled the flat unlock a day later — and it **did not work**: the identical ability bought through the feature
+  picker cost the same 23 AP and raised no warning, because all 192 subclass abilities are mirrored into
+  `DATA.features`. Its only effect was to scold one of two identical paths. Removing it moved **no price** —
+  `CG-012`/`CG-013` keep their totals and just lose a warning. If a gate is ever wanted again, close the mirror
+  first. Recorded in the superseded original: `decisions/2026/D-GH-2026-08-17-subclass-class-access-gate.md`.
+
 ## D-GH-2026-08-18-flat-class-unlock — class unlock becomes a flat 8 AP, and the ladder table is read with a clamp
 - The old **7 × classes-you-already-own** ladder contradicted the guide twice. §11 says the class unlock
   *"mirrors how subclasses are bought"*, and the actual subclass rule is *"a flat 15 AP to open, however many
@@ -66,7 +76,7 @@
   **undiscounted** sum as the basis makes double-discounting impossible by construction. `DATA.version` v0.350.
   Full record: `decisions/2026/D-GH-2026-08-17-bundle-three-tier-pricing.md`.
 
-## D-GH-2026-08-17-subclass-class-access-gate — Subclass purchases warn when the class is neither origin nor unlocked; the framing that motivated it was wrong, and the gate is provisional
+## D-GH-2026-08-17-subclass-class-access-gate — ⛔ SUPERSEDED (removed v0.353): subclass purchases warned when the class was neither origin nor unlocked; the framing that motivated it was wrong
 - `compute()` now raises a ⛔ warning (not a refusal) when a subclass ability or bundle is bought from a class
   that is neither origin nor unlocked — the guide's *"each class you can build from"* was never enforced, and
   three foreign spell lists cost 35 AP with no unlock and no warning. **Recorded with its own correction:** the

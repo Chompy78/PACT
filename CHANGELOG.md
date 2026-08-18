@@ -6,6 +6,21 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-18 · fix(rules): remove the §11 subclass access gate (`DATA.version` **v0.353**)** — v0.347
+  warned *"⛔ \<class\>: you cannot build from this class"* when a subclass ability or spell bundle came
+  from a class that was neither origin nor unlocked. Gone one version later, and deliberately not
+  replaced. Its premise was wrong — §11 endorses the cross-class per-feature route in as many words
+  (*"the per-feature surcharge is cheaper for a single dip"*), so it warned against a purchase the
+  published rules bless. Three of four cold reviewers said don't gate. It contradicted the §1 line
+  (*"just a shopping list, not a multiclass puzzle"*) that settled the flat unlock a day later, so the
+  engine was carrying both messages at once. **And it did not work:** the identical ability bought
+  through the *feature* picker cost the same 23 AP and raised no warning at all, because all **192**
+  subclass abilities are mirrored into `DATA.features` — its only effect was to scold one of two
+  identical purchase paths. Removing it moved **no price**: `CG-012`/`CG-013` keep their totals (34, 33)
+  and simply lose a warning, which is the cleanest evidence that three-tier bundle pricing never
+  depended on it. The guide never carried the gate, so no guide change. If a gate is ever wanted again,
+  close the mirror first (`refactor/subclass-purchase-unify`). See
+  `D-GH-2026-08-18-remove-subclass-access-gate`.
 - **2026-08-18 · feat(rules): class unlock becomes a flat 8 AP; the ladder table gains a clamp
   (`DATA.version` **v0.352**)** — the old **7 × classes-you-already-own** ladder contradicted the guide
   in two places. §11 says the class unlock *"mirrors how subclasses are bought"*, and the guide's actual

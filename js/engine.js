@@ -366,18 +366,22 @@ export function compute(b, opts){
     for(const sub of used){if(sub!==free){subUnlockAP+=DATA.subUnlock;subUnlockN++;}}}
   {const _vc={};for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");if(_p.length>=3){const _k=_p[0]+"|"+_p[1];(_vc[_k]=_vc[_k]||{})[_p[2]]=1;}}for(const _k in _vc){const _x=Object.keys(_vc[_k]).length-1;if(_x>0){subUnlockAP+=_x*DATA.subUnlock;subUnlockN+=_x;}}}
   if(subUnlockAP) add("Subclass unlocks ("+subUnlockN+" × 15)",subUnlockAP);
-  // §11 gate (v0.347): a subclass belongs to its class, so its abilities and its expanded spell list
-  // are only available from a class you can actually build from — your origin class, or one you have
-  // unlocked. The guide already says this ("each class you can build from gives you one subclass for
-  // free: pick it, and you may buy its expanded spell list and any of its abilities"), but nothing
-  // enforced it: a Fighter with no Cleric access could buy Life Domain's spell list for 8 AP, and
-  // because a bought bundle registers in subUsed above, it also claimed that domain as the class's
-  // free subclass — so no 15 AP subclass unlock landed either. Warn rather than refuse, matching how
-  // every other ⛔ prerequisite in this file behaves; the price is still charged.
-  for(const cls in subUsed){
-    if(cls===b.originClass||cls===b.originClass2||_unlkSet.has(cls))continue;
-    W.push("⛔ "+cls+": you cannot build from this class — unlock "+cls+" (§11) before taking its subclass abilities or its expanded spell list");
-  }
+  // NO §11 ACCESS GATE HERE — removed in v0.353, one version after it was added, and deliberately not
+  // replaced. v0.347 warned "⛔ <class>: you cannot build from this class" when a subclass ability or
+  // spell bundle came from a class that was neither origin nor unlocked. Four reasons it is gone:
+  //   1. Its premise was wrong. §11 blesses the cross-class per-feature route in as many words — "the
+  //      per-feature surcharge is cheaper for a single dip" — so it warned against a purchase the
+  //      published rules endorse.
+  //   2. Three of four cold reviewers said do not gate; two independently noted that PACT prices class
+  //      boundaries rather than forbidding them.
+  //   3. It contradicted §1's pitch, which v0.352's flat unlock was chosen to honour: cross-class is
+  //      "just a shopping list, not a multiclass puzzle".
+  //   4. It did not work. All 192 subclass abilities are mirrored into DATA.features, so the identical
+  //      purchase through the feature picker cost the same and raised no warning at all. Its only
+  //      effect was to scold one of two identical paths.
+  // If a gate is ever wanted again, close the mirror first (refactor/subclass-purchase-unify) — a rule
+  // that guards one of two doors teaches players the wrong thing about the door it does not guard.
+  // See D-GH-2026-08-17-subclass-class-access-gate (Superseded) and D-GH-2026-08-18-flat-class-unlock.
   // v0.196: paid subclass "expanded spell list" bundles — opt-in, one buy = whole bundle
   //   (always-prepared bonus spells + free cap-exempt cantrips are granted in eligibleSpells, gated on purchase).
   for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");const _sc=(DATA.subclasses[_p[0]]||{})[_p[1]];const _bn=_sc&&_sc.spellBundle;if(!_bn)continue;
