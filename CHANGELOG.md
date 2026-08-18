@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · fix(tools): drawback-cap info in both player tools, and CharGen's stale second-origin
+  price** — three player-facing label bugs, all found while adding cap information to the drawback
+  sections. **(1)** CharGen's drawback panel warned at a hardcoded `>14` and said "over 14 AP" while
+  colouring at `>12` and `DATA.drawbackCap` said 12 — it contradicted itself and the Players Guide in
+  the same three lines, and a player on 13 or 14 AP was told nothing at all. Now reads `DATA.drawbackCap`
+  throughout. **(2)** The Live Sheet's "Drawbacks (gain AP)" panel showed **no** cap information at all;
+  it now carries a line reading the gain off `compute()`'s own itemised rows (so DM-custom drawbacks
+  count — re-summing from `DATA` locally would have scored them 0). **(3)** CharGen's second-origin-class
+  picker hint still said **`+14 AP`** six days after the price rose 14 → 18
+  (`D-GH-2026-08-18-drawback-cap-and-second-origin`): the tool quoted 14 and the engine charged 18. The
+  price now lives in `DATA.secondOriginAP`, read by both `engine.js` and the label, so the two cannot
+  drift again. No `DATA.version` bump — `compute()` output is unchanged for every input; the new key
+  only relocates a literal the engine already used.
+
 - **2026-08-19 · docs(tasks): graduate "Drawbacks are counted twice", and split out what it did not
   settle** — the board task `fix/drawback-ap-double-count` (found 2026-08-07 on `Moss Stormspud (COPY)`)
   is closed by v0.354 + v0.355: a drawback is counted exactly once, and `playerAp` now means what

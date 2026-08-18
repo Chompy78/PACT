@@ -320,7 +320,10 @@ export function compute(b, opts){
   // at 14 the two numbers matched exactly, so two drawbacks funded a whole second origin class for
   // nothing and raised no warning at all. A second origin still carries its own hidden cost — it
   // shifts you up the unlock ladder, so every later unlock costs 7/14/21 more.
-  if(has2nd) add("2nd origin class",18);
+  // Price lives in DATA so the tools can LABEL it without hardcoding a second copy. CharGen's own
+  // picker hint said "+14 AP" for six days after this rose 14 -> 18 (D-GH-2026-08-18-drawback-cap-
+  // and-second-origin), quoting a player one price and charging another.
+  if(has2nd) add("2nd origin class",DATA.secondOriginAP);
   // §14 Martially Bound: choose one class; −1 AP (floor 1) on that class's features, stacks with origin. +2 AP gain.
   const mbClass=(b.martiallyBound && b.martiallyBound!=="(none)")?b.martiallyBound:null;
   // Membership-only view of unlockedClasses, built once and shared by the features / subclass-ability /
