@@ -7,58 +7,75 @@ characters being built this week.
 working class-unlock checkbox, a buyable `Elf: Wood Elf speed`, the feature-rename alias map, the ten
 restored guide illustrations, the theme switcher, and Appendix J.
 
-**Two things were deliberately NOT done overnight**, both flagged in the merge commit: the pre-release
-manual QA checklist (this session cannot do manual QA), and the drawback double-count — item 1 below.
+**Then you answered "b"**, and the drawback double-count — the one item that could unbalance your table
+this week — was fixed too: rules `v0.354`, commit `80297f2`, on `preview`. Item 1 below is now a record
+of what was done rather than a decision waiting on you.
+
+**One thing is still deliberately NOT done:** the pre-release manual QA checklist. This session cannot do
+manual QA, and both promotions have now gone out without it.
 
 ---
 
-## 1. 🔴 Drawbacks are worth double — the only item that can unbalance your table this week
+## 1. ✅ Drawbacks were worth double — FIXED overnight, model (b), rules `v0.354`
 
-**Branch:** `fix/drawback-ap-double-count` · **Effort:** medium · **Risk:** high (changes `compute()`
-output, needs a `DATA.version` bump) · **Live on `main` right now.**
+**Commit:** `80297f2` on `preview` · **Decision record:** `D-GH-2026-08-19-drawback-single-count` ·
+**Status:** you answered "b" before bed, so this stopped being a decision and became work I could do.
+
+### What was wrong
 
 `foldBuild()` sets `b.budget = economy().earned`, and `earned` includes `drawbackEarned`. `compute()`
-then does `playerAp = b.budget`. But `total` **already** nets drawbacks, because their `cost` is
-negative. So a drawback both lowers what you spend *and* raises what you can spend.
+then did `playerAp = b.budget`. But `total` **already** netted drawbacks, because their `cost` is
+negative. So a drawback both lowered what you spent *and* raised what you could spend.
 
-Measured on the live engine — a level-1 Fighter awarded 79 AP:
+Measured on the pre-fix engine — a level-1 Fighter awarded 79 AP:
 
-| Drawbacks | Drawback AP | AP actually available | vs 79 |
+| Drawbacks | Drawback AP | AP available (before) | AP available (now) |
 |---|---|---|---|
-| 0 | 0 | 79 | — |
-| 2 | 14 | **107** | +35% |
-| 4 | 26 | **131** | +66% |
-| 6 | 37 | **153** | +94% |
+| 0 | 0 | 79 | 79 |
+| 2 | 14 | **107** | **93** |
+| 4 | 26 | **131** | **105** |
+| 6 | 37 | **153** | **116** |
 
-Two players at the same table, one taking four drawbacks, build on 131 AP and 79 AP.
+### What model (b) does
 
-### Why I did not fix it overnight
+A drawback is **income, not negative spending**. The grant reaches the character through `b.budget`
+only; `total` no longer nets it. `79 + 14 granted − 3 spent = 90 remaining` — which is what the guide's
+§14 prose already promised and what the ledger now actually shows.
 
-The bug is unambiguous; **the correction is a genuine two-model choice** and both models are
-self-consistent:
+The `Drawbacks (refund) −14` line **still appears** in the ledger with its itemised rows, via a new
+`addDisplay()` helper that pushes a display row without touching `total`. Dropping the line would have
+broken the invariant that every itemised group has a heading its rows sum to — which `tool-pricing-ci`
+asserts, rightly.
 
-```
-(a) total NETS the drawback (lower), budget EXCLUDES the refund
-(b) total IGNORES the drawback (higher), budget INCLUDES the refund
-    current: total nets it AND budget includes it   -> counted twice
-```
+The campaign drawback cap still works: excess is now withheld from the *budget*
+(`_dWithheld = max(0, drawGain − granted)`) rather than clawed back from the total.
 
-Both give the same, correct `remaining`. They differ in what the ledger *displays* as "total" and
-"budget" — which is player-facing, so it is your call, not mine.
+### Two things the fix turned up that were not in last night's writeup
 
-**My recommendation: (b).** The guide says drawbacks *"grant AP up front"*, so a player's mental model
-is "my budget went up". Under (b) the Drawbacks line stops appearing as a negative cost and the budget
-rises instead, which is what the prose already promises. (a) is equally correct arithmetically but makes
-the ledger say something the guide does not.
+1. **`b.budget` now carries a contract**, documented in the code: it is EARNED AP *including* drawback
+   grants — exactly what `foldBuild()` produces. Every real caller folds, so every real caller satisfies
+   it. A hand-authored build (a test fixture) that sets `budget` any other way now gets nothing from its
+   drawbacks, because under (b) the grant arrives on the budget side and nowhere else.
+2. **`economy()` was silently missing legacy drawbacks.** Older CharGen exports delivered drawbacks as a
+   coalescing `patch` event whose whole cost is the grant, not as `cat:'drawback'` — fixture `LS-001`
+   carries one. Before (b) that shape still worked by accident, because `total` netted the negative cost.
+   Under (b) it would have granted **nothing**, quietly costing those characters their drawback AP.
+   `_economyFrom` now recognises the legacy shape. Verified: LS-001 budget 81, total 79, remaining 2.
 
-**Interim mitigation available today, zero code:** the campaign drawback cap shipped in v0.351 limits the
-*grant* to 12 AP by default, which caps the overcount at +12 rather than +52. It only applies to
-characters in a cloud campaign. For local characters, a house rule ("12 AP of drawbacks, and I check the
-total") is the whole fix until this lands.
+### Verification
 
-**Done when:** a level-1 character with N drawbacks has exactly `79 + drawbackAP − spent` available, a
-parity fixture pins it, and the guide's §14 wording matches whichever model you pick.
+All twelve gates green: parity **38/0** (up from 37 — new fixture `EV-019-drawback-counted-once`),
+tool-pricing 134/0, chargen-flows 56/56, dm-console-ui 94/94, sw-cache pass, log-fuzz 500/500, four sync
+gates 54/0, verify-guide 9/9. Guide §14 reworded to match. `DATA.version` → `v0.354`.
 
+Fixture budgets that moved with the model change (all re-derived from the arithmetic, not fitted):
+CG-002 50→51, CG-016 −26→0, CG-017 −12→0, LS-001 78→79, EV-017 4→6.
+
+### Where it is now
+
+Promoted to `main` in a second overnight promotion (see the promotion note at the bottom of this file),
+under your "merge all these to main" instruction — the fix is live for your players. The pre-release
+manual QA checklist still has not been run by anyone; see "What I would do first thing".
 ---
 
 ## 2. 🟠 The `pact-guide` copy-back — now five sessions behind
@@ -120,8 +137,10 @@ both representations, share one dedup domain). Ready to send whenever you want.
 
 ## What I would do first thing
 
-1. **Decide the drawback model — (a) or (b).** Everything else can wait a week; that one is live and
-   affects the characters being built. I can implement and ship it in one pass once you say which.
-2. **Run the pre-release manual QA checklist** in `docs/HOW-TO-WORK.md` against the freshly promoted
-   `main`, since the promotion went out without it.
-3. Then the copy-back, then the refactor reviews.
+1. **Sanity-check the drawback fix in the actual tool**, not in the test output — open CharGen, take two
+   drawbacks on a level-1 character, and confirm the ledger reads `budget 93 / spent 3 / 90 left` and
+   still shows the itemised `Drawbacks (refund)` group. Five minutes, and it is the one thing the twelve
+   automated gates cannot tell you: whether the numbers a *player* sees read sensibly.
+2. **Run the pre-release manual QA checklist** in `docs/HOW-TO-WORK.md`. Two promotions have now shipped
+   without it.
+3. Then the copy-back (item 2 — highest risk of silent data loss), then the refactor reviews.
