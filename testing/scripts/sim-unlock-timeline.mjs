@@ -41,6 +41,12 @@ export const UNLOCK_MODELS = {
   'HD 7+tier':   (_nth, tier)     => 7 + tier,
   'HD 7+2tier':  (_nth, tier)     => 7 + 2 * tier,
   'HD 7xtier':   (_nth, tier)     => 7 * tier,
+  // Capped ladders. Proposed independently by two cold reviewers (Copilot at 14,
+  // DeepSeek at 28) and absent from the original menu: keep escalation so breadth still
+  // costs more, but clamp it so the 3rd-and-later unlock stops being unreachable.
+  '7N cap 14':   (nth)            => Math.min(7 * nth, 14),
+  '7N cap 21':   (nth)            => Math.min(7 * nth, 21),
+  '7N cap 28':   (nth)            => Math.min(7 * nth, 28),
 };
 
 /**

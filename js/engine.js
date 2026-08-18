@@ -290,7 +290,13 @@ export function compute(b, opts){
   const _xc=((b.unlockedClasses||[]).filter(c=>c!==b.originClass&&c!==b.originClass2).length)||(b.extraClasses||0);const _uStart=ownedBefore-1,_uEnd=_uStart+_xc;
         const unlockAP=(DATA.unlockCum[_uEnd]||0)-DATA.unlockCum[_uStart];  // §: uses unlockCum table for explicitness
   add("Class unlocks",unlockAP);
-  if(has2nd) add("2nd origin class",14);
+  // v0.351 (AY2): 14 -> 18. At 14 a second origin paid for itself after SIX features, which put it
+  // inside what almost anyone takes, so it read as a default pick rather than a two-class concept.
+  // 18 moves the break-even to eight. It is also deliberately above the 14 AP drawback allowance:
+  // at 14 the two numbers matched exactly, so two drawbacks funded a whole second origin class for
+  // nothing and raised no warning at all. A second origin still carries its own hidden cost — it
+  // shifts you up the unlock ladder, so every later unlock costs 7/14/21 more.
+  if(has2nd) add("2nd origin class",18);
   // §14 Martially Bound: choose one class; −1 AP (floor 1) on that class's features, stacks with origin. +2 AP gain.
   const mbClass=(b.martiallyBound && b.martiallyBound!=="(none)")?b.martiallyBound:null;
   // Membership-only view of unlockedClasses, built once and shared by the features / subclass-ability /
@@ -504,7 +510,8 @@ export function compute(b, opts){
    if(_da.tasha===false){const _tb=(coll,owned)=>{(owned||[]).forEach(k=>{const it=coll[k];if(it&&it.noncore)W.push("⛔ "+(String(k).split(": ")[1]||k)+": non-core (DM-gated) ability barred by DM house rules");});};
      _tb(DATA.features,b.features);_tb(DATA.boons,b.boons);_tb(DATA.arts,b.arts);}}
   // drawbacks
-  // §14: drawbacks grant AP, but no more than 14 AP total across a character
+  // §14: drawbacks grant AP, capped at 14 by default. The cap is ENFORCED when a campaign passes
+  // opts.drawbackCap and ADVISORY otherwise — see the add() call below for why the two differ.
   // Skip unknowns, as all five sibling itemised loops do (:247 :275 :312 :441). Behaviour-identical for
   // the total (an unknown scores v=0) and for warnings (drawbackMaxStats[unknown] is {}), but it stops a
   // drawback retired from the rules rendering a phantom "<name> 0" row, and stops an all-unknown list
@@ -514,8 +521,21 @@ export function compute(b, opts){
   // Rows are NEGATIVE so they sum to the line total (-drawGain), the same relationship the other five
   // itemised lines have with theirs. `v` is the value actually charged, so a house-ruled drawback
   // (b.houseRules.draws) itemises at its overridden AP, not the printed one.
-  add("Drawbacks (refund)",-drawGain);addItems("Drawbacks (refund)",_DI);
-  if(drawGain>14) W.push("Drawbacks grant "+drawGain+" AP — note most tables cap at 14 AP (check with your DM)");
+  // v0.351 (AZ1): the cap is REAL in a campaign and advisory outside one.
+  //
+  // The comment above this block claimed "§14: drawbacks grant AP, but no more than 14 AP total across
+  // a character" and the code did not do it — it only warned. All 69 drawbacks together granted 217 AP,
+  // more than a level-11 character's whole feature budget. That is now enforced when a campaign supplies
+  // a cap (opts.drawbackCap), because a campaign has a DM whose ruling the number represents. A local,
+  // un-bound character keeps the advisory warning and the full grant: there is nobody to adjudicate for
+  // them, and silently clamping a solo build would change what people can already make offline.
+  const _dCap=(opts&&Number.isFinite(opts.drawbackCap))?Math.max(0,opts.drawbackCap):null;
+  const _dGranted=(_dCap!=null)?Math.min(drawGain,_dCap):drawGain;
+  add("Drawbacks (refund)",-_dGranted);addItems("Drawbacks (refund)",_DI);
+  if(_dCap!=null&&drawGain>_dCap)
+    W.push("Drawbacks grant "+drawGain+" AP but this campaign caps them at "+_dCap+" — "+(drawGain-_dCap)+" AP not granted");
+  else if(_dCap==null&&drawGain>14)
+    W.push("Drawbacks grant "+drawGain+" AP — note most tables cap at 14 AP (check with your DM)");
   if((b.drawbacks||[]).length>3) W.push((b.drawbacks||[]).length+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
   // Lost purchases (feat/ledger-show-lost-purchases, D-GH-2026-08-10): a bought-off drawback or a
   // DM-removed boon drops OUT of the fold entirely (see _replay's boughtOff/boonRemoved guards) — it's

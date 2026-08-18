@@ -158,7 +158,7 @@ for (const origin of ORIGINS) {
   const cands = FOREIGN.filter(c => c !== origin);
 
   // Reserve AP for unlocks under each model, then pack the rest. Try unlocking 0..3 foreign classes.
-  for (const mName of ['current 7N', 'flat 7', 'flat 10', 'HD 7+tier', 'HD 7xtier']) {
+  for (const mName of ['current 7N', 'flat 7', 'flat 10', 'HD 7+tier', '7N cap 14', '7N cap 21', '7N cap 28']) {
     let best = null;
     const tryUnlock = (set, when) => {
       const steps = set.map(c => ({ lvl: when, unlock: c }));

@@ -49,6 +49,12 @@ const MODELS = {
   'flat 12':      cum(() => 12),
   '5N':           cum(n => 5 * n),
   '10 then +4':   cum(n => 10 + 4 * (n - 1)),
+  // Capped ladders — proposed independently by two cold reviewers and absent from the original
+  // menu. Keep escalation so breadth still costs more, clamp it so later unlocks stop being
+  // unreachable.
+  '7N cap 14':    cum(n => Math.min(7 * n, 14)),
+  '7N cap 21':    cum(n => Math.min(7 * n, 21)),
+  '7N cap 28':    cum(n => Math.min(7 * n, 28)),
 };
 const LIVE = DATA.unlockCum;
 

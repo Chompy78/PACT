@@ -48,7 +48,9 @@
         { id: "CG-012", path: "../fixtures/builds/CG-012-bundle-three-price-tiers.json" },
         { id: "CG-013", path: "../fixtures/builds/CG-013-subability-three-price-tiers.json" },
         { id: "CG-014", path: "../fixtures/builds/CG-014-heritage-pack-zero-ap-line.json" },
-        { id: "CG-015", path: "../fixtures/builds/CG-015-renamed-feature-aliases.json" }
+        { id: "CG-015", path: "../fixtures/builds/CG-015-renamed-feature-aliases.json" },
+        { id: "CG-016", path: "../fixtures/builds/CG-016-drawback-cap-local-advisory.json" },
+        { id: "CG-017", path: "../fixtures/builds/CG-017-drawback-cap-campaign-enforced.json" }
       ],
       liveSheets: [
         { id: "LS-001", path: "../fixtures/live-sheets/LS-001-clean-generator-export.json" }
@@ -97,7 +99,7 @@
       for (const { id, path } of FIXTURES.builds) {
         try {
           const build = await loadJson(path);
-          const r = compute(build);
+          const r = compute(build, build._apOpts);   // `_apOpts` = compute()'s campaign-side options
           rows.push({
             id, group: "chargen", path,
             total: r.total,

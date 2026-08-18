@@ -50,7 +50,10 @@ async function runAll() {
   for (const { id, path: p } of await discoverFixtures('builds')) {
     try {
       const build = await loadJson(p);
-      const r = compute(build);
+      // A fixture may carry `_apOpts` — compute()'s campaign-side second argument (dmAp,
+      // ignorePlayerAp, drawbackCap). Without this the campaign-only half of any rule is
+      // untestable here, which is exactly how the drawback cap shipped unenforced.
+      const r = compute(build, build._apOpts);
       rows.push({
         id, group: 'chargen', path: p,
         total: r.total, warnings: r.warnings.length, warningsArr: r.warnings, remaining: r.remaining,

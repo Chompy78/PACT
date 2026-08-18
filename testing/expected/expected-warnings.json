@@ -48,5 +48,13 @@
     "⛔ Paladin: you cannot build from this class — unlock Paladin (§11) before taking its subclass abilities or its expanded spell list"
   ],
   "CG-014": [],
-  "CG-015": []
+  "CG-015": [],
+  "CG-016": [
+    "Drawbacks grant 26 AP — note most tables cap at 14 AP (check with your DM)",
+    "4 drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved"
+  ],
+  "CG-017": [
+    "Drawbacks grant 26 AP but this campaign caps them at 14 — 12 AP not granted",
+    "4 drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved"
+  ]
 }
