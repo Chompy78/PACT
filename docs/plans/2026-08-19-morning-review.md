@@ -44,9 +44,11 @@ Measured on the pre-fix engine — a level-1 Fighter awarded 79 AP:
 
 ### What model (b) does
 
-A drawback is **income, not negative spending**. The grant reaches the character through `b.budget`
-only; `total` no longer nets it. `79 + 14 granted − 3 spent = 90 remaining` — which is what the guide's
-§14 prose already promised and what the ledger now actually shows.
+A drawback is **income, not negative spending**. `total` no longer nets it; it arrives on the budget
+side. `79 + 14 granted − 3 spent = 90 remaining` — which is what the guide's §14 prose already promised
+("A 79 AP character who takes 12 AP of drawbacks has 91 AP to spend, once") and what the ledger now
+actually shows. *(In v0.354 the grant rode in on `b.budget` from the caller; v0.355 moved it inside
+`compute()` — see the second-go section. The model is the same either way.)*
 
 The `Drawbacks (refund) −14` line **still appears** in the ledger with its itemised rows, via a new
 `addDisplay()` helper that pushes a display row without touching `total`. Dropping the line would have
