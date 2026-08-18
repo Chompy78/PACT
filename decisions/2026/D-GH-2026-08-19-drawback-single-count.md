@@ -74,3 +74,91 @@ This is the third time this project has nearly lost saved-character data to a sh
   `spent === total`; the subtraction existed only to cancel the double-count.
 - All twelve gates green: parity 38/0, tool-pricing 134/0, chargen-flows 56/56, dm-console-ui 94/94,
   sw-cache pass, log-fuzz 500/500, four sync gates 54/0, verify-guide 9/9.
+
+---
+
+## Addendum (same night, v0.355) — the contract was a trap, and it broke CharGen
+
+**The claim "EV-019 pins the whole thing end to end" above is wrong, and the way it is wrong is the
+point of this addendum.** `engine-parity` asserts `total`, the warning count, the exact warning text,
+and the **sign** of `remaining`. It never asserts the **value** of `budget` or `remaining`. So EV-019 —
+added specifically to pin the drawback grant — passes identically whether a drawback is worth double,
+single, or nothing at all. All 38 fixtures do. The gate suite could not see the income side of
+`compute()` at all.
+
+**What that hid.** v0.354 delivered the grant through `b.budget`, documented as a caller contract:
+*"`b.budget` is EARNED AP including drawback grants — exactly what `foldBuild()` produces. Every real
+caller folds, so every real caller satisfies this."* That last sentence was false. **CharGen does not
+fold.** `readBuild()` reads the form, where `budget` is the award field alone. So in the tool where
+characters are actually created, v0.354 made drawbacks worth **zero** — strictly worse than the
+double-count it replaced, and it shipped to `preview` and was one merge away from `main`.
+
+It was caught by driving the real CharGen in a headless browser before merging the promotion: 79 AP
+award, two drawbacks worth 6 AP, budget still 79.
+
+### Decision
+
+Model (b) is unchanged — a drawback is income. What changes is **where the income enters**.
+
+`compute()` now derives the grant itself from `b.drawbacks` (it already computed `drawGain`/`_dGranted`
+for the ledger line and the cap warning) and adds it to `spendable`. `b.budget` goes back to meaning
+exactly one thing: **awards only**.
+
+```
+v0.354:  spendable = b.budget(awards + grants) − withheld + dmAp     ← caller must supply the grant
+v0.355:  spendable = (b.budget(awards) + _dGranted) + dmAp           ← compute() derives it
+```
+
+Both folding entry points now pass awards only: `foldBuild()` sets `earned − drawbackEarned`, and
+`rebuildStateFromEvents()` the same. The cap is applied by capping `_dGranted`, not by clawing back from
+the budget. The grant sits **inside** the `ignorePlayerAp` bracket, because it is player-side income — a
+campaign that ignores a player's own AP ignores what their drawbacks earned too, exactly as before.
+
+### Why not just fix CharGen
+
+The obvious one-line patch is to have `readBuild()` sum `DATA.drawbacks` into its `budget`. That is
+re-implementing rules logic in a tool, which `AGENTS.md` forbids outright — and it would leave the same
+trap armed for the next non-folding caller. A contract a caller can quietly violate is not a contract.
+Deriving the grant where the rules live makes the bad state unrepresentable: no caller can get it wrong
+because no caller is asked.
+
+### The gates that were missing, now added
+
+1. **`log-fuzz` — the income invariant.** `compute().budget === economy().earned` on every fuzzed log
+   (excluding logs whose drawback cost differs from the current table value, where the frozen ledger and
+   the live table legitimately disagree — the same carve-out the existing `repriceDrift` check makes).
+   Stated against the frozen ledger, so it holds under any pricing model.
+   **It paid for itself immediately:** it failed on the first run, on `rebuildStateFromEvents()`, which
+   also set `b.budget = economy().earned` and so double-granted every drawback. That is a second folding
+   entry point — the one the parity runner uses for event fixtures — and nothing else was checking it
+   against `foldBuild()` on this axis.
+2. **`chargen-flows-e2e` — a real drawback click in the real CharGen.** Ten checks: the budget rises by
+   exactly the grant, `total` is untouched, AP-left rises once, the on-screen status line agrees with
+   `compute()`, the ledger heading and its itemised rows survive, and un-ticking returns every point.
+   56 → **66** checks.
+
+Both were verified by re-introducing each bug and watching them fail: with the grant removed,
+`chargen-flows` fails 2 checks and `log-fuzz` reports `incomeDrift`; with the double-count restored,
+`log-fuzz` reports `incomeDrift` and **parity still passes 38/0** — which is the measurement that
+justifies both new gates existing.
+
+### Fixture correction
+
+`CG-002` goes back to a budget of **50** (v0.354 had raised it to 51 purely to satisfy the contract).
+Its intent — a 50 AP award, 1 AP from `Geas of the Road`, all 51 spent, remaining 0 — is now expressed
+directly again.
+
+### Found but deliberately not fixed tonight
+
+**The campaign drawback cap is DM-view-only.** `drawbackCap` appears in `DM-Console.html` and in neither
+player tool, so a player in a capped campaign sees the full grant in CharGen and the Live Sheet while
+their DM sees the capped figure. Pre-existing since v0.351 and unrelated to this change, but it matters
+more now that the grant is real income rather than a cancelling pair. Needs the campaign rules wired
+into both player tools — too wide to do unreviewed. Recorded in the morning review.
+
+### Status
+
+All gates green at v0.355: parity 38/0, tool-pricing 134/0, chargen-flows **66/66**, dm-console-ui
+94/94, sw-cache pass, log-fuzz 500/500 (and 3000/3000 on a second seed), four sync gates 54/0,
+verify-guide 9/9. CharGen verified by hand in a headless browser: 79 award + 6 AP of drawbacks → budget
+85, total 0, AP left 85, ledger row `Drawbacks (refund) −6` with both itemised rows intact.

@@ -457,6 +457,71 @@ section('row prices agree with the ledger at all three price tiers');
   await ctx.close();
 }
 
+// -------------------------------------------------------------------------------------------------
+section('a drawback raises the budget in the REAL tool, and is counted exactly once');
+{
+  // WHY THIS IS HERE AND NOT IN engine-parity. This exact path shipped broken for a few hours on
+  // `preview`. v0.354 fixed the drawback double-count by making the grant ride in on `b.budget`, and
+  // documented that as a contract every caller must satisfy. Every FOLDING caller did. CharGen does not
+  // fold — readBuild() reads the form, where `budget` is the award field alone — so in the tool people
+  // actually build characters in, drawbacks silently granted nothing at all.
+  //
+  // Nothing caught it. engine-parity asserts `total` and the SIGN of `remaining`, never the VALUE of
+  // `budget`, so all 38 fixtures passed whether a drawback was worth double, single, or zero. The whole
+  // gate suite folds; the one tool that doesn't fold had no coverage of this at all. v0.355 moved the
+  // grant inside compute() so no caller can get it wrong, and this section pins the tool-side result so
+  // the next model change has to survive a real click in a real CharGen.
+  const p = await (await browser.newContext()).newPage();
+  const errs=[]; p.on('pageerror',e=>errs.push(String(e)));
+  await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, {waitUntil:'load'});
+  await p.waitForTimeout(3000);
+
+  const read = () => p.evaluate(() => {
+    const c = compute(readBuild());
+    return { budget:c.budget, total:c.total, remaining:c.remaining,
+             status:(document.getElementById('status')||{}).textContent||'',
+             line:(c.lines.find(([l])=>l==='Drawbacks (refund)')||[null,null])[1],
+             items:c.itemize['Drawbacks (refund)']||[],
+             held:readBuild().drawbacks||[] };
+  });
+
+  const before = await read();
+  // Two real clicks, not a synthetic change event — same reasoning as the class-unlock section above.
+  // Frail (4 AP) + Asthmatic (2 AP) = 6, small enough to stay under every cap so this section tests the
+  // grant and nothing else.
+  await p.evaluate(() => { for (const v of ['Frail','Asthmatic']) {
+    const el = [...document.querySelectorAll('.drawck')].find(e => e.value === v);
+    if (el && !el.checked) el.click();
+  }});
+  await p.waitForTimeout(400);
+  const after = await read();
+
+  check('both drawbacks register on the build', after.held.includes('Frail') && after.held.includes('Asthmatic'), JSON.stringify(after.held));
+  check('the budget RISES by exactly the drawback AP', after.budget === before.budget + 6, `${before.budget} -> ${after.budget}`);
+  check('and the spend total is untouched — a drawback is income, not negative spending',
+        after.total === before.total, `${before.total} -> ${after.total}`);
+  check('so AP left rises by exactly the grant, once', after.remaining === before.remaining + 6, `${before.remaining} -> ${after.remaining}`);
+  check('the on-screen status line agrees with compute()', after.status.trim() === `${after.remaining} AP under budget`, after.status.trim());
+  // The ledger must still SHOW the drawbacks even though they no longer move the total — the heading is
+  // a display-only row (engine.js addDisplay()), and its itemised rows must still sum to it.
+  check('the ledger still shows the Drawbacks (refund) heading', after.line === -6, String(after.line));
+  check('with its itemised rows, summing to the heading',
+        after.items.length === 2 && after.items.reduce((s,[,ap])=>s+ap,0) === after.line,
+        JSON.stringify(after.items));
+
+  // Un-ticking must give the AP straight back — a grant that only latches on is the same class of
+  // half-dead control the class-unlock section exists for.
+  await p.evaluate(() => { for (const v of ['Frail','Asthmatic']) {
+    const el = [...document.querySelectorAll('.drawck')].find(e => e.value === v);
+    if (el && el.checked) el.click();
+  }});
+  await p.waitForTimeout(400);
+  const back = await read();
+  check('un-ticking both returns the budget to where it started', back.budget === before.budget, `${after.budget} -> ${back.budget}`);
+  check('and no drawback row is left behind', back.line === null && back.held.length === 0, `line ${back.line}, held ${JSON.stringify(back.held)}`);
+  check('no page errors across the drawback flow', errs.length === 0, errs.join(' | '));
+}
+
 console.log(`\n[chargen-flows] ${fail ? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
 await browser.close(); server.close();
 process.exit(fail?1:0);

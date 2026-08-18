@@ -6,8 +6,23 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · fix(rules): derive the drawback grant inside `compute()`, not from the caller
+  (`DATA.version` **v0.355**)** — v0.354's fix delivered the grant through `b.budget` and documented that
+  as a contract "every real caller" satisfied. CharGen doesn't fold: `readBuild()` reads the form, where
+  `budget` is the award field alone — so **in the tool characters are made in, drawbacks were worth
+  zero**, which is worse than the double-count v0.354 replaced. Model (b) is unchanged; the grant now
+  comes from `b.drawbacks` inside `compute()`, and `b.budget` means awards only (`foldBuild()` and
+  `rebuildStateFromEvents()` both pass `earned − drawbackEarned`). Two gates added, because **none of the
+  38 parity fixtures could see this**: `engine-parity` asserts `total` and the *sign* of `remaining`,
+  never the *value* of `budget`. `log-fuzz` gains an income invariant (`compute().budget ===
+  economy().earned`) — which failed on its first run and exposed `rebuildStateFromEvents()`
+  double-granting too — and `chargen-flows-e2e` gains ten checks driving a real drawback click in a real
+  CharGen (56 → **66**). `CG-002`'s budget returns to 50. See
+  `D-GH-2026-08-19-drawback-single-count` (Addendum).
+
 - **2026-08-19 · chore(version): `BUILD` → `v1.424` for PR #424 (`preview` → `main` promotion)** — second
-  promotion of the night, carrying rules **v0.354** (the drawback single-count fix) to the live site. The
+  promotion of the night, carrying the drawback single-count fix — **v0.355** by the time it merged, after
+  the entry above — to the live site. The
   number after the dot is the promoting PR's number per `docs/VERSION-SYNC.md`; mirrored in `js/engine.js`
   (`export const BUILD`), CharGen (line-1 comment, `<title>`, header `.sub`), Live Sheet (line-1 comment)
   and DM Console (`TOOL_VERSION`). The pre-release manual QA checklist was **not** run — flagged in the PR

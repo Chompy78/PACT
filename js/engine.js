@@ -28,7 +28,8 @@
  *   earnedWithDm(eco, opts?) — eco.earned composed with DM AP (opts:{dmAp?, ignorePlayerAp?}), mirroring
  *                       compute()'s own spendable formula — feeds Track-Level in both tools
  *                       (feat/ap-model-reconcile). Pure; does not change economy() itself.
- *   foldBuild(events)    — replay a LOG from baseBuild() → a build (b.budget = economy().earned).
+ *   foldBuild(events)    — replay a LOG from baseBuild() → a build (b.budget = awards only,
+ *                          i.e. economy().earned − drawbackEarned; compute() derives the drawback grant).
  *   rebuildStateFromEvents(base, events, opts?) — replay onto `base` (or an embedded {LOG}) → {ok, version, …}.
  * Campaign rules (VALIDATION only — never read by compute()):
  *   validate(b, rules)   — check a build against a campaign's rules JSON → {ok, violations:[{code,message}]}.
@@ -606,26 +607,34 @@ export function compute(b, opts){
   add("Starting gold",b.gold||0);
   // --- AP composition: the two-pool model (see docs/plans/2026-07-12-campaign-ap-model-cold-review.md) ---
   // Spendable AP is composed HERE, once, from two independently-stored pools so every tool shows ONE total:
-  //   • Player AP = b.budget  — folded from the character's own `award` events; raw, player-owned.
+  //   • Player AP = b.budget  — the character's own `award` events; raw, player-owned. AWARDS ONLY.
   //   • DM AP     = opts.dmAp  — campaign-granted; stored server-side only, NEVER in the character's log.
+  //   • Drawback grant = _dGranted — derived HERE from b.drawbacks, never supplied by the caller.
   // opts.ignorePlayerAp (a campaign toggle) drops the player pool from the ceiling but NEVER refunds or
   // rewrites it — purchases already made are grandfathered; only the ceiling changes.
   // ANTI-DOUBLE-COUNT INVARIANT: `spendable` is derived and returned on THIS result object. Callers must
   // DISPLAY it, never write it (or dmAp) back into b.budget / the award log / an export — else a reload
   // double-counts. `budget` in the return is a legacy display alias of `spendable`. `remaining` =
   // spendable − total(spent). (Two pools today; the composition is additive if more are ever added.)
-  // v0.354: withhold any drawback AP the campaign's cap does not allow. b.budget arrives from
-  // foldBuild() as economy().earned, which counts every drawback the LOG holds and knows nothing about
-  // a cap — so the excess is removed here, on the side the grant actually arrives on. Zero when there
-  // is no cap, so a local character is untouched.
-  // CONTRACT (v0.354): b.budget is the character's EARNED AP *including* drawback grants — exactly what
-  // foldBuild() produces (b.budget = economy().earned, and earned = awards + drawbackEarned). Every
-  // real caller folds, so every real caller satisfies this. A hand-authored build (a test fixture) must
-  // set budget the same way, or its drawbacks grant nothing: under model (b) the grant arrives on the
-  // budget side and nowhere else.
-  const _dWithheld=Math.max(0,drawGain-_dGranted);
-  const playerAp=Math.max(0,(b.budget||0)-_dWithheld); const _opts=opts||{}; const dmAp=Number(_opts.dmAp)||0;
-  const spendable=(_opts.ignorePlayerAp?0:playerAp)+dmAp; const remaining=spendable-total;
+  //
+  // WHY THE GRANT IS DERIVED, NOT PASSED IN (v0.355, and this is the whole lesson of D-GH30 again).
+  // v0.354 shipped model (b) with the grant riding in on b.budget, documented as a caller contract:
+  // "b.budget is EARNED AP *including* drawback grants, exactly what foldBuild() produces". Every
+  // folding caller honoured it. CharGen does not fold — readBuild() reads the form, where `budget` is
+  // the award field alone — so in the app most characters are actually MADE in, drawbacks silently
+  // granted nothing at all. The gates could not see it: they all fold.
+  //
+  // A contract a caller can quietly violate is not a contract, it is a trap. And the obvious patch —
+  // have CharGen sum DATA.drawbacks itself into readBuild().budget — is re-implementing rules logic
+  // in a tool, which is the one thing AGENTS.md forbids outright. So the grant is derived here, where
+  // the rules live, and b.budget goes back to meaning exactly one thing: AWARDS ONLY, the player's own
+  // `award` events, with no drawback AP mixed in. Both callers are then correct with no knowledge of
+  // drawbacks: CharGen passes its award field, foldBuild() passes earned − drawbackEarned.
+  //
+  // The grant sits INSIDE the ignorePlayerAp bracket because it is player-side income: a campaign that
+  // ignores a player's own AP ignores the AP their drawbacks bought too, exactly as before.
+  const playerAp=Math.max(0,b.budget||0); const _opts=opts||{}; const dmAp=Number(_opts.dmAp)||0;
+  const spendable=(_opts.ignorePlayerAp?0:(playerAp+_dGranted))+dmAp; const remaining=spendable-total;
   if(remaining<0) W.unshift("OVER BUDGET by "+(-remaining)+" AP");
   // sheet — apply drawback stat effects (#7) and the Initiative skill (#8)
   const dset={};for(const x of (b.drawbacks||[]))dset[x]=1;
@@ -1043,7 +1052,12 @@ export function foldBuild(events) {
   const log = (Array.isArray(events) ? events : []).filter(Boolean);
   const b = baseBuild();
   const ae = _replay(b, log);        // reuse _replay's snapshot instead of re-deriving it via economy(log)
-  b.budget = _economyFrom(ae.evs, ae.boughtOff).earned;
+  // AWARDS ONLY (v0.355). economy().earned = awards + drawbackEarned, and compute() derives the
+  // drawback grant itself from b.drawbacks — so handing it `earned` would grant every drawback twice.
+  // Subtract here rather than teaching economy() a second "earned" figure: the frozen ledger's `earned`
+  // is what the DM Console and Live Sheet display and must keep meaning "everything this LOG earned".
+  const _eco = _economyFrom(ae.evs, ae.boughtOff);
+  b.budget = _eco.earned - _eco.drawbackEarned;
   return b;
 }
 
@@ -1185,11 +1199,15 @@ export function rebuildStateFromEvents(baseSnapshot, events, opts) {
   const b = seedBuild(base);
   const ae = _replay(b, log);        // reuse _replay's snapshot instead of re-deriving it via economy(log)
   const eco = _economyFrom(ae.evs, ae.boughtOff);
-  // budget = whatever the base build started with, plus all AP earned through the
-  // log. For a full export (base=null) this is exactly economy().earned, matching
-  // the Live Sheet, where budget = total AP awarded over the character's life.
+  // budget = whatever the base build started with, plus all AP AWARDED through the log — awards only,
+  // the same meaning foldBuild() gives it (v0.355). economy().earned also carries drawback grants, and
+  // compute() derives those itself from b.drawbacks, so passing `earned` straight through would grant
+  // every drawback twice — which is exactly what the log fuzzer's dualEntry check caught the moment the
+  // income invariant was added: this entry point and foldBuild() disagreed on any log with a drawback.
+  // A base snapshot's own `budget` is awards-only under the same rule (a CharGen export's award field,
+  // or a previous fold), and any drawbacks it carries are granted by compute() off b.drawbacks.
   const baseBudget = Number(base && base.budget) || 0;
-  b.budget = baseBudget + eco.earned;
+  b.budget = baseBudget + eco.earned - eco.drawbackEarned;
 
   const result = compute(b, opts);
   return {
