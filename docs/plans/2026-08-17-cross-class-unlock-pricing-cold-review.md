@@ -247,4 +247,51 @@ Output your response as a Markdown file named
 
 ## Review outcome
 
-*(to be filled in after the round returns — one line per reviewer, then the triage decisions)*
+**Round returned 18 Aug 2026. Three genuine reviews; a fourth file in the drop folder was a byte-identical
+duplicate of the superseded round and was discarded.** Filed under `docs/plans/cold-reviews/2026-08-18-*`.
+
+| Reviewer | Model verdict | Accrue the ladder? | Split the decision? |
+|---|---|---|---|
+| GPT-5.6 Luna | flat 10, subject to more measurement | **no** — re-creates 7N's flaw indirectly | yes, three ways |
+| M365 Copilot | flat 10; **capped ladder** if a breadth tax is wanted | **no** — use the surcharge instead | yes, ship the cliff fix today |
+| DeepSeek R1 | flat 10 1st, **7N capped at 28** 2nd | **no** — ranked last of four | yes, cliff fix is independent |
+
+**Unanimous, unprompted, on the question deliberately excluded from the proposal: do NOT make the ladder
+accrue.** Three independent reviewers reached it by three different arguments — it re-introduces the
+escalation being removed; it taxes exploration; it makes the displayed unlock price path-dependent per
+character, which is a real UI cost in the character generator. Copilot added the sharpest version: accrue
+scales with **count = breadth** while the surcharge scales with **Tier = power**, so accrue taxes the wrong
+axis. **That question is now settled in the negative.**
+
+**Unanimous on sequencing:** the refund cliff is a defect, is independent of the pricing model, and should
+ship on its own without waiting for the design call.
+
+### Claims verified against the engine before acceptance
+
+- **Copilot: "the mirror door may leak the surcharge entirely — verify, don't assume."** **Refuted.** Both
+  routes charge identically: 11 AP locked, 15 AP unlocked (7 unlock + 8 sticker), for the same ability on
+  the same character. The mirror differs only in raising no warning. Copilot correctly flagged that this
+  would have mooted every number here if true; it isn't.
+- **DeepSeek: "the 21 spell bundles are not in the simulation."** **Confirmed** — the archetypes used
+  subclass abilities only. **Impact measured as nil:** break-even is identical for bundles and abilities at
+  every price tested (3/3 at flat 7, 4/4 at flat 10, 3/3 at 7N), because the unlock decision turns on
+  cumulative Tier saved and bundles sit close enough to the pool mean not to move it.
+- **All three: the verification section's "3-ish uniform figure" is not objectively checkable.**
+  **Accepted** — it needs to name an exact expected break-even vector with zero tolerance.
+- **Luna and Copilot: the "1–2 dabble / 3+ invest" line is Tier-blind.** **Accepted as a real gap.** Two
+  Tier-7 purchases are a larger power grab than four Tier-2 ones, yet the count-based rule reads both as
+  the same shape. Not yet measured.
+
+### Contested, and therefore NOT settled here
+
+**Flat 10 versus flat 7.** All three reviewers rank flat 10 first. A separate direction file in the same
+drop folder instructs flat 7 instead, on the grounds that its uniform 3/3/3/3 break-even matches the stated
+boundary exactly where flat 10's 4/3/3/3 does not. Luna's own text concedes the point in passing — flat 10's
+real rule is "around three purchases", not exactly three. **This is the owner's call and is deliberately
+left open.** Note the reviewers were shown flat 10 as the proposal, so their agreement is partly an
+artifact of anchoring — which is exactly the risk raised before the round was sent.
+
+**A capped ladder was proposed independently by two reviewers and was NOT on the original menu.** Copilot's
+D2 (7N clamped at 14) and DeepSeek's Option B (7N capped at 28) are the same idea: keep escalation, remove
+the "never". It is the only candidate that preserves a breadth tax while fixing reachability, and it
+deserves a place in the decision that the original document did not give it.
