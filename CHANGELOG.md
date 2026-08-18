@@ -6,6 +6,14 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · chore(version): `BUILD` → `v1.425` for PR #425 (`preview` → `main` promotion)** — third
+  promotion in this run, carrying rules **v0.356** (drawbacks as a trade, surviving `ignore_player_ap`)
+  and three stale player-facing labels: CharGen's hardcoded `>14` drawback warning, the Live Sheet's
+  missing cap line, and CharGen's `+14 AP` second-origin hint against an engine charging 18. Mirrored in
+  `js/engine.js` (`export const BUILD`), CharGen (line-1 comment, `<title>`, header `.sub`), Live Sheet
+  (line-1 comment) and DM Console (`TOOL_VERSION`); `index.html` reads `BUILD` live and is untouched. The
+  pre-release manual QA checklist was **not** run — three promotions have now shipped without it.
+
 - **2026-08-19 · docs(tasks): graduate `fix/drawback-grant-vs-ignore-player-ap`** — added and answered the
   same day. Option **B** (the grant survives) chosen by the owner; the task's own **Done when** is met in
   full: the ruling is made, `compute()` implements it, `CG-019`/`CG-020` pin both toggle states, and the
