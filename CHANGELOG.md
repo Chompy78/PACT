@@ -6,6 +6,22 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-18 · feat(testing): worked-example arithmetic gate; six Appendix I budgets corrected** —
+  docs/testing only, no `DATA.version` change. When the class unlock moved 7 → 8, three worked examples
+  silently stopped adding up and **every gate passed**: `guide-price-check` verifies feature *prices*
+  against the engine, and example arithmetic is a layer above the prices it is built from. New
+  **`testing/scripts/guide-example-check.mjs`** checks every `Purchase | AP | Running` table —
+  running-total accumulation, the closing `Total x / y`, the heading budget, and (the one that catches a
+  price change *at the row*) that a spelled-out breakdown like `unlock Fighter (8) + Action Surge (4) +
+  Second Wind (3)` sums to what the row charges. **30 tables, 586 purchase rows.** Now the 9th check in
+  `verify-guide`; mutation-verified to go red on exactly the break that motivated it. It found **six
+  pre-existing defects** — Appendix I heroes whose heading budget disagreed with their own table's Total
+  by 2–4 AP (Wisp 99→101, Quill 237→241, Lyra Nightsong 252→256, Garruk Stonehand 276→278, Mistwalker
+  312→314, Old Marrow 531→533); every table reconciles internally, so the headings were corrected to
+  match. It also caught a real error from `ff6932e`: the header bumped 217→218 belonged to Appendix I's
+  *War Priest Doran*, not §3's *The War Priest* — reverted. Three of its own first four findings were
+  parser bugs (the guide writes negative AP as U+2212 and positive as `+N`, both skipped by
+  `/^-?\d+$/`), which is recorded because a checker that mis-reports is worse than none.
 - **2026-08-18 · fix(rules): remove the §11 subclass access gate (`DATA.version` **v0.353**)** — v0.347
   warned *"⛔ \<class\>: you cannot build from this class"* when a subclass ability or spell bundle came
   from a class that was neither origin nor unlocked. Gone one version later, and deliberately not

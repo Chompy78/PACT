@@ -33,11 +33,15 @@ const { DATA } = await import(resolve(join(HERE, '..', '..', 'js', 'engine-data.
 const results = [];
 const record = (name, ok, detail) => { results.push({ name, ok, detail }); return ok; };
 
-// ---- 1-3. the three content checkers -------------------------------------------------------
+// ---- 1-4. the content checkers -------------------------------------------------------------
+// guide-example-check joined on 2026-08-18. The three above verify PRICES against the engine; none of
+// them noticed that three worked examples stopped adding up when the class unlock moved 7 -> 8, because
+// example arithmetic is a layer above the prices it is built from.
 for (const [name, script] of [
   ['feature prices  ', 'guide-price-check.mjs'],
   ['spell economy   ', 'guide-spell-check.mjs'],
   ['subclass bundles', 'guide-bundle-check.mjs'],
+  ['worked examples ', 'guide-example-check.mjs'],
 ]) {
   let out = '', ok = true;
   try { out = execFileSync('node', [join(HERE, script), guide], { encoding: 'utf-8' }); }
