@@ -10,6 +10,19 @@
 
 ## Index
 
+## D-GH-2026-08-19-drawback-single-count — a drawback is income, not negative spending (model b)
+- Drawbacks were worth **double**: `foldBuild()` put the grant in `b.budget` and `compute()` also netted it
+  out of `total`. A level-1 character taking four drawbacks built on **131 AP against everyone else's 79**.
+  Two corrections were possible and both give the right `remaining`; **(b)** chosen — `total` counts positive
+  purchases only, the budget carries the grant — because it is what the guide already promises ("Each drawback
+  grants AP up front"), because (a) would print "spent −11" for any level-1 character who takes one before
+  buying anything, and because `economy()` already reported it that way, so (b) ends a disagreement rather
+  than adding a third view. Turned up two things the plan had not named: the `b.budget` contract had to be
+  stated (the grant now arrives on that side and nowhere else), and legacy characters whose drawbacks came
+  through a **patch** event would have silently lost the AP — the third near-miss of that kind in this repo.
+  `DATA.version` v0.354; `EV-019` pins it; parity 37 → 38.
+  Full record: `decisions/2026/D-GH-2026-08-19-drawback-single-count.md`.
+
 ## D-GH-2026-08-18-remove-subclass-access-gate — the §11 access gate is removed one version after it shipped
 - v0.347 warned *"⛔ \<class\>: you cannot build from this class"* on a subclass ability or bundle from a class
   that was neither origin nor unlocked. Removed in **v0.353**. Its premise was wrong (§11 endorses the

@@ -348,8 +348,12 @@ function runChecks(ENGINE, LOG) {
       driftChecked++;
       const ec = ENGINE.economy(rp);
       const total = ENGINE.compute(ENGINE.foldBuild(rp)).total;
-      if (ec.spent - ec.drawbackEarned !== total)
-        failures.push({ tag: 'repriceDrift', note: `draft ledger does not reconcile: spent=${ec.spent} - drawbackEarned=${ec.drawbackEarned} vs compute().total=${total}` });
+      // v0.354 (model b): a drawback is INCOME, not negative spend, so the frozen ledger's `spent` and
+      // compute()'s `total` should agree directly. This used to subtract drawbackEarned because
+      // compute() also netted the grant out of `total` — the double-count that model (b) removed. The
+      // grant now reaches the character through the budget only; economy().earned already carries it.
+      if (ec.spent !== total)
+        failures.push({ tag: 'repriceDrift', note: `draft ledger does not reconcile: spent=${ec.spent} vs compute().total=${total} (drawbackEarned=${ec.drawbackEarned}, which must affect NEITHER)` });
     }
   } catch (e) {
     failures.push({ tag: 'throw', note: `repriceDraft(LOG) threw where foldBuild()/compute() did not: ${e && e.message}` });

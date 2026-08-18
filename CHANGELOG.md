@@ -6,6 +6,26 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · fix(rules): a drawback is income, not negative spending — model (b) (`DATA.version`
+  **v0.354**)** — drawbacks were worth **double**. `foldBuild()` sets `b.budget = economy().earned`, which
+  already includes `drawbackEarned`, and `compute()` *also* subtracted the grant from `total`. A level-1
+  Fighter awarded 79 AP taking four drawbacks had **131 AP** to spend against everyone else's 79 — +66%,
+  live on `main` the week the first real characters were being built. Two corrections were possible and
+  both give the right `remaining`; **(b)** was chosen: `total` counts positive purchases only and the
+  budget carries the grant. It is what the guide already promises (*"Each drawback below grants AP up
+  front"*), it avoids (a)'s *"spent −11"* for any level-1 character who takes a drawback before buying
+  anything, and `economy()` already reported it that way — so (b) ends a disagreement instead of adding a
+  third view. **Two things the plan had not named turned up in the doing:** the `b.budget` contract had to
+  be written down (under (b) the grant arrives on that side and nowhere else, so three hand-authored
+  fixtures needed their budgets corrected), and **legacy characters would have lost AP** — `economy()`
+  counted grants only from `buy`/`cat:'drawback'` events, while older CharGen exports deliver them as a
+  coalescing *patch* (`LS-001` carries one); that shape is now recognised. The ledger still shows
+  `Drawbacks (refund) −14` with its itemised rows, via a new display-only line that does not touch
+  `total`, so the rows-sum-to-heading invariant `tool-pricing-ci` asserts still holds. `log-fuzz`'s
+  reconciliation invariant went from `spent − drawbackEarned === total` to `spent === total`. New
+  fixture **`EV-019`** pins it end to end (budget 93, total 3, remaining **90**, was 104); five existing
+  fixtures moved, each a correct consequence; parity 37 → **38**. See
+  `D-GH-2026-08-19-drawback-single-count`.
 - **2026-08-18 · feat(testing): worked-example arithmetic gate; six Appendix I budgets corrected** —
   docs/testing only, no `DATA.version` change. When the class unlock moved 7 → 8, three worked examples
   silently stopped adding up and **every gate passed**: `guide-price-check` verifies feature *prices*

@@ -1015,7 +1015,10 @@ try {
       const b=foldBuild(evs);const r=compute(b);renderLedger(r,b);
       const draw=sect('Drawbacks (refund)'),lp=sect('Lost purchases');
       return [draw.line, lp.line, r.total];})()`),
-    [-2, 6, 4]);
+    // v0.354: total is 6, not 4. The Drawbacks line still DISPLAYS -2 (its rows must sum to it), but a
+    // drawback is income now and no longer nets out of `total` — that double-count is the whole bug
+    // model (b) fixed. The 6 is the bought-off purchase's Lost-purchases line, which is a real cost.
+    [-2, 6, 6]);
 
   // fix/sheet-tab-appearance-not-persisted: the Sheet tab's Appearance/Background fields (Description,
   // hometown, faith, etc.) used to go through csSave() only — a local, per-tool, per-character-id

@@ -159,7 +159,17 @@ export function compute(b, opts){
   // `force` keeps a 0 AP line visible when it still has itemized detail under it. Without it,
   // a character whose only species traits are free heritage-pack traits got itemized entries
   // filed under a "Species traits" heading that `add` had suppressed — detail with no heading.
-  function add(lab,ap,force){ if(ap!==0||force){L.push([lab,ap]);} total+=ap; } const _ITEMS={}; function addItems(lab,items){ const a=(items||[]).filter(x=>x); if(a.length)_ITEMS[lab]=a; }
+  function add(lab,ap,force){ if(ap!==0||force){L.push([lab,ap]);} total+=ap; }
+  // DISPLAY-ONLY line: shown in the ledger, excluded from `total`. Added v0.354 for drawbacks, whose
+  // grant is income (it reaches the character through b.budget) but which still need to be VISIBLE in
+  // the ledger with their itemised rows. Using add() would put the grant back into total and restore
+  // the double-count; omitting the line entirely would break the invariant that every itemised group
+  // has a heading whose value its rows sum to — which tool-pricing-ci asserts, rightly.
+  // Same zero-suppression as add(): a build whose only drawbacks are unknown to the rules scores 0
+  // and must render no row at all, not an empty heading. `force` keeps a genuine 0 visible when it
+  // still has itemised detail beneath it.
+  function addDisplay(lab,ap,force){ if(ap!==0||force){L.push([lab,ap]);} }
+  const _ITEMS={}; function addItems(lab,items){ const a=(items||[]).filter(x=>x); if(a.length)_ITEMS[lab]=a; }
   const st=b.stats||{};
   // base AP is paid on the purchased scores only
   let abilAP=0;for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){abilAP+=(DATA.ABIL[st[a]||10]||0);} add("Ability scores",abilAP);
@@ -551,7 +561,23 @@ export function compute(b, opts){
   // them, and silently clamping a solo build would change what people can already make offline.
   const _dCap=(opts&&Number.isFinite(opts.drawbackCap))?Math.max(0,opts.drawbackCap):null;
   const _dGranted=(_dCap!=null)?Math.min(drawGain,_dCap):drawGain;
-  add("Drawbacks (refund)",-_dGranted);addItems("Drawbacks (refund)",_DI);
+  // v0.354 — MODEL (b). A drawback GRANTS AP; it is income, not negative spending.
+  //
+  // It used to be both, and so was worth double: foldBuild() sets b.budget = economy().earned, which
+  // already includes drawbackEarned, and this line ALSO subtracted the grant from `total`. A level-1
+  // character taking four drawbacks (26 AP) had 131 AP to spend against everyone else's 79.
+  //
+  // Two corrections were possible and both give the right `remaining`. (a) keep netting it out of the
+  // cost and drop it from the budget; (b) leave it in the budget and stop netting it. (b) is what the
+  // guide already promises — "Each drawback below grants AP up front" — and what economy() already
+  // reports (earned 93 = 79 award + 14 drawback, spent 3). (a) would have made "total spent" go
+  // NEGATIVE for any character whose drawbacks outweigh their purchases, which is not a number to put
+  // in front of a player. See D-GH-2026-08-19-drawback-single-count.
+  //
+  // The line is kept at 0 AP so the ledger still SHOWS the drawbacks and their itemised detail; it just
+  // no longer moves the total. `force` keeps the heading visible under its own detail (see add()).
+  // The grant reaches the character through b.budget, and the cap is applied to the budget below.
+  addDisplay("Drawbacks (refund)",-_dGranted,_DI.length>0);addItems("Drawbacks (refund)",_DI);
   if(_dCap!=null&&drawGain>_dCap)
     W.push("Drawbacks grant "+drawGain+" AP but this campaign caps them at "+_dCap+" — "+(drawGain-_dCap)+" AP not granted");
   else if(_dCap==null&&drawGain>DATA.drawbackCap)
@@ -588,7 +614,17 @@ export function compute(b, opts){
   // DISPLAY it, never write it (or dmAp) back into b.budget / the award log / an export — else a reload
   // double-counts. `budget` in the return is a legacy display alias of `spendable`. `remaining` =
   // spendable − total(spent). (Two pools today; the composition is additive if more are ever added.)
-  const playerAp=b.budget||0; const _opts=opts||{}; const dmAp=Number(_opts.dmAp)||0;
+  // v0.354: withhold any drawback AP the campaign's cap does not allow. b.budget arrives from
+  // foldBuild() as economy().earned, which counts every drawback the LOG holds and knows nothing about
+  // a cap — so the excess is removed here, on the side the grant actually arrives on. Zero when there
+  // is no cap, so a local character is untouched.
+  // CONTRACT (v0.354): b.budget is the character's EARNED AP *including* drawback grants — exactly what
+  // foldBuild() produces (b.budget = economy().earned, and earned = awards + drawbackEarned). Every
+  // real caller folds, so every real caller satisfies this. A hand-authored build (a test fixture) must
+  // set budget the same way, or its drawbacks grant nothing: under model (b) the grant arrives on the
+  // budget side and nowhere else.
+  const _dWithheld=Math.max(0,drawGain-_dGranted);
+  const playerAp=Math.max(0,(b.budget||0)-_dWithheld); const _opts=opts||{}; const dmAp=Number(_opts.dmAp)||0;
   const spendable=(_opts.ignorePlayerAp?0:playerAp)+dmAp; const remaining=spendable-total;
   if(remaining<0) W.unshift("OVER BUDGET by "+(-remaining)+" AP");
   // sheet — apply drawback stat effects (#7) and the Initiative skill (#8)
@@ -777,6 +813,17 @@ function _economyFrom(evs, boughtOff) {
   evs.forEach((e, i) => {
     if (e.type === 'award') earned += Number(e.amount) || 0;
     else if (e.type === 'buy' && e.cat === 'drawback') {
+      if (!boughtOff.has(i)) drawbackEarned += (-(Number(e.cost) || 0));
+    }
+    // LEGACY SHAPE (v0.354). Both tools now emit cat:'drawback', but older CharGen exports delivered
+    // drawbacks as a coalescing PATCH whose whole cost is the grant — LS-001 carries one. Under the old
+    // model that worked by accident: the grant reduced `total` directly, so it did not matter which side
+    // of the ledger it sat on. Under model (b) the grant reaches the character ONLY through the budget,
+    // so a patch-delivered drawback would silently vanish and the character would lose that AP. Matched
+    // narrowly: a patch that changes drawbacks and NOTHING else, with a negative cost.
+    else if (e.type === 'buy' && e.cat === 'patch' && (Number(e.cost) || 0) < 0
+             && e.payload && e.payload.patch && Object.keys(e.payload.patch).length === 1
+             && Object.prototype.hasOwnProperty.call(e.payload.patch, 'drawbacks')) {
       if (!boughtOff.has(i)) drawbackEarned += (-(Number(e.cost) || 0));
     }
     else spent += _spendCost(e);
