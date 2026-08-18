@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · docs(tasks): graduate "Drawbacks are counted twice", and split out what it did not
+  settle** — the board task `fix/drawback-ap-double-count` (found 2026-08-07 on `Moss Stormspud (COPY)`)
+  is closed by v0.354 + v0.355: a drawback is counted exactly once, and `playerAp` now means what
+  `engine.js` always documented it to mean — awards only — so the "mislabelled player AP" half is fixed
+  too. **One of its Done-when criteria is deliberately not met:** *"the same `remaining` whether
+  `ignore_player_ap` is on or off"* was written for **model (a)**, and the owner chose **(b)**, under
+  which the grant is player-side income and is dropped with the rest of the player's AP (spendable 41 vs
+  37 on the task's own example). That is a design question, not a leftover bug, and is now its own NEXT
+  task. The DM-view-only drawback cap found while verifying v0.355 is a second new NEXT task.
+
 - **2026-08-19 · docs(chargen): tooltip on the "AP budget" field, now that it means awards only** — a
   hover hint on the label and the input: drawbacks are granted *on top* of this figure, so the spendable
   total in the header can be higher. No layout change; the field's own semantics are unchanged (it has
