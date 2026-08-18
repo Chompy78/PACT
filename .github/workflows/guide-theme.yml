@@ -1,0 +1,44 @@
+name: Guide theme switcher
+
+# The Players Guide is ONE file shared by three homes — this repo's docs/, the pact-guide authoring
+# master on the home server, and the public pact-guide-public repo. Only this repo has an index.html
+# that writes localStorage['pact-theme'], so the guide carries its own switcher; without it a reader
+# in either of the other two homes is stuck on whatever their OS dark-mode setting implies.
+#
+# verify-guide.mjs proves the theme CSS is PRESENT. It cannot tell whether clicking anything does
+# something. This drives a real browser. Cheap — one page, no stack, no network.
+
+on:
+  pull_request:
+    paths:
+      - "docs/PACT-Players-Guide.html"
+      - "testing/scripts/guide-theme-e2e.mjs"
+      - "testing/scripts/lib/launch-chromium.mjs"
+      - "testing/package.json"
+      - "testing/package-lock.json"
+      - ".github/workflows/guide-theme.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: guide-theme-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guide-theme:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+      - name: Install Chromium
+        working-directory: testing
+        run: npx playwright install --with-deps chromium
+      - name: Theme switcher checks
+        run: node testing/scripts/guide-theme-e2e.mjs

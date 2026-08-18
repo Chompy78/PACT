@@ -27,6 +27,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { DATA } from '../../js/engine.js';   // v0.352: expected unlock price is read from the dataset, not hardcoded
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -148,10 +149,14 @@ try {
 
   const withWiz = `(()=>{const b=foldBuild(null);b.features=Object.keys(DATA.features)
     .filter(l=>DATA.features[l].cls==='Wizard'&&!DATA.features[l].inv&&!DATA.features[l].hidden).slice(0,4);return b;})()`;
-  check('unlock Wizard == ladder rung, owning 4 Wizard features',
-    await ls.evaluate(`priceOf('unlockclass',{v:'Wizard'},${withWiz})`), 7);
-  check('unlock Wizard == the same owning none (independence)',
-    await ls.evaluate(`priceOf('unlockclass',{v:'Wizard'},foldBuild(null))`), 7);
+  // v0.352: flat, so the two checks below assert the SAME number by design — the second is no longer
+  // an independence check against a ladder rung but a guard that flatness actually holds. Read from
+  // DATA rather than hardcoded, so a future price change cannot leave this test asserting a stale figure.
+  const UNLOCK = DATA.unlockCum[1] - DATA.unlockCum[0];
+  check(`unlock Wizard == flat ${UNLOCK} AP, owning 4 Wizard features`,
+    await ls.evaluate(`priceOf('unlockclass',{v:'Wizard'},${withWiz})`), UNLOCK);
+  check('unlock Wizard == the same owning none (flatness holds)',
+    await ls.evaluate(`priceOf('unlockclass',{v:'Wizard'},foldBuild(null))`), UNLOCK);
   // Regression guard: the buy list filters only originClass, so originClass2 is offered. The engine
   // excludes it from the unlock count, and the pricer must agree — otherwise we charge for a no-op.
   check('unlock a class that is already the 2nd origin == 0',

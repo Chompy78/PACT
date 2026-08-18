@@ -42,7 +42,16 @@
         { id: "CG-006", path: "../fixtures/builds/CG-006-presence-vs-truthiness-regression-guard.json" },
         { id: "CG-007", path: "../fixtures/builds/CG-007-prereq-gate-rejection.json" },
         { id: "CG-008", path: "../fixtures/builds/CG-008-racial-mastery-discount.json" },
-        { id: "CG-009", path: "../fixtures/builds/CG-009-multi-tradition-spellcasting.json" }
+        { id: "CG-009", path: "../fixtures/builds/CG-009-multi-tradition-spellcasting.json" },
+        { id: "CG-010", path: "../fixtures/builds/CG-010-grit-ladder-hd1.json" },
+        { id: "CG-011", path: "../fixtures/builds/CG-011-grit-ladder-hd9.json" },
+        { id: "CG-012", path: "../fixtures/builds/CG-012-bundle-three-price-tiers.json" },
+        { id: "CG-013", path: "../fixtures/builds/CG-013-subability-three-price-tiers.json" },
+        { id: "CG-014", path: "../fixtures/builds/CG-014-heritage-pack-zero-ap-line.json" },
+        { id: "CG-015", path: "../fixtures/builds/CG-015-renamed-feature-aliases.json" },
+        { id: "CG-016", path: "../fixtures/builds/CG-016-drawback-cap-local-advisory.json" },
+        { id: "CG-017", path: "../fixtures/builds/CG-017-drawback-cap-campaign-enforced.json" },
+        { id: "CG-018", path: "../fixtures/builds/CG-018-fifth-unlock-no-refund.json" }
       ],
       liveSheets: [
         { id: "LS-001", path: "../fixtures/live-sheets/LS-001-clean-generator-export.json" }
@@ -57,7 +66,15 @@
         { id: "EV-007", path: "../fixtures/events/EV-007-noLock-burst-then-genuine-spend-locks.json" },
         { id: "EV-008", path: "../fixtures/events/EV-008-local-character-never-auto-locks.json" },
         { id: "EV-009", path: "../fixtures/events/EV-009-campaignBound-retroactive-lock.json" },
-        { id: "EV-010", path: "../fixtures/events/EV-010-drawback-buyoff.json" }
+        { id: "EV-010", path: "../fixtures/events/EV-010-drawback-buyoff.json" },
+        { id: "EV-011", path: "../fixtures/events/EV-011-creation-unlock-is-future-only.json" },
+        { id: "EV-012", path: "../fixtures/events/EV-012-lock-config-custom-threshold.json" },
+        { id: "EV-013", path: "../fixtures/events/EV-013-solo-optin-auto-lock.json" },
+        { id: "EV-014", path: "../fixtures/events/EV-014-lock-config-auto-off-disarms.json" },
+        { id: "EV-015", path: "../fixtures/events/EV-015-vigor-rank-tier-stamp.json" },
+        { id: "EV-016", path: "../fixtures/events/EV-016-maneuver-buys-priced.json" },
+        { id: "EV-017", path: "../fixtures/events/EV-017-buyoff-keyed-by-event.json" },
+        { id: "EV-018", path: "../fixtures/events/EV-018-dm-removed-boon-can-be-rebought.json" }
       ]
     };
 
@@ -83,7 +100,7 @@
       for (const { id, path } of FIXTURES.builds) {
         try {
           const build = await loadJson(path);
-          const r = compute(build);
+          const r = compute(build, build._apOpts);   // `_apOpts` = compute()'s campaign-side options
           rows.push({
             id, group: "chargen", path,
             total: r.total,

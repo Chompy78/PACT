@@ -740,6 +740,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
                   <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
                 </label>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
+                  <input type="checkbox" id="ruleDrawbackCapOn"> Cap AP gained from drawbacks at
+                  <input type="number" id="ruleDrawbackCapAp" min="0" max="99" step="1" style="width:56px;padding:2px 4px">
+                  <span style="opacity:.8">AP</span>
+                </label>
+                <div style="font-size:11px;opacity:.8;margin:-4px 0 8px 24px">
+                  The Players Guide caps drawbacks at 12 AP. Off, a character can take every drawback in
+                  the book and bank over 200 AP — the cap was documented but never enforced until v0.351.
+                </div>
                 <div class="ruleblock">
                   <div class="lbl">House-rule toggles</div>
                   <div id="ruleHouseRules"></div>
@@ -1085,7 +1094,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.421';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.423';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1956,7 +1965,12 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         // DM-funded roster read as universally overspent.
         var _apr = window._dmCampaignApRules || {};
         summary = analyzeAug({ LOG: log, SEQ: row.stats.SEQ || (log.length+1), rules: row.stats.rules, name: row.name },
-                             { dmAp: Number(row.ap) || 0, ignorePlayerAp: !!_apr.ignorePlayerAp });
+                             { dmAp: Number(row.ap) || 0, ignorePlayerAp: !!_apr.ignorePlayerAp,
+                               // Enforced only when the campaign switched it on; undefined leaves
+                               // compute() on its advisory path, which is the local-character rule.
+                               drawbackCap: (_apr.drawbackCap && _apr.drawbackCap.enabled !== false)
+                                 ? (Number.isFinite(+_apr.drawbackCap.ap) ? +_apr.drawbackCap.ap : undefined)
+                                 : undefined });
       } catch(e){ hasData = false; summary = null; }
     }
     // Carry the `name` COLUMN through even when hasData is false. A player can name a character and
@@ -2359,6 +2373,8 @@ document.addEventListener('campaign-ready', function () {
   var joinDmBtn = document.getElementById('joinDmBtn');
   var joinDmStatus = document.getElementById('joinDmStatus');
   var ruleMultiDisc = document.getElementById('ruleMultiDisc');
+  var ruleDrawCapOn = document.getElementById('ruleDrawbackCapOn');
+  var ruleDrawCapAp = document.getElementById('ruleDrawbackCapAp');
   var ruleHouseRules = document.getElementById('ruleHouseRules');
   var ruleHouseRuleName = document.getElementById('ruleHouseRuleName');
   var ruleSaveStatus = document.getElementById('ruleSaveStatus');
@@ -2555,6 +2571,12 @@ document.addEventListener('campaign-ready', function () {
     setRuleGridChecked('ruleBannedDrawbacks', r.bannedDrawbacks);
     setRuleGridChecked('ruleBannedArts', r.bannedArts);
     ruleMultiDisc.checked = r.multiDisciplineAllowed !== false;
+    // Absent on every campaign created before v0.351, so default ON at the guide's figure
+    // rather than off: the cap is what the rules already say, and a campaign silently opting
+    // out of it by being old is the wrong default.
+    var _dc = r.drawbackCap || {};
+    ruleDrawCapOn.checked = _dc.enabled !== false;
+    ruleDrawCapAp.value = Number.isFinite(+_dc.ap) ? +_dc.ap : (window.DATA ? DATA.drawbackCap : 12);
     // Advancement dials (feat/advancement-tracks) — display/config-only, per campaign.
     var bc = r.levelBudgetCurve || {};
     document.getElementById('ruleBudgetPreset').value = bc.preset || (bc.l1 != null ? 'custom' : 'standard');
@@ -2808,6 +2830,8 @@ document.addEventListener('campaign-ready', function () {
       bannedDrawbacks: getRuleGridChecked('ruleBannedDrawbacks'),
       bannedArts: getRuleGridChecked('ruleBannedArts'),
       multiDisciplineAllowed: ruleMultiDisc.checked,
+      drawbackCap: { enabled: ruleDrawCapOn.checked,
+                     ap: parseInt(ruleDrawCapAp.value, 10) || (window.DATA ? DATA.drawbackCap : 12) },
       houseRules: currentHouseRules,
       // Advancement dials (feat/advancement-tracks) — display/config-only.
       levelBudgetCurve: {

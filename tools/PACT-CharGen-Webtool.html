@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.421.html**-->
+<!--**PACT-CharGen-Webtool v1.423.html**-->
 
 <!doctype html>
 <!--
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.421 · Rules v0.339</title><style>
+<title>PACT Character Generator — Web Tool v1.423 · Rules v0.339</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -497,7 +497,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.421</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.423</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -2217,7 +2217,9 @@ function addRow(kind,preset){
   if(kind==='feat2'){line.innerHTML='<input type="text" autocomplete="off" class="feat2row" style="min-width:300px" placeholder="search features…"><span class="price"></span><button class="btn x" type="button">✕</button><span class="fdesc" style="flex-basis:100%;font-size:10px;color:var(--grey);font-style:italic;line-height:1.2;margin:0 0 1px 2px"></span>';}
   else if(kind==='cprof'){line.innerHTML='<input type="text" class="cprofrow" style="min-width:220px" placeholder="custom tool or instrument…"><button class="btn x" type="button">✕</button>';}
   else if(kind==='subabil'){const a=DATA.subAbilMap[preset]||{};line.innerHTML='<input type="hidden" class="subabilrow" value="'+(preset||'').replace(/"/g,'&quot;')+'"><span style="min-width:290px">'+(a.cls?(a.cls+' › '+a.sub+': '+a.name):preset)+'</span><span class="price"></span><button class="btn x" type="button">✕</button>';}
-  else if(kind==='subbundle'){const _p=String(preset).split('|');const _sc=(DATA.subclasses[_p[0]]||{})[_p[1]]||{};const _bn=_sc.spellBundle;const _lb=_p[0]+' › '+_p[1]+(_p[2]?' — '+_p[2]:'')+' spell list'+(_bn?' ('+_bn.origin+'/'+_bn.cross+' AP)':'');line.innerHTML='<input type="hidden" class="subbundlerow" value="'+String(preset).replace(/"/g,'&quot;')+'"><span style="min-width:290px">'+_lb+'</span><span class="price"></span><button class="btn x" type="button">✕</button>';}
+  // The price is filled live into `.price` by render() (three tiers — see the PRC helper there);
+  // baking origin/cross into the label here would put a second, contradicting number on the row.
+  else if(kind==='subbundle'){const _p=String(preset).split('|');const _lb=_p[0]+' › '+_p[1]+(_p[2]?' — '+_p[2]:'')+' spell list';line.innerHTML='<input type="hidden" class="subbundlerow" value="'+String(preset).replace(/"/g,'&quot;')+'"><span style="min-width:290px">'+_lb+'</span><span class="price"></span><button class="btn x" type="button">✕</button>';}
   else{const arr=kind==='rac'?DATA.racialList:DATA.drawbackList;
     const labelize=v=>kind==='rac'?(v+' ('+DATA.racial[v].origin+'/'+DATA.racial[v].cross+' AP)'):(v+' (+'+DATA.drawbacks[v]+' AP)');
     line.innerHTML='<select class="'+kind+'row"><option value="(none)">(none)</option>'+arr.map(v=>'<option value="'+v+'">'+labelize(v)+'</option>').join('')+'</select><span class="price"></span><button class="btn x" type="button">✕</button>';}
@@ -2978,12 +2980,25 @@ function _cgReconcileChecklistDependents(){
 // pattern) rather than wired at each of the ~12 checkbox-generation call sites individually.
 function _cgWireChecklistDelegation(){
   const form=$('form');if(!form)return;
-  form.addEventListener('change',function(e){
+  // CAPTURE phase, deliberately. #form also carries a bare `change -> render()` listener (wired at
+  // bootstrap), and render() re-derives every checklist checkbox's `checked` from the LOG. In the
+  // bubble phase that listener can run FIRST, un-tick the box the user just ticked, and leave this
+  // handler reading checked=false — so it retracts instead of emitting and the click is a no-op.
+  // That is exactly what happened to the class-unlock checkbox: the control was dead, and with it
+  // the entire unlocked (sticker) price tier. Capture runs before the target's own inline handler
+  // and before every bubble listener, so this sees the user's actual intent.
+  // Both `input` and `change`, because a checkbox click fires `input` FIRST and #form's render
+  // listener is bound to both — reacting only to `change` means render() has already run and
+  // rewritten `checked`. Firing on both is safe: onChecklistToggle is idempotent in each direction
+  // (an emit is skipped when the LOG already holds the value, a retract is a no-op when it doesn't).
+  const onCk=function(e){
     const el=e.target;
     if(!el||el.type!=='checkbox')return;
     if(![...el.classList].some(function(c){return c in CHECKLIST_CAT;}))return;
     onChecklistToggle(el);
-  });
+  };
+  form.addEventListener('input',onCk,true);
+  form.addEventListener('change',onCk,true);
 }
 
 // ---- Phase 2 Step 3 (Chunk 3): Category C (add-row lists) reconciled into the LOG mutation API ----
@@ -3337,7 +3352,14 @@ function buildClassPickers(){
     const reg=byClass[c].filter(lab=>!DATA.features[lab].inv), inv=byClass[c].filter(lab=>DATA.features[lab].inv);
     let opts='<option value="">＋ '+c+'…</option>'+reg.map(optHtml).join('');
     if(inv.length)opts+='<optgroup label="↳ Eldritch Invocations (need Warlock discipline)">'+inv.map(optHtml).join('')+'</optgroup>';
-    return '<div style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="classunlock" data-cls="'+c+'" onchange="render()" style="margin:0 2px 0 0"><b class="cpname" data-cls="'+c+'" style="font-size:11px;min-width:74px">'+c+'</b><select class="classpick" data-cls="'+c+'" style="flex:1;min-width:0">'+opts+'</select></div>';
+    // NO inline onchange="render()" here. It used to carry one, left over from before Chunk 3 made
+    // this checkbox LOG-backed, and it made the control DEAD: an element's own inline handler runs
+    // before a bubbled listener, so render() re-derived `checked` from a LOG that had no unlockclass
+    // entry yet, un-ticked the box, and the delegated onChecklistToggle then saw checked=false and
+    // took the retract path. Clicking "unlock <class>" did nothing at all, which is also why the
+    // unlocked (sticker) price tier was unreachable from this UI. emit()/retractFlatEvent() both
+    // render already — see _cgWireChecklistDelegation.
+    return '<div style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="classunlock" data-cls="'+c+'" style="margin:0 2px 0 0"><b class="cpname" data-cls="'+c+'" style="font-size:11px;min-width:74px">'+c+'</b><select class="classpick" data-cls="'+c+'" style="flex:1;min-width:0">'+opts+'</select></div>';
   }).join('');
   grid.querySelectorAll('.classpick').forEach(sel=>sel.addEventListener('change',function(){
     const lab=this.value;this.value='';
@@ -3365,7 +3387,7 @@ function buildSubPickers(){
     const groups=subs.map(s=>{const abs=DATA.subclasses[c][s].abilities;
       var _opts=abs.map(a=>'<option value="'+(c+'|'+s+'|'+a.name).replace(/"/g,'&quot;')+'">'+a.name+' · '+a.tb+'</option>').join('');
       var _bn=(DATA.subclasses[c][s]||{}).spellBundle;
-      if(_bn){var _pr=' ('+_bn.origin+'/'+_bn.cross+' AP'+(_bn.cantrips?' +'+_bn.cantrips+'c':'')+')';
+      if(_bn){var _pr='';   // priced live in render() — same three tiers as any other subclass purchase
         if(s==='Circle of the Land'){_opts+=['Arid','Polar','Temperate','Tropical'].map(function(tr){return '<option value="'+('@bundle@'+c+'|'+s+'|'+tr).replace(/"/g,'&quot;')+'">'+s+' — '+tr+' spell list'+_pr+'</option>';}).join('');}
         else{_opts+='<option value="'+('@bundle@'+c+'|'+s).replace(/"/g,'&quot;')+'">'+s+' spell list'+_pr+'</option>';}}
       return '<optgroup label="'+s+'">'+_opts+'</optgroup>';}).join('');
@@ -4395,7 +4417,7 @@ function annotate(b,r){
   document.querySelectorAll('.cpname').forEach(e=>{const c=e.dataset.cls;const isO=(c===b.originClass||c===b.originClass2);const isU=!isO&&(b.unlockedClasses||[]).indexOf(c)>=0;e.textContent=c+(isO?' ★':(isU?'':' †'));e.style.color=isO?'var(--good)':(isU?'#222':'var(--bad)');e.style.fontWeight='700';var cb=document.querySelector('.classunlock[data-cls="'+c+'"]');if(cb){cb.checked=false;cb.disabled=isO;cb.checked=isO||isU;cb.title=isO?(c+' — origin class (always unlocked)'):('Unlock '+c+' — features drop to sticker price (no cross-class surcharge)');}});
   document.querySelectorAll('.classpick').forEach(function(sel){var c=sel.dataset.cls;if(!c)return;var isO=(c===b.originClass||c===b.originClass2);var isU=!isO&&(b.unlockedClasses||[]).indexOf(c)>=0;for(var i=0;i<sel.options.length;i++){var o=sel.options[i];if(!o.value)continue;var f=DATA.features[o.value];if(!f)continue;var nm=(o.value.split(': ')[1]||o.value);var price=isO?f.origin:(isU?Math.max(1,f.cross-f.tier):f.cross);var sym=isO?' ★':(isU?'':' †');o.textContent=nm+(f.rep?' ⟳step':'')+' · '+f.tb+' · '+price+' AP'+sym;}});
   {var _su={},_ord=[];(b.subAbilities||[]).forEach(function(key){var a=DATA.subAbilMap[key];if(!a)return;if(!_su[a.cls])_su[a.cls]={};if(!_su[a.cls][a.sub]){_su[a.cls][a.sub]=1;_ord.push({cls:a.cls,sub:a.sub});}});var _first={};_ord.forEach(function(o){if(!(o.cls in _first))_first[o.cls]=o.sub;});var _el=$('subunlockinfo');if(_el){_el.innerHTML=_ord.length?('<b>Subclasses opened:</b> '+_ord.map(function(o){var isFree=(_first[o.cls]===o.sub);var isO=(o.cls===b.originClass||o.cls===b.originClass2);return (isO?'★ ':'')+o.cls+' › '+o.sub+(isFree?' <span style="color:var(--good)">(free)</span>':' <span style="color:var(--bad)">(+15 AP unlock)</span>');}).join('  ·  ')):'No subclasses opened yet — your first subclass in each class is free; every additional subclass in the same class adds 15 AP.';}}
-  document.querySelectorAll('.subpick').forEach(function(sel){var cc=sel.dataset.cls;if(!cc)return;var isO=(cc===b.originClass||cc===b.originClass2);var isUS=!isO&&(b.unlockedClasses||[]).indexOf(cc)>=0;for(var i=0;i<sel.options.length;i++){var o=sel.options[i];if(!o.value)continue;if(o.value.indexOf('@bundle@')===0){var _bp=o.value.slice(8).split('|');var _bsc=(DATA.subclasses[_bp[0]]||{})[_bp[1]]||{};var _bn=_bsc.spellBundle;if(!_bn)continue;var _blab=(_bp[2]?_bp[1]+' — '+_bp[2]:_bp[1])+' spell list ('+_bn.origin+'/'+_bn.cross+' AP'+(_bn.cantrips?' +'+_bn.cantrips+'c':'')+')';o.textContent=_blab+(isO?' ★':(isUS?'':' †'));continue;}var a=DATA.subAbilMap[o.value];if(!a)continue;var price=isO?a.origin:(isUS?Math.max(1,a.cross-a.tier):a.cross);var sym=isO?' ★':(isUS?'':' †');o.textContent=a.name+' · '+a.tb+' · '+price+' AP'+sym;}});document.querySelectorAll('.subcls').forEach(function(e){var cc=e.dataset.cls;var isO=(cc===b.originClass||cc===b.originClass2);var isUS=!isO&&(b.unlockedClasses||[]).indexOf(cc)>=0;e.textContent=cc+(isO?' ★':(isUS?'':' †'));e.style.color=isO?'var(--good)':(isUS?'#222':'var(--bad)');e.style.fontWeight='700';});
+  document.querySelectorAll('.subpick').forEach(function(sel){var cc=sel.dataset.cls;if(!cc)return;var isO=(cc===b.originClass||cc===b.originClass2);var isUS=!isO&&(b.unlockedClasses||[]).indexOf(cc)>=0;for(var i=0;i<sel.options.length;i++){var o=sel.options[i];if(!o.value)continue;if(o.value.indexOf('@bundle@')===0){var _bp=o.value.slice(8).split('|');var _bsc=(DATA.subclasses[_bp[0]]||{})[_bp[1]]||{};var _bn=_bsc.spellBundle;if(!_bn)continue;var _bpr=isO?_bn.origin:(isUS?(_bn.sticker??_bn.cross):_bn.cross);var _blab=(_bp[2]?_bp[1]+' — '+_bp[2]:_bp[1])+' spell list · '+_bpr+' AP'+(_bn.cantrips?' +'+_bn.cantrips+'c':'');o.textContent=_blab+(isO?' ★':(isUS?'':' †'));continue;}var a=DATA.subAbilMap[o.value];if(!a)continue;var price=isO?a.origin:(isUS?Math.max(1,a.cross-a.tier):a.cross);var sym=isO?' ★':(isUS?'':' †');o.textContent=a.name+' · '+a.tb+' · '+price+' AP'+sym;}});document.querySelectorAll('.subcls').forEach(function(e){var cc=e.dataset.cls;var isO=(cc===b.originClass||cc===b.originClass2);var isUS=!isO&&(b.unlockedClasses||[]).indexOf(cc)>=0;e.textContent=cc+(isO?' ★':(isUS?'':' †'));e.style.color=isO?'var(--good)':(isUS?'#222':'var(--bad)');e.style.fontWeight='700';});
   // no-Foundation cantrips — always available (can be bought alongside a tradition)
   {const dsel=$('dabblerCantrips');
    if(dsel){const row=$('dabblerrow');dsel.disabled=false;if(row)row.style.opacity='1';if($('dabbler_w'))$('dabbler_w').textContent='';const cap=r.prof+r.mods.INT;
@@ -4412,22 +4434,35 @@ function annotate(b,r){
   {const EB=effBoons();document.querySelectorAll('.boonck').forEach(e=>{const bo=EB[e.value];if(!bo)return;const ok=b.hd>=bo.hd;
     e.disabled=(!ok&&!e.checked);if(e.parentElement)e.parentElement.style.opacity=(ok||e.checked)?'1':'0.5';});}
   // feature/racial/draw row prices
-  const fstep={};const ORG=o=>{return o?'★ Origin ':'Cross ';};
+  const fstep={};const _unlkR=new Set(b.unlockedClasses||[]);
+  // v0.350: every class-gated purchase has THREE price tiers — origin / unlocked (sticker =
+  // cross − tier) / cross-class — and compute() charges all three (engine.js:295, :328, :361).
+  // The row price spans below used to know only two, so an unlocked class showed `cross` in the
+  // row while the ledger charged the sticker. Same helper for features, subclass abilities and
+  // spell-list bundles so the three can't drift apart again.
+  const ORG=(o,u)=>{return o?'★ Origin ':(u?'Unlocked ':'Cross ');};
+  const PRC=(o,u,x)=>{return o?x.origin:(u?Math.max(1,x.cross-x.tier):x.cross);};
+  const PCOL=(o,u)=>{return o?'var(--good)':(u?'#222':'var(--bad)');};
   document.querySelectorAll('.line').forEach(line=>{
-    const f2=line.querySelector('.feat2row'),ri=line.querySelector('.racrow'),di=line.querySelector('.drawrow'),sa=line.querySelector('.subabilrow');const p=line.querySelector('.price');if(!p)return;
-    if(f2){const f=DATA.features[f2.value];if(f){const o=(f.cls===b.originClass||f.cls===b.originClass2);p.style.color=o?'var(--good)':'var(--bad)';
+    const f2=line.querySelector('.feat2row'),ri=line.querySelector('.racrow'),di=line.querySelector('.drawrow'),sa=line.querySelector('.subabilrow'),sb=line.querySelector('.subbundlerow');const p=line.querySelector('.price');if(!p)return;
+    if(f2){const f=DATA.features[f2.value];if(f){const o=(f.cls===b.originClass||f.cls===b.originClass2);const u=!o&&_unlkR.has(f.cls);p.style.color=PCOL(o,u);
       if(f.rep){const n=(fstep[f2.value]=(fstep[f2.value]||0)+1);
         if(f2.value==="Sorcerer: Metamagic"){p.textContent=stepDesc(f2.value,n)+' · T'+f.tier+' · '+(2*n)+' AP (flat, class-neutral)';}
         else{const tier=Math.min(7,f.tier+n-1);const st=DATA.MASTER[tier][f.band];const og=Math.max(1,st-(tier-1));const cr=st+tier;
-        p.textContent=stepDesc(f2.value,n)+' · T'+tier+' · '+ORG(o)+(o?og:cr)+' AP';}}
-      else p.textContent=ORG(o)+(o?f.origin:f.cross)+' AP';}
+        p.textContent=stepDesc(f2.value,n)+' · T'+tier+' · '+ORG(o,u)+(o?og:(u?st:cr))+' AP';}}
+      else p.textContent=ORG(o,u)+PRC(o,u,f)+' AP';}
       else {p.textContent=f2.value?'?':'';p.style.color='';}
       const fd=line.querySelector('.fdesc');if(fd){const nm=(f2.value.split(': ')[1]||f2.value);
         if(f){var _fp=(typeof FEAT_PG!=='undefined'&&FEAT_PG[f2.value])?('PHB p.'+FEAT_PG[f2.value]):'';f2.title=[f.tb,_fp].filter(Boolean).join(' · ');fd.textContent=[DATA.featDesc[nm]?(DATA.featDesc[nm]+' · '+f.tb):'',_fp].filter(Boolean).join(' · ');}
         else{f2.title='';fd.textContent='';}}}
     if(ri){const rr=DATA.racial[ri.value];if(rr){const o=(rr.race===b.species||rr.race===b.species2);p.textContent=ORG(o)+(o?rr.origin:rr.cross)+' AP';p.style.color=o?'var(--good)':'var(--bad)';}else {p.textContent='';p.style.color='';}}
     if(di){const v=DATA.drawbacks[di.value];p.textContent=v?('+'+v+' AP'):'';p.style.color='var(--bad)';}
-    if(sa){const a=DATA.subAbilMap[sa.value];if(a){const o=(a.cls===b.originClass||a.cls===b.originClass2);p.textContent=ORG(o)+(o?a.origin:a.cross)+' AP';p.style.color=o?'var(--good)':'var(--bad)';line.title=a.tb;}else {p.textContent='';p.style.color='';line.title='';}}
+    if(sa){const a=DATA.subAbilMap[sa.value];if(a){const o=(a.cls===b.originClass||a.cls===b.originClass2);const u=!o&&_unlkR.has(a.cls);p.textContent=ORG(o,u)+PRC(o,u,a)+' AP';p.style.color=PCOL(o,u);line.title=a.tb;}else {p.textContent='';p.style.color='';line.title='';}}
+    // Bundles carry an explicit `sticker`, so they use it rather than re-deriving cross − tier.
+    if(sb){const _q=String(sb.value).split('|');const _qs=(DATA.subclasses[_q[0]]||{})[_q[1]]||{};const _qb=_qs.spellBundle;
+      if(_qb){const o=(_q[0]===b.originClass||_q[0]===b.originClass2);const u=!o&&_unlkR.has(_q[0]);
+        p.textContent=ORG(o,u)+(o?_qb.origin:(u?(_qb.sticker??_qb.cross):_qb.cross))+' AP'+(_qb.cantrips?' +'+_qb.cantrips+'c':'');p.style.color=PCOL(o,u);}
+      else {p.textContent='';p.style.color='';}}
   });
   document.querySelectorAll('.subcls').forEach(e=>{const c=e.dataset.cls;const isO=(c===b.originClass||c===b.originClass2);const isU=!isO&&(b.unlockedClasses||[]).indexOf(c)>=0;e.textContent=c+(isO?' ★':(isU?'':' †'));e.style.color=isO?'var(--good)':(isU?'#222':'var(--bad)');e.style.fontWeight='700';});
   // tradition cost + breakdown (#13,#16,#17) — match tradInfo by .index

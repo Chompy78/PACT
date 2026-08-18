@@ -1,6 +1,10 @@
 
 # Dev/CI-only test tooling deps (testing/package.json) — the app itself needs no npm install.
 testing/node_modules/
+# Belt-and-braces: the e2e deps belong in testing/ (CI runs npm there, per the workflows'
+# `working-directory: testing`). A stray `npm install` from the repo root drops ~19 MB here,
+# which must never be committed — this project is vanilla JS and ships no npm dependencies.
+/node_modules/
 
 # Local Claude Code config (machine-specific — launch.json, settings*.json not shared)
 # Agents and commands subdirs ARE tracked as shared project context.

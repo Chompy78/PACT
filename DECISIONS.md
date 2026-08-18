@@ -10,6 +10,109 @@
 
 ## Index
 
+## D-GH-2026-08-18-remove-subclass-access-gate — the §11 access gate is removed one version after it shipped
+- v0.347 warned *"⛔ \<class\>: you cannot build from this class"* on a subclass ability or bundle from a class
+  that was neither origin nor unlocked. Removed in **v0.353**. Its premise was wrong (§11 endorses the
+  cross-class route explicitly), three of four cold reviewers said do not gate, it contradicted the §1 line that
+  settled the flat unlock a day later — and it **did not work**: the identical ability bought through the feature
+  picker cost the same 23 AP and raised no warning, because all 192 subclass abilities are mirrored into
+  `DATA.features`. Its only effect was to scold one of two identical paths. Removing it moved **no price** —
+  `CG-012`/`CG-013` keep their totals and just lose a warning. If a gate is ever wanted again, close the mirror
+  first. Recorded in the superseded original: `decisions/2026/D-GH-2026-08-17-subclass-class-access-gate.md`.
+
+## D-GH-2026-08-18-flat-class-unlock — class unlock becomes a flat 8 AP, and the ladder table is read with a clamp
+- The old **7 × classes-you-already-own** ladder contradicted the guide twice. §11 says the class unlock
+  *"mirrors how subclasses are bought"*, and the actual subclass rule is *"a flat 15 AP to open, however many
+  you already have"* — flat, explicitly non-escalating. §1 sells cross-class as *"just a shopping list, not a
+  multiclass puzzle"*, and a price depending on what you already own is a puzzle. Its table also had **five
+  rungs for twelve classes** read with `|| 0`, so a fifth unlock **refunded** the 70 AP paid for the first four
+  (negative with a 2nd origin class). Now flat 8, with `DATA.unlockCum` at 13 rungs read through a **clamp** —
+  `|| 0` turns "indexed past the table" into "free"; a clamp under-charges at worst. `7 + tier` measured as the
+  most restrictive option and was rejected on fit, not numbers: "commit early or pay more" is what §1's *"grows
+  in the direction you steer it"* rejects. `DATA.version` v0.352. **Exposed a gate gap:** three worked examples
+  silently stopped adding up and `guide-price-check` passed throughout.
+  Full record: `decisions/2026/D-GH-2026-08-18-flat-class-unlock.md`.
+
+## D-GH-2026-08-18-drawback-cap-and-second-origin — the drawback cap becomes real in a campaign and advisory outside one; the 2nd origin class goes 14 → 18
+- The engine claimed in a comment that drawbacks were capped at 14 AP and enforced nothing: all 69 together
+  granted **217 AP**, more than a level-11 character's whole feature budget. The guide meanwhile said **12**.
+  Three answers at once — guide 12, engine text 14, engine behaviour unlimited. Now clamped when a campaign
+  passes `opts.drawbackCap` and advisory otherwise, because a campaign has a DM to adjudicate and a solo build
+  does not. Default **12** in `DATA.drawbackCap`, matching the guide: nothing depended on 14, so the cheaper
+  correction was to fix the comment rather than edit a published rule. The 2nd origin class goes 14 → 18 —
+  at 14 it paid for itself after six features AND matched the drawback allowance exactly, so two drawbacks
+  funded it for free with no warning. `DATA.version` v0.351.
+  Full record: `decisions/2026/D-GH-2026-08-18-drawback-cap-and-second-origin.md`.
+
+## D-GH-2026-08-17-unlock-checkbox-dead-control — the class-unlock checkbox was a dead control, so the unlocked price tier was unreachable; the fix is capture-phase delegation, not ordering luck
+- Ticking "unlock \<class\>" in CharGen did **nothing**: no `unlockclass` event reached the LOG and the box
+  sprang back. Two layered causes — an inline `onchange="render()"` (target phase, runs before any bubble
+  listener) and `#form`'s own `input -> render()` (a checkbox click fires `input` first). Either way `render()`
+  re-derived `checked` from a LOG with no entry yet, un-ticked the box, and the delegated handler read
+  `checked === false` and **retracted**. So the whole middle price tier — the entire point of
+  `bundle-three-tier-pricing` — was unreachable from the UI. Fixed by binding the checklist delegation in the
+  **capture** phase for both `input` and `change`, which beats every bubble listener by construction rather
+  than by registration order. Invisible to synthetic events: `dispatchEvent(new Event('change'))` skips
+  `input` and passes. No `DATA.version` change.
+  Full record: `decisions/2026/D-GH-2026-08-17-unlock-checkbox-dead-control.md`.
+
+## D-GH-2026-08-17-renamed-feature-aliases — a renamed `DATA.features` key silently deletes the purchase from every saved character, so renames need an alias map
+- `compute()`'s `if(!f) continue;` means a removed feature key is dropped from a saved character **with its AP**,
+  silently. This branch removed two (`Druid: Elemental Fury / Improved circle` split by v0.346;
+  `Paladin: Aura expansions` renamed by v0.345) with no migration. A backfill can't reach a JSON file on
+  someone's disk, so the fix is read-time: `DATA.featureAliases` + `FEAT_ALIAS()`, applied at `MUT.feature`
+  (replay normalises the build) and at `compute()`'s lookup (a directly-supplied build still prices).
+  **Add an entry whenever a `DATA.features` key is renamed or removed.** Fixture `CG-015` asserts it.
+  Full record: `decisions/2026/D-GH-2026-08-17-renamed-feature-aliases.md`.
+
+## D-GH-2026-08-17-bundle-three-tier-pricing — §13's spell-access exemption covers the spell *economy*, not spell-*granting* features, so subclass bundles carry the ordinary cross-class surcharge
+- Bundles had two prices, not three: unlocking a class bought a **0 AP** reduction on a bundle while saving
+  real AP on that class's abilities. §13 reads as though anything spell-shaped is exempt from +Tier, and
+  **three of four cold reviewers** concluded exactly that — but the engine has always priced spell-*granting*
+  features with the full surcharge (`Bard: Magical Secrets` 13/17/22, `Warlock: Pact of the Tome` 18/18/19,
+  `Wizard: Signature Spells` 14/20/27). Pact of the Tome is a bundle's structural twin. §13 protects the spell
+  *economy* — Foundations, Ranks, slots, spells known — where +Tier **compounds**. Bundles now price
+  origin / unlocked / cross-class; Life Domain 6 / 8 / 11. No origin or unlocked price moved: storing the
+  **undiscounted** sum as the basis makes double-discounting impossible by construction. `DATA.version` v0.350.
+  Full record: `decisions/2026/D-GH-2026-08-17-bundle-three-tier-pricing.md`.
+
+## D-GH-2026-08-17-subclass-class-access-gate — ⛔ SUPERSEDED (removed v0.353): subclass purchases warned when the class was neither origin nor unlocked; the framing that motivated it was wrong
+- `compute()` now raises a ⛔ warning (not a refusal) when a subclass ability or bundle is bought from a class
+  that is neither origin nor unlocked — the guide's *"each class you can build from"* was never enforced, and
+  three foreign spell lists cost 35 AP with no unlock and no warning. **Recorded with its own correction:** the
+  motivating analysis called the per-feature cross-class route a "ladder dodge", but §11 blesses it explicitly
+  (*"the per-feature surcharge is cheaper for a single dip"*). What survives is narrower — the unlock **ladder
+  does not accrue**, so a permanent dabbler never pays for breadth. Reviewers split 3–1 against gating bundles,
+  2–2 on abilities. **Contested; do not treat as settled.** `DATA.version` v0.347.
+  Full record: `decisions/2026/D-GH-2026-08-17-subclass-class-access-gate.md`.
+
+## D-GH-2026-08-17-stars-starmap-split — Circle of the Stars' spells belong to the bundle; Star Map is repriced to cover only the free-cast
+- The 5 AP Stars bundle (Guidance + Guiding Bolt) and the `Star Map` ability were the same content sold twice —
+  the guide's own row read *"Star Map (Guiding Bolt prepared + free-cast + Guidance cantrip)"* — so a player
+  could buy both for 11 AP. The bundle keeps the spells; Star Map repriced **T3 Situational 6 (4) → T2 Per-Rest
+  5 (4)**, covering only the free-cast. Anchored on two 1st-level slots costing an origin caster 6 AP, verified
+  through `compute()`; 5 sits under it because the free-cast only ever casts one spell. Stars is now 9 AP
+  all-in at origin. `DATA.version` v0.349.
+  Full record: `decisions/2026/D-GH-2026-08-17-stars-starmap-split.md`.
+
+## D-GH-2026-08-17-subclass-features-mirror — Every subclass ability has two purchase routes with separate dedup domains; removing the mirror is deferred rather than rushed
+- All 192 subclass abilities are mirrored into `DATA.features` (188 in `featureList`, so CharGen's *feature*
+  picker offers them alongside its *subclass* picker). The two routes have separate dedup domains, so the same
+  ability bought in both pickers charges **twice with no warning**, skips subclass-unlock accounting, and
+  bypasses the v0.347 gate. **Identified and measured, not fixed** — unifying needs a LOG-migration decision
+  (`b.subSpellBundles` is in saved characters) and a fix for Circle of the Land's terrain variants, which don't
+  fit `subAbilMap`'s key shape. Filed as `refactor/subclass-purchase-unify`. No `DATA.version` change.
+  Full record: `decisions/2026/D-GH-2026-08-17-subclass-features-mirror.md`.
+
+## D-GH-2026-08-16-heritage-pack-pricing — In-pack species traits carry their real MASTER price; the pack, not a zeroed field, is what makes them free
+- Every in-pack trait was stored `origin: 0`, coupling *price* to *pack membership* — so a trait leaving a
+  pack silently became **free**. That had already happened (`Goliath: Long Stride`, free and unnoticed) and
+  was about to happen to three more traits being unpacked in the same change. The guide had it right all
+  along: Appendix B printed real `MASTER[tier][band]` prices with a separate `In pack` column. Engine now
+  matches, with a `r.pack && isO → 0` guard in `compute()`. Output-neutral (parity 30/0, no
+  `testing/expected/` change). `DATA.version` v0.343 → v0.344.
+  Full record: `decisions/2026/D-GH-2026-08-16-heritage-pack-pricing.md`.
+
 - **D-GH-2026-08-12-guide-engine-version-pointer** — Players Guide (separate `pact-guide` project) now
   declares a machine-generated `documents-rules:` pointer (version/branch/commit, sourced from
   `pact-guide`'s existing vendoring pipeline, stamped only on deliberate reconciliation — never

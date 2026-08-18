@@ -223,6 +223,43 @@ rate Effort/Risk meaningfully until one is actually picked up and scoped):
 `/code-review`, not fixed in that PR (low risk / negligible impact either way); heading currently empty,
 nothing to tag:
 
+## Restore a favicon for the served Players Guide — TODO
+Branch `fix/guide-favicon`. On 2026-08-16 the guide's three PWA `<head>` tags — `<link rel="manifest">`,
+`<link rel="icon">` and `<link rel="apple-touch-icon">` — were **removed** so that
+`docs/PACT-Players-Guide.html` stays byte-identical to `pact-guide`'s master, killing a whole class of
+silent transfer bug (every hand-`cp` had been stripping them unnoticed). See `CHANGELOG.md` and
+`docs/VERSION-SYNC.md`. That trade was deliberate, but it has one real cost: the guide tab now shows a
+generic browser favicon, because GitHub Pages only falls back to `/favicon.ico` at the **origin** root
+(`chompy78.github.io/favicon.ico`), which isn't ours to set — nothing under `/PACT/` can supply one.
+
+**The constraint that makes this non-trivial:** any fix that edits only this repo's copy is disqualified
+by construction — it would reintroduce the divergence the removal existed to eliminate, and
+`docs/VERSION-SYNC.md` now names a clean `diff` against the master as the transfer check.
+
+**Effort:** low · **Risk:** low — ambiguity is the driving factor (whether a relative-path icon can
+satisfy this repo, `pact-guide`, and `pact-guide-public` at once is *not* yet verified); damage scale and
+likelihood are both minimal (one `<link>` tag, `git revert`-able, no rules or player data touched).
+
+```text
+1. Weigh the options — verify, don't assume:
+   a. Give the MASTER a relative icon link and place a matching icon at the same relative path in every
+      repo that serves the guide (this one, pact-guide, and pact-guide-public, which serves it publicly).
+      Keeps the files identical. Confirm the relative path actually resolves in all three.
+   b. Accept the generic favicon; close as won't-fix with the reasoning recorded.
+   c. Something else — but anything that edits only the PACT-side copy is out by definition.
+2. Re-check the two other removed tags, in case either matters more than the 2026-08-16 analysis found.
+   Both conclusions were reasoned but NOT device-tested:
+   - `<link rel="manifest">` — judged redundant because `manifest.json` already sets `scope:"/PACT/"`,
+     so the guide is in scope and opens inside the installed app anyway.
+   - `<link rel="apple-touch-icon">` — judged to matter only if someone home-screens the guide page
+     itself rather than the app at `/PACT/`. Worth one real iOS check.
+3. Docs-only unless option (a) ships: do NOT bump `DATA.version` or `BUILD`; log in `CHANGELOG.md`.
+```
+
+**Done when:** the guide tab shows the PACT favicon on GitHub Pages **and**
+`diff <pact-guide master> docs/PACT-Players-Guide.html` is still clean — or the task is closed as
+won't-fix with the reasoning recorded in `DECISIONS.md`.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.

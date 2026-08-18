@@ -50,7 +50,10 @@ async function runAll() {
   for (const { id, path: p } of await discoverFixtures('builds')) {
     try {
       const build = await loadJson(p);
-      const r = compute(build);
+      // A fixture may carry `_apOpts` — compute()'s campaign-side second argument (dmAp,
+      // ignorePlayerAp, drawbackCap). Without this the campaign-only half of any rule is
+      // untestable here, which is exactly how the drawback cap shipped unenforced.
+      const r = compute(build, build._apOpts);
       rows.push({
         id, group: 'chargen', path: p,
         total: r.total, warnings: r.warnings.length, warningsArr: r.warnings, remaining: r.remaining,
@@ -166,8 +169,27 @@ function assertRow(row, expected, expectedWarnings) {
   return { ...row, pass: failures.length === 0, failures };
 }
 
+// The browser harness (testing/tests/engine-parity.html) can't list a directory, so its fixture
+// manifest is hardcoded — and it silently went stale: six fixtures existed that it never ran, while
+// AGENTS.md points humans at that page as THE gate. CI discovers from disk, so it is the one that
+// can tell. A fixture this file runs and that page doesn't is a coverage hole, so it fails the gate.
+async function checkHtmlManifest(actuals) {
+  const p = path.resolve(__dirname, '../tests/engine-parity.html');
+  let html;
+  try { html = await readFile(p, 'utf8'); }
+  catch { return [`could not read ${p} to check its fixture manifest`]; }
+  const listed = new Set([...html.matchAll(/path:\s*"\.\.\/fixtures\/[^"]*?\/([^"/]+\.json)"/g)].map(m => m[1]));
+  const missing = actuals
+    .filter(r => !listed.has(path.basename(r.path)))
+    .map(r => `${r.id} (${path.basename(r.path)})`);
+  return missing.length
+    ? [`engine-parity.html's manifest is missing ${missing.length} fixture(s) CI runs: ${missing.join(', ')} — add them to its FIXTURES list`]
+    : [];
+}
+
 async function main() {
   const [actuals, expected, expectedWarnings] = await Promise.all([runAll(), loadExpected(), loadExpectedWarnings()]);
+  const manifestGaps = await checkHtmlManifest(actuals);
   const results = actuals.map(row => assertRow(row, expected, expectedWarnings));
   const passed = results.filter(r => r.pass).length;
   const failed = results.filter(r => !r.pass).length;
@@ -177,8 +199,10 @@ async function main() {
     console.log(`  ${r.pass ? 'PASS' : 'FAIL'} ${r.id} (${r.group})`);
     if (!r.pass) r.failures.forEach(f => console.log(`       - ${f}`));
   }
-  console.log(failed === 0 ? `\n✓ ${passed} passed / 0 failed` : `\n✗ ${failed} FAILED / ${passed} passed`);
-  process.exit(failed === 0 ? 0 : 1);
+  if (manifestGaps.length) { console.log(''); manifestGaps.forEach(g => console.log(`  FAIL manifest — ${g}`)); }
+  const bad = failed + manifestGaps.length;
+  console.log(bad === 0 ? `\n✓ ${passed} passed / 0 failed` : `\n✗ ${bad} FAILED / ${passed} passed`);
+  process.exit(bad === 0 ? 0 : 1);
 }
 
 main().catch(e => { console.error('Run failed:', e); process.exit(1); });

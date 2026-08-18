@@ -15,15 +15,14 @@
  *
  * Needs no backend. Run: node testing/scripts/sw-cache-e2e.mjs
  */
-import { createRequire } from 'node:module';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { launchChromium } from './lib/launch-chromium.mjs';
 
 // CJS require honours NODE_PATH (unlike ESM's `import`), so this resolves a globally-installed
 // playwright without needing node_modules/ in the repo — same idiom as random-manual-e2e.mjs.
-const { chromium } = createRequire(import.meta.url)('playwright');
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PORT = 7962;
@@ -60,7 +59,7 @@ const server = http.createServer((req, res) => {
 async function main() {
   await new Promise(r => server.listen(PORT, r));
   const base = `http://localhost:${PORT}/PACT`;
-  const browser = await chromium.launch();
+  const browser = await launchChromium();
   // One persistent context for the whole run: the service worker and its caches must survive between
   // "visits", which is the entire point. A fresh context per visit would silently test nothing.
   const ctx = await browser.newContext();

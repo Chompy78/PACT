@@ -796,41 +796,43 @@ rules-logic or player-data impact.
 landed in `docs/PACT-Players-Guide.html`, and the three-way check (vendored snapshot ↔ `pact-guide`
 canonical ↔ this repo's served copy) passes.
 
-## Write the cross-project atomicity rule into AGENTS.md — TODO
-Branch `docs/rules-change-atomicity`. Nothing currently states that a mechanics change has to land in
-BOTH `js/engine.js` and the Players Guide before it is finished. As a direct result, Grit's pricing
-diverged between the two for ~6 days (2026-08-06 → 2026-08-12): `pact-guide` deliberately moved to the
-2N Steep curve and documented the divergence, while this repo's engine kept the older ladder, and each
-side's records read as authoritative on its own. See `D-GH-2026-08-12-grit-steep-ladder` (and its
-Addendum) for the full account, including how a stale "we deliberately diverge" warning becomes its own
-hazard once the divergence is resolved.
-**Effort:** low · **Risk:** low — ambiguity is low (the rule itself is already agreed and written in
-prose in the decision record; this is transcription into the place agents actually read); damage scale
-is low (one docs paragraph, `git revert`-able); damage likelihood is low (no code, no gate, no data).
-Sweep-eligible **only** for the half in this repo — the `pact-guide` half must be handed over as a patch.
-
-```text
-1. Add to AGENTS.md, near the Versioning section: a mechanics change is not finished until the engine
-   AND the guide both land it, with `DATA.version` bumped exactly once, in the engine. Name
-   `pact-guide` as the guide's upstream master and give its actual location, so a future session
-   doesn't have to discover it the hard way.
-2. State plainly which artefact wins when they disagree: `js/engine.js` is the single source of truth
-   for rules (this is already AGENTS.md's position elsewhere — make it explicit for the guide case too,
-   because that project's own PYTHON-FILES-OVERVIEW.md describes its Python model as the "pricing
-   authority", a directly competing claim that has already misled at least one session).
-3. Note the known copies that can drift, so nobody assumes there are only two: this repo's engine, this
-   repo's served guide copy, pact-guide's master guide, pact-guide's py/pricing.py, and
-   pact-guide's py/vendor/engine/engine.js (a vendored snapshot of this repo's engine).
-4. Mirror the rule into pact-guide's own AGENTS.md — as a patch handed to that project, not edited
-   from here.
-5. Docs-only: do NOT bump `DATA.version` or `BUILD`; log the change in `CHANGELOG.md`.
-```
-
-**Done when:** `AGENTS.md` states the atomicity rule, names where the guide master lives, resolves the
-engine-vs-Python authority question explicitly, and lists the five known rules-carrying copies; and the
-matching patch for `pact-guide`'s `AGENTS.md` has been drafted and handed over.
-
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
 - When a task here is done, move it to `CHANGELOG.md` — don't leave DONE items here.
+
+## refactor/subclass-purchase-unify — one purchase path for everything a subclass sells — TODO
+Branch `refactor/subclass-purchase-unify`. Deferred half of AE3 (the pricing half shipped as `DATA.version`
+v0.350). Two separate mechanisms currently sell subclass content, and both leak. (1) Spell bundles live in
+`DATA.subclasses[…].spellBundle` with their own pricing branch in `compute()`, keyed in the LOG as
+`b.subSpellBundles`; subclass abilities live in `DATA.subAbilMap`, keyed as `b.subAbilities`. (2) All **192**
+subclass abilities are additionally mirrored into `DATA.features` (188 of them in `featureList`, so CharGen's
+*feature* picker offers them alongside its *subclass* picker) — and the two routes have **separate dedup
+domains**, so buying the same ability in both pickers charges twice with no warning, skips subclass-unlock
+accounting, and bypasses the v0.347 class-access gate entirely.
+**Effort:** high · **Risk:** high — ambiguity is high (the `subSpellBundles` LOG field needs either retention
+or a migration, and Circle of the Land's four terrain variants are keyed `Class|Sub|Terrain` which doesn't fit
+`subAbilMap`'s `Class|Sub|Name` shape); damage scale is high (engine data model + both tools' pickers + the
+saved-character format); damage likelihood is medium (the parity/pricing gates catch price drift, but no gate
+covers the pickers or LOG round-tripping) — worst-of lands at high, never eligible for `/sweep-code-tasks`.
+
+```text
+1. Pre-flight, no code change: confirm whether the DATA.features mirror of subclass abilities is load-bearing
+   for anything (search both tools + any fixture for a `Cls: Name` feature key that is also a subclass
+   ability). If nothing depends on it, removal is a deletion; if something does, that dependency is the task.
+2. Decide the LOG question BEFORE touching data: keep `subSpellBundles` as a distinct field (bundles unify in
+   pricing only) or migrate bundle entries into `subAbilities` (true unification, breaks existing saved
+   characters). Record the choice as a `D-GH-<date>-subclass-purchase-unify` decision record — this is the
+   call that makes the rest mechanical.
+3. Resolve Circle of the Land: four terrain bundles, one engine `spellBundle`. Either give each terrain its
+   own subAbilMap entry or keep the terrain as a purchase parameter. Whichever, the four must stay separately
+   buyable and each must still cost the 15 AP Subclass Unlock beyond the first.
+4. Fold bundles into the chosen path; delete the `spellBundle` pricing branch from `js/engine.js`.
+5. Remove the 192 mirrored entries from `DATA.features`/`featureList`. Confirm CharGen's feature picker drops
+   to real class features only, and that the double-charge is gone by construction.
+6. Bump `DATA.version` only if prices move — this task should move none.
+```
+**Done when:** `testing/tests/engine-parity.html` reports 0 failed; `tool-pricing-ci` and all three guide
+checkers stay green; buying the same subclass ability through both routes is impossible (or charges once);
+a subclass purchase from a class that is neither origin nor unlocked raises the v0.347 gate warning by
+whichever route it is bought; and CharGen + Live Sheet still round-trip a character containing a bundle.

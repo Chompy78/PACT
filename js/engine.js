@@ -53,12 +53,22 @@ import { AP_BY_LEVEL, DEFAULT_LEVEL } from './ap-by-level.js';
 // Per-campaign advancement dials (display/config-only; never read by compute()/_replay()).
 import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advancement.js';
 
-export const BUILD = "v1.421";
+export const BUILD = "v1.423";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
 import { DATA } from './engine-data.js';
 export { DATA };
+
+/* Renamed-feature migration (v0.350). A saved character is a LOG of events, so a `feature`
+ * event holds whatever key existed the day it was recorded. When a key is split or renamed in
+ * DATA.features, compute()'s `if(!f)continue;` silently DROPS the purchase — the character
+ * loses the feature and the AP it cost, with no warning anywhere. v0.346 split
+ * "Druid: Elemental Fury / Improved circle" and v0.345 renamed "Paladin: Aura expansions"; this
+ * map is what keeps those characters whole. Applied at both funnels — MUT.feature (so replay
+ * normalises the build) and compute()'s lookup (so a build handed in directly still prices).
+ * Add an entry here whenever a DATA.features key is renamed or removed; never rename one silently. */
+export const FEAT_ALIAS = lab => (DATA.featureAliases && DATA.featureAliases[lab]) || lab;
 
 /* AP-by-level ladder — externalized to js/ap-by-level.js (feat/ap-by-level) and
  * surfaced on DATA so all three tools read it through the engine bridge. apByLevel/
@@ -146,7 +156,10 @@ export function compute(b, opts){
   b.hd=Math.min(20,Math.max(1,Math.floor(Number(b.hd)||1)));
   if(b.stats&&typeof b.stats==='object'){const s={};for(const k in b.stats)s[k]=Number(b.stats[k])||10;b.stats=s;}else b.stats={};
   const W=[]; const L=[]; let total=0;
-  function add(lab,ap){ if(ap!==0){L.push([lab,ap]);} total+=ap; } const _ITEMS={}; function addItems(lab,items){ const a=(items||[]).filter(x=>x); if(a.length)_ITEMS[lab]=a; }
+  // `force` keeps a 0 AP line visible when it still has itemized detail under it. Without it,
+  // a character whose only species traits are free heritage-pack traits got itemized entries
+  // filed under a "Species traits" heading that `add` had suppressed — detail with no heading.
+  function add(lab,ap,force){ if(ap!==0||force){L.push([lab,ap]);} total+=ap; } const _ITEMS={}; function addItems(lab,items){ const a=(items||[]).filter(x=>x); if(a.length)_ITEMS[lab]=a; }
   const st=b.stats||{};
   // base AP is paid on the purchased scores only
   let abilAP=0;for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){abilAP+=(DATA.ABIL[st[a]||10]||0);} add("Ability scores",abilAP);
@@ -257,9 +270,13 @@ export function compute(b, opts){
   let racAP=0;const _SI=[];for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;const isO=(r.race===b.species||r.race===b.species2);
     const _hasLockEntry=!!(b._raceTraitLocked&&Object.prototype.hasOwnProperty.call(b._raceTraitLocked,lab));
     const _locked=_hasLockEntry?!!b._raceTraitLocked[lab]:!!b.inPlay;
-    let _rc; if(_locked && isO && !r.pack){const _tt=Math.min(7,Math.max(r.tier||1,tier));const _row=DATA.MASTER[_tt];if(r.band==null){_rc=r.origin;}else{_rc=(_row&&_row[r.band])??r.origin;}} else if(isO){_rc=r.origin;} else if(r.cross==null){W.push((lab.split(": ")[1]||lab)+" is origin-race only — it can't be taken cross-race.");continue;} else {_rc=r.cross;}
+    // In-pack traits carry their real MASTER[tier][band] origin price (v0.344) so that moving a
+    // trait in or out of a heritage pack never silently makes it free — but the pack itself is what
+    // grants them, so the origin race pays 0 here rather than paying twice. Cross-race buyers still
+    // pay `cross` via the branches below.
+    let _rc; if(_locked && isO && !r.pack){const _tt=Math.min(7,Math.max(r.tier||1,tier));const _row=DATA.MASTER[_tt];if(r.band==null){_rc=r.origin;}else{_rc=(_row&&_row[r.band])??r.origin;}} else if(isO){_rc=r.pack?0:r.origin;} else if(r.cross==null){W.push((lab.split(": ")[1]||lab)+" is origin-race only — it can't be taken cross-race.");continue;} else {_rc=r.cross;}
     racAP+=_rc;_SI.push([lab,_rc]);}
-  add("Species traits",racAP);addItems("Species traits",_SI);
+  add("Species traits",racAP,_SI.length>0);addItems("Species traits",_SI);
   // §10 cross-species T2+ rule: traits above T1 can only be purchased by the origin species
   for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;const isO=(r.race===b.species||r.race===b.species2);if(!isO&&(r.tier||1)>1)W.push((lab.split(': ')[1]||lab)+': only Tier 1 traits are available cross-species');}{var _rtSet=new Set(b.racialTraits||[]);var _ownsR=function(nm){if(_rtSet.has(nm))return true;var _r=DATA.racial[nm];return !!(_r&&_r.pack&&(_r.race===b.species||_r.race===b.species2));};for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;var _sn=(lab.split(": ")[1]||lab);if(r.reqRace&&!_ownsR(r.reqRace))W.push("⛔ "+_sn+" requires "+((r.reqRace.split(": ")[1])||r.reqRace));if(r.minHD&&hd<r.minHD)W.push("⛔ "+_sn+" needs "+r.minHD+" Hit Dice (level "+r.minHD+")");}}
   // §10 lineage spell-likes: cap-exempt cantrips + half-price 1/long-rest spells (Appendix B prices)
@@ -271,9 +288,28 @@ export function compute(b, opts){
   const has2nd=(b.originClass2 && b.originClass2!=="(none)");
   const ownedBefore=1+(has2nd?1:0);
   const _xc=((b.unlockedClasses||[]).filter(c=>c!==b.originClass&&c!==b.originClass2).length)||(b.extraClasses||0);const _uStart=ownedBefore-1,_uEnd=_uStart+_xc;
-        const unlockAP=(DATA.unlockCum[_uEnd]||0)-DATA.unlockCum[_uStart];  // §: uses unlockCum table for explicitness
+  // v0.352: FLAT 8 AP per unlocked class, and the table is read with a CLAMP, not `|| 0`.
+  //
+  // Both halves fix real defects. The old ladder was 7 x classes-already-owned — [0,7,21,42,70] — which
+  // §11 described as mirroring how subclasses are bought, while the guide's actual subclass rule is
+  // "a flat 15 AP to open, however many you already have". The engine escalated where the published
+  // parallel is deliberately flat. Flat also fits §1's pitch — cross-class is meant to be "just a
+  // shopping list, not a multiclass puzzle" — and a price that depends on what you already own is a
+  // puzzle. See D-GH-2026-08-18-flat-class-unlock.
+  //
+  // The `|| 0` it replaces turned "index past the end of the table" into "free": with only five rungs
+  // for twelve classes, unlocking a FIFTH class refunded the 70 AP paid for the first four, and with a
+  // second origin class the line went negative. A clamp under-charges at worst; `|| 0` paid the player.
+  const _cum=i=>DATA.unlockCum[Math.min(Math.max(i,0),DATA.unlockCum.length-1)];
+  const unlockAP=_cum(_uEnd)-_cum(_uStart);
   add("Class unlocks",unlockAP);
-  if(has2nd) add("2nd origin class",14);
+  // v0.351 (AY2): 14 -> 18. At 14 a second origin paid for itself after SIX features, which put it
+  // inside what almost anyone takes, so it read as a default pick rather than a two-class concept.
+  // 18 moves the break-even to eight. It is also deliberately above the 14 AP drawback allowance:
+  // at 14 the two numbers matched exactly, so two drawbacks funded a whole second origin class for
+  // nothing and raised no warning at all. A second origin still carries its own hidden cost — it
+  // shifts you up the unlock ladder, so every later unlock costs 7/14/21 more.
+  if(has2nd) add("2nd origin class",18);
   // §14 Martially Bound: choose one class; −1 AP (floor 1) on that class's features, stacks with origin. +2 AP gain.
   const mbClass=(b.martiallyBound && b.martiallyBound!=="(none)")?b.martiallyBound:null;
   // Membership-only view of unlockedClasses, built once and shared by the features / subclass-ability /
@@ -282,7 +318,7 @@ export function compute(b, opts){
   const _unlkSet=new Set(b.unlockedClasses||[]);
   // features — non-stepped: buy once. Stepped (rep): each re-buy is the next tier up.
   let featAP=0; const fcount={}; const _FI=[];
-  for(const lab of (b.features||[])){const f=DATA.features[lab];if(!f)continue;
+  for(const _lab0 of (b.features||[])){const lab=FEAT_ALIAS(_lab0);const f=DATA.features[lab];if(!f)continue;
     fcount[lab]=(fcount[lab]||0)+1; const n=fcount[lab];
     if(!f.rep && n>1){W.push((lab.split(": ")[1]||lab)+": already bought — can only be taken once (not a stepped feature)");continue;}
     let origin,cross,stick;
@@ -330,11 +366,35 @@ export function compute(b, opts){
     for(const sub of used){if(sub!==free){subUnlockAP+=DATA.subUnlock;subUnlockN++;}}}
   {const _vc={};for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");if(_p.length>=3){const _k=_p[0]+"|"+_p[1];(_vc[_k]=_vc[_k]||{})[_p[2]]=1;}}for(const _k in _vc){const _x=Object.keys(_vc[_k]).length-1;if(_x>0){subUnlockAP+=_x*DATA.subUnlock;subUnlockN+=_x;}}}
   if(subUnlockAP) add("Subclass unlocks ("+subUnlockN+" × 15)",subUnlockAP);
+  // NO §11 ACCESS GATE HERE — removed in v0.353, one version after it was added, and deliberately not
+  // replaced. v0.347 warned "⛔ <class>: you cannot build from this class" when a subclass ability or
+  // spell bundle came from a class that was neither origin nor unlocked. Four reasons it is gone:
+  //   1. Its premise was wrong. §11 blesses the cross-class per-feature route in as many words — "the
+  //      per-feature surcharge is cheaper for a single dip" — so it warned against a purchase the
+  //      published rules endorse.
+  //   2. Three of four cold reviewers said do not gate; two independently noted that PACT prices class
+  //      boundaries rather than forbidding them.
+  //   3. It contradicted §1's pitch, which v0.352's flat unlock was chosen to honour: cross-class is
+  //      "just a shopping list, not a multiclass puzzle".
+  //   4. It did not work. All 192 subclass abilities are mirrored into DATA.features, so the identical
+  //      purchase through the feature picker cost the same and raised no warning at all. Its only
+  //      effect was to scold one of two identical paths.
+  // If a gate is ever wanted again, close the mirror first (refactor/subclass-purchase-unify) — a rule
+  // that guards one of two doors teaches players the wrong thing about the door it does not guard.
+  // See D-GH-2026-08-17-subclass-class-access-gate (Superseded) and D-GH-2026-08-18-flat-class-unlock.
   // v0.196: paid subclass "expanded spell list" bundles — opt-in, one buy = whole bundle
   //   (always-prepared bonus spells + free cap-exempt cantrips are granted in eligibleSpells, gated on purchase).
   for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");const _sc=(DATA.subclasses[_p[0]]||{})[_p[1]];const _bn=_sc&&_sc.spellBundle;if(!_bn)continue;
+    // v0.350: bundles now price on the same three tiers as any other subclass ability —
+    // origin / unlocked (sticker) / cross-class (sticker + Tier). They used to have only two, so
+    // unlocking a class bought a 0 AP reduction on a bundle while saving real AP on that class's
+    // abilities. §13's "spell access is free of the class tax" governs the spell ECONOMY — Foundations,
+    // Ranks, slots, spells known — where a +Tier surcharge would compound per purchase. It was never
+    // meant to exempt one-off spell-GRANTING features: Bard: Magical Secrets, Warlock: Pact of the Tome
+    // and Wizard: Signature Spells all carry the full +Tier surcharge, and a bundle is the same shape.
     const _isO=(_p[0]===b.originClass||_p[0]===b.originClass2);
-    add("Spell list — "+_p[1], _isO?_bn.origin:_bn.cross);}
+    const _isU=!_isO&&_unlkSet.has(_p[0]);
+    add("Spell list — "+_p[1], _isO?_bn.origin:(_isU?(_bn.sticker??_bn.cross):_bn.cross));}
   // spellcasting: per tradition -> per discipline. Casting ability is per discipline (auto by class).
   let mbGain=0; const discInfo=[]; const tradInfo=[]; let primaryMod=0, primaryAb="—", havePrimary=false;
   (b.traditions||[]).forEach((t,ti)=>{
@@ -467,7 +527,11 @@ export function compute(b, opts){
    if(_da.tasha===false){const _tb=(coll,owned)=>{(owned||[]).forEach(k=>{const it=coll[k];if(it&&it.noncore)W.push("⛔ "+(String(k).split(": ")[1]||k)+": non-core (DM-gated) ability barred by DM house rules");});};
      _tb(DATA.features,b.features);_tb(DATA.boons,b.boons);_tb(DATA.arts,b.arts);}}
   // drawbacks
-  // §14: drawbacks grant AP, but no more than 14 AP total across a character
+  // §14: drawbacks grant AP, capped at DATA.drawbackCap (12, the figure the Players Guide states).
+  // The cap is ENFORCED when a campaign passes opts.drawbackCap and ADVISORY otherwise — see the
+  // add() call below for why the two differ. The default lives in DATA so the engine, both tools
+  // and the guide quote one number; it used to be a bare 14 hardcoded here, which disagreed with
+  // the guide's 12 while the code enforced neither.
   // Skip unknowns, as all five sibling itemised loops do (:247 :275 :312 :441). Behaviour-identical for
   // the total (an unknown scores v=0) and for warnings (drawbackMaxStats[unknown] is {}), but it stops a
   // drawback retired from the rules rendering a phantom "<name> 0" row, and stops an all-unknown list
@@ -477,8 +541,21 @@ export function compute(b, opts){
   // Rows are NEGATIVE so they sum to the line total (-drawGain), the same relationship the other five
   // itemised lines have with theirs. `v` is the value actually charged, so a house-ruled drawback
   // (b.houseRules.draws) itemises at its overridden AP, not the printed one.
-  add("Drawbacks (refund)",-drawGain);addItems("Drawbacks (refund)",_DI);
-  if(drawGain>14) W.push("Drawbacks grant "+drawGain+" AP — note most tables cap at 14 AP (check with your DM)");
+  // v0.351 (AZ1): the cap is REAL in a campaign and advisory outside one.
+  //
+  // The comment above this block claimed "§14: drawbacks grant AP, but no more than 14 AP total across
+  // a character" and the code did not do it — it only warned. All 69 drawbacks together granted 217 AP,
+  // more than a level-11 character's whole feature budget. That is now enforced when a campaign supplies
+  // a cap (opts.drawbackCap), because a campaign has a DM whose ruling the number represents. A local,
+  // un-bound character keeps the advisory warning and the full grant: there is nobody to adjudicate for
+  // them, and silently clamping a solo build would change what people can already make offline.
+  const _dCap=(opts&&Number.isFinite(opts.drawbackCap))?Math.max(0,opts.drawbackCap):null;
+  const _dGranted=(_dCap!=null)?Math.min(drawGain,_dCap):drawGain;
+  add("Drawbacks (refund)",-_dGranted);addItems("Drawbacks (refund)",_DI);
+  if(_dCap!=null&&drawGain>_dCap)
+    W.push("Drawbacks grant "+drawGain+" AP but this campaign caps them at "+_dCap+" — "+(drawGain-_dCap)+" AP not granted");
+  else if(_dCap==null&&drawGain>DATA.drawbackCap)
+    W.push("Drawbacks grant "+drawGain+" AP — the guide caps them at "+DATA.drawbackCap+" AP (check with your DM)");
   if((b.drawbacks||[]).length>3) W.push((b.drawbacks||[]).length+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
   // Lost purchases (feat/ledger-show-lost-purchases, D-GH-2026-08-10): a bought-off drawback or a
   // DM-removed boon drops OUT of the fold entirely (see _replay's boughtOff/boonRemoved guards) — it's
@@ -588,7 +665,7 @@ export const MUT = {
  hd:(b,p)=>b.hd=p.to, prof:(b,p)=>b.profBonus=p.to, abil:(b,p)=>b.stats[p.ab]=p.to,
  skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
  lineage:(b,p)=>b.lineage=p.v,wornArmour:(b,p)=>b.wornArmour=p.v, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
- feat:()=>0, feature:(b,p)=>b.features.push(p.v), art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v), mvbuy:(b,p)=>{b.maneuverBuys=(b.maneuverBuys||0)+1;},
+ feat:()=>0, feature:(b,p)=>b.features.push(FEAT_ALIAS(p.v)), art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v), mvbuy:(b,p)=>{b.maneuverBuys=(b.maneuverBuys||0)+1;},
  tool:(b,p)=>b.tools.push(p.v), instrument:(b,p)=>b.instruments.push(p.v), mastery:(b,p)=>b.masteries.push(p.v),
  language:(b,p)=>b.languages=p.to, vigor:(b,p)=>b.hardy=p.to, grit:(b,p)=>b.tough=p.to,
  armour:(b,p)=>b.armour[p.v]=true, wprof:(b,p)=>b.weaponProf=clone(p.wp),
