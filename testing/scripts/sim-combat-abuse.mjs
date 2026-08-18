@@ -22,7 +22,24 @@ import { DATA, compute, baseBuild } from '../../js/engine.js';
 import { replay, UNLOCK_MODELS, tierOf } from './sim-unlock-timeline.mjs';
 
 const LVL = +(process.argv.find(a => /^\d+$/.test(a)) || 20);
-const BUDGET = DATA.apByLevel[LVL];
+const RESERVE = +((process.argv.find(a => a.startsWith('--reserve=')) || '').split('=')[1] || 0);
+const RAW_BUDGET = DATA.apByLevel[LVL];
+
+/**
+ * A character's AP budget is NOT all available for features. Hit Dice and proficiency bonus are
+ * themselves purchases, and at level 20 they alone cost 162 AP of the 535 — before a single skill,
+ * ability score, save, item or spell. An earlier version of this script compared feature spend
+ * against the RAW budget and concluded every class could buy the whole combat pool with AP to spare.
+ * That was false: the baseline grows from 0 AP at level 1 to 162 at level 20, so the error grew with
+ * level and manufactured exactly the "everything converges by level 17" result it was used to argue.
+ * `--reserve=N` sets aside N more for the rest of the character (stats, skills, saves, gear, magic).
+ */
+function baselineCost(originClass) {
+  const b = baseBuild();
+  b.originClass = originClass; b.budget = 1e6; b.hd = LVL;
+  b.profBonus = DATA.apByLevel && LVL >= 17 ? 6 : LVL >= 9 ? 4 : LVL >= 5 ? 3 : 2;
+  return compute(b).total;
+}
 
 // ── the combat pool ─────────────────────────────────────────────────────────────────────────────
 // Named explicitly rather than regex-matched, so what counts as "combat" is auditable and any
@@ -127,14 +144,17 @@ function pack(originClass, unlocked, budget) {
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────────────────────────
-console.log(`PACT combat-abuse optimiser — engine ${DATA.version}, level ${LVL}, budget ${BUDGET} AP, char tier T${tierOf(LVL)}`);
+console.log(`PACT combat-abuse optimiser — engine ${DATA.version}, level ${LVL}, raw budget ${RAW_BUDGET} AP, char tier T${tierOf(LVL)}`);
+console.log(`Reserve for non-combat spending: ${RESERVE} AP (pass --reserve=N to change).`);
 console.log(`Pool: ${COMBAT.length} named combat features. Score = sum of Tier (the engine's own power scale).\n`);
 
 const ORIGINS = ['Rogue', 'Fighter', 'Barbarian'];
 const FOREIGN = ['Fighter', 'Barbarian', 'Rogue', 'Monk', 'Paladin', 'Ranger', 'Warlock', 'Cleric', 'Bard'];
 
 for (const origin of ORIGINS) {
-  console.log(`\n${'='.repeat(78)}\n${origin.toUpperCase()} — most combat Tier reachable inside ${BUDGET} AP\n${'='.repeat(78)}`);
+  const base = baselineCost(origin);
+  const BUDGET = RAW_BUDGET - base - RESERVE;
+  console.log(`\n${'='.repeat(78)}\n${origin.toUpperCase()} — ${RAW_BUDGET} raw − ${base} baseline (Hit Dice + proficiency) − ${RESERVE} reserve = ${BUDGET} AP for combat features\n${'='.repeat(78)}`);
   const cands = FOREIGN.filter(c => c !== origin);
 
   // Reserve AP for unlocks under each model, then pack the rest. Try unlocking 0..3 foreign classes.
