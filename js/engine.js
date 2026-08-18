@@ -510,8 +510,11 @@ export function compute(b, opts){
    if(_da.tasha===false){const _tb=(coll,owned)=>{(owned||[]).forEach(k=>{const it=coll[k];if(it&&it.noncore)W.push("⛔ "+(String(k).split(": ")[1]||k)+": non-core (DM-gated) ability barred by DM house rules");});};
      _tb(DATA.features,b.features);_tb(DATA.boons,b.boons);_tb(DATA.arts,b.arts);}}
   // drawbacks
-  // §14: drawbacks grant AP, capped at 14 by default. The cap is ENFORCED when a campaign passes
-  // opts.drawbackCap and ADVISORY otherwise — see the add() call below for why the two differ.
+  // §14: drawbacks grant AP, capped at DATA.drawbackCap (12, the figure the Players Guide states).
+  // The cap is ENFORCED when a campaign passes opts.drawbackCap and ADVISORY otherwise — see the
+  // add() call below for why the two differ. The default lives in DATA so the engine, both tools
+  // and the guide quote one number; it used to be a bare 14 hardcoded here, which disagreed with
+  // the guide's 12 while the code enforced neither.
   // Skip unknowns, as all five sibling itemised loops do (:247 :275 :312 :441). Behaviour-identical for
   // the total (an unknown scores v=0) and for warnings (drawbackMaxStats[unknown] is {}), but it stops a
   // drawback retired from the rules rendering a phantom "<name> 0" row, and stops an all-unknown list
@@ -534,8 +537,8 @@ export function compute(b, opts){
   add("Drawbacks (refund)",-_dGranted);addItems("Drawbacks (refund)",_DI);
   if(_dCap!=null&&drawGain>_dCap)
     W.push("Drawbacks grant "+drawGain+" AP but this campaign caps them at "+_dCap+" — "+(drawGain-_dCap)+" AP not granted");
-  else if(_dCap==null&&drawGain>14)
-    W.push("Drawbacks grant "+drawGain+" AP — note most tables cap at 14 AP (check with your DM)");
+  else if(_dCap==null&&drawGain>DATA.drawbackCap)
+    W.push("Drawbacks grant "+drawGain+" AP — the guide caps them at "+DATA.drawbackCap+" AP (check with your DM)");
   if((b.drawbacks||[]).length>3) W.push((b.drawbacks||[]).length+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
   // Lost purchases (feat/ledger-show-lost-purchases, D-GH-2026-08-10): a bought-off drawback or a
   // DM-removed boon drops OUT of the fold entirely (see _replay's boughtOff/boonRemoved guards) — it's

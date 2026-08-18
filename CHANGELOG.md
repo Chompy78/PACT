@@ -6,6 +6,27 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-18 · feat(rules): campaign-enforced drawback cap, 2nd origin class 14 → 18 (`DATA.version`
+  **v0.351**)** — two numbers, found together because one funded the other. **The drawback cap did not
+  exist.** `js/engine.js` carried the comment *"§14: drawbacks grant AP, but no more than 14 AP total
+  across a character"* above code that only warned; all 69 drawbacks together granted **217 AP**, more
+  than a level-11 character's whole feature budget. The Players Guide meanwhile said **12** — three
+  answers at once (guide 12, engine text 14, engine behaviour unlimited). `compute(b, opts)` now clamps
+  when a campaign passes `opts.drawbackCap` and grants in full with an advisory warning otherwise: a
+  campaign has a DM whose ruling the number represents, a solo build does not, and silently clamping an
+  offline character would change what people can already make. Default **12** in `DATA.drawbackCap` so
+  engine, both tools and guide quote one figure — nothing depended on 14, so the cheaper correction was
+  to fix the comment rather than edit a published rule. **2nd origin class 14 → 18**: at 14 it paid for
+  itself after six features, *and* matched the drawback allowance exactly, so two drawbacks (Hexed Luck 8
+  + Leaden Reflexes 6) funded a whole second origin class for nothing and raised no warning at all. 18
+  moves the break-even to eight and sits above the allowance. Guide updated at four sites plus §14.
+  DM Console gains an on/off + figure in the rules panel, defaulting **on at 12** for campaigns that
+  predate the rule. Fixtures: the build-fixture format gained **`_apOpts`** (compute's campaign-side
+  second argument) — without it the campaign-only half of any rule is untestable in parity, which is
+  precisely how this cap shipped unenforced; `CG-016`/`CG-017` are the same character with and without a
+  campaign, 26 AP granted versus 12. Parity 34 → **36**, `dm-console-ui` 89 → **94**. `CG-009` moved
+  79 → 83, the only fixture with a 2nd origin class. See
+  `D-GH-2026-08-18-drawback-cap-and-second-origin`.
 - **2026-08-17 · feat(guide): the Players Guide gets its own theme switcher, so one file can serve all
   three homes** — docs change, no `DATA.version` bump. Groundwork for collapsing the guide's three
   divergent copies into a single canonical artifact. Until now the guide only ever *read*

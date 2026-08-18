@@ -10,6 +10,17 @@
 
 ## Index
 
+## D-GH-2026-08-18-drawback-cap-and-second-origin — the drawback cap becomes real in a campaign and advisory outside one; the 2nd origin class goes 14 → 18
+- The engine claimed in a comment that drawbacks were capped at 14 AP and enforced nothing: all 69 together
+  granted **217 AP**, more than a level-11 character's whole feature budget. The guide meanwhile said **12**.
+  Three answers at once — guide 12, engine text 14, engine behaviour unlimited. Now clamped when a campaign
+  passes `opts.drawbackCap` and advisory otherwise, because a campaign has a DM to adjudicate and a solo build
+  does not. Default **12** in `DATA.drawbackCap`, matching the guide: nothing depended on 14, so the cheaper
+  correction was to fix the comment rather than edit a published rule. The 2nd origin class goes 14 → 18 —
+  at 14 it paid for itself after six features AND matched the drawback allowance exactly, so two drawbacks
+  funded it for free with no warning. `DATA.version` v0.351.
+  Full record: `decisions/2026/D-GH-2026-08-18-drawback-cap-and-second-origin.md`.
+
 ## D-GH-2026-08-17-unlock-checkbox-dead-control — the class-unlock checkbox was a dead control, so the unlocked price tier was unreachable; the fix is capture-phase delegation, not ordering luck
 - Ticking "unlock \<class\>" in CharGen did **nothing**: no `unlockclass` event reached the LOG and the box
   sprang back. Two layered causes — an inline `onchange="render()"` (target phase, runs before any bubble

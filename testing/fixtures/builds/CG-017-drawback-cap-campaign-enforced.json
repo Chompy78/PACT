@@ -122,6 +122,6 @@
  "version": "v0.322",
  "id": "test-cg017-drawback-cap-campaign",
  "_apOpts": {
-  "drawbackCap": 14
+  "drawbackCap": 12
  }
 }

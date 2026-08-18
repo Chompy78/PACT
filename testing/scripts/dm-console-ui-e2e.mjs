@@ -132,6 +132,29 @@ const loaded = await page.evaluate(()=>{
   return out;
 });
 check('_dmRulesPanel.load exposed', !loaded.missing);
+
+// v0.351 drawback cap. The rule this replaced was documented in a code comment and enforced
+// nowhere, so the panel round-trip is asserted here rather than assumed: an absent rule must
+// default ON at the guide's figure (a campaign predating the rule should not silently opt out),
+// an explicit off must stay off, and a DM-raised figure must survive the trip.
+const cap = await page.evaluate(() => {
+  const L = window._dmRulesPanel && window._dmRulesPanel.load;
+  const on = document.getElementById('ruleDrawbackCapOn');
+  const ap = document.getElementById('ruleDrawbackCapAp');
+  if (!L || !on || !ap) return { missing: true };
+  const read = rules => { L(rules); return { on: on.checked, ap: ap.value }; };
+  return {
+    absent:   read({}),
+    off:      read({ drawbackCap: { enabled: false, ap: 12 } }),
+    raised:   read({ drawbackCap: { enabled: true, ap: 20 } }),
+    dataCap:  window.DATA && window.DATA.drawbackCap,
+  };
+});
+check('drawback-cap controls exist', !cap.missing);
+check('DATA.drawbackCap is the guide figure (12)', cap.dataCap === 12, String(cap.dataCap));
+check('a campaign with no cap rule defaults ON at 12', cap.absent && cap.absent.on === true && +cap.absent.ap === 12, JSON.stringify(cap.absent));
+check('an explicit opt-out stays off', cap.off && cap.off.on === false, JSON.stringify(cap.off));
+check('a DM-raised cap round-trips', cap.raised && cap.raised.on === true && +cap.raised.ap === 20, JSON.stringify(cap.raised));
 check('current shape round-trips', loaded.current && loaded.current.level===4 &&
       loaded.current.band==='gritty' && loaded.current.ap===130, JSON.stringify(loaded.current));
 check('a saved override stays flagged on load', loaded.override && loaded.override.custom===true &&
