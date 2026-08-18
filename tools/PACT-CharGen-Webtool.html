@@ -2040,7 +2040,7 @@ function buildForm(F){
         var c=(DATA.levelBudgetCurves||{})[k]||{};
         return '<option value="'+k+'"'+(k==='standard'?' selected':'')+'>'+k.charAt(0).toUpperCase()+k.slice(1)+(c.l1?' ('+c.l1+'/+'+c.inc+')':'')+'</option>';}).join('')+
       '</select><span class="hint" id="buildLevel_hint"></span></div>'+
-    '<div class="row"><label class="l">AP budget</label><input type="number" id="budget" min="0" max="9999" step="1" value="79" style="width:96px">'+
+    '<div class="row"><label class="l" title="AP awarded to this character. Drawbacks are granted on top of this, so the spendable total in the header can be higher.">AP budget</label><input type="number" id="budget" min="0" max="9999" step="1" value="79" style="width:96px" title="AP awarded to this character. Drawbacks are granted on top of this, so the spendable total in the header can be higher.">'+
       '<span class="warn" id="budget_w"></span>'+
       '<span class="hint" id="budget_hint">Set by the level and track above · edit directly for a custom figure · 0 = none of your own (a campaign character spends DM-granted AP)</span></div>'+
 '<div class="sublab">DM Calls &mdash; what is permitted at this table</div>'+

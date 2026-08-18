@@ -6,6 +6,12 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · docs(chargen): tooltip on the "AP budget" field, now that it means awards only** — a
+  hover hint on the label and the input: drawbacks are granted *on top* of this figure, so the spendable
+  total in the header can be higher. No layout change; the field's own semantics are unchanged (it has
+  always been the `award` event). Without it a player sees 79 in the field and 85 in the header with no
+  explanation of the gap.
+
 - **2026-08-19 · fix(rules): derive the drawback grant inside `compute()`, not from the caller
   (`DATA.version` **v0.355**)** — v0.354's fix delivered the grant through `b.budget` and documented that
   as a contract "every real caller" satisfied. CharGen doesn't fold: `readBuild()` reads the form, where
