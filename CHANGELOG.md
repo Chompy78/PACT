@@ -6,6 +6,54 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · docs(chargen): tooltip on the "AP budget" field, now that it means awards only** — a
+  hover hint on the label and the input: drawbacks are granted *on top* of this figure, so the spendable
+  total in the header can be higher. No layout change; the field's own semantics are unchanged (it has
+  always been the `award` event). Without it a player sees 79 in the field and 85 in the header with no
+  explanation of the gap.
+
+- **2026-08-19 · fix(rules): derive the drawback grant inside `compute()`, not from the caller
+  (`DATA.version` **v0.355**)** — v0.354's fix delivered the grant through `b.budget` and documented that
+  as a contract "every real caller" satisfied. CharGen doesn't fold: `readBuild()` reads the form, where
+  `budget` is the award field alone — so **in the tool characters are made in, drawbacks were worth
+  zero**, which is worse than the double-count v0.354 replaced. Model (b) is unchanged; the grant now
+  comes from `b.drawbacks` inside `compute()`, and `b.budget` means awards only (`foldBuild()` and
+  `rebuildStateFromEvents()` both pass `earned − drawbackEarned`). Two gates added, because **none of the
+  38 parity fixtures could see this**: `engine-parity` asserts `total` and the *sign* of `remaining`,
+  never the *value* of `budget`. `log-fuzz` gains an income invariant (`compute().budget ===
+  economy().earned`) — which failed on its first run and exposed `rebuildStateFromEvents()`
+  double-granting too — and `chargen-flows-e2e` gains ten checks driving a real drawback click in a real
+  CharGen (56 → **66**). `CG-002`'s budget returns to 50. See
+  `D-GH-2026-08-19-drawback-single-count` (Addendum).
+
+- **2026-08-19 · chore(version): `BUILD` → `v1.424` for PR #424 (`preview` → `main` promotion)** — second
+  promotion of the night, carrying the drawback single-count fix — **v0.355** by the time it merged, after
+  the entry above — to the live site. The
+  number after the dot is the promoting PR's number per `docs/VERSION-SYNC.md`; mirrored in `js/engine.js`
+  (`export const BUILD`), CharGen (line-1 comment, `<title>`, header `.sub`), Live Sheet (line-1 comment)
+  and DM Console (`TOOL_VERSION`). The pre-release manual QA checklist was **not** run — flagged in the PR
+  body and in `docs/plans/2026-08-19-morning-review.md`.
+
+- **2026-08-19 · fix(rules): a drawback is income, not negative spending — model (b) (`DATA.version`
+  **v0.354**)** — drawbacks were worth **double**. `foldBuild()` sets `b.budget = economy().earned`, which
+  already includes `drawbackEarned`, and `compute()` *also* subtracted the grant from `total`. A level-1
+  Fighter awarded 79 AP taking four drawbacks had **131 AP** to spend against everyone else's 79 — +66%,
+  live on `main` the week the first real characters were being built. Two corrections were possible and
+  both give the right `remaining`; **(b)** was chosen: `total` counts positive purchases only and the
+  budget carries the grant. It is what the guide already promises (*"Each drawback below grants AP up
+  front"*), it avoids (a)'s *"spent −11"* for any level-1 character who takes a drawback before buying
+  anything, and `economy()` already reported it that way — so (b) ends a disagreement instead of adding a
+  third view. **Two things the plan had not named turned up in the doing:** the `b.budget` contract had to
+  be written down (under (b) the grant arrives on that side and nowhere else, so three hand-authored
+  fixtures needed their budgets corrected), and **legacy characters would have lost AP** — `economy()`
+  counted grants only from `buy`/`cat:'drawback'` events, while older CharGen exports deliver them as a
+  coalescing *patch* (`LS-001` carries one); that shape is now recognised. The ledger still shows
+  `Drawbacks (refund) −14` with its itemised rows, via a new display-only line that does not touch
+  `total`, so the rows-sum-to-heading invariant `tool-pricing-ci` asserts still holds. `log-fuzz`'s
+  reconciliation invariant went from `spent − drawbackEarned === total` to `spent === total`. New
+  fixture **`EV-019`** pins it end to end (budget 93, total 3, remaining **90**, was 104); five existing
+  fixtures moved, each a correct consequence; parity 37 → **38**. See
+  `D-GH-2026-08-19-drawback-single-count`.
 - **2026-08-18 · feat(testing): worked-example arithmetic gate; six Appendix I budgets corrected** —
   docs/testing only, no `DATA.version` change. When the class unlock moved 7 → 8, three worked examples
   silently stopped adding up and **every gate passed**: `guide-price-check` verifies feature *prices*

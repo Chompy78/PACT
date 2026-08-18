@@ -1,0 +1,61 @@
+{
+ "events": [
+  {
+   "type": "award",
+   "amount": 79,
+   "note": "Level 1 starting budget",
+   "label": "Award — Level 1 (79 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "oclass",
+   "payload": {
+    "v": "Fighter"
+   },
+   "cost": 0,
+   "level": 1,
+   "label": "Origin class — Fighter"
+  },
+  {
+   "type": "buy",
+   "cat": "drawback",
+   "payload": {
+    "v": "Hexed Luck"
+   },
+   "cost": -8,
+   "level": 1,
+   "label": "Drawback — Hexed Luck (+8 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "drawback",
+   "payload": {
+    "v": "Leaden Reflexes"
+   },
+   "cost": -6,
+   "level": 1,
+   "label": "Drawback — Leaden Reflexes (+6 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "feature",
+   "payload": {
+    "v": "Fighter: Second Wind"
+   },
+   "cost": 3,
+   "level": 1,
+   "label": "Feature — Second Wind"
+  },
+  {
+   "type": "name",
+   "name": "Bryn Two-Curses",
+   "label": "Name — Bryn Two-Curses"
+  }
+ ],
+ "baseSnapshot": {
+  "rules": "v0.354",
+  "name": "Bryn Two-Curses",
+  "LOG": [],
+  "SEQ": 0
+ }
+}

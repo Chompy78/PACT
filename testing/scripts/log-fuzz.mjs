@@ -285,6 +285,29 @@ function runChecks(ENGINE, LOG) {
     failures.push({ tag: 'throw', note: `compute() threw non-deterministically (succeeded twice above, then threw on a 3rd equivalent call): ${e && e.message}` });
   }
 
+  // INCOME INVARIANT (v0.355): what a character can spend equals what its frozen ledger says it
+  // earned. compute().budget (an alias of `spendable`) must equal economy().earned exactly, with no
+  // campaign opts in play — awards + drawback grants, counted once each.
+  //
+  // This is the check that was missing when the drawback double-count shipped, and it is missing-shaped
+  // for a reason worth recording: engine-parity asserts `total` and the SIGN of `remaining`, never the
+  // VALUE of `budget`, so all 38 fixtures pass whether a drawback is worth double, single, or nothing
+  // at all. EV-019 was added to pin exactly this and could not. The income side needs its own assertion,
+  // and this is it — stated against the frozen ledger so it holds under any pricing model.
+  //
+  // Excluded: a drawback recorded at anything other than its current table value. economy() reads the
+  // LOG's frozen cost while compute() reads the table, so those two legitimately disagree — the same
+  // divergence the repriceDrift block below already carves out, for the same reason.
+  {
+    const staleD = LOG.some(e => e.type === 'buy' && e.cat === 'drawback'
+      && -(Number(e.cost) || 0) !== (ENGINE.DATA.drawbacks[e.payload && e.payload.v] || 0));
+    if (!staleD) {
+      const earned = ENGINE.economy(LOG).earned;
+      if (result.budget !== earned)
+        failures.push({ tag: 'incomeDrift', note: `compute().budget=${result.budget} but economy().earned=${earned} — spendable AP must equal earned AP` });
+    }
+  }
+
   // dual entry point agreement: rebuildStateFromEvents(null, LOG) replays from the same blank
   // baseBuild() as foldBuild(). Compared on `.result` (compute()'s priced output — the only
   // thing any UI/DM-Console surface actually reads) rather than `.build`: `seedBuild()`
@@ -348,8 +371,12 @@ function runChecks(ENGINE, LOG) {
       driftChecked++;
       const ec = ENGINE.economy(rp);
       const total = ENGINE.compute(ENGINE.foldBuild(rp)).total;
-      if (ec.spent - ec.drawbackEarned !== total)
-        failures.push({ tag: 'repriceDrift', note: `draft ledger does not reconcile: spent=${ec.spent} - drawbackEarned=${ec.drawbackEarned} vs compute().total=${total}` });
+      // v0.354 (model b): a drawback is INCOME, not negative spend, so the frozen ledger's `spent` and
+      // compute()'s `total` should agree directly. This used to subtract drawbackEarned because
+      // compute() also netted the grant out of `total` — the double-count that model (b) removed. The
+      // grant now reaches the character through the budget only; economy().earned already carries it.
+      if (ec.spent !== total)
+        failures.push({ tag: 'repriceDrift', note: `draft ledger does not reconcile: spent=${ec.spent} vs compute().total=${total} (drawbackEarned=${ec.drawbackEarned}, which must affect NEITHER)` });
     }
   } catch (e) {
     failures.push({ tag: 'throw', note: `repriceDraft(LOG) threw where foldBuild()/compute() did not: ${e && e.message}` });
