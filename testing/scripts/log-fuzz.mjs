@@ -302,9 +302,22 @@ function runChecks(ENGINE, LOG) {
     const staleD = LOG.some(e => e.type === 'buy' && e.cat === 'drawback'
       && -(Number(e.cost) || 0) !== (ENGINE.DATA.drawbacks[e.payload && e.payload.v] || 0));
     if (!staleD) {
-      const earned = ENGINE.economy(LOG).earned;
-      if (result.budget !== earned)
-        failures.push({ tag: 'incomeDrift', note: `compute().budget=${result.budget} but economy().earned=${earned} — spendable AP must equal earned AP` });
+      const eco = ENGINE.economy(LOG);
+      if (result.budget !== eco.earned)
+        failures.push({ tag: 'incomeDrift', note: `compute().budget=${result.budget} but economy().earned=${eco.earned} — spendable AP must equal earned AP` });
+
+      // ...and the two must still agree under a campaign's AP rules, not only the plain local case.
+      // v0.356 made the drawback grant survive ignorePlayerAp (a drawback is a trade the character made,
+      // not an award), which meant earnedWithDm() — the frozen-ledger ceiling the Live Sheet DISPLAYS —
+      // had to carve the same exception or the two surfaces would report totals differing by exactly the
+      // grant for every character in such a campaign. That is the D-GH30 display-divergence class, so it
+      // gets an assertion rather than a comment. Both toggle states, with and without DM AP.
+      for (const o of [{ignorePlayerAp: true}, {ignorePlayerAp: true, dmAp: 37}, {dmAp: 37}]) {
+        const viaCompute = ENGINE.compute(ENGINE.foldBuild(LOG), o).budget;
+        const viaLedger = ENGINE.earnedWithDm(eco, o);
+        if (viaCompute !== viaLedger)
+          failures.push({ tag: 'ceilingDrift', note: `compute().budget=${viaCompute} but earnedWithDm()=${viaLedger} under ${JSON.stringify(o)} — the recompute and the frozen ledger must agree on the AP ceiling` });
+      }
     }
   }
 

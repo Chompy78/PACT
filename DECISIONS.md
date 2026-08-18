@@ -10,6 +10,20 @@
 
 ## Index
 
+## D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap — a drawback survives `ignore_player_ap`
+- Once v0.355 made a drawback **income**, a question appeared that the older double-count had hidden: is
+  drawback AP part of "your award history"? v0.355 answered it by accident — the grant sat inside the
+  `ignorePlayerAp` bracket and was dropped with everything else, so a character in such a campaign stayed
+  permanently Hexed and Leaden-Reflexed and got **nothing** for it, while every surface still listed both
+  drawbacks as active. Owner's ruling: *"they just get the AP, it's not considered a grant but a trade for a
+  drawback."* The grant is now composed **outside** the bracket; `playerAp` (awards) is what the toggle
+  governs. Not an uncapped side door — `drawbackCap` still applies, so the two controls do one thing each.
+  `earnedWithDm()` had to carve the same exception or the frozen ledger and the recompute would disagree by
+  exactly the grant (the D-GH30 divergence class), and `log-fuzz` gained a `ceilingDrift` invariant to say so.
+  Real effect: Amble's `Anders` (awards 0, drawbacks +6) goes 12 → 18 AP left. `DATA.version` v0.356;
+  `CG-019`/`CG-020` pin both toggle states; parity 38 → 40; dm-console-ui 94 → 96.
+  Full record: `decisions/2026/D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap.md`.
+
 ## D-GH-2026-08-19-drawback-single-count — a drawback is income, not negative spending (model b)
 - Drawbacks were worth **double**: `foldBuild()` put the grant in `b.budget` and `compute()` also netted it
   out of `total`. A level-1 character taking four drawbacks built on **131 AP against everyone else's 79**.

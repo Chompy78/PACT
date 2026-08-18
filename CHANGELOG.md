@@ -6,6 +6,26 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · docs(tasks): graduate `fix/drawback-grant-vs-ignore-player-ap`** — added and answered the
+  same day. Option **B** (the grant survives) chosen by the owner; the task's own **Done when** is met in
+  full: the ruling is made, `compute()` implements it, `CG-019`/`CG-020` pin both toggle states, and the
+  reasoning is recorded as `D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap`.
+
+- **2026-08-19 · feat(rules): a drawback survives `ignore_player_ap` — it is a trade, not player income
+  (`DATA.version` **v0.356**)** — owner's ruling on the question v0.355 left open. The grant moves
+  **outside** the `ignorePlayerAp` bracket: `playerAp` (awards) is what that toggle governs, and a
+  drawback is a price the character pays every session, not AP the player accrued. Before this, a
+  character in such a campaign stayed permanently Hexed and Leaden-Reflexed and got nothing for it while
+  every surface still listed the drawbacks as active. `drawbackCap` still applies, so the two campaign
+  controls now do one job each. `earnedWithDm()` — the frozen-ledger ceiling the Live Sheet displays —
+  carves the same exception, or it and `compute()` would disagree by exactly the grant (the D-GH30
+  divergence class); `log-fuzz` gained a **`ceilingDrift`** invariant asserting the two agree under three
+  opts shapes. New fixtures **`CG-019`/`CG-020`** pin a character with drawbacks and no award events under
+  both toggle states (parity 38 → **40**), and `dm-console-ui` 94 → **96** after its "switch is honoured"
+  check went degenerate and was replaced with one that pins the actual split: a 10 AP award moves the
+  ceiling, the drawback does not. **Live effect:** Amble's `Anders` (awards 0, drawbacks +6) goes 12 → 18
+  AP left. See `D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap`.
+
 - **2026-08-19 · fix(tools): drawback-cap info in both player tools, and CharGen's stale second-origin
   price** — three player-facing label bugs, all found while adding cap information to the drawback
   sections. **(1)** CharGen's drawback panel warned at a hardcoded `>14` and said "over 14 AP" while

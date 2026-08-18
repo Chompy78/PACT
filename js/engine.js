@@ -634,10 +634,23 @@ export function compute(b, opts){
   // `award` events, with no drawback AP mixed in. Both callers are then correct with no knowledge of
   // drawbacks: CharGen passes its award field, foldBuild() passes earned − drawbackEarned.
   //
-  // The grant sits INSIDE the ignorePlayerAp bracket because it is player-side income: a campaign that
-  // ignores a player's own AP ignores the AP their drawbacks bought too, exactly as before.
+  // THE GRANT SITS OUTSIDE THE ignorePlayerAp BRACKET (v0.356, owner's call — see
+  // D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap). A drawback is not player income; it is a TRADE
+  // the character made. They accepted a permanent mechanical penalty and the AP is what they got for it.
+  //
+  // ignorePlayerAp means "your AP comes from me, not from your award history" — it is about awards. A
+  // drawback is not an award, so the toggle does not reach it. Under the alternative (grant inside the
+  // bracket, which v0.355 shipped) a character in such a campaign stayed permanently Hexed and
+  // Leaden-Reflexed and got NOTHING for it, while the panel still listed both drawbacks as active and
+  // the ledger still itemised them — nothing on screen said the AP had been deleted.
+  //
+  // The cap still applies (it caps _dGranted above), so this is not an uncapped side door: a DM who
+  // wants to limit drawback AP in such a campaign sets drawbackCap, which is the control built for it.
+  //
+  // earnedWithDm() — the frozen-ledger AP ceiling the Live Sheet displays — carves the drawback portion
+  // out of the same bracket, or the two would report different totals for one character.
   const playerAp=Math.max(0,b.budget||0); const _opts=opts||{}; const dmAp=Number(_opts.dmAp)||0;
-  const spendable=(_opts.ignorePlayerAp?0:(playerAp+_dGranted))+dmAp; const remaining=spendable-total;
+  const spendable=(_opts.ignorePlayerAp?0:playerAp)+_dGranted+dmAp; const remaining=spendable-total;
   if(remaining<0) W.unshift("OVER BUDGET by "+(-remaining)+" AP");
   // sheet — apply drawback stat effects (#7) and the Initiative skill (#8)
   const dset={};for(const x of (b.drawbacks||[]))dset[x]=1;
@@ -871,7 +884,13 @@ export function earnedWithDm(eco, opts) {
   const _opts = opts || {};
   const dmAp = Number(_opts.dmAp) || 0;
   const playerEarned = (eco && Number(eco.earned)) || 0;
-  return (_opts.ignorePlayerAp ? 0 : playerEarned) + dmAp;
+  // economy().earned = awards + drawbackEarned. ignorePlayerAp drops the AWARDS only: a drawback is a
+  // trade the character made, not an award, so it survives the toggle (v0.356 — see the long note on
+  // compute()'s AP composition). Without this carve-out the Live Sheet's frozen-ledger ceiling and
+  // compute()'s spendable disagree by exactly the grant for every character in such a campaign, which
+  // is the D-GH30 display-divergence failure mode all over again.
+  const drawbackEarned = (eco && Number(eco.drawbackEarned)) || 0;
+  return (_opts.ignorePlayerAp ? drawbackEarned : playerEarned) + dmAp;
 }
 
 // Replay an append-only event log onto build `b` in place (shared by foldBuild

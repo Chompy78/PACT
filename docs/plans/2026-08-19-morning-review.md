@@ -105,15 +105,18 @@ Both were verified by re-introducing each bug and watching them fail. With the d
    Under (b) it would have granted **nothing**, quietly costing those characters their drawback AP.
    `_economyFrom` now recognises the legacy shape. Verified: LS-001 budget 81, total 79, remaining 2.
 
-### Two things found and deliberately NOT fixed
+### One thing found and deliberately NOT fixed, one found and fixed
 
-**A drawback grant is dropped by `ignore_player_ap`.** The board task this closes had a Done-when
-criterion — *"the same `remaining` whether `ignore_player_ap` is on or off"* — that was written for
-**model (a)**. You chose **(b)**, under which the grant is player-side income and goes with the rest of
-the player's AP: spendable 41 with the toggle off, **37** with it on. Both readings are defensible (a
-drawback is AP you earned vs a trade the character made), it affects only Amble today, and it is a rules
-call rather than a bug — so it is now its own NEXT task with both options written out, not something I
-decided in a graduation line.
+**A drawback grant was dropped by `ignore_player_ap` — you ruled on this and it is now fixed.** The
+board task this closes had a Done-when criterion — *"the same `remaining` whether `ignore_player_ap` is
+on or off"* — written for **model (a)**. Under (b) as first shipped it was false: the grant was
+player-side income and went with the rest of the player's AP. Your ruling — *"they just get the AP, it's
+not considered a grant but a trade for a drawback"* — moved the grant **outside** the toggle in
+**v0.356**, and that criterion is now met. `drawbackCap` still applies, so the two campaign controls do
+one job each. Recorded as `D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap`.
+
+**Live effect you should know about:** Amble's `Anders` — a real character, awards 0, drawbacks +6 —
+goes from **12 to 18 AP left**. Any Amble character with drawbacks gains back exactly their drawback AP.
 
 **The campaign drawback cap is DM-view-only.** `drawbackCap` appears in `DM-Console.html` and in neither
 player tool — so a player in a campaign you have capped sees the *full* grant in CharGen and the Live
@@ -124,14 +127,14 @@ thing that can still bite you this week, and only if you run a capped campaign.*
 
 ### Board
 
-`fix/drawback-ap-double-count` graduated off `TASK_BOARD_NEXT.md` into `CHANGELOG.md`. Two new NEXT
-tasks came out of it: `fix/drawback-grant-vs-ignore-player-ap` (the design call above) and
-`fix/drawback-cap-player-tools` (the DM-view-only cap).
+`fix/drawback-ap-double-count` graduated off `TASK_BOARD_NEXT.md` into `CHANGELOG.md`. Two new NEXT tasks
+came out of it; you answered one the same night, so `fix/drawback-grant-vs-ignore-player-ap` was done and
+graduated too. `fix/drawback-cap-player-tools` (the DM-view-only cap) is still open.
 
 ### Verification
 
-All gates green at `v0.355`: parity **38/0**, tool-pricing 134/0, chargen-flows **66/66**, dm-console-ui
-94/94, sw-cache pass, log-fuzz 500/500 (and 3000/3000 on a second seed), four sync gates 54/0,
+All gates green at `v0.356`: parity **40/0**, tool-pricing 134/0, chargen-flows **66/66**, dm-console-ui
+**96/96**, sw-cache pass, log-fuzz 500/500 (and 2000/2000 on a second seed), four sync gates 54/0,
 verify-guide 9/9. Guide §14 reworded to match — model (b) is unchanged, so the prose still holds.
 
 CharGen verified by hand in a headless browser: 79 award + 6 AP of drawbacks → budget 85, total 0, AP

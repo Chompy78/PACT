@@ -504,53 +504,6 @@ likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers 
 purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
 answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
 
-## Under model (b), should a drawback grant survive `ignore_player_ap`? — TODO
-Branch `fix/drawback-grant-vs-ignore-player-ap`. `js/engine.js` (`compute()`'s AP composition), and
-whatever the answer implies for Amble.
-**Effort:** low · **Risk:** medium — ambiguity is the driver: the code change is two lines, but it is a
-rules/design call about what a DM means by "ignore player AP", and it changes live numbers for the one
-campaign that has the toggle on. Damage scale is low (one campaign), damage likelihood low (a gate pins
-whichever answer is chosen).
-
-Split out of `fix/drawback-ap-double-count` (v0.354/v0.355) rather than decided inside it. That task's
-**Done when** included *"a character with drawbacks and no awards reports the same `remaining` whether
-`ignore_player_ap` is on or off"* — which is true under **model (a)** and false under **model (b)**, and
-(b) is what shipped. Everything else on that task landed; this is the one criterion that did not, and it
-did not because the chosen model makes it a different question rather than a bug.
-
-Under (b) the grant is player-side income, so it sits inside the `ignorePlayerAp` bracket and is dropped
-with the rest of the player's AP. Measured on the shipped engine, a character with `Frail` (4 AP) and no
-award events, in a campaign granting 37 DM AP:
-
-```text
-ignore_player_ap OFF -> spendable 41   (37 DM + 4 drawback)
-ignore_player_ap ON  -> spendable 37   (37 DM, grant dropped)
-```
-
-Both readings are defensible and neither is obviously right:
-
-```text
-A. Grant is dropped (current). "Your AP comes only from me" includes AP you earned by taking a
-   penalty. Consistent with the two-pool model - the grant is unambiguously player-side.
-   Wrinkle: the player takes a real mechanical penalty and gets nothing back for it.
-B. Grant survives. A drawback is a trade the CHARACTER made, not AP the player accrued, so it
-   should apply whatever the campaign says about award history.
-   Wrinkle: it reintroduces a player-controlled AP source into a pool the DM declared exclusive -
-   and 12 AP of drawbacks is a third of a level-1 budget.
-```
-
-Note this only becomes visible at all because v0.355 made the grant real income. Under the old
-double-count both toggles happened to land on the same `remaining` for the case that was checked, which
-is part of why nobody asked the question until now.
-
-**Scope:** Amble is the only campaign with `ignore_player_ap` on, so this affects exactly one table
-today — but it should be settled before a second campaign uses the toggle.
-
-**Done when:** the owner has picked A or B; `compute()` implements it; a parity fixture pins a character
-with drawbacks and no award events under both toggle states; the choice is logged as
-`D-GH-<date>-drawback-grant-vs-ignore-player-ap` with the reasoning; engine-parity **0 failed**.
-
-
 ## The campaign drawback cap is DM-view-only — players see a different total — TODO
 Branch `fix/drawback-cap-player-tools`. `tools/PACT-CharGen-Webtool.html` and
 `tools/PACT-Live-Char-Sheet.html` (their `compute()` opts builders); no engine change needed.
