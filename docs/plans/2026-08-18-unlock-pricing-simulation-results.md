@@ -49,16 +49,38 @@ lower than flat 7 does. Small, but it points the opposite way to the "7N is too 
 it puts flat 10 ahead of flat 7 on this axis where the break-even argument put flat 7 ahead. Both effects
 are within a few points; neither is decisive on its own.
 
-## HD-tied pricing: the optimiser defeats it
+## HD-tied pricing — ⚠ THE VERDICT HERE WAS WRONG, TWICE
 
-Every run under every HD-tied variant chose to unlock **at level 1**, where the character's tier — and
-therefore the price — is lowest. Not one run chose to unlock late. An HD-tied unlock therefore collapses
-to "flat, plus a bit" against anyone playing well, and the timing premium lands only on the player who
-did not know to buy early. It taxes ignorance, not abuse.
+**Withdrawn.** This section previously said every HD-tied run unlocked at level 1, so the model
+"collapses to flat, plus a bit" and "taxes ignorance, not abuse". Both the mechanism and the conclusion
+were wrong.
 
-This could not have been found by the static simulator; it needed
-`testing/scripts/sim-unlock-timeline.mjs`, which replays a purchase timeline so unlock cost can be
-stamped at the tier it was bought at.
+The optimiser charged an unlock bought "at level 1" against the **target level's** budget
+(`sim-combat-abuse.mjs:166`). Buying early was therefore free, and of course every run chose it. There
+was no level-1 constraint in the model at all.
+
+Two fixes: an unlock must now be affordable at the level it is bought, and the reserve for the rest of
+the character is applied at every level rather than only the last. That matters enormously early —
+priced on the live engine, a **level-1 character has 13 AP left** after Hit Dice, proficiency, stats,
+saves, skills and gear (79 budget − 66 essentials). One unlock is 54–77% of everything they have.
+
+Re-run with those constraints, HD-tied is the **most restrictive** model tested:
+
+| Level 17, Rogue | HD 7+tier | 7N / flat 10 / all caps | flat 7 |
+|---|---|---|---|
+| Score | **81** | 83 | 86 |
+
+| Level 20, Rogue | HD 7+tier | everything else |
+|---|---|---|
+| Score | **93** | 95 |
+
+The mechanism is visible in the choices. Under HD-tied the level-17 Rogue unlocks **one** class, at
+level 1 for 8 AP, because two is unaffordable that early and unlocking late costs 28. Under every other
+model it unlocks two at level 17. Tier-tying does precisely what it was proposed to do: it makes
+late-career class-hopping expensive enough that the abusive build settles for less.
+
+Unlock *timing* also varies meaningfully for the first time (@L1 / @L17 / @L20), which it never did
+while early unlocks were free.
 
 ## What "for features" still leaves out
 
@@ -78,7 +100,7 @@ priced on the live engine (Fighter origin, marginal cost of each):
 So a realistic level-20 martial has around **212 AP** for combat features, not 373. Re-run any figure
 above with `--reserve=161` for that view. Every score in this document is an upper bound.
 
-## ⚠ Two withdrawn claims
+## ⚠ Three withdrawn claims
 
 Recorded because they were published before being checked, and both were used to argue a direction.
 
@@ -87,8 +109,16 @@ Recorded because they were published before being checked, and both were used to
 2. **"Origin class stops mattering entirely by level 17."** False, and it was the bug's signature:
    inflating high-level budgets pushed every class to the pool ceiling. Corrected, the gap is constant.
 
-Both came from comparing feature spend against the raw budget. Fixed in `f56436c`; the commit message
-on `e7174bc` still states them and should not be cited.
+3. **"HD-tied pricing is defeated by the optimiser."** False — see the section above. It came from a
+   simulator that let a level-1 character spend level-20 money.
+
+The first two came from comparing feature spend against the raw budget (fixed in `f56436c`); the third
+from not constraining early purchases to early budgets. The commit messages on `e7174bc` and `26a2ad6`
+state the withdrawn findings and should not be cited.
+
+**The pattern, named because it has now happened three times:** every one of these was a budget the
+simulator granted that a real character does not have. When a result here looks decisive, the first
+question to ask is what the model is letting the character afford.
 
 ## Separate defect found on the way
 

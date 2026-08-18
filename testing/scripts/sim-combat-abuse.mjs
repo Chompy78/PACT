@@ -34,10 +34,10 @@ const RAW_BUDGET = DATA.apByLevel[LVL];
  * level and manufactured exactly the "everything converges by level 17" result it was used to argue.
  * `--reserve=N` sets aside N more for the rest of the character (stats, skills, saves, gear, magic).
  */
-function baselineCost(originClass) {
+function baselineCost(originClass, lvl = LVL) {
   const b = baseBuild();
-  b.originClass = originClass; b.budget = 1e6; b.hd = LVL;
-  b.profBonus = DATA.apByLevel && LVL >= 17 ? 6 : LVL >= 9 ? 4 : LVL >= 5 ? 3 : 2;
+  b.originClass = originClass; b.budget = 1e6; b.hd = lvl;
+  b.profBonus = lvl >= 17 ? 6 : lvl >= 9 ? 4 : lvl >= 5 ? 3 : 2;
   return compute(b).total;
 }
 
@@ -146,6 +146,8 @@ function pack(originClass, unlocked, budget) {
 // ── run ─────────────────────────────────────────────────────────────────────────────────────────
 console.log(`PACT combat-abuse optimiser — engine ${DATA.version}, level ${LVL}, raw budget ${RAW_BUDGET} AP, char tier T${tierOf(LVL)}`);
 console.log(`Reserve for non-combat spending: ${RESERVE} AP (pass --reserve=N to change).`);
+console.log(`Unlocks must fit the budget of the level they are bought at; features are assumed bought`);
+console.log(`at the target level, which is the most permissive assumption for the abusive build.`);
 console.log(`Pool: ${COMBAT.length} named combat features. Score = sum of Tier (the engine's own power scale).\n`);
 
 const ORIGINS = ['Rogue', 'Fighter', 'Barbarian'];
@@ -154,6 +156,9 @@ const FOREIGN = ['Fighter', 'Barbarian', 'Rogue', 'Monk', 'Paladin', 'Ranger', '
 for (const origin of ORIGINS) {
   const base = baselineCost(origin);
   const BUDGET = RAW_BUDGET - base - RESERVE;
+  // What is spendable at an EARLIER level, for checking that an early unlock is actually affordable
+  // when it is bought. See the tryUnlock comment below for why this exists.
+  const spendableAt = lvl => (DATA.apByLevel[lvl] || 0) - baselineCost(origin, lvl) - RESERVE;
   console.log(`\n${'='.repeat(78)}\n${origin.toUpperCase()} — ${RAW_BUDGET} raw − ${base} baseline (Hit Dice + proficiency) − ${RESERVE} reserve = ${BUDGET} AP for combat features\n${'='.repeat(78)}`);
   const cands = FOREIGN.filter(c => c !== origin);
 
@@ -163,6 +168,14 @@ for (const origin of ORIGINS) {
     const tryUnlock = (set, when) => {
       const steps = set.map(c => ({ lvl: when, unlock: c }));
       const unlockCost = steps.length ? replay(origin, steps, mName).spent : 0;
+      // AN UNLOCK MUST BE AFFORDABLE AT THE LEVEL IT IS BOUGHT, not merely at the target level.
+      // Without this line an unlock bought "at level 1" was charged against the LEVEL-20 budget, so
+      // buying early was free and every run duly chose it — which is what produced the (withdrawn)
+      // finding that HD-tied pricing is defeated by the optimiser. A level-1 character has 79 AP for
+      // the whole character; two unlocks at 8 AP is a fifth of it, spent on classes they cannot yet
+      // afford to buy anything from. That is the trade an HD-tied price is trying to create, and the
+      // simulator could not see it.
+      if (unlockCost > spendableAt(when)) return;
       if (unlockCost > BUDGET) return;
       const r = pack(origin, set, BUDGET - unlockCost);
       const sc = score(r.owned);
