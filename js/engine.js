@@ -288,7 +288,20 @@ export function compute(b, opts){
   const has2nd=(b.originClass2 && b.originClass2!=="(none)");
   const ownedBefore=1+(has2nd?1:0);
   const _xc=((b.unlockedClasses||[]).filter(c=>c!==b.originClass&&c!==b.originClass2).length)||(b.extraClasses||0);const _uStart=ownedBefore-1,_uEnd=_uStart+_xc;
-        const unlockAP=(DATA.unlockCum[_uEnd]||0)-DATA.unlockCum[_uStart];  // §: uses unlockCum table for explicitness
+  // v0.352: FLAT 8 AP per unlocked class, and the table is read with a CLAMP, not `|| 0`.
+  //
+  // Both halves fix real defects. The old ladder was 7 x classes-already-owned — [0,7,21,42,70] — which
+  // §11 described as mirroring how subclasses are bought, while the guide's actual subclass rule is
+  // "a flat 15 AP to open, however many you already have". The engine escalated where the published
+  // parallel is deliberately flat. Flat also fits §1's pitch — cross-class is meant to be "just a
+  // shopping list, not a multiclass puzzle" — and a price that depends on what you already own is a
+  // puzzle. See D-GH-2026-08-18-flat-class-unlock.
+  //
+  // The `|| 0` it replaces turned "index past the end of the table" into "free": with only five rungs
+  // for twelve classes, unlocking a FIFTH class refunded the 70 AP paid for the first four, and with a
+  // second origin class the line went negative. A clamp under-charges at worst; `|| 0` paid the player.
+  const _cum=i=>DATA.unlockCum[Math.min(Math.max(i,0),DATA.unlockCum.length-1)];
+  const unlockAP=_cum(_uEnd)-_cum(_uStart);
   add("Class unlocks",unlockAP);
   // v0.351 (AY2): 14 -> 18. At 14 a second origin paid for itself after SIX features, which put it
   // inside what almost anyone takes, so it read as a default pick rather than a two-class concept.

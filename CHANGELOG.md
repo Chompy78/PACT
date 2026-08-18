@@ -6,6 +6,26 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-18 · feat(rules): class unlock becomes a flat 8 AP; the ladder table gains a clamp
+  (`DATA.version` **v0.352**)** — the old **7 × classes-you-already-own** ladder contradicted the guide
+  in two places. §11 says the class unlock *"mirrors how subclasses are bought"*, and the guide's actual
+  subclass rule is *"a flat 15 AP to open, **however many you already have**"* — flat, and explicitly
+  non-escalating. §1 sells cross-class as *"just a shopping list, not a multiclass puzzle"*; a price that
+  depends on what you already own is a puzzle. The table also carried **five rungs for twelve classes**
+  and was read with `|| 0`, so indexing past the end read as *free*: a **fifth** unlock deleted the whole
+  class-access line and **refunded the 70 AP** paid for the first four, going negative with a second
+  origin class. Now `[0, 8, 16, … 96]` read through a **clamp** — `|| 0` turns a programming error into a
+  payment to the player. `7 + tier` measured as the *most* restrictive candidate once the simulator was
+  corrected, and was rejected on fit rather than numbers: "commit early or pay more" is exactly what §1's
+  *"grows in the direction you steer it"* rejects. Guide updated at **twelve** sites — seven statements of
+  the formula plus five figures inside worked examples. New fixture `CG-018` pins the fifth unlock at
+  40 AP (the rung that used to refund) and pins flatness; `CG-012`/`CG-013` moved +1 each; parity 36 →
+  **37**. `tool-pricing-ci`'s unlock checks now read the expected figure from `DATA.unlockCum` rather than
+  a hardcoded 7. **A gate gap this exposed:** three worked examples silently stopped adding up — line
+  item, running total, stated budget and "Total x / y" all had to move by 1 — and `guide-price-check`
+  passed throughout, because it verifies feature prices and not example arithmetic. A build-replay check
+  that re-prices each worked example through `compute()` is worth having before the next pricing change.
+  See `D-GH-2026-08-18-flat-class-unlock`.
 - **2026-08-18 · feat(rules): campaign-enforced drawback cap, 2nd origin class 14 → 18 (`DATA.version`
   **v0.351**)** — two numbers, found together because one funded the other. **The drawback cap did not
   exist.** `js/engine.js` carried the comment *"§14: drawbacks grant AP, but no more than 14 AP total

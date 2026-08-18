@@ -10,6 +10,19 @@
 
 ## Index
 
+## D-GH-2026-08-18-flat-class-unlock — class unlock becomes a flat 8 AP, and the ladder table is read with a clamp
+- The old **7 × classes-you-already-own** ladder contradicted the guide twice. §11 says the class unlock
+  *"mirrors how subclasses are bought"*, and the actual subclass rule is *"a flat 15 AP to open, however many
+  you already have"* — flat, explicitly non-escalating. §1 sells cross-class as *"just a shopping list, not a
+  multiclass puzzle"*, and a price depending on what you already own is a puzzle. Its table also had **five
+  rungs for twelve classes** read with `|| 0`, so a fifth unlock **refunded** the 70 AP paid for the first four
+  (negative with a 2nd origin class). Now flat 8, with `DATA.unlockCum` at 13 rungs read through a **clamp** —
+  `|| 0` turns "indexed past the table" into "free"; a clamp under-charges at worst. `7 + tier` measured as the
+  most restrictive option and was rejected on fit, not numbers: "commit early or pay more" is what §1's *"grows
+  in the direction you steer it"* rejects. `DATA.version` v0.352. **Exposed a gate gap:** three worked examples
+  silently stopped adding up and `guide-price-check` passed throughout.
+  Full record: `decisions/2026/D-GH-2026-08-18-flat-class-unlock.md`.
+
 ## D-GH-2026-08-18-drawback-cap-and-second-origin — the drawback cap becomes real in a campaign and advisory outside one; the 2nd origin class goes 14 → 18
 - The engine claimed in a comment that drawbacks were capped at 14 AP and enforced nothing: all 69 together
   granted **217 AP**, more than a level-11 character's whole feature budget. The guide meanwhile said **12**.
