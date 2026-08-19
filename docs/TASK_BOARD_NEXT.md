@@ -835,6 +835,17 @@ red X from an install stall is indistinguishable at a glance from a red X from a
 documented response to a flaky-looking gate is *"verify locally before the first retry"*, which only works
 if the difference is visible.
 
+**Recurred three more times the same night, on PR #430** (`e66a301`) — `dm-console-ui` once (605s→timeout,
+then a clean re-run) and `e2e` three times in a row (906s, 906s, 907s — each within a second of the job's
+own 15-minute wall) before a fourth re-run finally succeeded at ~800s. All three `e2e` failures were on the
+exact same commit, which changed nothing but `docs/TASK_BOARD_NEXT.md` — no code content to blame, and every
+*other* commit that same workflow ran against that night succeeded. The clustering right at each job's own
+timeout, rather than a spread of durations, is the signature of a genuine hang getting killed by the wall,
+not a slow-but-real install — a slow install would show variable completion times; a hang looks exactly like
+this: fast when the runner's healthy (~100-200s, seen repeatedly the same night), dead at the cap when it
+isn't. Four stalls across two PRs in one session is well past "rare" — this should be treated as a live,
+recurring cost, not a one-off worth a passive mention.
+
 **Effort:** low · **Risk:** low — ambiguity is low (`actions/cache` keyed on the Playwright version is the
 standard pattern, and `PLAYWRIGHT_BROWSERS_PATH` is already how the browser location is controlled); damage
 scale is low (CI config only — no app code, no rules, no data); damage likelihood is low (a wrong cache key
