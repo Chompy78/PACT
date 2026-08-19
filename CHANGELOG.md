@@ -25,6 +25,17 @@
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
 
+- **2026-08-19 · feat(guide): the Players Guide shows its versions on the page, both labelled** —
+  reported: *"i also cannot see the version number in the pact-guide html?"* Correct — they existed only
+  as head comments and in the `<title>`. A `#guideVer` block in the nav now renders **both axes**, which
+  are deliberately different things: **Guide** (`content-version`, the prose's own version, v0.333) and
+  **Rules documented** (`documents-rules`, the engine version the prose was last *reconciled* against).
+  The second currently reads **"not yet reconciled"** — shown honestly rather than filled with
+  `DATA.version`, because printing a number there would assert a reconciliation that never happened. Read
+  from the markers at runtime, so stamping one updates the display and the two cannot drift; **no engine
+  import**, since this file is shared by `pact-guide` and `pact-guide-public` where no engine sits beside
+  it. `verify-guide`'s version-markers check now fails if the block is missing.
+
 - **2026-08-19 · fix(dm-console): subclass purchases and heritage-pack traits are visible to the DM** —
   reported from real use: *"on the dm console i can see class abilities, but not subclass abilities. moss
   i cannot see 'Ranger › Beast Master: Primal Companion'"*. `buildSections()` rendered `s.features` and

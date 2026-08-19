@@ -86,7 +86,12 @@ hr{border:0;border-top:1px solid var(--rule);margin:1.6em 0}
  .callout td{padding:11px 13px}
 }
 @media print{body{background:#fff}.page{box-shadow:none;border:0;max-width:100%}
- .nav,#navToggle,#toTop,#progress,#themePick{display:none!important}}
+ .nav,#navToggle,#toTop,#progress,.guide-ver{margin:10px 12px 0;padding-top:8px;border-top:1px solid var(--rule,#cbbf9e);font-size:11px;line-height:1.5;opacity:.85}
+.guide-ver .gv-row{display:flex;justify-content:space-between;gap:8px}
+.guide-ver .gv-k{color:var(--muted,#6b6155)}
+.guide-ver .gv-v{font-variant-numeric:tabular-nums;font-weight:600}
+.guide-ver .gv-none{font-weight:400;font-style:italic;opacity:.8}
+#themePick{display:none!important}}
 /* --- navigation pane + reader tools --- */
 .layout{display:flex;align-items:flex-start}
 main{flex:1;min-width:0}
@@ -135,7 +140,37 @@ table.ability{table-layout:fixed}table.ability td:nth-child(1){width:44%}table.a
 .chapter-banner{display:block;width:100%;margin:1.4em 0 1.1em;border-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,.14);}
 @media print{.chapter-banner{box-shadow:none;break-inside:avoid;page-break-inside:avoid;}}
 
-</style></head><body><div id='progress'></div><button id='navToggle' aria-label='Toggle contents'>☰</button><div id='backdrop'></div><div class='layout'><aside id='nav' class='nav'><div class='nav-head'>Contents</div><input id='navSearch' type='search' placeholder='Filter sections…' aria-label='Filter sections'><div id='themePick' role='group' aria-label='Colour theme'><span class='theme-lab'>Theme</span><button type='button' data-theme-set='parchment' title='Parchment'>Parchment</button><button type='button' data-theme-set='midnight' title='Midnight'>Midnight</button><button type='button' data-theme-set='dragonfire' title='Dragonfire'>Dragonfire</button><button type='button' data-theme-set='contrast' title='High contrast'>Contrast</button></div><script>
+</style></head><body><div id='progress'></div><button id='navToggle' aria-label='Toggle contents'>☰</button><div id='backdrop'></div><div class='layout'><aside id='nav' class='nav'><div class='nav-head'>Contents</div><input id='navSearch' type='search' placeholder='Filter sections…' aria-label='Filter sections'><div id='themePick' role='group' aria-label='Colour theme'><span class='theme-lab'>Theme</span><button type='button' data-theme-set='parchment' title='Parchment'>Parchment</button><button type='button' data-theme-set='midnight' title='Midnight'>Midnight</button><button type='button' data-theme-set='dragonfire' title='Dragonfire'>Dragonfire</button><button type='button' data-theme-set='contrast' title='High contrast'>Contrast</button></div><div id='guideVer' class='guide-ver'></div><script>
+/* Visible, labelled version block. The guide carried its versions ONLY as head comments and in the
+   <title>, so a reader could not see either — reported 2026-08-19.
+   Read from those markers at runtime rather than written out as literals, so stamping a marker updates
+   what is displayed and the two can never disagree. Deliberately no import of js/engine.js: this file is
+   shared by this repo, the pact-guide master and pact-guide-public, and only one of those has an engine
+   beside it. The two axes are DIFFERENT and are labelled as such:
+     content-version  - this guide's own prose version
+     documents-rules  - the engine rules version the prose was last RECONCILED against (see
+                        docs/VERSION-SYNC.md). Absent means no reconciliation has been stamped; it is
+                        shown as such rather than guessed, because inventing a number here would assert
+                        a reconciliation that never happened. */
+(function(){
+  var box=document.getElementById('guideVer'); if(!box) return;
+  function marker(name){
+    var out=null, n=document.head.firstChild;
+    for(; n; n=n.nextSibling){
+      if(n.nodeType===8){
+        var m=String(n.nodeValue||'').match(new RegExp(name+':\\s*([^;\\s]+)'));
+        if(m) out=m[1];
+      }
+    }
+    return out;
+  }
+  var content=marker('content-version'), rules=marker('documents-rules');
+  box.innerHTML='<div class="gv-row"><span class="gv-k">Guide</span><span class="gv-v">'+
+      (content?String(content).replace(/[<&]/g,''):'—')+'</span></div>'+
+    '<div class="gv-row"><span class="gv-k">Rules documented</span><span class="gv-v'+
+      (rules?'':' gv-none')+'">'+(rules?String(rules).replace(/[<&]/g,''):'not yet reconciled')+'</span></div>';
+})();
+</script><script>
 /* Theme switcher. The pre-paint script in <head> READS localStorage['pact-theme'];
    this is the only thing in the guide that WRITES it. It exists because the guide is
    now one file shared by this repo, the pact-guide master and pact-guide-public — and
