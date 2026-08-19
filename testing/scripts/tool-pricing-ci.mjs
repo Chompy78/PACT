@@ -112,12 +112,46 @@ if (!chrome) {
   process.exit(2);
 }
 const server = await serve();
+// Chrome's stderr is CAPTURED, not discarded. It used to be `stdio: 'ignore'`, which meant a Chromium
+// that refused to start looked exactly like one that was merely slow — and the only symptom either way
+// was `FAIL harness — fetch failed` from the first real CDP call, naming nothing.
 const proc = spawn(chrome, ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
   `--remote-debugging-port=${CDP_PORT}`, `--user-data-dir=${fs.mkdtempSync('/tmp/pact-cdp-')}`, 'about:blank'],
-  { stdio: 'ignore' });
+  { stdio: ['ignore', 'ignore', 'pipe'] });
+let chromeErr = '', chromeExit = null;
+proc.stderr.on('data', d => { chromeErr += d.toString().slice(0, 4000); });
+proc.on('exit', c => { chromeExit = c; });
+proc.on('error', e => { chromeErr += `spawn error: ${e.message}\n`; });
+
 // Wait for the debugging endpoint rather than sleeping a fixed amount.
-for (let i = 0; i < 100; i++) {
-  try { await fetch(`http://127.0.0.1:${CDP_PORT}/json/version`); break; } catch { await new Promise(r => setTimeout(r, 100)); }
+//
+// WHY THIS BLOCK IS SO LOUD. The old version polled 100 x 100ms and then fell through WITHOUT checking
+// whether it had ever connected, so a Chromium that never bound the port produced a bare "fetch failed"
+// ten seconds later, from a line that looks nothing like a browser-startup problem. That cost a real
+// debugging session on 2026-08-19: the gate went red on a commit containing only version strings, which
+// made it look like a code regression when the runner image was the variable. A gate that cannot say why
+// it failed is worth less than its runtime.
+//
+// The budget is 30s, not 10s: the GitHub-hosted image does not guarantee a working Chrome, and 10s is
+// under the cold-start time on a contended runner even when one is present.
+const CDP_WAIT_MS = 30000, CDP_POLL_MS = 100;
+let cdpUp = false;
+const t0 = Date.now();
+for (let i = 0; i < CDP_WAIT_MS / CDP_POLL_MS; i++) {
+  try { await fetch(`http://127.0.0.1:${CDP_PORT}/json/version`); cdpUp = true; break; }
+  catch { await new Promise(r => setTimeout(r, CDP_POLL_MS)); }
+}
+if (!cdpUp) {
+  console.error(`\n✗ Chromium never opened its DevTools port ${CDP_PORT} within ${CDP_WAIT_MS / 1000}s.`);
+  console.error(`  binary       : ${chrome}`);
+  console.error(`  waited       : ${Date.now() - t0} ms`);
+  console.error(`  chrome exited: ${chromeExit === null ? 'no — still running, so it started but never bound the port' : chromeExit}`);
+  console.error(`  chrome stderr: ${chromeErr.trim() || '(nothing)'}`);
+  console.error(`\n  This is an ENVIRONMENT failure, not a pricing regression — no assertion ran.`);
+  console.error(`  Set CHROME_BIN to a known-good Chromium, or PLAYWRIGHT_BROWSERS_PATH to a cache holding one.`);
+  try { proc.kill(); } catch {}
+  server.close();
+  process.exit(3);          // distinct from 1 (a real pricing failure) and 2 (no browser found at all)
 }
 
 try {

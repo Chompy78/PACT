@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.424.html**-->
+<!--**PACT-Live-Char-Sheet v1.425.html**-->
 
 <!doctype html>
 <!--
@@ -1407,14 +1407,33 @@ function buildBuyPanel(b,r,eco,head){
      const avail=DATA.drawbackList.filter(x=>(b.drawbacks.includes(x)||!cloudRuleBarred('draws',x)));
      const byCat={};avail.forEach(x=>{const c=(DATA.drawbackCat&&DATA.drawbackCat[x])||'Other';(byCat[c]=byCat[c]||[]).push(x);});
      const cats=DRAW_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>DRAW_ORDER.indexOf(c)<0).sort());
-     return cats.map(c=>{
+     const grid=cats.map(c=>{
        const items=byCat[c].slice().sort((a,d)=>a.localeCompare(d));
        const html=items.map(x=>{
          if(b.drawbacks.includes(x))return ibOwned(x,'Active drawback');
          return db(x);
        }).join('');
        return html?('<div class="atcat" style="width:100%;font-size:10px;color:var(--grey);margin:6px 0 1px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">'+c+'</div>'+html):'';
-     }).join('') || '<span class="hint">No drawbacks available.</span>';
+     }).join('');
+     // Cap line. This panel showed no cap information at all, while CharGen's did and the Players Guide
+     // states one ("No character may gain more than 12 AP total from drawbacks") — so a player taking
+     // drawbacks here had no way to see they were past it until their DM said so.
+     //
+     // The gain is READ OFF compute()'s own itemised rows, not re-summed from DATA here. Those rows are
+     // the engine's `_DI` — one -v per drawback at the price the engine actually used — so this picks up
+     // DM-custom/house-ruled drawbacks for free. Re-deriving it locally looked simpler and would have
+     // silently scored every DM custom drawback as 0, which is precisely the "never re-implement rules
+     // logic outside engine.js" trap. The heading line is the CAPPED grant; the rows are the raw total.
+     // NOTE: this reports the guide's cap, not a campaign's. A DM can set a different cap, but that
+     // value currently reaches compute() only in the DM Console — see fix/drawback-cap-player-tools on
+     // TASK_BOARD_NEXT.md. Worded as "the guide caps them at" so it does not claim to be campaign-aware.
+     const _dCap=DATA.drawbackCap;
+     const _dGain=-((r.itemize&&r.itemize['Drawbacks (refund)']||[]).reduce((t,row)=>t+(row[1]||0),0));
+     const _dLine=_dGain===0?'':('<div class="seg" style="width:100%;font-size:11px;margin-top:6px;font-weight:'
+       +(_dGain>=_dCap-2?'700':'normal')+';color:'
+       +(_dGain>_dCap?'var(--bad)':_dGain>=_dCap-2?'#7a4f00':'var(--grey)')+'">Drawbacks grant <b>+'+_dGain
+       +' AP</b>'+(_dGain>_dCap?(' &mdash; the guide caps them at '+_dCap+' AP; confirm with your DM'):(' of '+_dCap+' AP'))+'</div>');
+     return (grid || '<span class="hint">No drawbacks available.</span>')+_dLine;
    }],
    ['Ki, Sorcery & Attunement points',()=>ib('Attunement slot '+(b.attune+1),'attune',{to:b.attune+1})
      +ib('Ki / Focus point '+(b.ki+1),'ki',{to:b.ki+1})

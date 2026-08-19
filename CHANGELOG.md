@@ -6,6 +6,84 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · docs(ops): `docs/MAINTENANCE-MODE.md` — everything about taking the tools down** — a
+  dedicated reference, and now the single source of truth: how to run the toggle (including from
+  PowerShell, and that it does **not** need the repo root — it resolves the repo from the script's own
+  location), the exact commit-to-`main` sequence and why it deliberately bypasses a `preview` promotion,
+  what players actually see on `maintenance.html`, the `ON`/`OFF`/`INCONSISTENT` states and how to
+  recover from the third, the `?maint=off` bypass, troubleshooting, and the 16 Aug history
+  (`965a052` → `15610f6` → `964cca7`, OFF ever since). Two things it states that were written down
+  nowhere: **the gate is client-side only — a sign, not a lock**, so it does not stop Supabase writes and
+  is not sufficient cover for a migration or backfill; and `off` **deletes** `maintenance.html`, so
+  hand-edited wording does not survive a cycle and belongs in the script's template. `HOW-TO-WORK.md`'s
+  inline section is reduced to a pointer so the two cannot drift.
+
+- **2026-08-19 · fix(ci): the tool-pricing gate depended on the runner image, and could not say so** — it
+  went red on `2b293d8`, a commit containing nothing but version strings, while `fd1ba0f` — carrying every
+  actual code change — passed. Chromium was present (the script's own "No Chromium found" guard never
+  fired) but never bound its DevTools port; the run failed identically on two attempts on two different
+  runners. Two causes, both fixed: the readiness loop polled for 10s and then **fell through without
+  checking whether it had ever connected**, so the symptom was a bare `FAIL harness — fetch failed` from a
+  line that looks nothing like a browser problem; and Chrome's stderr was thrown away by
+  `stdio: 'ignore'`, so a browser that refused to start was indistinguishable from a slow one. The loop
+  now waits 30s and, on exhaustion, prints the binary path, elapsed time, Chrome's exit code and captured
+  stderr, and exits **3** — distinct from 1 (a real pricing failure) and 2 (no browser found at all).
+  `tool-pricing.yml` now installs its own Chromium under `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`,
+  which `findChrome()` already probes, instead of trusting whatever the image ships. CI-only; the app
+  still has no npm dependency.
+
+- **2026-08-19 · chore(version): `BUILD` → `v1.425` for PR #425 (`preview` → `main` promotion)** — third
+  promotion in this run, carrying rules **v0.356** (drawbacks as a trade, surviving `ignore_player_ap`)
+  and three stale player-facing labels: CharGen's hardcoded `>14` drawback warning, the Live Sheet's
+  missing cap line, and CharGen's `+14 AP` second-origin hint against an engine charging 18. Mirrored in
+  `js/engine.js` (`export const BUILD`), CharGen (line-1 comment, `<title>`, header `.sub`), Live Sheet
+  (line-1 comment) and DM Console (`TOOL_VERSION`); `index.html` reads `BUILD` live and is untouched. The
+  pre-release manual QA checklist was **not** run — three promotions have now shipped without it.
+
+- **2026-08-19 · docs(tasks): graduate `fix/drawback-grant-vs-ignore-player-ap`** — added and answered the
+  same day. Option **B** (the grant survives) chosen by the owner; the task's own **Done when** is met in
+  full: the ruling is made, `compute()` implements it, `CG-019`/`CG-020` pin both toggle states, and the
+  reasoning is recorded as `D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap`.
+
+- **2026-08-19 · feat(rules): a drawback survives `ignore_player_ap` — it is a trade, not player income
+  (`DATA.version` **v0.356**)** — owner's ruling on the question v0.355 left open. The grant moves
+  **outside** the `ignorePlayerAp` bracket: `playerAp` (awards) is what that toggle governs, and a
+  drawback is a price the character pays every session, not AP the player accrued. Before this, a
+  character in such a campaign stayed permanently Hexed and Leaden-Reflexed and got nothing for it while
+  every surface still listed the drawbacks as active. `drawbackCap` still applies, so the two campaign
+  controls now do one job each. `earnedWithDm()` — the frozen-ledger ceiling the Live Sheet displays —
+  carves the same exception, or it and `compute()` would disagree by exactly the grant (the D-GH30
+  divergence class); `log-fuzz` gained a **`ceilingDrift`** invariant asserting the two agree under three
+  opts shapes. New fixtures **`CG-019`/`CG-020`** pin a character with drawbacks and no award events under
+  both toggle states (parity 38 → **40**), and `dm-console-ui` 94 → **96** after its "switch is honoured"
+  check went degenerate and was replaced with one that pins the actual split: a 10 AP award moves the
+  ceiling, the drawback does not. **Live effect:** Amble's `Anders` (awards 0, drawbacks +6) goes 12 → 18
+  AP left. See `D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap`.
+
+- **2026-08-19 · fix(tools): drawback-cap info in both player tools, and CharGen's stale second-origin
+  price** — three player-facing label bugs, all found while adding cap information to the drawback
+  sections. **(1)** CharGen's drawback panel warned at a hardcoded `>14` and said "over 14 AP" while
+  colouring at `>12` and `DATA.drawbackCap` said 12 — it contradicted itself and the Players Guide in
+  the same three lines, and a player on 13 or 14 AP was told nothing at all. Now reads `DATA.drawbackCap`
+  throughout. **(2)** The Live Sheet's "Drawbacks (gain AP)" panel showed **no** cap information at all;
+  it now carries a line reading the gain off `compute()`'s own itemised rows (so DM-custom drawbacks
+  count — re-summing from `DATA` locally would have scored them 0). **(3)** CharGen's second-origin-class
+  picker hint still said **`+14 AP`** six days after the price rose 14 → 18
+  (`D-GH-2026-08-18-drawback-cap-and-second-origin`): the tool quoted 14 and the engine charged 18. The
+  price now lives in `DATA.secondOriginAP`, read by both `engine.js` and the label, so the two cannot
+  drift again. No `DATA.version` bump — `compute()` output is unchanged for every input; the new key
+  only relocates a literal the engine already used.
+
+- **2026-08-19 · docs(tasks): graduate "Drawbacks are counted twice", and split out what it did not
+  settle** — the board task `fix/drawback-ap-double-count` (found 2026-08-07 on `Moss Stormspud (COPY)`)
+  is closed by v0.354 + v0.355: a drawback is counted exactly once, and `playerAp` now means what
+  `engine.js` always documented it to mean — awards only — so the "mislabelled player AP" half is fixed
+  too. **One of its Done-when criteria is deliberately not met:** *"the same `remaining` whether
+  `ignore_player_ap` is on or off"* was written for **model (a)**, and the owner chose **(b)**, under
+  which the grant is player-side income and is dropped with the rest of the player's AP (spendable 41 vs
+  37 on the task's own example). That is a design question, not a leftover bug, and is now its own NEXT
+  task. The DM-view-only drawback cap found while verifying v0.355 is a second new NEXT task.
+
 - **2026-08-19 · docs(chargen): tooltip on the "AP budget" field, now that it means awards only** — a
   hover hint on the label and the input: drawbacks are granted *on top* of this figure, so the spendable
   total in the header can be higher. No layout change; the field's own semantics are unchanged (it has

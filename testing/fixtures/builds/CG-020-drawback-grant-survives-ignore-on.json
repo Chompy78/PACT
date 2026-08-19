@@ -1,0 +1,82 @@
+{
+ "name": "Vessa Two-Curses (player AP ignored)",
+ "budget": 0,
+ "originClass": "Fighter",
+ "originClass2": "(none)",
+ "species": "Human",
+ "species2": "(none)",
+ "stats": {
+  "STR": 10,
+  "DEX": 10,
+  "CON": 10,
+  "INT": 10,
+  "WIS": 10,
+  "CHA": 10
+ },
+ "hd": 5,
+ "profBonus": 2,
+ "hardy": 0,
+ "tough": 0,
+ "saves": [
+  "STR",
+  "CON"
+ ],
+ "skills": [
+  "Athletics",
+  "Perception",
+  "Intimidation",
+  "Survival"
+ ],
+ "expertise": [
+  "Athletics"
+ ],
+ "toolExpertise": [],
+ "languages": 1,
+ "languageNames": [],
+ "grantNames": {},
+ "tools": [],
+ "instruments": [],
+ "customProfs": [],
+ "weaponProf": {},
+ "masteries": [],
+ "armour": {
+  "light": true,
+  "medium": true,
+  "heavy": true,
+  "shield": true
+ },
+ "arts": [],
+ "lineage": "",
+ "racialSpells": [],
+ "racialTraits": [],
+ "extraClasses": 0,
+ "unlockedClasses": [],
+ "dabblerCantripNames": [],
+ "innateNames": [],
+ "featNames": {},
+ "features": [],
+ "traditions": [],
+ "subAbilities": [],
+ "freeSub": {},
+ "subSpellBundles": [],
+ "boons": [],
+ "innate": [],
+ "drawbacks": [
+  "Hexed Luck",
+  "Leaden Reflexes"
+ ],
+ "gold": 0,
+ "attune": 0,
+ "ki": 0,
+ "sorcery": 0,
+ "martiallyBound": "(none)",
+ "appearance": {},
+ "size": "Medium",
+ "inPlay": true,
+ "id": "cg-020-drawback-ignore-on",
+ "version": "v0.356",
+ "_apOpts": {
+  "dmAp": 37,
+  "ignorePlayerAp": true
+ }
+}

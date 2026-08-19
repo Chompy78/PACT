@@ -545,21 +545,44 @@ const dmap = await page.evaluate(async ()=>{
   // (c) no DM AP at all (a locally-imported file / unbound character) — unchanged from before
   window._dmCampaignApRules = null;
   out.noDm = await render([{...anders, ap:0}]);
+  // (d) v0.356: Anders' whole +6 is drawback-derived (awards 0), and under the trade reading a drawback
+  // survives ignore_player_ap — so (a) and (b) now agree, and can no longer prove the switch is read at
+  // all. This variant restores that coverage and pins the SPLIT the model actually makes: give him a real
+  // 10 AP award on top, and the toggle must move the ceiling by exactly that award and nothing else.
+  const andersAwarded = {...anders, stats:{...anders.stats, SEQ:10,
+    LOG:[...anders.stats.LOG, {type:'award', amount:10, seq:9, note:'DM award'}]}};
+  window._dmCampaignApRules = { ignorePlayerAp: true };
+  out.awardedIgnoreOn = await render([andersAwarded]);
+  window._dmCampaignApRules = { ignorePlayerAp: false };
+  out.awardedIgnoreOff = await render([andersAwarded]);
   return out;
 });
 check('the roster stat strip is still the AP cell', dmap.ignoreOn && dmap.ignoreOn.k === 'AP left', JSON.stringify(dmap.ignoreOn));
-// ignore_player_ap ON: spendable = 0 player + 33 DM = 33; frozen spend 21 -> 12 left.
-check('DM AP reaches "AP left" (33 DM − 21 spent = 12, was −15)', dmap.ignoreOn && dmap.ignoreOn.ap === '12', dmap.ignoreOn && dmap.ignoreOn.ap);
+// ignore_player_ap ON: spendable = 0 awards + 6 drawback + 33 DM = 39; frozen spend 21 -> 18 left.
+// Was 12 until v0.356. Anders has NO award events — his whole +6 is drawback-derived — and under the
+// owner's ruling (D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap) a drawback is a trade the
+// character made rather than player income, so ignore_player_ap does not reach it. He is real Amble
+// data, so this row is a live +6 for an actual character, not a synthetic case.
+check('DM AP reaches "AP left" (0 awards + 6 drawback + 33 DM − 21 spent = 18, was −15)', dmap.ignoreOn && dmap.ignoreOn.ap === '18', dmap.ignoreOn && dmap.ignoreOn.ap);
 check('and the bogus "OVER BUDGET" warning is gone', dmap.ignoreOn && !/OVER BUDGET/.test(dmap.ignoreOn.warn), dmap.ignoreOn && dmap.ignoreOn.warn);
-// ignore_player_ap OFF: spendable = 6 player + 33 DM = 39; 39 − 21 = 18. Proves the switch is read,
-// not hardcoded — a fix that always added dmAp would give 12 here too.
-check('the campaign\'s ignore-player-AP switch is honoured (6 player + 33 DM − 21 = 18)',
+// ignore_player_ap OFF: same 39, same 18 — because Anders has no awards for the switch to drop. This
+// pair no longer proves the switch is read; the awarded variant below does that job now.
+check('and turning the switch off changes nothing for a character with no awards (still 18)',
       dmap.ignoreOff && dmap.ignoreOff.ap === '18', dmap.ignoreOff && dmap.ignoreOff.ap);
 // No DM AP and no campaign: ceiling is the player's own 6, spend 21 -> −15. Still correctly negative;
 // the fix must not paper over a genuinely overspent character.
 check('a character with no DM AP still shows a real deficit (6 − 21 = −15)',
       dmap.noDm && dmap.noDm.ap === '-15', dmap.noDm && dmap.noDm.ap);
 check('and that one DOES still warn "OVER BUDGET"', dmap.noDm && /OVER BUDGET/.test(dmap.noDm.warn), dmap.noDm && dmap.noDm.warn);
+
+// v0.356 — the switch DOES still do its job; it just does it to awards only. Same Anders plus a real
+// 10 AP award: ON drops the award and keeps the drawback (0 + 6 + 33 − 21 = 18), OFF keeps both
+// (10 + 6 + 33 − 21 = 28). The 10 AP gap between these two rows IS the switch, and a regression that
+// put the drawback grant back inside the bracket would show 8 and 28 instead.
+check('the ignore-player-AP switch drops an AWARD (10 + 6 + 33 − 21 = 28 with it off)',
+      dmap.awardedIgnoreOff && dmap.awardedIgnoreOff.ap === '28', dmap.awardedIgnoreOff && dmap.awardedIgnoreOff.ap);
+check('...but not the drawback trade (award ignored, drawback kept: 0 + 6 + 33 − 21 = 18)',
+      dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.ap === '18', dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.ap);
 
 console.log(`\n[dm-console-ui] ${fail? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
 if (errors.length) console.log('\n(non-fatal errors seen: ' + errors.length + ')\n' + errors.slice(0,5).join('\n'));

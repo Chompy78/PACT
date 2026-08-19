@@ -504,61 +504,43 @@ likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers 
 purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
 answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
 
-## Drawbacks are counted twice — and mislabelled "player AP" — TODO
-Branch `fix/drawback-ap-double-count`. `js/engine.js` (`foldBuild`/`compute`), plus the AP display in
-Live Sheet and CharGen.
-**Effort:** medium · **Risk:** high — damage scale is high (it changes `compute()` output and needs a
-`DATA.version` bump); ambiguity is medium (two coherent models, one is clearly preferable) and damage
-likelihood is low (engine-parity fixtures would catch a wrong implementation).
+## The campaign drawback cap is DM-view-only — players see a different total — TODO
+Branch `fix/drawback-cap-player-tools`. `tools/PACT-CharGen-Webtool.html` and
+`tools/PACT-Live-Char-Sheet.html` (their `compute()` opts builders); no engine change needed.
+**Effort:** low · **Risk:** medium — ambiguity is low (the mechanism already exists and the two tools
+already gate `dmAp`/`ignorePlayerAp` the same way); damage scale is medium (it lowers spendable AP for
+players in a capped campaign, so it can put an existing character over budget); damage likelihood is low
+(one opts field, and a gate can pin all three tools agreeing).
 
-Found 2026-08-07 while checking `Moss Stormspud (COPY)` after the Amble award-event cleanup. With every
-`award` event removed his `playerAp` was 4 — purely drawback-derived — which made the divergence visible.
+`drawbackCap` appears in `tools/DM-Console.html` and **in neither player tool** — verified by grep:
+6 occurrences in DM Console, 0 in CharGen, 0 in the Live Sheet. So `compute()` receives the cap only on
+the DM's side, and a player in a campaign with a cap set sees the **full** drawback grant while their DM
+sees the capped figure. Two people looking at the same character get different AP totals, with no
+indication either is wrong.
 
-`foldBuild()` sets `b.budget = economy().earned`, and `earned` is awards **plus** `drawbackEarned`.
-`compute()` then does `playerAp = b.budget` and `spendable = (ignorePlayerAp ? 0 : playerAp) + dmAp`.
-But `total` **already** nets drawbacks (their `cost` is negative). So a drawback both reduces the build
-cost *and* raises the ceiling — it is worth double.
-
-Two models are each self-consistent; the engine does half of each:
-
-```text
-(a) cost nets the drawback (total 50), budget excludes the refund (37)  -> remaining -13  CORRECT
-(b) cost ignores it (total 54), budget gains it (41)                    -> remaining -13  CORRECT
-    current: total 50 AND spendable 41                                  -> remaining  -9  WRONG
-```
-
-Verified against Moss Stormspud: positive purchases 54, drawback refunds −4, net total 50, DM AP 37.
-With `ignore_player_ap` TRUE the engine drops `playerAp`, lands on model (a), and correctly reports
-"OVER BUDGET by 13 AP". With it FALSE, `remaining` is −9.
-
-**Scope:** Amble is the only campaign with `ignore_player_ap` on, so it is unaffected. Every character
-*not* in such a campaign — including all 8 unbound ones — currently gets double value from drawbacks.
-
-**Also a labelling bug.** `engine.js:476` documents `playerAp = b.budget` as "folded from the
-character's own `award` events", which is not what it holds. Under `ignore_player_ap` the UI then says
-"4 player AP ignored" — wrong twice: it is not player AP, and it is not being ignored, since it is
-already applied as a discount on `total`.
+Pre-existing since v0.351 (`feat/drawback-cap`), where the cap was added DM-side and the player tools
+were not wired. It matters more since v0.355 made the grant real income rather than half of a cancelling
+pair: before, the discrepancy partly hid itself in the cost side.
 
 ```text
-1. Adopt model (a): a drawback affects the COST side only. Stop b.budget/playerAp folding in
-   drawbackEarned - playerAp must mean what engine.js:476 already says it means, i.e. award events only.
-2. Split the display by which side of the equation each belongs to. Drawback AP is a discount on cost,
-   not a pool to spend from: show it on the cost line ("Build cost 50 - 54, less 4 from drawbacks") and
-   reserve "Player AP" for actual awards. No new engine export is needed - economy() already returns
-   drawbackEarned separately from earned (D-GH41 exposed it for exactly this).
-3. Check every consumer of playerAp/b.budget before changing it - Live Sheet, CharGen, DM Console - and
-   confirm none of them re-derive the drawback credit themselves, or it will be dropped twice instead.
-4. This CHANGES compute() output: update testing/expected/ in the same PR and bump DATA.version. Add a
-   fixture with drawbacks and no award events - the case that exposed this - asserting the same
-   remaining whether ignorePlayerAp is true or false.
-5. Log the model choice as D-GH-<date>-drawback-ap-double-count; a future reader needs to know why the
-   cost side won rather than the budget side.
+1. Both tools already build a compute() opts object gated on a resolved campaign - _cgDmOpts() in
+   CharGen and _dmOpts() in the Live Sheet. Add drawbackCap there, on exactly the same 'active'
+   gate that dmAp/ignorePlayerAp use, so an unresolved or absent campaign keeps today's uncapped
+   local behaviour (which is deliberate - see the comment on the cap in engine.js).
+2. Surface it. A silently smaller budget is worse than the current mismatch; compute() already
+   pushes a warning naming the withheld AP, so check it actually reaches the player's warning list
+   in both tools rather than only the DM's.
+3. Gate it: one check that the same character in a capped campaign reports the same spendable
+   total in CharGen, the Live Sheet and the DM Console. tool-pricing-ci.mjs already drives two of
+   the three over CDP.
+4. No DATA.version bump - compute()'s output for a given (build, opts) pair does not change; only
+   which opts the tools pass.
 ```
 
-**Done when:** a drawback affects the build's cost exactly once; a character with drawbacks and no
-awards reports the same `remaining` whether `ignore_player_ap` is on or off; no UI calls
-drawback-derived AP "player AP"; `testing/expected/` updated and `DATA.version` bumped in the same PR;
-engine-parity **0 failed**.
+**Done when:** CharGen and the Live Sheet both pass the campaign's `drawbackCap` to `compute()` under
+the same resolved-campaign gate they already use for `dmAp`; the over-cap warning is visible to the
+player, not only the DM; a gate pins that all three tools report the same spendable total for a
+character in a capped campaign; engine-parity **0 failed**.
 
 
 ## Security audit: privilege boundaries + character/AP integrity against a malicious client — TODO
