@@ -139,20 +139,35 @@ record('theming        ',
 {
   const dec = t => t.replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"');
   const H = dec(html);
-  const fx = DATA.drawbackFx || {}, caps = DATA.drawbackMaxStats || {};
-  const differs = [], undocumented = [];
+  const fx = DATA.drawbackFx || {}, caps = DATA.drawbackMaxStats || {}, req = DATA.drawbackReq || {};
+  const differs = [], undocumented = [], missing = [], reqUndocumented = [];
+  // Known exception: the 6 `Affliction — X (ABIL)` entries share ONE guide row ("Affliction (choose an
+  // ability)") by design, so they never match their own <td> and must not count as a coverage failure.
+  const SHARED_ROW = /^Affliction —/;
+  let matched = 0;
   for (const [name, text] of Object.entries(fx)) {
     if (!text) continue;
     const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const m = H.match(new RegExp('<td[^>]*>' + esc + '</td>\\s*<td[^>]*>([\\s\\S]*?)</td>'));
-    if (!m) continue;                                   // no row of its own (the Afflictions share one)
+    if (!m) {
+      if (!SHARED_ROW.test(name)) missing.push(name);   // a real drawback with NO guide row at all
+      continue;
+    }
+    matched++;
     if (m[1].replace(/<[^>]+>/g, '').trim() !== text.trim()) differs.push(name);
   }
   for (const d of Object.keys(caps)) if (!/cap:/i.test(fx[d] || '')) undocumented.push(d);
-  record('drawback text', !differs.length && !undocumented.length,
-    differs.length || undocumented.length
-      ? `${differs.length} differ from the guide [${differs.join(', ')}] · ${undocumented.length} capped but undocumented [${undocumented.join(', ')}]`
-      : `${Object.keys(fx).length} descriptions agree with the guide · all ${Object.keys(caps).length} stat caps documented`);
+  // Reverse of the cap check: a drawback DATA.drawbackReq gates as caster-only must say so in its own
+  // prose, or a player reads "why can't I take this" nowhere — mirrors the Foundation-prereq wording
+  // Arts already use ("Requires a Spellcasting Foundation to take.").
+  for (const d of Object.keys(req)) if (req[d].caster && !/spellcasting/i.test(fx[d] || '')) reqUndocumented.push(d);
+  const ok = !differs.length && !undocumented.length && !missing.length && !reqUndocumented.length;
+  record('drawback text', ok,
+    ok
+      ? `${matched} descriptions agree with the guide · all ${Object.keys(caps).length} stat caps documented · all ${Object.keys(req).length} caster gates documented`
+      : `${differs.length} differ [${differs.join(', ')}] · ${missing.length} missing from the guide entirely [${missing.join(', ')}] · `
+        + `${undocumented.length} capped but undocumented [${undocumented.join(', ')}] · `
+        + `${reqUndocumented.length} caster-gated but undocumented [${reqUndocumented.join(', ')}]`);
 }
 
 // ---- 8. version markers ---------------------------------------------------------------------

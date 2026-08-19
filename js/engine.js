@@ -586,7 +586,11 @@ export function compute(b, opts){
   // fix that because one number has to serve both. DATA.drawbackReq gates them instead, keyed by
   // drawback so the next caster-only or class-only entry is DATA, not code. Same ⛔ HARD-violation
   // marker as the stat caps below and as reqRace/minHD.
-  const _hasDisc=(b.traditions||[]).some(function(t){return !!(t&&(t.disciplines||[]).length);});
+  // Same predicate the Arts Foundation check above uses (:266) — a placeholder discipline card left on
+  // its default '(none)' select is a zero-AP action CharGen's own UI labels "nothing purchased for this
+  // slot yet", so it must not count as having a Foundation. An earlier version of this check used
+  // `(t.disciplines||[]).length`, which a bare placeholder object satisfies with no name at all.
+  const _hasDisc=(b.traditions||[]).some(function(t){return t&&(t.disciplines||[]).some(function(d){return d&&d.name&&d.name!=='(none)';});});
   let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){if(!HRd[lab]&&DATA.drawbacks[lab]===undefined)continue;const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
     // ⛔ = a HARD rules violation, the same marker reqRace/minHD use. Owner's ruling 2026-08-19: a stat
     // cap is enforced in BOTH directions — you may not take a capped drawback above the cap, and you may

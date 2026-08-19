@@ -1028,7 +1028,7 @@ try {
       return compute(b).warnings.filter(w=>w.indexOf('Crawling Things')>=0).length;})()`), 0);
   check('it still pays its 2 AP once the requirement is met',
     await cg.evaluate(`(()=>{const b=readBuild();b.traditions=[{disciplines:[{name:'Warlock'}]}];
-      const before=compute(b).spendable;b.drawbacks=['Mana Leak'];
+      b.drawbacks=[];const before=compute(b).spendable;b.drawbacks=['Mana Leak'];
       return compute(b).spendable-before;})()`), 2);
 
   // feat/ledger-show-lost-purchases (D-GH-2026-08-10): the reconciliation gate the task itself asks
