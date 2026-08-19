@@ -582,7 +582,13 @@ export function compute(b, opts){
   // drawback retired from the rules rendering a phantom "<name> 0" row, and stops an all-unknown list
   // producing an itemize key with no matching ledger line (add() suppresses a zero line).
   let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){if(!HRd[lab]&&DATA.drawbacks[lab]===undefined)continue;const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
-    const _dmx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{};for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push(lab+': drawback requires '+_da+' '+_dm+' or lower');} }
+    // ⛔ = a HARD rules violation, the same marker reqRace/minHD use. Owner's ruling 2026-08-19: a stat
+    // cap is enforced in BOTH directions — you may not take a capped drawback above the cap, and you may
+    // not raise the score past it while holding one ("your score can never exceed 12"). Without the
+    // second half the drawback is a loan: take Frail at CON 10, keep the AP, buy CON to 16.
+    // The Live Sheet's buy() already blocks anything not matched by SOFT_WARN, so both directions were
+    // already refused there; the marker makes the intent explicit and lets CharGen classify it too.
+    const _dmx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{};for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push('⛔ '+lab+': drawback requires '+_da+' '+_dm+' or lower');} }
   // Rows are NEGATIVE so they sum to the line total (-drawGain), the same relationship the other five
   // itemised lines have with theirs. `v` is the value actually charged, so a house-ruled drawback
   // (b.houseRules.draws) itemises at its overridden AP, not the printed one.

@@ -25,6 +25,28 @@
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
 
+- **2026-08-19 · feat(rules): drawback stat caps are ENFORCED, in both directions, and documented
+  everywhere** — owner's ruling. The cap text says two things — *"you may only take a capped drawback if
+  your current score is at or below the cap"* and *"your score can never exceed 12"* — and both are now
+  enforced. Measured before changing anything: the **Live Sheet already blocked both** (`⛔ Purchase
+  blocked`), while **CharGen blocked neither**, which is why the guide had come to claim *"the tool only
+  warns, it does not block"*. That claim was never true as a blanket statement. CharGen now disables a
+  capped drawback whose cap the current score breaks, and clamps a score that would breach a cap it
+  already holds (clamped to the cap — the highest legal value — with a `flash()` saying why; silently
+  un-ticking a held drawback would delete a purchase and refund AP behind the player's back). The engine's
+  warning gains the **⛔** marker the other hard prerequisites use.
+  **Then the enforcement exposed what it was enforcing:** **seven** capped drawbacks had descriptions that
+  never mentioned their cap — an invisible wall the moment blocking landed — and **five** more had the cap
+  in the guide but not in the tools. All twelve now state it, in the house wording already used by the
+  other sixteen, on **both** sides. Guide and `DATA.drawbackFx` now agree on **all 63** rows with a guide
+  row, and **all 23 stat caps are documented**. `verify-guide` gains a **drawback text** check (9 → **10**)
+  — added only once both sides agreed, since a gate that is red on arrival is not a gate. It decodes HTML
+  entities and compares whole cells, the two mistakes that made my first pass report ten mismatches when
+  three were real. Verified in both tools: take-above-cap refused, raise-above-cap refused/clamped, and
+  raising to exactly the cap still allowed. No live character violates any cap (checked all 23 against
+  every character). No `DATA.version` bump — `drawbackFx` is display-only and `compute()`'s numeric output
+  is unchanged; only a warning string gained a marker.
+
 - **2026-08-19 · docs(rules): reword the `Soul Debt` drawback, engine and guide together** — owner's text:
   *"A fiend skims the interest on your soul. Each time you regain Hit Points: every spell cast, every dose
   of a magic item, and every Hit Die spent regains 1d4 fewer Hit Points (minimum 1) — the rest feeds the

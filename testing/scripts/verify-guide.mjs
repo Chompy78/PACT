@@ -126,6 +126,35 @@ record('theming        ',
   : danglingVars.length ? `undefined var(): ${danglingVars.join(' ')}`
   : `script + ${themeBlocks.length} themes, all ${rootKeys.size} vars covered, 0 dangling`);
 
+// ---- 7b. drawback text: the guide and DATA.drawbackFx must say the same thing ------------------
+// Added once the two sides actually agreed — a gate that is red on arrival is not a gate. Two failures
+// it exists to catch, both real on 2026-08-19:
+//   * the guide and the tools describing the same drawback differently (three did, on whether a stat
+//     cap was a hard requirement or a DM-enforced advisory);
+//   * a capped drawback whose description never mentions its cap (seven did) — which became a hard
+//     block the moment the tools started enforcing caps, i.e. a wall with no sign on it.
+// DECODE ENTITIES BEFORE COMPARING. The first version of this comparison reported ten mismatches, seven
+// of which were `&#x27;` vs `'` on descriptions that were otherwise identical. And compare the WHOLE
+// cell, not `includes()` — five cells had extra text appended that a substring test waved through.
+{
+  const dec = t => t.replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+  const H = dec(html);
+  const fx = DATA.drawbackFx || {}, caps = DATA.drawbackMaxStats || {};
+  const differs = [], undocumented = [];
+  for (const [name, text] of Object.entries(fx)) {
+    if (!text) continue;
+    const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = H.match(new RegExp('<td[^>]*>' + esc + '</td>\\s*<td[^>]*>([\\s\\S]*?)</td>'));
+    if (!m) continue;                                   // no row of its own (the Afflictions share one)
+    if (m[1].replace(/<[^>]+>/g, '').trim() !== text.trim()) differs.push(name);
+  }
+  for (const d of Object.keys(caps)) if (!/cap:/i.test(fx[d] || '')) undocumented.push(d);
+  record('drawback text', !differs.length && !undocumented.length,
+    differs.length || undocumented.length
+      ? `${differs.length} differ from the guide [${differs.join(', ')}] · ${undocumented.length} capped but undocumented [${undocumented.join(', ')}]`
+      : `${Object.keys(fx).length} descriptions agree with the guide · all ${Object.keys(caps).length} stat caps documented`);
+}
+
 // ---- 8. version markers ---------------------------------------------------------------------
 const cv = (html.match(/content-version:\s*(v[\d.]+)/) || [])[1];
 const dr = (html.match(/documents-rules:\s*version=(v[\d.]+)/) || [])[1];

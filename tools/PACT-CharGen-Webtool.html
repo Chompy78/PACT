@@ -3262,9 +3262,30 @@ function onPatchFieldChange(el){
   if(slot===PATCH_SLOTS.IDENTITY||slot===PATCH_SLOTS.HOUSE_RULES)_cgReconcileChecklistDependents();
 }
 
+// A stat cap is enforced in BOTH directions (owner's ruling 2026-08-19). Direction A — taking a capped
+// drawback above the cap — is stopped by disabling the checkbox in render(). This is direction B: raising
+// a score past the cap of a drawback you already hold. The Live Sheet refuses the equivalent purchase
+// outright, so CharGen doing nothing but warning was the gap that let the guide claim "the tool only
+// warns, it does not block".
+//
+// CLAMPED to the cap rather than reverted: the cap IS the highest legal value, so clamping lands on what
+// the player can actually have, and flash() says why. Reverting to the prior value would need edit
+// history this handler does not have, and silently doing nothing would leave an illegal build.
+function _cgClampStatToDrawbackCaps(el){
+  if(!el||!el.id||el.id.indexOf('st_')!==0) return false;
+  var ab=el.id.slice(3), want=Number(el.value); if(!Number.isFinite(want)) return false;
+  var mx=(typeof DATA!=='undefined'&&DATA.drawbackMaxStats)||{}, held=ckVals('drawck');
+  var cap=null, who='';
+  held.forEach(function(d){ var c=mx[d]; if(c&&c[ab]!=null&&(cap===null||c[ab]<cap)){ cap=c[ab]; who=d; } });
+  if(cap===null||want<=cap) return false;
+  el.value=cap;
+  if(typeof flash==='function') flash('⛔ '+who+' caps '+ab+' at '+cap+' — buy the drawback off first to raise it.');
+  return true;
+}
+
 function _cgWirePatchDelegation(){
   const form=$('form');if(!form)return;
-  const watch=function(e){_setCoalesceForEvent(e);if(e.target&&e.target.id)onPatchFieldChange(e.target);};
+  const watch=function(e){_cgClampStatToDrawbackCaps(e.target);_setCoalesceForEvent(e);if(e.target&&e.target.id)onPatchFieldChange(e.target);};
   form.addEventListener('change',watch);form.addEventListener('input',watch);
   // blur/focus-change permanently seals the open coalescing group (D3): a later edit to the same field
   // starts a fresh undo step, and a group that changed nothing is dropped.
@@ -4403,6 +4424,28 @@ function annotate(b,r){
     const _campCap=_cgDrawbackCap();
     const _dCap=(_campCap===undefined)?DATA.drawbackCap:_campCap;
     _dc.textContent=_rawGain===0?'':'Drawback refund: +'+_rawGain+' AP'+(_rawGain>_dCap?' ⚠ over '+_dCap+' AP — confirm with DM':'');
+    // STAT CAPS ARE ENFORCED HERE, NOT JUST WARNED (owner's ruling 2026-08-19). The Live Sheet's buy()
+    // already refused these — anything not matching SOFT_WARN is a hard block — but CharGen is form-based
+    // and let the same combination through with only a warning, which is why the guide ended up claiming
+    // "the tool only warns". Now a drawback whose cap the CURRENT score breaks cannot be ticked at all.
+    // A drawback ALREADY held when the score is raised past its cap is left ticked deliberately: silently
+    // un-ticking it would delete a purchase the player made and refund AP behind their back. It raises
+    // the engine's ⛔ warning instead, which is what blocks the cloud save.
+    (function(){
+      var _mx=DATA.drawbackMaxStats||{}, _st=b.stats||{};
+      document.querySelectorAll('.drawck').forEach(function(e){
+        var caps=_mx[e.value]; if(!caps) return;
+        var breaks=Object.keys(caps).some(function(a){ return (_st[a]||10) > caps[a]; });
+        if(breaks && !e.checked){
+          e.disabled=true;
+          var which=Object.keys(caps).map(function(a){return a+' '+caps[a]+' or lower';}).join(', ');
+          e.title='Requires '+which+' — reduce the score before taking this drawback.';
+          if(e.parentElement) e.parentElement.style.opacity='0.55';
+        } else if(e.disabled && !breaks){
+          e.disabled=false; e.title=''; if(e.parentElement) e.parentElement.style.opacity='1';
+        }
+      });
+    })();
     _dc.style.color=_rawGain>_dCap?'var(--bad)':_rawGain>=_dCap-2?'#7a4f00':'var(--muted,#888)';
     _dc.style.fontWeight=_rawGain>=_dCap-2?'700':'normal';}}
   // HD / caps / HP (#3)
