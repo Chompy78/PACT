@@ -10,6 +10,21 @@
 
 ## Index
 
+## D-GH-2026-08-19-drawback-statcap-enforcement — a stat cap is enforced in both directions
+- The guide claimed *"the tool only warns, it does not block"* on stat caps. **Measured: true of CharGen,
+  false of the Live Sheet**, which already blocked both directions — the claim was never accurate as written
+  and had been copied into five more cells than the three first found. Owner's ruling: enforce **both**
+  directions, since enforcing only "may not take it above the cap" leaves the drawback a loan (take `Frail`
+  at CON 10, buy CON to 16, shed the penalty). CharGen now disables the checkbox and clamps a breaching
+  score — **clamped, not reverted** (the cap is the highest legal value) and a held drawback is **never
+  silently un-ticked**, which would delete a purchase and refund AP behind the player's back. Enforcing it
+  made the docs load-bearing: **7 capped drawbacks documented their cap nowhere** and 5 more only in the
+  guide; all 12 fixed on both sides, 63 rows now agree and all 23 caps documented. `verify-guide` gains a
+  drawback-text check (9 → 10) — added **last**, once both sides agreed, since a gate red on arrival is not
+  a gate. Two lessons in its construction: decode HTML entities before comparing (7 false positives), and
+  compare whole values not substrings (5 cells with appended text slipped through `includes()`).
+  Full record: `decisions/2026/D-GH-2026-08-19-drawback-statcap-enforcement.md`.
+
 ## D-GH-2026-08-19-amble-character-rebuild-costs — a stale `stats.rules` stamp may be corrected in place
 - Owner asked whether Amble's six characters would cost differently rebuilt at `v0.356`. Replaying every
   `LOG` through `v0.341`/`v0.342`/`v0.356` showed four characters' `total` rising by **exactly their
