@@ -858,3 +858,100 @@ simply misses and reinstalls, which is today's behaviour). Worst-of lands at low
 **Done when:** a second run of any of the seven workflows restores Chromium from cache rather than
 downloading it (visible in the job log), an install that stalls fails at the install step with a message
 naming the install — not as a skipped test step — and all seven jobs still pass on a normal PR.
+
+## Live Sheet drawback purchases bypass legalCheck() entirely — no drawback gate is enforced there — TODO
+Branch `fix/livesheet-drawback-legalcheck`. `takeDrawback()` (`tools/PACT-Live-Char-Sheet.html`) calls
+`emit()` directly with no `legalCheck()` call at all, so **no** drawback gate is enforced in that tool —
+not just the new `DATA.drawbackReq` caster gate added in `feat/drawbacks-phobias-expansion`, but the
+**pre-existing** `DATA.drawbackMaxStats` stat caps from `b016331` too. This contradicts that decision's own
+claim ("The Live Sheet's `buy()` already blocks anything not matched by SOFT_WARN, so both directions were
+already refused there") — disproven by `/code-review max`: a Fighter can tick Mana Leak, and a character
+can hold a drawback whose stat cap their current score already breaks, with nothing in that tool's UI or
+save path surfacing it (the engine's advisory `⛔` line in `compute().warnings` exists but nothing reads
+it there).
+**Effort:** medium · **Risk:** medium — ambiguity is low (the fix is routing drawback purchases through
+`legalCheck()`/`buy()`, the same path every other purchase category in that tool already uses); damage
+scale is medium (a purchase-flow-control change in a live tool, though scoped to one category); damage
+likelihood is low-medium (well-trodden pattern, but no e2e coverage of the disabled/blocked state exists
+today for either gate to catch a regression) — worst-of lands at medium.
+
+```text
+1. Route takeDrawback() through legalCheck()/buy() instead of its direct emit() shortcut, mirroring how
+   every other purchase category in the Live Sheet already works. A hard (⛔) violation must be refused
+   at the point of purchase, the same way CharGen's checkbox guard now refuses it (see
+   feat/drawbacks-phobias-expansion).
+2. Related bug, same review pass, same code path: CharGen's random builder (actDraw/tryAct) increments
+   _draws BEFORE tryAct's rollback and never restores it on rejection — a randomly-picked drawback that
+   gets rejected (stat cap, or since this task, a caster-gate violation) silently costs a draw attempt.
+   Pre-existing, not introduced by drawbackReq, but fold the fix in here since it touches the same
+   candidate-filter/rollback code.
+3. Add browser-driven coverage (dm-console-ui-e2e.mjs or chargen-flows-e2e.mjs) asserting the Live Sheet
+   actually refuses a hard drawback violation — no equivalent e2e coverage exists today for the
+   disabled-checkbox behavior in EITHER tool, for EITHER gate (drawbackMaxStats or drawbackReq).
+```
+
+**Done when:** drawback purchases in the Live Sheet go through `legalCheck()` the same way every other
+purchase category does; a hard (⛔) drawback violation is refused there exactly as CharGen's checkbox
+guard refuses it; `actDraw`'s rollback no longer leaks a draw attempt on a rejected candidate; a new
+browser-driven check confirms the enforcement; `testing/tests/engine-parity.html` still 0 failed.
+
+## guide-price-check.mjs has zero drawback-price coverage against the engine — TODO
+Branch `test/guide-drawback-price-check`. `testing/scripts/guide-price-check.mjs` verifies guide prices
+against the live engine for other purchase categories but has **no** coverage of drawback AP values at
+all (`grep -c drawback testing/scripts/guide-price-check.mjs` → 0). This is precisely the class of gap
+that produced the six-day Grit ladder divergence (`D-GH-2026-08-12-grit-steep-ladder`) — nothing catches
+a guide drawback price silently drifting from `DATA.drawbacks`.
+**Effort:** low · **Risk:** low — ambiguity is low (the shape to build already exists as
+`guide-price-check.mjs`'s pattern for other categories, or as the description-match technique
+`verify-guide.mjs` already uses); damage scale is low (adds a test, touches no rules or app code); damage
+likelihood is low (a new gate can only fail loud, never silently break something already working).
+
+```text
+verify-guide.mjs (fixed in feat/drawbacks-phobias-expansion) now checks that guide drawback DESCRIPTIONS
+match DATA.drawbackFx byte-for-byte, which transitively catches a price drift too IF the price appears
+inside the description text — but the guide's own "AP gained" table column is a separate cell that check
+does not capture or compare on its own. First confirm whether the description-match check already closes
+this gap in practice (does every drawback's printed AP value also appear inside its own description
+text?) or whether a dedicated price-column comparison is still needed for genuine independent coverage.
+If needed, follow the guide-price-check.mjs pattern used for other categories, or extend verify-guide.mjs
+to capture and compare the "AP gained" cell directly.
+```
+
+**Done when:** either `guide-price-check.mjs` or `verify-guide.mjs` mechanically asserts every
+`DATA.drawbacks[name]` AP value against the guide's own printed "AP gained" column for that drawback,
+independent of the description-text comparison, and the gate fails loudly on a mismatch — proven by
+deliberately mispricing one guide row and confirming the gate goes red before restoring it.
+
+## pact-guide master's cap-wording has diverged from the served copy — needs reconciliation — TODO
+Branch `docs/guide-cap-wording-reconcile`. Discovered while updating drawback tables for
+`feat/drawbacks-phobias-expansion`: the `pact-guide` project's `PACT-Players-Guide.html` (the canonical
+master) still describes stat caps as advisory — *"The tool only warns, it does not block, if your current
+[ability] is above [N] — DMs should enforce it as a hard requirement"* — on `Asthmatic`, `Frail`,
+`Glass Frame`, `Lame`, `Missing Arm`, `Peg Leg`, and `Old Wound`. This repo's served copy
+(`docs/PACT-Players-Guide.html`) already carries the hard-enforcement wording (*"You may only take this
+drawback if your [ability] is currently [N] or below"*) that `b016331` introduced on 2026-08-18, and
+additionally states the cap sentence at all on `Forgetful`, `Slow Study`, `Suggestible`, and
+`Weak-Willed`, where the master omits it entirely. `feat/drawbacks-phobias-expansion` deliberately did
+**not** resolve this — new rows were applied on top of each file's own existing prose, so the divergence
+is neither widened nor silently overwritten.
+**Effort:** low · **Risk:** medium — ambiguity is low (the served copy's wording is already the correct,
+shipped-and-live posture per `b016331`'s owner ruling); damage scale is medium (a `pact-guide` transfer
+done wrong has form — see the ⛔ box in `docs/VERSION-SYNC.md` and commit `e0c5e9f`'s image loss); damage
+likelihood is low (the transfer procedure with its before/after `verify-guide.mjs` gate exists precisely
+to catch this class of mistake, IF followed).
+
+```text
+Follow docs/VERSION-SYNC.md's transfer procedure exactly: run node testing/scripts/verify-guide.mjs
+BEFORE touching anything. Apply the hard-enforcement wording to the pact-guide master's 7 named
+drawbacks, and add the missing cap sentence to Forgetful/Slow Study/Suggestible/Weak-Willed there too —
+do NOT copy the served file wholesale (it carries served-copy-only assets the master must not gain, per
+the ⛔ box). Re-run verify-guide.mjs AFTER. Cross-check documents-rules version/branch/commit against
+pact-guide's own py/vendor/engine/SYNCED_FROM.txt per VERSION-SYNC.md's three-way check. Worth first
+checking D-GH-2026-08-19-drawback-statcap-enforcement (or its pact-guide-side equivalent, if one exists)
+for whether the guide-side wording update was intentionally deferred or simply missed.
+```
+
+**Done when:** `node testing/scripts/verify-guide.mjs` passes both before and after the transfer; the
+served copy and `pact-guide` master state the SAME enforcement posture for every capped drawback; the
+transfer is verified against `pact-guide`'s own `py/vendor/engine/SYNCED_FROM.txt` per the three-way
+check in `docs/VERSION-SYNC.md`.
