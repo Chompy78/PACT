@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · docs(guide): the on-page version block is copied back to the `pact-guide` master** —
+  the served copy had carried `#guideVer`, its script and the `.guide-ver` CSS alone since it was added
+  earlier today, which is exactly the divergence the next transfer from the master silently wipes. Both
+  pieces are now in the master too (CSS above its `@media print` block; markup after `#navSearch`, before
+  `<ul id='navList'>`, mirroring the served copy's order minus the served-only theme picker). Verified
+  the other two of today's guide changes had already landed there — the `Soul Debt` rewording and all 23
+  stat-cap descriptions were already in the master's prose, so only the version block was outstanding.
+  `docs/VERSION-SYNC.md`'s ⛔ box now records the block as present in BOTH copies, so a future transfer
+  carries it rather than treating it as served-only.
+
 - **2026-08-19 · fix(guide): the version block had overwritten the print rule** — found while preparing
   the copy-back to `pact-guide`. `9f5e11f` added `.guide-ver`'s styling by *replacing the body of*
   `@media print{...}`, so printing the guide stopped hiding the nav sidebar, toggle, to-top button and
