@@ -287,7 +287,8 @@ a missed regression (a bad release, a security gap) is much higher than the cost
 
 ## Maintenance mode — taking the tools down and bringing them back
 
-One command each way. It edits files only; you do the git.
+Full documentation: **`docs/MAINTENANCE-MODE.md`** — the single source of truth. Kept there rather than
+inline so the two cannot drift.
 
 ```
 node testing/scripts/maintenance.mjs status   # ON / OFF / INCONSISTENT
@@ -295,40 +296,11 @@ node testing/scripts/maintenance.mjs on
 node testing/scripts/maintenance.mjs off
 ```
 
-**Full sequence** (maintenance is applied to `main`, the branch GitHub Pages serves — deliberately
-*not* via a `preview` → `main` promotion, because a promotion PR + `BUILD` bump is the wrong shape
-for an urgent takedown):
-
-```
-git checkout main && git pull
-node testing/scripts/maintenance.mjs on        # or: off
-git add -A && git commit -m "ops: maintenance mode on"   # or: off
-git push
-```
-
-Pages redeploys in a minute or two.
-
-**What it gates:** the four tool pages — CharGen, Live Sheet, DM Console, `characters.html`. A
-one-line script at the top of `<head>` redirects to `/PACT/maintenance.html` before anything else
-loads.
-
-**What stays up, on purpose:** `docs/PACT-Players-Guide.html` (players keep the rules) and
-`index.html` (landing page, still links to the guide).
-
-**Bypass while it's up:** append `?maint=off` to any tool URL — e.g.
-`…/tools/DM-Console.html?maint=off` — so you can verify the tools before lifting.
-
-**Do not bump `service-worker.js`'s `CACHE_NAME` for this.** HTML is network-first, so returning
-users get the maintenance page on their next load and get the real tools back just as fast on `off`.
-Bumping the cache would precache the *maintenance* pages and need a second bump to undo.
-
-> **`preview` does not carry maintenance mode.** Any `preview` → `main` promotion while maintenance
-> is on will silently lift it. Don't promote during a maintenance window.
-
-> **Why `off` removes an exact substring, not a line.** In `PACT-CharGen-Webtool.html` the `<head>`
-> shares its line with `<meta charset="utf-8">`. An earlier line-based version of this script would
-> have deleted the charset declaration along with the gate — caught by a round-trip test, which is
-> now the acceptance check: `on` then `off` must leave `git status` clean.
+It edits files only; you do the git, **directly on `main`** (not via a `preview` promotion — a promotion
+while maintenance is on silently lifts it). The four things most likely to catch you out, all covered in
+detail in that doc: always use the script rather than hand-editing the gate; don't bump the service
+worker's `CACHE_NAME`; `?maint=off` bypasses the gate so you can verify before lifting; and the gate is
+client-side only, so it is a sign, not a lock — it does not stop Supabase writes.
 
 ## Two things to watch
 - **Keep `js/engine.js` off-limits** unless a task explicitly targets it; the tools depend on its stable API.

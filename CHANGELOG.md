@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · docs(ops): `docs/MAINTENANCE-MODE.md` — everything about taking the tools down** — a
+  dedicated reference, and now the single source of truth: how to run the toggle (including from
+  PowerShell, and that it does **not** need the repo root — it resolves the repo from the script's own
+  location), the exact commit-to-`main` sequence and why it deliberately bypasses a `preview` promotion,
+  what players actually see on `maintenance.html`, the `ON`/`OFF`/`INCONSISTENT` states and how to
+  recover from the third, the `?maint=off` bypass, troubleshooting, and the 16 Aug history
+  (`965a052` → `15610f6` → `964cca7`, OFF ever since). Two things it states that were written down
+  nowhere: **the gate is client-side only — a sign, not a lock**, so it does not stop Supabase writes and
+  is not sufficient cover for a migration or backfill; and `off` **deletes** `maintenance.html`, so
+  hand-edited wording does not survive a cycle and belongs in the script's template. `HOW-TO-WORK.md`'s
+  inline section is reduced to a pointer so the two cannot drift.
+
 - **2026-08-19 · fix(ci): the tool-pricing gate depended on the runner image, and could not say so** — it
   went red on `2b293d8`, a commit containing nothing but version strings, while `fd1ba0f` — carrying every
   actual code change — passed. Chromium was present (the script's own "No Chromium found" guard never
