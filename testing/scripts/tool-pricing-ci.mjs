@@ -1513,6 +1513,48 @@ try {
       return [o.drawbackCap===undefined?'undefined':o.drawbackCap, compute(${CAPBUILD},o).budget];
     })()`), ['undefined', 93]);
 
+  // ================== DM-granted AP is visible in both player tools ==================
+  // Reported 2026-08-19: "i cannot see how many DM AP's there are in the chargen or livesheet".
+  // Both tools DID have a display; two states rendered nothing useful. The Live Sheet's chip was
+  // `_dmAp ? ... : ''`, so a campaign character with 0 DM AP showed no DM component at all —
+  // indistinguishable from the feature not existing. And a CharGen DM copy is deliberately unbound, so
+  // since the grant became a campaign character's ENTIRE budget it opened reading "0 AP — player only",
+  // which looks like lost AP rather than an unbound snapshot.
+  console.log('\nDM-granted AP must be visible in both player tools');
+  {
+    const cgd = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
+    if (!(await cgd.evaluate(READY(`window.DATA&&typeof render==='function'&&document.getElementById('apSourceLine')`))))
+      throw new Error('CharGen never became ready for the DM-AP check');
+    const apLine = setup => cgd.evaluate(`(()=>{${'$'}{S}render();
+      return (document.getElementById('apSourceLine')||{}).innerText.replace(/\\s+/g,' ').trim();})()`.replace('${S}', setup));
+    // Shape, not a fixed player figure: the claim is that BOTH pools are named and the DM half is the
+    // real number. Pinning "79 player" would be asserting whatever the budget field happens to hold.
+    check('CharGen names both pools when a campaign grants AP',
+      /\d+ player \+ 54 DM/.test(await apLine(`window._dmApStatus='active';window._dmAp=54;window._ignorePlayerAp=false;`)), true);
+    check('...and names the DM total when player AP is ignored (every Amble character)',
+      /54 AP — DM only/.test(await apLine(`window._dmApStatus='active';window._dmAp=54;window._ignorePlayerAp=true;`)), true);
+    check('...and a DM copy says it is unbound rather than silently reading 0',
+      /DM copy, not campaign-bound/.test(await apLine(`window._dmApStatus='none';window._dmAp=0;window._cgCopySourceAp=54;window._cgCopySourceName='Moss';`)), true);
+    // The copy must never be able to SPEND the AP it now mentions — display-only is the whole point.
+    check('...without the copy being able to spend it',
+      await cgd.evaluate(`(()=>{window._dmApStatus='none';window._dmAp=0;window._cgCopySourceAp=54;
+        return _cgDmOpts().dmAp;})()`), 0);
+    await cgd.close();
+
+    const lsd = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    if (!(await lsd.evaluate(READY(`window._engineFold&&typeof render==='function'`))))
+      throw new Error('Live Sheet never became ready for the DM-AP check');
+    const ecoLine = setup => lsd.evaluate(`(()=>{${'$'}{S}render();
+      const e=document.querySelector('.ecoline'); return e?e.innerText.replace(/\\s+/g,' ').trim():'';})()`.replace('${S}', setup));
+    check('the Live Sheet shows the DM figure for a campaign character',
+      /54 from DM/.test(await ecoLine(`window._rulesStatus='active';window._dmAp=54;window._ignorePlayerAp=false;`)), true);
+    check('...and still shows it at ZERO rather than omitting the chip entirely',
+      /0 from DM/.test(await ecoLine(`window._rulesStatus='active';window._dmAp=0;window._ignorePlayerAp=false;`)), true);
+    check('...but stays quiet for a character with no campaign at all',
+      /from DM/.test(await ecoLine(`window._rulesStatus='none';window._dmAp=0;`)), false);
+    await lsd.close();
+  }
+
   // ============ the DM Console shows subclass purchases and pack traits ============
   // Reported from real use, 2026-08-19: "on the dm console i can see class abilities, but not subclass
   // abilities. moss i cannot see 'Ranger › Beast Master: Primal Companion'". buildSections() rendered

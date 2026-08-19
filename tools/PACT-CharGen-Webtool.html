@@ -1375,6 +1375,14 @@ document.addEventListener('sync-ready', function () {
       // whole mechanism failed silently. Refuse rather than proceed if that ever occurs.
       if(copyId === vid){ alert('Could not safely open a copy of that character (id collision) — nothing was loaded.'); return false; }
       _cgResetCloudApState();   // never campaign-bound — a save from this copy must not write into the source campaign's roster
+      // ...but remember what the SOURCE had, for display. A DM copy is deliberately unbound, which since
+      // the grant became a campaign character's entire budget means it opens showing "0 AP — player only"
+      // and every purchase unaffordable. That reads as "the tool lost my AP" rather than "this snapshot
+      // is not campaign-bound". Reported 2026-08-19 ("i cannot see how many DM AP's there are").
+      // DISPLAY ONLY: it is never passed to compute() — see _cgDmOpts(), which does not read it — so the
+      // copy still cannot spend AP that belongs to the campaign roster it is not part of.
+      window._cgCopySourceAp = Number(rec.ap) || 0;
+      window._cgCopySourceName = srcName;
       _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:rec.stats.rules||DATA.version,name:copyName,
         LOG:rec.stats.LOG,SEQ:rec.stats.SEQ||(rec.stats.LOG.length+1),id:copyId},{clearHistory:true});
       var stats = _cgEnvelope(false);
@@ -1468,7 +1476,7 @@ function _cgOverApBudget(){
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;}
+function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';}
 // A file/handoff that carries a campaign binding is NOT a plain local character. Resetting DM AP to a
 // silent 0 (what every local-load path used to do) was harmless when DM AP was a bonus on top of a LOG
 // award, but since the grant became the character's ENTIRE budget it made an exported campaign character
@@ -1533,6 +1541,11 @@ function _apSourceHTML(r){
   } else if(st==='active'){
     label='☁ '+r.spendable+' AP — '+r.playerAp+' player + '+dmAp+' DM';
     tip='Your spendable budget combines the Player AP field ('+r.playerAp+') with '+dmAp+' AP your DM has granted this character. Combined live at display time — never saved as one number.';
+  } else if(window._cgCopySourceAp>0){
+    label='👁 '+r.playerAp+' AP — DM copy, not campaign-bound';
+    tip='This is a snapshot of \u201c'+(window._cgCopySourceName||'a character')+'\u201d, deliberately NOT bound to its campaign, so its '
+      +window._cgCopySourceAp+' DM-granted AP does not count here and nothing you do can spend it. The original still has it. '
+      +'Open the character itself (\u2601 Cloud menu) to build against the real budget.';
   } else {
     label='🔒 '+r.playerAp+' AP — player only';
     tip="This build isn't bound to a cloud campaign, so only the Player AP field counts. Load a cloud character bound to a campaign (☁ Cloud menu) to add DM-granted AP.";

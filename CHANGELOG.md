@@ -25,6 +25,19 @@
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
 
+- **2026-08-19 · fix(tools): DM-granted AP is visible in both player tools** — reported: *"i cannot see
+  how many DM AP's there are in the chargen or livesheet"*. Both tools **did** have a display; two states
+  rendered nothing useful. (1) The Live Sheet's chip was `_dmAp ? … : ''`, so a campaign character with
+  **0 DM AP showed no DM component at all** — indistinguishable from the feature not existing. It now
+  shows `0 from DM` whenever the character is campaign-bound, and still stays quiet for a purely local
+  character, where it would be noise. (2) A CharGen **DM copy** is deliberately unbound
+  (`_cgResetCloudApState()`), so since the grant became a campaign character's entire budget it opened
+  reading `🔒 0 AP — player only` — which looks like lost AP rather than an unbound snapshot. It now reads
+  `👁 N AP — DM copy, not campaign-bound`, and names the source's DM AP in its tooltip. That figure is
+  **display-only**: `_cgDmOpts()` does not read it, so the copy still cannot spend AP belonging to a
+  roster it is not part of — asserted by its own check. `tool-pricing-ci` 151 → **158**, covering all
+  seven states across the two tools.
+
 - **2026-08-19 · feat(guide): the Players Guide shows its versions on the page, both labelled** —
   reported: *"i also cannot see the version number in the pact-guide html?"* Correct — they existed only
   as head comments and in the `<title>`. A `#guideVer` block in the nav now renders **both axes**, which
