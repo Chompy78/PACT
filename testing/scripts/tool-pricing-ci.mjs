@@ -1456,6 +1456,65 @@ try {
       return [/AP Earned[\\s\\S]*?<span class="v">80<\\/span>/.test(html), /AP Earned[\\s\\S]*?<span class="v">0<\\/span>/.test(html)];})()`),
     [true, false]);
 
+  // ================= the campaign drawback cap reaches ALL THREE tools =================
+  // fix/drawback-cap-player-tools. `drawbackCap` was built inline in DM-Console.html and nowhere else,
+  // so compute() got it on the DM's side only: a player in a capped campaign saw the FULL grant in
+  // CharGen and the Live Sheet while their DM saw the capped figure — two people reading one character
+  // and getting different AP, with nothing on either screen saying which was right.
+  //
+  // Asserted through each tool's OWN opts builder (_cgDmOpts / _dmOpts) rather than by calling the
+  // shared helper directly, because the helper was never the broken part — the wiring was. A version of
+  // this check that only exercised drawbackCapFromRules() would have passed against the bug.
+  console.log('\nCampaign drawback cap — the DM and the player must see the same number');
+  const CAPPED = `{drawbackCap:{enabled:true,ap:12}}`;
+  // 79 awarded + two drawbacks worth 14. Capped at 12 -> 91. Uncapped -> 93. The two differ, so a cap
+  // that silently fails to arrive is visible rather than coincidentally equal.
+  const CAPBUILD = `(()=>{const b=baseBuild();b.budget=79;b.drawbacks=['Hexed Luck','Leaden Reflexes'];return b;})()`;
+
+  const capIn = async (tab, optsFn, activate) => tab.evaluate(`(()=>{
+    ${activate}
+    const o = ${optsFn}();
+    return [o.drawbackCap === undefined ? 'undefined' : o.drawbackCap, compute(${CAPBUILD}, o).budget];
+  })()`);
+
+  const cg2 = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
+  if (!(await cg2.evaluate(READY(`window.DATA&&typeof _cgDmOpts==='function'`))))
+    throw new Error('CharGen never became ready for the drawback-cap check');
+  const ls2 = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+  if (!(await ls2.evaluate(READY(`window.DATA&&typeof _dmOpts==='function'`))))
+    throw new Error('Live Sheet never became ready for the drawback-cap check');
+
+  const cgCapped = await capIn(cg2, '_cgDmOpts',
+    `window._dmApStatus='active'; window._cloudCampaign={rules:${CAPPED}};`);
+  const lsCapped = await capIn(ls2, '_dmOpts',
+    `window._rulesStatus='active'; window._cloudCampaignRules=${CAPPED};`);
+  check('CharGen passes the campaign cap to compute()', cgCapped, [12, 91]);
+  check('the Live Sheet passes the campaign cap to compute()', lsCapped, [12, 91]);
+  check('DM Console reads the cap from the SAME shared helper, not its own copy',
+    await dm.evaluate(`(()=>{const b=window._campBridge; return [typeof b.drawbackCapFromRules, b.drawbackCapFromRules(${CAPPED})];})()`),
+    ['function', 12]);
+  check('so all three agree on one number for one character',
+    [cgCapped[1], lsCapped[1], 91].every(v => v === 91), true);
+
+  // ...and the cap must NOT apply without a resolved campaign: compute() stays advisory (full 14 AP
+  // granted, plus its warning), which is the deliberate rule for a character with no DM to adjudicate.
+  const cgLocal = await capIn(cg2, '_cgDmOpts',
+    `window._dmApStatus='none'; window._cloudCampaign={rules:${CAPPED}};`);
+  const lsLocal = await capIn(ls2, '_dmOpts',
+    `window._rulesStatus='none'; window._cloudCampaignRules=${CAPPED};`);
+  check('CharGen leaves a local character uncapped and advisory', cgLocal, ['undefined', 93]);
+  check('the Live Sheet leaves a local character uncapped and advisory', lsLocal, ['undefined', 93]);
+  // A campaign that switched the cap OFF is also uncapped — the flag is read, not just the presence
+  // of the key. Without this, `drawbackCap: {enabled:false}` would cap at whatever `ap` still held.
+  check('and a campaign with the cap switched OFF does not cap',
+    await cg2.evaluate(`(()=>{
+      window._dmApStatus='active'; window._cloudCampaign={rules:{drawbackCap:{enabled:false,ap:12}}};
+      const o=_cgDmOpts();
+      return [o.drawbackCap===undefined?'undefined':o.drawbackCap, compute(${CAPBUILD},o).budget];
+    })()`), ['undefined', 93]);
+
+  await cg2.close(); await ls2.close();
+
   await dm.close();
 } catch (e) {
   fail++; console.log(`  FAIL harness — ${e.message}`);

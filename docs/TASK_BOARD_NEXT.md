@@ -504,45 +504,6 @@ likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers 
 purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
 answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
 
-## The campaign drawback cap is DM-view-only — players see a different total — TODO
-Branch `fix/drawback-cap-player-tools`. `tools/PACT-CharGen-Webtool.html` and
-`tools/PACT-Live-Char-Sheet.html` (their `compute()` opts builders); no engine change needed.
-**Effort:** low · **Risk:** medium — ambiguity is low (the mechanism already exists and the two tools
-already gate `dmAp`/`ignorePlayerAp` the same way); damage scale is medium (it lowers spendable AP for
-players in a capped campaign, so it can put an existing character over budget); damage likelihood is low
-(one opts field, and a gate can pin all three tools agreeing).
-
-`drawbackCap` appears in `tools/DM-Console.html` and **in neither player tool** — verified by grep:
-6 occurrences in DM Console, 0 in CharGen, 0 in the Live Sheet. So `compute()` receives the cap only on
-the DM's side, and a player in a campaign with a cap set sees the **full** drawback grant while their DM
-sees the capped figure. Two people looking at the same character get different AP totals, with no
-indication either is wrong.
-
-Pre-existing since v0.351 (`feat/drawback-cap`), where the cap was added DM-side and the player tools
-were not wired. It matters more since v0.355 made the grant real income rather than half of a cancelling
-pair: before, the discrepancy partly hid itself in the cost side.
-
-```text
-1. Both tools already build a compute() opts object gated on a resolved campaign - _cgDmOpts() in
-   CharGen and _dmOpts() in the Live Sheet. Add drawbackCap there, on exactly the same 'active'
-   gate that dmAp/ignorePlayerAp use, so an unresolved or absent campaign keeps today's uncapped
-   local behaviour (which is deliberate - see the comment on the cap in engine.js).
-2. Surface it. A silently smaller budget is worse than the current mismatch; compute() already
-   pushes a warning naming the withheld AP, so check it actually reaches the player's warning list
-   in both tools rather than only the DM's.
-3. Gate it: one check that the same character in a capped campaign reports the same spendable
-   total in CharGen, the Live Sheet and the DM Console. tool-pricing-ci.mjs already drives two of
-   the three over CDP.
-4. No DATA.version bump - compute()'s output for a given (build, opts) pair does not change; only
-   which opts the tools pass.
-```
-
-**Done when:** CharGen and the Live Sheet both pass the campaign's `drawbackCap` to `compute()` under
-the same resolved-campaign gate they already use for `dmAp`; the over-cap warning is visible to the
-player, not only the DM; a gate pins that all three tools report the same spendable total for a
-character in a capped campaign; engine-parity **0 failed**.
-
-
 ## Security audit: privilege boundaries + character/AP integrity against a malicious client — TODO
 Branch `security/privilege-and-character-integrity`. Owner request, 2026-08-08. Assume the attacker has
 the full frontend source, the Supabase URL, the publishable key, complete control of browser JS/

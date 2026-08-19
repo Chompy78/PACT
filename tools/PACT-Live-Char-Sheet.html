@@ -482,7 +482,15 @@ function earnedWithDm(eco,opts){ return window._engineFold.earnedWithDm(eco,opts
 // 'unavailable' (rules unconfirmed) the ceiling is player-only, so "AP left" never counts DM AP the display
 // can't stand behind — and so the DM chip can't read "from DM" while the total excludes it. CharGen gates
 // identically (see _cgDmOpts), so both tools show the same spendable total in every state.
-function _dmOpts(){var a=window._rulesStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp};}
+// drawbackCap rides the SAME 'active' gate as dmAp/ignorePlayerAp (fix/drawback-cap-player-tools).
+// window._cloudCampaignRules is the same cache window._ignorePlayerAp is sourced from. Before this the
+// cap reached compute() only in the DM Console, so this tool showed a player the FULL grant while their
+// DM saw the capped figure. undefined keeps compute() advisory, which is the local-character rule.
+function _lsDrawbackCap(){
+  var b=window._campaignBridge;
+  return (b&&b.drawbackCapFromRules) ? b.drawbackCapFromRules(window._cloudCampaignRules) : undefined;
+}
+function _dmOpts(){var a=window._rulesStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp,drawbackCap:a?_lsDrawbackCap():undefined};}
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on
 // (default true when absent/unset — opposite default from ignore_player_ap), who has actually spent
 // past their budget right now. window._cloudCampaignRules is refreshCloudCampaignRules()'s cache — the
@@ -1424,15 +1432,18 @@ function buildBuyPanel(b,r,eco,head){
      // DM-custom/house-ruled drawbacks for free. Re-deriving it locally looked simpler and would have
      // silently scored every DM custom drawback as 0, which is precisely the "never re-implement rules
      // logic outside engine.js" trap. The heading line is the CAPPED grant; the rows are the raw total.
-     // NOTE: this reports the guide's cap, not a campaign's. A DM can set a different cap, but that
-     // value currently reaches compute() only in the DM Console — see fix/drawback-cap-player-tools on
-     // TASK_BOARD_NEXT.md. Worded as "the guide caps them at" so it does not claim to be campaign-aware.
-     const _dCap=DATA.drawbackCap;
+     // Campaign-aware since fix/drawback-cap-player-tools: when the DM has set a cap it is theirs that
+     // is enforced, so it is theirs that gets shown and named. Falling back to the guide's figure only
+     // when no campaign is adjudicating keeps the displayed number equal to the applied one — showing
+     // the guide's 12 to a player whose DM set 8 would just be the same bug wearing a different hat.
+     const _campCap=_lsDrawbackCap();
+     const _dCap=(_campCap===undefined)?DATA.drawbackCap:_campCap;
+     const _capWho=(_campCap===undefined)?'the guide caps them at':'your DM caps them at';
      const _dGain=-((r.itemize&&r.itemize['Drawbacks (refund)']||[]).reduce((t,row)=>t+(row[1]||0),0));
      const _dLine=_dGain===0?'':('<div class="seg" style="width:100%;font-size:11px;margin-top:6px;font-weight:'
        +(_dGain>=_dCap-2?'700':'normal')+';color:'
        +(_dGain>_dCap?'var(--bad)':_dGain>=_dCap-2?'#7a4f00':'var(--grey)')+'">Drawbacks grant <b>+'+_dGain
-       +' AP</b>'+(_dGain>_dCap?(' &mdash; the guide caps them at '+_dCap+' AP; confirm with your DM'):(' of '+_dCap+' AP'))+'</div>');
+       +' AP</b>'+(_dGain>_dCap?(' &mdash; '+_capWho+' '+_dCap+' AP'+(_campCap===undefined?'; confirm with your DM':', so the excess is not granted')):(' of '+_dCap+' AP'))+'</div>');
      return (grid || '<span class="hint">No drawbacks available.</span>')+_dLine;
    }],
    ['Ki, Sorcery & Attunement points',()=>ib('Attunement slot '+(b.attune+1),'attune',{to:b.attune+1})
@@ -2122,11 +2133,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // never fires; window._syncBridge etc. stay undefined and every consumer already null-checks them.
   import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, withKeepalive } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
-  import { listMyCampaigns, getCampaign } from '../js/campaign.js';
+  import { drawbackCapFromRules, listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { getAwardHistory, getVisibleCustomFields } from '../js/dm.js';
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, withKeepalive };
   window._authBridge = { currentSession, onAuthChange };
-  window._campaignBridge = { listMyCampaigns, getCampaign };
+  window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign };
   window._dmBridge = { getAwardHistory, getVisibleCustomFields };
   initSync();
   document.dispatchEvent(new Event('sync-ready'));

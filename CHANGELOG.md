@@ -6,6 +6,19 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · fix(tools): the campaign drawback cap now reaches both player tools** — `drawbackCap`
+  was wired into `DM-Console.html` and nowhere else (6 occurrences there, **0** in either player tool), so
+  a player in a capped campaign saw the full grant while their DM saw the capped figure. Both tools now
+  pass it on the same `'active'` gate they already use for `dmAp`/`ignorePlayerAp`, and the shape-reading
+  is extracted once to **`drawbackCapFromRules()`** in `js/campaign.js` — which all three tools already
+  import — rather than pasted into two more files. The displayed figure moved with the applied one: both
+  panels now show the campaign's cap when one is enforced, and the Live Sheet's wording changes with it
+  ("the guide caps them at 12 AP; confirm with your DM" → "your DM caps them at 8 AP, so the excess is not
+  granted"). `tool-pricing-ci` 134 → **141**, asserted through each tool's own opts builder. No
+  `DATA.version` bump — `compute()`'s output per `(build, opts)` is unchanged. Graduates
+  `fix/drawback-cap-player-tools` off `TASK_BOARD_NEXT.md`. See
+  `D-GH-2026-08-19-drawback-cap-player-tools`.
+
 - **2026-08-19 · docs(ops): `docs/MAINTENANCE-MODE.md` — everything about taking the tools down** — a
   dedicated reference, and now the single source of truth: how to run the toggle (including from
   PowerShell, and that it does **not** need the repo root — it resolves the repo from the script's own
