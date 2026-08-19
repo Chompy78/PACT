@@ -128,6 +128,13 @@ track it.
 > | The `[data-theme]` blocks + pre-paint theme script | `index.html` writes `pact-theme`; the guide reads it |
 > | `.chapter-banner` CSS | styles the chapter openers |
 >
+> **In BOTH copies — do not treat as served-only:** the `#guideVer` block, its inline script and the
+> `.guide-ver` CSS. Added to the served copy 2026-08-19 and copied back to the master the same day. It
+> deliberately imports nothing, so it works in either file; a transfer must carry it, not strip it.
+> Check 8 (`version markers`) asserts the block is present; check 11 (`print rule intact`) asserts its
+> CSS sits at screen scope and that `@media print` still hides the sidebar — the first version of this
+> block was added by overwriting the print rule's body, which broke both at once.
+>
 > **Run `node testing/scripts/verify-guide.mjs` before AND after any transfer.** It checks all three of
 > the above explicitly, as fixed inventories rather than counts, so none can leave as a side effect.
 > A transfer that drops one now fails loudly instead of silently.

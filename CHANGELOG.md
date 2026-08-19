@@ -6,6 +6,33 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · chore(version): `BUILD` → `v1.429` for PR #429 (`preview` → `main` promotion)** — sixth
+  promotion under the PR-linked scheme (`D-GH-2026-08-02-build-version-pr-linked`). Major `1` carried
+  forward; `DATA.version` deliberately untouched at `v0.356` — this promotion changes no mechanics.
+  Synced across all five mirrors: `js/engine.js` `BUILD`, CharGen's line-1 comment / `<title>` / header
+  `.sub`, Live Sheet's line-1 comment, DM Console's `TOOL_VERSION`. `index.html` reads `BUILD` live and
+  was not touched.
+
+- **2026-08-19 · docs(guide): the on-page version block is copied back to the `pact-guide` master** —
+  the served copy had carried `#guideVer`, its script and the `.guide-ver` CSS alone since it was added
+  earlier today, which is exactly the divergence the next transfer from the master silently wipes. Both
+  pieces are now in the master too (CSS above its `@media print` block; markup after `#navSearch`, before
+  `<ul id='navList'>`, mirroring the served copy's order minus the served-only theme picker). Verified
+  the other two of today's guide changes had already landed there — the `Soul Debt` rewording and all 23
+  stat-cap descriptions were already in the master's prose, so only the version block was outstanding.
+  `docs/VERSION-SYNC.md`'s ⛔ box now records the block as present in BOTH copies, so a future transfer
+  carries it rather than treating it as served-only.
+
+- **2026-08-19 · fix(guide): the version block had overwritten the print rule** — found while preparing
+  the copy-back to `pact-guide`. `9f5e11f` added `.guide-ver`'s styling by *replacing the body of*
+  `@media print{...}`, so printing the guide stopped hiding the nav sidebar, toggle, to-top button and
+  progress bar, and the version block itself was scoped to print and therefore unstyled on screen. Both
+  halves were wrong and neither was visible from the change itself. The print rule is restored
+  byte-identical to its pre-`9f5e11f` text and the `.guide-ver` rules moved to screen scope (the block is
+  a child of `#nav`, so print still hides it). `verify-guide.mjs` gains an 11th check, `print rule
+  intact`, asserting both facts; confirmed FAIL against the unfixed file before being accepted. Display
+  only — no rules change, no `DATA.version` bump.
+
 - **2026-08-19 · test(livesheet): pin that a pre-lock ledger equals `compute()` across level-ups; the
   reported divergence is gone** — `fix/livesheet-draft-reconcile` was filed as a live bug needing an owner
   *rules ruling before any code*: a fresh Live Sheet character reading **34 against `compute()`'s 46**
@@ -24,6 +51,15 @@
   to stop the optimiser gaming it, which is a simulation-side workaround for an engine-side gap. Not
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
+
+- **2026-08-19 · docs(rules): the `Soul Debt` Long Rest exemption was removed deliberately — confirmed** —
+  the v0.356 rewording dropped *"The Hit Points you recover at the end of a Long Rest are unaffected."*
+  That was flagged at the time as possibly unintended, because the new text enumerates three sources after
+  a colon and does not mention rests. **Owner confirmed the wording as written**, so a Long Rest is no
+  longer carved out. Recorded here because a lone deleted sentence is precisely what a later reader
+  restores as an accident; it was not one. Verified nothing else still carries the old exemption, and that
+  the guide's other two `Soul Debt` passages (buy-off permanence in §14, and the narrative example) do not
+  assume it. No text change — this entry exists solely so the deletion cannot be undone by mistake.
 
 - **2026-08-19 · feat(rules): drawback stat caps are ENFORCED, in both directions, and documented
   everywhere** — owner's ruling. The cap text says two things — *"you may only take a capped drawback if
