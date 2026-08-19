@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pact-v8';   // v8: purge caches holding a pre-isCloudCharId character-store.js (see below)
+const CACHE_NAME = 'pact-v9';   // v9: engine.js gained a new import (economy-bands.js) — see NETWORK_FIRST_RE below
 
 const PRE_CACHE = [
   '/PACT/',
@@ -53,7 +53,7 @@ const PRE_CACHE = [
 // Mixed freshness across an import edge is not a caching trade-off, it is a broken build. testing/
 // scripts/audit.py now enforces this so it can't be reintroduced by adding an innocent-looking import.
 // Everything else (icons, feedback.js) stays cache-first for speed.
-const NETWORK_FIRST_RE = /\.html$|\/PACT\/$|\/js\/(engine|engine-data|character-store|auth|supabase-client|sync|campaign|dm|ui-helpers|ap-by-level|advancement)\.js$/;
+const NETWORK_FIRST_RE = /\.html$|\/PACT\/$|\/js\/(engine|engine-data|character-store|auth|supabase-client|sync|campaign|dm|ui-helpers|ap-by-level|advancement|economy-bands)\.js$/;
 
 self.addEventListener('install', e => {
   e.waitUntil(

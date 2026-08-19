@@ -27,7 +27,7 @@ import { supabase } from './supabase-client.js';
 export async function getRoster(campaignId) {
   const { data, error } = await supabase
     .from('characters')
-    .select('id, name, kind, ap, stats, updated_at, owner_id, owner:profiles(display_name), dm_notes:character_dm_notes(player_label, notes, custom_fields)')
+    .select('id, name, kind, ap, gold, downtime_days, stats, updated_at, owner_id, owner:profiles(display_name), dm_notes:character_dm_notes(player_label, notes, custom_fields)')
     .eq('campaign_id', campaignId)
     .order('name');
   if (error) throw error;
@@ -129,6 +129,59 @@ export async function awardAp(characterId, amount, note) {
 }
 
 /**
+ * DM-only: grant (or, with negative amounts, deduct) gold and downtime for a character,
+ * with an optional note. Returns the updated character row, carrying BOTH new totals.
+ * Throws if the caller is not a DM of the character's campaign, or if the character is
+ * not in a campaign at all.
+ *
+ * The gold-and-downtime twin of awardAp() above, and one call for both currencies because
+ * they share one wealth_awards ledger row — a table ruling that hands over coin AND a
+ * season of training is a single event, not two. Pass 0 for either to grant only the other.
+ *
+ * This is the whole of the owner's requirement that "in a campaign world, the DM is the one
+ * who applies the money": a player has no grant on these columns, so there is no client-side
+ * path to them other than this RPC, and it authorizes on is_campaign_dm(). A SOLO character
+ * never reaches here — its gold and downtime live as `wealth` events in its own LOG, which
+ * is the player-side pool the engine's wealthLedger() reads.
+ *
+ * @param {string} characterId
+ * @param {number} gold          gp to add (negative deducts)
+ * @param {number} downtimeDays  downtime in DAYS to add (negative deducts)
+ * @param {string} [note]
+ */
+export async function awardWealth(characterId, gold, downtimeDays, note) {
+  const { data, error } = await supabase.rpc('award_wealth', {
+    p_character: characterId,
+    p_gold: Math.round(Number(gold) || 0),
+    p_downtime_days: Math.round(Number(downtimeDays) || 0),
+    p_note: note ?? null,
+  });
+  if (error) throw error;
+  // `returns characters` comes back as a single row object, not an array — unlike award_ap's
+  // scalar integer. Normalized here so callers never have to know which shape the RPC used.
+  return Array.isArray(data) ? data[0] : data;
+}
+
+/**
+ * The gold/downtime award history for a character (newest first), each row attributed to the
+ * DM who gave it. Readable by the character's owner and any campaign DM — the wealth_awards
+ * RLS policy is the same one ap_awards uses.
+ * @returns {Promise<Array<{id,gold,downtime_days,note,created_at,dm_id,dm}>>}
+ */
+export async function getWealthHistory(characterId) {
+  const { data, error } = await supabase
+    .from('wealth_awards')
+    .select('id, gold, downtime_days, note, created_at, dm_id, dm:profiles!wealth_awards_dm_id_fkey(display_name)')
+    .eq('character_id', characterId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(a => ({
+    id: a.id, gold: a.gold, downtime_days: a.downtime_days, note: a.note,
+    created_at: a.created_at, dm_id: a.dm_id, dm: a.dm?.display_name || '',
+  }));
+}
+
+/**
  * feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events): append DM-attributed events to a campaign
  * character's own LOG — grant/remove a boon, impose a drawback. `events` must be a non-empty array;
  * a DM-granted boon needs its matched [buy, award] pair passed together so they land in one atomic
@@ -173,7 +226,7 @@ export async function getAwardHistory(characterId) {
 export async function getCharacterStats(characterId) {
   const { data, error } = await supabase
     .from('characters')
-    .select('id, name, kind, stats, ap')
+    .select('id, name, kind, stats, ap, gold, downtime_days')
     .eq('id', characterId)
     .single();
   if (error) throw error;

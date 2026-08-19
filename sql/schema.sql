@@ -175,7 +175,16 @@ create table if not exists public.characters (
   -- save again manually. Accepted knowingly, not an oversight; see that decision record. Defaults
   -- true for every character, existing and new -- not retroactive enrollment in the sense a one-way
   -- consent flag would be, because this is immediately visible and immediately reversible.
-  autosave_enabled boolean not null default true
+  autosave_enabled boolean not null default true,
+  -- Gold-and-downtime economy (Players Guide §2/§16). DM-authoritative, exactly like `ap`:
+  -- never written by players, only through award_wealth(). These hold what the DM has
+  -- GRANTED; what the character has SPENT is derived from its own LOG by the engine
+  -- (wealthLedger()), never stored -- same rule that keeps HP/AC/AP derived. Downtime is in
+  -- DAYS (the engine's canonical unit). Both may go negative: §17 lets a DM waive or defer
+  -- any cost, so an overdraft is a table ruling the tools show as a soft warning, not a
+  -- database error. See sql/migrations/2026-08-19-dm-gold-downtime-economy.sql.
+  gold          integer not null default 0,
+  downtime_days integer not null default 0
 );
 
 create index if not exists idx_characters_owner    on public.characters(owner_id);
@@ -200,6 +209,25 @@ create table if not exists public.ap_awards (
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_ap_awards_char on public.ap_awards(character_id);
+
+-- ---------------------------------------------------------------------------
+-- wealth_awards — the gold/downtime award ledger, the twin of ap_awards above.
+-- award_wealth() writes a row stamped with the calling DM and bumps BOTH running
+-- totals on characters. One row carries both currencies on purpose: a single table
+-- ruling ("the hoard, and the winter you spent training") is one ledger line, not
+-- two unrelated ones. Either amount may be zero, and either may be negative.
+-- ---------------------------------------------------------------------------
+create table if not exists public.wealth_awards (
+  id            uuid primary key default gen_random_uuid(),
+  character_id  uuid not null references public.characters(id) on delete cascade,
+  dm_id         uuid references public.profiles(id) on delete set null,  -- survives DM deletion
+  campaign_id   uuid references public.campaigns(id) on delete set null,
+  gold          integer not null default 0,
+  downtime_days integer not null default 0,
+  note          text,
+  created_at    timestamptz not null default now()
+);
+create index if not exists idx_wealth_awards_char on public.wealth_awards(character_id);
 
 -- ---------------------------------------------------------------------------
 -- character_dm_notes — DM-only per-character annotations (player-name label +

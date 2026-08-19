@@ -79,6 +79,7 @@ alter table public.campaigns          enable row level security;
 alter table public.characters         enable row level security;
 alter table public.campaign_dms       enable row level security;
 alter table public.ap_awards          enable row level security;
+alter table public.wealth_awards      enable row level security;
 alter table public.character_dm_notes enable row level security;
 
 -- ---------------------------------------------------------------------------
@@ -96,6 +97,7 @@ grant select, insert, delete on public.campaigns to authenticated;   -- update i
 grant select, insert, update on public.profiles to authenticated;
 grant select on public.campaign_dms to authenticated;   -- writes via RPCs only
 grant select on public.ap_awards    to authenticated;   -- inserts via award_ap only
+grant select on public.wealth_awards to authenticated;   -- inserts via award_wealth only
 
 -- service_role. The APP never uses this role — it is the browser client throughout, on the anon key
 -- under RLS — so nothing here was ever exercised and the omission stayed invisible. It surfaced on
@@ -178,6 +180,18 @@ create policy campaign_dms_select on public.campaign_dms
 -- ---------------------------------------------------------------------------
 drop policy if exists ap_awards_select on public.ap_awards;
 create policy ap_awards_select on public.ap_awards
+  for select using (
+    is_campaign_dm(campaign_id)
+    or exists (select 1 from characters c where c.id = character_id and c.owner_id = auth.uid())
+  );
+
+-- ---------------------------------------------------------------------------
+-- wealth_awards — the gold/downtime ledger. Same rows, same readers, same rule as
+-- ap_awards immediately above: the character's owner or any DM of its campaign.
+-- Inserts happen only through award_wealth() (definer).
+-- ---------------------------------------------------------------------------
+drop policy if exists wealth_awards_select on public.wealth_awards;
+create policy wealth_awards_select on public.wealth_awards
   for select using (
     is_campaign_dm(campaign_id)
     or exists (select 1 from characters c where c.id = character_id and c.owner_id = auth.uid())
@@ -285,6 +299,9 @@ grant execute on function public.get_character_visible_fields(uuid) to authentic
 -- ---------------------------------------------------------------------------
 revoke update on public.characters from authenticated, anon;
 grant update (name, kind, stats) on public.characters to authenticated;
+-- gold / downtime_days are excluded for the same reason as ap: DM-authoritative, writable
+-- only through award_wealth(). Their absence from this grant list IS the guard -- any UPDATE
+-- naming either column is rejected by Postgres before characters_update's WITH CHECK runs.
 
 -- archived_at (soft-delete/undelete) needs no RPC, unlike campaigns.archived_at:
 -- characters_update's row policy above is already owner-only in both USING and
@@ -340,6 +357,59 @@ begin
     where id = p_character
     returning ap into v_ap;
   return v_ap;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- award_wealth(character, gold, downtime_days, note) — the ONLY write path to
+-- characters.gold / characters.downtime_days. The gold-and-downtime twin of
+-- award_ap() directly above, and deliberately identical in shape: any DM of the
+-- character's campaign, definer so it can write columns players have no grant on,
+-- one wealth_awards ledger row for attribution plus the running totals.
+--
+-- Both currencies in ONE call because they share one ledger row -- a table ruling
+-- that hands over coin and a season of training is a single event, and two RPCs
+-- would both double the ledger and leave a window where only half had landed.
+--
+-- Returns the whole updated row (not just one integer, as award_ap does) because
+-- there are two totals to report and the caller needs both; `returns characters`
+-- keeps that honest if a third is ever added.
+--
+-- A solo, uncampaigned character never reaches this: it has no DM, so its gold and
+-- downtime live as `wealth` events in its own LOG instead. That asymmetry is the
+-- requirement, not a gap -- in a campaign world the DM applies the money.
+-- ---------------------------------------------------------------------------
+create or replace function public.award_wealth(
+  p_character uuid,
+  p_gold integer default 0,
+  p_downtime_days integer default 0,
+  p_note text default null
+)
+returns characters language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_campaign uuid;
+  v_row      characters%rowtype;
+begin
+  select campaign_id into v_campaign from characters where id = p_character;
+  if v_campaign is null then
+    raise exception 'Character is not in a campaign';
+  end if;
+  if not is_campaign_dm(v_campaign) then
+    raise exception 'Only a campaign DM can award gold or downtime';
+  end if;
+  if coalesce(p_gold, 0) = 0 and coalesce(p_downtime_days, 0) = 0 then
+    raise exception 'Award must change gold or downtime';
+  end if;
+
+  insert into wealth_awards (character_id, dm_id, campaign_id, gold, downtime_days, note)
+    values (p_character, auth.uid(), v_campaign, coalesce(p_gold, 0), coalesce(p_downtime_days, 0), p_note);
+
+  update characters
+     set gold          = gold          + coalesce(p_gold, 0),
+         downtime_days = downtime_days + coalesce(p_downtime_days, 0)
+   where id = p_character
+   returning * into v_row;
+  return v_row;
 end;
 $$;
 
@@ -707,6 +777,7 @@ grant execute on function public.regenerate_invite_code(uuid)       to authentic
 grant execute on function public.archive_campaign(uuid)             to authenticated;
 grant execute on function public.unarchive_campaign(uuid)           to authenticated;
 grant execute on function public.award_ap(uuid, integer, text)      to authenticated;
+grant execute on function public.award_wealth(uuid, integer, integer, text) to authenticated;
 grant execute on function public.redeem_player_invite(text, text)             to authenticated;
 grant execute on function public.bind_character_to_campaign(uuid, text)       to authenticated;
 grant execute on function public.dm_unbind_character(uuid)                    to authenticated;
@@ -738,6 +809,7 @@ revoke execute on function public.redeem_character_claim(text)                fr
 -- so award_ap is authenticated-only rather than relying solely on its internal
 -- is_campaign_dm() guard. See sql/migrations/2026-07-02-drop-legacy-award-xp-lock-award-ap.sql.
 revoke execute on function public.award_ap(uuid, integer, text) from public;
+revoke execute on function public.award_wealth(uuid, integer, integer, text) from public;
 
 -- ---------------------------------------------------------------------------
 -- Remaining function EXECUTE lockdown (anon). Same default-EXECUTE-to-PUBLIC
