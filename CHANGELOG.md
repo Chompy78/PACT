@@ -6,6 +6,10 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · chore(version): `BUILD` → `v1.432` for PR #432 (`preview` → `main` promotion)** —
+  eighth promotion under the PR-linked scheme. Major `1` carried forward; `DATA.version`
+  deliberately untouched at `v0.356`. Docs-only promotion — synced across all five mirrors.
+
 - **2026-08-19 · chore(version): `BUILD` → `v1.430` for PR #430 (`preview` → `main` promotion)** —
   seventh promotion under the PR-linked scheme. Major `1` carried forward; `DATA.version`
   deliberately untouched at `v0.356`. Synced across all five mirrors.
