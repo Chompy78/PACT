@@ -501,6 +501,46 @@ likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers 
 purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
 answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
 
+## Ten drawback descriptions differ between the guide and `DATA.drawbackFx` — TODO
+Branch `docs/drawback-text-reconcile`. `js/engine-data.js` (`DATA.drawbackFx`) and
+`docs/PACT-Players-Guide.html`'s drawback table.
+**Effort:** low · **Risk:** medium — ambiguity is the driver: deciding WHICH wording is right is a rules-
+prose call for the owner, not a mechanical merge. Damage scale low (display text; `compute()` never reads
+`drawbackFx`), damage likelihood medium — a player reads the guide and a tool shows them something else,
+which is how a table argument starts.
+
+Found 2026-08-19 while changing `Soul Debt`'s description, by comparing every entry rather than only the
+one being edited. Of 69 drawbacks with description text, **53 match the guide verbatim** and **10 differ**:
+
+```text
+Leaden Reflexes · Missing Arm · Peg Leg · Squeamish · Berserk Temper
+Merciful · Cursed Wealth · Marked · Cold Heart · Oath of Poverty (permanent)
+```
+
+The six `Affliction — …` entries are not in the guide under those names at all; they appear to be covered
+by a single combined row, so they are **not** drift and should be confirmed rather than "fixed".
+
+**Nothing gates this.** `verify-guide` checks prices, spells, bundles, worked examples, structure, anchors,
+art, theming and version markers — it does **not** compare drawback prose against `DATA`. That is why ten
+could drift unnoticed. A gate was deliberately NOT added with this task: it would be red on arrival, and
+`AGENTS.md` requires gates to sit at 0 failed.
+
+```text
+1. For each of the ten, decide which wording is correct - the engine's or the guide's. This is prose,
+   so it needs the owner; do not merge mechanically.
+2. Apply the winner to BOTH sides in the same change (AGENTS.md: a rules change that lands in one and
+   not the other is half-done).
+3. Confirm the six Affliction entries are genuinely covered by the guide's combined row, and record
+   that, so the next person comparing the two lists does not re-report them.
+4. THEN add the gate - once the two sides agree, a verify-guide check asserting every DATA.drawbackFx
+   string appears in the guide can ship green and stop this recurring. That ordering is the point:
+   the gate is the last step, not the first.
+5. No DATA.version bump: drawbackFx is display-only and never read by compute().
+```
+
+**Done when:** all ten agree on both sides, the Affliction exception is recorded, and `verify-guide` gains
+a drawback-text check that passes at **0 failed**.
+
 ## Duplicate non-stacking purchases are charged in full — TODO
 Branch `fix/non-stacking-duplicate-charge`. `js/engine.js` (`compute()`'s feature pricing).
 **Effort:** medium · **Risk:** medium — ambiguity is the driver (what "the same feature from two classes"

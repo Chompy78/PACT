@@ -96,7 +96,12 @@ async function connect(url) {
 }
 // The tools boot on an `engine-ready` event fired by a deferred module script, so the classic-script
 // globals (priceOf, LOG, economy…) are not present at DOMContentLoaded. Poll rather than sleep.
-const READY = (probe) => `(async()=>{for(let i=0;i<100;i++){if(${probe})return true;await new Promise(r=>setTimeout(r,100));}return false;})()`;
+// 30s, not 10. A readiness POLL returns the instant its probe passes, so a longer ceiling costs nothing
+// on a fast page and only decides how much contention it survives. This gate now opens ~10 tabs across
+// three tools, and CharGen alone is 376 KB plus a deferred module bridge — at 10s it failed roughly one
+// run in five with "CharGen never became ready", intermittently and only under that load. Same budget and
+// same fix as the CDP connect loop above; the two were written 10s apart for no reason but habit.
+const READY = (probe) => `(async()=>{for(let i=0;i<300;i++){if(${probe})return true;await new Promise(r=>setTimeout(r,100));}return false;})()`;
 
 // ---- assertions -------------------------------------------------------------------------------
 let pass = 0, fail = 0;

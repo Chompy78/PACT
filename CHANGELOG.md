@@ -25,6 +25,35 @@
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
 
+- **2026-08-19 · docs(rules): reword the `Soul Debt` drawback, engine and guide together** — owner's text:
+  *"A fiend skims the interest on your soul. Each time you regain Hit Points: every spell cast, every dose
+  of a magic item, and every Hit Die spent regains 1d4 fewer Hit Points (minimum 1) — the rest feeds the
+  debt."* Applied to `DATA.drawbackFx` **and** `docs/PACT-Players-Guide.html` in the same change. No
+  `DATA.version` bump — `drawbackFx` is display-only and never read by `compute()`. **⚠ The new wording
+  drops the old sentence "The Hit Points you recover at the end of a Long Rest are unaffected"**, which is
+  a real table-facing change; flagged for confirmation rather than silently restored.
+  **Found while doing it:** comparing *every* drawback rather than just the edited one turned up **10 whose
+  guide text already differs from `DATA.drawbackFx`** (53 of 69 match verbatim; the six `Affliction — …`
+  entries are covered by a combined guide row and are not drift). Nothing gates this — `verify-guide`
+  checks prices, spells, bundles, examples, structure, anchors, art, theming and version markers, but not
+  drawback prose. Recorded as a task; **no gate added, deliberately**, because it would be red on arrival
+  and gates here sit at 0 failed.
+
+- **2026-08-19 · fix(ci): raise `tool-pricing-ci`'s readiness poll from 10s to 30s** — the gate now opens
+  ~10 tabs across three tools, and CharGen alone is 376 KB plus a deferred module bridge; at 10s it failed
+  roughly **one run in five** with `CharGen never became ready`, intermittently and only under that load.
+  A readiness poll returns the instant its probe passes, so the higher ceiling costs nothing on a fast page
+  and only decides how much contention it survives. Same budget and same fix as the CDP connect loop
+  earlier today — the two were written 10s apart out of habit rather than reason. Six consecutive clean
+  runs after the change, against one failure in five before it.
+
+- **2026-08-19 · chore(version): `BUILD` → `v1.427` for PR #427 (`preview` → `main` promotion)** — fifth
+  promotion in this run, and the first where **every item came from real use** rather than a gate: the
+  AP-drain data-loss fix, heritage-pack visibility across all three tools, the DM Console's missing
+  subclass abilities, four disagreeing version labels, DM-AP visibility, and the guide's on-page version
+  block. `DATA.version` unchanged at **v0.356** — nothing here alters pricing. `tool-pricing-ci` 134 →
+  **158** over the same span. Bumped before CI started.
+
 - **2026-08-19 · fix(tools): DM-granted AP is visible in both player tools** — reported: *"i cannot see
   how many DM AP's there are in the chargen or livesheet"*. Both tools **did** have a display; two states
   rendered nothing useful. (1) The Live Sheet's chip was `_dmAp ? … : ''`, so a campaign character with
