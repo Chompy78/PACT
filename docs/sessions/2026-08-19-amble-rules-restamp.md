@@ -98,3 +98,11 @@ rows. A genuine re-save would do the same, and any client that notices will pull
 
 No warnings on any character. Worth flagging for the table: **Anders is at exactly 0 AP left** — no
 headroom for any further purchase without a new award.
+
+## Logging decisions for this session
+
+`CHANGELOG.md` was deliberately **not** touched, at the owner's explicit call: nothing in the app
+changed — no engine, tool or rules diff, and `DATA.version` is untouched — so the changelog stays a
+history of what shipped rather than of operational data corrections. This note is the whole record.
+
+Test gate run at close on the docs-only commit: `testing/scripts/engine-parity-ci.mjs` → **0 failed**.
