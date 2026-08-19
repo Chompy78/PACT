@@ -165,8 +165,17 @@ window's overdraft failed 1.
 
 ### Still open
 
-- The follow-up migration exists on disk (`2026-08-19-downtime-window-revision.sql`) but was not
-  applied in this pass — same "shared, hard-to-reverse state" reasoning as the first migration: it
-  needs its own explicit go-ahead and `get_advisors` check.
 - Concurrent-training overlap and the DM-side per-purchase discount UI remain deferred, as decided in
   Part one — nothing about the downtime redesign changes that reasoning.
+
+### Migration applied (same day, separate go-ahead)
+
+The follow-up migration (`2026-08-19-downtime-window-revision.sql`) was written but explicitly held
+back pending its own authorization — the owner gave that go-ahead later the same session. Pre-flight
+confirmed nothing had touched the first migration's columns yet (24 characters, all `gold=0`, all
+`downtime_days=0`, zero `wealth_awards` rows, no campaign with the economy on), so it applied as a
+pure schema change. Applied via `apply_migration`; verified after via direct SQL (column drop/rename,
+new table + RLS + policy, old function gone, new functions present with correct `SECURITY DEFINER`
+shape); `get_advisors` run immediately after for both `security` and `performance` — no new issue
+classes, just `gold_awards`/`campaign_downtime_declarations` inheriting the same lint types
+`ap_awards`/`wealth_awards` already carried.

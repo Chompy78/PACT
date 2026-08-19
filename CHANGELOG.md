@@ -30,8 +30,9 @@
   all, so the original grant form could never have shown in any campaign. Gate → **151 checks**
   (from 120), verified to go red on both the reset-vs-accumulate rule and the no-window-overdraft
   rule. Follow-up migration `2026-08-19-downtime-window-revision.sql`, not an edit to the applied
-  one — safe as a straight `ALTER`/`DROP`, since every character was still at 0/0. See the Addendum
-  in `D-GH-2026-08-19-tool-coin-time-costs`.
+  one — safe as a straight `ALTER`/`DROP`, since every character was still at 0/0. **Applied to the
+  live Supabase project** the same day; `get_advisors` run straight after, no new issue classes. See
+  the Addendum in `D-GH-2026-08-19-tool-coin-time-costs`.
 - **2026-08-19 · feat: the gold-and-downtime economy, built into all three tools** — PACT's other two
   currencies (Players Guide §2/§16) had no implementation at all; only starting wealth existed. Both band
   tables now live in `js/economy-bands.js` and are surfaced on `DATA`, with the three settings the guide

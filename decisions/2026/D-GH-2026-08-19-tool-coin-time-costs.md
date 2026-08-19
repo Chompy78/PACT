@@ -252,5 +252,18 @@ Status: Active
   window's overdraft silently read as zero failed 1. Full suite still green — engine-parity 40/0,
   log-fuzz 500/500, audit.py --rls 29/0, chargen-flows 66/66, dm-console-ui 96/96.
 
-- **Not yet applied to the live project** as of this addendum — the follow-up migration exists on
-  disk only; it needs the same explicit go-ahead + `get_advisors` check the original migration got.
+- **Applied to the live project** (`piuprrrnaotrtxucrtsb`), same day, after this addendum was first
+  written — pre-flight confirmed every character was still at `gold=0`/`downtime_days=0`, zero
+  `wealth_awards` rows, and no campaign had the economy on, so it applied as a pure schema change with
+  nothing to preserve. Verified after: `characters.downtime_days` gone, `characters.gold` untouched;
+  `gold_awards` present with `idx_gold_awards_char` and the renamed `gold_awards_select` policy;
+  `campaign_downtime_declarations` present with RLS **on** and its select policy in place;
+  `award_wealth()` gone, `award_gold()`/`declare_downtime()` present as `SECURITY DEFINER`,
+  `get_downtime_window()` present and correctly **not** `SECURITY DEFINER`; character count unchanged
+  at 24; both new/renamed award tables still at 0 rows. `get_advisors` run immediately after for both
+  `security` and `performance` — no new issue classes: `award_gold`/`declare_downtime` join the same
+  intentional "signed-in users can execute this `SECURITY DEFINER` RPC" WARN every other DM-gated RPC
+  (`award_ap`, `bind_character_to_campaign`, …) already carries; `campaign_downtime_declarations` and
+  `gold_awards` inherit exactly the unindexed-FK / `auth_rls_initplan` / unused-index INFO/WARN pattern
+  `ap_awards`/`wealth_awards` already had, now on empty tables (expected, will resolve itself as
+  `auth_rls_initplan` gets addressed repo-wide — not this migration's scope).
