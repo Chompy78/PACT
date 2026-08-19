@@ -6,6 +6,22 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · rules(engine): 21 new drawbacks, three reprices, and a caster gate (v0.357)** — adds a
+  phobia family (`Claustrophobic`, `Agoraphobic`, `Fear of Being Alone`, `Fear of the Dark`,
+  `Fear of the Dead`, `Crawling Things`, `No Head for Heights`, `Gun Shy`) plus body/nerve and social
+  entries, taking `DATA.drawbacks` **69 → 90**. Reprices `Sluggish` 2→1, `Mana-Sick` 3→2 and
+  `Haunted / Phobia` 3→2 — **no live character held any of the three** (checked against the database), so
+  nobody's earned AP moved. `Claustrophobic`/`Agoraphobic` are a deliberately mirrored pair with one clause
+  and no extra rolls, replacing drafts whose "inside buildings" trigger was near-permanent and whose DC 12
+  save fired at every dungeon doorway. New **`DATA.drawbackReq`** gate (`{"Mana Leak":{caster:true}}`)
+  emits the ⛔ HARD marker when a caster-only drawback is taken by a character with no spellcasting
+  discipline — priced for a caster it was free AP for a Fighter, and one number cannot serve both. Four
+  proposals dropped: `Familiar Face` and `Fear of Water` were dominated by `Bad With Animals` and
+  `Can't Swim` (which absorbed the deep-water save), `Compulsive Collector` and `Sleepwalker` had no
+  mechanical teeth. `Light Sleeper` was dropped too — the name is already a 2 AP **boon**. Guide updated in
+  both copies. `tool-pricing` 158 → **162** (four checks, confirmed failing against the ungated engine);
+  parity 40/0; log-fuzz 500/500.
+
 - **2026-08-19 · test(livesheet): pin that a pre-lock ledger equals `compute()` across level-ups; the
   reported divergence is gone** — `fix/livesheet-draft-reconcile` was filed as a live bug needing an owner
   *rules ruling before any code*: a fresh Live Sheet character reading **34 against `compute()`'s 46**

@@ -10,6 +10,24 @@
 
 ## Index
 
+## D-GH-2026-08-19-drawbacks-phobias-expansion — drawbacks are income, so price them by pain ÷ pay
+- 21 new drawbacks (69 → **90**), reprices `Sluggish` 2→1 / `Mana-Sick` 3→2 / `Haunted / Phobia` 3→2, and a
+  new `DATA.drawbackReq` caster gate. `DATA.version` **v0.357**. The record exists mainly to fix an
+  inverted reading: drawbacks are **income**, so the AP number is what the player *gains* — the harshest
+  existing entries carry the biggest numbers (`Hexed Luck` 8, `Leaden Reflexes` 6). The test is therefore
+  **compensation ÷ expected pain**, and only *over*-payment threatens balance; under-payment merely makes a
+  dead option. `Light-Blind` (6) anchors a frequency ladder for the "disadvantage while X" shape
+  (near-permanent 6 · scene-level 3–4 · occasional 2 · rare 1) — which is why `Fear of the Dark` triggers on
+  "no light source within 30 feet" rather than plain darkness, that being near-permanent underground.
+  `Claustrophobic`/`Agoraphobic` became a mirrored one-clause pair, dropping a DC 12 save that fired at every
+  dungeon doorway. `Mana Leak` is **gated, not priced** — free AP for a Fighter, brutal for a Wizard, and one
+  number cannot serve both. Four proposals dropped as dominated or toothless, plus `Light Sleeper`, whose
+  name is already a 2 AP **boon**. Reprices verified safe: zero live characters held any of the three.
+  Found on the way: `engine-data.js` key order is load-bearing (append, never prepend); the `pact-guide`
+  master had **already** diverged on cap wording and this change deliberately did not paper over it; and
+  `guide-price-check.mjs` still has no drawback coverage.
+  Full record: `decisions/2026/D-GH-2026-08-19-drawbacks-phobias-expansion.md`.
+
 ## D-GH-2026-08-19-drawback-statcap-enforcement — a stat cap is enforced in both directions
 - The guide claimed *"the tool only warns, it does not block"* on stat caps. **Measured: true of CharGen,
   false of the Live Sheet**, which already blocked both directions — the claim was never accurate as written
