@@ -1513,6 +1513,77 @@ try {
       return [o.drawbackCap===undefined?'undefined':o.drawbackCap, compute(${CAPBUILD},o).budget];
     })()`), ['undefined', 93]);
 
+  // ============ every version label a player can see reads the LIVE engine version ============
+  // Reported from real use, 2026-08-19: CharGen's header said v0.356 while its own info popup said
+  // v0.339, and the DM Console footer said "rules engine v0.176". Both were the same shape — a label
+  // painted at PARSE time from a hardcoded fallback, before the deferred module fires `engine-ready`,
+  // and never repainted. Nothing caught it because every existing check reads DATA.version directly
+  // rather than what the page actually renders, which is the only thing a player sees.
+  console.log('\nVersion labels — what the page SHOWS must equal DATA.version');
+  {
+    const cgv = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
+    if (!(await cgv.evaluate(READY(`window.DATA&&document.readyState==='complete'`))))
+      throw new Error('CharGen never became ready for the version check');
+    check('CharGen: header chip, <title> and the info popup all show the live rules version',
+      await cgv.evaluate(`(()=>{const v=DATA.version;
+        const has=s=>String(s||'').indexOf(v)>=0;
+        return [has((document.getElementById('cgPactver')||{}).textContent),
+                has(document.title),
+                has((document.getElementById('infoVersions')||{}).textContent)];})()`),
+      [true, true, true]);
+    await cgv.close();
+
+    const dmv = await connect(`http://127.0.0.1:${PORT}/PACT/tools/DM-Console.html`);
+    if (!(await dmv.evaluate(READY(`window.DATA&&typeof window._dmRenderCloudRoster==='function'`))))
+      throw new Error('DM Console never became ready for the version check');
+    check('DM Console: the footer\'s "rules engine" reads the live version, not its fallback',
+      await dmv.evaluate(`(()=>{const t=(document.getElementById('rulesVer')||{}).textContent;
+        return [t===DATA.version, t];})()`),
+      [true, DATA.version]);
+    await dmv.close();
+  }
+
+  // ================== heritage-pack traits are VISIBLE, and never stored ==================
+  // Reported from real use, 2026-08-19: "when i species pack it does not tick the items included in the
+  // heritage pack, and they do not show in livesheet." A pack is charged as one line and its member
+  // traits are then owned implicitly — compute()'s _ownsR treats them as held so prerequisites resolve —
+  // but that ownership was derived and NEVER EXPORTED, so no UI could render it.
+  //
+  // The obvious fix, ticking them into b.racialTraits, is a trap and this gate pins that too: in-pack
+  // traits price at 0 only while the pack is yours, so a stored one followed by a species change
+  // re-prices at the CROSS rate. They must stay derived.
+  console.log('\nHeritage pack — the traits it grants must be visible, and must not be stored');
+  {
+    const cg3 = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
+    if (!(await cg3.evaluate(READY(`window.DATA&&typeof packTraitsFor==='function'&&typeof readBuild==='function'`))))
+      throw new Error('CharGen never became ready for the heritage-pack check');
+    const inspect = sp => cg3.evaluate(`(()=>{
+      const el=document.getElementById('spec'); el.value=${'$'}{sp}; el.dispatchEvent(new Event('change',{bubbles:true})); render();
+      const pack=new Set(packTraitsFor(el.value,''));
+      const rows=[...document.querySelectorAll('.racck')].filter(e=>pack.has(e.value));
+      return [rows.length, rows.every(e=>e.checked), rows.every(e=>e.disabled), ckVals('racck').length, readBuild().racialTraits.length];
+    })()`.replace('${sp}', JSON.stringify(sp)));
+    check('CharGen ticks every trait the Dwarf pack grants, and disables it',
+      await inspect('Dwarf'), [2, true, true, 2, 0]);
+    // The 4th value is the load-bearing one: only the CURRENT pack may be ticked. Ticking without
+    // un-ticking left the previous species' boxes set, and those survive readBuild()'s strip and enter
+    // the build as cross-race purchases. This check read [.., 4, 2] before the packTick marker landed.
+    check('...and un-ticks the old pack on a species change, storing none of them',
+      await inspect('Elf'), [2, true, true, 2, 0]);
+    await cg3.close();
+
+    const ls3 = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    if (!(await ls3.evaluate(READY(`window._engineFold&&typeof renderCharSheet==='function'&&typeof packTraitsFor==='function'`))))
+      throw new Error('Live Sheet never became ready for the heritage-pack check');
+    check('the Live Sheet character sheet lists both pack traits',
+      await ls3.evaluate(`(()=>{
+        window.confirm=()=>true; buy('species',{v:'Dwarf'});
+        const b=foldBuild(null); const html=String(renderCharSheet(b,compute(b,_dmOpts()),{}));
+        return [/Dwarven Resilience/.test(html), /Darkvision 60 ft/.test(html), (b.racialTraits||[]).length];})()`),
+      [true, true, 0]);
+    await ls3.close();
+  }
+
   // ============ a PRE-LOCK character's ledger must equal compute(), across level-ups ============
   // fix/livesheet-draft-reconcile. TASK_BOARD_NEXT recorded a live divergence measured on 2026-08-05 —
   // a fresh Live Sheet character under the 79 AP threshold whose ledger read 34 against compute()'s 46

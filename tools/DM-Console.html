@@ -1131,7 +1131,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // than plumbed across the window seam — it's a static constant, not campaign state.
   var CUSTOM_FIELD_SLOTS = ['num1','num2','text1','text2'];
 
-  try{ if(typeof RULES!=='undefined') $('rulesVer').textContent = RULES; }catch(e){}
+  // Painted here AND again in _dmBoot(). This line runs at parse time, before the deferred module fires
+  // engine-ready and before _dmBoot() sets RULES from DATA.version — so on its own it showed the
+  // hardcoded fallback for the life of the page. Reported from real use 2026-08-19: the footer read
+  // "rules engine v0.176" against an engine on v0.356. Kept here so the footer is never blank while the
+  // bridge loads; _dmPaintRulesVer() below is what makes it correct.
+  function _dmPaintRulesVer(){ try{ if(typeof RULES!=='undefined') $('rulesVer').textContent = RULES; }catch(e){} }
+  _dmPaintRulesVer();
   try{ var _tv=$('toolVer'); if(_tv) _tv.textContent = TOOL_VERSION; }catch(e){}
 
   /* ---------- persistence ---------- */
@@ -2269,6 +2275,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   /* ---------- boot ---------- */
   function _dmBoot(){
   RULES=(window.DATA&&window.DATA.version)||RULES;
+  _dmPaintRulesVer();
   load();
   render();
   initSkillUI();

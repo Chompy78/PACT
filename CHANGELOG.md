@@ -25,6 +25,30 @@
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
 
+- **2026-08-19 · fix(tools): heritage-pack traits are visible in both tools — and still never stored** —
+  reported from real use: buying a species pack ticked nothing in CharGen and showed nothing on the Live
+  Sheet. A pack is charged as one line and its members are owned **implicitly** (`compute()`'s `_ownsR`
+  already treats them as held, which is what makes prerequisites resolve), but that ownership was derived
+  and **never exported**, so no UI could render it. New pure-`DATA` export **`packTraitsFor(species,
+  species2)`**, plus `compute().packTraits`. CharGen ticks and disables the boxes; the Live Sheet's
+  character sheet lists them. They are **not** written into `b.racialTraits` — in-pack traits price at 0
+  only while the pack is yours, so a stored one plus a species change re-prices at the cross rate
+  (measured: `Dwarf: Dwarven Resilience` is 0 AP on a Dwarf, silently 3 AP on an Elf). The fix's own first
+  version had exactly that bug and **the new gate caught it, not a human**; a `data-packTick` marker now
+  un-ticks only what the pack ticked. `tool-pricing-ci` 143 → **146**. No `DATA.version` bump — pricing is
+  unchanged. See `D-GH-2026-08-19-heritage-pack-visibility`.
+
+- **2026-08-19 · fix(tools): version labels are repainted after `engine-ready`, not only initialised** —
+  on one page load with the engine on **v0.356**, CharGen's header read v0.356 while its info popup read
+  **v0.339**, and the DM Console footer read **v0.176**. Same shape in both: painted at parse time from a
+  hardcoded fallback, before the deferred module bridge fires `engine-ready`, and never repainted.
+  `_cgPaintInfoVersions()` now also runs on `engine-ready`, and `_dmPaintRulesVer()` again in `_dmBoot()`
+  after `RULES` is set — both keep their parse-time call so no label is blank mid-load. Nothing caught it
+  because every existing check reads `DATA.version` directly and **none asserted what the page actually
+  renders**; `tool-pricing-ci` now compares rendered text against the live version (146 → **148**), written
+  as a contains-check so it survives version bumps. See
+  `D-GH-2026-08-19-version-labels-paint-after-engine-ready`.
+
 - **2026-08-19 · chore(version): `BUILD` → `v1.426` for PR #426 (`preview` → `main` promotion)** — fourth
   promotion in this run: the campaign drawback cap reaching both player tools, the pre-lock ledger gate,
   `docs/MAINTENANCE-MODE.md`, and the tool-pricing CI hardening. No rules change — `DATA.version` stays at
