@@ -6,6 +6,29 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · rules(engine): 21 new drawbacks, three reprices, and a caster gate (v0.357)** — adds a
+  phobia family (`Claustrophobic`, `Agoraphobic`, `Fear of Being Alone`, `Fear of the Dark`,
+  `Fear of the Dead`, `Crawling Things`, `No Head for Heights`, `Gun Shy`) plus body/nerve and social
+  entries, taking `DATA.drawbacks` **69 → 90**. Reprices `Sluggish` 2→1, `Mana-Sick` 3→2 and
+  `Haunted / Phobia` 3→2 — **no live character held any of the three** (checked against the database), so
+  nobody's earned AP moved. `Claustrophobic`/`Agoraphobic` are a deliberately mirrored pair with one clause
+  and no extra rolls, replacing drafts whose "inside buildings" trigger was near-permanent and whose DC 12
+  save fired at every dungeon doorway. New **`DATA.drawbackReq`** gate (`Mana Leak`, `Ritual-Blind`,
+  `Wild Surge`) emits the ⛔ HARD marker when a caster-only drawback is taken by a character with no
+  spellcasting discipline — priced for a caster it was free AP for a Fighter, and one number cannot serve
+  both. Four proposals dropped: `Familiar Face` and `Fear of Water` were dominated by `Bad With Animals`
+  and `Can't Swim` (which absorbed the deep-water save), `Compulsive Collector` and `Sleepwalker` had no
+  mechanical teeth. `Light Sleeper` was dropped too — the name is already a 2 AP **boon**. Guide updated in
+  both copies. **`/code-review max` before opening the PR found the gate wasn't actually enforced anywhere
+  a player would hit it** — a placeholder `{name:'(none)'}` discipline (which is exactly what CharGen
+  creates by default) defeated it entirely, `Ritual-Blind`/`Wild Surge` carried the same printed
+  requirement but were left open, CharGen's UI let a non-caster tick the checkbox freely, and a comment
+  claiming the ⛔ warning "blocks the cloud save" was false — nothing reads `.warnings` at save time. All
+  fixed except the false comment's underlying gap (the Live Sheet's `takeDrawback()` bypasses
+  `legalCheck()` entirely — pre-existing, affects the stat caps too, deferred to its own task).
+  `verify-guide.mjs` gained a reverse check and stopped silently skipping unmatched rows (both confirmed to
+  fail-then-pass by deliberately breaking each condition). `tool-pricing` 158 → **162**; parity 40/0;
+  verify-guide 10/10; log-fuzz 500/500. Full record: `D-GH-2026-08-19-drawbacks-phobias-expansion`.
 - **2026-08-19 · chore(version): `BUILD` → `v1.432` for PR #432 (`preview` → `main` promotion)** —
   eighth promotion under the PR-linked scheme. Major `1` carried forward; `DATA.version`
   deliberately untouched at `v0.356`. Docs-only promotion — synced across all five mirrors.

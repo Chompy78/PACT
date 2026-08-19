@@ -4287,7 +4287,8 @@ function randomizeRoll(){
   const actBoon=x=>{const cand=(DATA.boonList||[]).filter(k=>{const bo=DATA.boons[k];if(!bo||x.boons.includes(k))return false;if(x.hd<(bo.hd||1))return false;if(bo.minStats){for(const a in bo.minStats)if((x.stats[a]||10)<bo.minStats[a])return false;}if(bo.minStatsAny&&bo.minStatsAny.stats&&!bo.minStatsAny.stats.some(a=>(x.stats[a]||10)>=bo.minStatsAny.val))return false;return true;});if(!cand.length)return false;x.boons.push(pick(cand));};
   const actArt=x=>{x.arts=x.arts||[];const cand=(DATA.artList||[]).filter(k=>{const ar=DATA.arts[k];if(!ar||x.arts.includes(k))return false;if(x.hd<(ar.hd||1))return false;if(ar.minStatsAny&&ar.minStatsAny.stats&&!ar.minStatsAny.stats.some(a=>(x.stats[a]||10)>=ar.minStatsAny.val))return false;if(ar.prereqNote&&/Foundation/i.test(ar.prereqNote)&&!(x.traditions&&x.traditions.length))return false;return true;});if(!cand.length)return false;x.arts.push(pick(cand));};
   const actRacial=x=>{const cand=(DATA.racialList||[]).filter(l=>{const rr=DATA.racial[l];return rr&&!rr.pack&&(rr.race===x.species||rr.race===x.species2)&&!x.racialTraits.includes(l)&&x.hd>=((DATA.tierHD&&DATA.tierHD[rr.tier])||1);});if(!cand.length)return false;x.racialTraits.push(pick(cand));};
-  const actDraw=x=>{if(_draws>=_maxDraws)return false;const cand=(DATA.drawbackList||[]).filter(k=>{if(x.drawbacks.includes(k))return false;const mx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k];if(mx){for(const a in mx)if((x.stats[a]||10)>mx[a])return false;}return true;});if(!cand.length)return false;x.drawbacks.push(pick(cand));_draws++;};
+  // feat/drawbacks-phobias-expansion: candidate filter also respects DATA.drawbackReq (caster-only drawbacks), same shape as the existing drawbackMaxStats filter — otherwise the randomizer could roll Mana Leak/Ritual-Blind/Wild Surge onto a Fighter and tryAct would reject it AFTER _draws was already spent (see the tryAct rollback note tracked separately), wasting one of a scarce number of draw attempts more often than the stat-cap case alone.
+  const actDraw=x=>{if(_draws>=_maxDraws)return false;const _hasFoundX=(x.traditions||[]).some(t=>t&&(t.disciplines||[]).some(d=>d&&d.name&&d.name!=='(none)'));const cand=(DATA.drawbackList||[]).filter(k=>{if(x.drawbacks.includes(k))return false;const mx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k];if(mx){for(const a in mx)if((x.stats[a]||10)>mx[a])return false;}const rq=DATA.drawbackReq&&DATA.drawbackReq[k];if(rq&&rq.caster&&!_hasFoundX)return false;return true;});if(!cand.length)return false;x.drawbacks.push(pick(cand));_draws++;};
   for(let q=0;q<3;q++)tryAct(actBoon);
   tryAct(actArt);tryAct(actArt);
   for(let q=0;q<3;q++)tryAct(actRacial);
@@ -4433,17 +4434,31 @@ function annotate(b,r){
     // and let the same combination through with only a warning, which is why the guide ended up claiming
     // "the tool only warns". Now a drawback whose cap the CURRENT score breaks cannot be ticked at all.
     // A drawback ALREADY held when the score is raised past its cap is left ticked deliberately: silently
-    // un-ticking it would delete a purchase the player made and refund AP behind their back. It raises
-    // the engine's ⛔ warning instead, which is what blocks the cloud save.
+    // un-ticking it would delete a purchase the player made and refund AP behind their back.
+    //
+    // feat/drawbacks-phobias-expansion: extended to DATA.drawbackReq (a caster-only drawback for a
+    // character with no spellcasting discipline) on the SAME guard, since it is the same shape of
+    // problem — a hard prerequisite CharGen's own UI can enforce at tick-time. NOT wired to block the
+    // cloud save on an existing ⛔ warning: _cgOverApBudget() (the actual save gate) only checks
+    // compute().remaining, never .warnings, so today an already-held violation of EITHER kind (this one
+    // or a stat cap) does not block a save — that gap is pre-existing and unrelated to the tick-time
+    // guard here, and is tracked as its own task rather than fixed inline, because blocking on any ⛔
+    // would also block a save for a character grandfathered past a stat cap by the paragraph above,
+    // which is explicitly not what that design intended.
     (function(){
-      var _mx=DATA.drawbackMaxStats||{}, _st=b.stats||{};
+      var _mx=DATA.drawbackMaxStats||{}, _rq=DATA.drawbackReq||{}, _st=b.stats||{};
+      var _hasFound=(b.traditions||[]).some(function(t){return t&&(t.disciplines||[]).some(function(d){return d&&d.name&&d.name!=='(none)';});});
       document.querySelectorAll('.drawck').forEach(function(e){
-        var caps=_mx[e.value]; if(!caps) return;
-        var breaks=Object.keys(caps).some(function(a){ return (_st[a]||10) > caps[a]; });
+        var caps=_mx[e.value]; var req=_rq[e.value];
+        var capBreaks=caps?Object.keys(caps).some(function(a){ return (_st[a]||10) > caps[a]; }):false;
+        var reqBreaks=!!(req && req.caster && !_hasFound);
+        var breaks=capBreaks||reqBreaks;
         if(breaks && !e.checked){
           e.disabled=true;
-          var which=Object.keys(caps).map(function(a){return a+' '+caps[a]+' or lower';}).join(', ');
-          e.title='Requires '+which+' — reduce the score before taking this drawback.';
+          var whyParts=[];
+          if(capBreaks) whyParts.push('Requires '+Object.keys(caps).map(function(a){return a+' '+caps[a]+' or lower';}).join(', ')+' — reduce the score before taking this drawback.');
+          if(reqBreaks) whyParts.push('Requires at least one spellcasting discipline (buy one in §9 Spellcasting).');
+          e.title=whyParts.join(' ');
           if(e.parentElement) e.parentElement.style.opacity='0.55';
         } else if(e.disabled && !breaks){
           e.disabled=false; e.title=''; if(e.parentElement) e.parentElement.style.opacity='1';
