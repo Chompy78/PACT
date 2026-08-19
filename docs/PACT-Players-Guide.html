@@ -85,13 +85,15 @@ hr{border:0;border-top:1px solid var(--rule);margin:1.6em 0}
  td{padding:6px 8px}
  .callout td{padding:11px 13px}
 }
-@media print{body{background:#fff}.page{box-shadow:none;border:0;max-width:100%}
- .nav,#navToggle,#toTop,#progress,.guide-ver{margin:10px 12px 0;padding-top:8px;border-top:1px solid var(--rule,#cbbf9e);font-size:11px;line-height:1.5;opacity:.85}
+/* Version block in the nav sidebar. Screen-scope: it is a child of #nav, so the print
+   rule below already hides it along with the rest of the sidebar. */
+.guide-ver{margin:10px 12px 0;padding-top:8px;border-top:1px solid var(--rule,#cbbf9e);font-size:11px;line-height:1.5;opacity:.85}
 .guide-ver .gv-row{display:flex;justify-content:space-between;gap:8px}
 .guide-ver .gv-k{color:var(--muted,#6b6155)}
 .guide-ver .gv-v{font-variant-numeric:tabular-nums;font-weight:600}
 .guide-ver .gv-none{font-weight:400;font-style:italic;opacity:.8}
-#themePick{display:none!important}}
+@media print{body{background:#fff}.page{box-shadow:none;border:0;max-width:100%}
+ .nav,#navToggle,#toTop,#progress,#themePick{display:none!important}}
 /* --- navigation pane + reader tools --- */
 .layout{display:flex;align-items:flex-start}
 main{flex:1;min-width:0}

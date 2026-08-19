@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · fix(guide): the version block had overwritten the print rule** — found while preparing
+  the copy-back to `pact-guide`. `9f5e11f` added `.guide-ver`'s styling by *replacing the body of*
+  `@media print{...}`, so printing the guide stopped hiding the nav sidebar, toggle, to-top button and
+  progress bar, and the version block itself was scoped to print and therefore unstyled on screen. Both
+  halves were wrong and neither was visible from the change itself. The print rule is restored
+  byte-identical to its pre-`9f5e11f` text and the `.guide-ver` rules moved to screen scope (the block is
+  a child of `#nav`, so print still hides it). `verify-guide.mjs` gains an 11th check, `print rule
+  intact`, asserting both facts; confirmed FAIL against the unfixed file before being accepted. Display
+  only — no rules change, no `DATA.version` bump.
+
 - **2026-08-19 · test(livesheet): pin that a pre-lock ledger equals `compute()` across level-ups; the
   reported divergence is gone** — `fix/livesheet-draft-reconcile` was filed as a live bug needing an owner
   *rules ruling before any code*: a fresh Live Sheet character reading **34 against `compute()`'s 46**
