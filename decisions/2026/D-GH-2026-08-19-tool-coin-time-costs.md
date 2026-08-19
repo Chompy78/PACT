@@ -132,6 +132,25 @@ Status: Active
   band row zeroed. Full suite green — engine-parity 40/0, log-fuzz 500/500, audit.py --rls 29/0,
   chargen-flows 66/66, dm-console-ui 96/96.
 
+- **Applied to the live project** (`PACT`, `piuprrrnaotrtxucrtsb`) on 2026-08-19, as migration
+  `dm_gold_downtime_economy`. The `revoke update … grant update (…)` pair was checked against the live
+  grants FIRST rather than run blind — the two matched exactly (UPDATE `archived_at, autosave_enabled,
+  kind, name, stats`; INSERT `autosave_enabled, id, kind, name, owner_id, stats`), so no grant drift
+  existed to be silently dropped by the re-grant. This is the check D-GH15/D-GH12 exist to make routine.
+
+  Verified after: both columns `integer NOT NULL default 0`; `gold`/`downtime_days` absent from every
+  `authenticated`/`anon` INSERT and UPDATE grant (players structurally cannot write them);
+  `award_wealth` `SECURITY DEFINER` with `search_path=public, pg_temp`; `wealth_awards_select` present
+  with RLS on; and all 24 existing characters sitting at 0/0, untouched.
+
+  Advisors run immediately after, per AGENTS.md step 4. **No new issue classes.** `wealth_awards`
+  inherits exactly the lint set `ap_awards` already carries — unindexed FKs on `dm_id`/`campaign_id`,
+  one `auth_rls_initplan` on its select policy, and "unused index" on a table with no rows yet — and
+  `award_wealth` joins the existing `authenticated_security_definer_function_executable` list beside
+  `award_ap` and every other RPC here, which is this project's intended pattern, not a regression.
+  The only pre-existing items (`character_backups` RLS-without-policy, leaked-password protection off)
+  are unrelated and unchanged.
+
   The repo's own audit caught a real PWA bug on the way: `js/engine.js` is cached network-first, but
   its new `economy-bands.js` import would have been cache-first, so a stale copy could break the
   import at link time. Added to `NETWORK_FIRST_RE`; `CACHE_NAME` bumped to `pact-v9`.
