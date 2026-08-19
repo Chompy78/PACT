@@ -25,6 +25,20 @@
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
 
+- **🔴 2026-08-19 · fix(chargen): a character with drawbacks lost AP on every open** — reported from real
+  use: *"each time i open moss stormspud from the DM screen in chargen or refresh, the AP budget decreases
+  by 4."* Moss has 4 AP of drawbacks. Reproduced and it compounds without bound — award **79 → 75 → 71 →
+  67 → 63**, rewriting the character's stored log downward once per open. **A live data-loss bug, not a
+  display fault.** Cause: `_cgSyncAward()` and `_buildEventBurst()` both subtracted the drawback total out
+  of the award — correct under D-GH41, when `b.budget` was awards + `drawbackEarned` combined, but v0.355
+  moved that split into the engine (`foldBuild` now sets `b.budget` to awards only) and left both
+  subtractions in place, making each a **second** subtraction. Both now emit the budget unchanged.
+  **Nothing caught it because every gate opened a character exactly once**; `tool-pricing-ci` now runs
+  load → regenerate → reconcile five times and asserts the award and spendable total never move (148 →
+  **150**). Introduced by v0.355 (PR #424) and live on `main` since. **The fix stops the drain but cannot
+  restore AP already lost** — affected characters need their award corrected by hand. See
+  `D-GH-2026-08-19-award-drawback-double-subtract`.
+
 - **2026-08-19 · docs(livesheet): drop "(prototype)" from the Live Sheet's `<title>`** — the browser tab
   read *"PACT — Live Character Sheet (prototype)"*, the only place any tool still called itself that, and
   the one label a player sees before the page even paints. Owner's call. Title only; nothing else

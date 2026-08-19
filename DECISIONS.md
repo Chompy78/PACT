@@ -10,6 +10,18 @@
 
 ## Index
 
+## D-GH-2026-08-19-award-drawback-double-subtract — a character lost 4 AP on every open
+- Reported from real use. A character with drawbacks had its own award event rewritten LOWER on every
+  CharGen open — 79 → 75 → 71 → 67 → 63, compounding without bound. Stored data, not display.
+  `_cgSyncAward()` and `_buildEventBurst()` both subtracted the drawback total out of the award, which was
+  correct under D-GH41 (when `b.budget` was the combined figure) and became a SECOND subtraction once
+  v0.355 made `b.budget` awards-only. `applyBuild()` feeds `#budget` from `b.budget`, so each loss fed
+  straight back in. Nothing caught it because **every gate opened a character exactly once** — the new
+  idempotence gate runs the cycle five times (148 → 150). Live on `main` from PR #424 until this fix; the
+  fix cannot restore AP already lost, and there is no safe automatic repair because the log cannot
+  distinguish bug-loss from a legitimate DM adjustment.
+  Full record: `decisions/2026/D-GH-2026-08-19-award-drawback-double-subtract.md`.
+
 ## D-GH-2026-08-19-heritage-pack-visibility — pack traits are derived, exported, and never stored
 - Reported from real use: buying a species pack ticked nothing in CharGen and showed nothing on the Live
   Sheet. A pack is charged as ONE line and its members are owned **implicitly** — `compute()`'s `_ownsR`

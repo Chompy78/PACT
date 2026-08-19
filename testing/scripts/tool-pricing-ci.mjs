@@ -1513,6 +1513,46 @@ try {
       return [o.drawbackCap===undefined?'undefined':o.drawbackCap, compute(${CAPBUILD},o).budget];
     })()`), ['undefined', 93]);
 
+  // ========== opening a character repeatedly must not change it (award idempotence) ==========
+  // Reported from real use, 2026-08-19: "each time i open moss stormspud from the DM screen in chargen
+  // or refresh, the AP budget decreases by 4." Moss has exactly 4 AP of drawbacks. Reproduced 79 -> 75
+  // -> 71 -> 67 -> 63, unbounded, compounding once per open — a character silently losing AP forever.
+  //
+  // Cause: TWO sites subtracted the drawback total out of the award. Both were right under D-GH41, when
+  // b.budget was awards + drawbackEarned combined. v0.355 moved that split into the engine (foldBuild
+  // now sets b.budget to awards only) and left both subtractions in place, so each became a SECOND
+  // subtraction. This is the gate that turns "opening a character is safe" from an assumption into an
+  // assertion — nothing else here exercises the load -> regenerate -> reconcile cycle more than once.
+  console.log('\nOpening a character N times must leave it identical (award idempotence)');
+  {
+    const cgi = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
+    if (!(await cgi.evaluate(READY(`window.DATA&&typeof applyBuild==='function'&&typeof buildToEventLog==='function'`))))
+      throw new Error('CharGen never became ready for the idempotence check');
+    // A Moss-shaped character: one award, and drawbacks worth a non-zero total. The drawbacks are what
+    // make the two figures differ, so a re-introduced subtraction cannot hide behind them being equal.
+    const seed = JSON.stringify([
+      {type:'award',amount:79,note:'Budget',noLock:true,label:'Award — budget (79 AP)'},
+      {type:'buy',cat:'drawback',payload:{v:'Forgetful'},cost:-1,level:1,label:'Drawback — Forgetful'},
+      {type:'buy',cat:'drawback',payload:{v:'Heavy Sleeper'},cost:-1,level:1,label:'Drawback — Heavy Sleeper'},
+    ]);
+    const cycle = await cgi.evaluate(`(()=>{
+      const seen=[]; let src=${seed};
+      for (let i=0;i<5;i++){
+        applyBuild(foldBuild(src));
+        LOG = buildToEventLog(readBuild());
+        _cgSyncAward();
+        seen.push(LOG.filter(e=>e.type==='award').map(e=>e.amount).join('+'));
+        src = LOG;
+      }
+      return [seen.join(' '), compute(readBuild(),_cgDmOpts()).budget];
+    })()`);
+    check('five opens leave the award event untouched at 79',
+      cycle[0], '79 79 79 79 79');
+    check('and spendable stays 79 award + 2 drawback = 81 throughout',
+      cycle[1], 81);
+    await cgi.close();
+  }
+
   // ============ every version label a player can see reads the LIVE engine version ============
   // Reported from real use, 2026-08-19: CharGen's header said v0.356 while its own info popup said
   // v0.339, and the DM Console footer said "rules engine v0.176". Both were the same shape — a label

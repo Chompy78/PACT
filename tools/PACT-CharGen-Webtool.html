@@ -2859,21 +2859,26 @@ function _cgSyncSingletonEvent(type,makeEvent){
 }
 function _cgSyncName(){const nm=val('cname')||'';
   _cgSyncSingletonEvent('name',function(){return {type:'name',name:nm,label:'Name — '+(nm||'New Character')};});}
-// D-GH41 bug fix: val('budget') is the FULL computed total (foldBuild's economy().earned = raw award +
-// drawback earnings combined) — it is NOT the raw award. Baking that combined total into a new `award`
-// event, while the drawback buy event(s) already in the LOG separately keep contributing their own AP on
-// every future fold, double-counted a character's active drawback AP every single time this reconcile
-// ran (every autosave-restore, file load, and switch-tool handoff — compounding by the drawback's AP
-// value on every cycle, unbounded). Subtract economy(LOG).drawbackEarned (the engine's own already-computed
-// split, D-GH41) back out so this only ever writes the true raw award — a no-op when nothing actually
-// changed, per _cgSyncSingletonEvent's equality guard.
+// val('budget') is the RAW AWARD, and is written straight back as one. It is set by applyBuild() from
+// b.budget, and since v0.355 foldBuild() defines b.budget as awards only (economy().earned MINUS
+// drawbackEarned) — the drawback grant is derived by compute() and no longer rides on the budget.
+//
+// D-GH41 subtracted economy(LOG).drawbackEarned here, correctly, back when b.budget was the COMBINED
+// total. v0.355 moved the split into the engine and left that subtraction in place, so it became a
+// SECOND subtraction: every reconcile wrote an award 4 AP lower for a character with 4 AP of drawbacks,
+// and this runs on every autosave-restore, file load and switch-tool handoff. Reported from real use
+// 2026-08-19 — "each time i open moss stormspud from the DM screen in chargen or refresh, the AP budget
+// decreases by 4" — and reproduced exactly: 79 -> 75 -> 71 -> 67, unbounded, compounding per open.
+//
+// The invariant to hold on to: b.budget, val('budget') and this award's amount are ALL the raw award
+// now. No conversion belongs anywhere on this path.
 function _cgSyncAward(){
   // Number(), not `||`: a budget of 0 is a REAL value for a campaign character (its AP lives in the DM
   // pool, not in an award event), and `0 || DATA.level1AP` silently turned that into 79. Only a blank or
   // unparseable field falls back to the level-1 default.
   const raw=val('budget'), parsed=Number(raw);
   const base=(raw===''||raw==null||!Number.isFinite(parsed))?DATA.level1AP:parsed;
-  const amt=base-economy(LOG).drawbackEarned;
+  const amt=base;
   // Don't mint a zero award for a character that has none. Without this, every load of a DM-AP-only
   // character would append `award 0` — a meaningless event that also makes the log look edited.
   if(amt===0&&!LOG.some(function(e){return e.type==='award';}))return;
@@ -3687,12 +3692,12 @@ function _buildEventBurst(b){
   // Phase 2 step 2 (D-GH33): was a second local throwaway MUT subset — the imported js/engine.js MUT
   // is a superset (same mutators for every category used below, plus more), so it's used directly now.
   const run=liveBase(), base0=liveBase();
-  // D-GH41 bug fix: b.budget (foldBuild's economy().earned) already includes drawback-earned AP, but the
-  // drawback buy events emitted below (same DATA.drawbacks table) separately re-contribute their own AP on
-  // every future fold — emitting the combined total as the raw award double-counted every active drawback's
-  // AP each time this whole-build regeneration ran (unconditionally, on EVERY CharGen boot). Back it out.
-  const _drawbackAP=(b.drawbacks||[]).reduce((s,v)=>s+(DATA.drawbacks[v]||0),0);
-  const _rawAward=(b.budget||0)-_drawbackAP;
+  // b.budget IS the raw award (v0.355: foldBuild sets it to economy().earned minus drawbackEarned), so it
+  // is emitted unchanged. D-GH41's subtraction of the drawback total belonged here only while b.budget was
+  // the combined figure; after v0.355 it was a second subtraction, and since this regeneration runs on
+  // every whole-build rewrite it drained 4 AP per cycle from a character with 4 AP of drawbacks. Same
+  // defect as _cgSyncAward() above — both sites, one cause. See D-GH-2026-08-19-award-drawback-double-subtract.
+  const _rawAward=(b.budget||0);
   ev({type:'award',amount:_rawAward,note:'Imported budget',label:'Starting creation budget ('+_rawAward+' AP)'});
   if(b.name) ev({type:'name',name:b.name,label:'Name — '+b.name});
   if(b.appearance && Object.keys(b.appearance).some(k=>b.appearance[k])) ev({type:'buy',cat:'patch',payload:{patch:{appearance:C(b.appearance)}},cost:0,level:1,label:'Appearance & description (0 AP)'});
