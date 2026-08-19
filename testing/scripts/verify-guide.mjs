@@ -182,6 +182,17 @@ record('version markers', !!cv && visible,
   + (visible ? ' · shown on-page' : '  ← #guideVer block MISSING, reader cannot see either version')
   + (dr && dr !== DATA.version ? `  ← stamped against an older engine` : ''));
 
+// ---- 9. print rule not swallowed ---------------------------------------------------------------
+// The .guide-ver rules were first added by REPLACING the @media print rule's body, which both unhid the
+// whole nav sidebar in print and left the version block unstyled on screen (it was scoped to print).
+// Nothing caught it: check 8 only asks whether #guideVer exists. Assert the two facts that were false.
+const printBlock = (html.match(/@media print\{[\s\S]*?\n[^\n]*\}\}/) || [''])[0];
+const hidesNav = /\.nav,#navToggle,#toTop,#progress[^{]*\{display:none!important\}/.test(printBlock);
+const verOnScreen = /\n\.guide-ver\{/.test(html) && !/\.guide-ver\{/.test(printBlock);
+record('print rule intact', hidesNav && verOnScreen,
+  (hidesNav ? 'print hides nav/toggle/toTop/progress' : 'print does NOT hide the sidebar  ← @media print body was overwritten')
+  + ' · ' + (verOnScreen ? '.guide-ver styled at screen scope' : '.guide-ver{ is inside @media print  ← unstyled on screen'));
+
 // ---- report -----------------------------------------------------------------------------------
 const w = Math.max(...results.map(r => r.name.length));
 console.log(`verify-guide — ${guide}\n`);

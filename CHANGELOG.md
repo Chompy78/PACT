@@ -29,6 +29,58 @@
   `verify-guide.mjs` gained a reverse check and stopped silently skipping unmatched rows (both confirmed to
   fail-then-pass by deliberately breaking each condition). `tool-pricing` 158 → **162**; parity 40/0;
   verify-guide 10/10; log-fuzz 500/500. Full record: `D-GH-2026-08-19-drawbacks-phobias-expansion`.
+- **2026-08-19 · chore(version): `BUILD` → `v1.430` for PR #430 (`preview` → `main` promotion)** —
+  seventh promotion under the PR-linked scheme. Major `1` carried forward; `DATA.version`
+  deliberately untouched at `v0.356`. Synced across all five mirrors.
+
+- **2026-08-19 · fix(rules): three broken features can no longer be newly bought — `Barbarian: Rage`,
+  `Druid: Wild Shape`, `Bard: Bardic Inspiration die`** — owner reported real defects in each and needs
+  them off the market while fixed. Generalizes v0.314's one-off `BARRED_FEATURES` array (which only ever
+  covered `Fighter/Paladin/Ranger/Rogue: Weapon Mastery` and `Fighter: Additional Fighting Style`, and
+  only in CharGen) into a single `DATA.features[lab].bar===true` flag, then applies it everywhere a
+  feature can be newly purchased — a gap audit found three live paths, not one:
+  - **CharGen**: the class-picker grid (`buildClassPickers()`, now derives the barred set from the flag
+    instead of a second hardcoded list); the 🎲 Randomize action pool (`Object.keys(DATA.features).filter`
+    at its origin-class-feature action, which had never excluded even the original five); and the
+    free-typed "+ search all" box's reconciliation validator (`_CG_RECONCILE_VALID.feature`), which had
+    accepted any real `DATA.features` key including barred ones — closing it only gates `emit()` for a
+    NEW purchase, never re-validates an already-owned LOG row, so no existing save is touched.
+  - **Live Sheet**: all three of its own buy-list builders (origin-class, cross-class, and the
+    all-classes browse list) had never excluded the original five either — this repo's v0.314 bar had
+    only ever reached CharGen. Now consistent across both tools.
+  - **DM Console**: no feature-purchase path exists there; nothing to change.
+  A barred feature stays in `DATA.features` and still prices normally via `compute()`'s lookup for anyone
+  who already owns one — confirmed no live character owns any of the three (checked the `characters`
+  table directly). Display-only: `compute()` output is unchanged for every existing build, so
+  `DATA.version` stays at `v0.356`; no `testing/expected/` update needed. `testing/tests/engine-parity.html`
+  40/0, `tool-pricing-ci` 158/0, `chargen-flows-e2e` 66/66, `log-fuzz` 500/500 all still pass.
+
+- **2026-08-19 · chore(version): `BUILD` → `v1.429` for PR #429 (`preview` → `main` promotion)** — sixth
+  promotion under the PR-linked scheme (`D-GH-2026-08-02-build-version-pr-linked`). Major `1` carried
+  forward; `DATA.version` deliberately untouched at `v0.356` — this promotion changes no mechanics.
+  Synced across all five mirrors: `js/engine.js` `BUILD`, CharGen's line-1 comment / `<title>` / header
+  `.sub`, Live Sheet's line-1 comment, DM Console's `TOOL_VERSION`. `index.html` reads `BUILD` live and
+  was not touched.
+
+- **2026-08-19 · docs(guide): the on-page version block is copied back to the `pact-guide` master** —
+  the served copy had carried `#guideVer`, its script and the `.guide-ver` CSS alone since it was added
+  earlier today, which is exactly the divergence the next transfer from the master silently wipes. Both
+  pieces are now in the master too (CSS above its `@media print` block; markup after `#navSearch`, before
+  `<ul id='navList'>`, mirroring the served copy's order minus the served-only theme picker). Verified
+  the other two of today's guide changes had already landed there — the `Soul Debt` rewording and all 23
+  stat-cap descriptions were already in the master's prose, so only the version block was outstanding.
+  `docs/VERSION-SYNC.md`'s ⛔ box now records the block as present in BOTH copies, so a future transfer
+  carries it rather than treating it as served-only.
+
+- **2026-08-19 · fix(guide): the version block had overwritten the print rule** — found while preparing
+  the copy-back to `pact-guide`. `9f5e11f` added `.guide-ver`'s styling by *replacing the body of*
+  `@media print{...}`, so printing the guide stopped hiding the nav sidebar, toggle, to-top button and
+  progress bar, and the version block itself was scoped to print and therefore unstyled on screen. Both
+  halves were wrong and neither was visible from the change itself. The print rule is restored
+  byte-identical to its pre-`9f5e11f` text and the `.guide-ver` rules moved to screen scope (the block is
+  a child of `#nav`, so print still hides it). `verify-guide.mjs` gains an 11th check, `print rule
+  intact`, asserting both facts; confirmed FAIL against the unfixed file before being accepted. Display
+  only — no rules change, no `DATA.version` bump.
 
 - **2026-08-19 · test(livesheet): pin that a pre-lock ledger equals `compute()` across level-ups; the
   reported divergence is gone** — `fix/livesheet-draft-reconcile` was filed as a live bug needing an owner
