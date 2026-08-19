@@ -750,6 +750,19 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                   the book and bank over 200 AP — the cap was documented but never enforced until v0.351.
                 </div>
                 <div class="ruleblock">
+                  <div class="lbl">Gold &amp; downtime economy</div>
+                  <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:4px 0;cursor:pointer">
+                    <select class="field" id="ruleEconomyBand" style="min-width:190px"></select>
+                  </label>
+                  <div style="font-size:11px;opacity:.8;margin:4px 0 2px">
+                    Players Guide §16. Every purchase a character makes <b>in play</b> costs gold and
+                    downtime as well as AP, read off a single band; anything bought during character
+                    creation stays free of both. Pick one band at the start and hold to it — switching
+                    mid-campaign moves a purchase's price under the players' feet.
+                  </div>
+                  <div id="ruleEconomyBlurb" style="font-size:11px;opacity:.8;margin-bottom:6px"></div>
+                </div>
+                <div class="ruleblock">
                   <div class="lbl">House-rule toggles</div>
                   <div id="ruleHouseRules"></div>
                   <div style="display:flex;gap:6px;margin-top:5px">
@@ -1415,10 +1428,43 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
          '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">' +
          '<button type="button" class="btn sm award-btn" data-cid="'+esc(id)+'">Award</button></div>' +
          '<span class="award-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
+    h += wealthBody(id, dm);
     h += dmEditBody(id, curBoons);
     h += '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'">📒 AP history</button>' +
          '<button type="button" class="btn sm danger unbind-btn" data-cid="'+esc(id)+'" style="margin-left:8px">Remove from campaign</button>';
     return h;
+  }
+  // Gold and downtime (Players Guide §16), the DM half. This is the surface the owner's requirement
+  // names directly: "in a campaign world, the DM is the one who applies the money." A player has no
+  // grant on characters.gold / characters.downtime_days at all, so this form and the award_wealth()
+  // RPC behind it are the only way either number moves.
+  //
+  // Hidden entirely when the campaign plays with the economy off — granting coin into a campaign that
+  // tracks none would be a form with no meaning, and its presence would imply the economy was running.
+  // Reads the same window._dmCampaignApRules the custom-fields body below uses (the cross-boundary
+  // seam between this script block and the campaign-settings one).
+  //
+  // Downtime is entered in DAYS, matching the column and the engine's canonical unit; the label spells
+  // that out because the guide's own tables speak in weeks and months, and a DM typing "6" meaning six
+  // weeks would otherwise silently grant six days.
+  function wealthBody(id, dm){
+    var rules = window._dmCampaignApRules || {};
+    var band = (rules.economy && rules.economy.band) || 'off';
+    if(band === 'off') return '';
+    var bandLabel = (window.DATA && DATA.economyBands && DATA.economyBands[band]) ? DATA.economyBands[band].label : band;
+    var fmt = (window._engineEcon && window._engineEcon.formatDowntime) ? window._engineEcon.formatDowntime : function(n){ return n + ' days'; };
+    return '<div class="kvs" style="margin-top:8px">' +
+      '<div class="kvrow"><span class="kk" title="Gold you have granted this character (the characters.gold column). What they have SPENT is derived from their own log by the engine and shown on their sheet, never stored here.">Gold granted <span style="opacity:.6">&#9432;</span></span><span class="vv">' + Number(dm.gold||0).toLocaleString() + ' gp</span></div>' +
+      '<div class="kvrow"><span class="kk" title="Downtime you have granted this character, in days.">Downtime granted <span style="opacity:.6">&#9432;</span></span><span class="vv">' + esc(fmt(Number(dm.downtimeDays||0))) + '</span></div>' +
+      '</div>' +
+      '<div class="ruleblock"><div class="lbl">Grant gold &amp; downtime <span style="opacity:.7;font-weight:400">(' + esc(bandLabel) + ' band — negative deducts)</span></div>' +
+      '<div class="award-form">' +
+      '<input type="number" value="0" step="1" class="wealth-gold" data-cid="'+esc(id)+'" title="Gold in gp (negative to deduct)" placeholder="gp">' +
+      '<input type="number" value="0" step="1" class="wealth-days" data-cid="'+esc(id)+'" title="Downtime in DAYS (negative to deduct). 1 week = 7, 1 month = 30, 1 year = 365." placeholder="days">' +
+      '<input type="text" placeholder="note" class="wealth-note" data-cid="'+esc(id)+'">' +
+      '<button type="button" class="btn sm wealth-btn" data-cid="'+esc(id)+'">Grant</button></div>' +
+      '<div style="font-size:11px;opacity:.75;margin-top:3px">Downtime is in <b>days</b> — 1 week = 7, 1 month = 30, 1 year = 365.</div>' +
+      '<span class="wealth-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
   }
   // feat/dm-custom-character-fields (D-GH-2026-08-10): per-character VALUES for whatever fields this
   // campaign currently defines. Definitions (label/type/visible) live in
@@ -2021,7 +2067,8 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     var rowName = (row.name||'').trim();
     return {
       id: row.id, summary: summary, hasData: hasData, rowName: rowName,
-      dm: { ap: row.ap||0, player: row.player||'', playerLabel: row.playerLabel||'', dmNotes: row.dmNotes||'',
+      dm: { ap: row.ap||0, gold: row.gold||0, downtimeDays: row.downtime_days||0,
+            player: row.player||'', playerLabel: row.playerLabel||'', dmNotes: row.dmNotes||'',
             customFields: row.customFields || {} }
     };
   }
@@ -2114,7 +2161,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       // the lock was applied — or re-enabled by any means — still cannot write. Section toggles,
       // "View sheet" and "AP history" are reads and fall through untouched.
       if(window._dmPeekActive && t.closest &&
-         (t.closest('.award-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
+         (t.closest('.award-btn') || t.closest('.wealth-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
           t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') ||
           t.closest('.cf-val-save'))){
         if(window._dmPeekBlocks) window._dmPeekBlocks();
@@ -2137,6 +2184,35 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
           if(entry){ entry.dm.ap = newAp; }
           renderCloudRoster(el);
         }).catch(function(err){ awardBtn.disabled=false; if(astatus) astatus.textContent=''; alert('Award failed: '+err.message); });
+        return;
+      }
+
+      // Grant gold and downtime (Players Guide §16). Deliberately shaped exactly like Award AP just
+      // above — one RPC, patch the one card, re-render — because it IS the same kind of action on the
+      // same trust boundary: a server-authoritative pool only a DM can move. Both currencies go in one
+      // call because award_wealth() writes one ledger row for the pair.
+      var wealthBtn = t.closest ? t.closest('.wealth-btn') : null;
+      if(wealthBtn && card){
+        var wcid = wealthBtn.getAttribute('data-cid');
+        var wGoldEl = card.querySelector('.wealth-gold[data-cid="'+wcid+'"]');
+        var wDaysEl = card.querySelector('.wealth-days[data-cid="'+wcid+'"]');
+        var wNoteEl = card.querySelector('.wealth-note[data-cid="'+wcid+'"]');
+        var wStatus = card.querySelector('.wealth-status[data-cid="'+wcid+'"]');
+        var wGold = Math.round(parseFloat(wGoldEl&&wGoldEl.value)||0);
+        var wDays = Math.round(parseFloat(wDaysEl&&wDaysEl.value)||0);
+        var wNote = (wNoteEl&&wNoteEl.value||'').trim();
+        // Mirrors award_wealth()'s own server-side guard, so the common mistake (hitting Grant with
+        // both boxes at 0) is caught here rather than as a raised exception from Postgres.
+        if(wGold===0 && wDays===0){ alert('Enter a non-zero amount of gold or downtime.'); return; }
+        wealthBtn.disabled = true;
+        B.awardWealth(wcid, wGold, wDays, wNote).then(function(row){
+          wealthBtn.disabled = false;
+          var wEntry = cloudRoster.filter(function(x){return String(x.id)===String(wcid);})[0];
+          // Trust the returned ROW, not local arithmetic: another DM may have granted in the meantime,
+          // and the row is what the database actually holds after this write landed.
+          if(wEntry && row){ wEntry.dm.gold = row.gold||0; wEntry.dm.downtimeDays = row.downtime_days||0; }
+          renderCloudRoster(el);
+        }).catch(function(err){ wealthBtn.disabled=false; if(wStatus) wStatus.textContent=''; alert('Grant failed: '+err.message); });
         return;
       }
 
@@ -2324,7 +2400,10 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // failed esm.sh import (js/supabase-client.js pulls @supabase/supabase-js from a CDN) aborted the whole
   // module: engine-ready never fired, boot never ran, and the console rendered as a bare shell. Now the
   // engine half cannot be taken down by the cloud half.
-  import { DATA, compute, baseBuild, packTraitsFor, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm } from '../js/engine.js';
+  import { DATA, compute, baseBuild, packTraitsFor, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime } from '../js/engine.js';
+  // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
+  // exactly as the AP-ledger helpers above are.
+  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime };
   import { verifyCharacterEnvelope } from '../js/character-store.js';   // tamper-evidence read-side (D-GH48)
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
@@ -2339,13 +2418,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
-  import { getRoster, awardAp, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
+  import { getRoster, awardAp, awardWealth, getWealthHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardWealth, getWealthHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -2645,6 +2724,16 @@ document.addEventListener('campaign-ready', function () {
       if (lvl === undefined) window._dmTierState.set(1, 'standard', st.ap != null ? st.ap : 0, true);
       else                   window._dmTierState.set(lvl, 'standard', st.ap != null ? st.ap : null, false);
     }
+    // Gold-and-downtime economy (§16). Absent on every campaign predating this feature, and the
+    // engine's own default for that case is 'off' — the economy is opt-IN, and defaulting a live
+    // campaign into a currency it never agreed to track would retroactively bankrupt every character
+    // in it. economySetting() applies exactly that rule, so the panel asks it rather than re-deriving.
+    _renderEconomyBandOptions();
+    var _eb = document.getElementById('ruleEconomyBand');
+    if(_eb) _eb.value = (window._engineEcon && window._engineEcon.economySetting)
+                          ? window._engineEcon.economySetting(r)
+                          : ((r.economy && r.economy.band) || 'off');
+    _updateEconomyBlurb();
     currentHouseRules = Object.assign({}, r.houseRules || {});
     renderHouseRules();
     loadCustomFieldDefsIntoPanel(r.customFields);
@@ -2686,6 +2775,28 @@ document.addEventListener('campaign-ready', function () {
   }
   /* Badge on the collapsed advancement/rules row: how many bans and house rules are actually set, so a
      DM can see at a glance whether this campaign has been configured at all. */
+  // Options come from DATA.economyBands, not a hardcoded list here, so adding or renaming a band in
+  // js/economy-bands.js reaches this panel with no change — the same "one source, every tool" rule the
+  // ban grids already follow. Rebuilt on each load because the engine bridge may not have fired yet
+  // when the panel is first constructed.
+  function _renderEconomyBandOptions(){
+    var el = document.getElementById('ruleEconomyBand'); if(!el || !window.DATA || !DATA.economyBands) return;
+    var want = ['off','standard','fast'].filter(function(k){ return DATA.economyBands[k]; });
+    if(el.options.length === want.length) return;
+    el.innerHTML = want.map(function(k){
+      return '<option value="' + k + '">' + esc(DATA.economyBands[k].label) + '</option>';
+    }).join('');
+  }
+  function _updateEconomyBlurb(){
+    var el = document.getElementById('ruleEconomyBlurb'), sel = document.getElementById('ruleEconomyBand');
+    if(!el || !sel || !window.DATA || !DATA.economyBands) return;
+    var b = DATA.economyBands[sel.value];
+    el.textContent = b ? b.blurb : '';
+  }
+  document.addEventListener('change', function(e){
+    if(e.target && e.target.id === 'ruleEconomyBand') _updateEconomyBlurb();
+  });
+
   function renderRulesSummary(r){
     var el = document.getElementById('campRulesSummary'); if(!el) return;
     r = r || {};
@@ -2698,6 +2809,10 @@ document.addEventListener('campaign-ready', function () {
     if(house) bits.push(house + ' house rule' + (house===1?'':'s'));
     var tier = r.startingTier && r.startingTier.ap;
     bits.push(tier != null ? ('joins grant ' + tier + ' AP') : 'no starting AP set');
+    // Named only when ON: a campaign playing without the economy is the default and the common case,
+    // and "gold & downtime off" in every summary line would be noise rather than information.
+    var _eb2 = (r.economy && r.economy.band) || 'off';
+    if(_eb2 !== 'off') bits.push('gold & downtime: ' + _eb2);
     el.textContent = '· ' + bits.join(' · ');
   }
   // Test seam. loadRulesIntoPanel runs for every DM opening every campaign and has to cope with three
@@ -2868,6 +2983,10 @@ document.addEventListener('campaign-ready', function () {
       bannedDrawbacks: getRuleGridChecked('ruleBannedDrawbacks'),
       bannedArts: getRuleGridChecked('ruleBannedArts'),
       multiDisciplineAllowed: ruleMultiDisc.checked,
+      // {band:'off'|'standard'|'fast'} — the three settings of Players Guide §16/§17's checklist.
+      // Nested under `economy` rather than sitting as a bare `economyBand` key so the block has room
+      // to grow (a per-campaign gold multiplier, a custom band) without a second migration of shape.
+      economy: { band: (document.getElementById('ruleEconomyBand') || {}).value || 'off' },
       drawbackCap: { enabled: ruleDrawCapOn.checked,
                      ap: parseInt(ruleDrawCapAp.value, 10) || (window.DATA ? DATA.drawbackCap : 12) },
       houseRules: currentHouseRules,

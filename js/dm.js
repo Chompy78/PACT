@@ -41,6 +41,11 @@ export async function getRoster(campaignId) {
       name: c.name,
       kind: c.kind,
       ap: c.ap,
+      // The gold-and-downtime economy's DM-held pools (Players Guide §16), alongside `ap` and on the
+      // same authority. `?? 0` because a row selected before these columns existed comes back without
+      // them, and the console's arithmetic must not turn undefined into NaN.
+      gold: c.gold ?? 0,
+      downtime_days: c.downtime_days ?? 0,
       stats: c.stats,
       updated_at: c.updated_at,
       owner_id: c.owner_id,

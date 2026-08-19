@@ -260,6 +260,47 @@ check('at least one tile shows a gold price', tiles.sample.some(t => /gp/.test(t
 check('free low-tier purchases are labelled free, not left blank',
       tiles.sample.some(t => /free of coin and time/.test(t)) || tiles.count > 0);
 
+/* ======================================================================
+ * 3. DM CONSOLE — the campaign-wide band dial (the DM's half of "configurable").
+ * ====================================================================== */
+console.log('\n[economy] DM Console rules panel');
+const dmPage = await browser.newPage();
+const dmErrors = [];
+dmPage.on('pageerror', e => dmErrors.push(String(e)));
+dmPage.on('console', m => { if (m.type() === 'error') dmErrors.push('console: ' + m.text()); });
+await dmPage.goto(`http://localhost:${PORT}/PACT/tools/DM-Console.html`, { waitUntil: 'load' });
+await dmPage.waitForTimeout(2500);
+
+const dmFatal = dmErrors.filter(e => !/Failed to load resource|net::|supabase|fetch|NetworkError|Load failed/i.test(e));
+check('DM Console: no fatal page errors', dmFatal.length === 0, dmFatal.slice(0, 3).join(' | '));
+
+const dm = await dmPage.evaluate(() => {
+  const sel = document.getElementById('ruleEconomyBand');
+  if (!sel || !window._dmRulesPanel) return { missing: true };
+  const out = {};
+  // A campaign that has never configured an economy must land on 'off' — the economy is opt-in, and a
+  // live campaign must not be defaulted into a currency it never agreed to track.
+  window._dmRulesPanel.load({});
+  out.absent = sel.value;
+  out.absentBlurb = (document.getElementById('ruleEconomyBlurb') || {}).textContent || '';
+  window._dmRulesPanel.load({ economy: { band: 'standard' } });
+  out.standard = sel.value;
+  window._dmRulesPanel.load({ economy: { band: 'fast' } });
+  out.fast = sel.value;
+  // A corrupted/unknown token must fail closed rather than showing a band nobody chose.
+  window._dmRulesPanel.load({ economy: { band: 'nonsense' } });
+  out.bogus = sel.value;
+  out.options = [...sel.options].map(o => o.value);
+  return out;
+});
+check('DM Console: the band dial exists', !dm.missing);
+check('offers exactly off/standard/fast', dm.options && dm.options.join(',') === 'off,standard,fast', dm.options && dm.options.join(','));
+check('a campaign with no economy configured reads off (opt-in)', dm.absent === 'off', dm.absent);
+check('a Standard campaign round-trips', dm.standard === 'standard', dm.standard);
+check('a Fast campaign round-trips', dm.fast === 'fast', dm.fast);
+check('an unknown stored token fails closed to off', dm.bogus === 'off', dm.bogus);
+check('the panel explains the chosen band', /./.test(dm.absentBlurb), dm.absentBlurb.slice(0, 60));
+
 console.log(`\n[economy] ${fail ? fail + ' of ' + (pass + fail) + ' checks FAILED' : 'all ' + pass + ' checks passed'}`);
 if (errors.length) console.log('\n(non-fatal errors seen: ' + errors.length + ')\n' + errors.slice(0, 5).join('\n'));
 await browser.close(); server.close();
