@@ -32,11 +32,15 @@
   `DATA.version` bump — `drawbackFx` is display-only and never read by `compute()`. **⚠ The new wording
   drops the old sentence "The Hit Points you recover at the end of a Long Rest are unaffected"**, which is
   a real table-facing change; flagged for confirmation rather than silently restored.
-  **Found while doing it:** comparing *every* drawback rather than just the edited one turned up **10 whose
-  guide text already differs from `DATA.drawbackFx`** (53 of 69 match verbatim; the six `Affliction — …`
-  entries are covered by a combined guide row and are not drift). Nothing gates this — `verify-guide`
-  checks prices, spells, bundles, examples, structure, anchors, art, theming and version markers, but not
-  drawback prose. Recorded as a task; **no gate added, deliberately**, because it would be red on arrival
+  **Found while doing it:** comparing *every* drawback rather than just the edited one turned up apparent
+  drift in 10. **Seven were a bug in my comparison, not drift** — it tested `html.includes(engineText)`
+  against raw HTML, so any description containing an apostrophe failed on `&#x27;` vs `'` while being
+  identical. **Three are real**, and they are one pattern: `Missing Arm`, `Peg Leg` and `Berserk Temper`
+  each have `drawbackFx` stating a stat cap as a hard entry requirement while the guide's table cell says
+  the tool only warns and DMs must enforce it. Measured: a DEX 16 character with `Missing Arm` gets a
+  warning and keeps DEX 16 — so the guide describes the tool correctly and `drawbackFx` describes the rule
+  correctly, and §14's own prose sides with `drawbackFx`, contradicting the table two paragraphs away.
+  Recorded as a task with a recommendation; **no gate added, deliberately** — it would be red on arrival,
   and gates here sit at 0 failed.
 
 - **2026-08-19 · fix(ci): raise `tool-pricing-ci`'s readiness poll from 10s to 30s** — the gate now opens

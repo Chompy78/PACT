@@ -501,45 +501,50 @@ likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers 
 purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
 answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
 
-## Ten drawback descriptions differ between the guide and `DATA.drawbackFx` — TODO
-Branch `docs/drawback-text-reconcile`. `js/engine-data.js` (`DATA.drawbackFx`) and
+## Three drawback descriptions contradict the guide on whether a stat cap is enforced — TODO
+Branch `docs/drawback-statcap-wording`. `js/engine-data.js` (`DATA.drawbackFx`) and
 `docs/PACT-Players-Guide.html`'s drawback table.
-**Effort:** low · **Risk:** medium — ambiguity is the driver: deciding WHICH wording is right is a rules-
-prose call for the owner, not a mechanical merge. Damage scale low (display text; `compute()` never reads
-`drawbackFx`), damage likelihood medium — a player reads the guide and a tool shows them something else,
-which is how a table argument starts.
+**Effort:** low · **Risk:** low — the shipped behaviour is known and checked (see below), so this is a
+wording decision, not a mechanics one. `drawbackFx` is display-only and never read by `compute()`.
 
-Found 2026-08-19 while changing `Soul Debt`'s description, by comparing every entry rather than only the
-one being edited. Of 69 drawbacks with description text, **53 match the guide verbatim** and **10 differ**:
+**CORRECTED 2026-08-19, same day.** This was first written up as **ten** drifting descriptions. Seven of
+those were a **bug in the comparison, not drift**: it tested `html.includes(engineText)` against raw HTML,
+so every description containing an apostrophe failed to match on `&#x27;` vs `'` while being identical.
+`Leaden Reflexes`, `Squeamish`, `Merciful`, `Cursed Wealth`, `Marked`, `Cold Heart` and
+`Oath of Poverty` are **not** drift. Any future check must decode entities before comparing — that is the
+main thing this entry exists to pass on.
 
-```text
-Leaden Reflexes · Missing Arm · Peg Leg · Squeamish · Berserk Temper
-Merciful · Cursed Wealth · Marked · Cold Heart · Oath of Poverty (permanent)
-```
-
-The six `Affliction — …` entries are not in the guide under those names at all; they appear to be covered
-by a single combined row, so they are **not** drift and should be confirmed rather than "fixed".
-
-**Nothing gates this.** `verify-guide` checks prices, spells, bundles, worked examples, structure, anchors,
-art, theming and version markers — it does **not** compare drawback prose against `DATA`. That is why ten
-could drift unnoticed. A gate was deliberately NOT added with this task: it would be red on arrival, and
-`AGENTS.md` requires gates to sit at 0 failed.
+**The three real ones are one pattern, not three problems** — `Missing Arm`, `Peg Leg`, `Berserk Temper`,
+each carrying a stat cap:
 
 ```text
-1. For each of the ten, decide which wording is correct - the engine's or the guide's. This is prose,
-   so it needs the owner; do not merge mechanically.
-2. Apply the winner to BOTH sides in the same change (AGENTS.md: a rules change that lands in one and
-   not the other is half-done).
-3. Confirm the six Affliction entries are genuinely covered by the guide's combined row, and record
-   that, so the next person comparing the two lists does not re-report them.
-4. THEN add the gate - once the two sides agree, a verify-guide check asserting every DATA.drawbackFx
-   string appears in the guide can ship green and stop this recurring. That ordering is the point:
-   the gate is the last step, not the first.
-5. No DATA.version bump: drawbackFx is display-only and never read by compute().
+DATA.drawbackFx  "... You may only take this drawback if your Dexterity is currently 12 or below."
+guide table cell "... The tool only warns, it does not block, if your current Dexterity is above 12
+                  - DMs should enforce it as a hard requirement."
 ```
 
-**Done when:** all ten agree on both sides, the Affliction exception is recorded, and `verify-guide` gains
-a drawback-text check that passes at **0 failed**.
+**What the tool actually does, measured:** a Fighter with DEX 16 and `Missing Arm` gets the warning
+*"Missing Arm: drawback requires DEX 12 or lower"* and an effective DEX of **16**. It warns; it does not
+block or clamp. So the guide cell is an accurate description of the TOOL, and `drawbackFx` is an accurate
+statement of the RULE.
+
+**And a third voice:** §14's own stat-cap prose already states the rule — *"you may only take a capped
+drawback if your current score is at or below the cap. The cap is the price of entry"* — so the guide
+contradicts itself two paragraphs apart, saying the cap is a hard entry requirement in prose and a
+DM-enforced advisory in the table.
+
+```text
+RECOMMENDED: keep the RULE statement in both places (the drawbackFx wording), and delete the
+  "the tool only warns" caveat from all three table cells. A tool limitation repeated in three
+  per-drawback cells is what produced the divergence, and it already contradicts §14. If the caveat
+  is worth keeping at all it belongs ONCE, in §14's stat-cap paragraph, phrased as a tool note.
+ALTERNATIVE: make the tool actually block, then no caveat is needed anywhere. Bigger change - it
+  turns a warning into a hard gate in compute(), which needs its own decision and a parity fixture.
+```
+
+**Done when:** the three agree with `DATA.drawbackFx` on both sides, §14 no longer contradicts the table,
+and a `verify-guide` drawback-text check ships at **0 failed** — **decoding HTML entities before
+comparing**, or it will re-report the seven false positives.
 
 ## Duplicate non-stacking purchases are charged in full — TODO
 Branch `fix/non-stacking-duplicate-charge`. `js/engine.js` (`compute()`'s feature pricing).
