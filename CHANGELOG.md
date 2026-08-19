@@ -29,6 +29,10 @@
   `verify-guide.mjs` gained a reverse check and stopped silently skipping unmatched rows (both confirmed to
   fail-then-pass by deliberately breaking each condition). `tool-pricing` 158 → **162**; parity 40/0;
   verify-guide 10/10; log-fuzz 500/500. Full record: `D-GH-2026-08-19-drawbacks-phobias-expansion`.
+- **2026-08-19 · chore(version): `BUILD` → `v1.432` for PR #432 (`preview` → `main` promotion)** —
+  eighth promotion under the PR-linked scheme. Major `1` carried forward; `DATA.version`
+  deliberately untouched at `v0.356`. Docs-only promotion — synced across all five mirrors.
+
 - **2026-08-19 · chore(version): `BUILD` → `v1.430` for PR #430 (`preview` → `main` promotion)** —
   seventh promotion under the PR-linked scheme. Major `1` carried forward; `DATA.version`
   deliberately untouched at `v0.356`. Synced across all five mirrors.
