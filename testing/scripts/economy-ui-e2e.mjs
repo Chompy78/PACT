@@ -243,6 +243,54 @@ check('funding clears the overdrawn flag', !/overdrawn/.test(ui.fundedLine), ui.
 check('switching the economy OFF removes the wallet line entirely', ui.offLine === null, String(ui.offLine));
 check('...and stops quoting prices', ui.offQuote === null);
 
+// Trading coin for time (§16) — offered ONLY when it would actually help and would actually close.
+const trade = await page.evaluate(() => {
+  const out = {};
+  const setWallet = (gp, days) => {
+    LOG.length = 0; SEQ = 0;
+    LOG.push({ type: 'create', seq: SEQ++ });
+    LOG.push({ type: 'creationLockConfig', payload: { auto: true, threshold: 0 }, seq: SEQ++ });
+    LOG.push({ type: 'econSetting', payload: { band: 'standard' }, seq: SEQ++ });
+    LOG.push({ type: 'wealth', payload: { gp, days }, seq: SEQ++ });
+    LOG.push({ type: 'buy', cat: 'skill', cost: 1, payload: { v: 'Stealth' }, label: 'S', seq: SEQ++ });
+    render();
+  };
+  const q = { gp: 350, days: 42, time: '6 weeks' };
+  const orig = window.confirm; const origFlash = window.flash;
+  window.flash = function(){};
+  // Rich in both — nothing to trade.
+  setWallet(10000, 400); window.confirm = () => true;
+  out.bothFine = _lsOfferTrade(q);
+  // Short of both — a trade cannot close either way.
+  setWallet(0, 0);
+  out.bothShort = _lsOfferTrade(q);
+  // Short of gold, rich in time → offered the triple-downtime/half-gold trade, and accepting it
+  // returns 175 gp / 126 days.
+  setWallet(200, 400);
+  out.shortGold = _lsOfferTrade(q);
+  // Short of time, rich in gold → 3x gold, half the downtime: 1050 gp / 21 days.
+  setWallet(10000, 30);
+  out.shortTime = _lsOfferTrade(q);
+  // Declining leaves the purchase alone rather than silently proceeding.
+  window.confirm = () => false;
+  setWallet(200, 400);
+  out.declined = _lsOfferTrade(q);
+  // Short of gold but not enough time to cover TRIPLE it — the trade would not close, so no offer.
+  window.confirm = () => true;
+  setWallet(200, 50);
+  out.wontClose = _lsOfferTrade(q);
+  window.confirm = orig; window.flash = origFlash;
+  return out;
+});
+check('no trade offered when both currencies are comfortable', trade.bothFine === null, JSON.stringify(trade.bothFine));
+check('no trade offered when BOTH are short (it could not close)', trade.bothShort === null, JSON.stringify(trade.bothShort));
+check('short of gold → triple the downtime, half the gold (175 gp / 126 days)',
+      trade.shortGold && trade.shortGold.gp === 175 && trade.shortGold.days === 126, JSON.stringify(trade.shortGold));
+check('short of downtime → 3x gold, half the weeks (1,050 gp / 21 days)',
+      trade.shortTime && trade.shortTime.gp === 1050 && trade.shortTime.days === 21, JSON.stringify(trade.shortTime));
+check('declining the trade cancels rather than proceeding at list price', trade.declined === false, JSON.stringify(trade.declined));
+check('a trade that would still not close is never offered', trade.wontClose === null, JSON.stringify(trade.wontClose));
+
 // The buy panel itself must carry the price, not just the helper behind it.
 const tiles = await page.evaluate(() => {
   LOG.length = 0; SEQ = 0;

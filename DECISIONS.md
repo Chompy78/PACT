@@ -10,6 +10,29 @@
 
 ## Index
 
+## D-GH-2026-08-19-tool-coin-time-costs — gold and downtime reach the tools, soft-gated, DM-owned
+- PACT is named for three currencies and the Players Guide has specified all three for months (§2, §16,
+  §17's "☐ Gold-and-Time economy: Off, Standard, or Fast?"), but two of them had **no implementation at
+  all**. The inverse of the usual failure this repo guards against: the guide was complete and the engine
+  carried nothing, so this task read the guide as its spec and needed **no guide edit**. Both band tables
+  now live in `js/economy-bands.js`, surfaced on `DATA`; the engine gains `purchaseCost`/`wealthLedger`/
+  `chargesGoldAndTime` and six more exports; `compute()` is untouched, so **no `DATA.version` bump**.
+  Three decisions carry it: **soft warning, never a hard block** — §17 lets a DM waive any cost, so a
+  refusing tool would be *wrong about the rules*, and for the same reason an overdraft is never clamped;
+  **three presets only** — §16 says pick one band and hold to it, and `off` is a first-class setting
+  (`rows: null`, so a campaign playing Off shows *no prices*, not zeroed ones); and **reuse the existing
+  creation lock** as the definition of "in play", which is why `_replay()`'s lock ratchet was *extracted*
+  into `_lockStates()` rather than copied. Costs **freeze onto their own event** (`gp`/`days`, exactly as
+  `cost` freezes AP), which both stops a mid-campaign band switch re-pricing history and makes waivers,
+  mentor discounts and the coin-for-time trade one mechanism instead of three. The DM owns the money in a
+  campaign, mirroring `characters.ap` column-for-column (`characters.gold`/`downtime_days`,
+  `wealth_awards`, `award_wealth()`); a solo character's grants ride its own LOG. The band setting needed
+  **no migration** — campaign-side it lands in the existing `campaigns.rules` jsonb, solo-side as an
+  `econSetting` LOG event. New gate: 120 checks, verified to go red. Also fixed a real PWA bug the repo's
+  own audit caught — `economy-bands.js` would have been cached cache-first behind a network-first
+  `engine.js`; `CACHE_NAME` → `pact-v9`.
+  Full record: `decisions/2026/D-GH-2026-08-19-tool-coin-time-costs.md`.
+
 ## D-GH-2026-08-19-amble-character-rebuild-costs — a stale `stats.rules` stamp may be corrected in place
 - Owner asked whether Amble's six characters would cost differently rebuilt at `v0.356`. Replaying every
   `LOG` through `v0.341`/`v0.342`/`v0.356` showed four characters' `total` rising by **exactly their

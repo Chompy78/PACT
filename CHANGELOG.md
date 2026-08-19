@@ -6,6 +6,21 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · feat: the gold-and-downtime economy, built into all three tools** — PACT's other two
+  currencies (Players Guide §2/§16) had no implementation at all; only starting wealth existed. Both band
+  tables now live in `js/economy-bands.js` and are surfaced on `DATA`, with the three settings the guide
+  names — **Off / Standard / Fast**. Every priced row in all three tools shows its gold and downtime; the
+  Live Sheet gains a wallet line, a purchase-time shortfall warning, the ledger's per-purchase figures and
+  §16's coin-for-time trade; the DM Console gains the campaign-wide dial and a per-character grant form.
+  **Creation stays free of both** (§2), enforced by reusing the engine's own creation lock rather than a
+  second definition of "in play". **Soft warnings only, never a block** — §17 lets a DM waive any cost.
+  DM-authoritative in a campaign, mirroring `characters.ap`: new `characters.gold`/`downtime_days`,
+  `wealth_awards` ledger and `award_wealth()` RPC; a solo character's grants ride its own LOG. Costs
+  freeze onto their own event so a mid-campaign band switch can't re-price history. New gate
+  `testing/scripts/economy-ui-e2e.mjs` (**120 checks**, verified to go red); full suite green. No
+  `DATA.version` bump — `compute()` is untouched. Also fixed a PWA caching bug the repo's audit caught:
+  `economy-bands.js` joins `NETWORK_FIRST_RE`, `CACHE_NAME` → `pact-v9`. See
+  `D-GH-2026-08-19-tool-coin-time-costs`.
 - **2026-08-19 · test(livesheet): pin that a pre-lock ledger equals `compute()` across level-ups; the
   reported divergence is gone** — `fix/livesheet-draft-reconcile` was filed as a live bug needing an owner
   *rules ruling before any code*: a fresh Live Sheet character reading **34 against `compute()`'s 46**

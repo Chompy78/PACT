@@ -557,6 +557,49 @@ function _lsWalletLine(uptoIdx){
     +((goldOver||timeOver)?' <span class="gtneg" title="Not an error — your DM can waive or defer any cost (Players Guide §17). Shown so you and your DM can settle it.">⚠ overdrawn</span>':'')
     +'</div>';
 }
+// Trading coin for time (Players Guide §16). "Pay roughly three times the gold to halve the downtime
+// a purchase demands, or accept triple the downtime to cut its gold cost by half."
+//
+// OFFERED ONLY WHEN IT WOULD ACTUALLY HELP — short of one currency while holding enough of the other,
+// which is precisely the situation the rule exists for ("handy when a build is rich in one and starved
+// of the other"). Prompting on every purchase would be noise, and prompting when both are short would
+// be offering a trade that cannot close.
+//
+// The guide is emphatic this is the DM's call — "The DM sets the exact exchange, and may refuse it
+// outright when no plausible mentor, library, or workshop is at hand" — so the prompt says so plainly
+// rather than presenting the trade as an entitlement. The traded figures are then frozen onto the
+// event like any other non-list price, which is what makes them survive a later band change.
+//
+// Returns: null (no trade — proceed at list price), a {gp,days} to use instead, or false (cancel).
+function _lsOfferTrade(q){
+  var E=window._engineEcon; if(!E||!q||(!q.gp&&!q.days)) return null;
+  var w=_lsWallet(null); if(!w) return null;
+  var shortGold=q.gp>w.gpLeft, shortTime=q.days>w.daysLeft;
+  if(shortGold===shortTime) return null;          // both fine, or both short — nothing to trade
+  var mode=shortGold?'timeForGold':'goldForTime';
+  var t=E.tradeCoinTime(q,mode);
+  if(!t) return null;
+  // The trade has to actually close, or it is worse than useless: offering "spend 3× the gold" to a
+  // player who then still cannot afford it just adds a click before the same shortfall warning.
+  if(t.gp>w.gpLeft || t.days>w.daysLeft) return null;
+  var msg=shortGold
+    ? ('You are short of gold for this purchase ('+q.gp.toLocaleString()+' gp), but you have downtime to spare.\n\n'
+       +'§16 lets you train through a long season instead of paying a master\'s fee: accept TRIPLE the\n'
+       +'downtime to cut the gold cost in half.\n\n'
+       +'  List price:  '+q.gp.toLocaleString()+' gp · '+E.formatDowntime(q.days)+'\n'
+       +'  Traded:      '+t.gp.toLocaleString()+' gp · '+E.formatDowntime(t.days)+'\n\n')
+    : ('You are short of downtime for this purchase ('+E.formatDowntime(q.days)+'), but you have gold to spare.\n\n'
+       +'§16 lets you buy back the weeks with a heavy purse: pay THREE TIMES the gold to halve the\n'
+       +'downtime.\n\n'
+       +'  List price:  '+q.gp.toLocaleString()+' gp · '+E.formatDowntime(q.days)+'\n'
+       +'  Traded:      '+t.gp.toLocaleString()+' gp · '+E.formatDowntime(t.days)+'\n\n');
+  msg+='Your DM has the final say and may refuse the trade if no plausible mentor, library or\n'
+      +'workshop is at hand. Take the trade?\n\n'
+      +'OK = trade · Cancel = leave the purchase alone';
+  if(!confirm(msg)) return false;
+  flash('🪙 Traded at the §16 rate — confirm it with your DM.');
+  return { gp:t.gp, days:t.days, time:q.time };
+}
 function _lsWalletShort(q){
   var w=_lsWallet(null); if(!w||!q) return '';
   var bits=[];
@@ -767,6 +810,9 @@ function buy(cat,payload,label){
   // Drawbacks are excluded from both: they grant AP rather than costing it.
   var _gt=(cat==='drawback')?null:_lsQuote(cost);
   if(_gt){
+    var _trade=_lsOfferTrade(_gt);
+    if(_trade===false) return;          // player cancelled out of the offer entirely
+    if(_trade) _gt=_trade;              // traded price — carried into the freeze below
     var _short=_lsWalletShort(_gt);
     if(_short && !confirm('This purchase costs '+(_gt.gp?_gt.gp.toLocaleString()+' gp':'no gold')+' and '+(_gt.days?_gt.time:'no downtime')+', and you are '+_short+'.\n\nBuy anyway? Your DM can waive or defer the cost — the shortfall will simply show on your sheet.')) return;
   }
