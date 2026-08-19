@@ -6,6 +6,13 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · chore(version): `BUILD` → `v1.429` for PR #429 (`preview` → `main` promotion)** — sixth
+  promotion under the PR-linked scheme (`D-GH-2026-08-02-build-version-pr-linked`). Major `1` carried
+  forward; `DATA.version` deliberately untouched at `v0.356` — this promotion changes no mechanics.
+  Synced across all five mirrors: `js/engine.js` `BUILD`, CharGen's line-1 comment / `<title>` / header
+  `.sub`, Live Sheet's line-1 comment, DM Console's `TOOL_VERSION`. `index.html` reads `BUILD` live and
+  was not touched.
+
 - **2026-08-19 · docs(guide): the on-page version block is copied back to the `pact-guide` master** —
   the served copy had carried `#guideVer`, its script and the `.guide-ver` CSS alone since it was added
   earlier today, which is exactly the divergence the next transfer from the master silently wipes. Both
