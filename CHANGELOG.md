@@ -25,6 +25,13 @@
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
 
+- **2026-08-19 · chore(version): `BUILD` → `v1.426` for PR #426 (`preview` → `main` promotion)** — fourth
+  promotion in this run: the campaign drawback cap reaching both player tools, the pre-lock ledger gate,
+  `docs/MAINTENANCE-MODE.md`, and the tool-pricing CI hardening. No rules change — `DATA.version` stays at
+  **v0.356**. Mirrored across the five sites per `docs/VERSION-SYNC.md`; `index.html` reads `BUILD` live
+  and is untouched. Bumped **before** opening CI this time rather than after, so the batch is not
+  restarted — see the note in `docs/plans/2026-08-19-morning-review.md`.
+
 - **2026-08-19 · fix(tools): the campaign drawback cap now reaches both player tools** — `drawbackCap`
   was wired into `DM-Console.html` and nowhere else (6 occurrences there, **0** in either player tool), so
   a player in a capped campaign saw the full grant while their DM saw the capped figure. Both tools now
