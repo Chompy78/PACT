@@ -28,6 +28,40 @@
   `v0.354` — compare `remaining` or the ledger lines, never `total` alone. No code change, no
   `DATA.version` bump.
   Full record: `decisions/2026/D-GH-2026-08-19-amble-character-rebuild-costs.md`.
+## D-GH-2026-08-19-award-drawback-double-subtract — a character lost 4 AP on every open
+- Reported from real use. A character with drawbacks had its own award event rewritten LOWER on every
+  CharGen open — 79 → 75 → 71 → 67 → 63, compounding without bound. Stored data, not display.
+  `_cgSyncAward()` and `_buildEventBurst()` both subtracted the drawback total out of the award, which was
+  correct under D-GH41 (when `b.budget` was the combined figure) and became a SECOND subtraction once
+  v0.355 made `b.budget` awards-only. `applyBuild()` feeds `#budget` from `b.budget`, so each loss fed
+  straight back in. Nothing caught it because **every gate opened a character exactly once** — the new
+  idempotence gate runs the cycle five times (148 → 150). Live on `main` from PR #424 until this fix; the
+  fix cannot restore AP already lost, and there is no safe automatic repair because the log cannot
+  distinguish bug-loss from a legitimate DM adjustment.
+  Full record: `decisions/2026/D-GH-2026-08-19-award-drawback-double-subtract.md`.
+
+## D-GH-2026-08-19-heritage-pack-visibility — pack traits are derived, exported, and never stored
+- Reported from real use: buying a species pack ticked nothing in CharGen and showed nothing on the Live
+  Sheet. A pack is charged as ONE line and its members are owned **implicitly** — `compute()`'s `_ownsR`
+  already treats them as held — but that ownership was derived and **never exported**, so no UI could
+  render it. New pure-`DATA` export `packTraitsFor(species, species2)` (plus `compute().packTraits`);
+  CharGen ticks the boxes for visibility and strips them again in `readBuild()`. **Not** written into
+  `b.racialTraits`: in-pack traits price at 0 only while the pack is yours, so a stored one plus a species
+  change re-prices at CROSS — measured, `Dwarf: Dwarven Resilience` is 0 AP on a Dwarf and silently 3 AP on
+  an Elf. The fix's own first version had that bug (ticking without un-ticking left the old pack set) and
+  **the gate caught it, not a human** — hence the `data-packTick` marker. tool-pricing-ci 143 → 146.
+  Full record: `decisions/2026/D-GH-2026-08-19-heritage-pack-visibility.md`.
+
+## D-GH-2026-08-19-version-labels-paint-after-engine-ready — a version label must be repainted, not just initialised
+- On one page load with the engine on v0.356: CharGen's header said v0.356 but its info popup said
+  **v0.339**, and the DM Console footer said **v0.176**. Same shape twice — painted at PARSE time from a
+  hardcoded fallback, before the deferred module fires `engine-ready`, and never repainted. Both now paint
+  again after the engine is up (`_cgPaintInfoVersions` on `engine-ready`; `_dmPaintRulesVer` in `_dmBoot`
+  after `RULES` is set), keeping the parse-time call so the label is never blank mid-load. Nothing caught
+  it because every existing check reads `DATA.version` directly and **none asserted what the page
+  renders** — tool-pricing-ci now does, comparing rendered text rather than a fixed number so it survives
+  version bumps. 146 → 148.
+  Full record: `decisions/2026/D-GH-2026-08-19-version-labels-paint-after-engine-ready.md`.
 
 ## D-GH-2026-08-19-drawback-cap-player-tools — the campaign drawback cap reaches all three tools
 - `feat/drawback-cap` (v0.351) wired `opts.drawbackCap` into `DM-Console.html` and **nowhere else** — 6

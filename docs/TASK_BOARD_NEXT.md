@@ -501,6 +501,51 @@ likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers 
 purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
 answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
 
+## Three drawback descriptions contradict the guide on whether a stat cap is enforced — TODO
+Branch `docs/drawback-statcap-wording`. `js/engine-data.js` (`DATA.drawbackFx`) and
+`docs/PACT-Players-Guide.html`'s drawback table.
+**Effort:** low · **Risk:** low — the shipped behaviour is known and checked (see below), so this is a
+wording decision, not a mechanics one. `drawbackFx` is display-only and never read by `compute()`.
+
+**CORRECTED 2026-08-19, same day.** This was first written up as **ten** drifting descriptions. Seven of
+those were a **bug in the comparison, not drift**: it tested `html.includes(engineText)` against raw HTML,
+so every description containing an apostrophe failed to match on `&#x27;` vs `'` while being identical.
+`Leaden Reflexes`, `Squeamish`, `Merciful`, `Cursed Wealth`, `Marked`, `Cold Heart` and
+`Oath of Poverty` are **not** drift. Any future check must decode entities before comparing — that is the
+main thing this entry exists to pass on.
+
+**The three real ones are one pattern, not three problems** — `Missing Arm`, `Peg Leg`, `Berserk Temper`,
+each carrying a stat cap:
+
+```text
+DATA.drawbackFx  "... You may only take this drawback if your Dexterity is currently 12 or below."
+guide table cell "... The tool only warns, it does not block, if your current Dexterity is above 12
+                  - DMs should enforce it as a hard requirement."
+```
+
+**What the tool actually does, measured:** a Fighter with DEX 16 and `Missing Arm` gets the warning
+*"Missing Arm: drawback requires DEX 12 or lower"* and an effective DEX of **16**. It warns; it does not
+block or clamp. So the guide cell is an accurate description of the TOOL, and `drawbackFx` is an accurate
+statement of the RULE.
+
+**And a third voice:** §14's own stat-cap prose already states the rule — *"you may only take a capped
+drawback if your current score is at or below the cap. The cap is the price of entry"* — so the guide
+contradicts itself two paragraphs apart, saying the cap is a hard entry requirement in prose and a
+DM-enforced advisory in the table.
+
+```text
+RECOMMENDED: keep the RULE statement in both places (the drawbackFx wording), and delete the
+  "the tool only warns" caveat from all three table cells. A tool limitation repeated in three
+  per-drawback cells is what produced the divergence, and it already contradicts §14. If the caveat
+  is worth keeping at all it belongs ONCE, in §14's stat-cap paragraph, phrased as a tool note.
+ALTERNATIVE: make the tool actually block, then no caveat is needed anywhere. Bigger change - it
+  turns a warning into a hard gate in compute(), which needs its own decision and a parity fixture.
+```
+
+**Done when:** the three agree with `DATA.drawbackFx` on both sides, §14 no longer contradicts the table,
+and a `verify-guide` drawback-text check ships at **0 failed** — **decoding HTML entities before
+comparing**, or it will re-report the seven false positives.
+
 ## Duplicate non-stacking purchases are charged in full — TODO
 Branch `fix/non-stacking-duplicate-charge`. `js/engine.js` (`compute()`'s feature pricing).
 **Effort:** medium · **Risk:** medium — ambiguity is the driver (what "the same feature from two classes"

@@ -25,6 +25,118 @@
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
 
+- **2026-08-19 · docs(rules): reword the `Soul Debt` drawback, engine and guide together** — owner's text:
+  *"A fiend skims the interest on your soul. Each time you regain Hit Points: every spell cast, every dose
+  of a magic item, and every Hit Die spent regains 1d4 fewer Hit Points (minimum 1) — the rest feeds the
+  debt."* Applied to `DATA.drawbackFx` **and** `docs/PACT-Players-Guide.html` in the same change. No
+  `DATA.version` bump — `drawbackFx` is display-only and never read by `compute()`. **⚠ The new wording
+  drops the old sentence "The Hit Points you recover at the end of a Long Rest are unaffected"**, which is
+  a real table-facing change; flagged for confirmation rather than silently restored.
+  **Found while doing it:** comparing *every* drawback rather than just the edited one turned up apparent
+  drift in 10. **Seven were a bug in my comparison, not drift** — it tested `html.includes(engineText)`
+  against raw HTML, so any description containing an apostrophe failed on `&#x27;` vs `'` while being
+  identical. **Three are real**, and they are one pattern: `Missing Arm`, `Peg Leg` and `Berserk Temper`
+  each have `drawbackFx` stating a stat cap as a hard entry requirement while the guide's table cell says
+  the tool only warns and DMs must enforce it. Measured: a DEX 16 character with `Missing Arm` gets a
+  warning and keeps DEX 16 — so the guide describes the tool correctly and `drawbackFx` describes the rule
+  correctly, and §14's own prose sides with `drawbackFx`, contradicting the table two paragraphs away.
+  Recorded as a task with a recommendation; **no gate added, deliberately** — it would be red on arrival,
+  and gates here sit at 0 failed.
+
+- **2026-08-19 · fix(ci): raise `tool-pricing-ci`'s readiness poll from 10s to 30s** — the gate now opens
+  ~10 tabs across three tools, and CharGen alone is 376 KB plus a deferred module bridge; at 10s it failed
+  roughly **one run in five** with `CharGen never became ready`, intermittently and only under that load.
+  A readiness poll returns the instant its probe passes, so the higher ceiling costs nothing on a fast page
+  and only decides how much contention it survives. Same budget and same fix as the CDP connect loop
+  earlier today — the two were written 10s apart out of habit rather than reason. Six consecutive clean
+  runs after the change, against one failure in five before it.
+
+- **2026-08-19 · chore(version): `BUILD` → `v1.427` for PR #427 (`preview` → `main` promotion)** — fifth
+  promotion in this run, and the first where **every item came from real use** rather than a gate: the
+  AP-drain data-loss fix, heritage-pack visibility across all three tools, the DM Console's missing
+  subclass abilities, four disagreeing version labels, DM-AP visibility, and the guide's on-page version
+  block. `DATA.version` unchanged at **v0.356** — nothing here alters pricing. `tool-pricing-ci` 134 →
+  **158** over the same span. Bumped before CI started.
+
+- **2026-08-19 · fix(tools): DM-granted AP is visible in both player tools** — reported: *"i cannot see
+  how many DM AP's there are in the chargen or livesheet"*. Both tools **did** have a display; two states
+  rendered nothing useful. (1) The Live Sheet's chip was `_dmAp ? … : ''`, so a campaign character with
+  **0 DM AP showed no DM component at all** — indistinguishable from the feature not existing. It now
+  shows `0 from DM` whenever the character is campaign-bound, and still stays quiet for a purely local
+  character, where it would be noise. (2) A CharGen **DM copy** is deliberately unbound
+  (`_cgResetCloudApState()`), so since the grant became a campaign character's entire budget it opened
+  reading `🔒 0 AP — player only` — which looks like lost AP rather than an unbound snapshot. It now reads
+  `👁 N AP — DM copy, not campaign-bound`, and names the source's DM AP in its tooltip. That figure is
+  **display-only**: `_cgDmOpts()` does not read it, so the copy still cannot spend AP belonging to a
+  roster it is not part of — asserted by its own check. `tool-pricing-ci` 151 → **158**, covering all
+  seven states across the two tools.
+
+- **2026-08-19 · feat(guide): the Players Guide shows its versions on the page, both labelled** —
+  reported: *"i also cannot see the version number in the pact-guide html?"* Correct — they existed only
+  as head comments and in the `<title>`. A `#guideVer` block in the nav now renders **both axes**, which
+  are deliberately different things: **Guide** (`content-version`, the prose's own version, v0.333) and
+  **Rules documented** (`documents-rules`, the engine version the prose was last *reconciled* against).
+  The second currently reads **"not yet reconciled"** — shown honestly rather than filled with
+  `DATA.version`, because printing a number there would assert a reconciliation that never happened. Read
+  from the markers at runtime, so stamping one updates the display and the two cannot drift; **no engine
+  import**, since this file is shared by `pact-guide` and `pact-guide-public` where no engine sits beside
+  it. `verify-guide`'s version-markers check now fails if the block is missing.
+
+- **2026-08-19 · fix(dm-console): subclass purchases and heritage-pack traits are visible to the DM** —
+  reported from real use: *"on the dm console i can see class abilities, but not subclass abilities. moss
+  i cannot see 'Ranger › Beast Master: Primal Companion'"*. `buildSections()` rendered `s.features` and
+  had **no subclass section at all** — `subAbilities` appeared nowhere in the file. The data was already
+  on the record (`compute()`'s `itemize`/`lines`, carried since the roster summary was built); nothing
+  rendered it. Now shown with its AP, read from `itemize`/`lines` so the labels are the engine's own
+  (`Ranger › Beast Master: Primal Companion`) rather than a second formatting of the stored key
+  (`Ranger|Beast Master|Primal Companion`). Added to **both** detail renderers — the cloud card and
+  `detailHTML` — which had drifted apart. The same card's *Traits* list had the heritage-pack blindness
+  fixed earlier in the two player tools, so `packTraitsFor()` is bridged here too and a Dwarf now shows
+  their pack traits. `tool-pricing-ci` 150 → **151**.
+
+- **🔴 2026-08-19 · fix(chargen): a character with drawbacks lost AP on every open** — reported from real
+  use: *"each time i open moss stormspud from the DM screen in chargen or refresh, the AP budget decreases
+  by 4."* Moss has 4 AP of drawbacks. Reproduced and it compounds without bound — award **79 → 75 → 71 →
+  67 → 63**, rewriting the character's stored log downward once per open. **A live data-loss bug, not a
+  display fault.** Cause: `_cgSyncAward()` and `_buildEventBurst()` both subtracted the drawback total out
+  of the award — correct under D-GH41, when `b.budget` was awards + `drawbackEarned` combined, but v0.355
+  moved that split into the engine (`foldBuild` now sets `b.budget` to awards only) and left both
+  subtractions in place, making each a **second** subtraction. Both now emit the budget unchanged.
+  **Nothing caught it because every gate opened a character exactly once**; `tool-pricing-ci` now runs
+  load → regenerate → reconcile five times and asserts the award and spendable total never move (148 →
+  **150**). Introduced by v0.355 (PR #424) and live on `main` since. **The fix stops the drain but cannot
+  restore AP already lost** — affected characters need their award corrected by hand. See
+  `D-GH-2026-08-19-award-drawback-double-subtract`.
+
+- **2026-08-19 · docs(livesheet): drop "(prototype)" from the Live Sheet's `<title>`** — the browser tab
+  read *"PACT — Live Character Sheet (prototype)"*, the only place any tool still called itself that, and
+  the one label a player sees before the page even paints. Owner's call. Title only; nothing else
+  referenced the word, and no gate depended on it (checked).
+
+- **2026-08-19 · fix(tools): heritage-pack traits are visible in both tools — and still never stored** —
+  reported from real use: buying a species pack ticked nothing in CharGen and showed nothing on the Live
+  Sheet. A pack is charged as one line and its members are owned **implicitly** (`compute()`'s `_ownsR`
+  already treats them as held, which is what makes prerequisites resolve), but that ownership was derived
+  and **never exported**, so no UI could render it. New pure-`DATA` export **`packTraitsFor(species,
+  species2)`**, plus `compute().packTraits`. CharGen ticks and disables the boxes; the Live Sheet's
+  character sheet lists them. They are **not** written into `b.racialTraits` — in-pack traits price at 0
+  only while the pack is yours, so a stored one plus a species change re-prices at the cross rate
+  (measured: `Dwarf: Dwarven Resilience` is 0 AP on a Dwarf, silently 3 AP on an Elf). The fix's own first
+  version had exactly that bug and **the new gate caught it, not a human**; a `data-packTick` marker now
+  un-ticks only what the pack ticked. `tool-pricing-ci` 143 → **146**. No `DATA.version` bump — pricing is
+  unchanged. See `D-GH-2026-08-19-heritage-pack-visibility`.
+
+- **2026-08-19 · fix(tools): version labels are repainted after `engine-ready`, not only initialised** —
+  on one page load with the engine on **v0.356**, CharGen's header read v0.356 while its info popup read
+  **v0.339**, and the DM Console footer read **v0.176**. Same shape in both: painted at parse time from a
+  hardcoded fallback, before the deferred module bridge fires `engine-ready`, and never repainted.
+  `_cgPaintInfoVersions()` now also runs on `engine-ready`, and `_dmPaintRulesVer()` again in `_dmBoot()`
+  after `RULES` is set — both keep their parse-time call so no label is blank mid-load. Nothing caught it
+  because every existing check reads `DATA.version` directly and **none asserted what the page actually
+  renders**; `tool-pricing-ci` now compares rendered text against the live version (146 → **148**), written
+  as a contains-check so it survives version bumps. See
+  `D-GH-2026-08-19-version-labels-paint-after-engine-ready`.
+
 - **2026-08-19 · chore(version): `BUILD` → `v1.426` for PR #426 (`preview` → `main` promotion)** — fourth
   promotion in this run: the campaign drawback cap reaching both player tools, the pre-lock ledger gate,
   `docs/MAINTENANCE-MODE.md`, and the tool-pricing CI hardening. No rules change — `DATA.version` stays at

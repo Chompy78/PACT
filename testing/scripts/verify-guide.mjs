@@ -129,8 +129,13 @@ record('theming        ',
 // ---- 8. version markers ---------------------------------------------------------------------
 const cv = (html.match(/content-version:\s*(v[\d.]+)/) || [])[1];
 const dr = (html.match(/documents-rules:\s*version=(v[\d.]+)/) || [])[1];
-record('version markers', !!cv,
+// The markers must also be VISIBLE. They lived only in these head comments and the <title>, so a reader
+// could not see either version — reported 2026-08-19. #guideVer renders both, labelled, reading these
+// same comments at runtime so the block and the markers cannot disagree.
+const visible = /id='guideVer'|id="guideVer"/.test(html) && /content-version/.test(html) && /documents-rules/.test(html);
+record('version markers', !!cv && visible,
   `content-version ${cv || 'ABSENT'} · documents-rules ${dr || 'not stamped'} · engine DATA.version ${DATA.version}`
+  + (visible ? ' · shown on-page' : '  ← #guideVer block MISSING, reader cannot see either version')
   + (dr && dr !== DATA.version ? `  ← stamped against an older engine` : ''));
 
 // ---- report -----------------------------------------------------------------------------------
