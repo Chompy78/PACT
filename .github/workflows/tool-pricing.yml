@@ -38,7 +38,12 @@ concurrency:
 jobs:
   pricing:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    # 10, matching every other browser workflow here (chargen-flows, dm-console-ui, sw-cache and
+    # guide-theme are all 10; cloud-e2e 20). It was 6, sized for a job with NO install step — adding
+    # `playwright install --with-deps` put an apt run inside a budget that never allowed for one, and
+    # the very next run spent >6 minutes in that step alone. Raising the budget, not dropping
+    # --with-deps: the missing system libraries are exactly the nondeterminism this change removed.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 

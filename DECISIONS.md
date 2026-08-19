@@ -10,6 +10,22 @@
 
 ## Index
 
+## D-GH-2026-08-19-drawback-cap-player-tools — the campaign drawback cap reaches all three tools
+- `feat/drawback-cap` (v0.351) wired `opts.drawbackCap` into `DM-Console.html` and **nowhere else** — 6
+  occurrences there, 0 in either player tool — so a player in a capped campaign saw the FULL grant while
+  their DM saw the capped figure, with nothing on either screen saying which was right. Survivable while a
+  drawback was half of a cancelling pair; a straight difference in spendable AP once v0.355/v0.356 made the
+  grant real income. Both player tools now pass it on the **same `'active'` gate** they already use for
+  `dmAp`/`ignorePlayerAp`, and the shape-reading is extracted ONCE to `drawbackCapFromRules()` in
+  `js/campaign.js` — which all three tools already import — rather than pasted into two more files.
+  Two defaults both matter: an absent key is OFF, a present key with `enabled` unset is **ON** (campaigns
+  saved before the flag existed), and `undefined` means advisory, not uncapped. The DISPLAYED figure moved
+  with the applied one — showing the guide's 12 to a player whose DM set 8 would be the same bug in a hat.
+  No `DATA.version` bump: `compute()`'s output per `(build, opts)` is unchanged; only which opts get passed.
+  `tool-pricing-ci` 134 → **141**, asserted through each tool's own opts builder because the helper was
+  never the broken part — the wiring was.
+  Full record: `decisions/2026/D-GH-2026-08-19-drawback-cap-player-tools.md`.
+
 ## D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap — a drawback survives `ignore_player_ap`
 - Once v0.355 made a drawback **income**, a question appeared that the older double-count had hidden: is
   drawback AP part of "your award history"? v0.355 answered it by accident — the grant sat inside the

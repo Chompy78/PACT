@@ -318,6 +318,29 @@ export async function redeemCharacterClaim(token) {
   return { characterId: row.character_id, campaignId: row.campaign_id, isNew: row.is_new };
 }
 
+/**
+ * drawbackCapFromRules(rules) — the campaign's drawback AP cap, as compute()'s `opts.drawbackCap`
+ * wants it: a number when the DM has switched the cap on, `undefined` otherwise.
+ *
+ * `undefined` is not "no cap" — it leaves compute() on its ADVISORY path, which is the correct
+ * behaviour for a character with no campaign to adjudicate for it (the full grant, plus a warning).
+ * Only a campaign that explicitly enabled the cap gets it enforced. Both defaults matter: an absent
+ * `drawbackCap` key means off, but a present one with `enabled` unset means ON — a campaign saved by
+ * an older DM Console build predates the flag and should still enforce the figure it stored.
+ *
+ * WHY THIS LIVES HERE. It was written inline in DM-Console.html and nowhere else, so the cap reached
+ * compute() on the DM's side only: a player in a capped campaign saw the FULL grant in CharGen and the
+ * Live Sheet while their DM saw the capped figure, with nothing on either screen saying which was
+ * right. Fixing that by pasting the same three lines into two more tools would have made three copies
+ * of one rule shape — the drift this project keeps paying for. One export, three callers.
+ */
+export function drawbackCapFromRules(rules) {
+  const c = rules && rules.drawbackCap;
+  if (!c || c.enabled === false) return undefined;
+  const n = Number(c.ap);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /** DM-only: set the "ignore player-granted AP" campaign toggle. */
 export async function setIgnorePlayerAp(campaignId, value) {
   const { error } = await supabase

@@ -1094,7 +1094,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.425';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.426';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1966,11 +1966,11 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         var _apr = window._dmCampaignApRules || {};
         summary = analyzeAug({ LOG: log, SEQ: row.stats.SEQ || (log.length+1), rules: row.stats.rules, name: row.name },
                              { dmAp: Number(row.ap) || 0, ignorePlayerAp: !!_apr.ignorePlayerAp,
-                               // Enforced only when the campaign switched it on; undefined leaves
-                               // compute() on its advisory path, which is the local-character rule.
-                               drawbackCap: (_apr.drawbackCap && _apr.drawbackCap.enabled !== false)
-                                 ? (Number.isFinite(+_apr.drawbackCap.ap) ? +_apr.drawbackCap.ap : undefined)
-                                 : undefined });
+                               // Shared with both player tools since fix/drawback-cap-player-tools —
+                               // this used to be three lines inline here and nowhere else, which is
+                               // exactly why the DM and the player saw different totals.
+                               drawbackCap: (window._campBridge
+                                 ? window._campBridge.drawbackCapFromRules(_apr) : undefined) });
       } catch(e){ hasData = false; summary = null; }
     }
     // Carry the `name` COLUMN through even when hasData is false. A player can name a character and
@@ -2300,14 +2300,14 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). A failure here costs campaigns and the roster, not the
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
-  import { listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
+  import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
   import { getRoster, awardAp, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>

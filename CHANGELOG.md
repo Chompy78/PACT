@@ -6,6 +6,45 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · test(livesheet): pin that a pre-lock ledger equals `compute()` across level-ups; the
+  reported divergence is gone** — `fix/livesheet-draft-reconcile` was filed as a live bug needing an owner
+  *rules ruling before any code*: a fresh Live Sheet character reading **34 against `compute()`'s 46**
+  after one level-up and **44 against 83** by HD 5. **Re-measured on v0.356 through the real tool: drift
+  is 0 at every step, in both purchase orders.** The Live Sheet still does not call `repriceDraft()`
+  (checked), so the two rules stopped producing different numbers rather than one of them winning — which
+  branch closed it is untraced. `tool-pricing-ci` now drives a pre-lock character through level-ups both
+  ways and asserts `economy().spent === compute().total` (141 → **143**), so the agreement is asserted
+  rather than assumed. The board task is narrowed to what actually remains — a decision-record edit
+  saying which of D1/D2 governs — and downgraded from Risk **high** to **low**.
+
+- **2026-08-19 · docs(tasks): record the duplicate non-stacking purchase overcharge** — found 2026-08-18
+  while building `sim-combat-abuse.mjs` and, until now, **written down nowhere but that simulation's
+  source**. A character buying the same non-stacking feature from two classes (Extra Attack being the
+  clearest) is charged in full twice for one benefit; the sim carries a `NON_STACKING` group list purely
+  to stop the optimiser gaming it, which is a simulation-side workaround for an engine-side gap. Not
+  urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
+  overcharge on a legal build, and the rule needs defining before it can be priced.
+
+- **2026-08-19 · chore(version): `BUILD` → `v1.426` for PR #426 (`preview` → `main` promotion)** — fourth
+  promotion in this run: the campaign drawback cap reaching both player tools, the pre-lock ledger gate,
+  `docs/MAINTENANCE-MODE.md`, and the tool-pricing CI hardening. No rules change — `DATA.version` stays at
+  **v0.356**. Mirrored across the five sites per `docs/VERSION-SYNC.md`; `index.html` reads `BUILD` live
+  and is untouched. Bumped **before** opening CI this time rather than after, so the batch is not
+  restarted — see the note in `docs/plans/2026-08-19-morning-review.md`.
+
+- **2026-08-19 · fix(tools): the campaign drawback cap now reaches both player tools** — `drawbackCap`
+  was wired into `DM-Console.html` and nowhere else (6 occurrences there, **0** in either player tool), so
+  a player in a capped campaign saw the full grant while their DM saw the capped figure. Both tools now
+  pass it on the same `'active'` gate they already use for `dmAp`/`ignorePlayerAp`, and the shape-reading
+  is extracted once to **`drawbackCapFromRules()`** in `js/campaign.js` — which all three tools already
+  import — rather than pasted into two more files. The displayed figure moved with the applied one: both
+  panels now show the campaign's cap when one is enforced, and the Live Sheet's wording changes with it
+  ("the guide caps them at 12 AP; confirm with your DM" → "your DM caps them at 8 AP, so the excess is not
+  granted"). `tool-pricing-ci` 134 → **141**, asserted through each tool's own opts builder. No
+  `DATA.version` bump — `compute()`'s output per `(build, opts)` is unchanged. Graduates
+  `fix/drawback-cap-player-tools` off `TASK_BOARD_NEXT.md`. See
+  `D-GH-2026-08-19-drawback-cap-player-tools`.
+
 - **2026-08-19 · docs(ops): `docs/MAINTENANCE-MODE.md` — everything about taking the tools down** — a
   dedicated reference, and now the single source of truth: how to run the toggle (including from
   PowerShell, and that it does **not** need the repo root — it resolves the repo from the script's own
