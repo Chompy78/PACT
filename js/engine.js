@@ -1021,19 +1021,29 @@ function _lockStates(evs) {
  *    see the `gp`/`days` event fields below. §16: "Don't switch mid-game, or a
  *    purchase's price will move under the players' feet."
  *
- * THE TWO-POOL MODEL, MIRRORING AP. A campaign character's gold and downtime are
- * DM-authoritative: "in a campaign world, the DM is the one who applies the money"
- * (owner). So income lives in two places, precisely as AP already does —
- *   * player-side, as `wealth` events in the character's own LOG (a solo player
- *     with no DM, or a DM-blessed local adjustment); and
- *   * DM-side, server-only, in characters.gold / characters.downtime_days, written
- *     exclusively through the award_wealth() RPC and never by a player.
- * wealthLedger() can only ever see the first, structurally — same limitation
- * economy() has for DM-awarded AP, and resolved the same way, by composing the two
- * at display time via wealthWithDm(). Do not "fix" this by teaching wealthLedger()
- * about the server; that would make it impure and double-count on every caller
- * that already adds the DM pool itself (see earnedWithDm's header for the same
- * argument made for AP).
+ * GOLD AND DOWNTIME ARE NOT THE SAME SHAPE OF CURRENCY (owner, feat/tool-coin-time-costs
+ * revision — the original two-pool-both-ways design below was corrected the same day it
+ * first shipped, before any real campaign used it):
+ *
+ *   GOLD banks, per character, and is DM-authoritative in a campaign — "in a campaign
+ *   world, the DM is the one who applies the money" (owner). Income lives in two places,
+ *   precisely as AP does: player-side, as `wealth` events in a solo character's own LOG;
+ *   or DM-side, server-only, in characters.gold, written exclusively through the
+ *   award_gold() RPC and never by a player. wealthLedger() can only ever see the first,
+ *   structurally — same limitation economy() has for DM-awarded AP, resolved the same
+ *   way, by composing the two at display time via wealthWithDm(). Do not "fix" this by
+ *   teaching wealthLedger() about the server; that would make it impure and double-count
+ *   on every caller that already adds the DM pool itself (see earnedWithDm's header for
+ *   the same argument made for AP).
+ *
+ *   DOWNTIME does not bank at all. It is a single window, declared for the WHOLE PARTY at
+ *   once, that REPLACES the last declaration rather than adding to it: "the time should
+ *   not keep adding up... spend it now or wait till another opportunity" (owner). So it
+ *   has no per-character column on `characters` and no `award_*` RPC — see
+ *   resolveDowntimeWindow() (below) for how a character's current window is resolved
+ *   (campaign vs. solo), and campaign_downtime_declarations / declare_downtime() /
+ *   get_downtime_window() in sql/rls-policies.sql for where and how the party-wide
+ *   figure actually lives.
  * ========================================================================= */
 
 /** Resolve the economy setting token ('off' | 'standard' | 'fast') for a campaign's
@@ -1176,26 +1186,36 @@ function _paidFor(e, setting) {
  * calendar buy advancement — you do not pay a trainer to become asthmatic. Buyoffs, which
  * genuinely are in-play purchases with a real AP cost, ARE charged.
  *
+ * GOLD AND DOWNTIME ARE NOT SYMMETRICAL (owner, feat/tool-coin-time-costs revision). Gold
+ * banks — a `wealth` event's `gp` is player-side income and SUMS across every such event,
+ * exactly like a DM's gold grant sums onto `characters.gold`. Downtime does not: "the time
+ * should not keep adding up... spend it now or wait till another opportunity". So a `wealth`
+ * event's `days` is NOT summed here at all — declaring a downtime window is a separate
+ * concept, resolved by resolveDowntimeWindow() (below), which reads the LATEST such value
+ * rather than a running total. This is the one place the same event type carries two
+ * currencies with two different aggregation rules.
+ *
  * @param {object[]} events   the character's LOG
  * @param {object} [opts]     {band} — setting token, campaign rules, or local settings
  * @returns {{on:boolean, band:string, gpSpent:number, daysSpent:number,
- *            gpGranted:number, daysGranted:number, entries:object[]}}
+ *            gpGranted:number, entries:object[]}}
  */
 export function wealthLedger(events, opts) {
   const _opts = opts || {};
   const setting = (typeof _opts.band === 'string') ? _opts.band : economySetting(_opts.band || _opts.rules);
   const { evs, boughtOff, boonRemoved } = activeEvents(events);
   const on = economyOn(setting);
-  const out = { on, band: setting, gpSpent: 0, daysSpent: 0, gpGranted: 0, daysGranted: 0, entries: [] };
+  const out = { on, band: setting, gpSpent: 0, daysSpent: 0, gpGranted: 0, entries: [] };
   if (!on) return out;
 
   const lockAt = _lockStates(evs);
   evs.forEach((e, i) => {
-    // Player-side income. Counted whether or not creation has ended: a starting purse or a
-    // DM-blessed local adjustment is not a purchase and has no creation exemption to respect.
+    // Player-side GOLD income only. Counted whether or not creation has ended: a starting
+    // purse or a DM-blessed local adjustment is not a purchase and has no creation exemption
+    // to respect. A `wealth` event's `days` (if present) is NOT read here — see the header
+    // note above; resolveDowntimeWindow() handles that half of the same event.
     if (e.type === 'wealth') {
-      out.gpGranted   += Number(e.payload && e.payload.gp)   || 0;
-      out.daysGranted += Number(e.payload && e.payload.days) || 0;
+      out.gpGranted += Number(e.payload && e.payload.gp) || 0;
       return;
     }
     const isBuy = e.type === 'buy' && e.cat !== 'drawback';
@@ -1209,15 +1229,17 @@ export function wealthLedger(events, opts) {
     if (!paid) return;
     out.gpSpent   += paid.gp;
     out.daysSpent += paid.days;
-    // WHO READS `entries` (asked and answered 2026-08-19, so it isn't mistaken for dead weight later).
-    // No TOOL does: all three read only the totals, and the Live Sheet's history ledger is built
-    // straight from its own LOG using each event's frozen gp/days. What reads it is
-    // testing/scripts/economy-ui-e2e.mjs, and it is load-bearing there — `entries` is how the gate
-    // proves the creation exemption (which purchases were charged, by name, not just how much), and
-    // `discounted` is how it proves the freeze. Deleting either to tidy the API would delete the test
-    // that guards the feature's central rule.
+    // WHO READS `entries` (asked and answered 2026-08-19, so it isn't mistaken for dead weight later;
+    // corrected same day once `ts` below stopped being test-only). wealthWithDm() reads it directly
+    // now — `ts` is what lets it filter downtime spend to "since the current window opened" rather
+    // than the ledger's all-time `daysSpent` total (see wealthWithDm's own header for why those must
+    // differ). testing/scripts/economy-ui-e2e.mjs also reads it: `entries` is how the gate proves the
+    // creation exemption (which purchases were charged, by name, not just how much), and `discounted`
+    // is how it proves the freeze. Deleting either to tidy the API would delete both a real feature and
+    // the test that guards it.
     //
-    // `listGp`/`listDays` are read by nothing at all today, and are kept deliberately. _paidFor() has
+    // `listGp`/`listDays` are still read by nothing but the deferred G2 task's future display — kept
+    // for the same reason as before. _paidFor() has
     // to compute the list price regardless — it is both the fallback when an event carries no frozen
     // figures and the comparison that produces `discounted` — so surfacing it is two properties on an
     // object already being built, not extra work. They are the seam a "paid 175 gp (list 350)" display
@@ -1226,7 +1248,7 @@ export function wealthLedger(events, opts) {
     // would save nothing measurable and cost that seam.
     out.entries.push({
       idx: i, cat: e.cat || e.type, label: e.label || (e.payload && e.payload.v) || e.refVal || '',
-      ap: Number(e.cost) || 0, gp: paid.gp, days: paid.days,
+      ap: Number(e.cost) || 0, gp: paid.gp, days: paid.days, ts: Number(e.ts) || 0,
       listGp: paid.listGp, listDays: paid.listDays, discounted: paid.discounted, lost,
     });
   });
@@ -1253,28 +1275,97 @@ export function chargesGoldAndTime(events) {
 }
 
 /**
- * Compose a wealthLedger() with the DM-held pool, for display. The gold-and-downtime twin
- * of earnedWithDm(), and for the identical reason: a campaign character's real balance is
- * server-side in characters.gold / characters.downtime_days, which a pure log function
- * structurally cannot see.
+ * resolveDowntimeWindow(opts) — the downtime window in force for a character right now: how
+ * many days are available, and the timestamp purchases must be made ON OR AFTER to count
+ * against it. Mirrors resolveEconomySetting()'s precedence exactly, and for the identical
+ * reason:
+ *
+ *   an active campaign with a resolved window  →  the CAMPAIGN's window, always
+ *   anything else                              →  the character's own self-declared window, else none
+ *
+ * The campaign wins outright, without the character's own declaration acting as a fallback
+ * within an active campaign — a player must not be able to sit on a bigger window than the
+ * one the DM just declared for the whole party by holding onto a stale self-declaration.
+ * `campaignActive` is caller-supplied for the same reason it is on resolveEconomySetting: a
+ * network hiccup must fall back to the character's own honest local answer, not silently
+ * read as "no window".
+ *
+ * CAMPAIGN: `opts.campaignWindow` is a pre-resolved {days, startTs} the caller fetched from
+ * the campaign's downtime declarations — the party base plus this character's own bonus,
+ * already summed. This function never talks to the network; composing that figure is the
+ * DM Console's/Live Sheet's job (see js/campaign.js), exactly as dmAp/ignorePlayerAp are
+ * resolved outside compute() and passed in.
+ *
+ * SOLO: derived from the character's own LOG — the LATEST `wealth` event that carries a
+ * `days` field (present, even if 0 — see the `!= null` check below, which lets a player
+ * explicitly close out a window without granting a new one). This is last-one-wins, NOT
+ * summed, unlike that same event type's `gp` field (see wealthLedger()'s header for why the
+ * two currencies disagree here): declaring a new window replaces the old one.
+ *
+ * Returns null when no window has ever been declared — nothing to spend against yet, which
+ * wealthWithDm() reads as "every downtime purchase so far is an unfunded overdraft", the
+ * same honest-zero-balance behaviour an unfunded gold wallet already has.
+ */
+export function resolveDowntimeWindow(opts) {
+  const o = opts || {};
+  if (o.campaignActive) return o.campaignWindow || null;
+  let found = null;
+  (Array.isArray(o.events) ? o.events : []).forEach(e => {
+    if (e && e.type === 'wealth' && e.payload && e.payload.days != null) {
+      found = { days: Number(e.payload.days) || 0, startTs: Number(e.ts) || 0 };
+    }
+  });
+  return found;
+}
+
+/**
+ * Compose a wealthLedger() with the DM-held gold pool and the resolved downtime window, for
+ * display. The gold-and-downtime twin of earnedWithDm() — a campaign character's real
+ * balance is server-side (characters.gold, and the campaign's downtime declarations), which
+ * a pure log function structurally cannot see — but gold and downtime compose differently
+ * from each other here, matching how differently they behave (owner, feat/tool-coin-time-costs
+ * revision):
+ *
+ *   GOLD banks. `gpLeft` is ALL-TIME cumulative — (the ledger's own gpGranted, i.e. a solo
+ *   player's self-declared income, plus any extra `dmGold`) minus ALL gold ever spent. This
+ *   is exactly the original, unrevised behaviour; nothing about gold changed.
+ *
+ *   DOWNTIME does not bank. "The time should not keep adding up... spend it now or wait till
+ *   another opportunity" — so `daysLeft` is `opts.window.days` minus ONLY the downtime spent
+ *   ON OR AFTER `opts.window.startTs`, read from `ledger.entries` (each purchase's own `ts`),
+ *   never from the ledger's all-time `daysSpent` total. That total is still returned, for
+ *   history/ledger display — it is simply the wrong figure for "how much of THIS window is
+ *   left", which is the only thing `daysLeft` means now.
+ *
+ * `opts.window` is resolveDowntimeWindow()'s return value. null (no window ever declared)
+ * means `daysLeft` is 0 minus all-time downtime spend — every past downtime purchase reads
+ * as an immediate, unfunded overdraft, matching how a gold wallet with nothing granted
+ * already behaves.
  *
  * `gpLeft`/`daysLeft` may legitimately go NEGATIVE — that is the soft warning the tools
- * render, not an error state. A DM can hand a player an ability and settle the coin later,
- * and §17 explicitly allows waiving costs after the fact; clamping to zero here would hide
- * exactly the overdraft a player needs to see.
+ * render, not an error state. A DM can hand a player an ability and settle the coin (or the
+ * calendar) later, and §17 explicitly allows waiving costs after the fact; clamping to zero
+ * here would hide exactly the overdraft a player needs to see.
  */
 export function wealthWithDm(ledger, opts) {
   const _opts = opts || {};
   const dmGold = Number(_opts.dmGold) || 0;
-  const dmDays = Number(_opts.dmDays) || 0;
   const l = ledger || {};
-  const gpGranted   = (Number(l.gpGranted)   || 0) + dmGold;
-  const daysGranted = (Number(l.daysGranted) || 0) + dmDays;
+  const gpGranted = (Number(l.gpGranted) || 0) + dmGold;
+  const gpSpent = Number(l.gpSpent) || 0;
+  const daysSpent = Number(l.daysSpent) || 0;   // all-time total — history/display only, see header
+
+  const win = _opts.window || null;
+  const windowDays = win ? (Number(win.days) || 0) : 0;
+  const entries = Array.isArray(l.entries) ? l.entries : [];
+  const daysSpentInWindow = win
+    ? entries.reduce((s, e) => s + (((Number(e.ts) || 0) >= (Number(win.startTs) || 0)) ? (Number(e.days) || 0) : 0), 0)
+    : daysSpent;   // no window ever declared: every downtime purchase so far is unfunded
+
   return {
-    gpGranted, daysGranted,
-    gpSpent: Number(l.gpSpent) || 0, daysSpent: Number(l.daysSpent) || 0,
-    gpLeft:   gpGranted   - (Number(l.gpSpent)   || 0),
-    daysLeft: daysGranted - (Number(l.daysSpent) || 0),
+    gpGranted, gpSpent, gpLeft: gpGranted - gpSpent,
+    windowDays, daysSpentInWindow, daysLeft: windowDays - daysSpentInWindow,
+    daysSpent,
   };
 }
 

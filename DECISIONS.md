@@ -24,13 +24,30 @@
   creation lock** as the definition of "in play", which is why `_replay()`'s lock ratchet was *extracted*
   into `_lockStates()` rather than copied. Costs **freeze onto their own event** (`gp`/`days`, exactly as
   `cost` freezes AP), which both stops a mid-campaign band switch re-pricing history and makes waivers,
-  mentor discounts and the coin-for-time trade one mechanism instead of three. The DM owns the money in a
-  campaign, mirroring `characters.ap` column-for-column (`characters.gold`/`downtime_days`,
-  `wealth_awards`, `award_wealth()`); a solo character's grants ride its own LOG. The band setting needed
-  **no migration** — campaign-side it lands in the existing `campaigns.rules` jsonb, solo-side as an
-  `econSetting` LOG event. New gate: 120 checks, verified to go red. Also fixed a real PWA bug the repo's
-  own audit caught — `economy-bands.js` would have been cached cache-first behind a network-first
-  `engine.js`; `CACHE_NAME` → `pact-v9`.
+  mentor discounts and the coin-for-time trade one mechanism instead of three. Gold is DM-owned in a
+  campaign, mirroring `characters.ap` (`characters.gold`, `gold_awards`, `award_gold()`); a solo
+  character's own gold rides its own LOG. The band setting needed **no migration** — campaign-side it
+  lands in the existing `campaigns.rules` jsonb, solo-side as an `econSetting` LOG event. New gate: 120
+  checks, verified to go red. Also fixed a real PWA bug the repo's own audit caught —
+  `economy-bands.js` would have been cached cache-first behind a network-first `engine.js`;
+  `CACHE_NAME` → `pact-v9`.
+
+  **Addendum, same day:** downtime turned out NOT to share gold's shape at all, corrected before any
+  real character had a balance. Gold banks per character and accumulates; downtime is a single window
+  the DM declares for the **whole party at once**, which **replaces** the last declaration rather than
+  adding to it (owner: "the time should not keep adding up... spend it now or wait till another
+  opportunity") — modelling it as a per-character accumulating column (as first shipped) would have
+  marked every character permanently overdrawn the moment the economy switched on, and made the DM
+  re-type the same figure once per player, every session, forever. `characters.downtime_days` dropped;
+  `wealth_awards`→`gold_awards` (gold-only); new `campaign_downtime_declarations` (nullable
+  `character_id`: null = party base, set = a per-character bonus that resets with the base) +
+  `declare_downtime()`/`get_downtime_window()` RPCs. Gold still lives on the Award AP form ("same area
+  as AP awards"); downtime gets a separate party-wide control, with an optional per-character bonus
+  folded into the same AP/gold form. Also found and fixed a real, unrelated bug on the way: the DM
+  Console's campaign-rules cache never carried the economy band at all, so the original grant form
+  could never have shown regardless of the DM's chosen band. Gate → 151 checks; new migration
+  `2026-08-19-downtime-window-revision.sql` (a follow-up file, not an edit to the applied one) — not
+  yet applied to the live project as of this addendum.
   Full record: `decisions/2026/D-GH-2026-08-19-tool-coin-time-costs.md`.
 
 ## D-GH-2026-08-19-amble-character-rebuild-costs — a stale `stats.rules` stamp may be corrected in place

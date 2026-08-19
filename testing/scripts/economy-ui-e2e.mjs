@@ -8,16 +8,26 @@
  * are exempt, in-play purchases are not. That distinction lives in the creation lock, is resolved
  * inside _replay()'s timeline, and is consumed by tool UI — so it can only be verified end to end.
  *
- * Two halves:
+ * Four parts:
  *   1. ENGINE — the band tables against the guide's own printed figures, the creation exemption, the
- *      freeze, the setting-precedence rule, and the formatter. Run directly against js/engine.js.
- *   2. LIVE SHEET UI — the wallet line, the per-tile prices, and the off switch actually reaching the
- *      DOM, driven in a real browser. No stack needed: supabase-js is vendored, so the module bridge
- *      loads offline and only network calls fail (irrelevant here), the same trick
- *      dm-console-ui-e2e.mjs uses.
+ *      freeze, gold-vs-downtime composition, resolveDowntimeWindow()'s precedence, and a window
+ *      being replaced (not accumulated) end to end. Run directly against js/engine.js.
+ *   2. LIVE SHEET UI — the wallet line, the per-tile prices, the off switch, and a real browser-driven
+ *      solo declare/redeclare with genuinely distinct event timestamps (not the coincidental ts=0
+ *      every earlier scenario in this file shares).
+ *   3. DM CONSOLE UI — the band dial, the Award AP form's gold/bonus-time fields, and the party-wide
+ *      downtime control, all driven via window._dm*Test seams so no live Supabase roster is needed.
+ *   4. CHARGEN UI — forward-looking "in play" price labels on a form where nothing is ever charged.
+ * No stack needed anywhere: supabase-js is vendored, so every module bridge loads offline and only
+ * network calls fail (irrelevant here), the same trick dm-console-ui-e2e.mjs uses.
  *
- * Verified to go RED before commit: zeroing BAND_STANDARD's 11–15 row failed the price checks, and
- * removing the `if(!lockAt[i]) return;` creation guard in wealthLedger() failed the exemption checks.
+ * Verified to go RED before commit, repeatedly:
+ *   - original build — zeroing BAND_STANDARD's 11–15 row failed the price checks; removing the
+ *     `if(!lockAt[i]) return;` creation guard in wealthLedger() failed the exemption checks.
+ *   - feat/tool-coin-time-costs downtime-window revision (gold banks, downtime doesn't — a single
+ *     party-wide window that REPLACES the last one, per the owner) — making resolveDowntimeWindow()
+ *     SUM `wealth` events' `days` instead of last-one-wins failed 6 checks; making wealthWithDm()
+ *     silently zero an undeclared window's overdraft instead of reporting it failed 1.
  *
  * USAGE:  node testing/scripts/economy-ui-e2e.mjs
  */
@@ -26,7 +36,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { launchChromium } from './lib/launch-chromium.mjs';
 import { DATA, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime,
-         resolveEconomySetting, logEconomySetting, economyOn, tradeCoinTime,
+         resolveEconomySetting, logEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime,
          chargesGoldAndTime } from '../../js/engine.js';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
@@ -117,14 +127,80 @@ const hw = wealthLedger(halfWaived, { band: 'standard' });
 check('gold may be waived while the downtime stands', hw.gpSpent === 0 && hw.daysSpent === 42,
       `${hw.gpSpent} gp / ${hw.daysSpent} d`);
 
-console.log('\n[economy] engine — the wallet composes the DM pool');
-const w = wealthWithDm(led, { dmGold: 500, dmDays: 60 });
-check('DM gold reaches the balance', w.gpLeft === 150, String(w.gpLeft));       // 500 granted − 350 spent
-check('DM downtime reaches the balance', w.daysLeft === 18, String(w.daysLeft));  // 60 − 42
-const poor = wealthWithDm(led, { dmGold: 100, dmDays: 0 });
+console.log('\n[economy] engine — gold banks; downtime does not (owner, feat/tool-coin-time-costs revision)');
+// GOLD — unchanged: an all-time additive top-up on top of the ledger's own solo income.
+const wGoldOnly = wealthWithDm(led, { dmGold: 500 });
+check('DM gold reaches the balance', wGoldOnly.gpLeft === 150, String(wGoldOnly.gpLeft));   // 500 granted − 350 spent
+const poor = wealthWithDm(led, { dmGold: 100 });
 check('an overdraft is reported, NOT clamped to zero (§17 lets a DM defer)', poor.gpLeft === -250, String(poor.gpLeft));
-const solo = wealthLedger(LOG.concat([{ type: 'wealth', payload: { gp: 1000, days: 90 } }]), { band: 'standard' });
-check('a solo player\'s own LOG grant is counted', solo.gpGranted === 1000 && solo.daysGranted === 90);
+
+// DOWNTIME — a WINDOW, not a running total: daysLeft = window.days − spend SINCE window.startTs,
+// never the ledger's all-time daysSpent. led's two charged purchases (Graze ts-less→0, Extra Attack
+// ts-less→0) both fall inside any window whose startTs <= 0.
+const win90 = wealthWithDm(led, { window: { days: 90, startTs: 0 } });
+check('a 90-day window covers the 42-day spend, 48 left', win90.daysLeft === 48, String(win90.daysLeft));
+check('windowDays/daysSpentInWindow are reported alongside daysLeft',
+      win90.windowDays === 90 && win90.daysSpentInWindow === 42,
+      `windowDays=${win90.windowDays} daysSpentInWindow=${win90.daysSpentInWindow}`);
+check('daysSpent (all-time) is still reported, unchanged, for history display', win90.daysSpent === 42, String(win90.daysSpent));
+// A window declared AFTER the spend excludes it entirely — this is the "declaring a new window
+// wipes the old one" rule in miniature: spend before startTs simply never counts.
+const winLate = wealthWithDm(led, { window: { days: 90, startTs: 999999 } });
+check('a window that opened AFTER the spend excludes it (90 - 0 = 90 left)', winLate.daysLeft === 90, String(winLate.daysLeft));
+// No window ever declared: every downtime purchase reads as an immediate, unfunded overdraft —
+// the same "nothing granted" behaviour an unfunded gold wallet already has.
+const winNone = wealthWithDm(led, { window: null });
+check('no window ever declared → daysLeft is 0 minus all-time spend (-42)', winNone.daysLeft === -42, String(winNone.daysLeft));
+
+console.log('\n[economy] engine — resolveDowntimeWindow(): campaign vs. solo precedence');
+// A `wealth` event's `days` is LAST-ONE-WINS, not summed — the opposite of its own `gp` field on the
+// SAME event type, which sums (gold banks). Declaring a second window replaces the first outright.
+const winLog = [
+  { type: 'wealth', payload: { days: 90 }, ts: 1000 },
+  { type: 'wealth', payload: { days: 30 }, ts: 2000 },
+];
+const winResolved = resolveDowntimeWindow({ events: winLog });
+check('solo: the LATEST self-declared window wins, not a sum',
+      winResolved && winResolved.days === 30 && winResolved.startTs === 2000, JSON.stringify(winResolved));
+check('no window ever self-declared → null, not zero-with-a-timestamp',
+      resolveDowntimeWindow({ events: [] }) === null);
+// gp on the SAME event type still sums, unaffected — the asymmetry is deliberate, not a bug in one.
+const goldFromSameLog = wealthLedger(
+  [{ type: 'wealth', payload: { gp: 500 } }, { type: 'wealth', payload: { gp: 200 } }], { band: 'standard' }
+);
+check('gold from wealth events still SUMS across the log (500+200=700)', goldFromSameLog.gpGranted === 700, String(goldFromSameLog.gpGranted));
+check('an active campaign\'s window overrides a solo declaration outright',
+      resolveDowntimeWindow({ events: winLog, campaignActive: true, campaignWindow: { days: 14, startTs: 9999 } })?.days === 14);
+check('a campaign with NO window declared yet returns null even while active (not the solo fallback)',
+      resolveDowntimeWindow({ events: winLog, campaignActive: true, campaignWindow: null }) === null);
+check('unconfirmed campaign rules fall back to the character\'s own declaration, not a guess',
+      resolveDowntimeWindow({ events: winLog, campaignActive: false, campaignWindow: { days: 14, startTs: 9999 } })?.days === 30);
+
+console.log('\n[economy] engine — a new window wipes the old one, end to end');
+// The exact scenario from D-GH-2026-08-19-tool-coin-time-costs: declare 90, spend 42 (in-play,
+// crossing the lock first), redeclare 30 (the old spend must NOT carry over), spend 42 again (now
+// overdrawn against the SMALLER window).
+{
+  const b2 = [{ type: 'create' }, { type: 'creationLockConfig', payload: { auto: true, threshold: 5 } }];
+  let wlog = b2.concat([
+    { type: 'wealth', payload: { days: 90 }, ts: 500 },
+    { type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', ts: 900 },   // crosses the lock, still creation
+    { type: 'buy', cat: 'feature', cost: 12, payload: { v: 'X' }, label: 'X', ts: 2000 },          // in play: 350gp/42d
+  ]);
+  let led2 = wealthLedger(wlog, { band: 'standard' });
+  let w2 = wealthWithDm(led2, { window: resolveDowntimeWindow({ events: wlog }) });
+  check('after one in-play purchase: 90 - 42 = 48 left', w2.daysLeft === 48, String(w2.daysLeft));
+
+  wlog = wlog.concat([{ type: 'wealth', payload: { days: 30 }, ts: 3000 }]);
+  led2 = wealthLedger(wlog, { band: 'standard' });
+  w2 = wealthWithDm(led2, { window: resolveDowntimeWindow({ events: wlog }) });
+  check('redeclaring 30 days does NOT carry the old 42-day spend forward (30 left, not -12)', w2.daysLeft === 30, String(w2.daysLeft));
+
+  wlog = wlog.concat([{ type: 'buy', cat: 'feature', cost: 12, payload: { v: 'Y' }, label: 'Y', ts: 4000 }]);
+  led2 = wealthLedger(wlog, { band: 'standard' });
+  w2 = wealthWithDm(led2, { window: resolveDowntimeWindow({ events: wlog }) });
+  check('spending again under the smaller window overdraws it (30 - 42 = -12)', w2.daysLeft === -12, String(w2.daysLeft));
+}
 
 console.log('\n[economy] engine — which band is in force');
 const setLog = [{ type: 'econSetting', payload: { band: 'fast' } }, { type: 'econSetting', payload: { band: 'standard' } }];
@@ -308,6 +384,44 @@ check('at least one tile shows a gold price', tiles.sample.some(t => /gp/.test(t
 check('free low-tier purchases are labelled free, not left blank',
       tiles.sample.some(t => /free of coin and time/.test(t)) || tiles.count > 0);
 
+// Solo self-declare: a real browser-driven proof that declaring a NEW downtime window replaces the
+// old one rather than adding to it — using genuinely distinct `ts` values (not the coincidental
+// ts=0 the tests above share), so this actually exercises the reset, not just the sum-vs-latest
+// logic in isolation. Also proves gold keeps accumulating across the same event type that resets
+// downtime — the asymmetry openWallet()/wealthLedger() are built on.
+const solo = await page.evaluate(() => {
+  const out = {};
+  LOG.length = 0; SEQ = 0;
+  LOG.push({ type: 'create', seq: SEQ++, ts: 100 });
+  LOG.push({ type: 'creationLockConfig', payload: { auto: true, threshold: 5 }, seq: SEQ++, ts: 100 });
+  LOG.push({ type: 'econSetting', payload: { band: 'standard' }, seq: SEQ++, ts: 100 });
+  LOG.push({ type: 'wealth', payload: { days: 90 }, seq: SEQ++, ts: 500 });                          // declare a 90-day window
+  LOG.push({ type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', seq: SEQ++, ts: 900 });  // crosses the lock
+  LOG.push({ type: 'buy', cat: 'feature', cost: 12, payload: { v: 'X' }, label: 'X', seq: SEQ++, ts: 2000 });        // in play: 350gp/42d
+  render();
+  out.afterFirstSpend = _lsWallet(null).daysLeft;    // 90 - 42 = 48
+
+  LOG.push({ type: 'wealth', payload: { gp: 300, days: 30 }, seq: SEQ++, ts: 3000 });   // redeclare: 30 days, +300 gp
+  render();
+  out.afterRedeclare = _lsWallet(null).daysLeft;     // 30, NOT 90-42+30-42 or any accumulation
+  out.goldAfterRedeclare = _lsWallet(null).gpGranted; // 300 — gold still accumulates independently
+
+  LOG.push({ type: 'buy', cat: 'feature', cost: 12, payload: { v: 'Y' }, label: 'Y', seq: SEQ++, ts: 4000 });        // another 42d, now under the smaller window
+  render();
+  out.afterSecondSpend = _lsWallet(null).daysLeft;   // 30 - 42 = -12
+  out.walletLineAfterSecondSpend = (document.querySelector('.ecoline.gtline') || {}).textContent || '';
+  return out;
+});
+check('after the first in-play spend under a 90-day window: 48 left', solo.afterFirstSpend === 48, String(solo.afterFirstSpend));
+check('redeclaring 30 days does NOT carry the earlier 42-day spend forward (30 left, not overdrawn)',
+      solo.afterRedeclare === 30, String(solo.afterRedeclare));
+check('gold keeps accumulating across the SAME event that just reset downtime (300 gp)',
+      solo.goldAfterRedeclare === 300, String(solo.goldAfterRedeclare));
+check('spending again under the smaller window overdraws it (30 - 42 = -12)',
+      solo.afterSecondSpend === -12, String(solo.afterSecondSpend));
+check('the wallet line reflects the overdraft after the second spend',
+      /overdrawn/.test(solo.walletLineAfterSecondSpend), solo.walletLineAfterSecondSpend.slice(0, 130));
+
 /* ======================================================================
  * 3. DM CONSOLE — the campaign-wide band dial (the DM's half of "configurable").
  * ====================================================================== */
@@ -348,6 +462,69 @@ check('a Standard campaign round-trips', dm.standard === 'standard', dm.standard
 check('a Fast campaign round-trips', dm.fast === 'fast', dm.fast);
 check('an unknown stored token fails closed to off', dm.bogus === 'off', dm.bogus);
 check('the panel explains the chosen band', /./.test(dm.absentBlurb), dm.absentBlurb.slice(0, 60));
+
+// The Award AP form: gold and bonus-time fields appear ONLY when the campaign plays with the
+// economy on ("same area as AP awards... extend to include time (and bonus time)" — owner), and
+// this character's own composed window (window._dmDowntimeWindows, populated by loadRoster()'s
+// N-parallel get_downtime_window() calls in the real app) shows on the read-only line above the
+// form. Driven via window._dmAwardBodyTest — no live Supabase roster needed, mirroring
+// window._dmRulesPanel's own reasoning just above.
+console.log('\n[economy] DM Console — Award AP/gold/bonus-time form');
+const dmAward = await dmPage.evaluate(() => {
+  if (!window._dmAwardBodyTest) return { missing: true };
+  const out = {};
+  window._dmCampaignApRules = { campaignId: 'campX', rules: {} };
+  out.offHtml = window._dmAwardBodyTest('char1', { ap: 10, gold: 0 });
+
+  window._dmCampaignApRules = { campaignId: 'campX', rules: { economy: { band: 'standard' } } };
+  window._dmDowntimeWindows = { char1: { days: 48, declaredAt: new Date(0).toISOString() } };
+  out.onHtml = window._dmAwardBodyTest('char1', { ap: 10, gold: 500 });
+
+  window._dmDowntimeWindows = {};   // this character's window was never fetched/resolved
+  out.onNoWindowHtml = window._dmAwardBodyTest('char1', { ap: 10, gold: 0 });
+  return out;
+});
+check('DM Console: the award-form test seam exists', !dmAward.missing);
+check('economy off: no gold field on the award form', dmAward.offHtml != null && !/award-gold/.test(dmAward.offHtml));
+check('economy off: no bonus-time field either', !/award-bonus-days/.test(dmAward.offHtml || ''));
+check('economy on: the gold field appears', /award-gold/.test(dmAward.onHtml || ''));
+check('economy on: the bonus-time field appears', /award-bonus-days/.test(dmAward.onHtml || ''));
+check('economy on: gold granted is shown on the read-only line', /500/.test(dmAward.onHtml || '') && /Gold granted/.test(dmAward.onHtml || ''));
+check('economy on: this character\'s composed window is shown (48 = 6 weeks)', /6 weeks/.test(dmAward.onHtml || ''), (dmAward.onHtml || '').slice(0, 200));
+check('economy on, no window resolved yet: says so rather than a stale/blank number',
+      /no window declared yet/.test(dmAward.onNoWindowHtml || ''), (dmAward.onNoWindowHtml || '').slice(0, 200));
+
+// The party-wide downtime control — ONE declaration for the whole table, living above the roster,
+// not on any one card (O2 — the owner's answer to "should this be per-character or bulk").
+console.log('\n[economy] DM Console — party-wide downtime control');
+const dmParty = await dmPage.evaluate(() => {
+  if (!window._dmPartyDowntimeTest || !window._dmSetCampIdTest) return { missing: true };
+  const out = {};
+  const el = document.getElementById('campDowntime');
+  window._dmSetCampIdTest('campX');
+
+  window._dmCampaignApRules = { campaignId: 'campX', rules: {} };   // economy off
+  window._dmPartyWindow = null;
+  window._dmPartyDowntimeTest.render();
+  out.offHtml = el ? el.innerHTML : null;
+
+  window._dmCampaignApRules = { campaignId: 'campX', rules: { economy: { band: 'standard' } } };
+  window._dmPartyWindow = null;   // on, but nothing declared yet
+  window._dmPartyDowntimeTest.render();
+  out.onNoWindowHtml = el ? el.innerHTML : null;
+
+  window._dmPartyWindow = { days: 90, declaredAt: new Date(0).toISOString() };
+  window._dmPartyDowntimeTest.render();
+  out.onWithWindowHtml = el ? el.innerHTML : null;
+  return out;
+});
+check('DM Console: the party-downtime test seam exists', !dmParty.missing);
+check('economy off: the party control renders nothing', dmParty.offHtml === '', JSON.stringify(dmParty.offHtml));
+check('economy on, nothing declared: says so plainly', /No window declared yet/.test(dmParty.onNoWindowHtml || ''), (dmParty.onNoWindowHtml || '').slice(0, 160));
+check('economy on, a window is live: shows its size (3 months)', /3 months/.test(dmParty.onWithWindowHtml || ''), (dmParty.onWithWindowHtml || '').slice(0, 200));
+check('the control carries a single declare action, not per-character', /declare-btn/.test(dmParty.onWithWindowHtml || ''));
+check('...and warns that declaring again replaces the window rather than adding to it',
+      /replaces the old one/.test(dmParty.onWithWindowHtml || ''), (dmParty.onWithWindowHtml || '').slice(0, 300));
 
 /* ======================================================================
  * 4. CHARGEN — forward-looking labels on a form where nothing is charged.

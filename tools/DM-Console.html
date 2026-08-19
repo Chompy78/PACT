@@ -555,6 +555,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       <button type="button" class="btn sm" id="refreshRosterBtn" style="margin-left:auto">⟳ Refresh</button>
     </div>
     <div class="tbtoolbar" id="xToolbar" style="display:none"><button class="colbtn" id="xBtn" type="button">🧩 Customise boxes ▾</button><div class="colpanel" id="xPanel"></div></div>
+    <div id="campDowntime"></div>
     <div id="campRoster"><div class="camp-empty">Select a campaign in the panel above to load the live roster.</div></div>
   </div>
 
@@ -1423,48 +1424,51 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
          '<button type="button" class="btn sm dm-notes-save" data-cid="'+esc(id)+'">Save label &amp; notes</button>' +
          '<span class="dm-notes-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
     h += customFieldValuesBody(id, dm);
-    h += '<div class="ruleblock"><div class="lbl">Award AP</div><div class="award-form">' +
-         '<input type="number" value="0" step="1" class="award-amt" data-cid="'+esc(id)+'" title="AP amount (negative to deduct)">' +
-         '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">' +
-         '<button type="button" class="btn sm award-btn" data-cid="'+esc(id)+'">Award</button></div>' +
-         '<span class="award-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
-    h += wealthBody(id, dm);
+    h += awardBody(id, dm);
     h += dmEditBody(id, curBoons);
     h += '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'">📒 AP history</button>' +
          '<button type="button" class="btn sm danger unbind-btn" data-cid="'+esc(id)+'" style="margin-left:8px">Remove from campaign</button>';
     return h;
   }
-  // Gold and downtime (Players Guide §16), the DM half. This is the surface the owner's requirement
-  // names directly: "in a campaign world, the DM is the one who applies the money." A player has no
-  // grant on characters.gold / characters.downtime_days at all, so this form and the award_wealth()
-  // RPC behind it are the only way either number moves.
+  // Award AP, gold, and bonus time — ONE form, in ONE place, because the owner asked for gold to
+  // live "same area as AP awards" and for that form to "extend to include time (and bonus time)".
+  // Gold and AP are both per-character and additive (banking totals); bonus time is per-character
+  // too, but it composes differently — it is EXTRA days for this one character alone, on top of
+  // whichever party-wide window is currently live (see the campDowntime control above the roster
+  // for declaring that base), and it resets the moment a new base window is declared, exactly like
+  // the base itself does. See js/engine.js's resolveDowntimeWindow()/wealthWithDm() header for why
+  // gold and downtime compose so differently.
   //
-  // Hidden entirely when the campaign plays with the economy off — granting coin into a campaign that
-  // tracks none would be a form with no meaning, and its presence would imply the economy was running.
-  // Reads the same window._dmCampaignApRules the custom-fields body below uses (the cross-boundary
-  // seam between this script block and the campaign-settings one).
-  //
-  // Downtime is entered in DAYS, matching the column and the engine's canonical unit; the label spells
-  // that out because the guide's own tables speak in weeks and months, and a DM typing "6" meaning six
-  // weeks would otherwise silently grant six days.
-  function wealthBody(id, dm){
-    var rules = window._dmCampaignApRules || {};
-    var band = (rules.economy && rules.economy.band) || 'off';
-    if(band === 'off') return '';
-    var bandLabel = (window.DATA && DATA.economyBands && DATA.economyBands[band]) ? DATA.economyBands[band].label : band;
-    var fmt = (window._engineEcon && window._engineEcon.formatDowntime) ? window._engineEcon.formatDowntime : function(n){ return n + ' days'; };
-    return '<div class="kvs" style="margin-top:8px">' +
-      '<div class="kvrow"><span class="kk" title="Gold you have granted this character (the characters.gold column). What they have SPENT is derived from their own log by the engine and shown on their sheet, never stored here.">Gold granted <span style="opacity:.6">&#9432;</span></span><span class="vv">' + Number(dm.gold||0).toLocaleString() + ' gp</span></div>' +
-      '<div class="kvrow"><span class="kk" title="Downtime you have granted this character, in days.">Downtime granted <span style="opacity:.6">&#9432;</span></span><span class="vv">' + esc(fmt(Number(dm.downtimeDays||0))) + '</span></div>' +
-      '</div>' +
-      '<div class="ruleblock"><div class="lbl">Grant gold &amp; downtime <span style="opacity:.7;font-weight:400">(' + esc(bandLabel) + ' band — negative deducts)</span></div>' +
-      '<div class="award-form">' +
-      '<input type="number" value="0" step="1" class="wealth-gold" data-cid="'+esc(id)+'" title="Gold in gp (negative to deduct)" placeholder="gp">' +
-      '<input type="number" value="0" step="1" class="wealth-days" data-cid="'+esc(id)+'" title="Downtime in DAYS (negative to deduct). 1 week = 7, 1 month = 30, 1 year = 365." placeholder="days">' +
-      '<input type="text" placeholder="note" class="wealth-note" data-cid="'+esc(id)+'">' +
-      '<button type="button" class="btn sm wealth-btn" data-cid="'+esc(id)+'">Grant</button></div>' +
-      '<div style="font-size:11px;opacity:.75;margin-top:3px">Downtime is in <b>days</b> — 1 week = 7, 1 month = 30, 1 year = 365.</div>' +
-      '<span class="wealth-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
+  // The gold/bonus-time fields are omitted entirely when the campaign plays with the economy off —
+  // granting coin or time into a campaign that tracks none would be fields with no meaning, and
+  // their presence would imply the economy was running. Reads window._dmCampaignApRules.rules, the
+  // same cache the campaign-settings body populates (the cross-boundary seam between this script
+  // block and that one).
+  function awardBody(id, dm){
+    var rules = (window._dmCampaignApRules && window._dmCampaignApRules.rules) || {};
+    var band = window._engineEcon ? window._engineEcon.economySetting(rules) : 'off';
+    var econOn = band !== 'off';
+    var fmt = (window._engineEcon && window._engineEcon.formatDowntime) ? window._engineEcon.formatDowntime : function(n){ return n+' days'; };
+    var h = '';
+    if(econOn){
+      var win = (window._dmDowntimeWindows || {})[id];
+      var winTxt = win ? (esc(fmt(win.days))+' left this window') : 'no window declared yet';
+      h += '<div class="kvs" style="margin-top:8px">' +
+        '<div class="kvrow"><span class="kk" title="Gold you have granted this character (the characters.gold column). What they have SPENT is derived from their own log by the engine and shown on their sheet, never stored here.">Gold granted <span style="opacity:.6">&#9432;</span></span><span class="vv">' + Number(dm.gold||0).toLocaleString() + ' gp</span></div>' +
+        '<div class="kvrow"><span class="kk" title="This character\'s current downtime: the party\'s declared window (above the roster) plus any bonus time granted to them alone, minus what they have already spent — computed live, never stored per-character.">Downtime available <span style="opacity:.6">&#9432;</span></span><span class="vv">' + winTxt + '</span></div>' +
+        '</div>';
+    }
+    h += '<div class="ruleblock"><div class="lbl">Award AP'+(econOn?', gold &amp; bonus time':'')+'</div><div class="award-form">' +
+         '<input type="number" value="0" step="1" class="award-amt" data-cid="'+esc(id)+'" title="AP amount (negative to deduct)" placeholder="AP">';
+    if(econOn){
+      h += '<input type="number" value="0" step="1" class="award-gold" data-cid="'+esc(id)+'" title="Gold in gp (negative to deduct)" placeholder="gp">' +
+           '<input type="number" value="0" step="1" class="award-bonus-days" data-cid="'+esc(id)+'" title="EXTRA downtime for THIS character alone, in days (negative to deduct) — on top of the party\'s current window, and reset along with it when a new one is declared." placeholder="bonus days">';
+    }
+    h += '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">' +
+         '<button type="button" class="btn sm award-btn" data-cid="'+esc(id)+'">Award</button></div>';
+    if(econOn) h += '<div style="font-size:11px;opacity:.75;margin-top:3px">Bonus time is extra days for THIS character only — declare the party\'s shared window above the roster instead.</div>';
+    h += '<span class="award-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
+    return h;
   }
   // feat/dm-custom-character-fields (D-GH-2026-08-10): per-character VALUES for whatever fields this
   // campaign currently defines. Definitions (label/type/visible) live in
@@ -2067,7 +2071,10 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     var rowName = (row.name||'').trim();
     return {
       id: row.id, summary: summary, hasData: hasData, rowName: rowName,
-      dm: { ap: row.ap||0, gold: row.gold||0, downtimeDays: row.downtime_days||0,
+      // downtimeDays deliberately absent here — downtime carries no per-character column at all
+      // (see js/dm.js's getRoster()); awardBody() reads this character's composed window off
+      // window._dmDowntimeWindows instead, populated separately by loadRoster().
+      dm: { ap: row.ap||0, gold: row.gold||0,
             player: row.player||'', playerLabel: row.playerLabel||'', dmNotes: row.dmNotes||'',
             customFields: row.customFields || {} }
     };
@@ -2124,6 +2131,10 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return customCardHTML(rec); }).join('') + '</div>';
   }
   window._dmAnalyzeTest = cloudAnalyze;   // test seam: lets tool-pricing-ci.mjs assert on the analyzed summary directly, no DOM traversal needed
+  // Test seam: lets economy-ui-e2e.mjs render the Award AP/gold/bonus-time form directly off a fake
+  // {gold, ap} `dm` object and a directly-set window._dmCampaignApRules.rules, with no live Supabase
+  // roster needed — same reasoning as window._dmAnalyzeTest/window._dmRulesPanel just above/below.
+  window._dmAwardBodyTest = awardBody;
   // test seam: renderCards() (the ≤700px table-view fallback, NOT the Card-view toggle's own #campRoster
   // cards) reads the closure-local `cloudRoster`/`roster`/`expanded`, which a page-evaluate assignment
   // from outside this IIFE can't reach (it would create unrelated window.* globals instead) — same
@@ -2161,58 +2172,85 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       // the lock was applied — or re-enabled by any means — still cannot write. Section toggles,
       // "View sheet" and "AP history" are reads and fall through untouched.
       if(window._dmPeekActive && t.closest &&
-         (t.closest('.award-btn') || t.closest('.wealth-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
+         (t.closest('.award-btn') || t.closest('.declare-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
           t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') ||
           t.closest('.cf-val-save'))){
         if(window._dmPeekBlocks) window._dmPeekBlocks();
         return;
       }
 
+      // Award AP, gold and bonus time — one button, up to three independent RPCs (only the non-zero
+      // fields fire at all), run concurrently and reported together. They are independent writes, not
+      // one atomic transaction — award_ap/award_gold/declare_downtime each guard and ledger themselves
+      // separately — so a partial failure (e.g. gold lands, AP doesn't) is reported rather than hidden,
+      // and the card still refreshes to show whatever DID land.
       var awardBtn = t.closest ? t.closest('.award-btn') : null;
       if(awardBtn && card){
         var acid = awardBtn.getAttribute('data-cid');
         var amtEl = card.querySelector('.award-amt[data-cid="'+acid+'"]');
+        var goldEl = card.querySelector('.award-gold[data-cid="'+acid+'"]');
+        var bonusEl = card.querySelector('.award-bonus-days[data-cid="'+acid+'"]');
         var noteEl = card.querySelector('.award-note[data-cid="'+acid+'"]');
         var astatus = card.querySelector('.award-status[data-cid="'+acid+'"]');
         var amt = parseFloat(amtEl&&amtEl.value)||0;
+        var gold = Math.round(parseFloat(goldEl&&goldEl.value)||0);
+        var bonus = Math.round(parseFloat(bonusEl&&bonusEl.value)||0);
         var note = (noteEl&&noteEl.value||'').trim();
-        if(amt===0){ alert('Enter a non-zero amount.'); return; }
+        if(amt===0 && gold===0 && bonus===0){ alert('Enter a non-zero AP, gold, or bonus time amount.'); return; }
         awardBtn.disabled = true;
-        B.awardAp(acid, amt, note).then(function(newAp){
-          awardBtn.disabled = false;
+        // campaignId comes off window._dmCampaignApRules, not a bare `currentCampId` — that variable
+        // belongs to a LATER script block's closure (the campaign-ready one, where loadRoster/
+        // _dmReloadRoster live); this delegation handler is a separate, earlier closure. Same
+        // cross-boundary reason window._dmPeekActive/window._dmCampaignApRules are already read via
+        // `window.*` a few lines up rather than as bare names.
+        var campId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
+        var jobs = [];
+        if(amt!==0) jobs.push(B.awardAp(acid, amt, note).then(function(newAp){
           var entry = cloudRoster.filter(function(x){return String(x.id)===String(acid);})[0];
           if(entry){ entry.dm.ap = newAp; }
-          renderCloudRoster(el);
-        }).catch(function(err){ awardBtn.disabled=false; if(astatus) astatus.textContent=''; alert('Award failed: '+err.message); });
+        }));
+        if(gold!==0) jobs.push(B.awardGold(acid, gold, note).then(function(row){
+          var entry = cloudRoster.filter(function(x){return String(x.id)===String(acid);})[0];
+          if(entry && row){ entry.dm.gold = row.gold||0; }
+        }));
+        if(bonus!==0) jobs.push(B.declareDowntime(campId, bonus, acid, note));
+        Promise.allSettled(jobs).then(function(results){
+          awardBtn.disabled = false;
+          var errs = results.filter(function(r){return r.status==='rejected';})
+                             .map(function(r){return (r.reason&&r.reason.message)||String(r.reason);});
+          // A bonus changes this character's composed downtime total, which lives in a cache
+          // (window._dmDowntimeWindows) this closure cannot refresh itself — window._dmReloadRoster
+          // is the SAME cross-boundary bridge feat/dm-edit-events already uses for "something changed
+          // that a local field patch can't express, re-fetch the whole roster". AP/gold-only awards
+          // skip it and use the cheaper local patch + render instead.
+          if(bonus!==0 && window._dmReloadRoster) window._dmReloadRoster();
+          else renderCloudRoster(el);
+          if(errs.length) alert('Some awards failed: '+errs.join('; '));
+        });
         return;
       }
 
-      // Grant gold and downtime (Players Guide §16). Deliberately shaped exactly like Award AP just
-      // above — one RPC, patch the one card, re-render — because it IS the same kind of action on the
-      // same trust boundary: a server-authoritative pool only a DM can move. Both currencies go in one
-      // call because award_wealth() writes one ledger row for the pair.
-      var wealthBtn = t.closest ? t.closest('.wealth-btn') : null;
-      if(wealthBtn && card){
-        var wcid = wealthBtn.getAttribute('data-cid');
-        var wGoldEl = card.querySelector('.wealth-gold[data-cid="'+wcid+'"]');
-        var wDaysEl = card.querySelector('.wealth-days[data-cid="'+wcid+'"]');
-        var wNoteEl = card.querySelector('.wealth-note[data-cid="'+wcid+'"]');
-        var wStatus = card.querySelector('.wealth-status[data-cid="'+wcid+'"]');
-        var wGold = Math.round(parseFloat(wGoldEl&&wGoldEl.value)||0);
-        var wDays = Math.round(parseFloat(wDaysEl&&wDaysEl.value)||0);
-        var wNote = (wNoteEl&&wNoteEl.value||'').trim();
-        // Mirrors award_wealth()'s own server-side guard, so the common mistake (hitting Grant with
-        // both boxes at 0) is caught here rather than as a raised exception from Postgres.
-        if(wGold===0 && wDays===0){ alert('Enter a non-zero amount of gold or downtime.'); return; }
-        wealthBtn.disabled = true;
-        B.awardWealth(wcid, wGold, wDays, wNote).then(function(row){
-          wealthBtn.disabled = false;
-          var wEntry = cloudRoster.filter(function(x){return String(x.id)===String(wcid);})[0];
-          // Trust the returned ROW, not local arithmetic: another DM may have granted in the meantime,
-          // and the row is what the database actually holds after this write landed.
-          if(wEntry && row){ wEntry.dm.gold = row.gold||0; wEntry.dm.downtimeDays = row.downtime_days||0; }
-          renderCloudRoster(el);
-        }).catch(function(err){ wealthBtn.disabled=false; if(wStatus) wStatus.textContent=''; alert('Grant failed: '+err.message); });
+      // The party-wide downtime declaration (Players Guide §16) — replaces the current window for
+      // EVERY character in the campaign at once, so it goes through window._dmReloadRoster (the same
+      // cross-boundary full-refresh bridge feat/dm-edit-events uses) to re-resolve the party base,
+      // every roster character's own composed total, and repaint both the control and the roster in
+      // one pass — a bonus granted under the old window is wiped by this exact same call, on the
+      // server, simply by virtue of get_downtime_window() only ever reading the LATEST base row.
+      var declareBtn = t.closest ? t.closest('.declare-btn') : null;
+      if(declareBtn){
+        var dEl = document.getElementById('campDowntime');
+        var daysEl = dEl && dEl.querySelector('.declare-days');
+        var dNoteEl = dEl && dEl.querySelector('.declare-note');
+        var dStatus = dEl && dEl.querySelector('.declare-status');
+        var days = Math.round(parseFloat(daysEl&&daysEl.value)||0);
+        var dNote = (dNoteEl&&dNoteEl.value||'').trim();
+        var dCampId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
+        if(!daysEl || daysEl.value===''){ alert('Enter the new window size in days.'); return; }
+        declareBtn.disabled = true;
+        B.declareDowntime(dCampId, days, null, dNote).then(function(){
+          declareBtn.disabled = false;
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){ declareBtn.disabled=false; if(dStatus) dStatus.textContent=''; alert('Declare failed: '+err.message); });
         return;
       }
 
@@ -2418,13 +2456,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
-  import { getRoster, awardAp, awardWealth, getWealthHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
+  import { getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardWealth, getWealthHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -2820,6 +2858,13 @@ document.addEventListener('campaign-ready', function () {
   // branch that breaks silently and is impossible to reach from outside this closure. Exposed so
   // testing/scripts/dm-console-ui-e2e.mjs can drive it; nothing in the app calls it through window.
   window._dmRulesPanel = { load: loadRulesIntoPanel };
+  // Test seam: lets economy-ui-e2e.mjs render/inspect the party-wide downtime control without a live
+  // Supabase campaign — same reasoning as window._dmRulesPanel immediately above.
+  window._dmPartyDowntimeTest = { render: _renderPartyDowntime };
+  // Test seam: currentCampId is closure-local (this closure, not the earlier "UI layer" one), and
+  // _renderPartyDowntime()/awardBody() both gate on it being set — same reasoning as every other
+  // window._dm*Test seam here, letting the gate drive real rendering without a live campaign select.
+  window._dmSetCampIdTest = function(id){ currentCampId = id; };
   // Advancement-dial helpers (feat/advancement-tracks): live L20 preview + preset↔field sync.
   // DATA tables are read lazily inside each handler so a panel opened before engine-ready
   // still wires up (falling back to the preset defaults until DATA arrives).
@@ -3031,7 +3076,15 @@ document.addEventListener('campaign-ready', function () {
       // closure, same cross-boundary seam _dmCampaignApRules already exists for). Refresh it and
       // re-render so a definition change (a renamed/removed/newly-visible field) shows immediately,
       // without needing a campaign reselect.
-      if(window._dmCampaignApRules) window._dmCampaignApRules.customFields = rules.customFields;
+      //
+      // `.rules` too, as of the same fix — THIS is the save that actually sets the economy band
+      // (ruleEconomyBand, above), so without refreshing it here the gold/bonus-time award fields and
+      // the party-wide downtime control would keep reading whatever band was cached at the last
+      // campaign SELECT, not what the DM just chose.
+      if(window._dmCampaignApRules){
+        window._dmCampaignApRules.customFields = rules.customFields;
+        window._dmCampaignApRules.rules = rules;
+      }
       loadRoster(currentCampId);
     } catch(err){
       ruleSaveStatus.textContent = 'Error: '+err.message;
@@ -3196,10 +3249,12 @@ document.addEventListener('campaign-ready', function () {
       campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none';
       dmNotesText.value = ''; dmNotesStatus.textContent = '';
       window._dmCampaignApRules = null;   // no campaign selected → no DM AP context to price against
+      window._dmPartyWindow = null; window._dmDowntimeWindows = {};
       _renderPeekState();   // clears the banner and releases the lock
       renderCampWarnings();   // clears any warnings left over from the previous campaign
       // Deselecting a campaign must also clear the cloud roster — see the sign-out branch above for why.
       if(window._dmRenderCloudRoster) window._dmRenderCloudRoster(campRoster, []);
+      var _cd = document.getElementById('campDowntime'); if(_cd) _cd.innerHTML = '';
       setImportPanelDimmed(false);
       return;
     }
@@ -3217,8 +3272,15 @@ document.addEventListener('campaign-ready', function () {
     // earlier UI-layer IIFE — a separate closure, hence the window seam). Set BEFORE loadRoster()
     // below, so the first paint already has it; a campaign switch re-fetches the roster, so the two
     // can't disagree.
+    // `.rules` carries the WHOLE campaign rules object (not just economy) so every read site can
+    // call economySetting(window._dmCampaignApRules.rules) for the band — one fallback-to-'off'
+    // rule, in the engine, rather than each call site re-deriving it. Fixes a real bug: this object
+    // never carried `.economy` at all before feat/tool-coin-time-costs's downtime revision, so the
+    // gold/bonus-time award fields and the party-wide downtime control were silently unreachable —
+    // every read of a (missing) `.economy.band` fell through to 'off' and hid them unconditionally.
     window._dmCampaignApRules = { ignorePlayerAp: !!camp.ignore_player_ap, campaignId: camp.id,
-                                   customFields: (camp.rules && camp.rules.customFields) || {} };
+                                   customFields: (camp.rules && camp.rules.customFields) || {},
+                                   rules: camp.rules || {} };
     // "Archive this campaign" is meaningless on one that already is — hide it outright rather than
     // show a disabled danger button the DM has to reason about.
     campArchiveBlock.style.display = (camp.isOwner && !peekCamp) ? '' : 'none';
@@ -3422,8 +3484,13 @@ document.addEventListener('campaign-ready', function () {
       // Update the rules the cards price against and re-fetch — the tooltip promises this "can change
       // several players' budgets at once", and the DM should see that happen rather than take it on
       // trust. Also update the local campaign record so a re-select doesn't revert to the old value.
-      window._dmCampaignApRules = { ignorePlayerAp: ignoreChk.checked, campaignId: currentCampId };
       var _c = currentCampaigns.find(function(c){ return c.id === currentCampId; });
+      // Preserve customFields/rules across this toggle, same object shape selectCampaign() builds —
+      // without this the economy band (and the gold/downtime forms it gates) would vanish the instant
+      // a DM flipped ignore-player-AP, until the next campaign reselect brought it back.
+      window._dmCampaignApRules = { ignorePlayerAp: ignoreChk.checked, campaignId: currentCampId,
+                                     customFields: (_c && _c.rules && _c.rules.customFields) || {},
+                                     rules: (_c && _c.rules) || {} };
       if(_c) _c.ignore_player_ap = ignoreChk.checked;
       loadRoster(currentCampId);
     } catch(err){
@@ -3848,10 +3915,62 @@ document.addEventListener('campaign-ready', function () {
     _renderPeekState();
   }
 
+  // Fetches the party's current downtime window plus every roster character's own total (base +
+  // any bonus) in parallel, caching both onto `window` for dmToolsBody()/the party control to read
+  // SYNCHRONOUSLY at render time — card rendering is synchronous string-building, so the data has
+  // to already be in hand before it starts, the same reason window._dmCampaignApRules is a cache
+  // rather than a per-render fetch.
+  //
+  // Deliberately N+1 round trips (one get_downtime_window call per character) rather than a bulk
+  // fetch + client-side base/bonus composition: a roster is small, this runs once per campaign
+  // load/refresh rather than per keystroke, and it keeps the "base + bonus since base" arithmetic
+  // in exactly ONE place — the SQL function — instead of a second JS copy that could drift from it.
+  //
+  // Non-fatal per character, mirroring _lsResolveDmAp's tolerance in the Live Sheet: a network
+  // hiccup on one lookup must not blank out the whole roster's downtime display.
+  async function _refreshDowntimeWindows(campId, characterIds){
+    window._dmPartyWindow = null;
+    window._dmDowntimeWindows = {};
+    var rules = (window._dmCampaignApRules && window._dmCampaignApRules.rules) || {};
+    var band = window._engineEcon ? window._engineEcon.economySetting(rules) : 'off';
+    if(band === 'off' || !campId) return;
+    try { window._dmPartyWindow = await B.getDowntimeWindow(campId, null); } catch(e){ /* leave null — treated as "no window declared" */ }
+    await Promise.all((characterIds||[]).map(function(cid){
+      return B.getDowntimeWindow(campId, cid).then(function(w){ window._dmDowntimeWindows[cid] = w; })
+        .catch(function(){ /* leave unset for this one character; the rest still render */ });
+    }));
+  }
+
+  // The party-wide downtime control (Players Guide §16) — ONE declaration for the whole table, not
+  // per-character, which is why it lives here (above the roster) rather than on any one card. Hidden
+  // entirely when the campaign plays with the economy off, same reasoning the award form's gold/
+  // bonus-time fields use.
+  function _renderPartyDowntime(){
+    var el = document.getElementById('campDowntime'); if(!el) return;
+    var rules = (window._dmCampaignApRules && window._dmCampaignApRules.rules) || {};
+    var band = window._engineEcon ? window._engineEcon.economySetting(rules) : 'off';
+    if(band === 'off' || !currentCampId){ el.innerHTML=''; return; }
+    var fmt = (window._engineEcon && window._engineEcon.formatDowntime) ? window._engineEcon.formatDowntime : function(n){ return n+' days'; };
+    var w = window._dmPartyWindow;
+    var cur = w ? ('<b>'+esc(fmt(w.days))+'</b> <span style="opacity:.7">declared '+new Date(w.declaredAt).toLocaleDateString()+'</span>')
+                : '<span style="opacity:.7">No window declared yet — every character shows an immediate overdraft until you declare one.</span>';
+    el.innerHTML = '<div class="ruleblock" style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">' +
+      '<div class="lbl">🕐 Party downtime window <span style="opacity:.7;font-weight:400">— applies to every character in this campaign at once</span></div>' +
+      '<div style="margin:4px 0 8px">'+cur+'</div>' +
+      '<div class="award-form">' +
+      '<input type="number" step="1" class="declare-days" placeholder="days" title="The new window size, in days (1 week = 7, 1 month = 30, 1 year = 365). Replaces the current window for everyone — it does not add to it.">' +
+      '<input type="text" class="declare-note" placeholder="note — e.g. &quot;three months pass before the siege&quot;">' +
+      '<button type="button" class="btn sm declare-btn">Declare for the party</button></div>' +
+      '<div style="font-size:11px;opacity:.75;margin-top:3px">Declaring a new window replaces the old one for everyone — unspent time from the last window is gone, not banked. Downtime is in <b>days</b>.</div>' +
+      '<span class="declare-status" style="font-size:11px;color:var(--muted)"></span></div>';
+  }
+
   async function loadRoster(campId){
     campRoster.innerHTML = '<div class="camp-empty">Loading…</div>';
     var rows;
     try { rows = await B.getRoster(campId); } catch(err){ campRoster.innerHTML='<div class="camp-empty">Error: '+esc(err.message)+'</div>'; return; }
+    await _refreshDowntimeWindows(campId, rows.map(function(r){ return r.id; }));
+    _renderPartyDowntime();
     _paintRoster(rows);
   }
   // feat/dm-edit-events: cross-boundary reload — wireCloudRosterDelegation (a separate IIFE, outside

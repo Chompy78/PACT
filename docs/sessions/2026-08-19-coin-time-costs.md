@@ -101,3 +101,72 @@ left"), which was then fixed in the tool.
 - **The migration is written but not applied** to the live Supabase project — applying it is a
   shared-state action for the owner to authorize, and `get_advisors` should run immediately after per
   `AGENTS.md` step 4.
+
+## Part two, same day — the DM-as-bookkeeper model was wrong
+
+After the above shipped and was applied to the live project, the owner asked to walk through the
+actual table flow: a player wants to buy something, sees the price, tells the DM they have the money
+and time, and the DM agrees or doesn't.
+
+Working through that concretely — not in the abstract — surfaced that gold and downtime had been
+built as twins (both DM-granted, per-character, accumulating), and that this was wrong specifically
+for downtime. The tell was practical, not theoretical: switching the economy on in a real campaign
+would have marked every existing character permanently overdrawn (nobody had a balance yet), and from
+then on the DM would have had to hand-type a downtime figure into every character's card, every
+session, forever — exactly the "right of PITA" the owner flagged early in the conversation, just
+relocated rather than solved.
+
+### The corrected model, arrived at through several rounds of tiered A/B choices
+
+- Gold banks — per character, accumulates. This part of the original build was already right.
+- Downtime is a single window, declared for the whole party at once, that **replaces** the last
+  declaration rather than adding to it. "The time should not keep adding up... spend it now or wait
+  till another opportunity" (owner, verbatim — this sentence is the whole design).
+- The natural moment to declare it is the same moment the DM already awards AP. That's why gold ended
+  up folded into the *existing* Award AP form ("same area as AP awards") while downtime got its own
+  separate control — a party-wide value cannot live on a per-character form without either re-typing
+  it once per player or risking drift between cards.
+- A DM can additionally grant one character bonus time on top of the live base — same form as gold —
+  and it resets along with the base (owner's answer to a direct A/B: **S1**, "resets with the window",
+  over S2 "persists independently"), so there is one reset rule for the whole currency, not two.
+
+### Why this was worth fixing same-day rather than filing as a follow-up
+
+The original migration had been live for hours with every character still at 0/0 and no campaign
+using the economy yet — the cheapest possible moment a data model can be wrong. A day later, with
+real balances against the old shape, the same fix would have needed a data migration instead of a
+straight `ALTER`/`DROP`.
+
+### What the rebuild touched
+
+Bigger than it might sound from "one field changed shape": `characters.downtime_days` dropped
+entirely; `wealth_awards` renamed to `gold_awards` (downtime column dropped); a new
+`campaign_downtime_declarations` ledger table plus two new RPCs
+(`declare_downtime`/`get_downtime_window`); `js/engine.js` gained `resolveDowntimeWindow()` and a
+rewritten `wealthWithDm()` where gold and downtime are computed by genuinely different logic for the
+first time; both the DM Console and Live Sheet needed real UI surgery, not just a relabel.
+
+One thing worth naming: this is the *second* real, unrelated bug this feature's build surfaced by
+forcing a close read of adjacent code — `window._dmCampaignApRules` never carried the campaign's
+`economy` band at any of its three assignment sites, which meant the original gold/downtime grant
+form could never have rendered in any real campaign, regardless of what the DM chose. Neither this
+nor the earlier PWA cache bug (see Part one) would have been caught by a review focused only on the
+new code; both came from tracing how the new code's inputs actually reached it.
+
+### Testing
+
+The gate grew from 120 to 151 checks, with new coverage for: gold-vs-downtime composition,
+`resolveDowntimeWindow()`'s full campaign-vs-solo precedence, a window being replaced end-to-end using
+*genuinely* distinct event timestamps (the earlier scenarios in the same file all coincidentally share
+`ts=0`, which would have hidden a reset bug), the DM Console's award-form fields appearing and
+disappearing correctly, and the new party-wide control. Verified red on both rules that actually
+matter: reverting the window to sum-instead-of-replace failed 6 checks; silently zeroing an undeclared
+window's overdraft failed 1.
+
+### Still open
+
+- The follow-up migration exists on disk (`2026-08-19-downtime-window-revision.sql`) but was not
+  applied in this pass — same "shared, hard-to-reverse state" reasoning as the first migration: it
+  needs its own explicit go-ahead and `get_advisors` check.
+- Concurrent-training overlap and the DM-side per-purchase discount UI remain deferred, as decided in
+  Part one — nothing about the downtime redesign changes that reasoning.

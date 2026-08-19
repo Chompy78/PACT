@@ -176,15 +176,20 @@ create table if not exists public.characters (
   -- true for every character, existing and new -- not retroactive enrollment in the sense a one-way
   -- consent flag would be, because this is immediately visible and immediately reversible.
   autosave_enabled boolean not null default true,
-  -- Gold-and-downtime economy (Players Guide §2/§16). DM-authoritative, exactly like `ap`:
-  -- never written by players, only through award_wealth(). These hold what the DM has
-  -- GRANTED; what the character has SPENT is derived from its own LOG by the engine
-  -- (wealthLedger()), never stored -- same rule that keeps HP/AC/AP derived. Downtime is in
-  -- DAYS (the engine's canonical unit). Both may go negative: §17 lets a DM waive or defer
+  -- Gold (Players Guide §2/§16). DM-authoritative, exactly like `ap`: never written by
+  -- players, only through award_gold(). Holds what the DM has GRANTED; what the character
+  -- has SPENT is derived from its own LOG by the engine (wealthLedger()), never stored --
+  -- same rule that keeps HP/AC/AP derived. May go negative: §17 lets a DM waive or defer
   -- any cost, so an overdraft is a table ruling the tools show as a soft warning, not a
   -- database error. See sql/migrations/2026-08-19-dm-gold-downtime-economy.sql.
-  gold          integer not null default 0,
-  downtime_days integer not null default 0
+  --
+  -- Downtime does NOT live here (revised same day -- see
+  -- sql/migrations/2026-08-19-downtime-window-revision.sql). Gold banks per character and
+  -- accumulates; downtime does not -- it is a single PARTY-WIDE window the DM declares, which
+  -- REPLACES the last one rather than adding to it ("spend it now or wait till another
+  -- opportunity" -- owner). A per-character accumulating column was the wrong shape for that
+  -- and was dropped before any real campaign used it. See campaign_downtime_declarations below.
+  gold integer not null default 0
 );
 
 create index if not exists idx_characters_owner    on public.characters(owner_id);
@@ -211,23 +216,58 @@ create table if not exists public.ap_awards (
 create index if not exists idx_ap_awards_char on public.ap_awards(character_id);
 
 -- ---------------------------------------------------------------------------
--- wealth_awards — the gold/downtime award ledger, the twin of ap_awards above.
--- award_wealth() writes a row stamped with the calling DM and bumps BOTH running
--- totals on characters. One row carries both currencies on purpose: a single table
--- ruling ("the hoard, and the winter you spent training") is one ledger line, not
--- two unrelated ones. Either amount may be zero, and either may be negative.
+-- gold_awards — the gold award ledger, the twin of ap_awards above. award_gold() writes a
+-- row stamped with the calling DM and bumps the running characters.gold total. May be zero
+-- or negative (a deduction), exactly like ap_awards.
+--
+-- Named for gold alone (renamed from wealth_awards the same day it was first applied,
+-- before any real campaign used it -- see sql/migrations/2026-08-19-downtime-window-
+-- revision.sql): downtime turned out not to share gold's shape (per-character, accumulating)
+-- at all, so keeping both currencies in one ledger row would have been modelling two
+-- different things as one. See campaign_downtime_declarations below for downtime's own,
+-- differently-shaped ledger.
 -- ---------------------------------------------------------------------------
-create table if not exists public.wealth_awards (
-  id            uuid primary key default gen_random_uuid(),
-  character_id  uuid not null references public.characters(id) on delete cascade,
-  dm_id         uuid references public.profiles(id) on delete set null,  -- survives DM deletion
-  campaign_id   uuid references public.campaigns(id) on delete set null,
-  gold          integer not null default 0,
-  downtime_days integer not null default 0,
-  note          text,
-  created_at    timestamptz not null default now()
+create table if not exists public.gold_awards (
+  id           uuid primary key default gen_random_uuid(),
+  character_id uuid not null references public.characters(id) on delete cascade,
+  dm_id        uuid references public.profiles(id) on delete set null,  -- survives DM deletion
+  campaign_id  uuid references public.campaigns(id) on delete set null,
+  gold         integer not null default 0,
+  note         text,
+  created_at   timestamptz not null default now()
 );
-create index if not exists idx_wealth_awards_char on public.wealth_awards(character_id);
+create index if not exists idx_gold_awards_char on public.gold_awards(character_id);
+
+-- ---------------------------------------------------------------------------
+-- campaign_downtime_declarations — the downtime ledger, and the ONLY place downtime lives.
+-- Not a running balance on `characters`: a downtime window is party-wide and REPLACES the
+-- last one rather than accumulating (owner: "the time should not keep adding up... spend it
+-- now or wait till another opportunity"), so "the current window" is simply the LATEST row,
+-- not a sum -- append-only, ledger-style, exactly like ap_awards/gold_awards, just read
+-- differently. Declaring a new window needs no reset/update logic at all: inserting a fresh
+-- row automatically supersedes the last one, and the full history stays visible for the
+-- story record (past declarations are never deleted).
+--
+-- character_id is NULLABLE and that nullability IS the design: a null row is the PARTY BASE
+-- (declared once, applies to everyone); a row naming a character is a BONUS for that
+-- character alone, layered on top of whichever base is currently live. A bonus is scoped to
+-- "extra time within the current window", not a separate persistent pool -- so declaring a
+-- new base wipes any earlier bonuses right along with it, which is why both are one table
+-- read together rather than two: computing "how much time does character X have right now"
+-- is always "latest base row's days, plus any bonus rows for X created on or after that same
+-- base row" -- see get_downtime_window() below, which does exactly that in one query.
+-- ---------------------------------------------------------------------------
+create table if not exists public.campaign_downtime_declarations (
+  id           uuid primary key default gen_random_uuid(),
+  campaign_id  uuid not null references public.campaigns(id) on delete cascade,
+  character_id uuid references public.characters(id) on delete cascade,   -- null = party base
+  days         integer not null,
+  note         text,
+  declared_by  uuid references public.profiles(id) on delete set null,    -- survives DM deletion
+  created_at   timestamptz not null default now()
+);
+create index if not exists idx_downtime_decl_campaign on public.campaign_downtime_declarations(campaign_id, created_at desc);
+create index if not exists idx_downtime_decl_char on public.campaign_downtime_declarations(character_id);
 
 -- ---------------------------------------------------------------------------
 -- character_dm_notes — DM-only per-character annotations (player-name label +

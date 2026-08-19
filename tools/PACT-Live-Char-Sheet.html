@@ -363,7 +363,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <span id="lsSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span>
 <span id="cloudStatusBadge" class="cloudstatus">🔒 Not signed in</span>
 <button class="btn g" onclick="toggleSheet()" title="Toggle the printable sheet">📋 <span class="bl">Sheet</span></button>
-<span style="position:relative;display:inline-block"><button class="btn g" onclick="toggleMore(event)" title="More tools &amp; theme">⋯ <span class="bl">More</span></button><div id="moremenu" class="moremenu"><span class="mi-theme">🎨 <select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></span><button class="mi" onclick="closeMore();openNames()">✎ Name spells &amp; languages</button><button class="mi" onclick="closeMore();openSpellBrowser()">🔍 Spell browser</button><button class="mi" id="miSpellTog" onclick="closeMore();toggleSheetSpell()">🚫 Hide spellcasting on sheet</button><button class="mi" onclick="closeMore();openBonds()">⛓ Bonds</button><button class="mi" onclick="closeMore();openEconomy()">🪙 Coin &amp; calendar</button><button class="mi" onclick="closeMore();resetAll()">↺ Reset</button><button class="mi" onclick="closeMore();showInfo()">&#x2139;&#xFE0F; Info</button></div></span>
+<span style="position:relative;display:inline-block"><button class="btn g" onclick="toggleMore(event)" title="More tools &amp; theme">⋯ <span class="bl">More</span></button><div id="moremenu" class="moremenu"><span class="mi-theme">🎨 <select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></span><button class="mi" onclick="closeMore();openNames()">✎ Name spells &amp; languages</button><button class="mi" onclick="closeMore();openSpellBrowser()">🔍 Spell browser</button><button class="mi" id="miSpellTog" onclick="closeMore();toggleSheetSpell()">🚫 Hide spellcasting on sheet</button><button class="mi" onclick="closeMore();openBonds()">⛓ Bonds</button><button class="mi" onclick="closeMore();openEconomy()">🪙 Coin &amp; calendar</button><button class="mi" onclick="closeMore();openWallet()">🎒 Record gold &amp; downtime</button><button class="mi" onclick="closeMore();resetAll()">↺ Reset</button><button class="mi" onclick="closeMore();showInfo()">&#x2139;&#xFE0F; Info</button></div></span>
 </div>
 <div class="eco" id="eco"></div>
 <div id="sheetview"><div class="shtop"><b>📋 Character Sheet</b><button class="btn" onclick="genPortraitFor(foldBuild(null))">📷 AI Portrait</button><button class="btn" onclick="window.print()">🖨 Print</button><button class="btn g" onclick="toggleSheet()">✕ Close</button></div><div id="sheetbody"></div></div>
@@ -515,6 +515,20 @@ function _lsEconBand(uptoIdx){
   });
 }
 function _lsEconOn(uptoIdx){ var E=window._engineEcon; return !!(E&&E.economyOn(_lsEconBand(uptoIdx))); }
+// The downtime window in force right now — resolveDowntimeWindow()'s own precedence (an active
+// campaign's window always wins; otherwise the character's own self-declared window from its LOG),
+// asked rather than re-implemented. Mirrors _lsEconBand's shape exactly. window._dmWindow is fetched
+// once per cloud load/campaign resolve (see _lsFetchDowntimeWindow and its call sites) — this
+// function never itself talks to the network, same reason _lsEconBand never re-reads campaign rules
+// live. Returns null if no window has ever been declared for this character.
+function _lsDowntimeWindow(uptoIdx){
+  var E=window._engineEcon; if(!E) return null;
+  return E.resolveDowntimeWindow({
+    events: eventsUpTo(uptoIdx),
+    campaignActive: window._rulesStatus==='active',
+    campaignWindow: window._dmWindow || null,
+  });
+}
 // Is the character past creation, so a purchase made NOW costs coin and calendar? Creation purchases
 // are AP-only (§2), so the buy panel stays silent about gold and time until this flips — quoting a
 // price the purchase would not be charged is worse than quoting none.
@@ -549,11 +563,19 @@ function _lsWalletLine(uptoIdx){
   // balance can be in — positive, zero, and overdrawn — where "None downtime left" and "-6 weeks
   // downtime left" both read as broken text.
   var dt=function(n){return (n===0)?'none':E.formatDowntime(n);};
+  // Gold's parenthetical still reads "granted · spent" — that IS what gold is, an accumulating
+  // total. Downtime's does not, because "granted" is the wrong word for a window that gets REPLACED
+  // rather than added to (§16) — it reads "declared · spent this window" instead, and says so
+  // plainly when nothing has ever been declared, which "0 granted" would otherwise misreport as a
+  // deliberate zero rather than an absence.
+  var win=_lsDowntimeWindow(uptoIdx);
+  var timeSrc = win ? (dt(w.windowDays)+' declared · '+dt(w.daysSpentInWindow)+' spent this window')
+                     : 'no window declared yet';
   return '<div class="ecoline gtline"><b>Coin &amp; calendar</b> · '+chip
     +' · <span class="ed">Gold'+(goldOver?'':' left')+':</span> <b class="'+(goldOver?'gtneg':'')+'">'+Math.abs(w.gpLeft).toLocaleString()+' gp'+(goldOver?' overdrawn':'')+'</b>'
     +' <span class="ed">('+w.gpGranted.toLocaleString()+' granted · '+w.gpSpent.toLocaleString()+' spent)</span>'
     +' · <span class="ed">Downtime'+(timeOver?'':' left')+':</span> <b class="'+(timeOver?'gtneg':'')+'">'+dt(Math.abs(w.daysLeft))+(timeOver?' overdrawn':'')+'</b>'
-    +' <span class="ed">('+dt(w.daysGranted)+' granted · '+dt(w.daysSpent)+' spent)</span>'
+    +' <span class="ed">('+timeSrc+')</span>'
     +((goldOver||timeOver)?' <span class="gtneg" title="Not an error — your DM can waive or defer any cost (Players Guide §17). Shown so you and your DM can settle it.">⚠ overdrawn</span>':'')
     +'</div>';
 }
@@ -621,7 +643,11 @@ function _lsWallet(uptoIdx){
   var E=window._engineEcon; if(!E) return null;
   var led=E.wealthLedger(eventsUpTo(uptoIdx),{band:_lsEconBand(uptoIdx)});
   var a=window._rulesStatus==='active';
-  return Object.assign({led:led}, E.wealthWithDm(led,{dmGold:a?(window._dmGold||0):0,dmDays:a?(window._dmDays||0):0}), {on:led.on,band:led.band});
+  // Gold and downtime compose differently now (see js/engine.js's wealthWithDm header): gold is
+  // still a flat additive top-up (dmGold), but downtime is the resolved WINDOW — a solo player's
+  // own self-declared window from their LOG, or the campaign's party-wide one — never a flat number.
+  var win=_lsDowntimeWindow(uptoIdx);
+  return Object.assign({led:led}, E.wealthWithDm(led,{dmGold:a?(window._dmGold||0):0, window:win}), {on:led.on,band:led.band});
 }
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on
 // (default true when absent/unset — opposite default from ignore_player_ap), who has actually spent
@@ -656,7 +682,7 @@ function apAvailable(uptoIdx){ return _apRemaining(apCeiling(uptoIdx),economy(up
 // cloud module (and 'sync-ready') has had a chance to load. Set by the cloud-load handler /
 // refreshCloudCampaignRules(); reset by every non-cloud load path.
 window._rulesStatus = window._rulesStatus || 'none';
-function _lsResetCloudApState(){window._dmAp=0;window._dmGold=0;window._dmDays=0;window._ignorePlayerAp=false;window._rulesStatus='none';window._lsCampaignId=null;window._lsVisibleCustomFields={};}
+function _lsResetCloudApState(){window._dmAp=0;window._dmGold=0;window._dmWindow=null;window._ignorePlayerAp=false;window._rulesStatus='none';window._lsCampaignId=null;window._lsVisibleCustomFields={};}
 // feat/custom-fields-player-display (D-GH-2026-08-10-dm-custom-character-fields follow-up): this
 // character's DM-set custom field VALUES the campaign currently marks visible to players — the read-
 // only counterpart to DM Console's custom-fields feature. Field LABELS come from
@@ -672,6 +698,23 @@ async function _lsRefreshVisibleCustomFields(characterId){
   if(VIEW_ONLY || !characterId || !window._dmBridge || typeof window._dmBridge.getVisibleCustomFields !== 'function') return;
   try { window._lsVisibleCustomFields = await window._dmBridge.getVisibleCustomFields(characterId) || {}; }
   catch(e) { /* non-fatal — see comment above */ }
+}
+// The party-wide downtime window in force (Players Guide §16), for a character bound to a
+// RESOLVED campaign. A plain RLS-scoped read (js/dm.js's getDowntimeWindow, bridged read-only
+// onto window._dmBridge — this tool never writes it; declaring belongs to the DM Console). Shared
+// by every site that resolves campaign state, so "how do we fetch the window" exists in ONE place
+// rather than four call sites each re-deriving it. Non-fatal on failure, like every other
+// campaign-rules read on this page: window._dmWindow simply keeps whatever it was rather than
+// being silently wiped by a network hiccup.
+async function _lsFetchDowntimeWindow(campaignId, characterId){
+  if(!campaignId || !characterId || !window._dmBridge || !window._dmBridge.getDowntimeWindow) return;
+  try{
+    var w = await window._dmBridge.getDowntimeWindow(campaignId, characterId);
+    // startTs as a plain epoch-ms number, matching resolveDowntimeWindow()'s campaignWindow shape
+    // and the `ts` every LOG event already carries — declaredAt arrives as an ISO string from
+    // Postgres (a timestamptz), which this is the one place that needs converting.
+    window._dmWindow = w ? {days:w.days, startTs:new Date(w.declaredAt).getTime()} : null;
+  }catch(e){ /* non-fatal — window._dmWindow keeps its previous value */ }
 }
 // Resolve DM AP for a character whose campaign we know but which did NOT arrive via a cloud load (a
 // handoff from CharGen). Reads the authoritative `ap` from the server when signed in; otherwise leaves
@@ -690,6 +733,7 @@ async function _lsResolveDmAp(campaignId){
       if(typeof srvAp==='number')window._dmAp=srvAp;
       const camp=await C.getCampaign(campaignId);
       if(camp){window._ignorePlayerAp=!!camp.ignore_player_ap;window._rulesStatus='active';}
+      if(window._rulesStatus==='active') await _lsFetchDowntimeWindow(campaignId, currentCharId());
     }
   }catch(e){ /* stays 'unavailable' — never silently 0 */ }
   try{render();}catch(e){}
@@ -2225,6 +2269,43 @@ function openEconomy(){
   emit({type:'econSetting',payload:{band:k},cost:0,noLock:true,label:'Coin & calendar — '+bands[k].label});
   flash('🪙 Coin & calendar: '+bands[k].label+(k==='off'?' — gold and downtime are no longer tracked.':' band.'));
 }
+// Solo self-service gold/downtime recording (Players Guide §16). In a campaign, gold and downtime
+// are DM-authoritative — "in a campaign world, the DM is the one who applies the money" (owner) —
+// so this becomes a read-only explanation there, the same posture openEconomy() takes for the band
+// setting. Outside a campaign this is the ONLY way a solo player's wallet ever gets anything in
+// it: it writes a `wealth` LOG event, exactly what the engine already reads (wealthLedger() for
+// gold, resolveDowntimeWindow() for downtime).
+//
+// Gold and downtime are asked for, and applied, DIFFERENTLY — matching how they behave everywhere
+// else in this feature: gold ADDS to the running total (negative deducts, mirroring the DM
+// Console's own gold field); downtime REPLACES the current window outright the moment a number is
+// entered, and is left untouched entirely if the prompt is submitted blank — an explicit "0" still
+// closes the window out, only a genuinely empty answer means "no change".
+function openWallet(){
+  var E=window._engineEcon; if(!E){flash('Engine still loading — try again in a moment.');return;}
+  if(!_lsEconOn(null)){
+    alert('🎒 Record gold & downtime\n\nThe gold-and-downtime economy is off for this character. Switch it on first from 🪙 Coin & calendar, then come back here.');
+    return;
+  }
+  if(window._rulesStatus==='active'){
+    alert('🎒 Record gold & downtime — set by your DM\n\nThis character is in a campaign, so your DM applies gold and downtime through the DM Console. Ask them for a grant, or check the wallet line on your sheet for what you currently have.');
+    return;
+  }
+  var w=_lsWallet(null);
+  var cur='Right now: '+(w?Math.abs(w.gpLeft).toLocaleString():'0')+' gp'+(w&&w.gpLeft<0?' overdrawn':' left')
+    +', '+(w?E.formatDowntime(Math.abs(w.daysLeft)):'0 days')+(w&&w.daysLeft<0?' overdrawn':' left')+' this window.';
+  var goldStr=prompt('🎒 Record gold\n\n'+cur+'\n\nGold found or earned, in gp (negative to deduct). This ADDS to your total. Leave blank or 0 to skip.', '0');
+  if(goldStr==null) return;
+  var gold=Math.round(parseFloat(goldStr)||0);
+  var daysStr=prompt('🎒 Declare a downtime window\n\nHow many days of downtime do you have available right now? This REPLACES whatever window you had before — it does not add to it, and unspent time from the old window is gone the moment you declare a new one.\n\n1 week = 7, 1 month = 30, 1 year = 365. Leave BLANK to leave your current window unchanged.', '');
+  var hasDays=daysStr!=null && daysStr.trim()!=='';
+  var days=hasDays ? Math.round(parseFloat(daysStr)||0) : null;
+  if(gold===0 && !hasDays){ flash('No change.'); return; }
+  var payload={}; if(gold) payload.gp=gold; if(hasDays) payload.days=days;
+  var label=[gold?(gold.toLocaleString()+' gp'):'', hasDays?E.formatDowntime(days):''].filter(Boolean).join(' · ');
+  emit({type:'wealth',payload:payload,cost:0,noLock:true,label:'Recorded — '+label});
+  flash('🎒 Recorded: '+label+'.');
+}
 function closeMore(){var m=document.getElementById('moremenu');if(m)m.classList.remove('open');}
 function toggleDM(){var c=document.getElementById('dmcontent'),t=document.getElementById('dmtoggle');if(!c)return;var op=(c.style.display==='none');c.style.display=op?'inline':'none';if(t)t.textContent='🛠 DM tools '+(op?'▾':'▸');}
 function closeNames(){var ov=document.getElementById('namesOv');if(ov)ov.style.display='none';}
@@ -2311,13 +2392,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   window._engineBridge = { validate };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   // Gold-and-downtime economy (Players Guide §16). Bridged onto window exactly as the AP-ledger
   // functions above are, so the classic-script half of this tool reaches them the same way.
-  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, economyOn, tradeCoinTime, chargesGoldAndTime };
+  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of
   // hand-copied inline duplicates. UI boot waits on engine-ready.
@@ -2335,11 +2416,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, withKeepalive } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, getCampaign } from '../js/campaign.js';
-  import { getAwardHistory, getVisibleCustomFields } from '../js/dm.js';
+  import { getAwardHistory, getVisibleCustomFields, getDowntimeWindow } from '../js/dm.js';
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, withKeepalive };
   window._authBridge = { currentSession, onAuthChange };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign };
-  window._dmBridge = { getAwardHistory, getVisibleCustomFields };
+  window._dmBridge = { getAwardHistory, getVisibleCustomFields, getDowntimeWindow };
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
 </script>
@@ -2447,9 +2528,11 @@ document.addEventListener('sync-ready', function () {
       var rec = await S.loadCharacter(_cid);
       window._dmAp = rec ? (rec.ap || 0) : 0;
       // Same row, same server authority as `ap` — see js/sync.js applyServerMeta. `|| 0` because a
-      // character row cached before these columns existed comes back without them.
+      // character row cached before this column existed comes back without it. Downtime carries no
+      // column here at all (see js/sync.js's applyServerMeta) — it's fetched separately below, once
+      // the campaign is confirmed active.
       window._dmGold = rec ? (rec.gold || 0) : 0;
-      window._dmDays = rec ? (rec.downtime_days || 0) : 0;
+      window._dmWindow = null;
       window._ignorePlayerAp = false;
       window._lsCampaignId = (rec && rec.campaign_id) || null;   // binding only — see buildCharacterEnvelope
       if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; window._lsVisibleCustomFields = {}; if(rec && typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(null); /* rec present but no campaign_id = confirmed standalone → clear the offline snapshot (a logged leave) */ renderCloudStatusBadge(); return; }
@@ -2458,7 +2541,11 @@ document.addEventListener('sync-ready', function () {
       window._cloudCampaignRules = camp ? (camp.rules || {}) : null;
       _campaignName = camp ? camp.name : null;
       window._rulesStatus = camp ? 'active' : 'unavailable';
-      if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; if(typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(window._cloudCampaignRules); /* refresh the offline snapshot from the live rules */ }
+      if(camp){
+        window._ignorePlayerAp = !!camp.ignore_player_ap;
+        if(typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(window._cloudCampaignRules); /* refresh the offline snapshot from the live rules */
+        await _lsFetchDowntimeWindow(rec.campaign_id, _cid);
+      }
       await _lsRefreshVisibleCustomFields(_cid);   // independent of whether the getCampaign() call above succeeded — the RPC re-derives campaign membership itself
     } catch(e) { window._rulesStatus = 'unavailable'; /* non-fatal — pickers/AP just fall back until this succeeds */ }
     renderCloudStatusBadge();
@@ -2484,7 +2571,7 @@ document.addEventListener('sync-ready', function () {
     } });
     if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return false; }
     window._dmAp = rec.ap || 0;
-    window._dmGold = rec.gold || 0; window._dmDays = rec.downtime_days || 0;
+    window._dmGold = rec.gold || 0; window._dmWindow = null;
     window._ignorePlayerAp = false;
     window._lsCampaignId = rec.campaign_id || null;   // binding only — see buildCharacterEnvelope
     window._cloudCampaignRules = null;
@@ -2495,6 +2582,7 @@ document.addEventListener('sync-ready', function () {
         var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
         if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; window._rulesStatus = 'active'; }
       } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds; window._rulesStatus correctly stays 'unavailable', not silently 'none' */ }
+      if(window._rulesStatus==='active') await _lsFetchDowntimeWindow(rec.campaign_id, id);
       await _lsRefreshVisibleCustomFields(id);   // independent of whether the listMyCampaigns() lookup above succeeded — the RPC re-derives campaign membership itself
     } else {
       window._lsVisibleCustomFields = {};
@@ -2591,7 +2679,7 @@ document.addEventListener('sync-ready', function () {
         if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return; }
         VIEW_ONLY = true;
         window._dmAp = rec.ap || 0;
-        window._dmGold = rec.gold || 0; window._dmDays = rec.downtime_days || 0;
+        window._dmGold = rec.gold || 0; window._dmWindow = null;
         window._ignorePlayerAp = false;
         window._cloudCampaignRules = null;
         _campaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
@@ -2607,6 +2695,7 @@ document.addEventListener('sync-ready', function () {
           window._campaignBridge.listMyCampaigns().then(function(camps){
             var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
             if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules||null; _campaignName = camp.name; window._rulesStatus = 'active'; }
+            if(window._rulesStatus==='active') return _lsFetchDowntimeWindow(rec.campaign_id, rec.id||vid);
           }).catch(function(){ /* non-fatal — mirrors loadCloudChar's own handling */ }).then(afterRules);
         } else { afterRules(); }
       }).catch(function(err){ alert('Could not load that character: '+(err&&err.message?err.message:err)); });

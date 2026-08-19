@@ -278,7 +278,7 @@ async function pushCharacter(rec, capturedSeq) {
     .update({ name: rec.name, kind: rec.kind, stats: rec.stats })
     .eq('id', rec.id);
   if (guarded) q = q.eq('updated_at', rec.base_updated_at);
-  const { data: upd, error: updErr } = await q.select('id, updated_at, ap, gold, downtime_days, autosave_enabled');
+  const { data: upd, error: updErr } = await q.select('id, updated_at, ap, gold, autosave_enabled');
   if (updErr) throw updErr;
 
   if (upd && upd.length) {
@@ -306,7 +306,7 @@ async function pushCharacter(rec, capturedSeq) {
     // silently reset to `true` (D-GH-2026-08-08-universal-autosave-toggle).
     .insert({ id: rec.id, owner_id: user.id, name: rec.name, kind: rec.kind, stats: rec.stats,
               autosave_enabled: rec.autosave_enabled })
-    .select('id, updated_at, ap, gold, downtime_days, autosave_enabled');
+    .select('id, updated_at, ap, gold, autosave_enabled');
   if (insErr) throw insErr;
   applyServerMeta(rec, ins[0], capturedSeq);
 }
@@ -323,14 +323,16 @@ function applyServerMeta(rec, server, capturedSeq) {
   // for this page too, or the very next save would present the now-stale pin and be refused forever.
   _pageBase.set(rec.id, server.updated_at);
   rec.ap = server.ap;     // server is authoritative for ap
-  // Same two-pool, server-authoritative story as `ap` immediately above, for the gold-and-downtime
-  // economy (Players Guide §16): pushCharacter() never names these columns (award_wealth() is their
-  // only writer, and a player has no grant on them at all), so this only picks up what the DM has
-  // granted since this page last looked. `?? 0` because a character row written before the columns
-  // existed comes back without them on a cached/older read path, and the tools' wallet arithmetic
-  // must not turn undefined into NaN.
+  // Same two-pool, server-authoritative story as `ap` immediately above, for gold (Players Guide
+  // §16): pushCharacter() never names this column (award_gold() is its only writer, and a player
+  // has no grant on it at all), so this only picks up what the DM has granted since this page last
+  // looked. `?? 0` because a character row written before the column existed comes back without it
+  // on a cached/older read path, and the tools' wallet arithmetic must not turn undefined into NaN.
+  //
+  // Downtime carries NO column here — it is a party-wide window, not a per-character total (see
+  // sql/migrations/2026-08-19-downtime-window-revision.sql), so it is fetched separately via
+  // getDowntimeWindow() wherever a tool needs it, not synced alongside the character row.
   rec.gold = server.gold ?? 0;
-  rec.downtime_days = server.downtime_days ?? 0;
   // Same reasoning as ap: pushCharacter()'s update never writes this column (see setAutosaveEnabled,
   // the only writer), so this just picks up whatever the toggle currently is — including a flip made
   // from another device or tab since this page last knew — without any risk of clobbering it.
@@ -371,7 +373,7 @@ export async function loadCharacter(id, opts = {}) {
     if (replace) {
       const { data: server, error } = await supabase
         .from('characters')
-        .select('id, owner_id, name, kind, stats, ap, gold, downtime_days, campaign_id, updated_at, autosave_enabled')
+        .select('id, owner_id, name, kind, stats, ap, gold, campaign_id, updated_at, autosave_enabled')
         .eq('id', id)
         .maybeSingle();
       if (!error && server) lsSet({ ...server, base_updated_at: server.updated_at, dirty: false });
@@ -398,7 +400,7 @@ export async function peekCharacter(id) {
   if (navigator.onLine && await currentUser()) {
     const { data, error } = await supabase
       .from('characters')
-      .select('id, name, kind, stats, ap, gold, downtime_days, campaign_id, updated_at, autosave_enabled')
+      .select('id, name, kind, stats, ap, gold, campaign_id, updated_at, autosave_enabled')
       .eq('id', id)
       .maybeSingle();
     if (!error) return data;
@@ -443,7 +445,7 @@ async function reconcile(id) {
   // listMyCharacters()'s offline branch had no way to make.
   const { data: server, error } = await supabase
     .from('characters')
-    .select('id, owner_id, name, kind, stats, ap, gold, downtime_days, campaign_id, updated_at, autosave_enabled')
+    .select('id, owner_id, name, kind, stats, ap, gold, campaign_id, updated_at, autosave_enabled')
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
@@ -619,7 +621,7 @@ export async function listMyCharacters() {
   if (navigator.onLine) {
     const { data, error } = await supabase
       .from('characters')
-      .select('id, name, kind, ap, gold, downtime_days, campaign_id, archived_at, updated_at, autosave_enabled, log:stats->LOG')
+      .select('id, name, kind, ap, gold, campaign_id, archived_at, updated_at, autosave_enabled, log:stats->LOG')
       .eq('owner_id', user.id)
       .order('updated_at', { ascending: false });
     if (error) throw error;

@@ -154,3 +154,103 @@ Status: Active
   The repo's own audit caught a real PWA bug on the way: `js/engine.js` is cached network-first, but
   its new `economy-bands.js` import would have been cache-first, so a stale copy could break the
   import at link time. Added to `NETWORK_FIRST_RE`; `CACHE_NAME` bumped to `pact-v9`.
+
+## Addendum (same day) — the DM-as-bookkeeper model was wrong; downtime is not gold
+
+- **What was raised.** After the above shipped and was applied, the owner asked to walk through how
+  it actually plays at the table: a player wants to buy something, sees the cost, tells the DM they
+  have the money and time, and the DM agrees or doesn't. Working through that concretely surfaced
+  that this build had modelled gold and downtime as **twins** — both DM-granted, per-character,
+  accumulating columns (`characters.gold` / `characters.downtime_days`, one `wealth_awards` ledger,
+  one `award_wealth()` RPC) — and that this was **wrong for downtime specifically**, in a way that
+  would have made the feature a genuine chore rather than the light-touch brake §16 describes:
+  switching the economy on would have marked every existing character permanently overdrawn (nobody
+  had a balance yet), and the DM would have had to hand-type a downtime figure into every character
+  card, every session, forever.
+
+- **The correction, from the owner directly:**
+  1. Gold is fine as built — per-character, DM-granted (in a campaign) or self-declared (solo),
+     accumulating. §16 and the owner's own framing both treat gold as a bank.
+  2. Downtime is **not** a bank. It is a single window the DM declares for the **whole party at
+     once** — "the time should not keep adding up... spend it now or wait till another opportunity."
+     A new declaration **replaces** the old one; it does not add to it.
+  3. The natural moment to declare it is the same moment the DM already awards AP (end of session),
+     which is why gold/AP share one form ("same area as AP awards") while downtime gets its own,
+     separate, party-wide control — because bundling a party-wide value into a per-character form
+     would mean re-typing the same number once per player, with no guard against drift.
+  4. A DM may additionally grant one character **bonus time** — extra days on top of whatever base
+     window is live — on the SAME per-character form gold uses ("extend to include time (and bonus
+     time)"). A bonus resets along with the base the moment a new one is declared (owner: **S1**),
+     because it is "extra time in *this* window", not a second persistent pool.
+
+- **Why this was corrected same-day rather than shipped and revisited.** The original migration had
+  been live for hours with every character still at gold=0/downtime_days=0 and no campaign using the
+  economy — the cheapest possible moment to fix a wrong data model is before any real data exists
+  against it. Waiting would have meant either migrating real balances later or living with the wrong
+  shape indefinitely.
+
+- **What changed, concretely:**
+  - `characters.downtime_days` **dropped** — a character's downtime is now fully computed, never
+    stored. `characters.gold` is untouched.
+  - `wealth_awards` → **`gold_awards`** (renamed, downtime column dropped) — gold-only, since
+    downtime no longer shares its shape at all. `award_wealth()` → **`award_gold(character, gold,
+    note)`**.
+  - New table **`campaign_downtime_declarations`** (`campaign_id`, nullable `character_id`, `days`,
+    `note`, `declared_by`, `created_at`) — ledger-style like `ap_awards`/`gold_awards`, but read as
+    "the LATEST row", never summed. `character_id is null` = the party base; a specific character =
+    a bonus for them alone, layered on the currently-live base. New RPCs **`declare_downtime(campaign,
+    days, character?, note?)`** (insert-only — a fresh row IS the reset, no update path exists) and
+    **`get_downtime_window(campaign, character?)`** (one query composing base + that character's
+    bonus since the base landed; not `SECURITY DEFINER` — it only needs what the caller's own RLS
+    already grants).
+  - `js/engine.js`: `wealthLedger()`'s `wealth`-event handling now sums `gp` (gold banks) but treats
+    `days` as **last-one-wins, not summed** (declaring replaces) — the one place a single event type
+    carries two currencies with two different aggregation rules, which is the point, not an
+    inconsistency. New `resolveDowntimeWindow(opts)` mirrors `resolveEconomySetting()`'s exact
+    precedence (active campaign's window always wins; otherwise the character's own latest
+    self-declared window from its LOG; else `null`). `wealthWithDm()` rewritten: `gpLeft` stays
+    all-time cumulative (gold, unchanged); `daysLeft` is now `window.days` minus only the downtime
+    spent **on or after** `window.startTs`, read from `wealthLedger()`'s own `entries[]` (which
+    gained a `ts` field for exactly this) — never the all-time `daysSpent` total, which remains
+    reported separately for history display. `window: null` (nothing ever declared) reads as "every
+    downtime purchase so far is an unfunded overdraft" — the same honest-zero-balance behaviour an
+    unfunded gold wallet already had.
+  - Live Sheet: gained the missing solo self-service control (**🎒 Record gold & downtime**, in the
+    More menu) — the write path §16 needs for an uncampaigned player, which the original build never
+    built despite reading a (permanently-empty) `wealth` event type. Gold prompts add (negative
+    deducts); downtime prompts **replace**, and a blank answer explicitly means "no change" (an
+    explicit `0` still closes the window out). Campaign-bound characters resolve their window via the
+    new `get_downtime_window()` RPC, fetched at the same points `_lsResolveDmAp`/cloud-load already
+    resolve `ap`/`ignorePlayerAp`.
+  - DM Console: the old standalone "Grant gold & downtime" block is gone. Each roster card's existing
+    Award AP form gained optional gold and bonus-time fields (hidden when the campaign plays with the
+    economy off); a new, single **party-wide downtime control** sits above the roster, not on any
+    card. `loadRoster()` now also resolves the party's base window plus every roster character's own
+    composed window (N parallel `get_downtime_window()` calls — deliberately N+1 round trips rather
+    than a bulk fetch + client-side base/bonus composition, so that arithmetic lives in exactly one
+    place, the SQL function, not two).
+  - **A real, unrelated bug found and fixed on the way:** `window._dmCampaignApRules` — the cache the
+    DM Console's award form and rules panel both read — never carried the campaign's `economy` band
+    at all, at any of its three assignment sites. Every read of the (always-missing) `.economy.band`
+    silently fell through to `'off'`, which meant the original "Grant gold & downtime" block could
+    **never have shown**, in any campaign, regardless of what band the DM had chosen. Fixed by having
+    all three sites carry the whole `rules` object and every read site call `economySetting(rules)`
+    instead of re-deriving the fallback locally.
+
+- **Migration path.** A follow-up migration (`2026-08-19-downtime-window-revision.sql`), not an edit
+  to the already-applied one — `sql/migrations/` is an append-only historical log; the original file
+  is left as a true record of what actually happened, in order. Safe as a straight `ALTER`/`DROP`, not
+  a data migration: verified before writing it that every character was still at 0/0 and no campaign
+  had switched the economy on, so there was no real balance anywhere to preserve or reconcile.
+
+- **Verification:** gate extended to **151 checks** (from 120) — new coverage for gold-vs-downtime
+  composition, `resolveDowntimeWindow()`'s full precedence, a window being replaced end-to-end (not
+  summed) using genuine distinct event timestamps (not the coincidental `ts=0` earlier scenarios in
+  the file share), the DM Console's award-form fields appearing/disappearing correctly, and the
+  party-wide control. Verified to go **red** on the two regressions that matter most: making
+  `resolveDowntimeWindow()` sum instead of last-one-wins failed 6 checks; making an undeclared
+  window's overdraft silently read as zero failed 1. Full suite still green — engine-parity 40/0,
+  log-fuzz 500/500, audit.py --rls 29/0, chargen-flows 66/66, dm-console-ui 96/96.
+
+- **Not yet applied to the live project** as of this addendum — the follow-up migration exists on
+  disk only; it needs the same explicit go-ahead + `get_advisors` check the original migration got.

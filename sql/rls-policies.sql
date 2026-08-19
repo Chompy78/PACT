@@ -79,7 +79,8 @@ alter table public.campaigns          enable row level security;
 alter table public.characters         enable row level security;
 alter table public.campaign_dms       enable row level security;
 alter table public.ap_awards          enable row level security;
-alter table public.wealth_awards      enable row level security;
+alter table public.gold_awards        enable row level security;
+alter table public.campaign_downtime_declarations enable row level security;
 alter table public.character_dm_notes enable row level security;
 
 -- ---------------------------------------------------------------------------
@@ -97,7 +98,8 @@ grant select, insert, delete on public.campaigns to authenticated;   -- update i
 grant select, insert, update on public.profiles to authenticated;
 grant select on public.campaign_dms to authenticated;   -- writes via RPCs only
 grant select on public.ap_awards    to authenticated;   -- inserts via award_ap only
-grant select on public.wealth_awards to authenticated;   -- inserts via award_wealth only
+grant select on public.gold_awards  to authenticated;   -- inserts via award_gold only
+grant select on public.campaign_downtime_declarations to authenticated;   -- inserts via declare_downtime only
 
 -- service_role. The APP never uses this role — it is the browser client throughout, on the anon key
 -- under RLS — so nothing here was ever exercised and the omission stayed invisible. It surfaced on
@@ -186,15 +188,27 @@ create policy ap_awards_select on public.ap_awards
   );
 
 -- ---------------------------------------------------------------------------
--- wealth_awards — the gold/downtime ledger. Same rows, same readers, same rule as
--- ap_awards immediately above: the character's owner or any DM of its campaign.
--- Inserts happen only through award_wealth() (definer).
+-- gold_awards — the gold ledger. Same rows, same readers, same rule as ap_awards
+-- immediately above: the character's owner or any DM of its campaign. Inserts happen only
+-- through award_gold() (definer).
 -- ---------------------------------------------------------------------------
-drop policy if exists wealth_awards_select on public.wealth_awards;
-create policy wealth_awards_select on public.wealth_awards
+drop policy if exists gold_awards_select on public.gold_awards;
+create policy gold_awards_select on public.gold_awards
   for select using (
     is_campaign_dm(campaign_id)
     or exists (select 1 from characters c where c.id = character_id and c.owner_id = auth.uid())
+  );
+
+-- ---------------------------------------------------------------------------
+-- campaign_downtime_declarations — party-wide, not owner-scoped: readable by ANY member of
+-- the campaign (player or DM), not just the character's own owner, because a downtime window
+-- applies to everyone at once and every player needs to see it, not only whoever it was
+-- declared "for". Inserts happen only through declare_downtime() (definer).
+-- ---------------------------------------------------------------------------
+drop policy if exists campaign_downtime_declarations_select on public.campaign_downtime_declarations;
+create policy campaign_downtime_declarations_select on public.campaign_downtime_declarations
+  for select using (
+    is_campaign_dm(campaign_id) or is_campaign_member(campaign_id)
   );
 
 -- ---------------------------------------------------------------------------
@@ -299,9 +313,11 @@ grant execute on function public.get_character_visible_fields(uuid) to authentic
 -- ---------------------------------------------------------------------------
 revoke update on public.characters from authenticated, anon;
 grant update (name, kind, stats) on public.characters to authenticated;
--- gold / downtime_days are excluded for the same reason as ap: DM-authoritative, writable
--- only through award_wealth(). Their absence from this grant list IS the guard -- any UPDATE
--- naming either column is rejected by Postgres before characters_update's WITH CHECK runs.
+-- gold is excluded for the same reason as ap: DM-authoritative, writable only through
+-- award_gold(). Its absence from this grant list IS the guard -- any UPDATE naming it is
+-- rejected by Postgres before characters_update's WITH CHECK runs. (Downtime carries no
+-- column here at all -- it lives in campaign_downtime_declarations, not on characters; see
+-- sql/migrations/2026-08-19-downtime-window-revision.sql.)
 
 -- archived_at (soft-delete/undelete) needs no RPC, unlike campaigns.archived_at:
 -- characters_update's row policy above is already owner-only in both USING and
@@ -361,28 +377,24 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- award_wealth(character, gold, downtime_days, note) — the ONLY write path to
--- characters.gold / characters.downtime_days. The gold-and-downtime twin of
--- award_ap() directly above, and deliberately identical in shape: any DM of the
--- character's campaign, definer so it can write columns players have no grant on,
--- one wealth_awards ledger row for attribution plus the running totals.
+-- award_gold(character, gold, note) — the ONLY write path to characters.gold. The gold
+-- twin of award_ap() directly above, and deliberately identical in shape: any DM of the
+-- character's campaign, definer so it can write a column players have no grant on, one
+-- gold_awards ledger row for attribution plus the running total.
 --
--- Both currencies in ONE call because they share one ledger row -- a table ruling
--- that hands over coin and a season of training is a single event, and two RPCs
--- would both double the ledger and leave a window where only half had landed.
+-- Renamed from award_wealth() the same day it was first applied (see
+-- sql/migrations/2026-08-19-downtime-window-revision.sql) once downtime turned out not to
+-- share gold's shape at all -- gold banks per character and accumulates; downtime is a
+-- single party-wide window that REPLACES the last one. See declare_downtime() below for
+-- downtime's own write path, which this function no longer touches in any way.
 --
--- Returns the whole updated row (not just one integer, as award_ap does) because
--- there are two totals to report and the caller needs both; `returns characters`
--- keeps that honest if a third is ever added.
---
--- A solo, uncampaigned character never reaches this: it has no DM, so its gold and
--- downtime live as `wealth` events in its own LOG instead. That asymmetry is the
--- requirement, not a gap -- in a campaign world the DM applies the money.
+-- A solo, uncampaigned character never reaches this: it has no DM, so its gold lives as
+-- `wealth` events in its own LOG instead. That asymmetry is the requirement, not a gap --
+-- in a campaign world the DM applies the money.
 -- ---------------------------------------------------------------------------
-create or replace function public.award_wealth(
+create or replace function public.award_gold(
   p_character uuid,
-  p_gold integer default 0,
-  p_downtime_days integer default 0,
+  p_gold integer,
   p_note text default null
 )
 returns characters language plpgsql security definer set search_path = public, pg_temp as $$
@@ -395,22 +407,102 @@ begin
     raise exception 'Character is not in a campaign';
   end if;
   if not is_campaign_dm(v_campaign) then
-    raise exception 'Only a campaign DM can award gold or downtime';
+    raise exception 'Only a campaign DM can award gold';
   end if;
-  if coalesce(p_gold, 0) = 0 and coalesce(p_downtime_days, 0) = 0 then
-    raise exception 'Award must change gold or downtime';
+  if coalesce(p_gold, 0) = 0 then
+    raise exception 'Award must change gold';
   end if;
 
-  insert into wealth_awards (character_id, dm_id, campaign_id, gold, downtime_days, note)
-    values (p_character, auth.uid(), v_campaign, coalesce(p_gold, 0), coalesce(p_downtime_days, 0), p_note);
+  insert into gold_awards (character_id, dm_id, campaign_id, gold, note)
+    values (p_character, auth.uid(), v_campaign, p_gold, p_note);
 
-  update characters
-     set gold          = gold          + coalesce(p_gold, 0),
-         downtime_days = downtime_days + coalesce(p_downtime_days, 0)
-   where id = p_character
-   returning * into v_row;
+  update characters set gold = gold + p_gold
+    where id = p_character
+    returning * into v_row;
   return v_row;
 end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- declare_downtime(campaign, days, character, note) — the ONLY write path to downtime.
+-- Any DM of the campaign; definer, since a PLAYER has no insert grant on
+-- campaign_downtime_declarations at all (see its select-only grant above).
+--
+-- p_character defaults to null, meaning "the party base" -- applies to everyone at once and
+-- REPLACES whatever base was declared before (the whole point: "the time should not keep
+-- adding up... spend it now or wait till another opportunity" -- owner). Passing a specific
+-- character declares a BONUS for them alone, layered on top of whichever base is currently
+-- live; a bonus is validated against the SAME campaign as p_campaign so a DM cannot stamp
+-- one onto an unrelated character by mistake.
+--
+-- Deliberately just an INSERT, never an UPDATE -- "declare again" needs no reset logic of
+-- its own; a fresh row IS the reset, and get_downtime_window() below always reads only the
+-- latest one. The full history stays visible for the story record.
+-- ---------------------------------------------------------------------------
+create or replace function public.declare_downtime(
+  p_campaign uuid,
+  p_days integer,
+  p_character uuid default null,
+  p_note text default null
+)
+returns campaign_downtime_declarations language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_char_campaign uuid;
+  v_row campaign_downtime_declarations%rowtype;
+begin
+  if not is_campaign_dm(p_campaign) then
+    raise exception 'Only a campaign DM can declare downtime';
+  end if;
+  if p_days is null then
+    raise exception 'Days is required';
+  end if;
+  if p_character is not null then
+    select campaign_id into v_char_campaign from characters where id = p_character;
+    if v_char_campaign is distinct from p_campaign then
+      raise exception 'That character is not in this campaign';
+    end if;
+  end if;
+
+  insert into campaign_downtime_declarations (campaign_id, character_id, days, note, declared_by)
+    values (p_campaign, p_character, p_days, p_note, auth.uid())
+    returning * into v_row;
+  return v_row;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- get_downtime_window(campaign, character) — the downtime window in force RIGHT NOW: the
+-- latest party-base row's days, plus any bonus rows declared for `character` on or after
+-- that same base row, summed into one total. Returns NO ROWS if no base has ever been
+-- declared for this campaign (nothing to compose), which callers read as "no window yet" --
+-- the same null js/engine.js's resolveDowntimeWindow() returns for that case.
+--
+-- p_character defaults to null: pass null to read just the party base (no bonus composed
+-- in), or a specific character to get their real total.
+--
+-- NOT security definer, on purpose -- this only ever needs to see what the caller's own
+-- RLS already lets them see (campaign_downtime_declarations_select: any campaign member or
+-- DM), so there is nothing here that needs a privilege escalation.
+-- ---------------------------------------------------------------------------
+create or replace function public.get_downtime_window(p_campaign uuid, p_character uuid default null)
+returns table(days integer, declared_at timestamptz)
+language sql stable set search_path = public, pg_temp as $$
+  with base as (
+    select d.days as base_days, d.created_at as base_at
+    from campaign_downtime_declarations d
+    where d.campaign_id = p_campaign and d.character_id is null
+    order by d.created_at desc
+    limit 1
+  ),
+  bonus as (
+    select coalesce(sum(d.days), 0) as bonus_days
+    from campaign_downtime_declarations d, base
+    where p_character is not null
+      and d.campaign_id = p_campaign and d.character_id = p_character
+      and d.created_at >= base.base_at
+  )
+  select (base.base_days + coalesce(bonus.bonus_days, 0))::integer, base.base_at
+  from base left join bonus on true;
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -777,7 +869,9 @@ grant execute on function public.regenerate_invite_code(uuid)       to authentic
 grant execute on function public.archive_campaign(uuid)             to authenticated;
 grant execute on function public.unarchive_campaign(uuid)           to authenticated;
 grant execute on function public.award_ap(uuid, integer, text)      to authenticated;
-grant execute on function public.award_wealth(uuid, integer, integer, text) to authenticated;
+grant execute on function public.award_gold(uuid, integer, text) to authenticated;
+grant execute on function public.declare_downtime(uuid, integer, uuid, text) to authenticated;
+grant execute on function public.get_downtime_window(uuid, uuid) to authenticated;
 grant execute on function public.redeem_player_invite(text, text)             to authenticated;
 grant execute on function public.bind_character_to_campaign(uuid, text)       to authenticated;
 grant execute on function public.dm_unbind_character(uuid)                    to authenticated;
@@ -809,7 +903,9 @@ revoke execute on function public.redeem_character_claim(text)                fr
 -- so award_ap is authenticated-only rather than relying solely on its internal
 -- is_campaign_dm() guard. See sql/migrations/2026-07-02-drop-legacy-award-xp-lock-award-ap.sql.
 revoke execute on function public.award_ap(uuid, integer, text) from public;
-revoke execute on function public.award_wealth(uuid, integer, integer, text) from public;
+revoke execute on function public.award_gold(uuid, integer, text) from public;
+revoke execute on function public.declare_downtime(uuid, integer, uuid, text) from public;
+revoke execute on function public.get_downtime_window(uuid, uuid) from public;
 
 -- ---------------------------------------------------------------------------
 -- Remaining function EXECUTE lockdown (anon). Same default-EXECUTE-to-PUBLIC

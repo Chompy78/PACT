@@ -6,6 +6,32 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · fix: downtime is a party-wide window, not a per-character bank — corrected same day,
+  before any real balance existed** — walking through the gold-and-downtime economy below at the
+  table surfaced that it had modelled gold and downtime as twins (both DM-granted, per-character,
+  accumulating), which is wrong for downtime: it is a single window the DM declares for the **whole
+  party at once**, and a new declaration **replaces** the old one rather than adding to it (owner:
+  "spend it now or wait till another opportunity"). Left as originally built, switching the economy on
+  would have marked every character permanently overdrawn and made the DM re-type the same figure
+  once per player, every session, forever. `characters.downtime_days` dropped (fully computed now,
+  never stored); `wealth_awards`→**`gold_awards`** (gold-only) and `award_wealth()`→**`award_gold()`**;
+  new `campaign_downtime_declarations` ledger (nullable `character_id`: null = party base, set = a
+  per-character bonus that resets along with the base) plus **`declare_downtime()`**/
+  **`get_downtime_window()`** RPCs. `js/engine.js`: `wealthLedger()`'s `wealth`-event handling now
+  sums `gp` but treats `days` as last-one-wins (the same event type, two different aggregation
+  rules, on purpose); new `resolveDowntimeWindow()` mirrors `resolveEconomySetting()`'s campaign-vs-
+  solo precedence exactly; `wealthWithDm()` rewritten so `daysLeft` is the window's size minus only
+  the spend since it was declared, never an all-time total. DM Console: gold and an optional
+  per-character **bonus time** field join the existing Award AP form ("same area as AP awards");
+  downtime's party-wide base gets its own, separate declare control above the roster. Live Sheet
+  gained the solo self-service control (**🎒 Record gold & downtime**) the original build never
+  built despite reading a permanently-empty event type for it. Also found and fixed a real,
+  unrelated bug on the way: the DM Console's campaign-rules cache never carried the economy band at
+  all, so the original grant form could never have shown in any campaign. Gate → **151 checks**
+  (from 120), verified to go red on both the reset-vs-accumulate rule and the no-window-overdraft
+  rule. Follow-up migration `2026-08-19-downtime-window-revision.sql`, not an edit to the applied
+  one — safe as a straight `ALTER`/`DROP`, since every character was still at 0/0. See the Addendum
+  in `D-GH-2026-08-19-tool-coin-time-costs`.
 - **2026-08-19 · feat: the gold-and-downtime economy, built into all three tools** — PACT's other two
   currencies (Players Guide §2/§16) had no implementation at all; only starting wealth existed. Both band
   tables now live in `js/economy-bands.js` and are surfaced on `DATA`, with the three settings the guide
