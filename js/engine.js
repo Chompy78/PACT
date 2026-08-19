@@ -1048,6 +1048,50 @@ export function economySetting(rules) {
   return Object.prototype.hasOwnProperty.call(DATA.economyBands, t) ? t : DATA.defaultEconomy;
 }
 
+/** The economy band a character carries in its OWN log, or null if it never set one.
+ *
+ *  A solo player has no campaign to hold the setting, and the character envelope's `rules`
+ *  field is the rules-VERSION stamp, not a settings object — so the choice rides the LOG as
+ *  an `econSetting` event. That makes it survive export, import, and the CharGen↔Live Sheet
+ *  handoff for free, and makes it last-write-wins by replay like every other setting the log
+ *  carries. The engine ignores the event everywhere else: it is not a `buy`, so it costs no
+ *  AP, folds into no build, and trips no creation lock.
+ *
+ *  Last one wins — a player may switch bands on their own character; §16's "pick one and
+ *  stick to it" is advice to a table, not something a single-player tool should enforce. */
+export function logEconomySetting(events) {
+  let found = null;
+  (Array.isArray(events) ? events : []).forEach(e => {
+    if (e && e.type === 'econSetting' && e.payload
+        && Object.prototype.hasOwnProperty.call(DATA.economyBands, e.payload.band)) found = e.payload.band;
+  });
+  return found;
+}
+
+/** The band actually in force for a character, resolving the one precedence rule the three
+ *  tools must not each invent for themselves:
+ *
+ *    a campaign that has resolved its rules  →  the CAMPAIGN's band, always
+ *    anything else                           →  the character's own logged band, else 'off'
+ *
+ *  The campaign wins outright, and does so WITHOUT the character's logged setting acting as a
+ *  fallback within an active campaign: the whole point of the DM's dial is that a player
+ *  cannot opt their character out of the table's economy, and a stale `econSetting` from
+ *  before the character joined must not resurface as a private band.
+ *
+ *  `campaignActive` is deliberately a caller-supplied flag rather than something inferred from
+ *  campaignRules being truthy. The tools already distinguish "no campaign" from "campaign whose
+ *  rules could not be read right now" (window._rulesStatus), and conflating them here would
+ *  silently drop a campaign to its player's own band the moment the network hiccuped — the same
+ *  failure mode the DM-AP chip's 'unavailable' state exists to prevent. When rules are
+ *  unconfirmed, callers pass false and get the character's own setting, which is the honest
+ *  local answer rather than a guess at the table's. */
+export function resolveEconomySetting(opts) {
+  const o = opts || {};
+  if (o.campaignActive) return economySetting(o.campaignRules);
+  return logEconomySetting(o.events) || DATA.defaultEconomy;
+}
+
 /** The band descriptor for a setting token — {label, rows, blurb}. `rows` is null for
  *  'off'. Accepts a token OR an already-resolved rules object, so callers can pass
  *  whichever they have without each writing its own normalizing branch. */
@@ -1172,6 +1216,25 @@ export function wealthLedger(events, opts) {
     });
   });
   return out;
+}
+
+/**
+ * Would a purchase appended to this log RIGHT NOW be charged gold and downtime — i.e. has the
+ * character finished creation?
+ *
+ * wealthLedger() answers this per past event; a tool's buy panel needs it for the next, not-yet-made
+ * one, so it can quote a price the purchase will actually be charged (and stay silent during
+ * creation, which costs AP only). Computed by running the same lock timeline over the log plus one
+ * probe entry, so the quote a player sees before buying and the charge wealthLedger() applies after
+ * are decided by one piece of code rather than two that agree today.
+ *
+ * The probe is a bare object with no type/cost, so it can neither trip the spend threshold itself nor
+ * be mistaken for a real event; its only role is to give _lockStates() one more slot to report into.
+ */
+export function chargesGoldAndTime(events) {
+  const { evs } = activeEvents(events);
+  const st = _lockStates(evs.concat([{ type: '_probe', noLock: true }]));
+  return !!st[st.length - 1];
 }
 
 /**

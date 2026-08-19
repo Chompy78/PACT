@@ -188,6 +188,12 @@ body[data-theme="dark"] .cath{background:linear-gradient(180deg,#1c2740,#16203a)
 .ib .why{font-size:9.5px;color:#8a6d00;font-style:italic;margin-top:1px}
 .ib .ibhead{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;width:100%}
 .ib .why.dsc{color:var(--grey);font-style:normal}
+/* Gold-and-downtime price on a buy tile (Players Guide §16). Deliberately quieter than .why's amber
+   (which means "this raises a rules warning") — a price is information, not a caution. .gtshort marks
+   a purchase the wallet can't currently cover: a SOFT warning only, never a block, because a DM may
+   waive or defer any cost (§17). */
+.ib .why.gt{color:var(--grey);font-style:normal;letter-spacing:.01em}
+.ib .why.gt.gtshort{color:#b35a00;font-style:italic}
 .ib.dis{opacity:.55;background:var(--lt);border-style:dashed;cursor:help}.ib.dis em{color:var(--grey)}
 .ib.warn{background:var(--warnbg);border-color:var(--warnbd)}.ib.warn .why{color:#b35a00}
 .ib.draw{background:var(--badbg);color:var(--bad)}.ib.draw em{color:var(--bad)}
@@ -203,6 +209,8 @@ body[data-theme="dark"] select,body[data-theme="dark"] input[type=number],body[d
 body[data-theme="dark"] option,body[data-theme="dark"] optgroup{background:var(--card);color:var(--ink)}
 body[data-theme="dark"] .ib .why,body[data-theme="dark"] .led tr.rfnd td{color:#d9bd76}
 body[data-theme="dark"] .ib.warn .why{color:#e6b566}
+body[data-theme="dark"] .ib .why.gt{color:#9aa4ad}
+body[data-theme="dark"] .ib .why.gt.gtshort{color:#e6b566}
 body[data-theme="dark"] .spname .bbadge,body[data-theme="dark"] .bondbox .bbk{color:#dcc48e}
 body[data-theme="dark"] .shtag{color:#bcabea}
 body[data-theme="dark"] .x{color:#ff8a8a}
@@ -270,7 +278,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 .bondbox .bbk{display:inline-block;font-size:9px;font-weight:700;color:#7A4E00;background:var(--lt);border:1px solid var(--line);border-radius:9px;padding:0 6px;margin-right:5px}
 @media(max-width:760px){.spcols{grid-template-columns:1fr 1fr}}
 @media print{.spcols{grid-template-columns:1fr 1fr 1fr !important}.slotgrid{grid-template-columns:repeat(9,1fr) !important}.spellsec{break-inside:avoid}}
-.shledger{width:100%;border-collapse:collapse;font-size:10.5px}.shledger td{padding:1px 3px;border-bottom:1px solid var(--line)}.shledger td:last-child{text-align:right;font-weight:700}.shledger tr.tot td{border-top:2px solid var(--navy);font-weight:800;color:var(--navytx)}
+.shledger{width:100%;border-collapse:collapse;font-size:10.5px}.shledger td{padding:1px 3px;border-bottom:1px solid var(--line)}.shledger td:last-child{text-align:right;font-weight:700}.shledger tr.tot td{border-top:2px solid var(--navy);font-weight:800;color:var(--navytx)}.gtnote{color:var(--grey);font-weight:400;font-style:normal}
 .grow{flex:1}
 @media print{.shcols{grid-template-columns:repeat(3,1fr) !important}.shcols2{grid-template-columns:1fr 2fr !important}.shrow{font-size:10.5px}.top,.bar,.layout,.shtop,#explainview,#portraitview{display:none !important}#sheetview{position:static;padding:0}
  body,body[data-theme]{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;--bg:#fff;--card:#fff;background:var(--card)!important;color:#222!important}}
@@ -337,7 +345,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 .aplegend span{display:flex;align-items:center;gap:4px;white-space:nowrap}
 .aplegend .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 .aplegend .g{background:#14501f}.aplegend .r{background:#7a0000}.aplegend .k{background:#444}
-#apFloat{position:fixed;top:10px;right:14px;z-index:1500;pointer-events:none;display:flex;align-items:baseline;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:6px 16px;box-shadow:0 3px 14px rgba(0,0,0,.22);font-family:var(--font);cursor:default;transition:transform .12s ease}#apFloat b{font-size:22px;font-weight:800;color:var(--navytx);line-height:1}#apFloat span{font-size:10px;font-weight:600;color:var(--grey);text-transform:uppercase;letter-spacing:.06em}#apFloat.neg b{color:var(--bad)}#apFloat.flash{transform:scale(1.14)}@media print{#apFloat{display:none!important}}.moremenu{display:none;position:absolute;right:0;top:calc(100% + 5px);background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:6px;z-index:3000;min-width:215px;text-align:left}.moremenu.open{display:block}.moremenu .mi{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:7px 10px;border-radius:6px;font:inherit;font-size:13px;cursor:pointer}.moremenu .mi:hover{background:var(--lt)}.moremenu .mi-theme{display:flex;align-items:center;gap:6px;padding:6px 10px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}.moremenu .mi-theme select{flex:1}.dmtog{background:none;border:0;color:#cfe0f7;font:inherit;font-weight:700;cursor:pointer;padding:0}.eco{display:block}.ecoline{display:flex;flex-wrap:wrap;align-items:center;gap:5px 18px;background:#16294d;color:#cfe0f7;padding:9px 16px;font-size:13px}.ecoline b{color:#fff;font-size:16px}.ecoline .ed{color:#9fc0ff;font-size:12px}.ecoline .ed.warn{color:#ffcf6b;font-weight:700}.ecoline .drift{color:#7fd98a;font-size:12px}.ecoline .swapchip{margin-left:auto;background:rgba(60,200,120,.22);border:1px solid rgba(120,230,170,.5);border-radius:12px;padding:2px 11px;font-size:12px;font-weight:700;color:#d6ffe6;white-space:nowrap}
+#apFloat{position:fixed;top:10px;right:14px;z-index:1500;pointer-events:none;display:flex;align-items:baseline;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:6px 16px;box-shadow:0 3px 14px rgba(0,0,0,.22);font-family:var(--font);cursor:default;transition:transform .12s ease}#apFloat b{font-size:22px;font-weight:800;color:var(--navytx);line-height:1}#apFloat span{font-size:10px;font-weight:600;color:var(--grey);text-transform:uppercase;letter-spacing:.06em}#apFloat.neg b{color:var(--bad)}#apFloat.flash{transform:scale(1.14)}@media print{#apFloat{display:none!important}}.moremenu{display:none;position:absolute;right:0;top:calc(100% + 5px);background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:6px;z-index:3000;min-width:215px;text-align:left}.moremenu.open{display:block}.moremenu .mi{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:7px 10px;border-radius:6px;font:inherit;font-size:13px;cursor:pointer}.moremenu .mi:hover{background:var(--lt)}.moremenu .mi-theme{display:flex;align-items:center;gap:6px;padding:6px 10px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}.moremenu .mi-theme select{flex:1}.dmtog{background:none;border:0;color:#cfe0f7;font:inherit;font-weight:700;cursor:pointer;padding:0}.eco{display:block}.ecoline{display:flex;flex-wrap:wrap;align-items:center;gap:5px 18px;background:#16294d;color:#cfe0f7;padding:9px 16px;font-size:13px}.ecoline b{color:#fff;font-size:16px}.ecoline .ed{color:#9fc0ff;font-size:12px}.ecoline .ed.warn{color:#ffcf6b;font-weight:700}.ecoline .drift{color:#7fd98a;font-size:12px}.ecoline .swapchip{margin-left:auto;background:rgba(60,200,120,.22);border:1px solid rgba(120,230,170,.5);border-radius:12px;padding:2px 11px;font-size:12px;font-weight:700;color:#d6ffe6;white-space:nowrap}/* Coin-and-calendar wallet (Players Guide §16) — a second economy line under the AP one it mirrors, dimmed one step so AP stays the primary read. .gtneg marks an overdraft: a legitimate table state a DM may waive or defer (§17), so it is amber (caution), never red (error). */.ecoline.gtline{background:#122140;border-top:1px solid rgba(159,192,255,.16);font-size:12.5px}.ecoline.gtline b{font-size:14px}.ecoline.gtline b.gtneg,.ecoline.gtline .gtneg{color:#ffcf6b}
 @media(max-width:880px){.top{gap:5px;padding:8px 10px}.top h1{font-size:15px}.top .v{display:none}.top .btn .bl{display:none}.top .btn{padding:6px 9px;font-size:15px}.top #themesel{min-width:0;width:84px}}</style></head><body>
 <script>/* PACT global error surface (B3) — log uncaught errors + promise rejections with a marker + report pointer; never swallow. */
 (function(){var RB='https://github.com/Chompy78/PACT/issues/new';function L(k,d){try{console.error('[PACT] '+k+':',d,'— report: '+RB);}catch(_){}}
@@ -355,7 +363,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <span id="lsSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span>
 <span id="cloudStatusBadge" class="cloudstatus">🔒 Not signed in</span>
 <button class="btn g" onclick="toggleSheet()" title="Toggle the printable sheet">📋 <span class="bl">Sheet</span></button>
-<span style="position:relative;display:inline-block"><button class="btn g" onclick="toggleMore(event)" title="More tools &amp; theme">⋯ <span class="bl">More</span></button><div id="moremenu" class="moremenu"><span class="mi-theme">🎨 <select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></span><button class="mi" onclick="closeMore();openNames()">✎ Name spells &amp; languages</button><button class="mi" onclick="closeMore();openSpellBrowser()">🔍 Spell browser</button><button class="mi" id="miSpellTog" onclick="closeMore();toggleSheetSpell()">🚫 Hide spellcasting on sheet</button><button class="mi" onclick="closeMore();openBonds()">⛓ Bonds</button><button class="mi" onclick="closeMore();resetAll()">↺ Reset</button><button class="mi" onclick="closeMore();showInfo()">&#x2139;&#xFE0F; Info</button></div></span>
+<span style="position:relative;display:inline-block"><button class="btn g" onclick="toggleMore(event)" title="More tools &amp; theme">⋯ <span class="bl">More</span></button><div id="moremenu" class="moremenu"><span class="mi-theme">🎨 <select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></span><button class="mi" onclick="closeMore();openNames()">✎ Name spells &amp; languages</button><button class="mi" onclick="closeMore();openSpellBrowser()">🔍 Spell browser</button><button class="mi" id="miSpellTog" onclick="closeMore();toggleSheetSpell()">🚫 Hide spellcasting on sheet</button><button class="mi" onclick="closeMore();openBonds()">⛓ Bonds</button><button class="mi" onclick="closeMore();openEconomy()">🪙 Coin &amp; calendar</button><button class="mi" onclick="closeMore();resetAll()">↺ Reset</button><button class="mi" onclick="closeMore();showInfo()">&#x2139;&#xFE0F; Info</button></div></span>
 </div>
 <div class="eco" id="eco"></div>
 <div id="sheetview"><div class="shtop"><b>📋 Character Sheet</b><button class="btn" onclick="genPortraitFor(foldBuild(null))">📷 AI Portrait</button><button class="btn" onclick="window.print()">🖨 Print</button><button class="btn g" onclick="toggleSheet()">✕ Close</button></div><div id="sheetbody"></div></div>
@@ -491,6 +499,87 @@ function _lsDrawbackCap(){
   return (b&&b.drawbackCapFromRules) ? b.drawbackCapFromRules(window._cloudCampaignRules) : undefined;
 }
 function _dmOpts(){var a=window._rulesStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp,drawbackCap:a?_lsDrawbackCap():undefined};}
+// ---- Gold and downtime (Players Guide §2/§16) ------------------------------------------------
+// The band in force for THIS character, resolved by the engine so all three tools apply one
+// precedence rule: an active campaign's band always wins; otherwise the character's own logged
+// `econSetting`, else off. Gated on the SAME _rulesStatus==='active' test dmAp/ignorePlayerAp/
+// drawbackCap already use — when a campaign's rules can't be read we fall back to the character's
+// own setting rather than guessing at the table's, exactly as the DM-AP chip refuses to show a
+// figure it can't stand behind.
+function _lsEconBand(uptoIdx){
+  var E=window._engineEcon; if(!E) return 'off';
+  return E.resolveEconomySetting({
+    events: eventsUpTo(uptoIdx),
+    campaignRules: window._cloudCampaignRules,
+    campaignActive: window._rulesStatus==='active',
+  });
+}
+function _lsEconOn(uptoIdx){ var E=window._engineEcon; return !!(E&&E.economyOn(_lsEconBand(uptoIdx))); }
+// Is the character past creation, so a purchase made NOW costs coin and calendar? Creation purchases
+// are AP-only (§2), so the buy panel stays silent about gold and time until this flips — quoting a
+// price the purchase would not be charged is worse than quoting none.
+function _lsCharges(uptoIdx){ var E=window._engineEcon; return !!(E&&_lsEconOn(uptoIdx)&&E.chargesGoldAndTime(eventsUpTo(uptoIdx))); }
+// "short 200 gp" / "short 3 weeks" — the SOFT warning on a tile the wallet can't currently cover.
+// Advisory only, never a block: §16 hands the DM mentor discounts, outright waivers, and a
+// coin-for-time trade, and §17 says plainly the DM "can waive or reduce any cost at any time, AP,
+// gold, or downtime". A tool that refused the purchase would be misstating the rules. '' when the
+// wallet covers it, so the caller can use it as a plain truthiness test.
+// The gold-and-downtime readout, rendered under the AP economy line it deliberately mirrors —
+// granted / spent / left, for both currencies. Returns '' when the economy is off, which is the whole
+// of "turned off as a configurable item" as far as this tool's chrome is concerned: no wallet, no
+// prices on tiles, nothing to explain away.
+//
+// Two states worth distinguishing, and both are shown rather than inferred:
+//   * still in creation — purchases cost AP only (§2), so the line says so instead of showing a
+//     balance the player is not yet spending against; and
+//   * overdrawn — rendered as a warning, never an error. §17 lets a DM waive or defer any cost, so a
+//     negative balance is a legitimate table state, not a bug to be clamped away.
+function _lsWalletLine(uptoIdx){
+  var E=window._engineEcon; if(!E) return '';
+  var w=_lsWallet(uptoIdx); if(!w||!w.on) return '';
+  var bandName=(DATA.economyBands&&DATA.economyBands[w.band]&&DATA.economyBands[w.band].label)||w.band;
+  var who=(window._rulesStatus==='active')?'Your DM sets this':'You set this on this character';
+  var chip='<span class="ed" title="'+esc(who)+' — Players Guide §16, Gold, Downtime and Starting Wealth">'+esc(bandName)+' band</span>';
+  if(!_lsCharges(uptoIdx)){
+    return '<div class="ecoline gtline"><b>Coin &amp; calendar</b> · '+chip+' · <span class="ed">still in creation — purchases cost AP only</span></div>';
+  }
+  var goldOver=w.gpLeft<0, timeOver=w.daysLeft<0;
+  // "Gold left: 4,650 gp" rather than "4,650 gp left", and "6 weeks overdrawn" rather than a bare
+  // minus sign. The label-first form is the only one that stays readable across all three states a
+  // balance can be in — positive, zero, and overdrawn — where "None downtime left" and "-6 weeks
+  // downtime left" both read as broken text.
+  var dt=function(n){return (n===0)?'none':E.formatDowntime(n);};
+  return '<div class="ecoline gtline"><b>Coin &amp; calendar</b> · '+chip
+    +' · <span class="ed">Gold'+(goldOver?'':' left')+':</span> <b class="'+(goldOver?'gtneg':'')+'">'+Math.abs(w.gpLeft).toLocaleString()+' gp'+(goldOver?' overdrawn':'')+'</b>'
+    +' <span class="ed">('+w.gpGranted.toLocaleString()+' granted · '+w.gpSpent.toLocaleString()+' spent)</span>'
+    +' · <span class="ed">Downtime'+(timeOver?'':' left')+':</span> <b class="'+(timeOver?'gtneg':'')+'">'+dt(Math.abs(w.daysLeft))+(timeOver?' overdrawn':'')+'</b>'
+    +' <span class="ed">('+dt(w.daysGranted)+' granted · '+dt(w.daysSpent)+' spent)</span>'
+    +((goldOver||timeOver)?' <span class="gtneg" title="Not an error — your DM can waive or defer any cost (Players Guide §17). Shown so you and your DM can settle it.">⚠ overdrawn</span>':'')
+    +'</div>';
+}
+function _lsWalletShort(q){
+  var w=_lsWallet(null); if(!w||!q) return '';
+  var bits=[];
+  if(q.gp   > w.gpLeft)   bits.push('short '+(q.gp-w.gpLeft).toLocaleString()+' gp');
+  if(q.days > w.daysLeft) bits.push('short '+window._engineEcon.formatDowntime(q.days-w.daysLeft));
+  return bits.join(' · ');
+}
+// The coin-and-calendar half of a quote for a purchase costing `cost` AP — '' when the economy is off
+// or the character is still in creation. One helper so the buy tiles and buy() itself can never
+// disagree about what a purchase costs.
+function _lsQuote(cost){
+  var E=window._engineEcon; if(!E||!_lsCharges(null)) return null;
+  return E.purchaseCost(cost,_lsEconBand(null));
+}
+// The composed wallet: what this character's own LOG grants and spends, plus the DM-held pool.
+// The DM pool rides the SAME 'active' gate as DM AP — a campaign whose rules are unconfirmed must not
+// have its server-side gold silently counted as zero, so it simply isn't composed in until resolved.
+function _lsWallet(uptoIdx){
+  var E=window._engineEcon; if(!E) return null;
+  var led=E.wealthLedger(eventsUpTo(uptoIdx),{band:_lsEconBand(uptoIdx)});
+  var a=window._rulesStatus==='active';
+  return Object.assign({led:led}, E.wealthWithDm(led,{dmGold:a?(window._dmGold||0):0,dmDays:a?(window._dmDays||0):0}), {on:led.on,band:led.band});
+}
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on
 // (default true when absent/unset — opposite default from ignore_player_ap), who has actually spent
 // past their budget right now. window._cloudCampaignRules is refreshCloudCampaignRules()'s cache — the
@@ -524,7 +613,7 @@ function apAvailable(uptoIdx){ return _apRemaining(apCeiling(uptoIdx),economy(up
 // cloud module (and 'sync-ready') has had a chance to load. Set by the cloud-load handler /
 // refreshCloudCampaignRules(); reset by every non-cloud load path.
 window._rulesStatus = window._rulesStatus || 'none';
-function _lsResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._rulesStatus='none';window._lsCampaignId=null;window._lsVisibleCustomFields={};}
+function _lsResetCloudApState(){window._dmAp=0;window._dmGold=0;window._dmDays=0;window._ignorePlayerAp=false;window._rulesStatus='none';window._lsCampaignId=null;window._lsVisibleCustomFields={};}
 // feat/custom-fields-player-display (D-GH-2026-08-10-dm-custom-character-fields follow-up): this
 // character's DM-set custom field VALUES the campaign currently marks visible to players — the read-
 // only counterpart to DM Console's custom-fields feature. Field LABELS come from
@@ -668,7 +757,21 @@ function buy(cat,payload,label){
   // through, and the history ledger paints any row carrying one red (:947, .warnrow). A follow-up is a
   // to-do, not a violation — storing it would mark every epic boon as a rules breach forever, including
   // after the player picks the ability. (hard is empty by here: it returns above.)
-  emit({type:'buy',cat,payload,cost,label:label||(cat+' '+JSON.stringify(payload)),level:b0.hd,warns:rest});
+  // Gold and downtime (§16). Two separate jobs here, and they must not be confused:
+  //   * the SOFT warning — the wallet may not cover this, and the player should know before clicking
+  //     through, but a DM can waive or defer any cost (§17) so this never blocks; and
+  //   * the FREEZE — stamping what was actually paid onto the event, exactly as `cost` freezes the AP.
+  //     Without it a later band change (or a DM switching Standard→Fast) would silently re-price every
+  //     purchase the character ever made, which §16 explicitly warns against: "Don't switch mid-game,
+  //     or a purchase's price will move under the players' feet."
+  // Drawbacks are excluded from both: they grant AP rather than costing it.
+  var _gt=(cat==='drawback')?null:_lsQuote(cost);
+  if(_gt){
+    var _short=_lsWalletShort(_gt);
+    if(_short && !confirm('This purchase costs '+(_gt.gp?_gt.gp.toLocaleString()+' gp':'no gold')+' and '+(_gt.days?_gt.time:'no downtime')+', and you are '+_short+'.\n\nBuy anyway? Your DM can waive or defer the cost — the shortfall will simply show on your sheet.')) return;
+  }
+  emit(Object.assign({type:'buy',cat,payload,cost,label:label||(cat+' '+JSON.stringify(payload)),level:b0.hd,warns:rest},
+                     _gt?{gp:_gt.gp,days:_gt.days}:{}));
   if(followup.length)flash('✎ Now open Names and pick the ability — '+followup.join('; '));
   if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
 }
@@ -1178,7 +1281,7 @@ function render(){
     // in DM AP the same way compute()'s own spendable formula does — _dmAp/_ignPlr are already the
     // same gated values compute() itself uses two lines above (_dmOpts() zeroes both when rules status
     // isn't 'active'), so this can't disagree with the ceiling compute() priced against.
-    var ap=earnedWithDm(eco,{dmAp:_dmAp,ignorePlayerAp:_ignPlr});var _c=_lvlCurve;var L=trackLevel(ap,_c);var nx=(L<20)?(_c.l1+_c.inc*L):null;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):((_dmAp||_dmSt==='active')?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b title="Pace based on AP earned so far (including any not yet spent), against the same level-budget curve as the header\'s ≈ Track-Level. This differs from Track-Level whenever you\'re holding unspent AP — Track-Level reflects only AP actually spent.">Earned Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx!=null?(' · <span class="ed">'+(nx-ap)+' AP to reach Earned Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>';})();
+    var ap=earnedWithDm(eco,{dmAp:_dmAp,ignorePlayerAp:_ignPlr});var _c=_lvlCurve;var L=trackLevel(ap,_c);var nx=(L<20)?(_c.l1+_c.inc*L):null;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):((_dmAp||_dmSt==='active')?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b title="Pace based on AP earned so far (including any not yet spent), against the same level-budget curve as the header\'s ≈ Track-Level. This differs from Track-Level whenever you\'re holding unspent AP — Track-Level reflects only AP actually spent.">Earned Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx!=null?(' · <span class="ed">'+(nx-ap)+' AP to reach Earned Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>'+_lsWalletLine(idx);})();
   {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent / '+eco.earned+' earned'+(_dmAp?' · '+_dmAp+' from DM':'');}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
   const ABCOL={STR:'#DE3520',DEX:'#39843C',CON:'#B36113',INT:'#3F6FD8',WIS:'#008393',CHA:'#9C27B0'};
@@ -1246,6 +1349,10 @@ function render(){
   const _ae=activeEvents(idx), boff=_ae.boughtOff, bnr=_ae.boonRemoved;
   (idx==null?LOG:LOG.slice(0,idx)).forEach((e,_li)=>{
     if(e&&e.type==='rulesSnapshot')return;   // offline campaign-rules metadata — not an AP-ledger action (still audit-visible in the raw LOG/export)
+    // Same treatment as rulesSnapshot above: the coin-and-calendar band switch is a SETTING, not an
+    // action with a price, so it has no place in an AP ledger. It stays fully visible in the raw
+    // LOG/export, and the wallet line reports which band is in force.
+    if(e&&e.type==='econSetting')return;
     let ap='', cls='', act='', packNote='';
     if(e.type==='award'){ap='+'+e.amount;cls='aw';}
     else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li))||(e.cat==='boon'&&bnr.has(_li));
@@ -1270,7 +1377,12 @@ function render(){
     // (the invariant this whole feature rests on), so this is a display cue only, never a cost.
     if(e.dmEdit) cls+=' dmedit';
     const dmTag=e.dmEdit?' <span class="dmtag" title="This was a DM edit — it never changed your spendable AP">🛡 DM</span>':'';
-    led+='<tr class="'+cls+'"><td>'+e.seq+'</td><td>'+esc(e.label||e.type)+dmTag+packNote+(e.rules?' <span class="vtag">'+e.rules+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+ap+'</td><td>'+act+'</td></tr>';
+    // What this purchase actually cost in coin and calendar, read from the event's own frozen gp/days
+    // — never re-derived from today's band, so a DM waiver or a mid-campaign band change can't rewrite
+    // history here either. Absent on creation purchases and on every character whose table plays with
+    // the economy off, which is exactly when nothing should be shown.
+    const _gtN=(e.gp||e.days)?(' <small class="gtnote" title="Gold and downtime paid for this purchase (Players Guide §16)">· '+(e.gp?Number(e.gp).toLocaleString()+' gp':'')+(e.gp&&e.days?' · ':'')+(e.days&&window._engineEcon?window._engineEcon.formatDowntime(e.days):'')+'</small>'):'';
+    led+='<tr class="'+cls+'"><td>'+e.seq+'</td><td>'+esc(e.label||e.type)+dmTag+packNote+_gtN+(e.rules?' <span class="vtag">'+e.rules+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+ap+'</td><td>'+act+'</td></tr>';
   });
   led+='</table>'; $('ledger').innerHTML=led;
   // --- validation tray ---
@@ -1344,7 +1456,15 @@ function buildBuyPanel(b,r,eco,head){
     const note = hardReason || soft || followup;
     const _pg=(['feature','subabil','racial'].indexOf(cat)>=0&&typeof FEAT_PG!=='undefined'&&payload&&FEAT_PG[payload.v])?('PHB p.'+FEAT_PG[payload.v]):'';
     const _ttl=[note,descr,_pg].filter(Boolean).join(' · ');
-    return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'"><span class="ibhead">'+label+' <em>'+costlbl+'</em></span>'+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
+    // Coin and calendar (§16). Drawbacks are excluded on purpose: they GRANT AP rather than costing
+    // it, and you do not pay a trainer to acquire a flaw. A genuinely free purchase (Tier 1, 1–2 AP)
+    // is labelled 'free' rather than left blank — the guide wants players to SEE that the low tiers
+    // cost nothing ("Low tiers are nearly free, on purpose"), and a blank reads as missing data.
+    const _q = (cat==='drawback')?null:_lsQuote(cost);
+    const _qlbl = !_q ? '' : (!_q.gp && !_q.days) ? 'free of coin and time'
+                 : [ _q.gp?(_q.gp.toLocaleString()+' gp'):'', _q.days?_q.time:'' ].filter(Boolean).join(' · ');
+    const _over = _q && _lsWalletShort(_q);
+    return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'"><span class="ibhead">'+label+' <em>'+costlbl+'</em></span>'+(_qlbl?('<small class="why gt'+(_over?' gtshort':'')+'">'+esc(_qlbl)+(_over?(' — '+esc(_over)):'')+'</small>'):'')+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
   }
   function db(name){ if(buyQuery && name.toLowerCase().indexOf(buyQuery)<0) return '';
     return '<button class="ib draw" onclick="takeDrawback(&quot;'+esc(name)+'&quot;)"><span class="ibhead">'+name+' <em>+'+DATA.drawbacks[name]+'</em></span><small class="why" style="color:var(--bad)">'+esc((DATA.drawbackFx&&DATA.drawbackFx[name])||'')+'</small></button>';}
@@ -2027,6 +2147,38 @@ function _writeRulesSnapshot(campRules){
 function cloudRuleBarred(kind,name){var r=resolveRules();if(!r)return false;var field=(window.RULE_BAN_FIELDS||{})[kind];var arr=field&&r[field];return !!(Array.isArray(arr)&&arr.indexOf(name)>=0);}
 
 function toggleMore(e){if(e)e.stopPropagation();var m=document.getElementById('moremenu');if(m)m.classList.toggle('open');}
+// The player-side Off/Standard/Fast switch (Players Guide §16, §17's pre-session checklist).
+//
+// WHO OWNS THE DIAL. In a campaign the DM does, full stop — this dialog then only REPORTS the band
+// the table plays with. Outside one the player owns it, and the choice is written to the character's
+// own LOG as an `econSetting` event so it travels with the file, survives export/import and the
+// CharGen handoff, and needs no new storage anywhere. It costs no AP and folds into no build.
+//
+// Three settings, not two: "Off" is a real choice, not the absence of one.
+function openEconomy(){
+  var E=window._engineEcon; if(!E){flash('Engine still loading — try again in a moment.');return;}
+  var band=_lsEconBand(null), bands=DATA.economyBands||{};
+  if(window._rulesStatus==='active'){
+    alert('🪙 Coin & calendar — set by your DM\n\n'
+      +'This campaign plays with the "'+((bands[band]||{}).label||band)+'" band.\n'
+      +((bands[band]||{}).blurb||'')+'\n\n'
+      +'Your DM sets this for the whole table in the DM Console; it can\'t be changed per-character.');
+    return;
+  }
+  var order=['off','standard','fast'];
+  var menu=order.map(function(k,i){return '  '+(i+1)+') '+bands[k].label+' — '+bands[k].blurb;}).join('\n');
+  var cur=order.indexOf(band)+1;
+  var pick=prompt('🪙 Coin & calendar — the gold-and-downtime economy (Players Guide §16)\n\n'
+    +'Every purchase you make IN PLAY costs gold and downtime as well as AP, read off a single band.\n'
+    +'Anything bought during character creation stays free of both.\n\n'
+    +menu+'\n\nEnter 1, 2 or 3:', String(cur||1));
+  if(pick==null) return;
+  var k=order[(parseInt(pick,10)||0)-1];
+  if(!k){flash('No change — enter 1, 2 or 3.');return;}
+  if(k===band){flash('Already using the '+bands[k].label+' band.');return;}
+  emit({type:'econSetting',payload:{band:k},cost:0,noLock:true,label:'Coin & calendar — '+bands[k].label});
+  flash('🪙 Coin & calendar: '+bands[k].label+(k==='off'?' — gold and downtime are no longer tracked.':' band.'));
+}
 function closeMore(){var m=document.getElementById('moremenu');if(m)m.classList.remove('open');}
 function toggleDM(){var c=document.getElementById('dmcontent'),t=document.getElementById('dmtoggle');if(!c)return;var op=(c.style.display==='none');c.style.display=op?'inline':'none';if(t)t.textContent='🛠 DM tools '+(op?'▾':'▸');}
 function closeNames(){var ov=document.getElementById('namesOv');if(ov)ov.style.display='none';}
@@ -2113,10 +2265,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   window._engineBridge = { validate };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
+  // Gold-and-downtime economy (Players Guide §16). Bridged onto window exactly as the AP-ledger
+  // functions above are, so the classic-script half of this tool reaches them the same way.
+  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, economyOn, tradeCoinTime, chargesGoldAndTime };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of
   // hand-copied inline duplicates. UI boot waits on engine-ready.
@@ -2245,6 +2400,10 @@ document.addEventListener('sync-ready', function () {
       if(!_cid){ renderCloudStatusBadge(); return; }
       var rec = await S.loadCharacter(_cid);
       window._dmAp = rec ? (rec.ap || 0) : 0;
+      // Same row, same server authority as `ap` — see js/sync.js applyServerMeta. `|| 0` because a
+      // character row cached before these columns existed comes back without them.
+      window._dmGold = rec ? (rec.gold || 0) : 0;
+      window._dmDays = rec ? (rec.downtime_days || 0) : 0;
       window._ignorePlayerAp = false;
       window._lsCampaignId = (rec && rec.campaign_id) || null;   // binding only — see buildCharacterEnvelope
       if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; window._lsVisibleCustomFields = {}; if(rec && typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(null); /* rec present but no campaign_id = confirmed standalone → clear the offline snapshot (a logged leave) */ renderCloudStatusBadge(); return; }
@@ -2279,6 +2438,7 @@ document.addEventListener('sync-ready', function () {
     } });
     if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return false; }
     window._dmAp = rec.ap || 0;
+    window._dmGold = rec.gold || 0; window._dmDays = rec.downtime_days || 0;
     window._ignorePlayerAp = false;
     window._lsCampaignId = rec.campaign_id || null;   // binding only — see buildCharacterEnvelope
     window._cloudCampaignRules = null;
@@ -2385,6 +2545,7 @@ document.addEventListener('sync-ready', function () {
         if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return; }
         VIEW_ONLY = true;
         window._dmAp = rec.ap || 0;
+        window._dmGold = rec.gold || 0; window._dmDays = rec.downtime_days || 0;
         window._ignorePlayerAp = false;
         window._cloudCampaignRules = null;
         _campaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
