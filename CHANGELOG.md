@@ -25,6 +25,11 @@
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
 
+- **2026-08-19 · docs(livesheet): drop "(prototype)" from the Live Sheet's `<title>`** — the browser tab
+  read *"PACT — Live Character Sheet (prototype)"*, the only place any tool still called itself that, and
+  the one label a player sees before the page even paints. Owner's call. Title only; nothing else
+  referenced the word, and no gate depended on it (checked).
+
 - **2026-08-19 · fix(tools): heritage-pack traits are visible in both tools — and still never stored** —
   reported from real use: buying a species pack ticked nothing in CharGen and showed nothing on the Live
   Sheet. A pack is charged as one line and its members are owned **implicitly** (`compute()`'s `_ownsR`
