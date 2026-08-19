@@ -96,7 +96,12 @@ async function connect(url) {
 }
 // The tools boot on an `engine-ready` event fired by a deferred module script, so the classic-script
 // globals (priceOf, LOG, economy…) are not present at DOMContentLoaded. Poll rather than sleep.
-const READY = (probe) => `(async()=>{for(let i=0;i<100;i++){if(${probe})return true;await new Promise(r=>setTimeout(r,100));}return false;})()`;
+// 30s, not 10. A readiness POLL returns the instant its probe passes, so a longer ceiling costs nothing
+// on a fast page and only decides how much contention it survives. This gate now opens ~10 tabs across
+// three tools, and CharGen alone is 376 KB plus a deferred module bridge — at 10s it failed roughly one
+// run in five with "CharGen never became ready", intermittently and only under that load. Same budget and
+// same fix as the CDP connect loop above; the two were written 10s apart for no reason but habit.
+const READY = (probe) => `(async()=>{for(let i=0;i<300;i++){if(${probe})return true;await new Promise(r=>setTimeout(r,100));}return false;})()`;
 
 // ---- assertions -------------------------------------------------------------------------------
 let pass = 0, fail = 0;
@@ -1512,6 +1517,191 @@ try {
       const o=_cgDmOpts();
       return [o.drawbackCap===undefined?'undefined':o.drawbackCap, compute(${CAPBUILD},o).budget];
     })()`), ['undefined', 93]);
+
+  // ================== DM-granted AP is visible in both player tools ==================
+  // Reported 2026-08-19: "i cannot see how many DM AP's there are in the chargen or livesheet".
+  // Both tools DID have a display; two states rendered nothing useful. The Live Sheet's chip was
+  // `_dmAp ? ... : ''`, so a campaign character with 0 DM AP showed no DM component at all —
+  // indistinguishable from the feature not existing. And a CharGen DM copy is deliberately unbound, so
+  // since the grant became a campaign character's ENTIRE budget it opened reading "0 AP — player only",
+  // which looks like lost AP rather than an unbound snapshot.
+  console.log('\nDM-granted AP must be visible in both player tools');
+  {
+    const cgd = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
+    if (!(await cgd.evaluate(READY(`window.DATA&&typeof render==='function'&&document.getElementById('apSourceLine')`))))
+      throw new Error('CharGen never became ready for the DM-AP check');
+    const apLine = setup => cgd.evaluate(`(()=>{${'$'}{S}render();
+      return (document.getElementById('apSourceLine')||{}).innerText.replace(/\\s+/g,' ').trim();})()`.replace('${S}', setup));
+    // Shape, not a fixed player figure: the claim is that BOTH pools are named and the DM half is the
+    // real number. Pinning "79 player" would be asserting whatever the budget field happens to hold.
+    check('CharGen names both pools when a campaign grants AP',
+      /\d+ player \+ 54 DM/.test(await apLine(`window._dmApStatus='active';window._dmAp=54;window._ignorePlayerAp=false;`)), true);
+    check('...and names the DM total when player AP is ignored (every Amble character)',
+      /54 AP — DM only/.test(await apLine(`window._dmApStatus='active';window._dmAp=54;window._ignorePlayerAp=true;`)), true);
+    check('...and a DM copy says it is unbound rather than silently reading 0',
+      /DM copy, not campaign-bound/.test(await apLine(`window._dmApStatus='none';window._dmAp=0;window._cgCopySourceAp=54;window._cgCopySourceName='Moss';`)), true);
+    // The copy must never be able to SPEND the AP it now mentions — display-only is the whole point.
+    check('...without the copy being able to spend it',
+      await cgd.evaluate(`(()=>{window._dmApStatus='none';window._dmAp=0;window._cgCopySourceAp=54;
+        return _cgDmOpts().dmAp;})()`), 0);
+    await cgd.close();
+
+    const lsd = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    if (!(await lsd.evaluate(READY(`window._engineFold&&typeof render==='function'`))))
+      throw new Error('Live Sheet never became ready for the DM-AP check');
+    const ecoLine = setup => lsd.evaluate(`(()=>{${'$'}{S}render();
+      const e=document.querySelector('.ecoline'); return e?e.innerText.replace(/\\s+/g,' ').trim():'';})()`.replace('${S}', setup));
+    check('the Live Sheet shows the DM figure for a campaign character',
+      /54 from DM/.test(await ecoLine(`window._rulesStatus='active';window._dmAp=54;window._ignorePlayerAp=false;`)), true);
+    check('...and still shows it at ZERO rather than omitting the chip entirely',
+      /0 from DM/.test(await ecoLine(`window._rulesStatus='active';window._dmAp=0;window._ignorePlayerAp=false;`)), true);
+    check('...but stays quiet for a character with no campaign at all',
+      /from DM/.test(await ecoLine(`window._rulesStatus='none';window._dmAp=0;`)), false);
+    await lsd.close();
+  }
+
+  // ============ the DM Console shows subclass purchases and pack traits ============
+  // Reported from real use, 2026-08-19: "on the dm console i can see class abilities, but not subclass
+  // abilities. moss i cannot see 'Ranger › Beast Master: Primal Companion'". buildSections() rendered
+  // s.features and had no subclass section at all, in either the cloud card or detailHTML.
+  //
+  // Both read compute()'s own itemize/lines — which the summary already carried — so the labels are the
+  // engine's rather than a second formatting of the stored key. The same card's Traits list had the
+  // heritage-pack blindness fixed in the player tools, so it is asserted here too.
+  console.log('\nDM Console — subclass purchases and heritage-pack traits must be visible');
+  {
+    const dms = await connect(`http://127.0.0.1:${PORT}/PACT/tools/DM-Console.html`);
+    if (!(await dms.evaluate(READY(`window.DATA&&typeof window._dmRenderCloudRoster==='function'&&typeof packTraitsFor==='function'`))))
+      throw new Error('DM Console never became ready for the subclass check');
+    check('a Dwarf Ranger\'s subclass ability and both pack traits all appear',
+      await dms.evaluate(`(()=>{
+        const el=document.getElementById('campRoster'); el.innerHTML='';
+        window._dmRenderCloudRoster(el, [{id:'m',name:'Moss',ap:0,player:'',playerLabel:'',dmNotes:'',stats:{SEQ:6,LOG:[
+          {type:'award',amount:200,seq:1},
+          {type:'buy',cat:'oclass',payload:{v:'Ranger'},cost:0,seq:2},
+          {type:'buy',cat:'species',payload:{v:'Dwarf'},cost:0,seq:3},
+          {type:'buy',cat:'feature',payload:{v:'Ranger: Favored Enemy'},cost:3,seq:4},
+          {type:'buy',cat:'subabil',payload:{v:'Ranger|Beast Master|Primal Companion'},cost:9,seq:5}]}}]);
+        const c=el.querySelector('.chead'); if(c) c.click();
+        const t=el.innerText||'';
+        return [/Ranger › Beast Master: Primal Companion/.test(t),   // the reported one
+                /Ranger: Favored Enemy/.test(t),                      // class feature, was already fine
+                /Dwarf: Dwarven Resilience/.test(t)];                 // pack trait, same blindness
+      })()`),
+      [true, true, true]);
+    await dms.close();
+  }
+
+  // ========== opening a character repeatedly must not change it (award idempotence) ==========
+  // Reported from real use, 2026-08-19: "each time i open moss stormspud from the DM screen in chargen
+  // or refresh, the AP budget decreases by 4." Moss has exactly 4 AP of drawbacks. Reproduced 79 -> 75
+  // -> 71 -> 67 -> 63, unbounded, compounding once per open — a character silently losing AP forever.
+  //
+  // Cause: TWO sites subtracted the drawback total out of the award. Both were right under D-GH41, when
+  // b.budget was awards + drawbackEarned combined. v0.355 moved that split into the engine (foldBuild
+  // now sets b.budget to awards only) and left both subtractions in place, so each became a SECOND
+  // subtraction. This is the gate that turns "opening a character is safe" from an assumption into an
+  // assertion — nothing else here exercises the load -> regenerate -> reconcile cycle more than once.
+  console.log('\nOpening a character N times must leave it identical (award idempotence)');
+  {
+    const cgi = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
+    if (!(await cgi.evaluate(READY(`window.DATA&&typeof applyBuild==='function'&&typeof buildToEventLog==='function'`))))
+      throw new Error('CharGen never became ready for the idempotence check');
+    // A Moss-shaped character: one award, and drawbacks worth a non-zero total. The drawbacks are what
+    // make the two figures differ, so a re-introduced subtraction cannot hide behind them being equal.
+    const seed = JSON.stringify([
+      {type:'award',amount:79,note:'Budget',noLock:true,label:'Award — budget (79 AP)'},
+      {type:'buy',cat:'drawback',payload:{v:'Forgetful'},cost:-1,level:1,label:'Drawback — Forgetful'},
+      {type:'buy',cat:'drawback',payload:{v:'Heavy Sleeper'},cost:-1,level:1,label:'Drawback — Heavy Sleeper'},
+    ]);
+    const cycle = await cgi.evaluate(`(()=>{
+      const seen=[]; let src=${seed};
+      for (let i=0;i<5;i++){
+        applyBuild(foldBuild(src));
+        LOG = buildToEventLog(readBuild());
+        _cgSyncAward();
+        seen.push(LOG.filter(e=>e.type==='award').map(e=>e.amount).join('+'));
+        src = LOG;
+      }
+      return [seen.join(' '), compute(readBuild(),_cgDmOpts()).budget];
+    })()`);
+    check('five opens leave the award event untouched at 79',
+      cycle[0], '79 79 79 79 79');
+    check('and spendable stays 79 award + 2 drawback = 81 throughout',
+      cycle[1], 81);
+    await cgi.close();
+  }
+
+  // ============ every version label a player can see reads the LIVE engine version ============
+  // Reported from real use, 2026-08-19: CharGen's header said v0.356 while its own info popup said
+  // v0.339, and the DM Console footer said "rules engine v0.176". Both were the same shape — a label
+  // painted at PARSE time from a hardcoded fallback, before the deferred module fires `engine-ready`,
+  // and never repainted. Nothing caught it because every existing check reads DATA.version directly
+  // rather than what the page actually renders, which is the only thing a player sees.
+  console.log('\nVersion labels — what the page SHOWS must equal DATA.version');
+  {
+    const cgv = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
+    if (!(await cgv.evaluate(READY(`window.DATA&&document.readyState==='complete'`))))
+      throw new Error('CharGen never became ready for the version check');
+    check('CharGen: header chip, <title> and the info popup all show the live rules version',
+      await cgv.evaluate(`(()=>{const v=DATA.version;
+        const has=s=>String(s||'').indexOf(v)>=0;
+        return [has((document.getElementById('cgPactver')||{}).textContent),
+                has(document.title),
+                has((document.getElementById('infoVersions')||{}).textContent)];})()`),
+      [true, true, true]);
+    await cgv.close();
+
+    const dmv = await connect(`http://127.0.0.1:${PORT}/PACT/tools/DM-Console.html`);
+    if (!(await dmv.evaluate(READY(`window.DATA&&typeof window._dmRenderCloudRoster==='function'`))))
+      throw new Error('DM Console never became ready for the version check');
+    check('DM Console: the footer\'s "rules engine" reads the live version, not its fallback',
+      await dmv.evaluate(`(()=>{const t=(document.getElementById('rulesVer')||{}).textContent;
+        return [t===DATA.version, t];})()`),
+      [true, DATA.version]);
+    await dmv.close();
+  }
+
+  // ================== heritage-pack traits are VISIBLE, and never stored ==================
+  // Reported from real use, 2026-08-19: "when i species pack it does not tick the items included in the
+  // heritage pack, and they do not show in livesheet." A pack is charged as one line and its member
+  // traits are then owned implicitly — compute()'s _ownsR treats them as held so prerequisites resolve —
+  // but that ownership was derived and NEVER EXPORTED, so no UI could render it.
+  //
+  // The obvious fix, ticking them into b.racialTraits, is a trap and this gate pins that too: in-pack
+  // traits price at 0 only while the pack is yours, so a stored one followed by a species change
+  // re-prices at the CROSS rate. They must stay derived.
+  console.log('\nHeritage pack — the traits it grants must be visible, and must not be stored');
+  {
+    const cg3 = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
+    if (!(await cg3.evaluate(READY(`window.DATA&&typeof packTraitsFor==='function'&&typeof readBuild==='function'`))))
+      throw new Error('CharGen never became ready for the heritage-pack check');
+    const inspect = sp => cg3.evaluate(`(()=>{
+      const el=document.getElementById('spec'); el.value=${'$'}{sp}; el.dispatchEvent(new Event('change',{bubbles:true})); render();
+      const pack=new Set(packTraitsFor(el.value,''));
+      const rows=[...document.querySelectorAll('.racck')].filter(e=>pack.has(e.value));
+      return [rows.length, rows.every(e=>e.checked), rows.every(e=>e.disabled), ckVals('racck').length, readBuild().racialTraits.length];
+    })()`.replace('${sp}', JSON.stringify(sp)));
+    check('CharGen ticks every trait the Dwarf pack grants, and disables it',
+      await inspect('Dwarf'), [2, true, true, 2, 0]);
+    // The 4th value is the load-bearing one: only the CURRENT pack may be ticked. Ticking without
+    // un-ticking left the previous species' boxes set, and those survive readBuild()'s strip and enter
+    // the build as cross-race purchases. This check read [.., 4, 2] before the packTick marker landed.
+    check('...and un-ticks the old pack on a species change, storing none of them',
+      await inspect('Elf'), [2, true, true, 2, 0]);
+    await cg3.close();
+
+    const ls3 = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    if (!(await ls3.evaluate(READY(`window._engineFold&&typeof renderCharSheet==='function'&&typeof packTraitsFor==='function'`))))
+      throw new Error('Live Sheet never became ready for the heritage-pack check');
+    check('the Live Sheet character sheet lists both pack traits',
+      await ls3.evaluate(`(()=>{
+        window.confirm=()=>true; buy('species',{v:'Dwarf'});
+        const b=foldBuild(null); const html=String(renderCharSheet(b,compute(b,_dmOpts()),{}));
+        return [/Dwarven Resilience/.test(html), /Darkvision 60 ft/.test(html), (b.racialTraits||[]).length];})()`),
+      [true, true, 0]);
+    await ls3.close();
+  }
 
   // ============ a PRE-LOCK character's ledger must equal compute(), across level-ups ============
   // fix/livesheet-draft-reconcile. TASK_BOARD_NEXT recorded a live divergence measured on 2026-08-05 —

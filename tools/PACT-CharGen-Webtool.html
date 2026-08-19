@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.426.html**-->
+<!--**PACT-CharGen-Webtool v1.427.html**-->
 
 <!doctype html>
 <!--
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.426 · Rules v0.339</title><style>
+<title>PACT Character Generator — Web Tool v1.427 · Rules v0.339</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -497,7 +497,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.426</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.427</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -552,11 +552,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild, repriceDraft, isCreationDraft, validate, RULE_BAN_FIELDS, creationLockThreshold } from '../js/engine.js';
+  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, validate, RULE_BAN_FIELDS, creationLockThreshold } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (CharGen); never read by compute()
   window.DATA = DATA; window.compute = compute; window.MUT = MUT; window.foldBuild = foldBuild;
-  window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild;
+  window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild; window.packTraitsFor = packTraitsFor;
   window.repriceDraft = repriceDraft; window.isCreationDraft = isCreationDraft;   // draft-ledger reconciliation (D-GH-2026-08-05-pricing-model, D2/D7)
   window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs; window.recordAutosave = recordAutosave;
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
@@ -1375,6 +1375,14 @@ document.addEventListener('sync-ready', function () {
       // whole mechanism failed silently. Refuse rather than proceed if that ever occurs.
       if(copyId === vid){ alert('Could not safely open a copy of that character (id collision) — nothing was loaded.'); return false; }
       _cgResetCloudApState();   // never campaign-bound — a save from this copy must not write into the source campaign's roster
+      // ...but remember what the SOURCE had, for display. A DM copy is deliberately unbound, which since
+      // the grant became a campaign character's entire budget means it opens showing "0 AP — player only"
+      // and every purchase unaffordable. That reads as "the tool lost my AP" rather than "this snapshot
+      // is not campaign-bound". Reported 2026-08-19 ("i cannot see how many DM AP's there are").
+      // DISPLAY ONLY: it is never passed to compute() — see _cgDmOpts(), which does not read it — so the
+      // copy still cannot spend AP that belongs to the campaign roster it is not part of.
+      window._cgCopySourceAp = Number(rec.ap) || 0;
+      window._cgCopySourceName = srcName;
       _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:rec.stats.rules||DATA.version,name:copyName,
         LOG:rec.stats.LOG,SEQ:rec.stats.SEQ||(rec.stats.LOG.length+1),id:copyId},{clearHistory:true});
       var stats = _cgEnvelope(false);
@@ -1468,7 +1476,7 @@ function _cgOverApBudget(){
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;}
+function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';}
 // A file/handoff that carries a campaign binding is NOT a plain local character. Resetting DM AP to a
 // silent 0 (what every local-load path used to do) was harmless when DM AP was a bonus on top of a LOG
 // award, but since the grant became the character's ENTIRE budget it made an exported campaign character
@@ -1533,6 +1541,11 @@ function _apSourceHTML(r){
   } else if(st==='active'){
     label='☁ '+r.spendable+' AP — '+r.playerAp+' player + '+dmAp+' DM';
     tip='Your spendable budget combines the Player AP field ('+r.playerAp+') with '+dmAp+' AP your DM has granted this character. Combined live at display time — never saved as one number.';
+  } else if(window._cgCopySourceAp>0){
+    label='👁 '+r.playerAp+' AP — DM copy, not campaign-bound';
+    tip='This is a snapshot of \u201c'+(window._cgCopySourceName||'a character')+'\u201d, deliberately NOT bound to its campaign, so its '
+      +window._cgCopySourceAp+' DM-granted AP does not count here and nothing you do can spend it. The original still has it. '
+      +'Open the character itself (\u2601 Cloud menu) to build against the real budget.';
   } else {
     label='🔒 '+r.playerAp+' AP — player only';
     tip="This build isn't bound to a cloud campaign, so only the Player AP field counts. Load a cloud character bound to a campaign (☁ Cloud menu) to add DM-granted AP.";
@@ -1860,6 +1873,17 @@ function genPortrait(){genPortraitFor(readBuild());}
 let HOUSE={boons:{},draws:{},disabled:{boons:[],draws:[]}};
 function effBoons(){const o={};for(const k in DATA.boons)o[k]={hd:DATA.boons[k].hd,ap:DATA.boons[k].ap,fx:DATA.boons[k].fx,cat:DATA.boons[k].cat||'Other',custom:false};
   for(const k in (HOUSE.boons||{})){const h=HOUSE.boons[k];const builtin=DATA.boons[k];o[k]={hd:+h.hd||1,ap:+h.ap||0,fx:h.fx||(o[k]&&o[k].fx)||'',cat:builtin?(builtin.cat||'Other'):'DM custom',custom:true};}return o;}
+// Heritage-pack traits are ticked in the grid for VISIBILITY (render() below) but must never reach the
+// stored build. In-pack traits price at 0 only while the pack is yours; stored and then followed by a
+// species change they re-price at the CROSS rate — measured, `Dwarf: Dwarven Resilience` is a 0 AP
+// "Species traits" line on a Dwarf and silently 3 AP on an Elf. compute() re-derives pack ownership
+// anyway (packTraitsFor / _ownsR), so dropping them here loses nothing and disarms that.
+// Uses the engine's own list rather than testing `rr.race===species` here — that test is rules logic.
+function _cgStripPackTraits(vals, sp, sp2){
+  if(typeof packTraitsFor!=='function') return vals;          // pre-engine-ready safety, same as elsewhere
+  const inPack=new Set(packTraitsFor(sp,sp2));
+  return (vals||[]).filter(function(v){ return !inPack.has(v); });
+}
 function effDraws(){const o={};for(const k in DATA.drawbacks)o[k]={ap:DATA.drawbacks[k],fx:(DATA.drawbackFx&&DATA.drawbackFx[k])||'',cat:(DATA.drawbackCat&&DATA.drawbackCat[k])||'Other',custom:false};
   for(const k in (HOUSE.draws||{})){const h=HOUSE.draws[k];o[k]={ap:+h.ap||0,fx:h.fx||(o[k]&&o[k].fx)||'',cat:'DM custom',custom:true};}return o;}
 function isDisabled(kind,name){return (HOUSE.disabled&&HOUSE.disabled[kind]||[]).includes(name);}
@@ -2848,21 +2872,26 @@ function _cgSyncSingletonEvent(type,makeEvent){
 }
 function _cgSyncName(){const nm=val('cname')||'';
   _cgSyncSingletonEvent('name',function(){return {type:'name',name:nm,label:'Name — '+(nm||'New Character')};});}
-// D-GH41 bug fix: val('budget') is the FULL computed total (foldBuild's economy().earned = raw award +
-// drawback earnings combined) — it is NOT the raw award. Baking that combined total into a new `award`
-// event, while the drawback buy event(s) already in the LOG separately keep contributing their own AP on
-// every future fold, double-counted a character's active drawback AP every single time this reconcile
-// ran (every autosave-restore, file load, and switch-tool handoff — compounding by the drawback's AP
-// value on every cycle, unbounded). Subtract economy(LOG).drawbackEarned (the engine's own already-computed
-// split, D-GH41) back out so this only ever writes the true raw award — a no-op when nothing actually
-// changed, per _cgSyncSingletonEvent's equality guard.
+// val('budget') is the RAW AWARD, and is written straight back as one. It is set by applyBuild() from
+// b.budget, and since v0.355 foldBuild() defines b.budget as awards only (economy().earned MINUS
+// drawbackEarned) — the drawback grant is derived by compute() and no longer rides on the budget.
+//
+// D-GH41 subtracted economy(LOG).drawbackEarned here, correctly, back when b.budget was the COMBINED
+// total. v0.355 moved the split into the engine and left that subtraction in place, so it became a
+// SECOND subtraction: every reconcile wrote an award 4 AP lower for a character with 4 AP of drawbacks,
+// and this runs on every autosave-restore, file load and switch-tool handoff. Reported from real use
+// 2026-08-19 — "each time i open moss stormspud from the DM screen in chargen or refresh, the AP budget
+// decreases by 4" — and reproduced exactly: 79 -> 75 -> 71 -> 67, unbounded, compounding per open.
+//
+// The invariant to hold on to: b.budget, val('budget') and this award's amount are ALL the raw award
+// now. No conversion belongs anywhere on this path.
 function _cgSyncAward(){
   // Number(), not `||`: a budget of 0 is a REAL value for a campaign character (its AP lives in the DM
   // pool, not in an award event), and `0 || DATA.level1AP` silently turned that into 79. Only a blank or
   // unparseable field falls back to the level-1 default.
   const raw=val('budget'), parsed=Number(raw);
   const base=(raw===''||raw==null||!Number.isFinite(parsed))?DATA.level1AP:parsed;
-  const amt=base-economy(LOG).drawbackEarned;
+  const amt=base;
   // Don't mint a zero award for a character that has none. Without this, every load of a DM-AP-only
   // character would append `award 0` — a meaningless event that also makes the log look edited.
   if(amt===0&&!LOG.some(function(e){return e.type==='award';}))return;
@@ -3233,9 +3262,30 @@ function onPatchFieldChange(el){
   if(slot===PATCH_SLOTS.IDENTITY||slot===PATCH_SLOTS.HOUSE_RULES)_cgReconcileChecklistDependents();
 }
 
+// A stat cap is enforced in BOTH directions (owner's ruling 2026-08-19). Direction A — taking a capped
+// drawback above the cap — is stopped by disabling the checkbox in render(). This is direction B: raising
+// a score past the cap of a drawback you already hold. The Live Sheet refuses the equivalent purchase
+// outright, so CharGen doing nothing but warning was the gap that let the guide claim "the tool only
+// warns, it does not block".
+//
+// CLAMPED to the cap rather than reverted: the cap IS the highest legal value, so clamping lands on what
+// the player can actually have, and flash() says why. Reverting to the prior value would need edit
+// history this handler does not have, and silently doing nothing would leave an illegal build.
+function _cgClampStatToDrawbackCaps(el){
+  if(!el||!el.id||el.id.indexOf('st_')!==0) return false;
+  var ab=el.id.slice(3), want=Number(el.value); if(!Number.isFinite(want)) return false;
+  var mx=(typeof DATA!=='undefined'&&DATA.drawbackMaxStats)||{}, held=ckVals('drawck');
+  var cap=null, who='';
+  held.forEach(function(d){ var c=mx[d]; if(c&&c[ab]!=null&&(cap===null||c[ab]<cap)){ cap=c[ab]; who=d; } });
+  if(cap===null||want<=cap) return false;
+  el.value=cap;
+  if(typeof flash==='function') flash('⛔ '+who+' caps '+ab+' at '+cap+' — buy the drawback off first to raise it.');
+  return true;
+}
+
 function _cgWirePatchDelegation(){
   const form=$('form');if(!form)return;
-  const watch=function(e){_setCoalesceForEvent(e);if(e.target&&e.target.id)onPatchFieldChange(e.target);};
+  const watch=function(e){_cgClampStatToDrawbackCaps(e.target);_setCoalesceForEvent(e);if(e.target&&e.target.id)onPatchFieldChange(e.target);};
   form.addEventListener('change',watch);form.addEventListener('input',watch);
   // blur/focus-change permanently seals the open coalescing group (D3): a later edit to the same field
   // starts a fresh undo step, and a group that changed nothing is dropped.
@@ -3317,7 +3367,7 @@ function _domReadBuild(){
     return {name:card.querySelector('.trad-name').value,rank:+card.querySelector('.trad-rank').value,disciplines:discs};
   });
   (trads||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(d&&(DATA.noCantrip||[]).indexOf(d.name)>=0){d.cantrips=0;d.cantripNames=[];}});}); return {name:val('cname'),budget:+val('budget'),originClass:val('oclass'),originClass2:val('oclass2'),
-    species:val('spec'),species2:val('spec2'),racialTraits:ckVals('racck'),lineage:val('lineage'),racialSpells:ckVals('linspellck'),stats,
+    species:val('spec'),species2:val('spec2'),racialTraits:_cgStripPackTraits(ckVals('racck'),val('spec'),val('spec2')),lineage:val('lineage'),racialSpells:ckVals('linspellck'),stats,
     hd:+val('hd'),profBonus:+(val('profBonus')||2),hardy:+val('hardy'),tough:+val('tough'),
     saves:ckVals('saveck'),skills:ckVals('skillck'),expertise:ckVals('expck'),languages:+(val('languages')||0),
     tools:ckVals('toolck'),instruments:ckVals('instck'),customProfs:rowsVals('cprofrow'),toolExpertise:ckVals('toolexpck'),
@@ -3676,12 +3726,12 @@ function _buildEventBurst(b){
   // Phase 2 step 2 (D-GH33): was a second local throwaway MUT subset — the imported js/engine.js MUT
   // is a superset (same mutators for every category used below, plus more), so it's used directly now.
   const run=liveBase(), base0=liveBase();
-  // D-GH41 bug fix: b.budget (foldBuild's economy().earned) already includes drawback-earned AP, but the
-  // drawback buy events emitted below (same DATA.drawbacks table) separately re-contribute their own AP on
-  // every future fold — emitting the combined total as the raw award double-counted every active drawback's
-  // AP each time this whole-build regeneration ran (unconditionally, on EVERY CharGen boot). Back it out.
-  const _drawbackAP=(b.drawbacks||[]).reduce((s,v)=>s+(DATA.drawbacks[v]||0),0);
-  const _rawAward=(b.budget||0)-_drawbackAP;
+  // b.budget IS the raw award (v0.355: foldBuild sets it to economy().earned minus drawbackEarned), so it
+  // is emitted unchanged. D-GH41's subtraction of the drawback total belonged here only while b.budget was
+  // the combined figure; after v0.355 it was a second subtraction, and since this regeneration runs on
+  // every whole-build rewrite it drained 4 AP per cycle from a character with 4 AP of drawbacks. Same
+  // defect as _cgSyncAward() above — both sites, one cause. See D-GH-2026-08-19-award-drawback-double-subtract.
+  const _rawAward=(b.budget||0);
   ev({type:'award',amount:_rawAward,note:'Imported budget',label:'Starting creation budget ('+_rawAward+' AP)'});
   if(b.name) ev({type:'name',name:b.name,label:'Name — '+b.name});
   if(b.appearance && Object.keys(b.appearance).some(k=>b.appearance[k])) ev({type:'buy',cat:'patch',payload:{patch:{appearance:C(b.appearance)}},cost:0,level:1,label:'Appearance & description (0 AP)'});
@@ -4327,7 +4377,20 @@ function annotate(b,r){
     const o=(rr.race===b.species||rr.race===b.species2);
     s.textContent=(o?(rr.pack?'in pack':'★ '+rr.origin+' AP'):(rr.cross==null?'— origin only':rr.cross+' AP'))+(rr.tier>1?' · '+(DATA.tierHD[rr.tier])+' HD':'');
     s.style.color=o?'var(--good)':'var(--bad)';});
+  // Pack-granted traits are shown TICKED and disabled. Before this they sat unticked while their own
+  // price label read "in pack", so the grid said "you have this" and "you don't" in the same row — and
+  // the character sheet omitted them entirely. They are stripped in readBuild(), so a tick here is
+  // display state only and never enters the stored build.
+  const _inPack=new Set((r&&r.packTraits)||[]);
   document.querySelectorAll('.racck').forEach(e=>{const rr=DATA.racial[e.value];if(!rr)return;const _own=(rr.race===b.species||rr.race===b.species2);const _oo=(!_own&&rr.cross==null);const ok=(b.hd>=(DATA.tierHD[rr.tier]||1))&&!_oo;
+    // MARK the ticks we make, so a later render can undo exactly those and nothing else. Ticking
+    // without a marker leaves the PREVIOUS species' pack boxes ticked after a species change, and
+    // because they are no longer in the current pack they survive readBuild()'s strip and land in the
+    // build as CROSS-RACE purchases — the precise overcharge this whole fix exists to prevent. Caught
+    // by the gate below, not by hand. A player's own cross-race tick of another species' pack trait is
+    // legal and carries no marker, so it is never touched.
+    if(_inPack.has(e.value)){e.checked=true;e.disabled=true;e.dataset.packTick='1';if(e.parentElement)e.parentElement.style.opacity='1';return;}
+    if(e.dataset.packTick){delete e.dataset.packTick;e.checked=false;}
     if(_oo&&e.checked)e.checked=false;e.disabled=((!ok&&!e.checked)||_oo);if(e.parentElement)e.parentElement.style.opacity=(ok||e.checked)?'1':'0.55';});
   if($('racp'))$('racp').textContent='Species traits: '+get('Species traits')+' AP';
   // lineage / legacy / ancestry: show only for species that have lineages; gate the select + spell-likes to the chosen one
@@ -4361,6 +4424,28 @@ function annotate(b,r){
     const _campCap=_cgDrawbackCap();
     const _dCap=(_campCap===undefined)?DATA.drawbackCap:_campCap;
     _dc.textContent=_rawGain===0?'':'Drawback refund: +'+_rawGain+' AP'+(_rawGain>_dCap?' ⚠ over '+_dCap+' AP — confirm with DM':'');
+    // STAT CAPS ARE ENFORCED HERE, NOT JUST WARNED (owner's ruling 2026-08-19). The Live Sheet's buy()
+    // already refused these — anything not matching SOFT_WARN is a hard block — but CharGen is form-based
+    // and let the same combination through with only a warning, which is why the guide ended up claiming
+    // "the tool only warns". Now a drawback whose cap the CURRENT score breaks cannot be ticked at all.
+    // A drawback ALREADY held when the score is raised past its cap is left ticked deliberately: silently
+    // un-ticking it would delete a purchase the player made and refund AP behind their back. It raises
+    // the engine's ⛔ warning instead, which is what blocks the cloud save.
+    (function(){
+      var _mx=DATA.drawbackMaxStats||{}, _st=b.stats||{};
+      document.querySelectorAll('.drawck').forEach(function(e){
+        var caps=_mx[e.value]; if(!caps) return;
+        var breaks=Object.keys(caps).some(function(a){ return (_st[a]||10) > caps[a]; });
+        if(breaks && !e.checked){
+          e.disabled=true;
+          var which=Object.keys(caps).map(function(a){return a+' '+caps[a]+' or lower';}).join(', ');
+          e.title='Requires '+which+' — reduce the score before taking this drawback.';
+          if(e.parentElement) e.parentElement.style.opacity='0.55';
+        } else if(e.disabled && !breaks){
+          e.disabled=false; e.title=''; if(e.parentElement) e.parentElement.style.opacity='1';
+        }
+      });
+    })();
     _dc.style.color=_rawGain>_dCap?'var(--bad)':_rawGain>=_dCap-2?'#7a4f00':'var(--muted,#888)';
     _dc.style.fontWeight=_rawGain>=_dCap-2?'700':'normal';}}
   // HD / caps / HP (#3)
@@ -5213,7 +5298,14 @@ document.addEventListener('keydown',function(e){
 // than hand-duplicate the version numbers here (a third place to keep in sync at every BUILD/
 // DATA.version bump, on top of audit.py's existing two-location check), this just copies the two
 // header spans' live text — same reasoning as the last-edited line above, one source of truth.
-(function(){var el=document.getElementById('infoVersions');if(!el)return;var sub=document.querySelector('.hd-row2 .sub'),rules=document.getElementById('cgPactver');var parts=[];if(sub&&sub.textContent)parts.push(sub.textContent.trim());if(rules&&rules.textContent)parts.push(rules.textContent.trim());el.textContent=parts.join(' · ');})();
+// Composed from what's ON SCREEN so it can never invent its own version numbers — but it therefore has
+// to run AFTER the module bridge has replaced #cgPactver's hardcoded fallback. As a bare IIFE it ran at
+// parse time, i.e. before `engine-ready` (deferred modules run after classic scripts), so the popup
+// showed the stale literal from line 1 while the header beside it showed the live rules version.
+// Reported from real use 2026-08-19: header v0.356, popup v0.339.
+function _cgPaintInfoVersions(){var el=document.getElementById('infoVersions');if(!el)return;var sub=document.querySelector('.hd-row2 .sub'),rules=document.getElementById('cgPactver');var parts=[];if(sub&&sub.textContent)parts.push(sub.textContent.trim());if(rules&&rules.textContent)parts.push(rules.textContent.trim());el.textContent=parts.join(' · ');}
+_cgPaintInfoVersions();
+document.addEventListener('engine-ready',_cgPaintInfoVersions);
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/PACT/service-worker.js').then(reg => {
       reg.update();

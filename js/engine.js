@@ -54,7 +54,7 @@ import { AP_BY_LEVEL, DEFAULT_LEVEL } from './ap-by-level.js';
 // Per-campaign advancement dials (display/config-only; never read by compute()/_replay()).
 import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advancement.js';
 
-export const BUILD = "v1.426";
+export const BUILD = "v1.427";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -70,6 +70,37 @@ export { DATA };
  * normalises the build) and compute()'s lookup (so a build handed in directly still prices).
  * Add an entry here whenever a DATA.features key is renamed or removed; never rename one silently. */
 export const FEAT_ALIAS = lab => (DATA.featureAliases && DATA.featureAliases[lab]) || lab;
+
+/**
+ * packTraitsFor(species, species2) — the racial traits a character owns FOR FREE by virtue of their
+ * heritage pack(s), in DATA.racialList order.
+ *
+ * A heritage pack is charged as ONE line ("Heritage pack", DATA.pack[species]) and its member traits
+ * are then owned implicitly: compute()'s `_ownsR` already treats them as held whether or not they
+ * appear in b.racialTraits, which is what makes prerequisite checks work. But that ownership was
+ * DERIVED AND NEVER EXPORTED, so no UI could render it — CharGen left the checkboxes unticked while
+ * their price label said "in pack", the Live Sheet's character sheet omitted the traits entirely, and
+ * its buy panel offered them for sale to a player who already had them.
+ *
+ * WHY THE TOOLS MUST NOT WRITE THESE INTO b.racialTraits. It looks like the simpler fix and it is a
+ * trap. In-pack traits price at 0 only while the pack is yours (`isO && r.pack -> 0`); stored and then
+ * followed by a species change they re-price at the CROSS rate. Measured: `Dwarf: Dwarven Resilience`
+ * stored on a Dwarf is a 0 AP "Species traits" line, and on an Elf it silently becomes 3 AP. Pack
+ * membership is derived from species and must stay derived — the same "never store derived values"
+ * rule the persistence model already states.
+ *
+ * Pure DATA lookup, so callers can use it BEFORE compute() (CharGen needs it inside readBuild()).
+ * compute() also returns the same list as `packTraits` for callers that already have a result.
+ */
+export function packTraitsFor(species, species2) {
+  const own = [species, species2].filter(s => s && s !== '(none)');
+  if (!own.length) return [];
+  return (DATA.racialList || []).filter(lab => {
+    const r = DATA.racial[lab];
+    return !!(r && r.pack && own.indexOf(r.race) >= 0);
+  });
+}
+
 
 /* AP-by-level ladder — externalized to js/ap-by-level.js (feat/ap-by-level) and
  * surfaced on DATA so all three tools read it through the engine bridge. apByLevel/
@@ -551,7 +582,13 @@ export function compute(b, opts){
   // drawback retired from the rules rendering a phantom "<name> 0" row, and stops an all-unknown list
   // producing an itemize key with no matching ledger line (add() suppresses a zero line).
   let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){if(!HRd[lab]&&DATA.drawbacks[lab]===undefined)continue;const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
-    const _dmx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{};for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push(lab+': drawback requires '+_da+' '+_dm+' or lower');} }
+    // ⛔ = a HARD rules violation, the same marker reqRace/minHD use. Owner's ruling 2026-08-19: a stat
+    // cap is enforced in BOTH directions — you may not take a capped drawback above the cap, and you may
+    // not raise the score past it while holding one ("your score can never exceed 12"). Without the
+    // second half the drawback is a loan: take Frail at CON 10, keep the AP, buy CON to 16.
+    // The Live Sheet's buy() already blocks anything not matched by SOFT_WARN, so both directions were
+    // already refused there; the marker makes the intent explicit and lets CharGen classify it too.
+    const _dmx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{};for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push('⛔ '+lab+': drawback requires '+_da+' '+_dm+' or lower');} }
   // Rows are NEGATIVE so they sum to the line total (-drawGain), the same relationship the other five
   // itemised lines have with theirs. `v` is the value actually charged, so a house-ruled drawback
   // (b.houseRules.draws) itemises at its overridden AP, not the printed one.
@@ -683,6 +720,8 @@ export function compute(b, opts){
   }
   else if(_races.indexOf('Tiefling')>=0){ sizeChoosable=true; size=(b.size==='Small')?'Small':'Medium'; }   // v0.194: Tiefling chooses Small or Medium
   return {total,remaining,budget:spendable,playerAp,dmAp,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
+    // Traits owned for free via a heritage pack — derived, never stored. See packTraitsFor().
+    packTraits:packTraitsFor(b.species,b.species2),
     ac,init,speed,castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
     saveDC:hasDC?(8+prof+castMod):null,spellAtk:hasDC?(prof+castMod):null,hardyCap:vgcap,conMod:cm,goldGp:DATA.goldPurse+(b.gold||0)*50,
     status: remaining<0?("OVER BUDGET by "+(-remaining)+" AP"):remaining===0?"exact — fully spent":(remaining+" AP under budget")};
