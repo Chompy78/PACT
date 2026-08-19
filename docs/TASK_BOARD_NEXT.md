@@ -221,47 +221,44 @@ path cannot be verified by unit-level checks alone. Not sweep-eligible.
 works for sign-in, an expired link says so and offers a resend, the signup confirmation email is
 unaffected, and the redirect URL is on the Supabase allow-list.
 
-## Live Sheet: should a PRE-LOCK character reconcile to compute()? — TODO
-Branch `fix/livesheet-draft-reconcile`. Surfaced by `fix/species-pack-not-charged` (2026-08-05) while
-verifying that CharGen's draft reconciliation had not left the same hole in the other tool. It had not —
-this is a different question, and it needs a **rules answer before any code**.
+## Record which of D1/D2 governs a pre-lock level-up — the divergence itself is GONE — TODO
+Branch `docs/prelock-pricing-rule`. **Re-measured 2026-08-19 on v0.356: the divergence does not
+reproduce.** This was filed as a live bug needing an owner rules ruling *before any code*; the code
+question has since answered itself, and what remains is a docs task.
 
-`decisions/2026/D-GH-2026-08-05-pricing-model.md` D1 and D2 conflict for one case neither anticipated.
-Measured in a real browser on a fresh Live Sheet character, well under the 79 AP threshold and so a draft
-by D2's definition:
+The original report (2026-08-05) measured a fresh Live Sheet character under the 79 AP threshold whose
+ledger read **34 against `compute()`'s 46** after one level-up, and **44 against 83** by HD 5. Re-run
+through the real tool on v0.356, driving `buy()` directly:
 
-| step | ledger | `compute()` |
-|---|---|---|
-| CON 16, Vigor 2, Grit 3 | 32 | 32 |
-| level 1→2 | 34 | 46 |
-| level 2→5 | **44** | **83** |
+| sequence | ledger | `compute()` | drift |
+|---|---|---|---|
+| Grit at HD 1, then level to 5 | 15 | 15 | **0** |
+| level to 5 first, then Grit | 15 | 15 | **0** |
 
-Ordinary purchases reconcile exactly; only the level-ups diverge. Neither rule is being broken, which is
-the problem: **D2** says a draft reconciles (so the Live Sheet would need `repriceDraft` too), while **D1**
-says a context change takes its listed price and levelling is a real context change even during creation
-(so the divergence is correct and D2's wording needs narrowing to *"while no context change has occurred"*).
+Zero drift in both orders. The Live Sheet still does **not** call `repriceDraft()` (checked), so this was
+not fixed by adopting D2 — one of the pricing branches that landed after 5 Aug made the two rules stop
+producing different numbers, rather than one of them winning. Which branch did it has not been traced.
 
-CharGen is unaffected either way — it builds at one level, and its edits are revisions of a single draft
-rather than progression. This bites only where a pre-lock character levels up.
+**Effort:** low · **Risk:** low — no behaviour changes; it is a decision-record edit. Downgraded from
+high, which was correct while a live 44-vs-83 divergence was believed to be sitting in the tool.
 
-**Effort:** medium · **Risk:** high — it decides what a pre-lock ledger means, and the wrong answer here
-would be re-litigated by `fix/ledger-reconciliation-pass`. Not sweep-eligible; needs an owner decision.
+**Already done, so don't redo it:** step 5 of the original task (assert the case rather than remember it)
+shipped on 2026-08-19 — `tool-pricing-ci.mjs` now drives a pre-lock character through level-ups in both
+purchase orders and asserts `economy().spent === compute().total`. It was 141 → **143** checks. That gate
+is what stops this silently regressing while the wording question waits.
 
 ```text
-1. OWNER DECISION FIRST, no code until it is recorded: does a pre-lock character who levels up keep
-   listed prices (divergence correct), or re-price to one context (ledger reconciles)?
-2. Record it as an amendment to D-GH-2026-08-05-pricing-model — it narrows either D1 or D2, so the
-   record must say which, or the next agent will read the two rules as still conflicting.
-3. If "reconcile": call the engine's repriceDraft() from the Live Sheet's emit path, exactly as CharGen
-   does. The export already exists and is fuzz-covered; this is wiring, not new logic.
-4. If "listed prices are correct": narrow D2's wording, and add the measured table above to the record
-   as the worked example — an undocumented 44-vs-83 will be re-reported as a bug otherwise.
-5. Either way add the case to testing/scripts/tool-pricing-ci.mjs so the chosen answer is asserted
-   rather than remembered.
+1. Decide, at leisure, whether D1 or D2 is the STATED rule for a pre-lock level-up. This is now a
+   question of what the record should say, not of what the tool does - nothing is broken either way.
+2. Amend D-GH-2026-08-05-pricing-model to narrow whichever one loses, so the next agent does not read
+   the two as still conflicting. Include the 2026-08-19 re-measurement above, or the closed case will
+   be re-reported as a bug by whoever reads the original table.
+3. Optional, and worth it if anyone touches draft pricing again: trace WHICH branch closed the gap, so
+   the record says why the rules stopped disagreeing instead of just noting that they did.
 ```
 
-**Done when:** the owner's answer is recorded in the decision record as an explicit narrowing of D1 or D2,
-the Live Sheet matches it, and a gate asserts the pre-lock level-up case.
+**Done when:** `D-GH-2026-08-05-pricing-model` states which rule governs a pre-lock level-up, and carries
+the 2026-08-19 re-measurement showing the original divergence no longer reproduces.
 
 ## One-off reconciliation pass for characters built before the pricing fixes — TODO
 Branch `fix/ledger-reconciliation-pass`. **Sequence LAST — after all four pricing branches have landed**
@@ -503,6 +500,47 @@ likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers 
 **Done when:** a randomized character over the creation threshold has its `creationLocked` event at the
 purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
 answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
+
+## Duplicate non-stacking purchases are charged in full — TODO
+Branch `fix/non-stacking-duplicate-charge`. `js/engine.js` (`compute()`'s feature pricing).
+**Effort:** medium · **Risk:** medium — ambiguity is the driver (what "the same feature from two classes"
+means needs defining before it can be priced, and the answer decides whether this is a refund or a
+block); damage scale is low (it overcharges rather than undercharges, so nobody gained anything); damage
+likelihood low (it needs a multi-class build at T4+ to reach at all).
+
+Found 2026-08-18 while building `testing/scripts/sim-combat-abuse.mjs`, and **recorded nowhere until
+now** — it lived only in a simulation's source comments, which is exactly the failure mode
+`AGENTS.md`'s "log as you go" section exists to prevent.
+
+A character who buys the *same non-stacking* feature from two different classes — Extra Attack being the
+clearest case — is charged **in full both times** while receiving the benefit once. The optimiser hit
+this hard enough that it had to be special-cased: it bought all six classes' Extra Attack for 102 AP on a
+Rogue because raw summed Tier counted them as +24, and the sim now carries a `NON_STACKING` group list to
+stop metric-gaming. That list is a **simulation-side workaround for an engine-side gap** — the engine
+itself has no concept of a non-stacking group.
+
+Not urgent: it cannot be reached below **tier 4**, and it costs the player rather than the table, so no
+character is currently over-powered by it. It is a real overcharge on a legal build, though, and the
+first person to notice it will be someone who paid twice.
+
+```text
+1. Define the rule FIRST: is a second copy of a non-stacking feature (a) barred outright, (b) free,
+   or (c) charged at some reduced rate for the class-access it also confers? Ask the owner - the guide
+   does not currently say, which is itself part of the finding.
+2. The grouping belongs in DATA, not in compute() and not in a sim: a named non-stacking group per
+   feature family, the same shape sim-combat-abuse.mjs's NON_STACKING already uses. Move that list into
+   the dataset rather than maintaining a second copy.
+3. compute() reads the group and applies the rule from step 1.
+4. This CHANGES compute() output: update testing/expected/ in the same PR and bump DATA.version. Add a
+   parity fixture buying the same non-stacking feature from two classes.
+5. The Players Guide must land it too - a pricing rule that exists only in the engine is half-done
+   (AGENTS.md, "A mechanics change isn't finished until the engine AND the guide land it").
+```
+
+**Done when:** the owner's rule is recorded; the non-stacking groups live in `DATA` with the simulation
+reading them rather than holding its own copy; `compute()` applies the rule; a parity fixture pins a
+duplicate purchase; the guide states the rule; `DATA.version` bumped and `testing/expected/` updated in
+the same PR; engine-parity **0 failed**.
 
 ## Security audit: privilege boundaries + character/AP integrity against a malicious client — TODO
 Branch `security/privilege-and-character-integrity`. Owner request, 2026-08-08. Assume the attacker has

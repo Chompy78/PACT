@@ -6,6 +6,25 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · test(livesheet): pin that a pre-lock ledger equals `compute()` across level-ups; the
+  reported divergence is gone** — `fix/livesheet-draft-reconcile` was filed as a live bug needing an owner
+  *rules ruling before any code*: a fresh Live Sheet character reading **34 against `compute()`'s 46**
+  after one level-up and **44 against 83** by HD 5. **Re-measured on v0.356 through the real tool: drift
+  is 0 at every step, in both purchase orders.** The Live Sheet still does not call `repriceDraft()`
+  (checked), so the two rules stopped producing different numbers rather than one of them winning — which
+  branch closed it is untraced. `tool-pricing-ci` now drives a pre-lock character through level-ups both
+  ways and asserts `economy().spent === compute().total` (141 → **143**), so the agreement is asserted
+  rather than assumed. The board task is narrowed to what actually remains — a decision-record edit
+  saying which of D1/D2 governs — and downgraded from Risk **high** to **low**.
+
+- **2026-08-19 · docs(tasks): record the duplicate non-stacking purchase overcharge** — found 2026-08-18
+  while building `sim-combat-abuse.mjs` and, until now, **written down nowhere but that simulation's
+  source**. A character buying the same non-stacking feature from two classes (Extra Attack being the
+  clearest) is charged in full twice for one benefit; the sim carries a `NON_STACKING` group list purely
+  to stop the optimiser gaming it, which is a simulation-side workaround for an engine-side gap. Not
+  urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
+  overcharge on a legal build, and the rule needs defining before it can be priced.
+
 - **2026-08-19 · fix(tools): the campaign drawback cap now reaches both player tools** — `drawbackCap`
   was wired into `DM-Console.html` and nowhere else (6 occurrences there, **0** in either player tool), so
   a player in a capped campaign saw the full grant while their DM saw the capped figure. Both tools now

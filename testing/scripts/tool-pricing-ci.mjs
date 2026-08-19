@@ -1513,6 +1513,39 @@ try {
       return [o.drawbackCap===undefined?'undefined':o.drawbackCap, compute(${CAPBUILD},o).budget];
     })()`), ['undefined', 93]);
 
+  // ============ a PRE-LOCK character's ledger must equal compute(), across level-ups ============
+  // fix/livesheet-draft-reconcile. TASK_BOARD_NEXT recorded a live divergence measured on 2026-08-05 —
+  // a fresh Live Sheet character under the 79 AP threshold whose ledger read 34 against compute()'s 46
+  // after one level-up, and 44 against 83 by HD 5 — and said it needed an owner RULES ruling before any
+  // code, because D-GH-2026-08-05-pricing-model's D1 ("a context change takes its listed price") and D2
+  // ("a draft reconciles") each covered it and disagreed.
+  //
+  // It does not reproduce on v0.356: drift is 0 at every step, in both purchase orders. Something in the
+  // pricing work that landed after 5 Aug closed it — the Live Sheet still does NOT call repriceDraft()
+  // (checked), so the two rules stopped disagreeing rather than one being chosen. This gate exists so
+  // that agreement is asserted rather than assumed, since nothing else covers it and the original report
+  // was a real measurement, not a misreading.
+  console.log('\nA pre-lock character: the frozen ledger and compute() must agree across level-ups');
+  const preLock = async (label, steps) => {
+    const t = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    if (!(await t.evaluate(READY(`window._engineFold&&window.DATA&&typeof buy==='function'`))))
+      throw new Error('Live Sheet never became ready for the pre-lock check');
+    await t.evaluate(`window.confirm=()=>true;`);
+    for (const [cat, payload] of steps) await t.evaluate('buy(' + JSON.stringify(cat) + ',' + JSON.stringify(payload) + ')');
+    const r = await t.evaluate(`(()=>{const bb=foldBuild(null);const c=compute(bb,_dmOpts());const e=economy(null);
+      return [e.spent, c.total, bb.hd];})()`);
+    await t.close();
+    check(label, [r[0] === r[1], r[2]], [true, 5]);
+    return r;
+  };
+  // Buy first, then level: the case the board measured. If a level-up ever re-prices an earlier purchase
+  // without the ledger following, this is where it shows.
+  await preLock('buy at HD 1, then level to 5 — ledger === compute()',
+    [['grit',{to:1}],['hd',{to:2}],['hd',{to:3}],['hd',{to:4}],['hd',{to:5}]]);
+  // And the reverse, so the check cannot pass merely because the two prices happen to coincide at HD 1.
+  await preLock('level to 5 first, then buy — ledger === compute()',
+    [['hd',{to:2}],['hd',{to:3}],['hd',{to:4}],['hd',{to:5}],['grit',{to:1}]]);
+
   await cg2.close(); await ls2.close();
 
   await dm.close();
