@@ -25,6 +25,15 @@
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
 
+- **2026-08-19 · docs(rules): the `Soul Debt` Long Rest exemption was removed deliberately — confirmed** —
+  the v0.356 rewording dropped *"The Hit Points you recover at the end of a Long Rest are unaffected."*
+  That was flagged at the time as possibly unintended, because the new text enumerates three sources after
+  a colon and does not mention rests. **Owner confirmed the wording as written**, so a Long Rest is no
+  longer carved out. Recorded here because a lone deleted sentence is precisely what a later reader
+  restores as an accident; it was not one. Verified nothing else still carries the old exemption, and that
+  the guide's other two `Soul Debt` passages (buy-off permanence in §14, and the narrative example) do not
+  assume it. No text change — this entry exists solely so the deletion cannot be undone by mistake.
+
 - **2026-08-19 · feat(rules): drawback stat caps are ENFORCED, in both directions, and documented
   everywhere** — owner's ruling. The cap text says two things — *"you may only take a capped drawback if
   your current score is at or below the cap"* and *"your score can never exceed 12"* — and both are now
