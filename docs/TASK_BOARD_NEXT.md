@@ -817,3 +817,44 @@ covers the pickers or LOG round-tripping) — worst-of lands at high, never elig
 checkers stay green; buying the same subclass ability through both routes is impossible (or charges once);
 a subclass purchase from a class that is neither origin nor unlocked raises the v0.347 gate warning by
 whichever route it is bought; and CharGen + Live Sheet still round-trip a character containing a bundle.
+
+---
+
+## Cache Chromium in the browser CI jobs — an install stall currently reads as a test failure — TODO
+Branch `ci/cache-chromium`. Seven workflows run `npx playwright install --with-deps chromium` with no
+cache: `character-gen-e2e`, `chargen-flows`, `cloud-e2e`, `dm-console-ui`, `guide-theme`, `sw-cache-e2e`,
+`tool-pricing`. Five of them sit inside a `timeout-minutes: 10` budget (`cloud-e2e` has 20,
+`character-gen-e2e` 15), so a slow apt/CDN fetch consumes the whole job before any test starts.
+
+**Observed for real on PR #429** (`d89dc1e`, the `v1.429` promotion): `dm-console-ui` spent **605s** on
+`Install Chromium` and was killed by the 10-minute timeout with the `DM Console UI checks` step *skipped* —
+it reported `cancelled` with three failure annotations while never executing a single assertion. The same
+tree passed **96/96** locally and the other ten jobs on that commit went green, so there was no defect to
+find; the job that would have found one never ran. A re-run of just that job passed. The hazard is that a
+red X from an install stall is indistinguishable at a glance from a red X from a real regression — and the
+documented response to a flaky-looking gate is *"verify locally before the first retry"*, which only works
+if the difference is visible.
+
+**Effort:** low · **Risk:** low — ambiguity is low (`actions/cache` keyed on the Playwright version is the
+standard pattern, and `PLAYWRIGHT_BROWSERS_PATH` is already how the browser location is controlled); damage
+scale is low (CI config only — no app code, no rules, no data); damage likelihood is low (a wrong cache key
+simply misses and reinstalls, which is today's behaviour). Worst-of lands at low.
+
+```text
+1. Add an actions/cache step to each of the seven workflows above, keyed on the runner OS plus the
+   resolved playwright version from testing/package-lock.json, with PLAYWRIGHT_BROWSERS_PATH pointing at
+   the cached path. Keep `--with-deps` — the apt half cannot be cached and is cheap; it is the browser
+   download that is worth keeping.
+2. Consider factoring the install into a composite action under .github/actions/ rather than pasting the
+   same block seven times — seven copies is exactly how five of them ended up with the same 10-minute
+   budget and the other two did not.
+3. Separately from the cache: give the install its own step-level timeout well below the job budget, so
+   an install stall fails as "install timed out" instead of consuming the job and skipping the tests.
+   This is the part that actually fixes the misdiagnosis; the cache only makes it rarer.
+4. Do not raise the job timeouts as the fix on its own — that hides the stall for longer rather than
+   distinguishing it from a real failure.
+```
+
+**Done when:** a second run of any of the seven workflows restores Chromium from cache rather than
+downloading it (visible in the job log), an install that stalls fails at the install step with a message
+naming the install — not as a skipped test step — and all seven jobs still pass on a normal PR.
