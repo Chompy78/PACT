@@ -1513,6 +1513,38 @@ try {
       return [o.drawbackCap===undefined?'undefined':o.drawbackCap, compute(${CAPBUILD},o).budget];
     })()`), ['undefined', 93]);
 
+  // ============ the DM Console shows subclass purchases and pack traits ============
+  // Reported from real use, 2026-08-19: "on the dm console i can see class abilities, but not subclass
+  // abilities. moss i cannot see 'Ranger › Beast Master: Primal Companion'". buildSections() rendered
+  // s.features and had no subclass section at all, in either the cloud card or detailHTML.
+  //
+  // Both read compute()'s own itemize/lines — which the summary already carried — so the labels are the
+  // engine's rather than a second formatting of the stored key. The same card's Traits list had the
+  // heritage-pack blindness fixed in the player tools, so it is asserted here too.
+  console.log('\nDM Console — subclass purchases and heritage-pack traits must be visible');
+  {
+    const dms = await connect(`http://127.0.0.1:${PORT}/PACT/tools/DM-Console.html`);
+    if (!(await dms.evaluate(READY(`window.DATA&&typeof window._dmRenderCloudRoster==='function'&&typeof packTraitsFor==='function'`))))
+      throw new Error('DM Console never became ready for the subclass check');
+    check('a Dwarf Ranger\'s subclass ability and both pack traits all appear',
+      await dms.evaluate(`(()=>{
+        const el=document.getElementById('campRoster'); el.innerHTML='';
+        window._dmRenderCloudRoster(el, [{id:'m',name:'Moss',ap:0,player:'',playerLabel:'',dmNotes:'',stats:{SEQ:6,LOG:[
+          {type:'award',amount:200,seq:1},
+          {type:'buy',cat:'oclass',payload:{v:'Ranger'},cost:0,seq:2},
+          {type:'buy',cat:'species',payload:{v:'Dwarf'},cost:0,seq:3},
+          {type:'buy',cat:'feature',payload:{v:'Ranger: Favored Enemy'},cost:3,seq:4},
+          {type:'buy',cat:'subabil',payload:{v:'Ranger|Beast Master|Primal Companion'},cost:9,seq:5}]}}]);
+        const c=el.querySelector('.chead'); if(c) c.click();
+        const t=el.innerText||'';
+        return [/Ranger › Beast Master: Primal Companion/.test(t),   // the reported one
+                /Ranger: Favored Enemy/.test(t),                      // class feature, was already fine
+                /Dwarf: Dwarven Resilience/.test(t)];                 // pack trait, same blindness
+      })()`),
+      [true, true, true]);
+    await dms.close();
+  }
+
   // ========== opening a character repeatedly must not change it (award idempotence) ==========
   // Reported from real use, 2026-08-19: "each time i open moss stormspud from the DM screen in chargen
   // or refresh, the AP budget decreases by 4." Moss has exactly 4 AP of drawbacks. Reproduced 79 -> 75

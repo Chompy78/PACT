@@ -25,6 +25,18 @@
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
 
+- **2026-08-19 · fix(dm-console): subclass purchases and heritage-pack traits are visible to the DM** —
+  reported from real use: *"on the dm console i can see class abilities, but not subclass abilities. moss
+  i cannot see 'Ranger › Beast Master: Primal Companion'"*. `buildSections()` rendered `s.features` and
+  had **no subclass section at all** — `subAbilities` appeared nowhere in the file. The data was already
+  on the record (`compute()`'s `itemize`/`lines`, carried since the roster summary was built); nothing
+  rendered it. Now shown with its AP, read from `itemize`/`lines` so the labels are the engine's own
+  (`Ranger › Beast Master: Primal Companion`) rather than a second formatting of the stored key
+  (`Ranger|Beast Master|Primal Companion`). Added to **both** detail renderers — the cloud card and
+  `detailHTML` — which had drifted apart. The same card's *Traits* list had the heritage-pack blindness
+  fixed earlier in the two player tools, so `packTraitsFor()` is bridged here too and a Dwarf now shows
+  their pack traits. `tool-pricing-ci` 150 → **151**.
+
 - **🔴 2026-08-19 · fix(chargen): a character with drawbacks lost AP on every open** — reported from real
   use: *"each time i open moss stormspud from the DM screen in chargen or refresh, the AP budget decreases
   by 4."* Moss has 4 AP of drawbacks. Reproduced and it compounds without bound — award **79 → 75 → 71 →
