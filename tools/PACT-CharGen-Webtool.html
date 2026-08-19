@@ -3066,7 +3066,10 @@ function _cgWireChecklistDelegation(){
 const RECONCILE_CAT={feat2row:'feature',subabilrow:'subabil',subbundlerow:'subbundle'};
 const _CG_RECONCILE_FIELD={feature:'features',subabil:'subAbilities',subbundle:'subSpellBundles'};
 const _CG_RECONCILE_VALID={
-  feature:function(v){return !!DATA.features[v];},
+  feature:function(v){const f=DATA.features[v];return !!f&&!f.bar;},   // .bar excludes a barred feature from
+                                                                        // NEW purchases only — gates emit(),
+                                                                        // never runs against an already-owned
+                                                                        // LOG row, so an existing save is untouched.
   subabil:function(v){return !!DATA.subAbilMap[v];},
   subbundle:function(v){const p=String(v).split('|');return !!((DATA.subclasses[p[0]]||{})[p[1]]);}
 };
@@ -3400,10 +3403,11 @@ function _cgHasWarlock(){try{return (readBuild().traditions||[]).some(function(t
 function buildClassPickers(){
   const grid=$('classpickgrid');if(!grid)return;
   const byClass={};DATA.classes.forEach(c=>byClass[c]=[]);
-  // v0.314: barred features stay in DATA.features for old-save back-compat but must not be addable —
-  // already gone from DATA.featureList (search-all); also hide them from the quick-add-by-class menus.
-  const BARRED_FEATURES=["Fighter: Weapon Mastery","Paladin: Weapon Mastery","Ranger: Weapon Mastery","Rogue: Weapon Mastery","Fighter: Additional Fighting Style"];
-  for(const lab in DATA.features){if(BARRED_FEATURES.indexOf(lab)>=0)continue;const f=DATA.features[lab];if(byClass[f.cls])byClass[f.cls].push(lab);}
+  // v0.314, generalized v0.357: a feature with DATA.features[lab].bar===true stays in DATA.features
+  // for old-save back-compat (an owned one still prices via compute()'s lookup) but must not be newly
+  // addable — already gone from DATA.featureList (search-all); also hide it from the quick-add-by-class
+  // menus here. One flag on the data, not a second hardcoded list that has to be kept in sync with it.
+  for(const lab in DATA.features){const f=DATA.features[lab];if(f.bar)continue;if(byClass[f.cls])byClass[f.cls].push(lab);}
   DATA.classes.forEach(c=>byClass[c].sort((a,b)=>DATA.features[a].tier-DATA.features[b].tier));   // order by tier (#4)
   const optHtml=lab=>{const f=DATA.features[lab];const nm=(lab.split(': ')[1]||lab);
     return '<option value="'+lab.replace(/"/g,'&quot;')+'">'+nm+(f.rep?' ⟳step':'')+' · '+f.tb+'</option>';};
@@ -4313,7 +4317,7 @@ function randomizeRoll(){
     x=>{const d=discOf(x); if(!d)return false; const t=x.traditions.find(tr=>tr&&tr.name===trad); const L=1+rnd(Math.min(9,(t&&t.rank)||1)); d.slots[L-1]=(d.slots[L-1]||0)+1;},   // slot at a random level up to current Rank
     x=>{const d=discOf(x); if(!d||prepared.includes(x.originClass))return false; const t=x.traditions.find(tr=>tr&&tr.name===trad); const L=1+rnd(Math.min(9,(t&&t.rank)||1)); d.known[L-1]=(d.known[L-1]||0)+1;},   // known spell scaled to Rank/HD
     x=>{const t=x.traditions.find(tr=>tr&&tr.name===trad); if(!t)return false; t.rank=(t.rank||0)+1;},   // raise Rank (HD-gated → unlocks higher spell levels)
-    x=>{const cls=x.originClass; const fl=Object.keys(DATA.features).filter(l=>DATA.features[l]&&DATA.features[l].cls===cls&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!x.features.includes(l)); if(!fl.length)return false; x.features.push(pick(fl));},   // a random origin-class feature (HD-gated via warnings)
+    x=>{const cls=x.originClass; const fl=Object.keys(DATA.features).filter(l=>DATA.features[l]&&DATA.features[l].cls===cls&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&!x.features.includes(l)); if(!fl.length)return false; x.features.push(pick(fl));},   // a random origin-class feature (HD-gated via warnings) — .bar excludes barred features, same flag buildClassPickers() checks
   ];
   // 4) spend until the budget is (near) exhausted or we keep failing to find anything affordable+legal
   let stuck=0, iters=0;

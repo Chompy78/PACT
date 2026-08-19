@@ -6,6 +6,28 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · fix(rules): three broken features can no longer be newly bought — `Barbarian: Rage`,
+  `Druid: Wild Shape`, `Bard: Bardic Inspiration die`** — owner reported real defects in each and needs
+  them off the market while fixed. Generalizes v0.314's one-off `BARRED_FEATURES` array (which only ever
+  covered `Fighter/Paladin/Ranger/Rogue: Weapon Mastery` and `Fighter: Additional Fighting Style`, and
+  only in CharGen) into a single `DATA.features[lab].bar===true` flag, then applies it everywhere a
+  feature can be newly purchased — a gap audit found three live paths, not one:
+  - **CharGen**: the class-picker grid (`buildClassPickers()`, now derives the barred set from the flag
+    instead of a second hardcoded list); the 🎲 Randomize action pool (`Object.keys(DATA.features).filter`
+    at its origin-class-feature action, which had never excluded even the original five); and the
+    free-typed "+ search all" box's reconciliation validator (`_CG_RECONCILE_VALID.feature`), which had
+    accepted any real `DATA.features` key including barred ones — closing it only gates `emit()` for a
+    NEW purchase, never re-validates an already-owned LOG row, so no existing save is touched.
+  - **Live Sheet**: all three of its own buy-list builders (origin-class, cross-class, and the
+    all-classes browse list) had never excluded the original five either — this repo's v0.314 bar had
+    only ever reached CharGen. Now consistent across both tools.
+  - **DM Console**: no feature-purchase path exists there; nothing to change.
+  A barred feature stays in `DATA.features` and still prices normally via `compute()`'s lookup for anyone
+  who already owns one — confirmed no live character owns any of the three (checked the `characters`
+  table directly). Display-only: `compute()` output is unchanged for every existing build, so
+  `DATA.version` stays at `v0.356`; no `testing/expected/` update needed. `testing/tests/engine-parity.html`
+  40/0, `tool-pricing-ci` 158/0, `chargen-flows-e2e` 66/66, `log-fuzz` 500/500 all still pass.
+
 - **2026-08-19 · chore(version): `BUILD` → `v1.429` for PR #429 (`preview` → `main` promotion)** — sixth
   promotion under the PR-linked scheme (`D-GH-2026-08-02-build-version-pr-linked`). Major `1` carried
   forward; `DATA.version` deliberately untouched at `v0.356` — this promotion changes no mechanics.
