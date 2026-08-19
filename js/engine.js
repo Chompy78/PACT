@@ -1209,6 +1209,21 @@ export function wealthLedger(events, opts) {
     if (!paid) return;
     out.gpSpent   += paid.gp;
     out.daysSpent += paid.days;
+    // WHO READS `entries` (asked and answered 2026-08-19, so it isn't mistaken for dead weight later).
+    // No TOOL does: all three read only the totals, and the Live Sheet's history ledger is built
+    // straight from its own LOG using each event's frozen gp/days. What reads it is
+    // testing/scripts/economy-ui-e2e.mjs, and it is load-bearing there — `entries` is how the gate
+    // proves the creation exemption (which purchases were charged, by name, not just how much), and
+    // `discounted` is how it proves the freeze. Deleting either to tidy the API would delete the test
+    // that guards the feature's central rule.
+    //
+    // `listGp`/`listDays` are read by nothing at all today, and are kept deliberately. _paidFor() has
+    // to compute the list price regardless — it is both the fallback when an event carries no frozen
+    // figures and the comparison that produces `discounted` — so surfacing it is two properties on an
+    // object already being built, not extra work. They are the seam a "paid 175 gp (list 350)" display
+    // would need, which is exactly what the deferred per-purchase-discount task (G2) would want; see
+    // decisions/2026/D-GH-2026-08-19-tool-coin-time-costs.md, "Not done, deliberately". Trimming them
+    // would save nothing measurable and cost that seam.
     out.entries.push({
       idx: i, cat: e.cat || e.type, label: e.label || (e.payload && e.payload.v) || e.refVal || '',
       ap: Number(e.cost) || 0, gp: paid.gp, days: paid.days,
