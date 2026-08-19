@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-19 · fix(ci): the tool-pricing gate depended on the runner image, and could not say so** — it
+  went red on `2b293d8`, a commit containing nothing but version strings, while `fd1ba0f` — carrying every
+  actual code change — passed. Chromium was present (the script's own "No Chromium found" guard never
+  fired) but never bound its DevTools port; the run failed identically on two attempts on two different
+  runners. Two causes, both fixed: the readiness loop polled for 10s and then **fell through without
+  checking whether it had ever connected**, so the symptom was a bare `FAIL harness — fetch failed` from a
+  line that looks nothing like a browser problem; and Chrome's stderr was thrown away by
+  `stdio: 'ignore'`, so a browser that refused to start was indistinguishable from a slow one. The loop
+  now waits 30s and, on exhaustion, prints the binary path, elapsed time, Chrome's exit code and captured
+  stderr, and exits **3** — distinct from 1 (a real pricing failure) and 2 (no browser found at all).
+  `tool-pricing.yml` now installs its own Chromium under `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`,
+  which `findChrome()` already probes, instead of trusting whatever the image ships. CI-only; the app
+  still has no npm dependency.
+
 - **2026-08-19 · chore(version): `BUILD` → `v1.425` for PR #425 (`preview` → `main` promotion)** — third
   promotion in this run, carrying rules **v0.356** (drawbacks as a trade, surviving `ignore_player_ap`)
   and three stale player-facing labels: CharGen's hardcoded `>14` drawback warning, the Live Sheet's

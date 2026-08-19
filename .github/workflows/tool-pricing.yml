@@ -6,10 +6,18 @@ name: Tool pricing gate
 # defect class is in compute()'s *caller*. See D-GH-2026-08-05-pricing-model and
 # testing/scripts/tool-pricing-ci.mjs.
 #
-# Unlike character-gen-e2e.yml this needs no browser INSTALL step and no npm package: the script drives
-# whatever Chrome/Chromium the runner already has, over the DevTools protocol, using only Node built-ins
-# (AGENTS.md forbids npm in this repo, which is why the playwright-based e2e scripts can't run in a CLI
-# session at all). It serves the repo itself on a loopback port, so no dev server is needed either.
+# The SCRIPT still needs no npm package: it drives Chromium over the DevTools protocol using only Node
+# built-ins, which is what lets it run in a CLI session at all (AGENTS.md forbids npm for the app, and the
+# playwright-based e2e scripts therefore can't). It serves the repo itself on a loopback port, so no dev
+# server is needed either.
+#
+# But it does need A browser, and this workflow used to rely on whatever the GitHub-hosted image happened
+# to ship. That broke on 2026-08-19: the gate went red on a commit containing nothing but version strings,
+# while the commit before it — carrying every actual code change — passed. Chromium was present (the
+# script's own "No Chromium found" guard never fired) but never bound its DevTools port, so the run failed
+# identically on two attempts on two different runners. A gate whose result depends on the runner image
+# is not a gate. This installs a known Chromium and points CHROME_BIN at it, exactly as the other browser
+# workflows here already do — CI-only, never a runtime dependency of the app.
 
 on:
   pull_request:
@@ -37,6 +45,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+
+      # Pinned to a cache path the gate's own findChrome() already probes, so the binary it picks is the
+      # one we installed rather than whatever the image happens to have.
+      - name: Install Chromium
+        working-directory: testing
+        run: npx playwright install --with-deps chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
 
       - name: Run the tool-pricing gate
         run: node testing/scripts/tool-pricing-ci.mjs
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
