@@ -301,6 +301,47 @@ check('a Fast campaign round-trips', dm.fast === 'fast', dm.fast);
 check('an unknown stored token fails closed to off', dm.bogus === 'off', dm.bogus);
 check('the panel explains the chosen band', /./.test(dm.absentBlurb), dm.absentBlurb.slice(0, 60));
 
+/* ======================================================================
+ * 4. CHARGEN — forward-looking labels on a form where nothing is charged.
+ * ====================================================================== */
+console.log('\n[economy] CharGen');
+const cgPage = await browser.newPage();
+const cgErrors = [];
+cgPage.on('pageerror', e => cgErrors.push(String(e)));
+cgPage.on('console', m => { if (m.type() === 'error') cgErrors.push('console: ' + m.text()); });
+await cgPage.goto(`http://localhost:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' });
+await cgPage.waitForTimeout(3000);
+
+const cgFatal = cgErrors.filter(e => !/Failed to load resource|net::|supabase|fetch|NetworkError|Load failed/i.test(e));
+check('CharGen: no fatal page errors', cgFatal.length === 0, cgFatal.slice(0, 3).join(' | '));
+
+const cg = await cgPage.evaluate(() => {
+  const out = {};
+  out.defaultBand = _cgEconBand();
+  out.offSuffix = _cgGT(12);
+  LOG.push({ type: 'econSetting', payload: { band: 'standard' }, seq: SEQ++ });
+  out.bandAfter = _cgEconBand();
+  out.suffix12 = _cgGT(12);
+  out.suffix1 = _cgGT(1);          // a free row must add nothing on a creation form
+  out.suffix60 = _cgGT(60);
+  if (typeof render === 'function') render();
+  const row = document.getElementById('econband');
+  out.statusText = row ? row.textContent : null;
+  out.hint = (document.getElementById('econhint') || {}).textContent || '';
+  return out;
+});
+check('CharGen defaults to no economy', cg.defaultBand === 'off', cg.defaultBand);
+check('...and adds nothing to a price while off', cg.offSuffix === '', JSON.stringify(cg.offSuffix));
+check('a logged econSetting is picked up', cg.bandAfter === 'standard', cg.bandAfter);
+check('a 12 AP row gains " · 350 gp · 6 weeks in play"',
+      cg.suffix12 === ' · 350 gp · 6 weeks in play', JSON.stringify(cg.suffix12));
+check('the suffix says "in play" — creation is free, and the label must not read as a bill',
+      / in play$/.test(cg.suffix12));
+check('a free Tier 1 row stays unlabelled on a creation form', cg.suffix1 === '', JSON.stringify(cg.suffix1));
+check('the top band reads 10,000 gp / 2 years', cg.suffix60 === ' · 10,000 gp · 2 years in play', JSON.stringify(cg.suffix60));
+check('the status row names the band', /Standard/.test(cg.statusText || ''), cg.statusText);
+check('...and says creation stays free', /creation stays free/.test(cg.hint), cg.hint);
+
 console.log(`\n[economy] ${fail ? fail + ' of ' + (pass + fail) + ' checks FAILED' : 'all ' + pass + ' checks passed'}`);
 if (errors.length) console.log('\n(non-fatal errors seen: ' + errors.length + ')\n' + errors.slice(0, 5).join('\n'));
 await browser.close(); server.close();

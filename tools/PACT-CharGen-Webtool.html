@@ -552,7 +552,10 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, validate, RULE_BAN_FIELDS, creationLockThreshold } from '../js/engine.js';
+  import { DATA, compute, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, economyOn, wealthLedger, chargesGoldAndTime } from '../js/engine.js';
+  // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
+  // the same pattern DATA/compute already use here.
+  window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, economyOn, wealthLedger, chargesGoldAndTime };
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (CharGen); never read by compute()
   window.DATA = DATA; window.compute = compute; window.MUT = MUT; window.foldBuild = foldBuild;
@@ -2172,7 +2175,7 @@ function buildForm(F){
     '<label class="ck">&nbsp;single martial <select id="wp_martial">'+numOpts(0,4,0)+'</select> (2 AP ea)</label>'+
     '<label class="ck">&nbsp;<input type="checkbox" id="wp_all"> All martial (8 AP)</label>'+
     '<label class="ck">&nbsp;<input type="checkbox" id="wp_improv"> Improvised (3 AP)</label><span class="price" id="wprofp"></span></div>'+
-    '<div class="row"><label class="l">Masteries (1st 2 / 2nd 3 / 3rd 4…)</label><span class="hint">need any weapon proficiency first — Simple is enough</span></div>'+'<div class="gridck" id="mastgrid"></div>'+'<div class="row"><span class="price" id="mastp"></span></div>'+'<div class="sublab" style="margin-top:8px">Attunement &amp; starting gold</div>'+'<div class="row"><label class="l">Attunement slots</label><select id="attune">'+numOpts(0,8,0)+'</select><span class="price" id="attunep"></span><span class="hint">Steep ladder 4/6/8/10 · no cap, no gate</span></div>'+rNum('gold','Starting gold (AP → 50gp each)',0,0,8,'')+'<div class="row"><label class="l">Total starting gold</label><b id="goldcell">—</b><span class="hint">25 gp purse + AP×50</span></div>');
+    '<div class="row"><label class="l">Masteries (1st 2 / 2nd 3 / 3rd 4…)</label><span class="hint">need any weapon proficiency first — Simple is enough</span></div>'+'<div class="gridck" id="mastgrid"></div>'+'<div class="row"><span class="price" id="mastp"></span></div>'+'<div class="sublab" style="margin-top:8px">Attunement &amp; starting gold</div>'+'<div class="row"><label class="l">Attunement slots</label><select id="attune">'+numOpts(0,8,0)+'</select><span class="price" id="attunep"></span><span class="hint">Steep ladder 4/6/8/10 · no cap, no gate</span></div>'+rNum('gold','Starting gold (AP → 50gp each)',0,0,8,'')+'<div class="row"><label class="l">Total starting gold</label><b id="goldcell">—</b><span class="hint">25 gp purse + AP×50</span></div>'+'<div class="row"><label class="l">Coin &amp; calendar (in play)</label><b id="econband">—</b><button type="button" class="btn x" id="econbtn" style="margin-left:6px">Change</button><span class="hint" id="econhint"></span></div>');
 
 
   grp('7 · Class Access & Features',
@@ -2377,6 +2380,65 @@ function addDisc(btn){
 // from foldBuild(LOG). LOG is bootstrapped at boot (see _cgBoot) and rebuilt wholesale on any whole-build
 // load via replaceWholeLogFromBuild.
 let LOG=[],SEQ=1;
+// ---- Gold and downtime (Players Guide §2/§16) -------------------------------------------------
+// CharGen is the CREATION tool, and creation is explicitly free of both: "Anything you buy when you
+// first build your character costs only AP, it is assumed you already trained for it in your
+// backstory" (§2). So nothing here is ever CHARGED — these labels are forward-looking planning
+// information, and they say "in play" precisely so that reads as a future cost rather than a bill.
+// That wording is load-bearing: a bare "350 gp" on a creation form would be a straightforward lie.
+//
+// The band comes from the campaign when this character is bound to one and its rules actually
+// resolved, else from the character's own logged econSetting — the same precedence rule the engine
+// applies for every tool, asked rather than re-implemented.
+function _cgEconBand(){
+  var E=window._engineEcon; if(!E) return 'off';
+  var camp=window._cloudCampaign;
+  return E.resolveEconomySetting({
+    events: LOG,
+    campaignRules: camp && camp.rules,
+    campaignActive: !!(window._cgCampaignBound && camp && camp.rules),
+  });
+}
+// ' · 350 gp · 6 weeks in play' — the suffix appended to a row's AP price. '' when the economy is
+// off, and '' for a genuinely free purchase too: on a creation form, where nothing is being charged
+// anyway, "free of coin and time in play" on every Tier 1 row is noise rather than information (the
+// Live Sheet, where the money is real, does label those).
+// The CharGen-side Off/Standard/Fast switch. Writes the same `econSetting` LOG event the Live Sheet
+// writes, so a character carries one setting between the two tools rather than each holding its own.
+// In a campaign it explains rather than sets: the DM owns the dial (§17's pre-session checklist).
+function openEconomyCG(){
+  var E=window._engineEcon; if(!E){alert('Engine still loading — try again in a moment.');return;}
+  var bands=DATA.economyBands||{}, band=_cgEconBand();
+  var campOwned=!!(window._cgCampaignBound&&window._cloudCampaign&&window._cloudCampaign.rules);
+  if(campOwned){
+    alert('🪙 Coin & calendar — set by your DM\n\n'
+      +'This campaign plays with the "'+((bands[band]||{}).label||band)+'" band.\n'
+      +((bands[band]||{}).blurb||'')+'\n\n'
+      +'Character creation is free of gold and downtime either way — these costs only apply to what '
+      +'you buy during play.');
+    return;
+  }
+  var order=['off','standard','fast'];
+  var menu=order.map(function(k,i){return '  '+(i+1)+') '+bands[k].label+' — '+bands[k].blurb;}).join('\n');
+  var pick=prompt('🪙 Coin & calendar — the gold-and-downtime economy (Players Guide §16)\n\n'
+    +'Purchases made IN PLAY cost gold and downtime as well as AP. Everything you buy here, during\n'
+    +'character creation, stays free of both.\n\n'
+    +menu+'\n\nEnter 1, 2 or 3:', String(order.indexOf(band)+1||1));
+  if(pick==null) return;
+  var k=order[(parseInt(pick,10)||0)-1];
+  if(!k){alert('No change — enter 1, 2 or 3.');return;}
+  if(k!==band){ LOG.push({type:'econSetting',payload:{band:k},cost:0,noLock:true,seq:SEQ++,ts:Date.now(),
+                          label:'Coin & calendar — '+bands[k].label}); }
+  if(typeof render==='function') render();
+}
+document.addEventListener('click',function(e){ if(e.target&&e.target.id==='econbtn') openEconomyCG(); });
+
+function _cgGT(ap){
+  var E=window._engineEcon; if(!E) return '';
+  var c=E.purchaseCost(ap,_cgEconBand());
+  if(!c || (!c.gp && !c.days)) return '';
+  return ' · ' + [c.gp?(c.gp.toLocaleString()+' gp'):'', c.days?c.time:''].filter(Boolean).join(' · ') + ' in play';
+}
 
 // Categories whose MUT mutator is a flat array push with no positional/index dependents — the only
 // categories retractFlatEvent() may remove from LOG, and only from wherever they sit (LOG invariant #6).
@@ -4423,6 +4485,17 @@ function annotate(b,r){
   // gold dropdown labels (#15) + total
   $('goldcell').textContent=r.goldGp+' gp';
   relabel($('gold'),n=>n+' AP ('+(DATA.goldPurse+n*50)+' gp)');
+  // Coin-and-calendar status (§16). Reports the band this character will play under, and — outside a
+  // campaign — lets the player set it. Inside one the DM owns the dial, so the button becomes a
+  // read-only explanation rather than disappearing: a hidden control reads as a missing feature.
+  {const _eb=$('econband'),_ebt=$('econbtn'),_ebh=$('econhint');
+   if(_eb){const _k=_cgEconBand(),_bd=(DATA.economyBands&&DATA.economyBands[_k])||{label:_k,blurb:''};
+     const _campOwned=!!(window._cgCampaignBound&&window._cloudCampaign&&window._cloudCampaign.rules);
+     _eb.textContent=_bd.label||_k;
+     if(_ebh)_ebh.textContent=(_k==='off')
+       ? 'Off — AP alone governs advancement.'
+       : (_campOwned?'Set by your DM':'Set by you')+' · creation stays free of gold and time';
+     if(_ebt)_ebt.textContent=_campOwned?'Why?':'Change';}}
   // inline ladder prices
   if($('hardyp'))$('hardyp').textContent=get('Vigor')+' AP'; if($('toughp'))$('toughp').textContent=get('Grit')+' AP';
   if($('artsp'))$('artsp').textContent=(get('Arts & Techniques')||0)+' AP';if($('wprofp'))$('wprofp').textContent=get('Weapon proficiency')+' AP'; if($('armp'))$('armp').textContent=get('Armour proficiency')+' AP';
@@ -4508,21 +4581,21 @@ function annotate(b,r){
     const f2=line.querySelector('.feat2row'),ri=line.querySelector('.racrow'),di=line.querySelector('.drawrow'),sa=line.querySelector('.subabilrow'),sb=line.querySelector('.subbundlerow');const p=line.querySelector('.price');if(!p)return;
     if(f2){const f=DATA.features[f2.value];if(f){const o=(f.cls===b.originClass||f.cls===b.originClass2);const u=!o&&_unlkR.has(f.cls);p.style.color=PCOL(o,u);
       if(f.rep){const n=(fstep[f2.value]=(fstep[f2.value]||0)+1);
-        if(f2.value==="Sorcerer: Metamagic"){p.textContent=stepDesc(f2.value,n)+' · T'+f.tier+' · '+(2*n)+' AP (flat, class-neutral)';}
+        if(f2.value==="Sorcerer: Metamagic"){p.textContent=stepDesc(f2.value,n)+' · T'+f.tier+' · '+(2*n)+' AP (flat, class-neutral)'+_cgGT(2*n);}
         else{const tier=Math.min(7,f.tier+n-1);const st=DATA.MASTER[tier][f.band];const og=Math.max(1,st-(tier-1));const cr=st+tier;
-        p.textContent=stepDesc(f2.value,n)+' · T'+tier+' · '+ORG(o,u)+(o?og:(u?st:cr))+' AP';}}
-      else p.textContent=ORG(o,u)+PRC(o,u,f)+' AP';}
+        const _rp=(o?og:(u?st:cr));p.textContent=stepDesc(f2.value,n)+' · T'+tier+' · '+ORG(o,u)+_rp+' AP'+_cgGT(_rp);}}
+      else p.textContent=ORG(o,u)+PRC(o,u,f)+' AP'+_cgGT(PRC(o,u,f));}
       else {p.textContent=f2.value?'?':'';p.style.color='';}
       const fd=line.querySelector('.fdesc');if(fd){const nm=(f2.value.split(': ')[1]||f2.value);
         if(f){var _fp=(typeof FEAT_PG!=='undefined'&&FEAT_PG[f2.value])?('PHB p.'+FEAT_PG[f2.value]):'';f2.title=[f.tb,_fp].filter(Boolean).join(' · ');fd.textContent=[DATA.featDesc[nm]?(DATA.featDesc[nm]+' · '+f.tb):'',_fp].filter(Boolean).join(' · ');}
         else{f2.title='';fd.textContent='';}}}
-    if(ri){const rr=DATA.racial[ri.value];if(rr){const o=(rr.race===b.species||rr.race===b.species2);p.textContent=ORG(o)+(o?rr.origin:rr.cross)+' AP';p.style.color=o?'var(--good)':'var(--bad)';}else {p.textContent='';p.style.color='';}}
+    if(ri){const rr=DATA.racial[ri.value];if(rr){const o=(rr.race===b.species||rr.race===b.species2);const _rap=(o?rr.origin:rr.cross);p.textContent=ORG(o)+_rap+' AP'+_cgGT(_rap);p.style.color=o?'var(--good)':'var(--bad)';}else {p.textContent='';p.style.color='';}}
     if(di){const v=DATA.drawbacks[di.value];p.textContent=v?('+'+v+' AP'):'';p.style.color='var(--bad)';}
-    if(sa){const a=DATA.subAbilMap[sa.value];if(a){const o=(a.cls===b.originClass||a.cls===b.originClass2);const u=!o&&_unlkR.has(a.cls);p.textContent=ORG(o,u)+PRC(o,u,a)+' AP';p.style.color=PCOL(o,u);line.title=a.tb;}else {p.textContent='';p.style.color='';line.title='';}}
+    if(sa){const a=DATA.subAbilMap[sa.value];if(a){const o=(a.cls===b.originClass||a.cls===b.originClass2);const u=!o&&_unlkR.has(a.cls);p.textContent=ORG(o,u)+PRC(o,u,a)+' AP'+_cgGT(PRC(o,u,a));p.style.color=PCOL(o,u);line.title=a.tb;}else {p.textContent='';p.style.color='';line.title='';}}
     // Bundles carry an explicit `sticker`, so they use it rather than re-deriving cross − tier.
     if(sb){const _q=String(sb.value).split('|');const _qs=(DATA.subclasses[_q[0]]||{})[_q[1]]||{};const _qb=_qs.spellBundle;
       if(_qb){const o=(_q[0]===b.originClass||_q[0]===b.originClass2);const u=!o&&_unlkR.has(_q[0]);
-        p.textContent=ORG(o,u)+(o?_qb.origin:(u?(_qb.sticker??_qb.cross):_qb.cross))+' AP'+(_qb.cantrips?' +'+_qb.cantrips+'c':'');p.style.color=PCOL(o,u);}
+        const _bap=(o?_qb.origin:(u?(_qb.sticker??_qb.cross):_qb.cross));p.textContent=ORG(o,u)+_bap+' AP'+(_qb.cantrips?' +'+_qb.cantrips+'c':'')+_cgGT(_bap);p.style.color=PCOL(o,u);}
       else {p.textContent='';p.style.color='';}}
   });
   document.querySelectorAll('.subcls').forEach(e=>{const c=e.dataset.cls;const isO=(c===b.originClass||c===b.originClass2);const isU=!isO&&(b.unlockedClasses||[]).indexOf(c)>=0;e.textContent=c+(isO?' ★':(isU?'':' †'));e.style.color=isO?'var(--good)':(isU?'#222':'var(--bad)');e.style.fontWeight='700';});
