@@ -10,6 +10,25 @@
 
 ## Index
 
+## D-GH-2026-08-19-amble-character-rebuild-costs — a stale `stats.rules` stamp may be corrected in place
+- Owner asked whether Amble's six characters would cost differently rebuilt at `v0.356`. Replaying every
+  `LOG` through `v0.341`/`v0.342`/`v0.356` showed four characters' `total` rising by **exactly their
+  drawback refund** (+12/+9/+4/+3) with `spendable` rising the same amount — the `v0.354`/`v0.356` move of
+  the grant from the cost side to the budget side (see `D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap`),
+  not a repricing. Ledger lines byte-identical; **AP left unchanged for all four**. `v0.341` and `v0.342`
+  are indistinguishable for these builds. `Moss Stormspud` is the only genuinely repriced build (2nd origin
+  class 14 → 18, species traits 0 → 4, +8) — the only multiclass character — and had already been re-saved
+  under `v0.356`, so it was already banked. Decision: a stale stamp **may be corrected in place by SQL**
+  rather than needing a tool re-save, gated on three checks — the stamp is display-only (it drives only the
+  Live Sheet drift banner, `compute()` never reads it), the cloud rows carry **no `sig`** (D-GH48 signing
+  covers envelopes that leave the tool; a signed row would have been corrupted by the edit), and the
+  rewrite was proven a substantive no-op *before* the banner was cleared. Verified by diffing each row
+  against **its own** `character_backups` snapshot (`stats - 'rules'` and `stats->'LOG'` both md5-equal),
+  which is also the rollback. Names the trap: **a bigger `total` is not evidence of a repricing** across
+  `v0.354` — compare `remaining` or the ledger lines, never `total` alone. No code change, no
+  `DATA.version` bump.
+  Full record: `decisions/2026/D-GH-2026-08-19-amble-character-rebuild-costs.md`.
+
 ## D-GH-2026-08-19-drawback-cap-player-tools — the campaign drawback cap reaches all three tools
 - `feat/drawback-cap` (v0.351) wired `opts.drawbackCap` into `DM-Console.html` and **nowhere else** — 6
   occurrences there, 0 in either player tool — so a player in a capped campaign saw the FULL grant while

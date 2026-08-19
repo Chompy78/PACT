@@ -103,6 +103,11 @@ headroom for any further purchase without a new award.
 
 `CHANGELOG.md` was deliberately **not** touched, at the owner's explicit call: nothing in the app
 changed — no engine, tool or rules diff, and `DATA.version` is untouched — so the changelog stays a
-history of what shipped rather than of operational data corrections. This note is the whole record.
+history of what shipped rather than of operational data corrections.
+
+The *why* — that a stale `stats.rules` stamp may be corrected in place by SQL, and the three checks that
+gate it — is recorded as `D-GH-2026-08-19-amble-character-rebuild-costs`
+(`decisions/2026/D-GH-2026-08-19-amble-character-rebuild-costs.md`), since a future agent would otherwise
+reasonably assume hand-editing `stats` is forbidden outright.
 
 Test gate run at close on the docs-only commit: `testing/scripts/engine-parity-ci.mjs` → **0 failed**.
