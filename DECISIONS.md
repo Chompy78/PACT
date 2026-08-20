@@ -10,6 +10,24 @@
 
 ## Index
 
+## D-GH-2026-08-20-premium-autogrowth-to-stepped — Rage/Wild Shape/Bardic Inspiration die become stepped-Premium; hard prerequisite blocking; three more features retrofitted
+- Implements `pact-guide`'s `D-2026-08-19-premium-autogrowth-to-stepped`: Rage, Wild Shape, and Bardic
+  Inspiration die convert from flat-once Premium to a Premium unlock + half-price named upgrade steps,
+  chained by prerequisite, split into independent tracks that never gate each other. `DATA.version`
+  **v0.358**. Owner direction made in this repo, beyond the source decision: the prerequisite check
+  becomes an actual hard block (was advisory-only), scoped per track; Wild Shape's Capability track and
+  Unarmored Movement's steps changed band (Passive and Situational respectively); and three more already-
+  shipped Stepped features — Sneak Attack, Martial Arts die, Unarmored Movement — retrofitted to the same
+  half-price-after-unlock shape, using real 5e breakpoints already documented in the guide (found
+  mid-session after an initial pass used invented placeholder tiers — see the record's "Course
+  correction"). New "Blocked purchases" ledger line wired into CharGen/DM Console. Guide rewritten
+  throughout on what Premium means and how the discount works; `guide-price-check.mjs` → 0 mismatches.
+  `/code-review ultra` caught and fixed two real bugs (blocked invocations still counting toward the
+  breadth surcharge; two guide callouts self-contradicting the guide's own price tables) before merge.
+  **Not yet done by this repo's own rule:** the `pact-guide` project's canonical guide master still needs
+  the identical transfer (served copy here ≠ master).
+  Full record: `decisions/2026/D-GH-2026-08-20-premium-autogrowth-to-stepped.md`.
+
 ## D-GH-2026-08-19-drawbacks-phobias-expansion — drawbacks are income, so price them by pain ÷ pay
 - 21 new drawbacks (69 → **90**), reprices `Sluggish` 2→1 / `Mana-Sick` 3→2 / `Haunted / Phobia` 3→2, and a
   new `DATA.drawbackReq` caster gate. `DATA.version` **v0.357**. The record exists mainly to fix an
