@@ -179,3 +179,29 @@ new table + RLS + policy, old function gone, new functions present with correct 
 shape); `get_advisors` run immediately after for both `security` and `performance` — no new issue
 classes, just `gold_awards`/`campaign_downtime_declarations` inheriting the same lint types
 `ap_awards`/`wealth_awards` already carried.
+
+## Part three, next session — pre-merge review and the merge itself
+
+Before merging, `/code-review ultra` was run per this repo's own PR checklist (required for anything
+touching `js/engine.js`/`sql/`). One finding was a false positive — it diffed branch-tip-to-branch-tip
+against `preview` rather than simulating a real merge, so it read as "this reverts three of preview's
+newer commits" when an actual trial merge retained them all cleanly. The other two were real:
+`buyoffDrawback()` never froze `gp`/`days` onto its emitted event (a buyoff would have silently
+re-priced on a later band change — exactly the hazard the freeze mechanism exists to prevent
+everywhere else), and the DM Console's "Downtime available" line showed the window's raw declared
+total instead of netting it against the character's own spend, despite its own tooltip promising the
+netted figure. Both fixed, both covered by new regression checks verified to go red independently.
+Gate → 155 checks (from 151).
+
+**A genuine surprise merging into `preview`.** A real, isolated-worktree trial merge had been clean
+every time it was tried — but GitHub's own PR mergeability check reported a real conflict
+(`mergeable_state: dirty`, then a hard `405` on the actual merge attempt). The cause: `.gitattributes`
+declares `merge=union` on `CHANGELOG.md`/`DECISIONS.md` (both files are newest-first logs where two
+branches routinely add unrelated lines at the top), and local `git merge` honours that — silently
+unioning both sides' additions — while **GitHub's server-side PR-merge computation does not apply
+custom `.gitattributes` merge strategies at all**. Resolved by merging `preview` into the branch
+locally (where the union strategy actually applies) and pushing the resulting merge commit, which gave
+GitHub a branch that already contained `preview`'s tip as an ancestor — mergeable, cleanly, on the next
+attempt. Merged as **PR #433**. Worth remembering: a clean local trial merge is necessary but not
+sufficient evidence of GitHub mergeability whenever `.gitattributes` declares a custom strategy on a
+touched file.
