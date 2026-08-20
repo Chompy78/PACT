@@ -107,7 +107,9 @@
   the failure mode that left five of eight barred features unenforced for months. `bar` gates `emit()` for
   a new purchase only; `compute()` never reads it, so an existing owner (none currently exist — verified
   against the live `characters` table) still prices identically. No `DATA.version` bump — display-only.
-  Full record: `decisions/2026/D-GH-2026-08-19-bar-blocked-features.md`.
+  **Update 2026-08-20:** the three features barred for the stepped-Premium pricing defect are unbarred
+  again now that the defect is fixed (`D-GH-2026-08-20-premium-autogrowth-to-stepped`); the five barred
+  for an unrelated reason are untouched. Full record: `decisions/2026/D-GH-2026-08-19-bar-blocked-features.md`.
 
 ## D-GH-2026-08-19-drawback-statcap-enforcement — a stat cap is enforced in both directions
 - The guide claimed *"the tool only warns, it does not block"* on stat caps. **Measured: true of CharGen,

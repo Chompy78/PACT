@@ -76,3 +76,21 @@ v0.357→v0.358) converts 6 features to stepped-Premium/half-price pricing acros
 pricing with 0 verified price-mismatches; `tools/PACT-CharGen-Webtool.html` and `DM-Console.html` wire
 the new "Blocked purchases" ledger line into their existing category groups. Full decision record:
 `decisions/2026/D-GH-2026-08-20-premium-autogrowth-to-stepped.md`.
+
+## Follow-up, same day: unbarring Rage/Wild Shape/Bardic Inspiration die (PR #441)
+
+Once PR #438 merged, the owner asked to lift the 2026-08-19 `bar:true` flag on these three features
+(`D-GH-2026-08-19-bar-blocked-features`) now that the pricing defect it existed to contain is fixed.
+Straightforward in principle — remove the flag from 3 `DATA.features` entries, no `DATA.version` bump —
+but the first attempt hit a real trap worth recording: `git pull origin preview` failed with a
+"divergent branches" error (local `preview` was 275 ahead / 81 behind `origin/preview`), and a branch was
+cut directly from that stale local ref instead of resolving the divergence first. The stale branch's copy
+of `js/engine-data.js` predated 2026-08-19 entirely, so a grep for `"bar":true` came back empty — which
+looked exactly like "someone already fixed this," not like "this branch is missing 81 commits." Caught
+only by deliberately re-fetching and diffing against `origin/preview` before trusting that result. The
+branch was discarded and recreated from `origin/preview`'s true tip (the PR #438 merge commit), where the
+flag was confirmed still present; the actual fix — a one-line removal per entry — then proceeded normally.
+Landed as PR #441, `CHANGELOG.md`/`DECISIONS.md`/the bar-blocked-features record all updated. General
+lesson (candidate for `ai-lessons-learned`, not project-specific): a `git pull` "divergent branches"
+error means don't trust further work on that local ref at all — re-fetch and re-derive from the remote's
+actual tip before drawing any conclusion from what is or isn't present on the branch.
