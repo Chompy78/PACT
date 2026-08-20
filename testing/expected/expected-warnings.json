@@ -82,5 +82,8 @@
  "CG-031": [
   "\u26d4 Devouring Blade \u2014 blocked: requires Thirsting Blade first (not counted, not owned)",
   "\u26d4 Devouring Blade requires Warlock level 12"
+ ],
+ "CG-032": [
+  "\u26d4 Eldritch Smite \u2014 blocked: requires Pact of the Blade first (not counted, not owned)"
  ]
 }
