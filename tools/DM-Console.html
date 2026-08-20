@@ -1108,7 +1108,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.439';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.442';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1979,7 +1979,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     var LG=[
      {t:'Core',lines:['Ability scores','Hit Dice','Proficiency bonus','Vigor','Grit','Saving throws','Skills','Tools & instruments','Expertise','Tool expertise','Languages','Attunement slots']},
      {t:'Combat',lines:['Weapon proficiency','Weapon masteries','Armour proficiency']},
-     {t:'Class & Heritage',lines:['Heritage pack','2nd origin species','Species traits','Class unlocks','2nd origin class','Class features','Ki / Focus points','Sorcery points','Subclass abilities','Subclass unlocks']},
+     {t:'Class & Heritage',lines:['Heritage pack','2nd origin species','Species traits','Class unlocks','2nd origin class','Class features','Blocked purchases','Ki / Focus points','Sorcery points','Subclass abilities','Subclass unlocks']},
      {t:'Magic',lines:['Trad ','Cantrips (','Innate spells']},
      {t:'Boons & Gold',lines:['Boons','Drawbacks','Lost purchases','Martially Bound','Starting gold']}
     ];

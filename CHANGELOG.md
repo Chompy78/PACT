@@ -6,6 +6,29 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-20 · rules(data): unbar Rage/Wild Shape/Bardic Inspiration die (no version bump)** — removes
+  the `"bar":true` flag added 2026-08-19 (`D-GH-2026-08-19-bar-blocked-features`) to take these three
+  features off the market while their flat-once Premium pricing defect was pending. That defect is now
+  fixed (see the entry immediately below), so all three are selectable again in CharGen and Live Sheet.
+  `bar` isn't consulted by `compute()`'s pricing, so no `DATA.version` bump. The five features barred for
+  an unrelated reason (`Fighter/Paladin/Ranger/Rogue: Weapon Mastery`, `Fighter: Additional Fighting
+  Style`) are untouched.
+- **2026-08-20 · rules(engine): Rage/Wild Shape/Bardic Inspiration die -> stepped-Premium; hard prereq blocking; Sneak Attack/Martial Arts die/Unarmored Movement retrofitted (v0.358)** —
+  implements `pact-guide`'s `D-2026-08-19-premium-autogrowth-to-stepped`: Rage, Wild Shape, and Bardic
+  Inspiration die convert from flat-once Premium (grows free forever, buy once) to a Premium unlock plus
+  named upgrade steps at half the ordinary tier/band price, chained by prerequisite, split into
+  independent tracks (Rage: Uses/Damage; Wild Shape: Capability/Uses) that never gate each other. The
+  engine's prerequisite check (previously Warlock-invocation-only, advisory-only) is now widened to any
+  `f.prereq`-bearing feature **and** converted to an actual hard block — a violating purchase costs 0 AP
+  and isn't owned, itemized under a new "Blocked purchases" ledger line rather than silently priced.
+  Confirmed side effect: the 8 existing Warlock invocation prerequisites also go from warn-only to
+  hard-blocked. Three more already-shipped Stepped features (Sneak Attack, Martial Arts die, Unarmored
+  Movement) retrofitted to the identical half-price-after-unlock shape, using their real 5e level
+  breakpoints (already correctly documented in the guide's own class tables, just never wired into
+  `engine-data.js`). 12 new regression fixtures (`CG-021`–`CG-032`). `docs/PACT-Players-Guide.html`
+  rewritten throughout on what Premium means and how the discount works; verified 0 price-mismatches
+  against the live engine via `guide-price-check.mjs`. `DATA.version` **v0.357 → v0.358**. Full record:
+  `D-GH-2026-08-20-premium-autogrowth-to-stepped`.
 - **2026-08-20 · chore(version): `BUILD` → `v1.436` for PR #436 (`preview` → `main` promotion)** —
   ninth promotion under the PR-linked scheme. Major `1` carried forward; `DATA.version` deliberately
   untouched at `v0.357`. Carries the gold-and-downtime economy (PRs #433–#435) plus everything already

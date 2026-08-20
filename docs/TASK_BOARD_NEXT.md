@@ -777,6 +777,44 @@ rules-logic or player-data impact.
 landed in `docs/PACT-Players-Guide.html`, and the three-way check (vendored snapshot ↔ `pact-guide`
 canonical ↔ this repo's served copy) passes.
 
+## Seven CI gates never trigger on a `js/engine-data.js`-only change — their path filters watch `js/engine.js` but not its DATA split-out — TODO
+Branch `ci/engine-data-path-filters`. `.github/workflows/engine-parity.yml`, `tool-pricing.yml`,
+`static-audit.yml`, `chargen-flows.yml`, `dm-console-ui.yml`, `character-gen-e2e.yml`, and `cloud-e2e.yml`
+each list `js/engine.js` in their `pull_request: paths:` filter, but none of them list
+`js/engine-data.js` — the file REV-14a split `DATA` out into. A PR that touches only `engine-data.js`
+(a real, common shape: pricing/feature-table changes, not rules-logic changes) silently skips every one
+of these gates, even though `engine-parity.yml` and `tool-pricing.yml` exist specifically to catch
+`DATA`-driven `compute()` regressions.
+
+**Observed for real on PR #441** ("unbar Rage/Wild Shape/Bardic Inspiration die", `js/engine-data.js`
+only, no `js/engine.js` touch): only `Lighthouse CI` and `Service-worker staleness e2e` ran in CI — the
+other seven workflows above never triggered at all. The PR merged green because nothing red ever ran,
+not because the relevant gates passed; `testing/tests/engine-parity.html` (52/52) and
+`testing/scripts/audit.py` (29/0) were only verified by running them manually before pushing. Confirmed
+by reading each workflow file's `on: pull_request: paths:` list directly and cross-checking against the
+actual GitHub Actions check-run list for that PR's branch.
+
+**Effort:** low · **Risk:** low — ambiguity is low (add one path line per file, mirroring the existing
+`js/engine.js` line already present in each — no new logic); damage scale is low (CI config only, no
+app code, no rules, no data); damage likelihood is low (worst case a path is missed and the gap persists
+for that one workflow, same as today). Worst-of lands at low.
+
+```text
+1. In each of the 7 workflow files, add "js/engine-data.js" to the `pull_request: paths:` list,
+   immediately next to the existing "js/engine.js" line.
+2. Re-check whether js/ap-by-level.js and js/advancement.js (already listed individually in some of
+   these files) should also gain any currently-missing sibling paths while touching these blocks —
+   don't expand scope beyond engine-data.js unless a matching gap is found the same way (read the
+   file, don't guess).
+3. Verify the fix the same way the gap was found: on a scratch branch, touch only js/engine-data.js
+   (a no-op whitespace edit is enough) and confirm via `gh`/the GitHub Actions API that the 7 gates
+   now appear as queued/running checks on that branch's PR, not absent.
+```
+
+**Done when:** all 7 workflow files' `pull_request.paths` list includes both `js/engine.js` and
+`js/engine-data.js`; a scratch-branch PR touching only `js/engine-data.js` shows all 7 gates actually
+running (not silently absent) in its check list.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.

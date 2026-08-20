@@ -12,7 +12,9 @@ mechanism) still stands and is worth reading first.
 ## Context
 
 `fix/species-pack-not-charged` was pre-flighted, planned, and sent for two rounds of external cold
-review (five reviewers, then four; artefacts under `zUser-Uploads/`). Both rounds refuted the plan's
+review (five reviewers, then four; artefacts under `z-cold/old/` on this repo's `zcold` branch — see
+Related below for exact filenames; corrected 2026-08-20, previously miscited as `zUser-Uploads/`, a
+folder these files were never actually stored under). Both rounds refuted the plan's
 central mechanism. The second round's findings, plus two code audits, moved the diagnosis three times
 before it settled. This record captures where it landed and — deliberately — what was wrong on the way,
 because two of the wrong answers are recorded in the repo as decisions and would otherwise be built.
@@ -327,7 +329,13 @@ a mechanism the engine already implements and already has fixtures for.
 
 - `decisions/2026/D-GH-2026-08-04-species-pack-ledger-drift.md` — the reproduction and mechanism; its
   H2 decision is superseded here.
-- `zUser-Uploads/old/` — round-1 cold reviews (5); `zUser-Uploads/` — round-2 (4).
+- `z-cold/old/` on this repo's `zcold` branch — round-1 cold reviews (5, the H2-era plan reviewed in
+  `D-GH-2026-08-04-species-pack-ledger-drift`: `chat species.md`, `deepseek species.md`,
+  `kimi species.md`, `species-pack-not-charged-review-copilot-claude-opus-5.md`,
+  `species-pack-not-charged-review-m365-copilot-gpt-5.md`); round-2 (4, this record's `priceOf()` plan:
+  `priceof-deepseek.md`, `priceof-livesheet.md`, `priceof-whole-build-delta-review-copilot-claude-opus-5.md`,
+  `priceof-whole-build-delta-review-kimi.md`) — both rounds now live in the same `z-cold/old/` folder,
+  not split as originally cited.
 - Incidental defects found during the audits, unrelated to this model and needing their own entries:
   `buyManeuver()` emits without an affordability check (`tools/PACT-Live-Char-Sheet.html:1497`); buying
   an epic boon in the Live Sheet is hard-blocked on the first attempt by construction; `epicBoonAbil` is

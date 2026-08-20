@@ -10,7 +10,10 @@ server-authoritative number is `characters.ap` (DM-granted, via `award_ap()`).
 
 The user asked other AIs for ideas via a written problem statement (`z-cold/` on the `zcold` branch —
 see `pact-ap-overspend-problem.txt` and the seven review files it produced: DeepSeek, Kimi, and four
-others). All seven converged on rejecting a full SQL reimplementation of `compute()`'s pricing (drift
+others — exact filenames, all in `z-cold/old/` on the `zcold` branch, added 2026-08-20: `PACT-AP-Budget-
+Enforcement-Review.txt`, `PACT-AP-overspend-hardening-summary.txt`, `PACT_AP_Enforcement_Review.md`,
+`PACT_AP_overspend_hardening_AI_threat_model.txt`, `pact DeepSeek ap.txt`,
+`pact-ap-integrity-ai-guidance.txt`, `pact-ap-overspend-analysis.txt`). All seven converged on rejecting a full SQL reimplementation of `compute()`'s pricing (drift
 risk, violates the engine.js-only rule) and on a narrow frozen-cost-sum consistency trigger as a viable,
 compliant backstop. One review (`PACT_AP_overspend_hardening_AI_threat_model.txt`) proposed a materially
 different, stronger idea: instead of trying to verify costs are *correct* (impossible server-side without
