@@ -324,6 +324,8 @@ objectively checkable by a third party; (6) should this split further. Save your
 
 ## Review outcome
 
+Filed under `docs/plans/cold-reviews/2026-08-19-*-premium-autogrowth-to-stepped.md`.
+
 **Reviewers (4):** DeepSeek (file self-identified as "OpenAI GPT-4 (May 2025)" despite the filename —
 treated as one data point, vendor unclear from the file itself), Copilot/Claude Opus 4.8, M365
 Copilot/GPT-5 reasoning, GPT-5.6 Luna. All 4 converged independently on the same core defects — strong
