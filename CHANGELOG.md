@@ -6,6 +6,62 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-20 · fix: buyoffs weren't frozen, and the DM Console showed gross downtime instead of net
+  — both caught by `/code-review ultra` before merging the coin-and-time-costs branch** —
+  `buyoffDrawback()` (Live Sheet) never quoted, wallet-checked, or froze `gp`/`days` onto its emitted
+  event, even though `wealthLedger()` charges buyoffs as real in-play purchases; `_paidFor()`'s
+  live-list-price fallback meant a buyoff's cost silently moved under a later Standard→Fast band
+  change — the exact hazard the freeze mechanism exists to prevent. Fixed by giving it the same
+  quote/trade/shortfall/freeze treatment `buy()` already has. Separately, the DM Console's "Downtime
+  available" line showed the window's raw declared total (base + bonus), never netted against the
+  character's own spend, despite its own tooltip promising the netted figure — a DM could read "48
+  days" for a character who had actually spent 42 of them. Fixed by threading the character's LOG
+  through to `awardBody()` and computing `wealthWithDm()`'s `daysLeft` there, same composition the
+  player-side wallet line already used. Gate → **155 checks** (from 151); both fixes verified to go
+  red independently when reverted (4 failures, isolated to the checks naming them). See the Addendum
+  in `D-GH-2026-08-19-tool-coin-time-costs`.
+- **2026-08-19 · fix: downtime is a party-wide window, not a per-character bank — corrected same day,
+  before any real balance existed** — walking through the gold-and-downtime economy below at the
+  table surfaced that it had modelled gold and downtime as twins (both DM-granted, per-character,
+  accumulating), which is wrong for downtime: it is a single window the DM declares for the **whole
+  party at once**, and a new declaration **replaces** the old one rather than adding to it (owner:
+  "spend it now or wait till another opportunity"). Left as originally built, switching the economy on
+  would have marked every character permanently overdrawn and made the DM re-type the same figure
+  once per player, every session, forever. `characters.downtime_days` dropped (fully computed now,
+  never stored); `wealth_awards`→**`gold_awards`** (gold-only) and `award_wealth()`→**`award_gold()`**;
+  new `campaign_downtime_declarations` ledger (nullable `character_id`: null = party base, set = a
+  per-character bonus that resets along with the base) plus **`declare_downtime()`**/
+  **`get_downtime_window()`** RPCs. `js/engine.js`: `wealthLedger()`'s `wealth`-event handling now
+  sums `gp` but treats `days` as last-one-wins (the same event type, two different aggregation
+  rules, on purpose); new `resolveDowntimeWindow()` mirrors `resolveEconomySetting()`'s campaign-vs-
+  solo precedence exactly; `wealthWithDm()` rewritten so `daysLeft` is the window's size minus only
+  the spend since it was declared, never an all-time total. DM Console: gold and an optional
+  per-character **bonus time** field join the existing Award AP form ("same area as AP awards");
+  downtime's party-wide base gets its own, separate declare control above the roster. Live Sheet
+  gained the solo self-service control (**🎒 Record gold & downtime**) the original build never
+  built despite reading a permanently-empty event type for it. Also found and fixed a real,
+  unrelated bug on the way: the DM Console's campaign-rules cache never carried the economy band at
+  all, so the original grant form could never have shown in any campaign. Gate → **151 checks**
+  (from 120), verified to go red on both the reset-vs-accumulate rule and the no-window-overdraft
+  rule. Follow-up migration `2026-08-19-downtime-window-revision.sql`, not an edit to the applied
+  one — safe as a straight `ALTER`/`DROP`, since every character was still at 0/0. **Applied to the
+  live Supabase project** the same day; `get_advisors` run straight after, no new issue classes. See
+  the Addendum in `D-GH-2026-08-19-tool-coin-time-costs`.
+- **2026-08-19 · feat: the gold-and-downtime economy, built into all three tools** — PACT's other two
+  currencies (Players Guide §2/§16) had no implementation at all; only starting wealth existed. Both band
+  tables now live in `js/economy-bands.js` and are surfaced on `DATA`, with the three settings the guide
+  names — **Off / Standard / Fast**. Every priced row in all three tools shows its gold and downtime; the
+  Live Sheet gains a wallet line, a purchase-time shortfall warning, the ledger's per-purchase figures and
+  §16's coin-for-time trade; the DM Console gains the campaign-wide dial and a per-character grant form.
+  **Creation stays free of both** (§2), enforced by reusing the engine's own creation lock rather than a
+  second definition of "in play". **Soft warnings only, never a block** — §17 lets a DM waive any cost.
+  DM-authoritative in a campaign, mirroring `characters.ap`: new `characters.gold`/`downtime_days`,
+  `wealth_awards` ledger and `award_wealth()` RPC; a solo character's grants ride its own LOG. Costs
+  freeze onto their own event so a mid-campaign band switch can't re-price history. New gate
+  `testing/scripts/economy-ui-e2e.mjs` (**120 checks**, verified to go red); full suite green. No
+  `DATA.version` bump — `compute()` is untouched. Also fixed a PWA caching bug the repo's audit caught:
+  `economy-bands.js` joins `NETWORK_FIRST_RE`, `CACHE_NAME` → `pact-v9`. See
+  `D-GH-2026-08-19-tool-coin-time-costs`.
 - **2026-08-19 · rules(engine): 21 new drawbacks, three reprices, and a caster gate (v0.357)** — adds a
   phobia family (`Claustrophobic`, `Agoraphobic`, `Fear of Being Alone`, `Fear of the Dark`,
   `Fear of the Dead`, `Crawling Things`, `No Head for Heights`, `Gun Shy`) plus body/nerve and social

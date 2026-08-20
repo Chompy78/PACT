@@ -10,6 +10,45 @@
 
 ## Index
 
+## D-GH-2026-08-19-tool-coin-time-costs — gold and downtime reach the tools, soft-gated, DM-owned
+- PACT is named for three currencies and the Players Guide has specified all three for months (§2, §16,
+  §17's "☐ Gold-and-Time economy: Off, Standard, or Fast?"), but two of them had **no implementation at
+  all**. The inverse of the usual failure this repo guards against: the guide was complete and the engine
+  carried nothing, so this task read the guide as its spec and needed **no guide edit**. Both band tables
+  now live in `js/economy-bands.js`, surfaced on `DATA`; the engine gains `purchaseCost`/`wealthLedger`/
+  `chargesGoldAndTime` and six more exports; `compute()` is untouched, so **no `DATA.version` bump**.
+  Three decisions carry it: **soft warning, never a hard block** — §17 lets a DM waive any cost, so a
+  refusing tool would be *wrong about the rules*, and for the same reason an overdraft is never clamped;
+  **three presets only** — §16 says pick one band and hold to it, and `off` is a first-class setting
+  (`rows: null`, so a campaign playing Off shows *no prices*, not zeroed ones); and **reuse the existing
+  creation lock** as the definition of "in play", which is why `_replay()`'s lock ratchet was *extracted*
+  into `_lockStates()` rather than copied. Costs **freeze onto their own event** (`gp`/`days`, exactly as
+  `cost` freezes AP), which both stops a mid-campaign band switch re-pricing history and makes waivers,
+  mentor discounts and the coin-for-time trade one mechanism instead of three. Gold is DM-owned in a
+  campaign, mirroring `characters.ap` (`characters.gold`, `gold_awards`, `award_gold()`); a solo
+  character's own gold rides its own LOG. The band setting needed **no migration** — campaign-side it
+  lands in the existing `campaigns.rules` jsonb, solo-side as an `econSetting` LOG event. New gate: 120
+  checks, verified to go red. Also fixed a real PWA bug the repo's own audit caught —
+  `economy-bands.js` would have been cached cache-first behind a network-first `engine.js`;
+  `CACHE_NAME` → `pact-v9`.
+
+  **Addendum, same day:** downtime turned out NOT to share gold's shape at all, corrected before any
+  real character had a balance. Gold banks per character and accumulates; downtime is a single window
+  the DM declares for the **whole party at once**, which **replaces** the last declaration rather than
+  adding to it (owner: "the time should not keep adding up... spend it now or wait till another
+  opportunity") — modelling it as a per-character accumulating column (as first shipped) would have
+  marked every character permanently overdrawn the moment the economy switched on, and made the DM
+  re-type the same figure once per player, every session, forever. `characters.downtime_days` dropped;
+  `wealth_awards`→`gold_awards` (gold-only); new `campaign_downtime_declarations` (nullable
+  `character_id`: null = party base, set = a per-character bonus that resets with the base) +
+  `declare_downtime()`/`get_downtime_window()` RPCs. Gold still lives on the Award AP form ("same area
+  as AP awards"); downtime gets a separate party-wide control, with an optional per-character bonus
+  folded into the same AP/gold form. Also found and fixed a real, unrelated bug on the way: the DM
+  Console's campaign-rules cache never carried the economy band at all, so the original grant form
+  could never have shown regardless of the DM's chosen band. Gate → 151 checks; new migration
+  `2026-08-19-downtime-window-revision.sql` (a follow-up file, not an edit to the applied one) — not
+  yet applied to the live project as of this addendum.
+  Full record: `decisions/2026/D-GH-2026-08-19-tool-coin-time-costs.md`.
 ## D-GH-2026-08-19-drawbacks-phobias-expansion — drawbacks are income, so price them by pain ÷ pay
 - 21 new drawbacks (69 → **90**), reprices `Sluggish` 2→1 / `Mana-Sick` 3→2 / `Haunted / Phobia` 3→2, and a
   new `DATA.drawbackReq` caster gate. `DATA.version` **v0.357**. The record exists mainly to fix an

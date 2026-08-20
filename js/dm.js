@@ -27,7 +27,7 @@ import { supabase } from './supabase-client.js';
 export async function getRoster(campaignId) {
   const { data, error } = await supabase
     .from('characters')
-    .select('id, name, kind, ap, stats, updated_at, owner_id, owner:profiles(display_name), dm_notes:character_dm_notes(player_label, notes, custom_fields)')
+    .select('id, name, kind, ap, gold, stats, updated_at, owner_id, owner:profiles(display_name), dm_notes:character_dm_notes(player_label, notes, custom_fields)')
     .eq('campaign_id', campaignId)
     .order('name');
   if (error) throw error;
@@ -41,6 +41,12 @@ export async function getRoster(campaignId) {
       name: c.name,
       kind: c.kind,
       ap: c.ap,
+      // The gold economy's DM-held pool (Players Guide §16), alongside `ap` and on the same
+      // authority. `?? 0` because a row selected before this column existed comes back
+      // without it, and the console's arithmetic must not turn undefined into NaN. Downtime
+      // carries no per-character column at all — it's a party-wide window, read separately
+      // via getDowntimeWindow()/get_downtime_window(), not part of this roster row.
+      gold: c.gold ?? 0,
       stats: c.stats,
       updated_at: c.updated_at,
       owner_id: c.owner_id,
@@ -129,6 +135,111 @@ export async function awardAp(characterId, amount, note) {
 }
 
 /**
+ * DM-only: grant (or, with a negative amount, deduct) gold for a character, with an optional
+ * note. Returns the updated character row. Throws if the caller is not a DM of the
+ * character's campaign, or if the character is not in a campaign at all.
+ *
+ * The gold twin of awardAp() above. Renamed from awardWealth() the same day it was first
+ * built, once downtime turned out not to share gold's shape at all — gold banks per
+ * character and accumulates; downtime is a single party-wide window that REPLACES the last
+ * one (see declareDowntime() below, which now owns that entirely).
+ *
+ * This is the whole of the owner's requirement that "in a campaign world, the DM is the one
+ * who applies the money": a player has no grant on characters.gold, so there is no
+ * client-side path to it other than this RPC, and it authorizes on is_campaign_dm(). A SOLO
+ * character never reaches here — its gold lives as `wealth` events in its own LOG, which is
+ * the player-side pool the engine's wealthLedger() reads.
+ *
+ * @param {string} characterId
+ * @param {number} gold  gp to add (negative deducts)
+ * @param {string} [note]
+ */
+export async function awardGold(characterId, gold, note) {
+  const { data, error } = await supabase.rpc('award_gold', {
+    p_character: characterId,
+    p_gold: Math.round(Number(gold) || 0),
+    p_note: note ?? null,
+  });
+  if (error) throw error;
+  // `returns characters` comes back as a single row object, not an array — unlike award_ap's
+  // scalar integer. Normalized here so callers never have to know which shape the RPC used.
+  return Array.isArray(data) ? data[0] : data;
+}
+
+/**
+ * The gold award history for a character (newest first), each row attributed to the DM who
+ * gave it. Readable by the character's owner and any campaign DM — the gold_awards RLS
+ * policy is the same one ap_awards uses.
+ * @returns {Promise<Array<{id,gold,note,created_at,dm_id,dm}>>}
+ */
+export async function getGoldHistory(characterId) {
+  const { data, error } = await supabase
+    .from('gold_awards')
+    .select('id, gold, note, created_at, dm_id, dm:profiles!gold_awards_dm_id_fkey(display_name)')
+    .eq('character_id', characterId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(a => ({
+    id: a.id, gold: a.gold, note: a.note,
+    created_at: a.created_at, dm_id: a.dm_id, dm: a.dm?.display_name || '',
+  }));
+}
+
+/**
+ * DM-only: declare a downtime window (Players Guide §16). A PARTY-WIDE action by default —
+ * pass no characterId and it REPLACES whatever window was declared before, for every
+ * character in the campaign at once ("the time should not keep adding up... spend it now or
+ * wait till another opportunity" — owner). Pass a characterId to grant that ONE character a
+ * bonus on top of whichever base is currently live — a magic item, a personal reward — which
+ * is wiped along with the base the moment a new base is declared (a bonus is "extra time in
+ * THIS window", not a persistent pool of its own).
+ *
+ * Deliberately an INSERT-only ledger (declare_downtime() never updates a row): declaring
+ * again needs no reset logic of its own, and the full history stays visible for the story
+ * record. See getDowntimeWindow() for reading the composed result back.
+ *
+ * @param {string} campaignId
+ * @param {number} days           the window's size, in DAYS (7 = a week, 30 = a month, …)
+ * @param {string} [characterId]  omit for the party base; set for a per-character bonus
+ * @param {string} [note]
+ */
+export async function declareDowntime(campaignId, days, characterId, note) {
+  const { data, error } = await supabase.rpc('declare_downtime', {
+    p_campaign: campaignId,
+    p_days: Math.round(Number(days) || 0),
+    p_character: characterId ?? null,
+    p_note: note ?? null,
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data[0] : data;
+}
+
+/**
+ * The downtime window in force RIGHT NOW for one character: the party's latest base
+ * declaration plus any bonus declared for them since, already composed server-side by
+ * get_downtime_window() (one query, so this client never re-derives that composition
+ * itself — the same "one source, not two copies" reasoning as everywhere else this app
+ * shares logic between the DM Console and the Live Sheet).
+ *
+ * Pass no characterId to read just the party base (no bonus composed in) — useful for the DM
+ * Console's own "what's the current window" display, which isn't about any one character.
+ *
+ * @param {string} campaignId
+ * @param {string} [characterId]
+ * @returns {Promise<{days:number, declaredAt:string}|null>} null if no window has ever been declared
+ */
+export async function getDowntimeWindow(campaignId, characterId) {
+  const { data, error } = await supabase.rpc('get_downtime_window', {
+    p_campaign: campaignId,
+    p_character: characterId ?? null,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return { days: row.days, declaredAt: row.declared_at };
+}
+
+/**
  * feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events): append DM-attributed events to a campaign
  * character's own LOG — grant/remove a boon, impose a drawback. `events` must be a non-empty array;
  * a DM-granted boon needs its matched [buy, award] pair passed together so they land in one atomic
@@ -173,7 +284,7 @@ export async function getAwardHistory(characterId) {
 export async function getCharacterStats(characterId) {
   const { data, error } = await supabase
     .from('characters')
-    .select('id, name, kind, stats, ap')
+    .select('id, name, kind, stats, ap, gold')
     .eq('id', characterId)
     .single();
   if (error) throw error;
