@@ -273,8 +273,9 @@ and §17's "the DM can waive or reduce any cost at any time, AP, gold, or downti
 spends 350 gp and receives 350 gp, net zero, power unchanged. Note the trap this avoids: granting **AP**
 instead is NOT equivalent. AP is the power currency, so covering a gold cost with AP leaves the gold
 still owed *and* hands the character spare AP for something else — it converts a brake into an
-accelerator. The DM Console's grant form already takes gold and downtime directly (`award_wealth`), so
-the correct move is one step, not a workaround with friction.
+accelerator. The DM Console's Award AP form already takes gold directly (`award_gold`), plus
+per-character bonus downtime (`declare_downtime`), so the correct move is one step, not a workaround
+with friction.
 
 **Two levels — investigate both before building either.**
 
