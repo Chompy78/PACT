@@ -6,6 +6,13 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-20 · rules(data): unbar Rage/Wild Shape/Bardic Inspiration die (no version bump)** — removes
+  the `"bar":true` flag added 2026-08-19 (`D-GH-2026-08-19-bar-blocked-features`) to take these three
+  features off the market while their flat-once Premium pricing defect was pending. That defect is now
+  fixed (see the entry immediately below), so all three are selectable again in CharGen and Live Sheet.
+  `bar` isn't consulted by `compute()`'s pricing, so no `DATA.version` bump. The five features barred for
+  an unrelated reason (`Fighter/Paladin/Ranger/Rogue: Weapon Mastery`, `Fighter: Additional Fighting
+  Style`) are untouched.
 - **2026-08-20 · rules(engine): Rage/Wild Shape/Bardic Inspiration die -> stepped-Premium; hard prereq blocking; Sneak Attack/Martial Arts die/Unarmored Movement retrofitted (v0.358)** —
   implements `pact-guide`'s `D-2026-08-19-premium-autogrowth-to-stepped`: Rage, Wild Shape, and Bardic
   Inspiration die convert from flat-once Premium (grows free forever, buy once) to a Premium unlock plus

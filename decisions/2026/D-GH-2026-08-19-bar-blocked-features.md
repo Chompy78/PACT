@@ -3,6 +3,15 @@
 **Status:** DONE · no `DATA.version` bump (`compute()`'s pricing output is unchanged for every existing
 build; `bar` only gates whether a *new* purchase can be emitted, never re-prices an owned one)
 
+**Update 2026-08-20:** the three features barred *for the stepped-Premium pricing defect specifically*
+(`Barbarian: Rage`, `Druid: Wild Shape`, `Bard: Bardic Inspiration die`) had that defect fixed in
+`D-GH-2026-08-20-premium-autogrowth-to-stepped` (PR #438, merged) and are unbarred again — `"bar":true`
+removed from all three entries, no other change, no `DATA.version` bump (same "no bump" precedent as the
+original bar, since `bar` still isn't consulted by `compute()`'s pricing). The five originally-barred
+features unrelated to this defect (`Fighter/Paladin/Ranger/Rogue: Weapon Mastery`, `Fighter: Additional
+Fighting Style`) are untouched and remain barred — this record's mechanism section below still describes
+the live flag for those five.
+
 ## Context
 
 Owner needed `Barbarian: Rage`, `Druid: Wild Shape`, and `Bard: Bardic Inspiration die` off the market
