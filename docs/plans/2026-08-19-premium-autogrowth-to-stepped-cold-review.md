@@ -1,4 +1,4 @@
-# Cold Review Plan: Convert Rage / Wild Shape / Bardic Inspiration die to Stepped pricing (v2, post cold-review)
+# Cold Review Plan: Convert Rage / Wild Shape / Bardic Inspiration die to Stepped pricing (v3, owner-directed)
 
 > **v2 changes, in one line:** added the finalized step tables (v1 promised them and never included
 > them — every reviewer caught this); fully re-verified the "50% of lookup" claim across all 13
@@ -6,6 +6,14 @@
 > block-vs-warn and mechanical-effect-gating ambiguity by reading `compute()` directly (both confirmed —
 > see Verified); named the exact files/line/constants; and restructured into the workstream split all
 > four reviewers converged on independently. Full triage table at the bottom.
+>
+> **v3 change, owner direction (not a re-review — this answers the open question v2 deliberately left
+> for the decision owner):** the prerequisite check becomes an actual purchase-blocking gate, not just a
+> warning, **scoped per track** — a step's hard prerequisite is only the immediately-prior step in its
+> *own* track (Rage's Damage track gates only on the prior Damage step, never on a Uses-track step;
+> same for Wild Shape's Capability vs. Uses tracks). Because this reuses the same shared check, it also
+> hard-blocks the 8 existing Warlock invocation prerequisites that today only warn — a real, intentional
+> scope increase beyond these 3 abilities, named explicitly below rather than left as a side effect.
 
 ## Goal
 Implement `js/engine.js` + `js/engine-data.js` changes so that Rage (Barbarian), Wild Shape (Druid), and
@@ -88,18 +96,30 @@ v2, was an open question in v1).
   a build immediately re-triggers the warning on any later step still owned** — there is no separate
   removal-time check to add; the same one runs every time.
 
-- **⚠️ What this mechanism actually enforces — confirmed by reading `compute()` in full, not assumed
-  (the single most important v2 finding; three of four reviewers independently flagged this as
-  potentially fatal to the goal and were right to):**
-  1. **Every prerequisite violation in this engine, today, without exception, is `W.push(...)` —
+- **⚠️ What this mechanism enforces today, and what v3 changes it to — confirmed by reading `compute()`
+  in full, not assumed (the single most important v2 finding; three of four reviewers independently
+  flagged this as potentially fatal to the goal and were right to; v3 resolves it by owner direction):**
+  1. **Today, every prerequisite violation in this engine, without exception, is `W.push(...)` —
      an advisory warning string added to the returned `warnings` array.** Nothing in `compute()` removes
      a feature from pricing, refuses to add it to `featAP`, or excludes it from `b.features`. A build that
      owns every step out of order still gets priced (and totaled) as if it were valid; the player just
-     sees warning text. **"Blocking warning" in v1 was a contradiction — there is no blocking today**, only
-     warning. This plan does not change that: the new steps get the same enforcement every other
-     prerequisite-bearing feature gets, which is real (visible, itemized, impossible to miss in the UI)
-     but not a hard purchase gate. If a hard gate is wanted, that's new engine behavior beyond this
-     change's scope — flagged as an open question below, not silently assumed either way.
+     sees warning text. **"Blocking warning" in v1 was a contradiction — there was no blocking**, only
+     warning.
+     **v3: this becomes a real block.** Owner direction is to make the prerequisite check actually refuse
+     the purchase, not just warn — implemented as excluding the violating feature from `featAP`/pricing
+     (or rejecting the add at the purchase-event level, whichever the actual UI purchase flow makes
+     cleaner at implementation time; both achieve "you cannot end up paying for and owning an out-of-order
+     step"). **Scoped per track, per owner direction:** the block only checks the immediately-prior step
+     in the *same* track — Rage's `+4 damage` step's only hard prerequisite is `+3 damage`, never any
+     Uses-track step; Wild Shape's `8 forms/CR1/Fly` step's only hard prerequisite is `6 forms/CR½`, never
+     a Uses-track step. Bardic Inspiration has one track, so it's a plain linear chain. **Side effect,
+     confirmed and accepted, not incidental:** because this reuses the same shared check (lines 380-382),
+     the 8 existing Warlock invocation prerequisites (Eldritch Smite, Thirsting Blade, Lifedrinker, etc.)
+     also become hard-blocked instead of warn-only — arguably a bug fix (a Warlock could previously "buy"
+     Eldritch Smite without Pact of the Blade and keep it), but a real behavior change outside these 3
+     abilities that a build with an existing out-of-order Warlock purchase would surface immediately on
+     next price/re-validate. Flagged here explicitly; not something Workstream 1's tests should let pass
+     silently — see Workstream 1 below for the added fixture.
   2. **`compute()` never derives a mechanical benefit value for any feature — only AP cost, HP, AC,
      proficiency, and the warnings/itemize ledger.** Scanning the full function: there is no code path
      that computes "how many Rage uses" or "what die size for Bardic Inspiration" from level/tier/owned
@@ -169,13 +189,21 @@ Independent tracks share only the unlock as their common ancestor.
 
 ## Proposed approach (restructured into 3 workstreams — every reviewer independently recommended a split)
 
-**Workstream 1 — Engine widening (own PR, lands first, inert on landing).**
-Widen the prerequisite check at `js/engine.js` lines 380-382 from `if(!f||!f.inv)return;` to run for any
-feature declaring `f.prereq`, regardless of `f.inv`. Add a regression fixture asserting **zero new
-warnings on the full existing fixture corpus** (proves additivity, not just asserts it — closes the
-reviewers' "time-bounded claim" concern). This PR changes no prices and, because no non-Warlock feature
-declares `prereq` yet, is behaviorally inert until Workstream 2's data lands — reviewable in isolation
-against the "highest-risk file" bar with minimal surface area.
+**Workstream 1 — Engine widening + hard-block conversion (own PR, lands first, mostly inert on landing).**
+1. Widen the prerequisite check at `js/engine.js` lines 380-382 from `if(!f||!f.inv)return;` to run for
+   any feature declaring `f.prereq`, regardless of `f.inv`.
+2. Convert the check from `W.push(warning)` to an actual block (exclude the violating feature from
+   pricing/ownership) — the v3 owner direction above. Both changes land together since the second only
+   matters once the first exists.
+3. Add a regression fixture asserting **zero new warnings/blocks on the full existing fixture corpus
+   except the 8 Warlock invocation fixtures that were already prerequisite-violating** (proves the
+   widening is additive in *scope*, while explicitly confirming — not silently accepting — the
+   warn→block change on those 8). Any existing fixture that legitimately owns an out-of-order Warlock
+   invocation needs its expected output updated in this same PR, not discovered later as a surprise
+   failure.
+4. This PR changes no AP prices and, because no non-Warlock feature declares `prereq` yet, only the 8
+   Warlock fixtures' behavior changes on landing — reviewable in isolation against the "highest-risk
+   file" bar with a small, enumerated blast radius.
 
 **Workstream 2 — Data + formula-consistency test + version bump (depends on Workstream 1).**
 1. Add each post-unlock step as an ordinary `rep:false` feature entry, named e.g.
@@ -221,9 +249,7 @@ against the "highest-risk file" bar with minimal surface area.
 - Adding any mechanical-effect computation to `compute()` — confirmed above that none exists today for
   any feature, not just these three; not this change's job to add it.
 - Migrating saved character data — project is pre-launch, no real characters, per the source decision.
-- Making the prerequisite check an actual purchase-blocking gate instead of advisory — today's mechanism
-  is warning-only for every feature that uses it; changing that would be new behavior affecting all 8
-  existing Warlock invocation prerequisites too, not scoped to this change.
+- Cross-track hard blocking — a track's steps never gate on another track's steps, only the shared unlock.
 
 ## Alternatives considered
 - **Generalize the `rep:true` formula to accept per-step tier/band overrides.** Rejected: would add
@@ -232,14 +258,25 @@ against the "highest-risk file" bar with minimal surface area.
 - **Hand-freeze 13 constants with no formula linkage.** Rejected in v2 (v1's implicit approach) once the
   audit table showed the relationship is exact and total, not approximate — a regression-tested
   derivation is strictly better at the same implementation cost (Copilot reviewer's C1, adopted).
-- **Make the prerequisite check an actual hard block instead of a warning.** Not adopted — would change
-  behavior for the 8 existing Warlock invocation prerequisites too, a materially larger and different
-  change than this decision asked for; named as an open question for the decision owner, not decided here.
+- **Keep the prerequisite check warning-only (v2's position).** Superseded in v3 by owner direction: a
+  warning that doesn't stop the purchase doesn't actually keep AP spend proportional to benefit if a
+  player can just ignore it, so a hard block is what the source decision's goal actually needs.
+- **Hard-block only these 3 abilities' new steps, leave the 8 Warlock invocations warn-only.** Considered
+  and rejected — would require a second prerequisite-enforcement code path (a flag on `f.prereq` for
+  "hard" vs "soft"?) instead of reusing the one mechanism, adding real complexity for a distinction the
+  owner didn't ask for. If the Warlock warn→block change turns out to be unwanted in practice, that's a
+  one-line revert, not a reason to build two mechanisms preemptively.
 
 ## Risks
-- **Player-facing catch-up cost** — named and accepted in the source decision; this plan doesn't soften
-  it, and confirms (see Verified) that skipping a step has *only* the AP/social consequence, no engine
-  mechanical downgrade either way.
+- **Warlock invocation warn→block side effect** (v3) — any existing build/fixture that owns an
+  out-of-order Warlock invocation today (legal under the current warn-only mechanism) will have that
+  purchase rejected once this lands. Low likelihood — project is pre-launch, no real characters per the
+  source decision — but Workstream 1's fixture update (item 3) must enumerate every such case in the test
+  corpus rather than let it surface as an unexplained failure.
+- **Player-facing catch-up cost, now sharper** — the source decision named and accepted this risk under a
+  warning-only model; v3's hard block makes it a real mechanical gate (can't own the step without buying
+  it) rather than a purely social one. This is the point of the owner's direction, not a new problem, but
+  it does mean the risk is no longer softened by "the player could technically ignore the warning."
 - **Guide/engine drift** — this repo's served guide copy is not the master; "done" depends on a manual
   transfer this repo can't perform, named explicitly in Workstream 3.
 - **13 magic numbers drifting from their formula** — mitigated by the formula-consistency test in
@@ -249,8 +286,12 @@ against the "highest-risk file" bar with minimal surface area.
   test run) that must be re-run at actual implementation time if other work has landed in between.
 
 ## Verification
-- `testing/tests/engine-parity.html` reports **0 failed**, including new Workstream 2.3 fixtures.
-- The Workstream 1 additivity fixture shows zero new warnings on the pre-existing fixture corpus.
+- `testing/tests/engine-parity.html` reports **0 failed**, including new Workstream 2.3 fixtures and the
+  updated Warlock-invocation fixtures from Workstream 1.
+- The Workstream 1 fixture shows the block firing only for the 8 already-known Warlock invocations plus
+  the new step chains — no unexpected feature newly blocked.
+- A fixture confirms cross-track independence: owning only the Damage-track predecessor is sufficient to
+  buy the next Damage-track step, with no Uses-track purchase required, and vice versa.
 - The Workstream 2.2 formula-consistency test passes (each of the 13 step prices recomputed, not just
   compared to a stored constant).
 - `js/engine-data.js`'s `"version"` changed exactly once; `js/engine.js`'s `BUILD` unchanged.
@@ -258,8 +299,8 @@ against the "highest-risk file" bar with minimal surface area.
   copy and, separately, confirmation the master transfer happened).
 
 ## Done when
-1. Workstream 1 merged: prerequisite check widened, additivity fixture passing, zero price/behavior
-   change to any existing fixture.
+1. Workstream 1 merged: prerequisite check widened and converted to a hard block, scoped per track;
+   zero price/behavior change to any existing fixture other than the enumerated Warlock-invocation set.
 2. Workstream 2 merged: all 13 step entries present with the table's exact AP values, formula-consistency
    test passing, ordering fixtures passing, dataset version bumped once.
 3. Workstream 3: guide's served copy updated; master-transfer completion confirmed separately (not
