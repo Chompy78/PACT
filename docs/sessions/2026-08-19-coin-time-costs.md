@@ -204,4 +204,17 @@ locally (where the union strategy actually applies) and pushing the resulting me
 GitHub a branch that already contained `preview`'s tip as an ancestor — mergeable, cleanly, on the next
 attempt. Merged as **PR #433**. Worth remembering: a clean local trial merge is necessary but not
 sufficient evidence of GitHub mergeability whenever `.gitattributes` declares a custom strategy on a
-touched file.
+touched file. Two small doc-only follow-ups landed the same way afterward — PR #434 recording the
+review findings and the merge gotcha, PR #435 fixing a stale `award_wealth`→`award_gold` reference the
+redesign had left behind in `docs/TASK_BOARD_LATER.md`.
+
+## Part four, same session — promoted to `main`
+
+Asked directly to promote, followed `docs/VERSION-SYNC.md`'s procedure: opened the promotion PR
+(`preview`→`main`) first to get its number, bumped `BUILD` to `v1.436` (major `1` carried forward from
+`v1.432`, `DATA.version` left at `v0.357`) in a follow-up commit on `preview`, waited out all 11 CI
+checks (the slowest, `cloud-e2e`, took about three minutes — a real Supabase round trip, not a stall),
+then merged with a regular merge commit — never squash, per that doc's own warning about severing
+shared history with `preview` on the next promotion. **PR #436**, now live on `main` at `99e986b`.
+Tagging the commit `v1.436` is the one step this cloud session genuinely cannot do (tag pushes get a
+hard platform 403 here) — left for a local terminal or the GitHub web UI.
