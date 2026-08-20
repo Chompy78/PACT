@@ -1452,7 +1452,26 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     var h = '';
     if(econOn){
       var win = (window._dmDowntimeWindows || {})[id];
-      var winTxt = win ? (esc(fmt(win.days))+' left this window') : 'no window declared yet';
+      // win.days is the RAW declared total (base + this character's bonus) — the tooltip below
+      // promises "minus what they have already spent", so it has to be netted against this
+      // character's own wealthLedger() spend since the window opened, exactly the composition
+      // wealthWithDm() does for the player-side wallet line (found missing in review, before this
+      // shipped — the figure here was always the gross total, never the actual remainder). Falls
+      // back to the raw total if the ledger can't be computed (no log yet) rather than blank/crash.
+      var winTxt = 'no window declared yet';
+      if(win){
+        var daysLeft = win.days;
+        try {
+          if(dm.log && window._engineEcon){
+            var _led = window._engineEcon.wealthLedger(dm.log, {band:band});
+            daysLeft = window._engineEcon.wealthWithDm(_led, {window:{days:win.days, startTs:new Date(win.declaredAt).getTime()}}).daysLeft;
+          }
+        } catch(e){ daysLeft = win.days; }
+        var over = daysLeft < 0;
+        winTxt = over
+          ? ('<span style="color:var(--bad)">'+esc(fmt(Math.abs(daysLeft)))+' overdrawn</span>')
+          : (esc(fmt(daysLeft))+' left this window');
+      }
       h += '<div class="kvs" style="margin-top:8px">' +
         '<div class="kvrow"><span class="kk" title="Gold you have granted this character (the characters.gold column). What they have SPENT is derived from their own log by the engine and shown on their sheet, never stored here.">Gold granted <span style="opacity:.6">&#9432;</span></span><span class="vv">' + Number(dm.gold||0).toLocaleString() + ' gp</span></div>' +
         '<div class="kvrow"><span class="kk" title="This character\'s current downtime: the party\'s declared window (above the roster) plus any bonus time granted to them alone, minus what they have already spent — computed live, never stored per-character.">Downtime available <span style="opacity:.6">&#9432;</span></span><span class="vv">' + winTxt + '</span></div>' +
@@ -2073,8 +2092,11 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       id: row.id, summary: summary, hasData: hasData, rowName: rowName,
       // downtimeDays deliberately absent here — downtime carries no per-character column at all
       // (see js/dm.js's getRoster()); awardBody() reads this character's composed window off
-      // window._dmDowntimeWindows instead, populated separately by loadRoster().
-      dm: { ap: row.ap||0, gold: row.gold||0,
+      // window._dmDowntimeWindows instead, populated separately by loadRoster(). `log` IS carried
+      // through (the raw LOG array, harmless to keep a reference to) so awardBody() can net that
+      // window against this character's own wealthLedger() spend — without it, "downtime available"
+      // could only show the window's raw declared total, not what the tooltip actually promises.
+      dm: { ap: row.ap||0, gold: row.gold||0, log: log,
             player: row.player||'', playerLabel: row.playerLabel||'', dmNotes: row.dmNotes||'',
             customFields: row.customFields || {} }
     };

@@ -28,6 +28,13 @@
  *     party-wide window that REPLACES the last one, per the owner) — making resolveDowntimeWindow()
  *     SUM `wealth` events' `days` instead of last-one-wins failed 6 checks; making wealthWithDm()
  *     silently zero an undeclared window's overdraft instead of reporting it failed 1.
+ *   - pre-merge code review (D-GH-2026-08-19 addendum) caught two real gaps the checks above never
+ *     exercised: `buyoffDrawback()` never froze gp/days onto its emitted event (so a buyoff was
+ *     silently re-priced by `_paidFor()`'s live-list-price fallback on every band change — the exact
+ *     hazard the freeze exists to prevent), and the DM Console's "Downtime available" line showed the
+ *     window's raw declared total instead of netting it against the character's own spend, despite its
+ *     own tooltip promising the netted figure. Reverting either fix independently failed exactly the
+ *     new checks that name it (4 failures total) with the rest of the suite unaffected.
  *
  * USAGE:  node testing/scripts/economy-ui-e2e.mjs
  */
@@ -422,6 +429,44 @@ check('spending again under the smaller window overdraws it (30 - 42 = -12)',
 check('the wallet line reflects the overdraft after the second spend',
       /overdrawn/.test(solo.walletLineAfterSecondSpend), solo.walletLineAfterSecondSpend.slice(0, 130));
 
+// Buyoff freeze regression (found in code review before merge, D-GH-2026-08-19 addendum):
+// buyoffDrawback() must quote/freeze gp/days onto its emitted event exactly like buy() does. It
+// originally didn't — the event carried no gp/days at all, so _paidFor() fell back to TODAY's list
+// price on every read, meaning a buyoff's cost silently moved under a later Standard->Fast band
+// change, the exact hazard the freeze exists to prevent for every other purchase type.
+const buyoff = await page.evaluate(() => {
+  const out = {};
+  LOG.length = 0; SEQ = 0;
+  const dv = Object.keys(DATA.drawbacks)[0];
+  LOG.push({ type: 'create', seq: SEQ++, ts: 100 });
+  LOG.push({ type: 'creationLockConfig', payload: { auto: true, threshold: 1 }, seq: SEQ++, ts: 100 });
+  LOG.push({ type: 'econSetting', payload: { band: 'standard' }, seq: SEQ++, ts: 100 });
+  LOG.push({ type: 'award', amount: 30, seq: SEQ++, ts: 150 });   // headroom for the cross-buy + the buyoff itself
+  LOG.push({ type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', seq: SEQ++, ts: 200 }); // crosses the lock
+  LOG.push({ type: 'buy', cat: 'drawback', cost: -(DATA.drawbacks[dv] || 0), payload: { v: dv }, label: 'Drawback — ' + dv, seq: SEQ++, ts: 300 });
+  render();
+  const origConfirm = window.confirm; window.confirm = () => true;
+  buyoffDrawback(dv);
+  window.confirm = origConfirm;
+  const last = LOG[LOG.length - 1];
+  out.frozen = !!(last && last.type === 'buyoff' && typeof last.gp === 'number' && typeof last.days === 'number');
+  out.gpAtStandard = last ? last.gp : null;
+  out.daysAtStandard = last ? last.days : null;
+  const lastIdx = LOG.indexOf(last);
+  // Switching the band afterwards must NOT change what this buyoff already cost — the freeze.
+  LOG.push({ type: 'econSetting', payload: { band: 'fast' }, seq: SEQ++, ts: 400 });
+  render();
+  const w = _lsWallet(null);
+  const entry = w.led.entries.find(e => e.idx === lastIdx);
+  out.gpAfterBandChange = entry ? entry.gp : null;
+  out.daysAfterBandChange = entry ? entry.days : null;
+  return out;
+});
+check('buyoffDrawback() freezes gp/days onto the emitted event, same as buy()', buyoff.frozen, JSON.stringify(buyoff));
+check('a later band change does NOT re-price an already-bought-off drawback',
+      buyoff.gpAfterBandChange === buyoff.gpAtStandard && buyoff.daysAfterBandChange === buyoff.daysAtStandard,
+      JSON.stringify(buyoff));
+
 /* ======================================================================
  * 3. DM CONSOLE — the campaign-wide band dial (the DM's half of "configurable").
  * ====================================================================== */
@@ -493,6 +538,38 @@ check('economy on: gold granted is shown on the read-only line', /500/.test(dmAw
 check('economy on: this character\'s composed window is shown (48 = 6 weeks)', /6 weeks/.test(dmAward.onHtml || ''), (dmAward.onHtml || '').slice(0, 200));
 check('economy on, no window resolved yet: says so rather than a stale/blank number',
       /no window declared yet/.test(dmAward.onNoWindowHtml || ''), (dmAward.onNoWindowHtml || '').slice(0, 200));
+
+// Net-remaining regression (found in code review before merge, D-GH-2026-08-19 addendum): the
+// "Downtime available" line's own tooltip promises the window "minus what they have already
+// spent — computed live", but the field originally showed win.days RAW (base+bonus), never netted
+// against this character's own wealthLedger() spend — a DM reading a 48-day window on a character
+// who had actually spent 42 of it saw "48" instead of "6", and a character who overspent the
+// window showed a positive number instead of an overdraft.
+const dmNet = await dmPage.evaluate(() => {
+  if (!window._dmAwardBodyTest) return { missing: true };
+  const out = {};
+  window._dmCampaignApRules = { campaignId: 'campX', rules: { economy: { band: 'standard' } } };
+  window._dmDowntimeWindows = { char1: { days: 48, declaredAt: new Date(1000).toISOString() } };
+  // A log with one in-play purchase (42 days) spent AFTER the window opened (ts 1000).
+  const spendLog = [
+    { type: 'create', seq: 0, ts: 100 },
+    { type: 'creationLockConfig', payload: { auto: true, threshold: 1 }, seq: 1, ts: 100 },
+    { type: 'econSetting', payload: { band: 'standard' }, seq: 2, ts: 100 },
+    { type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', seq: 3, ts: 200 },
+    { type: 'buy', cat: 'feature', cost: 12, payload: { v: 'X' }, label: 'X', seq: 4, ts: 2000 },   // 350gp/42d, in play
+  ];
+  out.netHtml = window._dmAwardBodyTest('char1', { ap: 10, gold: 0, log: spendLog });
+
+  // Same window, but this character has already overspent it (two 42-day purchases against a 48-day window).
+  const overLog = spendLog.concat([{ type: 'buy', cat: 'feature', cost: 12, payload: { v: 'Y' }, label: 'Y', seq: 5, ts: 3000 }]);
+  out.overHtml = window._dmAwardBodyTest('char1', { ap: 10, gold: 0, log: overLog });
+  return out;
+});
+check('DM Console: a partially-spent window shows what is actually LEFT (48 - 42 = 6 days), not the raw 48 (6 weeks 6 days)',
+      /6 days/.test(dmNet.netHtml || '') && !/6 weeks/.test(dmNet.netHtml || ''),
+      (dmNet.netHtml || '').slice(0, 250));
+check('DM Console: a window this character has overspent shows an overdraft, not a positive remainder',
+      /overdrawn/.test(dmNet.overHtml || ''), (dmNet.overHtml || '').slice(0, 250));
 
 // The party-wide downtime control — ONE declaration for the whole table, living above the roster,
 // not on any one card (O2 — the owner's answer to "should this be per-character or bulk").

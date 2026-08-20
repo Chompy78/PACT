@@ -267,3 +267,34 @@ Status: Active
   `gold_awards` inherit exactly the unindexed-FK / `auth_rls_initplan` / unused-index INFO/WARN pattern
   `ap_awards`/`wealth_awards` already had, now on empty tables (expected, will resolve itself as
   `auth_rls_initplan` gets addressed repo-wide — not this migration's scope).
+
+- **Two real bugs caught by `/code-review ultra`, immediately before merging into `preview`
+  (2026-08-20).** Per `AGENTS.md`'s own PR checklist ("touches `js/engine.js` or `sql/` → run
+  `/code-review ultra` before merge"), the branch was reviewed one more time right before the actual
+  merge. Its first finding — that the branch would revert three commits that had since landed on
+  `preview` (the drawback stat-cap enforcement, the bar-blocked-features generalization, and the
+  21-drawback repricing) — was a **false positive**: the review diffed branch-tip-to-branch-tip
+  (`origin/preview..branch`) rather than simulating an actual three-way merge, and a real trial merge
+  (`git merge --no-commit --no-ff`, run in an isolated worktree, same as the earlier mergeability
+  check) auto-merged cleanly and retained all three of `preview`'s newer commits intact — confirmed by
+  grepping the merged tree for `BUILD` (stayed at `preview`'s `v1.432`), the stat-cap function, the
+  `.bar` filter, and the caster-gate code. Its other two findings were real, confirmed by reading the
+  actual code before acting on either:
+  1. `buyoffDrawback()` (Live Sheet) never quoted, wallet-checked, or froze `gp`/`days` onto its
+     emitted `buyoff` event, even though `wealthLedger()` charges buyoffs as genuine in-play purchases
+     — `_paidFor()`'s live-list-price fallback meant a buyoff's cost silently re-priced on every later
+     band change, the exact hazard the freeze mechanism exists to prevent for every other purchase
+     type. Fixed by giving `buyoffDrawback()` the same quote/trade/shortfall/freeze treatment `buy()`
+     already had.
+  2. The DM Console's "Downtime available" line showed `win.days` — the window's raw declared total
+     (party base + this character's bonus) — never netted against what the character had actually
+     spent, despite its own tooltip promising "minus what they have already spent — computed live". A
+     DM reading a 48-day window on a character who had already spent 42 of it saw "48", not "6"; an
+     overspent character showed a positive remainder instead of an overdraft. Fixed by threading the
+     character's own LOG through `cloudAnalyze()` onto `dm.log`, and computing `wealthWithDm()`'s
+     `daysLeft` inside `awardBody()` against the window — the same composition the player-side wallet
+     line already used.
+
+  Both fixes verified to go red independently (stash the fix, keep the new tests): 4 failures total,
+  isolated to exactly the checks naming each bug, rest of the 155-check suite unaffected. Gate grew
+  151→155. See `CHANGELOG.md`'s 2026-08-20 entry for the shipped summary.

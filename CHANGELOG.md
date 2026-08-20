@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-20 · fix: buyoffs weren't frozen, and the DM Console showed gross downtime instead of net
+  — both caught by `/code-review ultra` before merging the coin-and-time-costs branch** —
+  `buyoffDrawback()` (Live Sheet) never quoted, wallet-checked, or froze `gp`/`days` onto its emitted
+  event, even though `wealthLedger()` charges buyoffs as real in-play purchases; `_paidFor()`'s
+  live-list-price fallback meant a buyoff's cost silently moved under a later Standard→Fast band
+  change — the exact hazard the freeze mechanism exists to prevent. Fixed by giving it the same
+  quote/trade/shortfall/freeze treatment `buy()` already has. Separately, the DM Console's "Downtime
+  available" line showed the window's raw declared total (base + bonus), never netted against the
+  character's own spend, despite its own tooltip promising the netted figure — a DM could read "48
+  days" for a character who had actually spent 42 of them. Fixed by threading the character's LOG
+  through to `awardBody()` and computing `wealthWithDm()`'s `daysLeft` there, same composition the
+  player-side wallet line already used. Gate → **155 checks** (from 151); both fixes verified to go
+  red independently when reverted (4 failures, isolated to the checks naming them). See the Addendum
+  in `D-GH-2026-08-19-tool-coin-time-costs`.
 - **2026-08-19 · fix: downtime is a party-wide window, not a per-character bank — corrected same day,
   before any real balance existed** — walking through the gold-and-downtime economy below at the
   table surfaced that it had modelled gold and downtime as twins (both DM-granted, per-character,

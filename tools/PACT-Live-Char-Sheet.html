@@ -881,17 +881,33 @@ function buyoffDrawback(v){
   const src=_openDrawbackEvent(v);
   // A DM-imposed drawback (dmEdit:true) carries its own removal rules; an ordinary player-taken one
   // keeps today's unconditional 3× — that deterrent doesn't apply when the player never took a loan.
+  let cost, rateNote;
   if(src&&src.dmEdit){
     if(src.dmLocked){flash('🔒 Your DM has locked this drawback — it can\'t be bought off.');return;}
     const rate=(src.dmRemovalCost==='expensive')?3:1;
-    const cost=refund*rate;
-    const avail=apAvailable(null);
-    if(cost>avail){flash('Buying off costs '+cost+' AP'+(rate===3?' (3×, your DM set this rate)':' (flat, your DM set this rate)')+'; you have '+avail);return;}
-    emit({type:'buyoff',refVal:v,cost,label:'Bought off — '+v});
-    return;
+    cost=refund*rate;
+    rateNote=(rate===3?' (3×, your DM set this rate)':' (flat, your DM set this rate)');
+  } else {
+    cost=refund*3;
+    rateNote=' (3×)';
   }
-  const cost=refund*3; const avail=apAvailable(null);
-  if(cost>avail){flash('Buying off costs '+cost+' AP (3×); you have '+avail);return;} emit({type:'buyoff',refVal:v,cost,label:'Bought off — '+v}); }
+  const avail=apAvailable(null);
+  if(cost>avail){flash('Buying off costs '+cost+' AP'+rateNote+'; you have '+avail);return;}
+  // Gold and downtime (§16) — a buyoff is a genuine in-play purchase (wealthLedger() in js/engine.js
+  // charges it exactly like a buy), so it needs the same quote/trade/shortfall/freeze treatment buy()
+  // gives an ordinary purchase (see buy()'s own comment above). Skipping this, as the original build
+  // did, meant buyoffs were silently re-priced by _paidFor()'s live-list-price fallback on every band
+  // change — the exact hazard the freeze exists to prevent (found in review, before this shipped).
+  var _gt=_lsQuote(cost);
+  if(_gt){
+    var _trade=_lsOfferTrade(_gt);
+    if(_trade===false) return;          // player cancelled out of the offer entirely
+    if(_trade) _gt=_trade;              // traded price — carried into the freeze below
+    var _short=_lsWalletShort(_gt);
+    if(_short && !confirm('Buying this off costs '+(_gt.gp?_gt.gp.toLocaleString()+' gp':'no gold')+' and '+(_gt.days?_gt.time:'no downtime')+', and you are '+_short+'.\n\nBuy off anyway? Your DM can waive or defer the cost — the shortfall will simply show on your sheet.')) return;
+  }
+  emit(Object.assign({type:'buyoff',refVal:v,cost,label:'Bought off — '+v}, _gt?{gp:_gt.gp,days:_gt.days}:{}));
+}
 function undo(){
   if(_viewOnlyBlock())return;
   // rulesSnapshot events are sync-written metadata, not user actions — never the undo target (they
