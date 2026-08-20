@@ -61,7 +61,13 @@ will not be the only one.
 > context, which is what its own "freshly built character" wording actually scoped. Everything **above**
 > this line — the reproduction, the two wrong diagnoses, the mechanism — still stands and is the right
 > starting point. Two rounds of external cold review (9 reviewers) preceded the reversal; artefacts under
-> `zUser-Uploads/`.
+> `z-cold/old/` on this repo's `zcold` branch (round 1, 5 reviewers — the H2-era plan reviewed here:
+> `z-cold/old/chat species.md`, `deepseek species.md`, `kimi species.md`,
+> `species-pack-not-charged-review-copilot-claude-opus-5.md`,
+> `species-pack-not-charged-review-m365-copilot-gpt-5.md`; round 2, 4 reviewers — the reworked
+> `priceOf()` plan this record's H2 was superseded by, see `D-GH-2026-08-05-pricing-model` — landed in
+> the same `z-cold/old/` folder, cited there). Corrected 2026-08-20: previously miscited as
+> `zUser-Uploads/`, a folder these files were never actually stored under.
 
 **H2 — the invariant route** (owner, 2026-08-04), over H1 (make CharGen commit the identity event before
 any trait that depends on it).
