@@ -6,6 +6,13 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-20 · chore(version): `BUILD` → `v1.436` for PR #436 (`preview` → `main` promotion)** —
+  ninth promotion under the PR-linked scheme. Major `1` carried forward; `DATA.version` deliberately
+  untouched at `v0.357`. Carries the gold-and-downtime economy (PRs #433–#435) plus everything already
+  on `preview` since PR #432 (21 new drawbacks/reprices/caster gate, drawback stat-cap enforcement, the
+  `.bar`-blocked-features generalization). All 11 CI checks green before merge; regular merge commit
+  (never squash) per `docs/VERSION-SYNC.md`.
+
 - **2026-08-20 · fix: buyoffs weren't frozen, and the DM Console showed gross downtime instead of net
   — both caught by `/code-review ultra` before merging the coin-and-time-costs branch** —
   `buyoffDrawback()` (Live Sheet) never quoted, wallet-checked, or froze `gp`/`days` onto its emitted
