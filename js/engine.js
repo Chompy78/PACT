@@ -373,8 +373,21 @@ export function compute(b, opts){
   // tradition / discipline loops below — each previously re-scanned the array with indexOf per iteration.
   // Used for lookups ONLY: b.unlockedClasses itself is untouched, so any order-dependent read is unaffected.
   const _unlkSet=new Set(b.unlockedClasses||[]);
+  // v3 (owner-directed, D-2026-08-19-premium-autogrowth-to-stepped): prerequisite hard block, widened
+  // from Warlock-invocation-only to any feature declaring f.prereq. A feature whose prereq isn't owned
+  // — or whose prereq is itself blocked (a skipped intermediate step) — is excluded from pricing and
+  // ownership entirely below: it costs 0 and is itemized separately under "Blocked purchases" rather
+  // than counted as a real purchase. Fixed-point over b.features so a chain of any depth resolves
+  // correctly (owning steps 2 and 3 while skipping 1 blocks both, not just the one naming 1 directly).
+  const _ownedFeatSet=new Set((b.features||[]).map(FEAT_ALIAS));
+  const _blockedFeat=new Set();
+  {let _changed=true;while(_changed){_changed=false;for(const _lab of _ownedFeatSet){if(_blockedFeat.has(_lab))continue;
+    const _f=DATA.features[_lab];if(!_f||!(_f.prereq&&_f.prereq.length))continue;
+    const _bad=_f.prereq.some(function(req){return !_ownedFeatSet.has(req)||_blockedFeat.has(req);});
+    if(_bad){_blockedFeat.add(_lab);_changed=true;}}}}
   // features — non-stepped: buy once. Stepped (rep): each re-buy is the next tier up.
   let featAP=0; const fcount={}; const _FI=[];
+  let blockedAP=0; const _BLI=[];
   for(const _lab0 of (b.features||[])){const lab=FEAT_ALIAS(_lab0);const f=DATA.features[lab];if(!f)continue;
     fcount[lab]=(fcount[lab]||0)+1; const n=fcount[lab];
     if(!f.rep && n>1){W.push((lab.split(": ")[1]||lab)+": already bought — can only be taken once (not a stepped feature)");continue;}
@@ -383,14 +396,23 @@ export function compute(b, opts){
     else {origin=f.origin;cross=f.cross;stick=Math.max(1,f.cross-f.tier);}
     const isO=(f.cls===b.originClass||f.cls===b.originClass2);const isUnlk=!isO&&_unlkSet.has(f.cls);let c=isO?origin:(isUnlk?stick:cross);
     if(mbClass && f.cls===mbClass) c=Math.max(1,c-1);if(lab==="Sorcerer: Metamagic")c=2*n;   // Martially Bound discount (floor 1); Metamagic Steep ladder (option N=2N) v0.314
+    if(_blockedFeat.has(lab)){
+      const _missing=(f.prereq||[]).filter(function(req){return !_ownedFeatSet.has(req)||_blockedFeat.has(req);});
+      const _reqLab=_missing[0]?(_missing[0].split(": ")[1]||_missing[0]):"an earlier step";
+      W.push("⛔ "+(lab.split(": ")[1]||lab)+" — blocked: requires "+_reqLab+" first (not counted, not owned)");
+      blockedAP+=c;_BLI.push([lab,c]);continue;
+    }
     featAP+=c;_FI.push([lab+(f.rep&&n>1?" (step "+n+")":""),c]);}
-  add("Class features",featAP);addItems("Class features",_FI);{var _invN=(b.features||[]).filter(function(l){var f=DATA.features[l];return f&&f.inv;}).length;var _bs=0;for(var _i=0;_i<_invN;_i++)_bs+=Math.min(20,Math.floor(_i/2));if(_bs>0)add("Invocation breadth surcharge",_bs);}{var _ea=(b.features||[]).filter(function(l){return /: Extra Attack$/.test(l);}).length+((b.features||[]).indexOf("Warlock: Thirsting Blade")>=0?1:0)+(b.subAbilities||[]).filter(function(k){return /\|Extra Attack$/.test(k);}).length;if(_ea>=2)W.push("Extra Attack / Thirsting Blade gained "+_ea+" times — a 2nd attack doesn't stack; the duplicates add no benefit (keep one).");}
+  add("Class features",featAP);addItems("Class features",_FI);
+  addDisplay("Blocked purchases",blockedAP,_BLI.length>0);addItems("Blocked purchases",_BLI);
+  {var _invN=(b.features||[]).filter(function(l){var f=DATA.features[FEAT_ALIAS(l)];return f&&f.inv&&!_blockedFeat.has(FEAT_ALIAS(l));}).length;var _bs=0;for(var _i=0;_i<_invN;_i++)_bs+=Math.min(20,Math.floor(_i/2));if(_bs>0)add("Invocation breadth surcharge",_bs);}{var _ea=(b.features||[]).filter(function(l){return /: Extra Attack$/.test(l);}).length+((b.features||[]).indexOf("Warlock: Thirsting Blade")>=0?1:0)+(b.subAbilities||[]).filter(function(k){return /\|Extra Attack$/.test(k);}).length;if(_ea>=2)W.push("Extra Attack / Thirsting Blade gained "+_ea+" times — a 2nd attack doesn't stack; the duplicates add no benefit (keep one).");}
   // v0.084: Eldritch Invocations are locked behind the Warlock discipline
   {const _hasWL=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Warlock";});});
    if(!_hasWL)(b.features||[]).forEach(function(lab){var f=DATA.features[lab];if(f&&f.inv)W.push("⛔ "+(lab.split(": ")[1]||lab)+": Eldritch Invocation requires the Warlock discipline (open Arcane › Warlock)");});}
-  // v0.203: invocation prerequisites (pact boons / chained invocations) + elevated level gates — hard-enforced
-  {const _own=new Set(b.features||[]);(b.features||[]).forEach(function(lab){var f=DATA.features[lab];if(!f||!f.inv)return;
-    (f.prereq||[]).forEach(function(req){if(!_own.has(req))W.push("⛔ "+(lab.split(": ")[1]||lab)+" requires "+(req.split(": ")[1]||req));});
+  // v0.203: elevated Warlock-level gates for invocations — unchanged, still advisory. The prerequisite
+  // check itself (f.prereq) was widened to a hard block above in v3; this is a separate mechanism
+  // (character level, not feature ownership) and was not part of that owner direction.
+  {(b.features||[]).forEach(function(lab){var f=DATA.features[lab];if(!f||!f.inv)return;
     if(f.lvl&&(b.hd||0)<f.lvl)W.push("⛔ "+(lab.split(": ")[1]||lab)+" requires Warlock level "+f.lvl);});}
   // v0.087: chassis gates — a feature with needsDisc requires that Discipline founded (e.g. Metamagic→Sorcerer)
   {const _ds=new Set();(b.traditions||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(d&&d.name)_ds.add(d.name);});});

@@ -4790,7 +4790,7 @@ const SECTIONS=[
  // attributed here and rendered as section 7's AP subtotal — i.e. on 'Class Access & Features'.
  // This array is positionally bound to the #secN ids in the markup: entry i MUST be #sec(i+1).
  // testing/scripts/audit.py asserts the two stay the same length.
- {t:'Classes',lines:['Class unlocks','2nd origin class','Class features','Ki / Focus points','Sorcery points'],warns:[]},
+ {t:'Classes',lines:['Class unlocks','2nd origin class','Class features','Blocked purchases','Ki / Focus points','Sorcery points'],warns:[]},
  {t:'Subclasses',lines:['Subclass abilities','Subclass unlocks'],warns:['subclass']},
  {t:'Spellcasting',lines:['Trad ','Cantrips (','Innate spells'],warns:['Rank','Foundation','Mystic','Warlock','antrip','spell','Spell','slots','known','gate','Discipline','Magically']},
  {t:'Arts & Boons',lines:['Arts & Techniques','Boons','Drawbacks','Lost purchases','Martially Bound'],warns:['boon','Boon','needs '],},
@@ -4798,7 +4798,7 @@ const SECTIONS=[
 const LGROUPS=[
  {t:'Core',lines:['Ability scores','Hit Dice','Proficiency bonus','Vigor','Grit','Saving throws','Skills','Tools & instruments','Expertise','Tool expertise','Languages','Attunement slots']},
  {t:'Combat',lines:['Weapon proficiency','Weapon masteries','Armour proficiency']},
- {t:'Class & Heritage',lines:['Heritage pack','2nd origin species','Species traits','Class unlocks','2nd origin class','Class features','Ki / Focus points','Sorcery points','Subclass abilities','Subclass unlocks']},
+ {t:'Class & Heritage',lines:['Heritage pack','2nd origin species','Species traits','Class unlocks','2nd origin class','Class features','Blocked purchases','Ki / Focus points','Sorcery points','Subclass abilities','Subclass unlocks']},
  {t:'Magic',lines:['Trad ','Cantrips (','Innate spells']},
  {t:'Boons & Gold',lines:['Boons','Drawbacks','Lost purchases','Martially Bound','Starting gold']},
 ];
@@ -4913,6 +4913,7 @@ function explainParas(label,b,r){
   else if(L==='Boons'){P('Boons are flat-priced extra abilities, Hit-Dice-gated by price (≤7 AP from 1 HD, 8–10 from 3 HD, 11–12 from 5 HD, 13+ from 9 HD). DM-tunable.');}
   else if(L==='Drawbacks (refund)'){P('Drawbacks <b>refund</b> AP up front for accepting a hindrance. Buying one off later costs 3× the AP it gave (and a story).');}
   else if(L==='Lost purchases'){P('A drawback you bought off, or a boon your DM removed, drops off the sheet above — but the AP is still spent for good. This line keeps that spend visible instead of letting it vanish from the ledger.');}
+  else if(L==='Blocked purchases'){P('A stepped feature bought out of order — its prerequisite step isn\'t owned yet — is blocked: it costs 0 AP and isn\'t counted as owned, shown here so you can see what to buy first instead of the purchase silently vanishing.');}
   else if(L.indexOf('Innate spells')===0){P('Any one spell as a stand-alone casting (1/long rest) costs <b>3× its spell-slot cost</b> — no discounts — and is still Hit-Dice gated by spell level.');}
   else if(L.indexOf('Cantrips (Wizard list')===0){P('No-Foundation cantrips (Wizard list, cast with INT) ride the <b>Steep</b> curve (base 4, +2 each) and cap at prof + INT modifier. They never scale (single die).');}
   else if(L.indexOf('Starting gold')===0){P('You may convert AP to starting gold at <b>1 AP = 50 gp</b> (on top of a free 25 gp purse), suggested cap 8 AP.');}
