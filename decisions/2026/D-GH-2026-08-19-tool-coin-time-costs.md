@@ -298,3 +298,23 @@ Status: Active
   Both fixes verified to go red independently (stash the fix, keep the new tests): 4 failures total,
   isolated to exactly the checks naming each bug, rest of the 155-check suite unaffected. Gate grew
   151→155. See `CHANGELOG.md`'s 2026-08-20 entry for the shipped summary.
+
+- **Merged into `preview` as PR #433 (2026-08-20)** — but not on the first attempt, and the reason why
+  is worth recording since it will recur on any future PR that touches `CHANGELOG.md`/`DECISIONS.md`
+  near their top. A real, isolated-worktree `git merge --no-commit --no-ff origin/preview` had already
+  proven clean (repeatedly — see the code-review addendum above), and the PR was opened on that basis.
+  GitHub's own mergeability check nonetheless reported `mergeable_state: "dirty"`, and a direct
+  `merge_pull_request` call failed with `405 Pull Request has merge conflicts`. Root cause:
+  `.gitattributes` declares `merge=union` on `CHANGELOG.md`/`DECISIONS.md` (both files are newest-first
+  logs where two branches routinely add unrelated lines at the very top) — local `git merge` honours
+  that attribute and unions the two sides' additions silently, but **GitHub's server-side PR-merge
+  computation does not apply custom `.gitattributes` merge strategies at all**, so it saw two branches
+  that had each inserted new lines at the same location and called it a real conflict. Resolved by
+  merging `origin/preview` into the branch **locally** (where the union strategy applies, producing a
+  real merge commit with the union already resolved) and pushing that — once the branch itself carried
+  `preview`'s tip as an ancestor, GitHub's mergeable_state flipped to a clean fast-forward-style merge
+  and `merge_pull_request` succeeded. **Takeaway for future PRs:** a clean local trial merge is
+  necessary but not sufficient evidence of GitHub mergeability whenever `.gitattributes` declares a
+  custom merge strategy on a touched file — verify against the PR's actual `mergeable_state` (or just
+  attempt the merge) before treating a local trial merge as the final word, and if it disagrees, merge
+  locally and push rather than trying to fight it through GitHub's UI.

@@ -46,8 +46,19 @@
   folded into the same AP/gold form. Also found and fixed a real, unrelated bug on the way: the DM
   Console's campaign-rules cache never carried the economy band at all, so the original grant form
   could never have shown regardless of the DM's chosen band. Gate → 151 checks; new migration
-  `2026-08-19-downtime-window-revision.sql` (a follow-up file, not an edit to the applied one) — not
-  yet applied to the live project as of this addendum.
+  `2026-08-19-downtime-window-revision.sql` (a follow-up file, not an edit to the applied one) —
+  applied to the live project same day, `get_advisors` clean.
+
+  **Addendum, 2026-08-20 (pre-merge review + merge):** `/code-review ultra`, required by this repo's
+  own PR checklist for anything touching `js/engine.js`/`sql/`, caught two real bugs before merge —
+  `buyoffDrawback()` never froze `gp`/`days` onto its emitted event (silently re-priced on a later band
+  change), and the DM Console's "Downtime available" line showed the window's raw total instead of
+  netting it against actual spend. Both fixed; gate → 155 checks, both verified red independently.
+  Merged into `preview` as **PR #433**. Also recorded: GitHub's PR-merge computation does **not** honor
+  this repo's `.gitattributes` `merge=union` on `CHANGELOG.md`/`DECISIONS.md`, so a clean local trial
+  merge can still show `mergeable_state: dirty` on GitHub — resolved by merging `preview` into the
+  branch locally (where the union strategy applies) and pushing that, rather than fighting it through
+  GitHub's UI. Worth remembering for any future PR touching either file's top.
   Full record: `decisions/2026/D-GH-2026-08-19-tool-coin-time-costs.md`.
 ## D-GH-2026-08-19-drawbacks-phobias-expansion — drawbacks are income, so price them by pain ÷ pay
 - 21 new drawbacks (69 → **90**), reprices `Sluggish` 2→1 / `Mana-Sick` 3→2 / `Haunted / Phobia` 3→2, and a
