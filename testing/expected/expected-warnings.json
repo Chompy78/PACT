@@ -10,13 +10,13 @@
  "CG-007": [
   "Expertise in Athletics needs the skill bought first",
   "Weapon masteries need any weapon proficiency first (Simple is enough)",
-  "Second Wind: already bought — can only be taken once (not a stepped feature)",
-  "⛔ Medium armour requires Strength 10 (STR is 8)"
+  "Second Wind: already bought \u2014 can only be taken once (not a stepped feature)",
+  "\u26d4 Medium armour requires Strength 10 (STR is 8)"
  ],
  "CG-008": [],
  "CG-009": [],
  "LS-001": [
-  "You have 2 Ki / Focus points but no Ki-using ability yet — buy a Ki feature, or refund the points if you won't use them."
+  "You have 2 Ki / Focus points but no Ki-using ability yet \u2014 buy a Ki feature, or refund the points if you won't use them."
  ],
  "EV-001": [],
  "EV-002": [],
@@ -46,21 +46,41 @@
  "CG-014": [],
  "CG-015": [],
  "CG-016": [
-  "Drawbacks grant 26 AP — the guide caps them at 12 AP (check with your DM)",
-  "4 drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved"
+  "Drawbacks grant 26 AP \u2014 the guide caps them at 12 AP (check with your DM)",
+  "4 drawbacks chosen \u2014 most DMs cap this at 2\u20133; more may not be reasonable or approved"
  ],
  "CG-017": [
-  "Drawbacks grant 26 AP but this campaign caps them at 12 — 14 AP not granted",
-  "4 drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved"
+  "Drawbacks grant 26 AP but this campaign caps them at 12 \u2014 14 AP not granted",
+  "4 drawbacks chosen \u2014 most DMs cap this at 2\u20133; more may not be reasonable or approved"
  ],
  "CG-018": [],
  "EV-019": [
-  "Drawbacks grant 14 AP — the guide caps them at 12 AP (check with your DM)"
+  "Drawbacks grant 14 AP \u2014 the guide caps them at 12 AP (check with your DM)"
  ],
  "CG-019": [
-  "Drawbacks grant 14 AP — the guide caps them at 12 AP (check with your DM)"
+  "Drawbacks grant 14 AP \u2014 the guide caps them at 12 AP (check with your DM)"
  ],
  "CG-020": [
-  "Drawbacks grant 14 AP — the guide caps them at 12 AP (check with your DM)"
+  "Drawbacks grant 14 AP \u2014 the guide caps them at 12 AP (check with your DM)"
+ ],
+ "CG-021": [],
+ "CG-022": [
+  "\u26d4 Rage (4 uses/long rest) \u2014 blocked: requires Rage (3 uses/long rest) first (not counted, not owned)"
+ ],
+ "CG-023": [],
+ "CG-024": [],
+ "CG-025": [],
+ "CG-026": [],
+ "CG-027": [
+  "\u26d4 Bardic Inspiration die (d10) \u2014 blocked: requires Bardic Inspiration die (d8) first (not counted, not owned)"
+ ],
+ "CG-028": [],
+ "CG-029": [],
+ "CG-030": [
+  "\u26d4 Eldritch Smite \u2014 blocked: requires Pact of the Blade first (not counted, not owned)"
+ ],
+ "CG-031": [
+  "\u26d4 Devouring Blade \u2014 blocked: requires Thirsting Blade first (not counted, not owned)",
+  "\u26d4 Devouring Blade requires Warlock level 12"
  ]
 }
