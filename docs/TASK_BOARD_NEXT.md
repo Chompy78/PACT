@@ -501,51 +501,6 @@ likelihood low (tool-pricing drives CharGen over CDP and the parity gate covers 
 purchase where spend crossed it rather than appended after everything, the shared-link and legacy-import
 answers from step 1 are recorded, a gate asserts the randomize case, and engine-parity is unchanged.
 
-## Three drawback descriptions contradict the guide on whether a stat cap is enforced — TODO
-Branch `docs/drawback-statcap-wording`. `js/engine-data.js` (`DATA.drawbackFx`) and
-`docs/PACT-Players-Guide.html`'s drawback table.
-**Effort:** low · **Risk:** low — the shipped behaviour is known and checked (see below), so this is a
-wording decision, not a mechanics one. `drawbackFx` is display-only and never read by `compute()`.
-
-**CORRECTED 2026-08-19, same day.** This was first written up as **ten** drifting descriptions. Seven of
-those were a **bug in the comparison, not drift**: it tested `html.includes(engineText)` against raw HTML,
-so every description containing an apostrophe failed to match on `&#x27;` vs `'` while being identical.
-`Leaden Reflexes`, `Squeamish`, `Merciful`, `Cursed Wealth`, `Marked`, `Cold Heart` and
-`Oath of Poverty` are **not** drift. Any future check must decode entities before comparing — that is the
-main thing this entry exists to pass on.
-
-**The three real ones are one pattern, not three problems** — `Missing Arm`, `Peg Leg`, `Berserk Temper`,
-each carrying a stat cap:
-
-```text
-DATA.drawbackFx  "... You may only take this drawback if your Dexterity is currently 12 or below."
-guide table cell "... The tool only warns, it does not block, if your current Dexterity is above 12
-                  - DMs should enforce it as a hard requirement."
-```
-
-**What the tool actually does, measured:** a Fighter with DEX 16 and `Missing Arm` gets the warning
-*"Missing Arm: drawback requires DEX 12 or lower"* and an effective DEX of **16**. It warns; it does not
-block or clamp. So the guide cell is an accurate description of the TOOL, and `drawbackFx` is an accurate
-statement of the RULE.
-
-**And a third voice:** §14's own stat-cap prose already states the rule — *"you may only take a capped
-drawback if your current score is at or below the cap. The cap is the price of entry"* — so the guide
-contradicts itself two paragraphs apart, saying the cap is a hard entry requirement in prose and a
-DM-enforced advisory in the table.
-
-```text
-RECOMMENDED: keep the RULE statement in both places (the drawbackFx wording), and delete the
-  "the tool only warns" caveat from all three table cells. A tool limitation repeated in three
-  per-drawback cells is what produced the divergence, and it already contradicts §14. If the caveat
-  is worth keeping at all it belongs ONCE, in §14's stat-cap paragraph, phrased as a tool note.
-ALTERNATIVE: make the tool actually block, then no caveat is needed anywhere. Bigger change - it
-  turns a warning into a hard gate in compute(), which needs its own decision and a parity fixture.
-```
-
-**Done when:** the three agree with `DATA.drawbackFx` on both sides, §14 no longer contradicts the table,
-and a `verify-guide` drawback-text check ships at **0 failed** — **decoding HTML entities before
-comparing**, or it will re-report the seven false positives.
-
 ## Duplicate non-stacking purchases are charged in full — TODO
 Branch `fix/non-stacking-duplicate-charge`. `js/engine.js` (`compute()`'s feature pricing).
 **Effort:** medium · **Risk:** medium — ambiguity is the driver (what "the same feature from two classes"
@@ -862,3 +817,152 @@ covers the pickers or LOG round-tripping) — worst-of lands at high, never elig
 checkers stay green; buying the same subclass ability through both routes is impossible (or charges once);
 a subclass purchase from a class that is neither origin nor unlocked raises the v0.347 gate warning by
 whichever route it is bought; and CharGen + Live Sheet still round-trip a character containing a bundle.
+
+---
+
+## Cache Chromium in the browser CI jobs — an install stall currently reads as a test failure — TODO
+Branch `ci/cache-chromium`. Seven workflows run `npx playwright install --with-deps chromium` with no
+cache: `character-gen-e2e`, `chargen-flows`, `cloud-e2e`, `dm-console-ui`, `guide-theme`, `sw-cache-e2e`,
+`tool-pricing`. Five of them sit inside a `timeout-minutes: 10` budget (`cloud-e2e` has 20,
+`character-gen-e2e` 15), so a slow apt/CDN fetch consumes the whole job before any test starts.
+
+**Observed for real on PR #429** (`d89dc1e`, the `v1.429` promotion): `dm-console-ui` spent **605s** on
+`Install Chromium` and was killed by the 10-minute timeout with the `DM Console UI checks` step *skipped* —
+it reported `cancelled` with three failure annotations while never executing a single assertion. The same
+tree passed **96/96** locally and the other ten jobs on that commit went green, so there was no defect to
+find; the job that would have found one never ran. A re-run of just that job passed. The hazard is that a
+red X from an install stall is indistinguishable at a glance from a red X from a real regression — and the
+documented response to a flaky-looking gate is *"verify locally before the first retry"*, which only works
+if the difference is visible.
+
+**Recurred three more times the same night, on PR #430** (`e66a301`) — `dm-console-ui` once (605s→timeout,
+then a clean re-run) and `e2e` three times in a row (906s, 906s, 907s — each within a second of the job's
+own 15-minute wall) before a fourth re-run finally succeeded at ~800s. All three `e2e` failures were on the
+exact same commit, which changed nothing but `docs/TASK_BOARD_NEXT.md` — no code content to blame, and every
+*other* commit that same workflow ran against that night succeeded. The clustering right at each job's own
+timeout, rather than a spread of durations, is the signature of a genuine hang getting killed by the wall,
+not a slow-but-real install — a slow install would show variable completion times; a hang looks exactly like
+this: fast when the runner's healthy (~100-200s, seen repeatedly the same night), dead at the cap when it
+isn't. Four stalls across two PRs in one session is well past "rare" — this should be treated as a live,
+recurring cost, not a one-off worth a passive mention.
+
+**Effort:** low · **Risk:** low — ambiguity is low (`actions/cache` keyed on the Playwright version is the
+standard pattern, and `PLAYWRIGHT_BROWSERS_PATH` is already how the browser location is controlled); damage
+scale is low (CI config only — no app code, no rules, no data); damage likelihood is low (a wrong cache key
+simply misses and reinstalls, which is today's behaviour). Worst-of lands at low.
+
+```text
+1. Add an actions/cache step to each of the seven workflows above, keyed on the runner OS plus the
+   resolved playwright version from testing/package-lock.json, with PLAYWRIGHT_BROWSERS_PATH pointing at
+   the cached path. Keep `--with-deps` — the apt half cannot be cached and is cheap; it is the browser
+   download that is worth keeping.
+2. Consider factoring the install into a composite action under .github/actions/ rather than pasting the
+   same block seven times — seven copies is exactly how five of them ended up with the same 10-minute
+   budget and the other two did not.
+3. Separately from the cache: give the install its own step-level timeout well below the job budget, so
+   an install stall fails as "install timed out" instead of consuming the job and skipping the tests.
+   This is the part that actually fixes the misdiagnosis; the cache only makes it rarer.
+4. Do not raise the job timeouts as the fix on its own — that hides the stall for longer rather than
+   distinguishing it from a real failure.
+```
+
+**Done when:** a second run of any of the seven workflows restores Chromium from cache rather than
+downloading it (visible in the job log), an install that stalls fails at the install step with a message
+naming the install — not as a skipped test step — and all seven jobs still pass on a normal PR.
+
+## Live Sheet drawback purchases bypass legalCheck() entirely — no drawback gate is enforced there — TODO
+Branch `fix/livesheet-drawback-legalcheck`. `takeDrawback()` (`tools/PACT-Live-Char-Sheet.html`) calls
+`emit()` directly with no `legalCheck()` call at all, so **no** drawback gate is enforced in that tool —
+not just the new `DATA.drawbackReq` caster gate added in `feat/drawbacks-phobias-expansion`, but the
+**pre-existing** `DATA.drawbackMaxStats` stat caps from `b016331` too. This contradicts that decision's own
+claim ("The Live Sheet's `buy()` already blocks anything not matched by SOFT_WARN, so both directions were
+already refused there") — disproven by `/code-review max`: a Fighter can tick Mana Leak, and a character
+can hold a drawback whose stat cap their current score already breaks, with nothing in that tool's UI or
+save path surfacing it (the engine's advisory `⛔` line in `compute().warnings` exists but nothing reads
+it there).
+**Effort:** medium · **Risk:** medium — ambiguity is low (the fix is routing drawback purchases through
+`legalCheck()`/`buy()`, the same path every other purchase category in that tool already uses); damage
+scale is medium (a purchase-flow-control change in a live tool, though scoped to one category); damage
+likelihood is low-medium (well-trodden pattern, but no e2e coverage of the disabled/blocked state exists
+today for either gate to catch a regression) — worst-of lands at medium.
+
+```text
+1. Route takeDrawback() through legalCheck()/buy() instead of its direct emit() shortcut, mirroring how
+   every other purchase category in the Live Sheet already works. A hard (⛔) violation must be refused
+   at the point of purchase, the same way CharGen's checkbox guard now refuses it (see
+   feat/drawbacks-phobias-expansion).
+2. Related bug, same review pass, same code path: CharGen's random builder (actDraw/tryAct) increments
+   _draws BEFORE tryAct's rollback and never restores it on rejection — a randomly-picked drawback that
+   gets rejected (stat cap, or since this task, a caster-gate violation) silently costs a draw attempt.
+   Pre-existing, not introduced by drawbackReq, but fold the fix in here since it touches the same
+   candidate-filter/rollback code.
+3. Add browser-driven coverage (dm-console-ui-e2e.mjs or chargen-flows-e2e.mjs) asserting the Live Sheet
+   actually refuses a hard drawback violation — no equivalent e2e coverage exists today for the
+   disabled-checkbox behavior in EITHER tool, for EITHER gate (drawbackMaxStats or drawbackReq).
+```
+
+**Done when:** drawback purchases in the Live Sheet go through `legalCheck()` the same way every other
+purchase category does; a hard (⛔) drawback violation is refused there exactly as CharGen's checkbox
+guard refuses it; `actDraw`'s rollback no longer leaks a draw attempt on a rejected candidate; a new
+browser-driven check confirms the enforcement; `testing/tests/engine-parity.html` still 0 failed.
+
+## guide-price-check.mjs has zero drawback-price coverage against the engine — TODO
+Branch `test/guide-drawback-price-check`. `testing/scripts/guide-price-check.mjs` verifies guide prices
+against the live engine for other purchase categories but has **no** coverage of drawback AP values at
+all (`grep -c drawback testing/scripts/guide-price-check.mjs` → 0). This is precisely the class of gap
+that produced the six-day Grit ladder divergence (`D-GH-2026-08-12-grit-steep-ladder`) — nothing catches
+a guide drawback price silently drifting from `DATA.drawbacks`.
+**Effort:** low · **Risk:** low — ambiguity is low (the shape to build already exists as
+`guide-price-check.mjs`'s pattern for other categories, or as the description-match technique
+`verify-guide.mjs` already uses); damage scale is low (adds a test, touches no rules or app code); damage
+likelihood is low (a new gate can only fail loud, never silently break something already working).
+
+```text
+verify-guide.mjs (fixed in feat/drawbacks-phobias-expansion) now checks that guide drawback DESCRIPTIONS
+match DATA.drawbackFx byte-for-byte, which transitively catches a price drift too IF the price appears
+inside the description text — but the guide's own "AP gained" table column is a separate cell that check
+does not capture or compare on its own. First confirm whether the description-match check already closes
+this gap in practice (does every drawback's printed AP value also appear inside its own description
+text?) or whether a dedicated price-column comparison is still needed for genuine independent coverage.
+If needed, follow the guide-price-check.mjs pattern used for other categories, or extend verify-guide.mjs
+to capture and compare the "AP gained" cell directly.
+```
+
+**Done when:** either `guide-price-check.mjs` or `verify-guide.mjs` mechanically asserts every
+`DATA.drawbacks[name]` AP value against the guide's own printed "AP gained" column for that drawback,
+independent of the description-text comparison, and the gate fails loudly on a mismatch — proven by
+deliberately mispricing one guide row and confirming the gate goes red before restoring it.
+
+## pact-guide master's cap-wording has diverged from the served copy — needs reconciliation — TODO
+Branch `docs/guide-cap-wording-reconcile`. Discovered while updating drawback tables for
+`feat/drawbacks-phobias-expansion`: the `pact-guide` project's `PACT-Players-Guide.html` (the canonical
+master) still describes stat caps as advisory — *"The tool only warns, it does not block, if your current
+[ability] is above [N] — DMs should enforce it as a hard requirement"* — on `Asthmatic`, `Frail`,
+`Glass Frame`, `Lame`, `Missing Arm`, `Peg Leg`, and `Old Wound`. This repo's served copy
+(`docs/PACT-Players-Guide.html`) already carries the hard-enforcement wording (*"You may only take this
+drawback if your [ability] is currently [N] or below"*) that `b016331` introduced on 2026-08-18, and
+additionally states the cap sentence at all on `Forgetful`, `Slow Study`, `Suggestible`, and
+`Weak-Willed`, where the master omits it entirely. `feat/drawbacks-phobias-expansion` deliberately did
+**not** resolve this — new rows were applied on top of each file's own existing prose, so the divergence
+is neither widened nor silently overwritten.
+**Effort:** low · **Risk:** medium — ambiguity is low (the served copy's wording is already the correct,
+shipped-and-live posture per `b016331`'s owner ruling); damage scale is medium (a `pact-guide` transfer
+done wrong has form — see the ⛔ box in `docs/VERSION-SYNC.md` and commit `e0c5e9f`'s image loss); damage
+likelihood is low (the transfer procedure with its before/after `verify-guide.mjs` gate exists precisely
+to catch this class of mistake, IF followed).
+
+```text
+Follow docs/VERSION-SYNC.md's transfer procedure exactly: run node testing/scripts/verify-guide.mjs
+BEFORE touching anything. Apply the hard-enforcement wording to the pact-guide master's 7 named
+drawbacks, and add the missing cap sentence to Forgetful/Slow Study/Suggestible/Weak-Willed there too —
+do NOT copy the served file wholesale (it carries served-copy-only assets the master must not gain, per
+the ⛔ box). Re-run verify-guide.mjs AFTER. Cross-check documents-rules version/branch/commit against
+pact-guide's own py/vendor/engine/SYNCED_FROM.txt per VERSION-SYNC.md's three-way check. Worth first
+checking D-GH-2026-08-19-drawback-statcap-enforcement (or its pact-guide-side equivalent, if one exists)
+for whether the guide-side wording update was intentionally deferred or simply missed.
+```
+
+**Done when:** `node testing/scripts/verify-guide.mjs` passes both before and after the transfer; the
+served copy and `pact-guide` master state the SAME enforcement posture for every capped drawback; the
+transfer is verified against `pact-guide`'s own `py/vendor/engine/SYNCED_FROM.txt` per the three-way
+check in `docs/VERSION-SYNC.md`.

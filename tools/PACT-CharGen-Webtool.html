@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.427.html**-->
+<!--**PACT-CharGen-Webtool v1.432.html**-->
 
 <!doctype html>
 <!--
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.427 · Rules v0.339</title><style>
+<title>PACT Character Generator — Web Tool v1.432 · Rules v0.339</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -497,7 +497,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.427</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.432</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -3128,7 +3128,10 @@ function _cgWireChecklistDelegation(){
 const RECONCILE_CAT={feat2row:'feature',subabilrow:'subabil',subbundlerow:'subbundle'};
 const _CG_RECONCILE_FIELD={feature:'features',subabil:'subAbilities',subbundle:'subSpellBundles'};
 const _CG_RECONCILE_VALID={
-  feature:function(v){return !!DATA.features[v];},
+  feature:function(v){const f=DATA.features[v];return !!f&&!f.bar;},   // .bar excludes a barred feature from
+                                                                        // NEW purchases only — gates emit(),
+                                                                        // never runs against an already-owned
+                                                                        // LOG row, so an existing save is untouched.
   subabil:function(v){return !!DATA.subAbilMap[v];},
   subbundle:function(v){const p=String(v).split('|');return !!((DATA.subclasses[p[0]]||{})[p[1]]);}
 };
@@ -3324,9 +3327,30 @@ function onPatchFieldChange(el){
   if(slot===PATCH_SLOTS.IDENTITY||slot===PATCH_SLOTS.HOUSE_RULES)_cgReconcileChecklistDependents();
 }
 
+// A stat cap is enforced in BOTH directions (owner's ruling 2026-08-19). Direction A — taking a capped
+// drawback above the cap — is stopped by disabling the checkbox in render(). This is direction B: raising
+// a score past the cap of a drawback you already hold. The Live Sheet refuses the equivalent purchase
+// outright, so CharGen doing nothing but warning was the gap that let the guide claim "the tool only
+// warns, it does not block".
+//
+// CLAMPED to the cap rather than reverted: the cap IS the highest legal value, so clamping lands on what
+// the player can actually have, and flash() says why. Reverting to the prior value would need edit
+// history this handler does not have, and silently doing nothing would leave an illegal build.
+function _cgClampStatToDrawbackCaps(el){
+  if(!el||!el.id||el.id.indexOf('st_')!==0) return false;
+  var ab=el.id.slice(3), want=Number(el.value); if(!Number.isFinite(want)) return false;
+  var mx=(typeof DATA!=='undefined'&&DATA.drawbackMaxStats)||{}, held=ckVals('drawck');
+  var cap=null, who='';
+  held.forEach(function(d){ var c=mx[d]; if(c&&c[ab]!=null&&(cap===null||c[ab]<cap)){ cap=c[ab]; who=d; } });
+  if(cap===null||want<=cap) return false;
+  el.value=cap;
+  if(typeof flash==='function') flash('⛔ '+who+' caps '+ab+' at '+cap+' — buy the drawback off first to raise it.');
+  return true;
+}
+
 function _cgWirePatchDelegation(){
   const form=$('form');if(!form)return;
-  const watch=function(e){_setCoalesceForEvent(e);if(e.target&&e.target.id)onPatchFieldChange(e.target);};
+  const watch=function(e){_cgClampStatToDrawbackCaps(e.target);_setCoalesceForEvent(e);if(e.target&&e.target.id)onPatchFieldChange(e.target);};
   form.addEventListener('change',watch);form.addEventListener('input',watch);
   // blur/focus-change permanently seals the open coalescing group (D3): a later edit to the same field
   // starts a fresh undo step, and a group that changed nothing is dropped.
@@ -3441,10 +3465,11 @@ function _cgHasWarlock(){try{return (readBuild().traditions||[]).some(function(t
 function buildClassPickers(){
   const grid=$('classpickgrid');if(!grid)return;
   const byClass={};DATA.classes.forEach(c=>byClass[c]=[]);
-  // v0.314: barred features stay in DATA.features for old-save back-compat but must not be addable —
-  // already gone from DATA.featureList (search-all); also hide them from the quick-add-by-class menus.
-  const BARRED_FEATURES=["Fighter: Weapon Mastery","Paladin: Weapon Mastery","Ranger: Weapon Mastery","Rogue: Weapon Mastery","Fighter: Additional Fighting Style"];
-  for(const lab in DATA.features){if(BARRED_FEATURES.indexOf(lab)>=0)continue;const f=DATA.features[lab];if(byClass[f.cls])byClass[f.cls].push(lab);}
+  // v0.314, generalized v0.357: a feature with DATA.features[lab].bar===true stays in DATA.features
+  // for old-save back-compat (an owned one still prices via compute()'s lookup) but must not be newly
+  // addable — already gone from DATA.featureList (search-all); also hide it from the quick-add-by-class
+  // menus here. One flag on the data, not a second hardcoded list that has to be kept in sync with it.
+  for(const lab in DATA.features){const f=DATA.features[lab];if(f.bar)continue;if(byClass[f.cls])byClass[f.cls].push(lab);}
   DATA.classes.forEach(c=>byClass[c].sort((a,b)=>DATA.features[a].tier-DATA.features[b].tier));   // order by tier (#4)
   const optHtml=lab=>{const f=DATA.features[lab];const nm=(lab.split(': ')[1]||lab);
     return '<option value="'+lab.replace(/"/g,'&quot;')+'">'+nm+(f.rep?' ⟳step':'')+' · '+f.tb+'</option>';};
@@ -4324,7 +4349,8 @@ function randomizeRoll(){
   const actBoon=x=>{const cand=(DATA.boonList||[]).filter(k=>{const bo=DATA.boons[k];if(!bo||x.boons.includes(k))return false;if(x.hd<(bo.hd||1))return false;if(bo.minStats){for(const a in bo.minStats)if((x.stats[a]||10)<bo.minStats[a])return false;}if(bo.minStatsAny&&bo.minStatsAny.stats&&!bo.minStatsAny.stats.some(a=>(x.stats[a]||10)>=bo.minStatsAny.val))return false;return true;});if(!cand.length)return false;x.boons.push(pick(cand));};
   const actArt=x=>{x.arts=x.arts||[];const cand=(DATA.artList||[]).filter(k=>{const ar=DATA.arts[k];if(!ar||x.arts.includes(k))return false;if(x.hd<(ar.hd||1))return false;if(ar.minStatsAny&&ar.minStatsAny.stats&&!ar.minStatsAny.stats.some(a=>(x.stats[a]||10)>=ar.minStatsAny.val))return false;if(ar.prereqNote&&/Foundation/i.test(ar.prereqNote)&&!(x.traditions&&x.traditions.length))return false;return true;});if(!cand.length)return false;x.arts.push(pick(cand));};
   const actRacial=x=>{const cand=(DATA.racialList||[]).filter(l=>{const rr=DATA.racial[l];return rr&&!rr.pack&&(rr.race===x.species||rr.race===x.species2)&&!x.racialTraits.includes(l)&&x.hd>=((DATA.tierHD&&DATA.tierHD[rr.tier])||1);});if(!cand.length)return false;x.racialTraits.push(pick(cand));};
-  const actDraw=x=>{if(_draws>=_maxDraws)return false;const cand=(DATA.drawbackList||[]).filter(k=>{if(x.drawbacks.includes(k))return false;const mx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k];if(mx){for(const a in mx)if((x.stats[a]||10)>mx[a])return false;}return true;});if(!cand.length)return false;x.drawbacks.push(pick(cand));_draws++;};
+  // feat/drawbacks-phobias-expansion: candidate filter also respects DATA.drawbackReq (caster-only drawbacks), same shape as the existing drawbackMaxStats filter — otherwise the randomizer could roll Mana Leak/Ritual-Blind/Wild Surge onto a Fighter and tryAct would reject it AFTER _draws was already spent (see the tryAct rollback note tracked separately), wasting one of a scarce number of draw attempts more often than the stat-cap case alone.
+  const actDraw=x=>{if(_draws>=_maxDraws)return false;const _hasFoundX=(x.traditions||[]).some(t=>t&&(t.disciplines||[]).some(d=>d&&d.name&&d.name!=='(none)'));const cand=(DATA.drawbackList||[]).filter(k=>{if(x.drawbacks.includes(k))return false;const mx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k];if(mx){for(const a in mx)if((x.stats[a]||10)>mx[a])return false;}const rq=DATA.drawbackReq&&DATA.drawbackReq[k];if(rq&&rq.caster&&!_hasFoundX)return false;return true;});if(!cand.length)return false;x.drawbacks.push(pick(cand));_draws++;};
   for(let q=0;q<3;q++)tryAct(actBoon);
   tryAct(actArt);tryAct(actArt);
   for(let q=0;q<3;q++)tryAct(actRacial);
@@ -4354,7 +4380,7 @@ function randomizeRoll(){
     x=>{const d=discOf(x); if(!d)return false; const t=x.traditions.find(tr=>tr&&tr.name===trad); const L=1+rnd(Math.min(9,(t&&t.rank)||1)); d.slots[L-1]=(d.slots[L-1]||0)+1;},   // slot at a random level up to current Rank
     x=>{const d=discOf(x); if(!d||prepared.includes(x.originClass))return false; const t=x.traditions.find(tr=>tr&&tr.name===trad); const L=1+rnd(Math.min(9,(t&&t.rank)||1)); d.known[L-1]=(d.known[L-1]||0)+1;},   // known spell scaled to Rank/HD
     x=>{const t=x.traditions.find(tr=>tr&&tr.name===trad); if(!t)return false; t.rank=(t.rank||0)+1;},   // raise Rank (HD-gated → unlocks higher spell levels)
-    x=>{const cls=x.originClass; const fl=Object.keys(DATA.features).filter(l=>DATA.features[l]&&DATA.features[l].cls===cls&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!x.features.includes(l)); if(!fl.length)return false; x.features.push(pick(fl));},   // a random origin-class feature (HD-gated via warnings)
+    x=>{const cls=x.originClass; const fl=Object.keys(DATA.features).filter(l=>DATA.features[l]&&DATA.features[l].cls===cls&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&!x.features.includes(l)); if(!fl.length)return false; x.features.push(pick(fl));},   // a random origin-class feature (HD-gated via warnings) — .bar excludes barred features, same flag buildClassPickers() checks
   ];
   // 4) spend until the budget is (near) exhausted or we keep failing to find anything affordable+legal
   let stuck=0, iters=0;
@@ -4465,6 +4491,42 @@ function annotate(b,r){
     const _campCap=_cgDrawbackCap();
     const _dCap=(_campCap===undefined)?DATA.drawbackCap:_campCap;
     _dc.textContent=_rawGain===0?'':'Drawback refund: +'+_rawGain+' AP'+(_rawGain>_dCap?' ⚠ over '+_dCap+' AP — confirm with DM':'');
+    // STAT CAPS ARE ENFORCED HERE, NOT JUST WARNED (owner's ruling 2026-08-19). The Live Sheet's buy()
+    // already refused these — anything not matching SOFT_WARN is a hard block — but CharGen is form-based
+    // and let the same combination through with only a warning, which is why the guide ended up claiming
+    // "the tool only warns". Now a drawback whose cap the CURRENT score breaks cannot be ticked at all.
+    // A drawback ALREADY held when the score is raised past its cap is left ticked deliberately: silently
+    // un-ticking it would delete a purchase the player made and refund AP behind their back.
+    //
+    // feat/drawbacks-phobias-expansion: extended to DATA.drawbackReq (a caster-only drawback for a
+    // character with no spellcasting discipline) on the SAME guard, since it is the same shape of
+    // problem — a hard prerequisite CharGen's own UI can enforce at tick-time. NOT wired to block the
+    // cloud save on an existing ⛔ warning: _cgOverApBudget() (the actual save gate) only checks
+    // compute().remaining, never .warnings, so today an already-held violation of EITHER kind (this one
+    // or a stat cap) does not block a save — that gap is pre-existing and unrelated to the tick-time
+    // guard here, and is tracked as its own task rather than fixed inline, because blocking on any ⛔
+    // would also block a save for a character grandfathered past a stat cap by the paragraph above,
+    // which is explicitly not what that design intended.
+    (function(){
+      var _mx=DATA.drawbackMaxStats||{}, _rq=DATA.drawbackReq||{}, _st=b.stats||{};
+      var _hasFound=(b.traditions||[]).some(function(t){return t&&(t.disciplines||[]).some(function(d){return d&&d.name&&d.name!=='(none)';});});
+      document.querySelectorAll('.drawck').forEach(function(e){
+        var caps=_mx[e.value]; var req=_rq[e.value];
+        var capBreaks=caps?Object.keys(caps).some(function(a){ return (_st[a]||10) > caps[a]; }):false;
+        var reqBreaks=!!(req && req.caster && !_hasFound);
+        var breaks=capBreaks||reqBreaks;
+        if(breaks && !e.checked){
+          e.disabled=true;
+          var whyParts=[];
+          if(capBreaks) whyParts.push('Requires '+Object.keys(caps).map(function(a){return a+' '+caps[a]+' or lower';}).join(', ')+' — reduce the score before taking this drawback.');
+          if(reqBreaks) whyParts.push('Requires at least one spellcasting discipline (buy one in §9 Spellcasting).');
+          e.title=whyParts.join(' ');
+          if(e.parentElement) e.parentElement.style.opacity='0.55';
+        } else if(e.disabled && !breaks){
+          e.disabled=false; e.title=''; if(e.parentElement) e.parentElement.style.opacity='1';
+        }
+      });
+    })();
     _dc.style.color=_rawGain>_dCap?'var(--bad)':_rawGain>=_dCap-2?'#7a4f00':'var(--muted,#888)';
     _dc.style.fontWeight=_rawGain>=_dCap-2?'700':'normal';}}
   // HD / caps / HP (#3)

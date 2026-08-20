@@ -126,6 +126,50 @@ record('theming        ',
   : danglingVars.length ? `undefined var(): ${danglingVars.join(' ')}`
   : `script + ${themeBlocks.length} themes, all ${rootKeys.size} vars covered, 0 dangling`);
 
+// ---- 7b. drawback text: the guide and DATA.drawbackFx must say the same thing ------------------
+// Added once the two sides actually agreed — a gate that is red on arrival is not a gate. Two failures
+// it exists to catch, both real on 2026-08-19:
+//   * the guide and the tools describing the same drawback differently (three did, on whether a stat
+//     cap was a hard requirement or a DM-enforced advisory);
+//   * a capped drawback whose description never mentions its cap (seven did) — which became a hard
+//     block the moment the tools started enforcing caps, i.e. a wall with no sign on it.
+// DECODE ENTITIES BEFORE COMPARING. The first version of this comparison reported ten mismatches, seven
+// of which were `&#x27;` vs `'` on descriptions that were otherwise identical. And compare the WHOLE
+// cell, not `includes()` — five cells had extra text appended that a substring test waved through.
+{
+  const dec = t => t.replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+  const H = dec(html);
+  const fx = DATA.drawbackFx || {}, caps = DATA.drawbackMaxStats || {}, req = DATA.drawbackReq || {};
+  const differs = [], undocumented = [], missing = [], reqUndocumented = [];
+  // Known exception: the 6 `Affliction — X (ABIL)` entries share ONE guide row ("Affliction (choose an
+  // ability)") by design, so they never match their own <td> and must not count as a coverage failure.
+  const SHARED_ROW = /^Affliction —/;
+  let matched = 0;
+  for (const [name, text] of Object.entries(fx)) {
+    if (!text) continue;
+    const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = H.match(new RegExp('<td[^>]*>' + esc + '</td>\\s*<td[^>]*>([\\s\\S]*?)</td>'));
+    if (!m) {
+      if (!SHARED_ROW.test(name)) missing.push(name);   // a real drawback with NO guide row at all
+      continue;
+    }
+    matched++;
+    if (m[1].replace(/<[^>]+>/g, '').trim() !== text.trim()) differs.push(name);
+  }
+  for (const d of Object.keys(caps)) if (!/cap:/i.test(fx[d] || '')) undocumented.push(d);
+  // Reverse of the cap check: a drawback DATA.drawbackReq gates as caster-only must say so in its own
+  // prose, or a player reads "why can't I take this" nowhere — mirrors the Foundation-prereq wording
+  // Arts already use ("Requires a Spellcasting Foundation to take.").
+  for (const d of Object.keys(req)) if (req[d].caster && !/spellcasting/i.test(fx[d] || '')) reqUndocumented.push(d);
+  const ok = !differs.length && !undocumented.length && !missing.length && !reqUndocumented.length;
+  record('drawback text', ok,
+    ok
+      ? `${matched} descriptions agree with the guide · all ${Object.keys(caps).length} stat caps documented · all ${Object.keys(req).length} caster gates documented`
+      : `${differs.length} differ [${differs.join(', ')}] · ${missing.length} missing from the guide entirely [${missing.join(', ')}] · `
+        + `${undocumented.length} capped but undocumented [${undocumented.join(', ')}] · `
+        + `${reqUndocumented.length} caster-gated but undocumented [${reqUndocumented.join(', ')}]`);
+}
+
 // ---- 8. version markers ---------------------------------------------------------------------
 const cv = (html.match(/content-version:\s*(v[\d.]+)/) || [])[1];
 const dr = (html.match(/documents-rules:\s*version=(v[\d.]+)/) || [])[1];
@@ -137,6 +181,17 @@ record('version markers', !!cv && visible,
   `content-version ${cv || 'ABSENT'} · documents-rules ${dr || 'not stamped'} · engine DATA.version ${DATA.version}`
   + (visible ? ' · shown on-page' : '  ← #guideVer block MISSING, reader cannot see either version')
   + (dr && dr !== DATA.version ? `  ← stamped against an older engine` : ''));
+
+// ---- 9. print rule not swallowed ---------------------------------------------------------------
+// The .guide-ver rules were first added by REPLACING the @media print rule's body, which both unhid the
+// whole nav sidebar in print and left the version block unstyled on screen (it was scoped to print).
+// Nothing caught it: check 8 only asks whether #guideVer exists. Assert the two facts that were false.
+const printBlock = (html.match(/@media print\{[\s\S]*?\n[^\n]*\}\}/) || [''])[0];
+const hidesNav = /\.nav,#navToggle,#toTop,#progress[^{]*\{display:none!important\}/.test(printBlock);
+const verOnScreen = /\n\.guide-ver\{/.test(html) && !/\.guide-ver\{/.test(printBlock);
+record('print rule intact', hidesNav && verOnScreen,
+  (hidesNav ? 'print hides nav/toggle/toTop/progress' : 'print does NOT hide the sidebar  ← @media print body was overwritten')
+  + ' · ' + (verOnScreen ? '.guide-ver styled at screen scope' : '.guide-ver{ is inside @media print  ← unstyled on screen'));
 
 // ---- report -----------------------------------------------------------------------------------
 const w = Math.max(...results.map(r => r.name.length));

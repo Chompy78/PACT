@@ -62,6 +62,86 @@
   `DATA.version` bump — `compute()` is untouched. Also fixed a PWA caching bug the repo's audit caught:
   `economy-bands.js` joins `NETWORK_FIRST_RE`, `CACHE_NAME` → `pact-v9`. See
   `D-GH-2026-08-19-tool-coin-time-costs`.
+- **2026-08-19 · rules(engine): 21 new drawbacks, three reprices, and a caster gate (v0.357)** — adds a
+  phobia family (`Claustrophobic`, `Agoraphobic`, `Fear of Being Alone`, `Fear of the Dark`,
+  `Fear of the Dead`, `Crawling Things`, `No Head for Heights`, `Gun Shy`) plus body/nerve and social
+  entries, taking `DATA.drawbacks` **69 → 90**. Reprices `Sluggish` 2→1, `Mana-Sick` 3→2 and
+  `Haunted / Phobia` 3→2 — **no live character held any of the three** (checked against the database), so
+  nobody's earned AP moved. `Claustrophobic`/`Agoraphobic` are a deliberately mirrored pair with one clause
+  and no extra rolls, replacing drafts whose "inside buildings" trigger was near-permanent and whose DC 12
+  save fired at every dungeon doorway. New **`DATA.drawbackReq`** gate (`Mana Leak`, `Ritual-Blind`,
+  `Wild Surge`) emits the ⛔ HARD marker when a caster-only drawback is taken by a character with no
+  spellcasting discipline — priced for a caster it was free AP for a Fighter, and one number cannot serve
+  both. Four proposals dropped: `Familiar Face` and `Fear of Water` were dominated by `Bad With Animals`
+  and `Can't Swim` (which absorbed the deep-water save), `Compulsive Collector` and `Sleepwalker` had no
+  mechanical teeth. `Light Sleeper` was dropped too — the name is already a 2 AP **boon**. Guide updated in
+  both copies. **`/code-review max` before opening the PR found the gate wasn't actually enforced anywhere
+  a player would hit it** — a placeholder `{name:'(none)'}` discipline (which is exactly what CharGen
+  creates by default) defeated it entirely, `Ritual-Blind`/`Wild Surge` carried the same printed
+  requirement but were left open, CharGen's UI let a non-caster tick the checkbox freely, and a comment
+  claiming the ⛔ warning "blocks the cloud save" was false — nothing reads `.warnings` at save time. All
+  fixed except the false comment's underlying gap (the Live Sheet's `takeDrawback()` bypasses
+  `legalCheck()` entirely — pre-existing, affects the stat caps too, deferred to its own task).
+  `verify-guide.mjs` gained a reverse check and stopped silently skipping unmatched rows (both confirmed to
+  fail-then-pass by deliberately breaking each condition). `tool-pricing` 158 → **162**; parity 40/0;
+  verify-guide 10/10; log-fuzz 500/500. Full record: `D-GH-2026-08-19-drawbacks-phobias-expansion`.
+- **2026-08-19 · chore(version): `BUILD` → `v1.432` for PR #432 (`preview` → `main` promotion)** —
+  eighth promotion under the PR-linked scheme. Major `1` carried forward; `DATA.version`
+  deliberately untouched at `v0.356`. Docs-only promotion — synced across all five mirrors.
+
+- **2026-08-19 · chore(version): `BUILD` → `v1.430` for PR #430 (`preview` → `main` promotion)** —
+  seventh promotion under the PR-linked scheme. Major `1` carried forward; `DATA.version`
+  deliberately untouched at `v0.356`. Synced across all five mirrors.
+
+- **2026-08-19 · fix(rules): three broken features can no longer be newly bought — `Barbarian: Rage`,
+  `Druid: Wild Shape`, `Bard: Bardic Inspiration die`** — owner reported real defects in each and needs
+  them off the market while fixed. Generalizes v0.314's one-off `BARRED_FEATURES` array (which only ever
+  covered `Fighter/Paladin/Ranger/Rogue: Weapon Mastery` and `Fighter: Additional Fighting Style`, and
+  only in CharGen) into a single `DATA.features[lab].bar===true` flag, then applies it everywhere a
+  feature can be newly purchased — a gap audit found three live paths, not one:
+  - **CharGen**: the class-picker grid (`buildClassPickers()`, now derives the barred set from the flag
+    instead of a second hardcoded list); the 🎲 Randomize action pool (`Object.keys(DATA.features).filter`
+    at its origin-class-feature action, which had never excluded even the original five); and the
+    free-typed "+ search all" box's reconciliation validator (`_CG_RECONCILE_VALID.feature`), which had
+    accepted any real `DATA.features` key including barred ones — closing it only gates `emit()` for a
+    NEW purchase, never re-validates an already-owned LOG row, so no existing save is touched.
+  - **Live Sheet**: all three of its own buy-list builders (origin-class, cross-class, and the
+    all-classes browse list) had never excluded the original five either — this repo's v0.314 bar had
+    only ever reached CharGen. Now consistent across both tools.
+  - **DM Console**: no feature-purchase path exists there; nothing to change.
+  A barred feature stays in `DATA.features` and still prices normally via `compute()`'s lookup for anyone
+  who already owns one — confirmed no live character owns any of the three (checked the `characters`
+  table directly). Display-only: `compute()` output is unchanged for every existing build, so
+  `DATA.version` stays at `v0.356`; no `testing/expected/` update needed. `testing/tests/engine-parity.html`
+  40/0, `tool-pricing-ci` 158/0, `chargen-flows-e2e` 66/66, `log-fuzz` 500/500 all still pass.
+
+- **2026-08-19 · chore(version): `BUILD` → `v1.429` for PR #429 (`preview` → `main` promotion)** — sixth
+  promotion under the PR-linked scheme (`D-GH-2026-08-02-build-version-pr-linked`). Major `1` carried
+  forward; `DATA.version` deliberately untouched at `v0.356` — this promotion changes no mechanics.
+  Synced across all five mirrors: `js/engine.js` `BUILD`, CharGen's line-1 comment / `<title>` / header
+  `.sub`, Live Sheet's line-1 comment, DM Console's `TOOL_VERSION`. `index.html` reads `BUILD` live and
+  was not touched.
+
+- **2026-08-19 · docs(guide): the on-page version block is copied back to the `pact-guide` master** —
+  the served copy had carried `#guideVer`, its script and the `.guide-ver` CSS alone since it was added
+  earlier today, which is exactly the divergence the next transfer from the master silently wipes. Both
+  pieces are now in the master too (CSS above its `@media print` block; markup after `#navSearch`, before
+  `<ul id='navList'>`, mirroring the served copy's order minus the served-only theme picker). Verified
+  the other two of today's guide changes had already landed there — the `Soul Debt` rewording and all 23
+  stat-cap descriptions were already in the master's prose, so only the version block was outstanding.
+  `docs/VERSION-SYNC.md`'s ⛔ box now records the block as present in BOTH copies, so a future transfer
+  carries it rather than treating it as served-only.
+
+- **2026-08-19 · fix(guide): the version block had overwritten the print rule** — found while preparing
+  the copy-back to `pact-guide`. `9f5e11f` added `.guide-ver`'s styling by *replacing the body of*
+  `@media print{...}`, so printing the guide stopped hiding the nav sidebar, toggle, to-top button and
+  progress bar, and the version block itself was scoped to print and therefore unstyled on screen. Both
+  halves were wrong and neither was visible from the change itself. The print rule is restored
+  byte-identical to its pre-`9f5e11f` text and the `.guide-ver` rules moved to screen scope (the block is
+  a child of `#nav`, so print still hides it). `verify-guide.mjs` gains an 11th check, `print rule
+  intact`, asserting both facts; confirmed FAIL against the unfixed file before being accepted. Display
+  only — no rules change, no `DATA.version` bump.
+
 - **2026-08-19 · test(livesheet): pin that a pre-lock ledger equals `compute()` across level-ups; the
   reported divergence is gone** — `fix/livesheet-draft-reconcile` was filed as a live bug needing an owner
   *rules ruling before any code*: a fresh Live Sheet character reading **34 against `compute()`'s 46**
@@ -80,6 +160,37 @@
   to stop the optimiser gaming it, which is a simulation-side workaround for an engine-side gap. Not
   urgent — unreachable below tier 4, and it overcharges rather than undercharges — but it is a real
   overcharge on a legal build, and the rule needs defining before it can be priced.
+
+- **2026-08-19 · docs(rules): the `Soul Debt` Long Rest exemption was removed deliberately — confirmed** —
+  the v0.356 rewording dropped *"The Hit Points you recover at the end of a Long Rest are unaffected."*
+  That was flagged at the time as possibly unintended, because the new text enumerates three sources after
+  a colon and does not mention rests. **Owner confirmed the wording as written**, so a Long Rest is no
+  longer carved out. Recorded here because a lone deleted sentence is precisely what a later reader
+  restores as an accident; it was not one. Verified nothing else still carries the old exemption, and that
+  the guide's other two `Soul Debt` passages (buy-off permanence in §14, and the narrative example) do not
+  assume it. No text change — this entry exists solely so the deletion cannot be undone by mistake.
+
+- **2026-08-19 · feat(rules): drawback stat caps are ENFORCED, in both directions, and documented
+  everywhere** — owner's ruling. The cap text says two things — *"you may only take a capped drawback if
+  your current score is at or below the cap"* and *"your score can never exceed 12"* — and both are now
+  enforced. Measured before changing anything: the **Live Sheet already blocked both** (`⛔ Purchase
+  blocked`), while **CharGen blocked neither**, which is why the guide had come to claim *"the tool only
+  warns, it does not block"*. That claim was never true as a blanket statement. CharGen now disables a
+  capped drawback whose cap the current score breaks, and clamps a score that would breach a cap it
+  already holds (clamped to the cap — the highest legal value — with a `flash()` saying why; silently
+  un-ticking a held drawback would delete a purchase and refund AP behind the player's back). The engine's
+  warning gains the **⛔** marker the other hard prerequisites use.
+  **Then the enforcement exposed what it was enforcing:** **seven** capped drawbacks had descriptions that
+  never mentioned their cap — an invisible wall the moment blocking landed — and **five** more had the cap
+  in the guide but not in the tools. All twelve now state it, in the house wording already used by the
+  other sixteen, on **both** sides. Guide and `DATA.drawbackFx` now agree on **all 63** rows with a guide
+  row, and **all 23 stat caps are documented**. `verify-guide` gains a **drawback text** check (9 → **10**)
+  — added only once both sides agreed, since a gate that is red on arrival is not a gate. It decodes HTML
+  entities and compares whole cells, the two mistakes that made my first pass report ten mismatches when
+  three were real. Verified in both tools: take-above-cap refused, raise-above-cap refused/clamped, and
+  raising to exactly the cap still allowed. No live character violates any cap (checked all 23 against
+  every character). No `DATA.version` bump — `drawbackFx` is display-only and `compute()`'s numeric output
+  is unchanged; only a warning string gained a marker.
 
 - **2026-08-19 · docs(rules): reword the `Soul Debt` drawback, engine and guide together** — owner's text:
   *"A fiend skims the interest on your soul. Each time you regain Hit Points: every spell cast, every dose
