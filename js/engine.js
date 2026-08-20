@@ -53,8 +53,10 @@
 import { AP_BY_LEVEL, DEFAULT_LEVEL } from './ap-by-level.js';
 // Per-campaign advancement dials (display/config-only; never read by compute()/_replay()).
 import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advancement.js';
+// Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
+import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.432";
+export const BUILD = "v1.436";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -121,6 +123,16 @@ DATA.level1AP  = AP_BY_LEVEL[DEFAULT_LEVEL];  // back-compat alias (compute raci
 DATA.levelBudgetCurves  = LEVEL_BUDGET_CURVES;
 DATA.awardPaces         = AWARD_PACES;
 DATA.startingTierRatios = STARTING_TIER_RATIOS;
+/* Gold-and-downtime bands — externalized to js/economy-bands.js and surfaced here so all
+ * three tools read them through the same engine bridge as everything else. Display/config
+ * only: compute() never reads them, so editing a band is not a DATA.version bump (see that
+ * file's header, and AGENTS.md "Versioning"). `off` is one of the three settings, not the
+ * absence of a setting — Players Guide §16, "The gold-and-time rule is entirely optional,
+ * and it has three settings, not two." */
+DATA.economyBands     = ECONOMY_BANDS;
+DATA.defaultEconomy   = DEFAULT_BAND;
+DATA.startGoldApCap   = START_GOLD_AP_CAP;
+DATA.economyTradeRates = TRADE_RATES;
 
 /* ---- shared helpers ------------------------------------------------------ */
 const _mod = s => Math.floor((s - 10) / 2);
@@ -581,6 +593,16 @@ export function compute(b, opts){
   // the total (an unknown scores v=0) and for warnings (drawbackMaxStats[unknown] is {}), but it stops a
   // drawback retired from the rules rendering a phantom "<name> 0" row, and stops an all-unknown list
   // producing an itemize key with no matching ledger line (add() suppresses a zero line).
+  // A drawback whose penalty can only land on a caster is worth nothing to a character who casts no
+  // spells: Mana Leak (disadvantage on concentration) is pure free AP for a Fighter, and pricing cannot
+  // fix that because one number has to serve both. DATA.drawbackReq gates them instead, keyed by
+  // drawback so the next caster-only or class-only entry is DATA, not code. Same ⛔ HARD-violation
+  // marker as the stat caps below and as reqRace/minHD.
+  // Same predicate the Arts Foundation check above uses (:266) — a placeholder discipline card left on
+  // its default '(none)' select is a zero-AP action CharGen's own UI labels "nothing purchased for this
+  // slot yet", so it must not count as having a Foundation. An earlier version of this check used
+  // `(t.disciplines||[]).length`, which a bare placeholder object satisfies with no name at all.
+  const _hasDisc=(b.traditions||[]).some(function(t){return t&&(t.disciplines||[]).some(function(d){return d&&d.name&&d.name!=='(none)';});});
   let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){if(!HRd[lab]&&DATA.drawbacks[lab]===undefined)continue;const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
     // ⛔ = a HARD rules violation, the same marker reqRace/minHD use. Owner's ruling 2026-08-19: a stat
     // cap is enforced in BOTH directions — you may not take a capped drawback above the cap, and you may
@@ -588,7 +610,9 @@ export function compute(b, opts){
     // second half the drawback is a loan: take Frail at CON 10, keep the AP, buy CON to 16.
     // The Live Sheet's buy() already blocks anything not matched by SOFT_WARN, so both directions were
     // already refused there; the marker makes the intent explicit and lets CharGen classify it too.
-    const _dmx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{};for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push('⛔ '+lab+': drawback requires '+_da+' '+_dm+' or lower');} }
+    const _dmx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{};for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push('⛔ '+lab+': drawback requires '+_da+' '+_dm+' or lower');}
+    const _drq=DATA.drawbackReq&&DATA.drawbackReq[lab];if(_drq&&_drq.caster&&!_hasDisc) W.push('⛔ '+lab+': requires at least one spellcasting discipline');
+  }
   // Rows are NEGATIVE so they sum to the line total (-drawGain), the same relationship the other five
   // itemised lines have with theirs. `v` is the value actually charged, so a house-ruled drawback
   // (b.houseRules.draws) itemises at its overridden AP, not the printed one.
@@ -932,6 +956,506 @@ export function earnedWithDm(eco, opts) {
   return (_opts.ignorePlayerAp ? drawbackEarned : playerEarned) + dmAp;
 }
 
+/* creationLocked timeline — for each event in an already-resolved activeEvents() list, was the
+ * creation lock ALREADY set when that event arrived?
+ *
+ * Extracted out of _replay()'s inner loop (feat/tool-coin-time-costs) rather than copied, because a
+ * second consumer now needs the same answer: the gold-and-downtime ledger charges a purchase only if
+ * it was made in play, and "in play" is defined as exactly this lock (Players Guide §2, "Gold and
+ * downtime only start mattering for things you buy during play"). Duplicating the lock rules into
+ * wealthLedger() would put two copies of a one-way ratchet in the engine, which is the drift AGENTS.md
+ * exists to prevent — and this one is subtle enough (three interacting config fields, an explicit
+ * unlock that suppresses the auto-lock, a spend threshold that is itself a function of frozen costs)
+ * that the copies would not have stayed equal for long.
+ *
+ * A faithful extraction, not a rewrite: the lock state depends ONLY on event fields (type, payload,
+ * noLock, and _spendCost's own reads), never on the build being folded, so hoisting it into a pre-pass
+ * over the same `evs` array cannot change any value _replay() previously saw. The returned entry is
+ * the state ENTERING each event — the same `_wasLocked` semantics compute()'s racial-trait pricing has
+ * always used, i.e. a purchase made at the exact moment the threshold trips is still a creation
+ * purchase, not the first in-play one.
+ *
+ * Takes the post-activeEvents() list, so indices line up with _replay()'s own loop and with
+ * activeEvents().evs — never the raw log. */
+function _lockStates(evs) {
+  const out = new Array(evs.length);
+  let _locked = false, _spent = 0, _campaignBound = false;
+  // creationLockConfig / creationUnlocked bookkeeping (see the block comment above _replay).
+  // _cfgAuto: undefined = "not configured" (legacy: campaignBound alone arms the auto-lock, which is
+  // what fixtures EV-003/EV-007/EV-009 assert); true = armed even without campaignBound (a solo
+  // player opting in); false = explicitly disarmed even WITH campaignBound (a DM switching it off).
+  // _cfgThreshold: null/undefined = fall back to DATA.level1AP, preserving the historical anchor.
+  // _explicitUnlocked: set by creationUnlocked, cleared by a later creationLocked — see below.
+  let _cfgAuto, _cfgThreshold, _explicitUnlocked = false;
+  for (let _i = 0; _i < evs.length; _i++) {
+    const e = evs[_i];
+    out[_i] = _locked;
+    if (e.type === 'creationLocked') { _locked = true; _explicitUnlocked = false; }
+    else if (e.type === 'creationUnlocked') { _locked = false; _explicitUnlocked = true; }
+    else if (e.type === 'creationLockConfig') {
+      // Last-write-wins. Only fields actually present are updated, so a config event that sets
+      // just a threshold doesn't silently reset `auto` (and vice versa).
+      if (e.payload && Object.prototype.hasOwnProperty.call(e.payload, 'auto')) _cfgAuto = e.payload.auto;
+      if (e.payload && Object.prototype.hasOwnProperty.call(e.payload, 'threshold')) _cfgThreshold = e.payload.threshold;
+      _explicitUnlocked = false;   // re-configuring re-arms: a DM setting a new threshold means "this applies again"
+    }
+    else if (e.type === 'campaignBound') _campaignBound = true;
+    else if (!e.noLock) _spent += _spendCost(e);
+    // Automatic threshold lock. Armed when explicitly opted in (_cfgAuto===true) or, absent any
+    // config, by campaign membership (the legacy behaviour). _cfgAuto===false disarms both.
+    // Suppressed while _explicitUnlocked, so a DM's unlock isn't instantly undone by a character
+    // already sitting over the threshold — the unlock grants creation room until re-armed.
+    const _autoArmed = _cfgAuto === undefined ? _campaignBound : !!_cfgAuto;
+    const _thr = (_cfgThreshold === undefined || _cfgThreshold === null) ? DATA.level1AP : _cfgThreshold;
+    if (_autoArmed && !_explicitUnlocked && _spent > _thr) _locked = true;
+  }
+  return out;
+}
+
+/* =========================================================================
+ * GOLD AND DOWNTIME — PACT's second and third currencies (Players Guide §2, §16)
+ * -------------------------------------------------------------------------
+ * "Talent is bought with three coins: power, gold, and the long patience of
+ * practice." Every IN-PLAY purchase reads its gold price and downtime cost off
+ * its AP cost, from one universal band (js/economy-bands.js). Creation purchases
+ * are exempt and cost AP only.
+ *
+ * THREE THINGS THIS SECTION DELIBERATELY DOES NOT DO.
+ *
+ * 1. It does not touch compute(). Gold and downtime are a spending ledger beside
+ *    the AP one, not an input to any derived statistic — no HP, AC, AP or warning
+ *    depends on them. That is what keeps every function here additive and engine-
+ *    parity-neutral, and it is why adding a band is not a DATA.version bump.
+ *
+ * 2. It does not enforce. Every function here QUOTES a price or TALLIES what was
+ *    paid; none refuses a purchase. That is the owner's decision (tracked balance,
+ *    soft warning) and it is also what the rules require: §16 gives the DM mentor
+ *    discounts, outright waivers, and a coin-for-time trade, and §17 states plainly
+ *    that "the DM can waive or reduce any cost at any time, AP, gold, or downtime".
+ *    A tool that hard-blocked would be wrong about the rules, not merely strict.
+ *
+ * 3. It does not re-price history. A purchase's gold and downtime freeze onto its
+ *    own event at the moment it is made, exactly as its AP `cost` already does —
+ *    see the `gp`/`days` event fields below. §16: "Don't switch mid-game, or a
+ *    purchase's price will move under the players' feet."
+ *
+ * GOLD AND DOWNTIME ARE NOT THE SAME SHAPE OF CURRENCY (owner, feat/tool-coin-time-costs
+ * revision — the original two-pool-both-ways design below was corrected the same day it
+ * first shipped, before any real campaign used it):
+ *
+ *   GOLD banks, per character, and is DM-authoritative in a campaign — "in a campaign
+ *   world, the DM is the one who applies the money" (owner). Income lives in two places,
+ *   precisely as AP does: player-side, as `wealth` events in a solo character's own LOG;
+ *   or DM-side, server-only, in characters.gold, written exclusively through the
+ *   award_gold() RPC and never by a player. wealthLedger() can only ever see the first,
+ *   structurally — same limitation economy() has for DM-awarded AP, resolved the same
+ *   way, by composing the two at display time via wealthWithDm(). Do not "fix" this by
+ *   teaching wealthLedger() about the server; that would make it impure and double-count
+ *   on every caller that already adds the DM pool itself (see earnedWithDm's header for
+ *   the same argument made for AP).
+ *
+ *   DOWNTIME does not bank at all. It is a single window, declared for the WHOLE PARTY at
+ *   once, that REPLACES the last declaration rather than adding to it: "the time should
+ *   not keep adding up... spend it now or wait till another opportunity" (owner). So it
+ *   has no per-character column on `characters` and no `award_*` RPC — see
+ *   resolveDowntimeWindow() (below) for how a character's current window is resolved
+ *   (campaign vs. solo), and campaign_downtime_declarations / declare_downtime() /
+ *   get_downtime_window() in sql/rls-policies.sql for where and how the party-wide
+ *   figure actually lives.
+ * ========================================================================= */
+
+/** Resolve the economy setting token ('off' | 'standard' | 'fast') for a campaign's
+ *  `rules` object — or for a solo player's local settings object, which uses the same
+ *  shape so one function serves both and the two cannot drift.
+ *
+ *  Unknown or absent → DATA.defaultEconomy ('off'). Deliberately fails CLOSED: a typo
+ *  in a stored setting shows no prices rather than silently charging a campaign under a
+ *  band nobody chose. */
+export function economySetting(rules) {
+  const t = rules && rules.economy && rules.economy.band;
+  return Object.prototype.hasOwnProperty.call(DATA.economyBands, t) ? t : DATA.defaultEconomy;
+}
+
+/** The economy band a character carries in its OWN log, or null if it never set one.
+ *
+ *  A solo player has no campaign to hold the setting, and the character envelope's `rules`
+ *  field is the rules-VERSION stamp, not a settings object — so the choice rides the LOG as
+ *  an `econSetting` event. That makes it survive export, import, and the CharGen↔Live Sheet
+ *  handoff for free, and makes it last-write-wins by replay like every other setting the log
+ *  carries. The engine ignores the event everywhere else: it is not a `buy`, so it costs no
+ *  AP, folds into no build, and trips no creation lock.
+ *
+ *  Last one wins — a player may switch bands on their own character; §16's "pick one and
+ *  stick to it" is advice to a table, not something a single-player tool should enforce. */
+export function logEconomySetting(events) {
+  let found = null;
+  (Array.isArray(events) ? events : []).forEach(e => {
+    if (e && e.type === 'econSetting' && e.payload
+        && Object.prototype.hasOwnProperty.call(DATA.economyBands, e.payload.band)) found = e.payload.band;
+  });
+  return found;
+}
+
+/** The band actually in force for a character, resolving the one precedence rule the three
+ *  tools must not each invent for themselves:
+ *
+ *    a campaign that has resolved its rules  →  the CAMPAIGN's band, always
+ *    anything else                           →  the character's own logged band, else 'off'
+ *
+ *  The campaign wins outright, and does so WITHOUT the character's logged setting acting as a
+ *  fallback within an active campaign: the whole point of the DM's dial is that a player
+ *  cannot opt their character out of the table's economy, and a stale `econSetting` from
+ *  before the character joined must not resurface as a private band.
+ *
+ *  `campaignActive` is deliberately a caller-supplied flag rather than something inferred from
+ *  campaignRules being truthy. The tools already distinguish "no campaign" from "campaign whose
+ *  rules could not be read right now" (window._rulesStatus), and conflating them here would
+ *  silently drop a campaign to its player's own band the moment the network hiccuped — the same
+ *  failure mode the DM-AP chip's 'unavailable' state exists to prevent. When rules are
+ *  unconfirmed, callers pass false and get the character's own setting, which is the honest
+ *  local answer rather than a guess at the table's. */
+export function resolveEconomySetting(opts) {
+  const o = opts || {};
+  if (o.campaignActive) return economySetting(o.campaignRules);
+  return logEconomySetting(o.events) || DATA.defaultEconomy;
+}
+
+/** The band descriptor for a setting token — {label, rows, blurb}. `rows` is null for
+ *  'off'. Accepts a token OR an already-resolved rules object, so callers can pass
+ *  whichever they have without each writing its own normalizing branch. */
+export function economyBand(settingOrRules) {
+  const t = (typeof settingOrRules === 'string') ? settingOrRules : economySetting(settingOrRules);
+  return DATA.economyBands[t] || DATA.economyBands[DATA.defaultEconomy];
+}
+
+/** Is the gold-and-time economy switched on at all? The one predicate every tool should
+ *  gate its price labels and wallet UI on, rather than each comparing tokens to 'off'. */
+export function economyOn(settingOrRules) {
+  const band = economyBand(settingOrRules);
+  return !!(band && band.rows);
+}
+
+/**
+ * purchaseCost(ap, setting) — the gold and downtime a purchase costing `ap` AP demands.
+ * The single pricing function; every tool label and every ledger charge goes through it.
+ *
+ * Returns null when the economy is off, which callers should read as "show no price at
+ * all" — distinct from a zero-cost row, which means "this purchase is genuinely free"
+ * and still prints (Tier 1 advances are free ON PURPOSE and the guide wants players to
+ * see that: "Low tiers are nearly free, on purpose").
+ *
+ * Matching walks the rows in order and takes the first whose `maxAp` the cost does not
+ * exceed; `maxAp: null` is the open-ended top row. A negative or zero AP cost — a
+ * drawback's grant, a refund quote — takes the bottom row, i.e. free: you are not
+ * charged coin and calendar for taking on a flaw.
+ *
+ * @param {number} ap      the purchase's AP cost
+ * @param {string|object} settingOrRules  token, campaign rules, or local settings
+ * @returns {{gp:number, days:number, time:string, row:object, band:string}|null}
+ */
+export function purchaseCost(ap, settingOrRules) {
+  const t = (typeof settingOrRules === 'string') ? settingOrRules : economySetting(settingOrRules);
+  const band = economyBand(t);
+  if (!band || !band.rows) return null;
+  const n = Math.max(0, Math.ceil(Number(ap) || 0));
+  const row = band.rows.find(r => r.maxAp === null || n <= r.maxAp) || band.rows[band.rows.length - 1];
+  return { gp: row.gp, days: row.days, time: row.time, row, band: t };
+}
+
+/**
+ * The gold and downtime actually PAID for one purchase event — the frozen figures if the
+ * event carries them, otherwise today's list price for its AP cost.
+ *
+ * Why frozen fields win: a DM waiver, a mentor discount, or a coin-for-time trade all
+ * produce a purchase that did not pay list price, and all three are explicit rules (§16).
+ * Stamping the real figures onto the event is the same mechanism the AP `cost` field
+ * already uses, so a later band change — or a DM switching Standard to Fast — cannot
+ * retroactively rewrite what a character already spent.
+ *
+ * `gp`/`days` are read independently: a waived gold cost with the downtime still owed is
+ * a perfectly ordinary DM ruling, so one may be frozen while the other falls through to
+ * list price.
+ */
+function _paidFor(e, setting) {
+  const list = purchaseCost(Number(e.cost) || 0, setting);
+  if (!list) return null;
+  const hasGp   = e && Object.prototype.hasOwnProperty.call(e, 'gp')   && e.gp   !== null && e.gp   !== undefined;
+  const hasDays = e && Object.prototype.hasOwnProperty.call(e, 'days') && e.days !== null && e.days !== undefined;
+  return {
+    gp:   hasGp   ? (Number(e.gp)   || 0) : list.gp,
+    days: hasDays ? (Number(e.days) || 0) : list.days,
+    listGp: list.gp, listDays: list.days, time: list.time,
+    discounted: (hasGp && (Number(e.gp) || 0) !== list.gp) || (hasDays && (Number(e.days) || 0) !== list.days),
+  };
+}
+
+/**
+ * wealthLedger(events, opts) — the gold-and-downtime ledger over a character's own LOG.
+ * The exact counterpart of economy() for the other two currencies, and shaped to match it
+ * so the tools' two ledger panels stay symmetrical.
+ *
+ * ONLY IN-PLAY PURCHASES ARE CHARGED. "Anything you buy when you first build your
+ * character costs only AP" (§2) — so each purchase is charged if and only if the creation
+ * lock was ALREADY set when it was made, read from the same _lockStates() timeline
+ * _replay() folds the build with. This is why the creation exemption cannot drift out of
+ * step with the rest of the engine: there is one definition of "in play", not two.
+ *
+ * Drawbacks are never charged. A drawback GRANTS AP rather than costing it, and coin and
+ * calendar buy advancement — you do not pay a trainer to become asthmatic. Buyoffs, which
+ * genuinely are in-play purchases with a real AP cost, ARE charged.
+ *
+ * GOLD AND DOWNTIME ARE NOT SYMMETRICAL (owner, feat/tool-coin-time-costs revision). Gold
+ * banks — a `wealth` event's `gp` is player-side income and SUMS across every such event,
+ * exactly like a DM's gold grant sums onto `characters.gold`. Downtime does not: "the time
+ * should not keep adding up... spend it now or wait till another opportunity". So a `wealth`
+ * event's `days` is NOT summed here at all — declaring a downtime window is a separate
+ * concept, resolved by resolveDowntimeWindow() (below), which reads the LATEST such value
+ * rather than a running total. This is the one place the same event type carries two
+ * currencies with two different aggregation rules.
+ *
+ * @param {object[]} events   the character's LOG
+ * @param {object} [opts]     {band} — setting token, campaign rules, or local settings
+ * @returns {{on:boolean, band:string, gpSpent:number, daysSpent:number,
+ *            gpGranted:number, entries:object[]}}
+ */
+export function wealthLedger(events, opts) {
+  const _opts = opts || {};
+  const setting = (typeof _opts.band === 'string') ? _opts.band : economySetting(_opts.band || _opts.rules);
+  const { evs, boughtOff, boonRemoved } = activeEvents(events);
+  const on = economyOn(setting);
+  const out = { on, band: setting, gpSpent: 0, daysSpent: 0, gpGranted: 0, entries: [] };
+  if (!on) return out;
+
+  const lockAt = _lockStates(evs);
+  evs.forEach((e, i) => {
+    // Player-side GOLD income only. Counted whether or not creation has ended: a starting
+    // purse or a DM-blessed local adjustment is not a purchase and has no creation exemption
+    // to respect. A `wealth` event's `days` (if present) is NOT read here — see the header
+    // note above; resolveDowntimeWindow() handles that half of the same event.
+    if (e.type === 'wealth') {
+      out.gpGranted += Number(e.payload && e.payload.gp) || 0;
+      return;
+    }
+    const isBuy = e.type === 'buy' && e.cat !== 'drawback';
+    if (!isBuy && e.type !== 'buyoff') return;
+    if (!lockAt[i]) return;                                     // creation purchase — AP only (§2)
+    // A bought-off drawback / DM-removed boon drops out of the fold, but its coin and calendar
+    // were still really spent — the same reasoning _spendCost() applies to its AP. So these are
+    // charged, not skipped; the guards exist only to label the entry as lost.
+    const lost = (e.type === 'buy') && ((e.cat === 'boon' && boonRemoved.has(i)) || boughtOff.has(i));
+    const paid = _paidFor(e, setting);
+    if (!paid) return;
+    out.gpSpent   += paid.gp;
+    out.daysSpent += paid.days;
+    // WHO READS `entries` (asked and answered 2026-08-19, so it isn't mistaken for dead weight later;
+    // corrected same day once `ts` below stopped being test-only). wealthWithDm() reads it directly
+    // now — `ts` is what lets it filter downtime spend to "since the current window opened" rather
+    // than the ledger's all-time `daysSpent` total (see wealthWithDm's own header for why those must
+    // differ). testing/scripts/economy-ui-e2e.mjs also reads it: `entries` is how the gate proves the
+    // creation exemption (which purchases were charged, by name, not just how much), and `discounted`
+    // is how it proves the freeze. Deleting either to tidy the API would delete both a real feature and
+    // the test that guards it.
+    //
+    // `listGp`/`listDays` are still read by nothing but the deferred G2 task's future display — kept
+    // for the same reason as before. _paidFor() has
+    // to compute the list price regardless — it is both the fallback when an event carries no frozen
+    // figures and the comparison that produces `discounted` — so surfacing it is two properties on an
+    // object already being built, not extra work. They are the seam a "paid 175 gp (list 350)" display
+    // would need, which is exactly what the deferred per-purchase-discount task (G2) would want; see
+    // decisions/2026/D-GH-2026-08-19-tool-coin-time-costs.md, "Not done, deliberately". Trimming them
+    // would save nothing measurable and cost that seam.
+    out.entries.push({
+      idx: i, cat: e.cat || e.type, label: e.label || (e.payload && e.payload.v) || e.refVal || '',
+      ap: Number(e.cost) || 0, gp: paid.gp, days: paid.days, ts: Number(e.ts) || 0,
+      listGp: paid.listGp, listDays: paid.listDays, discounted: paid.discounted, lost,
+    });
+  });
+  return out;
+}
+
+/**
+ * Would a purchase appended to this log RIGHT NOW be charged gold and downtime — i.e. has the
+ * character finished creation?
+ *
+ * wealthLedger() answers this per past event; a tool's buy panel needs it for the next, not-yet-made
+ * one, so it can quote a price the purchase will actually be charged (and stay silent during
+ * creation, which costs AP only). Computed by running the same lock timeline over the log plus one
+ * probe entry, so the quote a player sees before buying and the charge wealthLedger() applies after
+ * are decided by one piece of code rather than two that agree today.
+ *
+ * The probe is a bare object with no type/cost, so it can neither trip the spend threshold itself nor
+ * be mistaken for a real event; its only role is to give _lockStates() one more slot to report into.
+ */
+export function chargesGoldAndTime(events) {
+  const { evs } = activeEvents(events);
+  const st = _lockStates(evs.concat([{ type: '_probe', noLock: true }]));
+  return !!st[st.length - 1];
+}
+
+/**
+ * resolveDowntimeWindow(opts) — the downtime window in force for a character right now: how
+ * many days are available, and the timestamp purchases must be made ON OR AFTER to count
+ * against it. Mirrors resolveEconomySetting()'s precedence exactly, and for the identical
+ * reason:
+ *
+ *   an active campaign with a resolved window  →  the CAMPAIGN's window, always
+ *   anything else                              →  the character's own self-declared window, else none
+ *
+ * The campaign wins outright, without the character's own declaration acting as a fallback
+ * within an active campaign — a player must not be able to sit on a bigger window than the
+ * one the DM just declared for the whole party by holding onto a stale self-declaration.
+ * `campaignActive` is caller-supplied for the same reason it is on resolveEconomySetting: a
+ * network hiccup must fall back to the character's own honest local answer, not silently
+ * read as "no window".
+ *
+ * CAMPAIGN: `opts.campaignWindow` is a pre-resolved {days, startTs} the caller fetched from
+ * the campaign's downtime declarations — the party base plus this character's own bonus,
+ * already summed. This function never talks to the network; composing that figure is the
+ * DM Console's/Live Sheet's job (see js/campaign.js), exactly as dmAp/ignorePlayerAp are
+ * resolved outside compute() and passed in.
+ *
+ * SOLO: derived from the character's own LOG — the LATEST `wealth` event that carries a
+ * `days` field (present, even if 0 — see the `!= null` check below, which lets a player
+ * explicitly close out a window without granting a new one). This is last-one-wins, NOT
+ * summed, unlike that same event type's `gp` field (see wealthLedger()'s header for why the
+ * two currencies disagree here): declaring a new window replaces the old one.
+ *
+ * Returns null when no window has ever been declared — nothing to spend against yet, which
+ * wealthWithDm() reads as "every downtime purchase so far is an unfunded overdraft", the
+ * same honest-zero-balance behaviour an unfunded gold wallet already has.
+ */
+export function resolveDowntimeWindow(opts) {
+  const o = opts || {};
+  if (o.campaignActive) return o.campaignWindow || null;
+  let found = null;
+  (Array.isArray(o.events) ? o.events : []).forEach(e => {
+    if (e && e.type === 'wealth' && e.payload && e.payload.days != null) {
+      found = { days: Number(e.payload.days) || 0, startTs: Number(e.ts) || 0 };
+    }
+  });
+  return found;
+}
+
+/**
+ * Compose a wealthLedger() with the DM-held gold pool and the resolved downtime window, for
+ * display. The gold-and-downtime twin of earnedWithDm() — a campaign character's real
+ * balance is server-side (characters.gold, and the campaign's downtime declarations), which
+ * a pure log function structurally cannot see — but gold and downtime compose differently
+ * from each other here, matching how differently they behave (owner, feat/tool-coin-time-costs
+ * revision):
+ *
+ *   GOLD banks. `gpLeft` is ALL-TIME cumulative — (the ledger's own gpGranted, i.e. a solo
+ *   player's self-declared income, plus any extra `dmGold`) minus ALL gold ever spent. This
+ *   is exactly the original, unrevised behaviour; nothing about gold changed.
+ *
+ *   DOWNTIME does not bank. "The time should not keep adding up... spend it now or wait till
+ *   another opportunity" — so `daysLeft` is `opts.window.days` minus ONLY the downtime spent
+ *   ON OR AFTER `opts.window.startTs`, read from `ledger.entries` (each purchase's own `ts`),
+ *   never from the ledger's all-time `daysSpent` total. That total is still returned, for
+ *   history/ledger display — it is simply the wrong figure for "how much of THIS window is
+ *   left", which is the only thing `daysLeft` means now.
+ *
+ * `opts.window` is resolveDowntimeWindow()'s return value. null (no window ever declared)
+ * means `daysLeft` is 0 minus all-time downtime spend — every past downtime purchase reads
+ * as an immediate, unfunded overdraft, matching how a gold wallet with nothing granted
+ * already behaves.
+ *
+ * `gpLeft`/`daysLeft` may legitimately go NEGATIVE — that is the soft warning the tools
+ * render, not an error state. A DM can hand a player an ability and settle the coin (or the
+ * calendar) later, and §17 explicitly allows waiving costs after the fact; clamping to zero
+ * here would hide exactly the overdraft a player needs to see.
+ */
+export function wealthWithDm(ledger, opts) {
+  const _opts = opts || {};
+  const dmGold = Number(_opts.dmGold) || 0;
+  const l = ledger || {};
+  const gpGranted = (Number(l.gpGranted) || 0) + dmGold;
+  const gpSpent = Number(l.gpSpent) || 0;
+  const daysSpent = Number(l.daysSpent) || 0;   // all-time total — history/display only, see header
+
+  const win = _opts.window || null;
+  const windowDays = win ? (Number(win.days) || 0) : 0;
+  const entries = Array.isArray(l.entries) ? l.entries : [];
+  const daysSpentInWindow = win
+    ? entries.reduce((s, e) => s + (((Number(e.ts) || 0) >= (Number(win.startTs) || 0)) ? (Number(e.days) || 0) : 0), 0)
+    : daysSpent;   // no window ever declared: every downtime purchase so far is unfunded
+
+  return {
+    gpGranted, gpSpent, gpLeft: gpGranted - gpSpent,
+    windowDays, daysSpentInWindow, daysLeft: windowDays - daysSpentInWindow,
+    daysSpent,
+  };
+}
+
+/**
+ * tradeCoinTime(cost, mode) — §16, "Trading coin for time". "Pay roughly three times the
+ * gold to halve the downtime a purchase demands, or accept triple the downtime to cut its
+ * gold cost by half."
+ *
+ * mode 'goldForTime' spends coin to buy back weeks; 'timeForGold' spends calendar to save
+ * coin. Returns a fresh {gp, days} — the caller stamps it onto the purchase event as the
+ * frozen `gp`/`days`, which is what makes the trade survive a later band change.
+ *
+ * Rounds gold UP and downtime DOWN to whole units, so the halving never hands the player a
+ * fractional coin and never leaves a stray part-day on the calendar. "The rate is steep on
+ * purpose: a convenience, never a shortcut" — and the guide's own framing ("roughly",
+ * "the DM sets the exact exchange, and may refuse it outright") is why this returns a
+ * suggestion the UI presents rather than a value it imposes.
+ */
+export function tradeCoinTime(cost, mode) {
+  const r = DATA.economyTradeRates[mode];
+  if (!r || !cost) return null;
+  return {
+    gp:   Math.ceil((Number(cost.gp)   || 0) * r.goldMult),
+    days: Math.floor((Number(cost.days) || 0) * r.timeMult),
+    mode,
+  };
+}
+
+/**
+ * formatDowntime(days) — a day count in the Players Guide's own vocabulary.
+ *
+ * The bands print "6 weeks", "3 months", "2 years"; a SUMMED balance rarely lands on a
+ * band row, so this renders at most the two largest non-zero units (year, month, week,
+ * day) — "1 year 4 months" rather than "500 days", which no player would parse at the
+ * table. Month = 30 days and year = 365, matching js/economy-bands.js; the arithmetic is
+ * a display convenience, not a calendar.
+ */
+export function formatDowntime(days) {
+  const d = Math.round(Number(days) || 0);
+  if (!d) return 'None';
+  const sign = d < 0 ? '-' : '';
+  let rem = Math.abs(d);
+  const parts = [];
+  // Under two months, skip the month unit entirely and render in weeks. Without this, a 42-day
+  // balance printed "1 month 1 week" while the band row it came from says "6 weeks" — the same
+  // quantity in two vocabularies, on the same screen. The bands themselves only reach for months
+  // at 90 days, so this threshold keeps the summed balance speaking the band's own language.
+  const units = rem < 60 ? [['week', 7], ['day', 1]] : [['year', 365], ['month', 30], ['week', 7], ['day', 1]];
+  for (const [unit, size] of units) {
+    const n = Math.floor(rem / size);
+    if (n) { parts.push(n + ' ' + unit + (n === 1 ? '' : 's')); rem -= n * size; }
+    if (parts.length === 2) break;
+  }
+  return sign + parts.join(' ');
+}
+
+/** "12 AP · 350 gp · 6 weeks" — the one-line price label every tool shows on a purchasable
+ *  item, built here so the three tools cannot format it three different ways. Falls back to
+ *  the AP alone when the economy is off, and omits a zero cost rather than printing
+ *  "0 gp · None", which reads as missing data rather than as free. */
+export function priceLabel(ap, settingOrRules) {
+  const n = Number(ap) || 0;
+  const bits = [n + ' AP'];
+  const c = purchaseCost(n, settingOrRules);
+  if (c) {
+    if (c.gp) bits.push(c.gp.toLocaleString() + ' gp');
+    if (c.days) bits.push(c.time);
+    if (!c.gp && !c.days) bits.push('free of coin and time');
+  }
+  return bits.join(' · ');
+}
+
 // Replay an append-only event log onto build `b` in place (shared by foldBuild
 // and rebuildStateFromEvents). Returns the activeEvents() snapshot it resolved
 // ({evs, boughtOff}) so callers can tally the economy via _economyFrom() without
@@ -1010,35 +1534,10 @@ function _replay(b, log, onApplied) {
   // lost-purchases) — same idea as _raceTraitLocked/_vigorRankTier just below: record log-only context
   // on the build so compute(), which only ever sees `b`, can itemize it without re-deriving anything.
   b._lostPurchases = ae.lost;
-  let _locked = false, _spent = 0, _campaignBound = false;
-  // creationLockConfig / creationUnlocked bookkeeping (see the block comment above this function).
-  // _cfgAuto: undefined = "not configured" (legacy: campaignBound alone arms the auto-lock, which is
-  // what fixtures EV-003/EV-007/EV-009 assert); true = armed even without campaignBound (a solo
-  // player opting in); false = explicitly disarmed even WITH campaignBound (a DM switching it off).
-  // _cfgThreshold: null/undefined = fall back to DATA.level1AP, preserving the historical anchor.
-  // _explicitUnlocked: set by creationUnlocked, cleared by a later creationLocked — see below.
-  let _cfgAuto, _cfgThreshold, _explicitUnlocked = false;
+  const _lockAt = _lockStates(evs);
   for (let _i = 0; _i < evs.length; _i++) {
     const e = evs[_i];
-    const _wasLocked = _locked;
-    if (e.type === 'creationLocked') { _locked = true; _explicitUnlocked = false; }
-    else if (e.type === 'creationUnlocked') { _locked = false; _explicitUnlocked = true; }
-    else if (e.type === 'creationLockConfig') {
-      // Last-write-wins. Only fields actually present are updated, so a config event that sets
-      // just a threshold doesn't silently reset `auto` (and vice versa).
-      if (e.payload && Object.prototype.hasOwnProperty.call(e.payload, 'auto')) _cfgAuto = e.payload.auto;
-      if (e.payload && Object.prototype.hasOwnProperty.call(e.payload, 'threshold')) _cfgThreshold = e.payload.threshold;
-      _explicitUnlocked = false;   // re-configuring re-arms: a DM setting a new threshold means "this applies again"
-    }
-    else if (e.type === 'campaignBound') _campaignBound = true;
-    else if (!e.noLock) _spent += _spendCost(e);
-    // Automatic threshold lock. Armed when explicitly opted in (_cfgAuto===true) or, absent any
-    // config, by campaign membership (the legacy behaviour). _cfgAuto===false disarms both.
-    // Suppressed while _explicitUnlocked, so a DM's unlock isn't instantly undone by a character
-    // already sitting over the threshold — the unlock grants creation room until re-armed.
-    const _autoArmed = _cfgAuto === undefined ? _campaignBound : !!_cfgAuto;
-    const _thr = (_cfgThreshold === undefined || _cfgThreshold === null) ? DATA.level1AP : _cfgThreshold;
-    if (_autoArmed && !_explicitUnlocked && _spent > _thr) _locked = true;
+    const _wasLocked = _lockAt[_i];
 
     if (e.type === 'name') { b.name = e.name; continue; }
     if (e.type === 'names') { MUT.names(b, e); continue; }   // names take the whole event

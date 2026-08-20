@@ -260,6 +260,53 @@ likelihood are both minimal (one `<link>` tag, `git revert`-able, no rules or pl
 `diff <pact-guide master> docs/PACT-Players-Guide.html` is still clean — or the task is closed as
 won't-fix with the reasoning recorded in `DECISIONS.md`.
 
+## Investigate a DM-side per-purchase discount or waiver — TODO
+Branch `feat/economy-purchase-discount`. Follows the gold-and-downtime economy
+(`D-GH-2026-08-19-tool-coin-time-costs`). **Deliberately deferred, not forgotten** — the owner chose the
+workaround at build time, and it may well be the permanent answer. Revisit only if it chafes in real play.
+
+**What is missing.** There is no way for a DM to discount ONE named purchase. The rules assume it:
+§16's "Mentors, specialists, and rare resources" (a legendary mentor waives the gold on Sneak Attack)
+and §17's "the DM can waive or reduce any cost at any time, AP, gold, or downtime".
+
+**Why it was deferred.** The DM grants the gold back with a note, which balances exactly — the character
+spends 350 gp and receives 350 gp, net zero, power unchanged. Note the trap this avoids: granting **AP**
+instead is NOT equivalent. AP is the power currency, so covering a gold cost with AP leaves the gold
+still owed *and* hands the character spare AP for something else — it converts a brake into an
+accelerator. The DM Console's Award AP form already takes gold directly (`award_gold`), plus
+per-character bonus downtime (`declare_downtime`), so the correct move is one step, not a workaround
+with friction.
+
+**Two levels — investigate both before building either.**
+
+*Display-only.* Surface what the engine already computes. `wealthLedger().entries` carries `discounted`,
+`listGp` and `listDays` per purchase, and **no tool reads `entries[]` at all** — the Live Sheet builds its
+history ledger straight from `LOG` using each event's own frozen `gp`/`days`. So a purchase that did not
+pay list price shows its adjusted figures with no indication that they *are* adjusted; this already
+affects any player who took §16's coin-for-time trade. Showing "paid 175 gp (list 350)" needs no SQL, no
+new event type, and no engine change — the fields are retained for exactly this (see the comment at
+`wealthLedger()`'s `entries.push`).
+
+*A DM-settable discount.* **Do NOT build this by amending the purchase event.** The LOG is append-only,
+and `dm_edit_character_log` deliberately allowlists only `buy/cat:boon`, `buy/cat:drawback`, `award` and
+`dmRemoveBoon` — its own header says it "is deliberately not a general editor", and widening it to let a
+DM rewrite arbitrary purchase events would hand the console the general log editor that RPC exists to
+refuse. Follow the pattern `buyoff`/`dmRemoveBoon` already establish instead: a LATER event that modifies
+an earlier purchase without editing it, resolved by matching inside `activeEvents()`. Sketch — a
+`dmAdjustCost` event carrying a reference plus the new `gp`/`days`, resolved into an overrides map that
+`wealthLedger()` consults BEFORE the event's own frozen figures, which in turn fall back to list price.
+Touches: engine (`activeEvents`/`_paidFor`/`wealthLedger`), a migration extending the allowlist, DM
+Console UI, Live Sheet ledger display, and `testing/scripts/economy-ui-e2e.mjs`.
+
+**Weigh the rules framing first.** §16 calls mentor discounts "adventure rewards, not a shopping
+option… The point is to make training a story, not a transaction." A DM typing a number into a form may
+be the wrong texture for that rule entirely, which is a real case for staying on the grant-back
+workaround permanently rather than a reason to delay.
+
+**Done when:** a decision record (or an addendum on `D-GH-2026-08-19-tool-coin-time-costs`) states which
+of the three governs and why — including "the workaround is the answer" as a legitimate outcome — and, if
+either build option is chosen, it ships with `testing/scripts/economy-ui-e2e.mjs` covering it.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.

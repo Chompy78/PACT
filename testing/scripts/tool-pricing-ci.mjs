@@ -1010,6 +1010,27 @@ try {
       renderLedger(compute(b),b);const o=sect('Boons');
       return [o.items.length,o.sum===o.line];})()`), [2, true]);
 
+  // feat/drawbacks-phobias-expansion (v0.357): Mana Leak's penalty (disadvantage on concentration) can
+  // only land on a character who casts. Priced for a caster it is free AP for a Fighter, and one number
+  // cannot serve both — so DATA.drawbackReq gates it rather than the price trying to. These fail against
+  // the ungated engine: without the check, the non-caster case produces no warning at all.
+  console.log('\nCharGen — a caster-only drawback is gated, not merely priced');
+  check('a non-caster taking Mana Leak trips the HARD (⛔) violation marker',
+    await cg.evaluate(`(()=>{const b=readBuild();b.drawbacks=['Mana Leak'];b.traditions=[];
+      return compute(b).warnings.filter(w=>w.indexOf('Mana Leak')>=0);})()`),
+    ['⛔ Mana Leak: requires at least one spellcasting discipline']);
+  check('a character with a spellcasting discipline takes it cleanly',
+    await cg.evaluate(`(()=>{const b=readBuild();b.drawbacks=['Mana Leak'];
+      b.traditions=[{disciplines:[{name:'Warlock'}]}];
+      return compute(b).warnings.filter(w=>w.indexOf('Mana Leak')>=0).length;})()`), 0);
+  check('the gate is data-driven — an ungated drawback is untouched for the same non-caster',
+    await cg.evaluate(`(()=>{const b=readBuild();b.drawbacks=['Crawling Things'];b.traditions=[];
+      return compute(b).warnings.filter(w=>w.indexOf('Crawling Things')>=0).length;})()`), 0);
+  check('it still pays its 2 AP once the requirement is met',
+    await cg.evaluate(`(()=>{const b=readBuild();b.traditions=[{disciplines:[{name:'Warlock'}]}];
+      b.drawbacks=[];const before=compute(b).spendable;b.drawbacks=['Mana Leak'];
+      return compute(b).spendable-before;})()`), 2);
+
   // feat/ledger-show-lost-purchases (D-GH-2026-08-10): the reconciliation gate the task itself asks
   // for — a bought-off drawback (or a DM-removed boon) drops OUT of the fold entirely, so compute()'s
   // OWN lines can't show it; before this feature the AP it cost was invisible to compute().total while
