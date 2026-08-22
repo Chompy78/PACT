@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-22 · feat(dm-console): "Current co-DMs" list with a Remove action** — the console let a DM
+  withdraw an *unredeemed* co-DM invite, but once someone actually redeemed one and joined the campaign,
+  there was no way to see who currently had DM access or undo a mistaken/compromised grant. Wires the
+  already-existing, already-owner-gated `getCampaignDms()`/`removeDm()` (`js/campaign.js`) — a
+  `SECURITY DEFINER` RPC that independently re-checks ownership server-side — into a new owner-only
+  panel tile, same gating pattern as "Archive campaign". Remove asks for confirmation naming the co-DM
+  and the consequence. 4 new `tool-pricing-ci.mjs` checks (rendering/escaping on synthetic data, the
+  confirm+RPC-call wiring, decline-leaves-it-alone) — 167/0. `D-GH-2026-08-22-dm-console-codm-revoke-ui`.
+
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
 - **2026-08-22 · fix(engine): four pricing edge cases from the 2026-08-22 audit — `DATA.version` v0.358 →

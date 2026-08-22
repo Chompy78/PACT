@@ -27,36 +27,6 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## DM Console has no UI to see or revoke an already-redeemed co-DM's access — TODO
-Branch `feat/dm-console-codm-revoke-ui`. `tools/DM-Console.html:2652` (imports) — pulls in
-`createDmInvite`/`redeemDmInvite`/`listCampaignInvites`/`setInviteRevoked` but never `removeDm`/
-`getCampaignDms`, both of which already exist and are exported from `js/campaign.js` (verified: grep for
-either across the whole file returns nothing; grep of `js/campaign.js`'s exports confirms both are
-implemented and unused). The console lets a DM withdraw an *unredeemed* invite, but once someone has
-actually redeemed one and joined `campaign_dms`, there is no way to see who currently has DM access to a
-campaign or remove them. Given this project's own history with the invite/join privilege-escalation bug
-(hardened, see `fix/harden-invitation-system` in `CHANGELOG.md`), this is a real follow-on gap: even after
-hardening issuance, a campaign owner has no console control to undo a mistaken or compromised grant.
-
-**Effort:** medium · **Risk:** low — the backend RPCs already exist and are presumably already correctly
-gated (owner-only) since they were built for this purpose; this is UI wiring, not a new security surface.
-Confirm the gating on `removeDm` server-side before shipping the button regardless — don't assume from the
-function's existence alone.
-
-```text
-1. Confirm removeDm()'s server-side authorization (owner-of-campaign only) before wiring a UI to it —
-   check the RPC/RLS it calls, not just the JS function signature.
-2. Add a "Co-DMs" list to the campaign panel (via getCampaignDms), gated the same way existing owner-only
-   controls in this file already are.
-3. Add a "Remove" action per entry (via removeDm), with a confirm() given this revokes real access.
-4. cloud-e2e or a manual signed-in verification: a removed co-DM's session loses DM access immediately
-   (or on next auth check, whichever this project's session model actually provides — confirm, don't
-   assume).
-```
-
-**Done when:** a campaign owner can see every current co-DM and remove one, the removal is confirmed
-server-side authorized, and removal is verified to actually revoke access (not just hide the row).
-
 ## "Archived campaign is read-only" is enforced client-side only — the DM-write RPCs have no matching check — TODO
 Branch `fix/archived-campaign-rpc-enforcement`. `tools/DM-Console.html:2299-2305, 2545-2548` plus six more
 `_dmPeekActive`-style guard sites scattered across click handlers. Cross-checked against the actual

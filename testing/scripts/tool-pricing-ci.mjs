@@ -1477,6 +1477,70 @@ try {
       return [calls, blocked];})()`),
     [0, 3]);
 
+  // feat/dm-console-codm-revoke-ui (2026-08-22): the "Current co-DMs" list, driven by
+  // window._dmCoDmsTest (same synthetic-data test-seam shape as window._dmPartyDowntimeTest above) —
+  // no live Supabase backend or sign-in needed, since renderCoDms()/the remove-button click handler
+  // are pure DOM given synthetic rows plus a stubbed window._campBridge.removeDm.
+  console.log('\nDM Console — the "Current co-DMs" list renders escaped and wires the Remove button correctly');
+  check('renders one row per co-DM, escaped, with a name and a Remove button',
+    await dm.evaluate(`(()=>{
+      window._dmCoDmsTest.setRows([
+        {dm_id:'dm-1', name:'<img src=x onerror=window.__xss=1>', added_by:'owner-1', created_at:'2026-08-01T00:00:00Z'},
+        {dm_id:'dm-2', name:'Sam', added_by:'owner-1', created_at:'2026-08-05T00:00:00Z'}
+      ]);
+      window.__xss = 0;
+      window._dmCoDmsTest.render();
+      const list = document.getElementById('campCoDmsList');
+      const rows = list.querySelectorAll('.codmrow');
+      const btns = list.querySelectorAll('.codm-remove-btn');
+      const containsRawTag = list.innerHTML.indexOf('<img src=x') !== -1;
+      return [rows.length, btns.length, containsRawTag, window.__xss,
+              btns[0].getAttribute('data-cid'), btns[1].getAttribute('data-cid')];})()`),
+    [2, 2, false, 0, 'dm-1', 'dm-2']);
+  check('an empty co-DM list shows a placeholder, not a blank panel',
+    await dm.evaluate(`(()=>{
+      window._dmCoDmsTest.setRows([]);
+      window._dmCoDmsTest.render();
+      const list = document.getElementById('campCoDmsList');
+      return [list.querySelectorAll('.codmrow').length, list.textContent.length > 0];})()`),
+    [0, true]);
+  check('clicking Remove confirms, then calls removeDm(campaignId, dm_id) and reloads the list',
+    await dm.evaluate(`(()=>{
+      window._dmSetCampIdTest('camp-codm-test');
+      window._dmCoDmsTest.setRows([{dm_id:'dm-9', name:'Riva', added_by:'owner-1', created_at:'2026-08-10T00:00:00Z'}]);
+      window._dmCoDmsTest.render();
+      let captured = null, confirmed = null, reloadCalls = 0;
+      const realRemove = window._campBridge.removeDm;
+      window._campBridge.removeDm = (campId, dmId) => { captured = [campId, dmId]; return Promise.resolve(); };
+      const realConfirm = window.confirm; window.confirm = (m) => { confirmed = m; return true; };
+      const realGet = window._campBridge.getCampaignDms;
+      window._campBridge.getCampaignDms = () => { reloadCalls++; return Promise.resolve([]); };
+      const btn = document.querySelector('#campCoDmsList .codm-remove-btn[data-cid="dm-9"]');
+      btn.click();
+      return Promise.resolve().then(() => new Promise(r => setTimeout(r, 50))).then(() => {
+        window._campBridge.removeDm = realRemove; window.confirm = realConfirm;
+        window._campBridge.getCampaignDms = realGet; window._dmSetCampIdTest(null);
+        if (!captured) return 'not called';
+        return [captured[0], captured[1], !!confirmed, reloadCalls];
+      });})()`),
+    ['camp-codm-test', 'dm-9', true, 1]);
+  check('declining the confirmation does not call removeDm',
+    await dm.evaluate(`(()=>{
+      window._dmSetCampIdTest('camp-codm-test-2');
+      window._dmCoDmsTest.setRows([{dm_id:'dm-8', name:'Nox', added_by:'owner-1', created_at:'2026-08-11T00:00:00Z'}]);
+      window._dmCoDmsTest.render();
+      let calls = 0;
+      const realRemove = window._campBridge.removeDm;
+      window._campBridge.removeDm = () => { calls++; return Promise.resolve(); };
+      const realConfirm = window.confirm; window.confirm = () => false;
+      const btn = document.querySelector('#campCoDmsList .codm-remove-btn[data-cid="dm-8"]');
+      btn.click();
+      return Promise.resolve().then(() => new Promise(r => setTimeout(r, 20))).then(() => {
+        window._campBridge.removeDm = realRemove; window.confirm = realConfirm; window._dmSetCampIdTest(null);
+        return calls;
+      });})()`),
+    0);
+
   // feat/ap-model-reconcile: a fully DM-funded character (0 in their own log, ignore_player_ap on)
   // used to show apLevel 0 (trackLevel(eco.earned) alone). earnedWithDm() fixes it identically to the
   // Live Sheet, reusing the same engine export — not a second, independently-drifting fix.

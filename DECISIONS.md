@@ -10,6 +10,16 @@
 
 ## Index
 
+## D-GH-2026-08-22-dm-console-codm-revoke-ui — a "Current co-DMs" list with a Remove action
+- The console could withdraw an unredeemed co-DM invite but had no way to see or remove someone who had
+  already redeemed one and become a co-DM — a real gap given this project's history with the invite/join
+  privilege-escalation bug. `removeDm()`/`getCampaignDms()` already existed in `js/campaign.js`, unused;
+  verified server-side authorization directly (the RPC is `SECURITY DEFINER` and independently re-checks
+  `is_campaign_owner()`, plus blocks removing the owner) before wiring any UI to it. New owner-only panel
+  tile, gated the same way "Archive campaign" already is; Remove confirms first. 4 new synthetic-data
+  tests (no live backend needed) cover rendering/escaping and the confirm+RPC wiring — 167/0. Full
+  record: `decisions/2026/D-GH-2026-08-22-dm-console-codm-revoke-ui.md`.
+
 ## D-GH-2026-08-22-engine-pricing-edge-cases — four js/engine.js pricing edge cases, DATA.version v0.358 → v0.359
 - Attunement/Ki/Sorcery points could go free or refund AP once bought past their price tables' last
   entry (live-reachable via Live Sheet's ordinary buy buttons, no gate stops long play from reaching
