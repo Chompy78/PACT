@@ -6,6 +6,23 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(dm-console): a stale campaign-switch response could clobber the newly-selected
+  campaign's invites/warnings and party-downtime data** — found while investigating a CI failure on
+  the `preview`→`main` promotion PR: `dm-console-ui-e2e.mjs`'s invite-warnings-banner tests failed
+  twice in CI (reproducing identically) while passing 96/96 locally on the same commit — traced to a
+  genuine race, not a flake. `loadInvites()`/`loadRoster()`/`_refreshDowntimeWindows()` are triggered
+  fire-and-forget by the focus/visibilitychange auto-refresh listeners, with no guard against their
+  result landing after the DM has switched (or deselected) campaigns; a slow response for the OLD
+  campaign would overwrite `_invites`, the roster, `window._dmPartyWindow` and
+  `window._dmDowntimeWindows` with stale data after the NEW campaign already rendered correctly.
+  Fixed with a shared `_isCurrentCamp(id)` guard re-checked after every await before any DOM/global
+  write. Caught mid-fix by `/code-review`: the first draft's guard in `_refreshDowntimeWindows` came
+  too late — the party-window assignment happened *inside* the awaited expression, before the check
+  ever ran — corrected to resolve into a local first, then conditionally commit to the global.
+  Verified against both races directly (a stale response deliberately made to land after a campaign
+  switch, confirmed to leak without the fix and stay contained with it) — `dm-console-ui-e2e.mjs`
+  96/96, `economy-ui-e2e.mjs` 155/155, `engine-parity-ci.mjs` 52/52, `chargen-flows-e2e.mjs` 66/66.
+  `D-GH-2026-08-22-dm-console-stale-campaign-switch-race`.
 - **2026-08-22 · fix(chargen): DM-copy AP snapshot could bleed into an unrelated character's budget
   (`/code-review` catch)** — two independent review passes on the AP-snapshot fix below found it left
   `window._cgCopySourceAp` (now budget-relevant) uncleared by `_cgResolveDmApStatus()`, the function

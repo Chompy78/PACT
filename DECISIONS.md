@@ -10,6 +10,19 @@
 
 ## Index
 
+## D-GH-2026-08-22-dm-console-stale-campaign-switch-race — a stale campaign-switch response could clobber the newly-selected campaign's data
+- Found while investigating a `dm-console-ui-e2e.mjs` CI failure on the `preview`→`main` promotion PR
+  (#446) that reproduced identically twice in CI but passed locally: `loadInvites()`/`loadRoster()`/
+  `_refreshDowntimeWindows()` are triggered fire-and-forget by focus/visibilitychange auto-refresh
+  listeners with no guard against the DM switching (or deselecting) campaigns while a fetch is still in
+  flight — a slow response for the OLD campaign could overwrite `_invites`, the roster, and the party
+  downtime globals with stale data after the NEW campaign already rendered correctly. Fixed with a
+  shared `_isCurrentCamp(id)` guard re-checked after every await boundary before any DOM/global write.
+  A code-review pass caught a real near-miss mid-fix: the first draft's assignment happened *inside* the
+  awaited expression, before its own staleness check ever ran. Landed as its own PR into `preview`
+  (not bundled into the promotion PR) per `docs/VERSION-SYNC.md`. Full record:
+  `decisions/2026/D-GH-2026-08-22-dm-console-stale-campaign-switch-race.md`.
+
 ## D-GH-2026-08-22-dm-screen-generic-award-ap — generic Award AP tile, banned-drawback grid staleness fix, disabled-item contrast fix
 - New tick-list "Award AP" sub card on DM Console's master card (under the campaign selector, above
   Owner settings) — tick any number of roster characters, one amount + note, one Award action, awarded

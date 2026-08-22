@@ -2777,6 +2777,12 @@ document.addEventListener('campaign-ready', function () {
   var currentCampaigns = [];
   var archivedCampaigns = [];
   var currentCampId = null;
+  // Shared by every stale-response guard below (loadInvites/_refreshDowntimeWindows/loadRoster) — a
+  // fire-and-forget fetch started for one campaign whose result lands after the DM has switched (or
+  // deselected) must not overwrite the now-current campaign's data. One helper so a future guard site
+  // can't hand-copy the comparison and drift (found by /code-review: the first draft of these three
+  // guards already used two different local-variable names for the same check).
+  function _isCurrentCamp(id){ return id === currentCampId; }
   var currentHouseRules = {};
   var _dmWasSignedIn = false;
 
@@ -3803,12 +3809,21 @@ document.addEventListener('campaign-ready', function () {
 
   async function loadInvites(){
     if(!currentCampId || !inviteList) return;
+    // Stale-response guard: this fires from the auto-refresh listeners (focus/visibilitychange) below,
+    // fire-and-forget, with no cancellation — if the DM switches campaigns (or the panel deselects)
+    // while this fetch is in flight, a late resolve/reject must not overwrite the NOW-current
+    // campaign's _invites with an old campaign's data (or a stale error). forCampId pins which
+    // campaign THIS call is for; only apply the result if currentCampId still matches it afterward.
+    var forCampId = currentCampId;
     inviteList.textContent = 'Loading…';
     try {
-      _invites = await B.listCampaignInvites(currentCampId);
+      var rows = await B.listCampaignInvites(forCampId);
+      if(!_isCurrentCamp(forCampId)) return;
+      _invites = rows;
       renderInvites();
       renderDmInvites();
     } catch(err){
+      if(!_isCurrentCamp(forCampId)) return;
       // Both panels share one fetch/one _invites array, so a failure here must clear BOTH -- otherwise
       // the co-DM panel silently keeps showing whatever it last rendered (possibly a different
       // campaign's data, right after a switch) with no sign anything failed (code-review, 2026-08-09).
@@ -4189,14 +4204,27 @@ document.addEventListener('campaign-ready', function () {
   // Non-fatal per character, mirroring _lsResolveDmAp's tolerance in the Live Sheet: a network
   // hiccup on one lookup must not blank out the whole roster's downtime display.
   async function _refreshDowntimeWindows(campId, characterIds){
+    // Stale-response guard (code-review finding on the loadRoster()/loadInvites() fix above): this
+    // writes window._dmPartyWindow/window._dmDowntimeWindows — shared caches dmToolsBody()/the party
+    // control read SYNCHRONOUSLY at render time — so a slower, now-superseded call for an OLD campId
+    // must not clobber them after a newer, faster call for the CURRENT campaign already populated
+    // them correctly. loadRoster()'s own campId!==currentCampId check happens AFTER this returns,
+    // which is too late for these globals; guarded at every await boundary here instead.
+    if(!_isCurrentCamp(campId)) return;
     window._dmPartyWindow = null;
     window._dmDowntimeWindows = {};
     var rules = (window._dmCampaignApRules && window._dmCampaignApRules.rules) || {};
     var band = window._engineEcon ? window._engineEcon.economySetting(rules) : 'off';
     if(band === 'off' || !campId) return;
-    try { window._dmPartyWindow = await B.getDowntimeWindow(campId, null); } catch(e){ /* leave null — treated as "no window declared" */ }
+    // Resolved into a LOCAL first, not straight into window._dmPartyWindow: assigning inside the
+    // awaited expression itself would write the global before the staleness re-check below ever ran
+    // (caught live — an earlier version of this guard did exactly that and still leaked stale data).
+    var partyWindow = null;
+    try { partyWindow = await B.getDowntimeWindow(campId, null); } catch(e){ /* leave null — treated as "no window declared" */ }
+    if(!_isCurrentCamp(campId)) return;
+    window._dmPartyWindow = partyWindow;
     await Promise.all((characterIds||[]).map(function(cid){
-      return B.getDowntimeWindow(campId, cid).then(function(w){ window._dmDowntimeWindows[cid] = w; })
+      return B.getDowntimeWindow(campId, cid).then(function(w){ if(_isCurrentCamp(campId)) window._dmDowntimeWindows[cid] = w; })
         .catch(function(){ /* leave unset for this one character; the rest still render */ });
     }));
   }
@@ -4234,8 +4262,13 @@ document.addEventListener('campaign-ready', function () {
   async function loadRoster(campId){
     campRoster.innerHTML = '<div class="camp-empty">Loading…</div>';
     var rows;
-    try { rows = await B.getRoster(campId); } catch(err){ campRoster.innerHTML='<div class="camp-empty">Error: '+esc(err.message)+'</div>'; return; }
+    // Stale-response guard, same reasoning as loadInvites() above — this also fires from the
+    // focus/visibilitychange auto-refresh with no cancellation, and has TWO awaits a campaign switch
+    // can land between; re-check campId against currentCampId after each before touching the DOM.
+    try { rows = await B.getRoster(campId); } catch(err){ if(!_isCurrentCamp(campId)) return; campRoster.innerHTML='<div class="camp-empty">Error: '+esc(err.message)+'</div>'; return; }
+    if(!_isCurrentCamp(campId)) return;
     await _refreshDowntimeWindows(campId, rows.map(function(r){ return r.id; }));
+    if(!_isCurrentCamp(campId)) return;
     _renderPartyDowntime();
     _paintRoster(rows);
   }
