@@ -71,3 +71,24 @@ calling the shared `render()` dispatcher instead (same function the view-toggle 
 which re-checks the active view (`view==='table'|'custom'|else`) and repaints whichever one is
 actually on screen. See `CHANGELOG.md` for the matching entry; `testing/tests/engine-parity.html` is
 unaffected (52 passed / 0 failed, unchanged by a DM-Console-only UI fix).
+
+## 5. "Copy to CharGen" showed 0 DM AP and read as falsely over budget
+
+Second bug found along the way: opening a character in CharGen from DM Console's **"📋 Copy to
+CharGen"** button (distinct from the correctly-working, genuinely-live-and-read-only "👁 View" button,
+which opens the Live Sheet instead) showed no DM-granted AP and read as over budget for any character
+that had spent DM AP — because `_cgResetCloudApState()` deliberately zeroes DM AP for this disconnected
+sandbox copy (so it can never write back to the live campaign), but `_cgConsumeViewChar()` already
+captures the source's real AP for display (`window._cgCopySourceAp`) — it just was never fed into the
+budget math (`_cgDmOpts()`).
+
+Put three options to the owner: (A) do nothing, use "👁 View" instead (already correct, but doesn't
+help if the owner specifically wants CharGen's editable UI); (B) feed the already-captured frozen
+snapshot into the copy's budget math; (C) the owner's own proposal, a live-reading second/shadow
+campaign so a copy's DM AP tracks the source over time. Owner chose **B**. Implemented in
+`tools/PACT-CharGen-Webtool.html`: `_cgDmOpts()` now returns the frozen `window._cgCopySourceAp` as
+`dmAp` instead of 0 when the copy has no live campaign binding; `_apSourceHTML()`'s copy-branch
+label/tooltip updated to say the AP now counts (as a frozen snapshot, not live). Full reasoning and
+the rejected-option writeup: `decisions/2026/D-GH-2026-08-10-chargen-dm-view.md`'s 2026-08-22 addendum.
+Display/budget-math only, no `js/engine.js`/`DATA.version` change; `engine-parity-ci.mjs` unaffected
+(52/0).

@@ -6,6 +6,15 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(chargen): "Copy to CharGen" DM sandbox showed 0 DM AP and falsely read as over
+  budget** — the disconnected copy `_cgConsumeViewChar()` makes (`D-GH-2026-08-10-chargen-dm-view`)
+  already captured the source character's real DM AP for display (`window._cgCopySourceAp`), but the
+  copy's own budget math (`_cgDmOpts()`) still fed `compute()` a hardcoded 0, since it gates on
+  `_dmApStatus==='active'` (deliberately false for a disconnected copy). Now feeds the frozen snapshot
+  into the budget when present, so the copy's OVER BUDGET reading matches the real character's; the
+  AP-source tooltip updated to say the DM AP now counts as a frozen snapshot. Considered (and rejected)
+  a live-syncing shadow-campaign alternative — see the decision's 2026-08-22 addendum. Display/budget
+  only, `tools/PACT-CharGen-Webtool.html`, no `js/engine.js`/`DATA` change — parity 52/0.
 - **2026-08-22 · fix(dm-console): removed character kept showing until a manual reload** — the
   unbind-character success handler patched its local `cloudRoster` copy and re-rendered only via
   `renderCloudRoster(el)`, which repaints `#campRoster`'s own card grid but not `#tableRoot` (Table

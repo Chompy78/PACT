@@ -113,3 +113,36 @@ new stored marker — reuses the existing naming convention as the signal. Gated
 (3 checks: shows for a `(DM copy)`-suffixed name at the purple background and NOT the `.warn` class,
 hidden for an ordinary name, clears when the suffix is removed); `engine-parity-ci.mjs` unaffected
 (display-only, no `DATA.version` change).
+
+## Addendum (2026-08-22) — the copy's own budget math ignored the DM AP it displayed
+
+Owner report: opening a character in CharGen via "📋 Copy to CharGen" didn't show its DM-granted AP and
+read as falsely over budget. Root cause: `_cgResetCloudApState()` correctly leaves `_dmApStatus` at
+`'none'` so the copy can never re-bind to the live campaign — but `_cgDmOpts()` gated `dmAp` on that
+same flag, so the copy's `compute()` budget saw **0** DM AP even though `_cgConsumeViewChar()` had
+already captured the source's real total in `window._cgCopySourceAp` for display. The display line
+(`_apSourceHTML()`) correctly said "does not count here"; the budget math just did what it said, which
+is the actual bug — a DM sandboxing a real, DM-funded character had no way to see it as not-over-budget
+short of mental arithmetic.
+
+Considered three depths (put to the owner as lettered options): **A** — do nothing, point DMs at the
+already-correct "👁 View" (Live Sheet, genuinely live and read-only) instead; **B** — feed the frozen
+`window._cgCopySourceAp` snapshot into `_cgDmOpts()`'s `dmAp`, so the copy's budget is correct as of
+the moment it was opened, without re-binding to the campaign; **C** — the owner's own proposal, a
+live-reading second/shadow campaign construct so a copy's DM AP tracks the source campaign over time.
+**Chose B** — it directly fixes the reported symptom (wrong number, wrong over-budget reading) using a
+value the code already captures, with no new schema, no live coupling, and no risk to the "copy can
+never write back to the source" invariant this decision exists to protect. C was rejected as
+disproportionate: it would mean modeling a second kind of campaign membership for what is fundamentally
+a stale-snapshot display gap, and "👁 View" already exists for anyone who needs a live-accurate read
+(A's role) — the two buttons are complementary (live/read-only vs. frozen/editable), not competing
+fixes for the same need.
+
+`_cgDmOpts()` now returns `{dmAp:window._cgCopySourceAp, ...}` (combined with player AP, same as the
+live "active" branch) whenever `_dmApStatus` is `'none'` but a copy snapshot is present, instead of
+`{dmAp:0}`. `_apSourceHTML()`'s copy-branch label/tooltip updated to state the AP now counts, that it's
+a frozen snapshot (won't update if the DM awards more later), and to point at "👁 View" for an
+always-live total. Deliberately does **not** also snapshot the source campaign's `ignore_player_ap`
+rule or drawback cap — always combines player+DM AP, which is the common case; a DM who needs the exact
+live rule should use "👁 View". Display/budget-math only, no `js/engine.js`/`DATA.version` change;
+`engine-parity-ci.mjs` unaffected (52/0). Full record: `docs/sessions/2026-08-22-amble-archer-rename-and-ap-split.md`.
