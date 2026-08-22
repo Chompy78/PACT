@@ -240,6 +240,30 @@ export async function getDowntimeWindow(campaignId, characterId) {
 }
 
 /**
+ * The full downtime declaration history for a campaign (newest first) — every party-base and
+ * per-character bonus declaration ever made, each attributed to the DM who declared it.
+ * declareDowntime() is deliberately insert-only (see its own header), so this is a plain read
+ * of campaign_downtime_declarations — no separate audit table needed. Readable by any campaign
+ * member (player or DM), same as campaign_downtime_declarations_select's RLS.
+ *
+ * @param {string} campaignId
+ * @returns {Promise<Array<{id,characterId,days,note,createdAt,declaredBy,dm}>>} characterId is
+ *   null for a party-base row, set for a per-character bonus row.
+ */
+export async function getDowntimeHistory(campaignId) {
+  const { data, error } = await supabase
+    .from('campaign_downtime_declarations')
+    .select('id, character_id, days, note, created_at, declared_by, dm:profiles!campaign_downtime_declarations_declared_by_fkey(display_name)')
+    .eq('campaign_id', campaignId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(d => ({
+    id: d.id, characterId: d.character_id, days: d.days, note: d.note,
+    createdAt: d.created_at, declaredBy: d.declared_by, dm: d.dm?.display_name || '',
+  }));
+}
+
+/**
  * feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events): append DM-attributed events to a campaign
  * character's own LOG — grant/remove a boon, impose a drawback. `events` must be a non-empty array;
  * a DM-granted boon needs its matched [buy, award] pair passed together so they land in one atomic

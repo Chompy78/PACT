@@ -183,3 +183,52 @@ freeform text doesn't fit that shape; the two text slots stay DM-tools-only, unc
 cells added" — verified live (no extra stat cells rendered when `window._dmCampaignApRules` is null).
 
 `dm-console-ui-e2e.mjs` and `economy-ui-e2e.mjs` both re-run clean (96/96, 155/155) after these changes.
+
+## Addendum (2026-08-22) — party downtime moved next to Award AP; a history added; found "Declare for the party" has never actually worked
+Follow-up request: move the "🕐 Party downtime window" control (previously a bare `.ruleblock` above
+`#campRoster`, inside `#campSection`) down to sit with the Award AP tile, and add a history view — the
+per-character award/AP-history precedent already existed, this control had nothing equivalent.
+
+**The history was straightforward.** `declareDowntime()`'s own header already said why: "Deliberately an
+INSERT-only ledger... the full history stays visible for the story record" — `campaign_downtime_declarations`
+is append-only and its `select` grant/RLS already allow any campaign member to read it (verified in
+`sql/schema.sql`/`sql/rls-policies.sql`), so no migration was needed. Added `getDowntimeHistory(campaignId)`
+to `js/dm.js`, mirroring `getGoldHistory()`'s exact shape (a plain `.from(...).select(...)`, not an RPC) —
+including the `profiles!<table>_<column>_fkey` join for the declaring DM's display name, using Postgres's
+auto-generated FK-constraint-name convention (`campaign_downtime_declarations_declared_by_fkey`), the same
+convention `getGoldHistory`/`getAwardHistory` already rely on for their own tables. Wired a "📒 History"
+button next to "Declare for the party", reusing the same `.hist-modal` (already fixed for dark-mode
+contrast, see the first addendum above) — each row shows date/days/DM/note, plus who it was for: `<b>Party
+base</b>` for a `characterId`-null row, or the resolved character's name + "(bonus)" for a per-character
+bonus row (resolved against `cloudRoster`, same pattern `.hist-btn`/`.unbind-btn` already use).
+
+**The move surfaced a real, pre-existing bug.** `#campDowntime` was a SIBLING of `#campRoster` (both
+direct children of `#campSection`), but its only click handler — `.declare-btn`, inside
+`wireCloudRosterDelegation()` — was delegated on `#campRoster` itself. A click inside a sibling never
+bubbles through a listener on another sibling; DOM event delegation only reaches a listener on an
+ancestor of the clicked element. Verified directly (Playwright, monkey-patched `declareDowntime` to a
+call-tracking stub): clicking "Declare for the party" never invoked it, either before or after this
+move — **this was already broken in the shipped app**, structurally, since the control was written; no
+test ever simulated the click (`economy-ui-e2e.mjs` only asserted the button's presence in rendered
+HTML, never fired it), which is exactly the shape of gap that lets a dead button ship. My first attempt
+at moving the control (relocate the HTML, add the history button, leave the handlers where they were)
+would have shipped the SAME bug relocated, plus a brand-new unreachable history button next to it — caught
+by testing the actual click, not just checking the button rendered.
+
+**Fix:** pulled `.declare-btn` and `.downtime-hist-btn` handling OUT of `wireCloudRosterDelegation()`
+entirely into their own small `wirePartyDowntimeDelegation()`, delegated on `#campDowntimeTile` — a
+stable parent that survives `_renderPartyDowntime()`'s `innerHTML` rebuilds (unlike `#campDowntime`
+itself, whose children get replaced every render). Replicated the same peek-write-guard shape
+`wireCloudRosterDelegation` already applies to `.declare-btn` (a write, must refuse independently of the
+disabled attribute) — `.downtime-hist-btn` gets no such guard, matching `.hist-btn`'s own precedent (a
+read). `campDowntimeTile` was already in `_PEEK_SCOPES` from the move itself, so the visual
+disabled-during-peek state already worked via the existing `_paintRoster()` → `_renderPeekState()`
+re-sweep that runs after every roster repaint (verified: calling the render+re-sweep pair in the same
+order `loadRoster()` uses correctly disables both new buttons; calling the render test-seam alone,
+bypassing that re-sweep, does not — a test-harness-only distinction, not a real gap, confirmed by
+matching `loadRoster()`'s actual call order).
+
+Verified end-to-end (Playwright, monkey-patched `declareDowntime`/`getDowntimeHistory`): declaring now
+actually calls `declareDowntime(campaignId, days, null, note)` with the right arguments, and the History
+button renders real declaration rows correctly labeled Party base vs `<character> (bonus)`.
+`dm-console-ui-e2e.mjs` (96/96) and `economy-ui-e2e.mjs` (155/155) both re-run clean.

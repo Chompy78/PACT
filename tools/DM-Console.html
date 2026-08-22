@@ -562,7 +562,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       <button type="button" class="btn sm" id="refreshRosterBtn" style="margin-left:auto">⟳ Refresh</button>
     </div>
     <div class="tbtoolbar" id="xToolbar" style="display:none"><button class="colbtn" id="xBtn" type="button">🧩 Customise boxes ▾</button><div class="colpanel" id="xPanel"></div></div>
-    <div id="campDowntime"></div>
     <div id="campRoster"><div class="camp-empty">Select a campaign in the panel above to load the live roster.</div></div>
   </div>
 
@@ -620,6 +619,14 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <button type="button" class="btn sm" id="campAwardApBtn">Award</button>
             </div>
             <span id="campAwardApStatus" style="font-size:11px;color:var(--muted)"></span>
+          </div>
+
+          <!-- feat/move-party-downtime-to-camp-panel: was a bare ruleblock above the roster cards
+               (#campSection, before #campRoster) — moved here, next to Award AP, since both are
+               "give the whole party something at once" controls and belong in the same group of
+               campaign-wide DM actions rather than sitting alone above the character grid. -->
+          <div class="subtile" id="campDowntimeTile">
+            <div id="campDowntime"></div>
           </div>
 
           <div class="subtile" id="campOwnerTile">
@@ -2333,30 +2340,6 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         return;
       }
 
-      // The party-wide downtime declaration (Players Guide §16) — replaces the current window for
-      // EVERY character in the campaign at once, so it goes through window._dmReloadRoster (the same
-      // cross-boundary full-refresh bridge feat/dm-edit-events uses) to re-resolve the party base,
-      // every roster character's own composed total, and repaint both the control and the roster in
-      // one pass — a bonus granted under the old window is wiped by this exact same call, on the
-      // server, simply by virtue of get_downtime_window() only ever reading the LATEST base row.
-      var declareBtn = t.closest ? t.closest('.declare-btn') : null;
-      if(declareBtn){
-        var dEl = document.getElementById('campDowntime');
-        var daysEl = dEl && dEl.querySelector('.declare-days');
-        var dNoteEl = dEl && dEl.querySelector('.declare-note');
-        var dStatus = dEl && dEl.querySelector('.declare-status');
-        var days = Math.round(parseFloat(daysEl&&daysEl.value)||0);
-        var dNote = (dNoteEl&&dNoteEl.value||'').trim();
-        var dCampId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
-        if(!daysEl || daysEl.value===''){ alert('Enter the new window size in days.'); return; }
-        declareBtn.disabled = true;
-        B.declareDowntime(dCampId, days, null, dNote).then(function(){
-          declareBtn.disabled = false;
-          if(window._dmReloadRoster) window._dmReloadRoster();
-        }).catch(function(err){ declareBtn.disabled=false; if(dStatus) dStatus.textContent=''; alert('Declare failed: '+err.message); });
-        return;
-      }
-
       // feat/dm-edit-events: all three write events through dm_edit_character_log, then reload the
       // whole roster — a DM edit changes the folded BUILD (which boons/drawbacks the character holds),
       // not just one number the way Award AP does, so a full re-analysis (not a local field patch) is
@@ -2520,6 +2503,95 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     });
   })();
 
+  // Party downtime declare/history (feat/move-party-downtime-to-camp-panel) — its own small delegation,
+  // NOT folded into wireCloudRosterDelegation() above. That one is deliberately scoped to #campRoster
+  // (a click on a roster card), and #campDowntime/#campDowntimeTile now live elsewhere in the DOM
+  // (inside the Campaign panel, next to Award AP) — a sibling of #campRoster, not a descendant of it,
+  // so clicks inside it never bubbled through that listener. (True before this move too, when
+  // #campDowntime sat as #campRoster's sibling directly under #campSection — "Declare for the party"
+  // and its RPC were unreachable by click since the day this control was written; caught fixing this.)
+  // #campDowntimeTile itself is the delegation root (not #campDowntime) because it's stable across
+  // _renderPartyDowntime()'s innerHTML rebuilds — #campDowntime's own children get replaced every call.
+  (function wirePartyDowntimeDelegation(){
+    var el = document.getElementById('campDowntimeTile');
+    if(!el) return;
+    el.addEventListener('click', function(ev){
+      var t = ev.target;
+      var B = window._campBridge;
+      if(!B) return;
+
+      // Same peek-write-guard shape as wireCloudRosterDelegation's — a declaration is a write, must
+      // refuse independently of whatever the disabled attribute says (see _applyPeekLock's own
+      // comment on why "disabled" alone is never trusted for peek).
+      if(window._dmPeekActive && t.closest && t.closest('.declare-btn')){
+        if(window._dmPeekBlocks) window._dmPeekBlocks();
+        return;
+      }
+
+      // The party-wide downtime declaration (Players Guide §16) — replaces the current window for
+      // EVERY character in the campaign at once, so it goes through window._dmReloadRoster (the same
+      // cross-boundary full-refresh bridge feat/dm-edit-events uses) to re-resolve the party base,
+      // every roster character's own composed total, and repaint both the control and the roster in
+      // one pass — a bonus granted under the old window is wiped by this exact same call, on the
+      // server, simply by virtue of get_downtime_window() only ever reading the LATEST base row.
+      var declareBtn = t.closest ? t.closest('.declare-btn') : null;
+      if(declareBtn){
+        var dEl = document.getElementById('campDowntime');
+        var daysEl = dEl && dEl.querySelector('.declare-days');
+        var dNoteEl = dEl && dEl.querySelector('.declare-note');
+        var dStatus = dEl && dEl.querySelector('.declare-status');
+        var days = Math.round(parseFloat(daysEl&&daysEl.value)||0);
+        var dNote = (dNoteEl&&dNoteEl.value||'').trim();
+        var dCampId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
+        if(!daysEl || daysEl.value===''){ alert('Enter the new window size in days.'); return; }
+        declareBtn.disabled = true;
+        B.declareDowntime(dCampId, days, null, dNote).then(function(){
+          declareBtn.disabled = false;
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){ declareBtn.disabled=false; if(dStatus) dStatus.textContent=''; alert('Declare failed: '+err.message); });
+        return;
+      }
+
+      // Party downtime history — every base and per-character bonus declaration ever made for this
+      // campaign, newest first. Same .hist-modal/getXHistory pattern as the per-character AP history
+      // button (wireCloudRosterDelegation, above); the only real difference is resolving each row's
+      // (nullable) character_id to a name for display, since a downtime row can be either the party
+      // base (characterId null) or one character's bonus. Not peek-guarded (a read, same as .hist-btn).
+      var downtimeHistBtn = t.closest ? t.closest('.downtime-hist-btn') : null;
+      if(downtimeHistBtn){
+        var dhCampId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
+        if(!dhCampId) return;
+        B.getDowntimeHistory(dhCampId).then(function(data){
+          var trows = (data||[]).map(function(r){
+            var ts = (r.createdAt||'').slice(0,16).replace('T',' ');
+            var whoCell;
+            if(r.characterId){
+              var rentry = cloudRoster.filter(function(x){return String(x.id)===String(r.characterId);})[0];
+              var whoName = (rentry&&rentry.summary&&rentry.summary.name) || (rentry&&rentry.dm.playerLabel) || 'a character';
+              whoCell = esc(whoName)+' <span style="opacity:.7">(bonus)</span>';
+            } else {
+              whoCell = '<b>Party base</b>';
+            }
+            var dmName = r.dm||'DM';
+            return '<tr><td>'+esc(ts)+'</td><td><b>'+esc(String(r.days))+'</b></td><td>'+whoCell+'</td><td>'+esc(dmName)+'</td><td>'+esc(r.note||'')+'</td></tr>';
+          }).join('');
+          var dmodal = document.createElement('div');
+          dmodal.className = 'hist-modal';
+          dmodal.innerHTML = '<div class="inner">'+
+            '<h3 style="margin:0 0 10px;color:var(--heading)">Party downtime history</h3>'+
+            (trows
+              ? '<table><thead><tr><th>Date</th><th>Days</th><th>For</th><th>DM</th><th>Note</th></tr></thead><tbody>'+trows+'</tbody></table>'
+              : '<p style="color:var(--muted)">No downtime declared yet.</p>')+
+            '<div style="text-align:right;margin-top:12px"><button class="btn sm" onclick="this.closest(\'.hist-modal\').remove()">Close</button></div>'+
+            '</div>';
+          dmodal.addEventListener('click', function(e){ if(e.target===dmodal) dmodal.remove(); });
+          document.body.appendChild(dmodal);
+        }).catch(function(err){ alert('Error: '+err.message); });
+        return;
+      }
+    });
+  })();
+
   /* ---------- boot ---------- */
   function _dmBoot(){
   RULES=(window.DATA&&window.DATA.version)||RULES;
@@ -2559,13 +2631,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
-  import { getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
+  import { getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -2709,7 +2781,7 @@ document.addEventListener('campaign-ready', function () {
   // Campaign-scoped controls only. #campManageTile is deliberately absent — "+ Create campaign" and
   // the Unarchive buttons belong to the DM, not to the campaign being peeked, and locking the way
   // back out would be a trap.
-  var _PEEK_SCOPES = ['campAwardApTile','campOwnerTile','campInviteTile','campDmInviteTile','campRulesTile','campAdvancementTile','campCustomFieldsTile','dmNotesTile','campRoster'];
+  var _PEEK_SCOPES = ['campAwardApTile','campDowntimeTile','campOwnerTile','campInviteTile','campDmInviteTile','campRulesTile','campAdvancementTile','campCustomFieldsTile','dmNotesTile','campRoster'];
 
   /* Shared by _peekLockEls() and _ruleLockEls() below: both are "every input/select/textarea/button
      under these tile ids, plus these extra elements that live outside any tile, minus the ⓘ info
@@ -3411,6 +3483,7 @@ document.addEventListener('campaign-ready', function () {
       // Deselecting a campaign must also clear the cloud roster — see the sign-out branch above for why.
       if(window._dmRenderCloudRoster) window._dmRenderCloudRoster(campRoster, []);
       var _cd = document.getElementById('campDowntime'); if(_cd) _cd.innerHTML = '';
+      var _cdt = document.getElementById('campDowntimeTile'); if(_cdt) _cdt.style.display = 'none';
       setImportPanelDimmed(false);
       return;
     }
@@ -4110,27 +4183,33 @@ document.addEventListener('campaign-ready', function () {
   }
 
   // The party-wide downtime control (Players Guide §16) — ONE declaration for the whole table, not
-  // per-character, which is why it lives here (above the roster) rather than on any one card. Hidden
-  // entirely when the campaign plays with the economy off, same reasoning the award form's gold/
-  // bonus-time fields use.
+  // per-character. Lives in its own subtile (#campDowntimeTile) next to Award AP, both being "give
+  // the whole party something at once" controls — moved there from above the roster cards
+  // (feat/move-party-downtime-to-camp-panel). #campDowntimeTile supplies the box/border now (this
+  // function used to draw its own on the inner ruleblock — dropped to avoid a border-in-a-border);
+  // hidden entirely (both the content AND the wrapping subtile) when the campaign plays with the
+  // economy off, same reasoning the award form's gold/bonus-time fields use.
   function _renderPartyDowntime(){
     var el = document.getElementById('campDowntime'); if(!el) return;
+    var tile = document.getElementById('campDowntimeTile');
     var rules = (window._dmCampaignApRules && window._dmCampaignApRules.rules) || {};
     var band = window._engineEcon ? window._engineEcon.economySetting(rules) : 'off';
-    if(band === 'off' || !currentCampId){ el.innerHTML=''; return; }
+    if(band === 'off' || !currentCampId){ el.innerHTML=''; if(tile) tile.style.display='none'; return; }
+    if(tile) tile.style.display='';
     var fmt = (window._engineEcon && window._engineEcon.formatDowntime) ? window._engineEcon.formatDowntime : function(n){ return n+' days'; };
     var w = window._dmPartyWindow;
     var cur = w ? ('<b>'+esc(fmt(w.days))+'</b> <span style="opacity:.7">declared '+new Date(w.declaredAt).toLocaleDateString()+'</span>')
                 : '<span style="opacity:.7">No window declared yet — every character shows an immediate overdraft until you declare one.</span>';
-    el.innerHTML = '<div class="ruleblock" style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">' +
+    el.innerHTML =
       '<div class="lbl">🕐 Party downtime window <span style="opacity:.7;font-weight:400">— applies to every character in this campaign at once</span></div>' +
       '<div style="margin:4px 0 8px">'+cur+'</div>' +
       '<div class="award-form">' +
       '<input type="number" step="1" class="declare-days" placeholder="days" title="The new window size, in days (1 week = 7, 1 month = 30, 1 year = 365). Replaces the current window for everyone — it does not add to it.">' +
       '<input type="text" class="declare-note" placeholder="note — e.g. &quot;three months pass before the siege&quot;">' +
-      '<button type="button" class="btn sm declare-btn">Declare for the party</button></div>' +
+      '<button type="button" class="btn sm declare-btn">Declare for the party</button>' +
+      '<button type="button" class="btn sm ghost downtime-hist-btn">📒 History</button></div>' +
       '<div style="font-size:11px;opacity:.75;margin-top:3px">Declaring a new window replaces the old one for everyone — unspent time from the last window is gone, not banked. Downtime is in <b>days</b>.</div>' +
-      '<span class="declare-status" style="font-size:11px;color:var(--muted)"></span></div>';
+      '<span class="declare-status" style="font-size:11px;color:var(--muted)"></span>';
   }
 
   async function loadRoster(campId){

@@ -6,6 +6,22 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **🔴 2026-08-22 · fix(dm-console): "Declare for the party" has never actually fired — the click never
+  reached its handler; feat(dm-console): party downtime moved next to Award AP, with a history** — moved
+  the "🕐 Party downtime window" control from a bare ruleblock above the roster cards into its own
+  subtile next to the new Award AP tile, per request, and added a "📒 History" view
+  (`getDowntimeHistory()` in `js/dm.js` — a plain read of the already-append-only
+  `campaign_downtime_declarations` table, no migration needed, same `.hist-modal` pattern as the
+  per-character AP history). Doing the move surfaced a real, already-shipped bug: `#campDowntime` was a
+  DOM **sibling** of `#campRoster`, but its only click handler (`.declare-btn`) was delegated on
+  `#campRoster` itself — a sibling's click never bubbles through another sibling's listener. Verified
+  directly: clicking "Declare for the party" has never called `declareDowntime()`, structurally, since
+  this control was written — nothing ever tested the click itself, only that the button rendered. Fixed
+  by pulling `.declare-btn`/`.downtime-hist-btn` into their own delegation scoped to the new
+  `#campDowntimeTile` (a stable parent across re-renders). Verified end-to-end with a call-tracking stub;
+  peek-lock coverage confirmed via the same re-sweep `_paintRoster()` already performs.
+  `dm-console-ui-e2e.mjs` 96/96, `economy-ui-e2e.mjs` 155/155.
+  `D-GH-2026-08-22-dm-screen-generic-award-ap` (addendum).
 - **2026-08-22 · fix(dm-console): Campaign Rules' three locked cards wrapped into one actual "supercard";
   feat(dm-console): custom fields 1/2 shown on the default Card view** — the earlier same-day unlock-hint
   fix lived inside just one of the THREE cards the rules lock actually covers
