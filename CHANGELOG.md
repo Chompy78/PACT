@@ -6,6 +6,15 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(dm-console): `/code-review high` before merge — unbinding a character left its
+  checkbox stuck in Award AP; a name-fallback chain deduped** — `.unbind-btn` mutated `cloudRoster` and
+  repainted via the internal `renderCloudRoster()`, bypassing the wrapper `renderCampAwardAp()` was
+  hooked into; a removed character's tick-list checkbox lingered until the next full roster load, and
+  awarding while it lingered surfaced a confusing RLS error (`award_ap()` refusing a now campaign-less
+  character). Fixed by moving the `renderCampAwardAp()` call into `renderCloudRoster()` itself so no
+  future caller can reintroduce the gap. Also factored the three-times-duplicated roster display-name
+  fallback into `_rosterDisplayName()`. `dm-console-ui-e2e.mjs` 96/96, `economy-ui-e2e.mjs` 155/155,
+  `engine-parity-ci.mjs` 52/52, `chargen-flows-e2e.mjs` 66/66. `D-GH-2026-08-22-dm-screen-generic-award-ap` (addendum).
 - **🔴 2026-08-22 · fix(dm-console): "Declare for the party" has never actually fired — the click never
   reached its handler; feat(dm-console): party downtime moved next to Award AP, with a history** — moved
   the "🕐 Party downtime window" control from a bare ruleblock above the roster cards into its own

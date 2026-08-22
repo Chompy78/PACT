@@ -232,3 +232,27 @@ Verified end-to-end (Playwright, monkey-patched `declareDowntime`/`getDowntimeHi
 actually calls `declareDowntime(campaignId, days, null, note)` with the right arguments, and the History
 button renders real declaration rows correctly labeled Party base vs `<character> (bonus)`.
 `dm-console-ui-e2e.mjs` (96/96) and `economy-ui-e2e.mjs` (155/155) both re-run clean.
+
+## Addendum (2026-08-22) — `/code-review high` before merge, two findings fixed
+Ran before promoting this branch, per the owner's request. Two findings, both confirmed and fixed:
+
+1. **`.unbind-btn`'s success handler never refreshed the Award AP tick-list.** It mutates `cloudRoster`
+   directly and repaints via the internal `renderCloudRoster(el)` — a call site that predates this
+   branch — not the `window._dmRenderCloudRoster` wrapper `renderCampAwardAp()` was hooked into. A DM
+   who ticked a character in Award AP, then removed that same character from the campaign, would see
+   its checkbox linger — still checked — until the next full `loadRoster()`; awarding while it lingered
+   would send `awardAp()` for a character whose `campaign_id` the unbind RPC had already nulled,
+   surfacing as a confusing "some failed: Character is not in a campaign" batch error. Reviewer traced
+   this all the way through `dm_unbind_character()`/`award_ap()` in `sql/rls-policies.sql` to confirm the
+   exact failure text. Fixed by moving the `renderCampAwardAp()` call INTO `renderCloudRoster()` itself
+   (the shared low-level repaint function both `window._dmRenderCloudRoster` and `.unbind-btn` funnel
+   through) rather than patching the one call site — no future `cloudRoster`-mutating caller of that
+   function can reintroduce the same gap. Verified live: tick two characters, unbind one, confirm only
+   the other remains ticked in the list.
+2. **The roster display-name fallback chain
+   (`dm.playerLabel || summary.name || rowName || 'New Character'`) was typed out identically three
+   times** — the two existing placeholder-card renderers (`cloudCardHTML`/`customCardHTML`) and the new
+   `renderCampAwardAp()`. Factored into one `_rosterDisplayName(rec)` helper; all three call it now.
+
+`dm-console-ui-e2e.mjs` 96/96, `economy-ui-e2e.mjs` 155/155, `engine-parity-ci.mjs` 52/52,
+`chargen-flows-e2e.mjs` 66/66 — all re-run clean after both fixes.

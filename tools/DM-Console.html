@@ -2161,12 +2161,19 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
             customFields: row.customFields || {} }
     };
   }
+  // Shared by every place that needs a cloudRoster record's display name outside its own full
+  // cardHTML() render (a placeholder card, the Award AP tick-list, …) — was three separately-typed
+  // copies of the same fallback chain (found by /code-review); one future new fallback source now
+  // only needs updating here.
+  function _rosterDisplayName(rec){
+    return rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'New Character';
+  }
   // A roster row can exist with no character data yet — e.g. a redeemed invite the player hasn't
   // opened CharGen/Live Sheet from (same "hasData" gap js/sync.js's listMyCharacters() already
   // documents) — show a lightweight placeholder instead of running dmAnalyze() on an empty LOG.
   function cloudCardHTML(rec){
     if(!rec.hasData){
-      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'New Character';
+      var nm = _rosterDisplayName(rec);
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
@@ -2177,6 +2184,14 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   }
   function renderCloudRoster(container){
     if(!container) return;
+    // renderCampAwardAp() lives here (not just in window._dmRenderCloudRoster, its other caller) —
+    // this function is ALSO called directly by write handlers that patch cloudRoster themselves and
+    // repaint without going through the window bridge (e.g. .unbind-btn below). Skipping it here left
+    // a just-removed character's checkbox stuck, still checked, in the Award AP tick-list until the
+    // next full loadRoster() — caught by /code-review, not by any test, since nothing exercised
+    // unbind-then-award together. Centralizing the call here means no future cloudRoster-mutating
+    // caller of this function can reintroduce the same gap.
+    renderCampAwardAp();
     if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; return; }
     container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
   }
@@ -2186,7 +2201,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // character's custom-field values (and everything else DM tools offers) without switching views.
   function customCardHTML(rec){
     if(!rec.hasData){
-      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'New Character';
+      var nm = _rosterDisplayName(rec);
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
@@ -2243,7 +2258,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     }
     if(empty) empty.style.display = 'none';
     el.innerHTML = cloudRoster.map(function(rec){
-      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'New Character';
+      var nm = _rosterDisplayName(rec);
       var ck = prevChecked.has(String(rec.id)) ? ' checked' : '';
       return '<label><input type="checkbox" class="campAwardApChk" value="'+esc(rec.id)+'"'+ck+'> '+esc(nm)+'</label>';
     }).join('');
