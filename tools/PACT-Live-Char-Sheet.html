@@ -652,13 +652,18 @@ function _lsWallet(uptoIdx){
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on
 // (default true when absent/unset — opposite default from ignore_player_ap), who has actually spent
 // past their budget right now. window._cloudCampaignRules is refreshCloudCampaignRules()'s cache — the
-// same rules object window._ignorePlayerAp above is already sourced from. compute() needs no change —
-// remaining<0 already means "over budget". Blocks only the CLOUD save path, never local Save.
+// same rules object window._ignorePlayerAp above is already sourced from. Reads the FROZEN ledger via
+// apAvailable() — NOT compute().remaining, which re-prices every owned item against today's DATA
+// tables and can diverge from what was actually paid (fix/livesheet-budget-gate-frozen-ledger,
+// 2026-08-22: a post-freeze price-table change could otherwise trip this gate for a character whose
+// frozen ledger was never over budget, or silently pass one that was, in either direction — the same
+// class of bug feat/ap-model-reconcile tracks for display, now closed here for this gate too). Blocks
+// only the CLOUD save path, never local Save.
 function _lsOverApBudget(){
   if(!window._lsCampaignId) return false;
   var r = window._cloudCampaignRules;
   if(r && r.enforceApBudget === false) return false;
-  return compute(foldBuild(null),_dmOpts()).remaining < 0;
+  return apAvailable(null) < 0;
 }
 function apCeiling(uptoIdx){ return compute(foldBuild(uptoIdx),_dmOpts()).spendable; }
 // Pure formula (no I/O) — the one place "AP available" is defined, shared by apAvailable() below AND by
@@ -1182,7 +1187,11 @@ function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=
   // Tamper-evidence (D-GH48): verify the INCOMING file before save() re-signs it with the current
   // contents. Non-blocking — a hand-edited/corrupted file is flagged but still loads.
   const _tampered=!!(window.verifyCharacterEnvelope&&window.verifyCharacterEnvelope(d).tampered);
-  if(d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
+  // fix/livesheet-import-confirm (2026-08-22): importing used to replace LOG/SEQ/REDO with no
+  // confirmation at all, unlike resetAll()'s matching confirm() below — a misclick or wrong file
+  // silently and irrecoverably destroyed the in-progress character, including any cloud autosave
+  // still in flight. Mirrors resetAll()'s pattern exactly.
+  if(d.LOG&&confirm('Import will replace your current character and its history. Continue?')){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
   // Compose the load notice so a file that is BOTH tampered AND a different rules version shows both.
   var _msgs=[];
   if(_tampered){_msgs.push('⚠ This file was edited outside PACT — its signature no longer matches. It has still been loaded; double-check the numbers before playing.');}
@@ -1984,6 +1993,13 @@ function renderCharSheet(b,r,ctx){
     '<div class="cs-hpbox"><div class="cs-hp big"><label>Current HP  ·  (max '+r.hp+')</label>'+_mfIn('curHP',String(r.hp),'cs-num','','Current HP')+'</div>'+
     '<div class="cs-hp"><label>Temp HP</label>'+_mfIn('tempHP','','cs-num','','Temporary HP')+'</div>'+
     '<div class="cs-hp"><label>Hit Dice left</label>'+_mfIn('hdLeft',String(lvl),'cs-num','','Hit Dice remaining')+'</div></div>'+
+    // fix/livesheet-hp-sync-hint (2026-08-22, shallow half of the HP-sync audit finding): these three
+    // fields are device-local scratch (plain localStorage, same bucket as Player Name/Backstory Notes)
+    // — they do NOT round-trip through cloud sync or Save/Load like the rest of the character. Switching
+    // devices silently resets Current HP to max with nothing telling the player why. This note makes
+    // that visible; it doesn't close the gap (a LOG-backed migration would) — see the NEXT-board task
+    // for the deeper fix, deliberately out of scope here pending an owner decision.
+    '<div style="font-size:10px;color:var(--grey);margin-top:2px">📱 This device only — not saved to the cloud or shared with other devices</div>'+
     '<div class="dsv"><b>Death Saves</b> <span>✓ '+_mfCk('ds_s1',false,'Death save success 1')+_mfCk('ds_s2',false,'Death save success 2')+_mfCk('ds_s3',false,'Death save success 3')+'</span> <span>✗ '+_mfCk('ds_f1',false,'Death save failure 1')+_mfCk('ds_f2',false,'Death save failure 2')+_mfCk('ds_f3',false,'Death save failure 3')+'</span></div></div>');
   // attacks / weapons table (editable, persisted)
   var wrows='';for(var i=0;i<6;i++){var wn=i+1;wrows+='<tr><td>'+_mfIn('wpn'+i+'_name','','','','Weapon '+wn+' name')+'</td><td>'+_mfIn('wpn'+i+'_atk','','','','Weapon '+wn+' attack bonus')+'</td><td>'+_mfIn('wpn'+i+'_dmg','','','','Weapon '+wn+' damage and type')+'</td></tr>';}
@@ -2770,9 +2786,13 @@ document.addEventListener('sync-ready', function () {
             // ignore_player_ap). Reuses the freshly-fetched `camp` above rather than a second fetch;
             // dmAp/ignorePlayerAp still come from the established global DM-AP context (_dmOpts(),
             // same source every other compute() call in this file uses) — window.X, matching this
-            // handler's own defensive scope style right above.
+            // handler's own defensive scope style right above. Reads the FROZEN ledger via
+            // apAvailable(null) — NOT compute().remaining, which re-prices against today's DATA and can
+            // diverge from what was actually paid; see _lsOverApBudget()'s comment for the full
+            // reasoning (fix/livesheet-budget-gate-frozen-ledger, 2026-08-22) — this is the same bug,
+            // fixed at its second call site.
             if (camp && !(camp.rules && camp.rules.enforceApBudget === false) && window.compute) {
-              var _rem = window.compute(b, window._dmOpts ? window._dmOpts() : {}).remaining;
+              var _rem = apAvailable(null);
               if (_rem < 0) {
                 btn.disabled = false; btn.textContent = '☁ Save to cloud';
                 alert('⛔ Not saved to the cloud — this character is ' + (-_rem) + ' AP over budget, and '

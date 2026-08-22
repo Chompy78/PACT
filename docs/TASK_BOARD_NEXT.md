@@ -53,42 +53,6 @@ touching them — don't assume no just because unlockedClasses clearly should de
 **Done when:** a duplicate `unlockclass` event no longer double-charges; the arts/boons/subAbilities
 question is answered and recorded; a parity fixture pins the unlockedClasses case; bundled version bump.
 
-## Current HP / Temp HP / Hit Dice left never sync across devices or to the cloud — TODO
-Branch `fix/livesheet-hp-sync-hint` (shallow fix) — see note below on the deeper alternative.
-`tools/PACT-Live-Char-Sheet.html:1984-1986, 1893-1908`. These three fields sit in the plain-`localStorage`
-"device-local scratch" bucket alongside Player Name/Backstory Notes — but unlike those, HP is the value
-most likely to be checked and edited turn-by-turn in combat. Switching devices (a second phone, a tablet,
-a DM peeking via `?viewChar=`) silently resets Current HP to the computed max with no warning the field
-didn't travel with the rest of the character — a genuine at-the-table hazard for the tool's primary use
-case.
-
-**Two fix depths — pick one deliberately, don't default to the cheap one without saying so:**
-- **Shallow (recommended to start):** surface a "not synced to cloud" hint next to these three fields so
-  the gap is visible instead of silent. Low risk, ships immediately, doesn't change the LOG schema or any
-  existing character's data.
-- **Deep:** move `curHP`/`tempHP`/`hdLeft` into the LOG-backed path (mirroring how `appearance` was
-  migrated), so they round-trip through cloud sync/save-load like the rest of the character. Higher value
-  (closes the gap rather than labeling it) but is a real schema/behavior decision — it changes what gets
-  written to every future LOG, needs a migration story for existing local-only values, and interacts with
-  undo/redo and time-travel scrub semantics that don't currently expect combat-tracking noise in the log.
-  **Effort:** medium · **Risk:** medium-high (ambiguity: does every HP tick belong in the append-only
-  LOG, or does it need its own lighter-weight sync channel? damage scale: touches the event schema every
-  character write depends on) — get this reviewed (`/make-code-cold-plan-review`) before implementing the
-  deep version; the shallow version needs no such review.
-
-```text
-1. Ship the shallow hint first (its own small, low-risk PR) — a subtle inline note ("not synced — this
-   device only") next to Current HP / Temp HP / Hit Dice left.
-2. Separately, decide with the owner whether the deep fix is worth doing at all, given the shallow fix
-   already closes the "silent" part of the hazard (the reset-to-max still happens, but now visibly).
-3. If yes: cold-review the LOG-backed design before implementing (this is genuinely the kind of decision
-   AGENTS.md's cold-review trigger describes — multi-step schema implications, not a mechanical fix).
-```
-
-**Done when (shallow, this task's actual scope):** all three fields show a visible "device-local, not
-synced" indicator; no schema/behavior change. The deep fix is intentionally NOT in this task's scope —
-file it separately once the owner decides it's worth doing.
-
 ## DM Console has no UI to see or revoke an already-redeemed co-DM's access — TODO
 Branch `feat/dm-console-codm-revoke-ui`. `tools/DM-Console.html:2652` (imports) — pulls in
 `createDmInvite`/`redeemDmInvite`/`listCampaignInvites`/`setInviteRevoked` but never `removeDm`/

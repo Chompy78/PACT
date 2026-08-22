@@ -2080,7 +2080,7 @@ function buildForm(F){
   // prefixed ids need no per-field entry in PATCH_FIELD_SLOT.
   function apCustomField(idx){return '<div class="row apcustom"><input type="text" id="ap_custom'+idx+'Label" class="apin apcustomlabel" placeholder="Label (e.g. Catchphrase)" aria-label="Custom detail '+idx+' label"><input type="text" id="ap_custom'+idx+'Text" class="apin" placeholder="One sentence…" aria-label="Custom detail '+idx+' text"></div>';}
   grp('1 · Setup &amp; Character Description',
-    '<div class="row"><label class="l">Character name</label><input type="text" id="cname"><button class="btn ghost" type="button" onclick="genName()" title="Roll a random name in the chosen style(s)">🎲 Generate</button></div>'+
+    '<div class="row"><label class="l">Character name</label><input type="text" id="cname" maxlength="60"><button class="btn ghost" type="button" onclick="genName()" title="Roll a random name in the chosen style(s)">🎲 Generate</button></div>'+
     '<div class="namelab">Name flavour</div><div class="namesty">'+styleChips+'</div>'+
     '<div class="namelab">Influence</div><div class="namesty influ">'+influChips+'</div>'+
     '<div class="hint" style="margin:2px 0 4px 218px">Tick flavours and/or influence toggles — the generator blends every chosen pool. Species/Class-linked pull from your origin species &amp; class. Leave the name as-is to keep it.</div>'+
@@ -2973,7 +2973,12 @@ function _cgSyncAward(){
   // pool, not in an award event), and `0 || DATA.level1AP` silently turned that into 79. Only a blank or
   // unparseable field falls back to the level-1 default.
   const raw=val('budget'), parsed=Number(raw);
-  const base=(raw===''||raw==null||!Number.isFinite(parsed))?DATA.level1AP:parsed;
+  // fix/chargen-budget-negative-clamp (2026-08-22): the field's min="0" attribute isn't enforced against
+  // manually-typed input (only the spinner respects it), so a stray leading "-" — easy to fat-finger on a
+  // mobile numeric keypad — used to mint a genuine negative award event, leaving the character
+  // permanently "over budget" with no hint the budget field itself was the cause. Clamp to match the
+  // field's own declared minimum.
+  const base=(raw===''||raw==null||!Number.isFinite(parsed))?DATA.level1AP:Math.max(0,parsed);
   const amt=base;
   // Don't mint a zero award for a character that has none. Without this, every load of a DM-AP-only
   // character would append `award 0` — a meaningless event that also makes the log look edited.
@@ -4893,7 +4898,7 @@ function renderLedger(r,b){
   let html='',matched={};
   const row=l=>'<tr class="lrow" data-lab="'+l[0].replace(/"/g,'&quot;')+'" onclick="explainCost(this.dataset.lab)" title="'+explainText(l[0],b,r).replace(/"/g,'&quot;')+' — click for the full breakdown"><td style="padding-left:12px">'+l[0]+' <span class="qm">?</span></td><td class="v">'+l[1]+'</td></tr>';
   // v0.314: show each item purchased under its category line, not just the category subtotal
-  const itemRow=x=>'<tr class="lrow litem"><td style="padding-left:26px;color:var(--grey);font-size:11px">'+String(x[0]).replace(/</g,'&lt;')+'</td><td class="v" style="color:var(--grey);font-size:11px">'+x[1]+'</td></tr>';
+  const itemRow=x=>'<tr class="lrow litem"><td style="padding-left:26px;color:var(--grey);font-size:11px">'+_csEsc(x[0])+'</td><td class="v" style="color:var(--grey);font-size:11px">'+x[1]+'</td></tr>';
   LGROUPS.forEach(g=>{const ls=r.lines.filter(l=>g.lines.some(p=>l[0].indexOf(p)===0));ls.forEach(l=>matched[l[0]]=1);
     if(!ls.length)return;const sub=ls.reduce((s,l)=>s+l[1],0);
     html+='<tr class="lgh"><td>'+g.t+'</td><td class="v">'+sub+'</td></tr>';
