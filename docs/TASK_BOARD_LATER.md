@@ -19,6 +19,98 @@ Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page 
 prune, PWA stale-version reload-prompt fix, Live Sheet mobile density/collapse) has landed and graduated
 to `CHANGELOG.md`.
 
+## activeEvents()'s buyoff/dmRemoveBoon matching trusts payload.v/refVal with no null guard — TODO
+Branch `fix/engine-pricing-edge-cases` (bundle with the other engine findings on NOW — same
+`DATA.version` bump, or handle separately since this one is purely defensive with no output change for
+valid data — judgment call at implementation time). `js/engine.js:877-891`. A drawback/boon event missing
+its value field, and a later buyoff/removal event missing its reference field, both key into the same
+`"undefined"` bucket and incorrectly match. No crash — a silent state-corruption path — and needs an
+already-malformed LOG to trigger (not reachable through either shipped tool's own `emit()` calls today).
+
+**Effort:** low · **Risk:** low — a defensive null-check addition with no behavior change for any valid
+LOG.
+
+```text
+1. Add an early skip in the _openDraws/_openBoons matching loop when the key is null/undefined.
+2. No parity fixture needed unless one already exercises a malformed-payload case — if not, add one
+   confirming a null-keyed buyoff no longer matches an unrelated null-keyed drawback.
+```
+
+**Done when:** a malformed event with a missing `payload.v`/`refVal` no longer incorrectly matches another
+malformed event on the same undefined key.
+
+## CharGen's AP ledger itemization only escapes `<`, not the full entity set — TODO
+Branch `fix/chargen-ledger-esc-consistency`. `tools/PACT-CharGen-Webtool.html:4896`. A bespoke
+`.replace(/</g, '&lt;')` where every other render path in the file uses the real `_csEsc()` helper. Low
+risk on its own (no attribute context to break out of here), but an inconsistent partial re-implementation
+of the escaping invariant the file otherwise upholds carefully.
+
+**Effort:** low · **Risk:** low.
+
+```text
+1. Replace the bespoke .replace(/</g,'&lt;') with _csEsc() in the itemRow function at :4896.
+```
+
+**Done when:** the ledger itemization row uses `_csEsc()` like every other render path in the file.
+
+## CharGen's AP budget field allows a negative value via manual typing — TODO
+Branch `fix/chargen-budget-negative-clamp`. `tools/PACT-CharGen-Webtool.html:2100, 2971-2981`. The
+`budget` field is intentionally directly editable, but `min`/`max` attributes on a number input aren't
+enforced against typed input, only the spinner — and `_cgSyncAward()` takes the typed value with no floor
+clamp. A stray leading minus (easy on a mobile numeric keypad) mints a genuine negative award event,
+leaving the character permanently "over budget" with the same generic warning as an ordinary overspend and
+no hint the budget field itself is the problem.
+
+**Effort:** low · **Risk:** low.
+
+```text
+1. Clamp to Math.max(0, parsed) in _cgSyncAward(), matching the field's own declared min="0".
+```
+
+**Done when:** typing a negative value into the budget field no longer produces a negative award event.
+
+## CharGen's character name field has no length cap — TODO
+Branch `fix/chargen-name-maxlength`. `tools/PACT-CharGen-Webtool.html:2083`. No `maxlength`. An accidental
+paste flows into the header, save filename, and DM Console's roster rows — worth a sanity cap given how
+much attention the rest of the file's CSS pays to mobile layout robustness elsewhere.
+
+**Effort:** low · **Risk:** low.
+
+```text
+1. Add maxlength="60" (or similar) to the #cname input.
+```
+
+**Done when:** the character name field rejects input beyond the chosen cap.
+
+## DM Console has dead time-travel plumbing with no scrub UI wired to it — TODO
+Branch `chore/dm-console-remove-dead-viewat`. `tools/DM-Console.html:1058, 1071-1074`. `viewAt` is
+declared and the indexed `foldBuild(uptoIdx)`-style helpers exist, but every call site passes `null`
+explicitly and there's no scrub control in this tool's UI. Not a functional bug, but could mislead a
+future editor into assuming a feature exists that doesn't.
+
+**Effort:** low · **Risk:** low.
+
+```text
+1. Remove the unused viewAt declaration, or add a one-line comment noting the indexed API is plumbed but
+   not yet wired to any control — pick whichever a quick look at the surrounding code makes cleaner.
+```
+
+**Done when:** either `viewAt` is removed, or a comment makes clear it's intentionally unused today.
+
+## DM Console's local-roster remove button is a small mis-tap target on mobile — TODO
+Branch `chore/dm-console-rmcard-touch-target`. `tools/DM-Console.html:195-200` (`.rmcard`), used at
+`:1688`. 28×28px against the ~40-44px targets the rest of this file's controls use. Low-stakes (local-
+only, trivially reversible by re-dropping the file) so cosmetic rather than a correctness risk.
+
+**Effort:** low · **Risk:** low.
+
+```text
+1. Increase .rmcard's tap target to match the file's other ~40-44px controls (padding/min-height, not
+   necessarily the visible icon size).
+```
+
+**Done when:** the remove button's tap target matches the file's other touch targets.
+
 ## Merge concurrent character edits instead of refusing them — TODO
 Branch `feat/character-log-merge`. The deep fix behind `fix/optimistic-character-save` (NOW), which only
 *refuses* a stale write. Do that one first; this supersedes its behaviour rather than conflicting with it.

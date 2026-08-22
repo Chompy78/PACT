@@ -27,6 +27,139 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## Duplicate class-unlock (and arts/boons/sub-ability) events double-charge AP — TODO
+Branch `fix/engine-pricing-edge-cases` (bundle with the two engine findings on NOW — same `DATA.version`
+bump). `js/engine.js:344, 357-359`. Unlike proficiency lists (deduped every replay via `_dedupeProfLists`)
+and features (explicit "already bought" `fcount[lab]` guard), `unlockedClasses`/`arts`/`boons`/
+`subAbilities` sum raw array entries with no ownership check. A second identical unlock event charges a
+full extra 8 AP even though the *gating* logic elsewhere already treats it as one class — pricing and
+gating disagree on the same data. Live Sheet's own `DUP_FIELD` dup-guard table doesn't cover `unlockclass`
+either; the buy panel's protection there is display-only (hiding the already-owned option).
+
+**Effort:** low · **Risk:** low — ambiguity is low for `unlockedClasses` specifically (the fix is
+"extend `_dedupeProfLists()` to cover it, same pattern as the nine lists it already dedupes"); `arts`/
+`boons`/`subAbilities` need a deliberate decision on whether they're meant to be re-buyable before
+touching them — don't assume no just because unlockedClasses clearly should dedupe.
+
+```text
+1. Extend _dedupeProfLists() (js/engine.js:792-795) to also cover unlockedClasses — this is the one with
+   a demonstrated, unambiguous double-charge.
+2. Decide deliberately (record in DECISIONS.md) whether arts/boons/subAbilities are meant to be
+   re-buyable; only extend the dedupe to them if the answer is no.
+3. Parity fixture: a duplicate unlockclass event for an already-unlocked class must not increase
+   compute() total. Bundle the DATA.version bump with the other two engine findings on NOW.
+```
+
+**Done when:** a duplicate `unlockclass` event no longer double-charges; the arts/boons/subAbilities
+question is answered and recorded; a parity fixture pins the unlockedClasses case; bundled version bump.
+
+## Current HP / Temp HP / Hit Dice left never sync across devices or to the cloud — TODO
+Branch `fix/livesheet-hp-sync-hint` (shallow fix) — see note below on the deeper alternative.
+`tools/PACT-Live-Char-Sheet.html:1984-1986, 1893-1908`. These three fields sit in the plain-`localStorage`
+"device-local scratch" bucket alongside Player Name/Backstory Notes — but unlike those, HP is the value
+most likely to be checked and edited turn-by-turn in combat. Switching devices (a second phone, a tablet,
+a DM peeking via `?viewChar=`) silently resets Current HP to the computed max with no warning the field
+didn't travel with the rest of the character — a genuine at-the-table hazard for the tool's primary use
+case.
+
+**Two fix depths — pick one deliberately, don't default to the cheap one without saying so:**
+- **Shallow (recommended to start):** surface a "not synced to cloud" hint next to these three fields so
+  the gap is visible instead of silent. Low risk, ships immediately, doesn't change the LOG schema or any
+  existing character's data.
+- **Deep:** move `curHP`/`tempHP`/`hdLeft` into the LOG-backed path (mirroring how `appearance` was
+  migrated), so they round-trip through cloud sync/save-load like the rest of the character. Higher value
+  (closes the gap rather than labeling it) but is a real schema/behavior decision — it changes what gets
+  written to every future LOG, needs a migration story for existing local-only values, and interacts with
+  undo/redo and time-travel scrub semantics that don't currently expect combat-tracking noise in the log.
+  **Effort:** medium · **Risk:** medium-high (ambiguity: does every HP tick belong in the append-only
+  LOG, or does it need its own lighter-weight sync channel? damage scale: touches the event schema every
+  character write depends on) — get this reviewed (`/make-code-cold-plan-review`) before implementing the
+  deep version; the shallow version needs no such review.
+
+```text
+1. Ship the shallow hint first (its own small, low-risk PR) — a subtle inline note ("not synced — this
+   device only") next to Current HP / Temp HP / Hit Dice left.
+2. Separately, decide with the owner whether the deep fix is worth doing at all, given the shallow fix
+   already closes the "silent" part of the hazard (the reset-to-max still happens, but now visibly).
+3. If yes: cold-review the LOG-backed design before implementing (this is genuinely the kind of decision
+   AGENTS.md's cold-review trigger describes — multi-step schema implications, not a mechanical fix).
+```
+
+**Done when (shallow, this task's actual scope):** all three fields show a visible "device-local, not
+synced" indicator; no schema/behavior change. The deep fix is intentionally NOT in this task's scope —
+file it separately once the owner decides it's worth doing.
+
+## DM Console has no UI to see or revoke an already-redeemed co-DM's access — TODO
+Branch `feat/dm-console-codm-revoke-ui`. `tools/DM-Console.html:2652` (imports) — pulls in
+`createDmInvite`/`redeemDmInvite`/`listCampaignInvites`/`setInviteRevoked` but never `removeDm`/
+`getCampaignDms`, both of which already exist and are exported from `js/campaign.js` (verified: grep for
+either across the whole file returns nothing; grep of `js/campaign.js`'s exports confirms both are
+implemented and unused). The console lets a DM withdraw an *unredeemed* invite, but once someone has
+actually redeemed one and joined `campaign_dms`, there is no way to see who currently has DM access to a
+campaign or remove them. Given this project's own history with the invite/join privilege-escalation bug
+(hardened, see `fix/harden-invitation-system` in `CHANGELOG.md`), this is a real follow-on gap: even after
+hardening issuance, a campaign owner has no console control to undo a mistaken or compromised grant.
+
+**Effort:** medium · **Risk:** low — the backend RPCs already exist and are presumably already correctly
+gated (owner-only) since they were built for this purpose; this is UI wiring, not a new security surface.
+Confirm the gating on `removeDm` server-side before shipping the button regardless — don't assume from the
+function's existence alone.
+
+```text
+1. Confirm removeDm()'s server-side authorization (owner-of-campaign only) before wiring a UI to it —
+   check the RPC/RLS it calls, not just the JS function signature.
+2. Add a "Co-DMs" list to the campaign panel (via getCampaignDms), gated the same way existing owner-only
+   controls in this file already are.
+3. Add a "Remove" action per entry (via removeDm), with a confirm() given this revokes real access.
+4. cloud-e2e or a manual signed-in verification: a removed co-DM's session loses DM access immediately
+   (or on next auth check, whichever this project's session model actually provides — confirm, don't
+   assume).
+```
+
+**Done when:** a campaign owner can see every current co-DM and remove one, the removal is confirmed
+server-side authorized, and removal is verified to actually revoke access (not just hide the row).
+
+## "Archived campaign is read-only" is enforced client-side only — the DM-write RPCs have no matching check — TODO
+Branch `fix/archived-campaign-rpc-enforcement`. `tools/DM-Console.html:2299-2305, 2545-2548` plus six more
+`_dmPeekActive`-style guard sites scattered across click handlers. Cross-checked against the actual
+backend: `award_ap()` (`sql/migrations/2026-06-29-codm-ap-ledger.sql`) checks only `is_campaign_dm()` —
+no `archived_at IS NULL` condition — and `is_campaign_dm()`/`is_campaign_owner()` in
+`sql/rls-policies.sql` likewise never reference `archived_at`. Every write action while peeking an
+archived campaign is blocked purely by scattered `if(window._dmPeekActive && ...) return;` checks in this
+file's click handlers, not by anything the server itself enforces. Lower severity than a cross-user issue
+(the only actor who can reach this state — a campaign's own DM/co-DM — already holds full RPC authority
+over the campaign), but "archived = safe to browse" is a client convention today, not an invariant — it
+would not survive a stray direct call or a future click-handler refactor that misses one of the several
+guard sites this pattern requires remembering.
+
+**⚠ Do not implement without running `/make-code-cold-plan-review` first.** This is a production
+RLS/RPC change on the same security boundary the invitation-system and DM-creation-lock work already
+treats as high-risk (AGENTS.md: "RLS is the only real security boundary"). Deferred from this audit sweep
+for that reason — the mechanical/UI-only findings in this batch were fixed directly; this one needs its
+own dedicated pass with Supabase advisor verification, not a same-session bundle fix.
+
+**Effort:** medium · **Risk:** high — ambiguity is low on the mechanism (add `archived_at is null` to each
+DM-write RPC) but damage scale is high (any mistake here is a production RLS/RPC change); damage
+likelihood is low-medium (the advisor catches shape but not intent, and this project's RLS/grant drift has
+bitten it before per D-GH15/D-GH12). **Not sweep-eligible.**
+
+```text
+1. Inventory every DM-write RPC (award_ap, dm_edit_character_log, set_ignore_player_ap, declare_downtime,
+   set_campaign_rules, and any others touching campaign/character state) and confirm which lack an
+   archived_at check — don't assume the four named above are the complete list.
+2. Add archived_at is null to each, as a migration.
+3. After the migration, run the Supabase advisor (get_advisors) and skim get_logs before opening the PR —
+   this project has been bitten twice by grant/RLS drift the advisor catches for free (D-GH15, D-GH12).
+4. Verify signed-in: an archived campaign's DM cannot award AP / edit a character log / change settings
+   via a direct RPC call, not just through the (already-correct) client UI.
+5. Confirm no LEGITIMATE workflow needs to write to an archived campaign (e.g. un-archiving itself must
+   still work) — the check must exempt whatever RPC actually un-archives a campaign, if any.
+```
+
+**Done when:** every DM-write RPC rejects a write against an archived campaign server-side, verified by a
+direct signed-in RPC call (not just through the UI); the Supabase advisor reports no new findings; the
+un-archive path (if any) still works.
+
 ## REV-14b — split js/engine.js's compute() into named sub-pricers — TODO
 Branch refactor/rev-14b-compute-subpricers. Second half of REV-14 (REV-14a — the DATA extraction — shipped
 in PR #251); decompose compute()'s single ~370-line body (~lines 76–446) into named `_price*` helpers. Full
