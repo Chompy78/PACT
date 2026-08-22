@@ -10,6 +10,17 @@
 
 ## Index
 
+## D-GH-2026-08-22-dm-screen-generic-award-ap — generic Award AP tile, banned-drawback grid staleness fix, disabled-item contrast fix
+- New tick-list "Award AP" sub card on DM Console's master card (under the campaign selector, above
+  Owner settings) — tick any number of roster characters, one amount + note, one Award action, awarded
+  independently per character. Hardened `renderRuleGrids()` (Banned species/boons/drawbacks/arts) so a
+  mid-session `DATA` addition is no longer permanently invisible once a grid has rendered once — a
+  measured audit found `js/engine-data.js` itself already fully in sync (90/90 drawbacks), so the report
+  of "missing" drawbacks pointed at a staleness class of bug rather than a data gap. Raised disabled/
+  banned/owned boon-drawback opacity 0.5–0.55 → 0.7 in CharGen and the Live Sheet (measured: the shipped
+  values failed WCAG AA contrast in all five themes; 0.7 clears it in all five). Full record:
+  `decisions/2026/D-GH-2026-08-22-dm-screen-generic-award-ap.md`.
+
 ## D-GH-2026-08-20-tag-only-meaningful-promotions — don't tag every `preview`→`main` promotion, and fix a mispointed tag along the way
 - `docs/VERSION-SYNC.md` step 6 said, unconditionally, to tag every promotion's resulting `main` commit.
   Only 13 tags exist across far more than 13 real promotions, so that was never the actual practice —

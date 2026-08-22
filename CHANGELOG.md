@@ -44,6 +44,80 @@
   +2, whatever the original minus 16 was) — preserving each character's total AP and DM/timestamp
   attribution. All changes verified against `characters.ap` == `sum(ap_awards.amount)` after each step.
   Full record: `docs/sessions/2026-08-22-amble-archer-rename-and-ap-split.md`.
+- **2026-08-22 · fix(dm-console): `/code-review high` before merge — unbinding a character left its
+  checkbox stuck in Award AP; a name-fallback chain deduped** — `.unbind-btn` mutated `cloudRoster` and
+  repainted via the internal `renderCloudRoster()`, bypassing the wrapper `renderCampAwardAp()` was
+  hooked into; a removed character's tick-list checkbox lingered until the next full roster load, and
+  awarding while it lingered surfaced a confusing RLS error (`award_ap()` refusing a now campaign-less
+  character). Fixed by moving the `renderCampAwardAp()` call into `renderCloudRoster()` itself so no
+  future caller can reintroduce the gap. Also factored the three-times-duplicated roster display-name
+  fallback into `_rosterDisplayName()`. `dm-console-ui-e2e.mjs` 96/96, `economy-ui-e2e.mjs` 155/155,
+  `engine-parity-ci.mjs` 52/52, `chargen-flows-e2e.mjs` 66/66. `D-GH-2026-08-22-dm-screen-generic-award-ap` (addendum).
+- **🔴 2026-08-22 · fix(dm-console): "Declare for the party" has never actually fired — the click never
+  reached its handler; feat(dm-console): party downtime moved next to Award AP, with a history** — moved
+  the "🕐 Party downtime window" control from a bare ruleblock above the roster cards into its own
+  subtile next to the new Award AP tile, per request, and added a "📒 History" view
+  (`getDowntimeHistory()` in `js/dm.js` — a plain read of the already-append-only
+  `campaign_downtime_declarations` table, no migration needed, same `.hist-modal` pattern as the
+  per-character AP history). Doing the move surfaced a real, already-shipped bug: `#campDowntime` was a
+  DOM **sibling** of `#campRoster`, but its only click handler (`.declare-btn`) was delegated on
+  `#campRoster` itself — a sibling's click never bubbles through another sibling's listener. Verified
+  directly: clicking "Declare for the party" has never called `declareDowntime()`, structurally, since
+  this control was written — nothing ever tested the click itself, only that the button rendered. Fixed
+  by pulling `.declare-btn`/`.downtime-hist-btn` into their own delegation scoped to the new
+  `#campDowntimeTile` (a stable parent across re-renders). Verified end-to-end with a call-tracking stub;
+  peek-lock coverage confirmed via the same re-sweep `_paintRoster()` already performs.
+  `dm-console-ui-e2e.mjs` 96/96, `economy-ui-e2e.mjs` 155/155.
+  `D-GH-2026-08-22-dm-screen-generic-award-ap` (addendum).
+- **2026-08-22 · fix(dm-console): Campaign Rules' three locked cards wrapped into one actual "supercard";
+  feat(dm-console): custom fields 1/2 shown on the default Card view** — the earlier same-day unlock-hint
+  fix lived inside just one of the THREE cards the rules lock actually covers
+  (`campRulesTile`/`campAdvancementTile`/`campCustomFieldsTile`), so a DM opening any card but that one
+  still saw greyed-out fields unexplained. Wrapped all three, plus the "Save rules / Locked" row that
+  used to float uncontained after them, in one outer `campRulesGroup` ("supercard", new
+  `.subtile-group` class); moved the unlock hint to its top, outside every `<details>`, so it's visible
+  on scroll with no clicks and unlocks all three cards at once (verified). Also: the campaign's two
+  NUMBER custom fields ("Custom 1"/"Custom 2") now show as extra stat cells on the default Card view
+  itself (alongside AP left/HP/AC/…), not only inside the collapsed DM tools section where they're
+  edited — read-only there, only when the campaign actually named that slot; text1/text2 unchanged
+  (DM-tools-only, they don't fit a stat-cell shape). `dm-console-ui-e2e.mjs` 96/96, `economy-ui-e2e.mjs`
+  155/155. `D-GH-2026-08-22-dm-screen-generic-award-ap` (addendum).
+- **2026-08-22 · fix(dm-console): Campaign Rules' lock hid the economy dropdown with no way to find the
+  unlock control; Banned-list/Award-AP checkbox labels too low-contrast vs CharGen** — Campaign Rules
+  locks by default on every campaign switch, but its only unlock button sits at the very bottom of a
+  long panel while "Gold & downtime economy" sits in the middle — a DM sees a greyed-out dropdown with
+  nothing nearby explaining why. Added `#ruleLockHint`, an always-visible clickable banner at the TOP of
+  the panel that states the lock and toggles the same lock state `ruleLockBtn` already drives (excluded
+  from the rules-lock's own disable-scan so it can't disable itself; still swept by the separate
+  archived-peek lock, verified). Separately, `.rulegrid label` (every Banned-species/boons/masteries/
+  drawbacks/arts checkbox, plus the new Award AP tick-list) switched from `color:var(--muted)` to
+  CharGen's own `color:var(--ink);font-weight:700` — not a WCAG failure but a real, requested
+  match-CharGen's-legibility fix. `dm-console-ui-e2e.mjs` 96/96. `D-GH-2026-08-22-dm-screen-generic-award-ap` (addendum).
+- **2026-08-22 · fix(dm-console): the "📒 AP history" popup was hardcoded white, unreadable in dark
+  theme** — `.hist-modal .inner` had `background:#fff` and its heading `color:var(--navy)`, neither
+  theme-aware; the table's inherited (correctly theme-aware) light dark-theme text landed on that
+  hardcoded white card, nearly illegible. Switched to `var(--card)` / `var(--heading)` — the same tokens
+  every other card/heading in this file already uses, nothing new introduced. Verified across all five
+  themes. Also clarified (no code change): the per-character award form's gold/bonus-time fields only
+  appear when the campaign's Gold & downtime economy band (Campaign Rules) isn't "off" — by design, not
+  a bug. `D-GH-2026-08-22-dm-screen-generic-award-ap` (addendum).
+- **2026-08-22 · feat(dm-console): generic "Award AP" tick-list sub card; fix(dm-console): banned-
+  drawback grid could go permanently stale mid-session; fix(tools): disabled/banned boon-drawback items
+  hard to read in every theme** — new sub card under the campaign selector on DM Console's master card:
+  tick any number of roster characters, set one AP amount + note, Award — each character gets its own
+  independent `awardAp` call (a partial failure doesn't block the rest), same as the existing per-
+  character form. Locked by the same archived-campaign peek guard as every other campaign-scoped
+  control. `renderRuleGrids()` (Banned species/boons/masteries/drawbacks/arts) no longer renders its
+  option list once and freezes forever — it now re-renders whenever the available option set actually
+  changes, verified live by seeding a new `DATA.drawbacks` entry mid-session. (Audit found
+  `js/engine-data.js` itself already had all 90 drawbacks in sync — no `DATA` change, no version bump —
+  the staleness guard was the actual gap.) Disabled/banned/already-owned boon-drawback checkboxes and
+  item-buttons (CharGen's `.gridck label.ck.barred`/`:disabled` rules, the Live Sheet's `.ib.dis`) go
+  from 0.5–0.55 opacity to 0.7 — measured: the old values failed WCAG AA contrast (4.5:1) against every
+  one of the five themes' own ink/card colors (3.08–4.68), 0.7 clears all five (5.58–6.63). DM Console
+  has no equivalent disabled-checkbox styling of its own, so no change was needed there.
+  `testing/scripts/dm-console-ui-e2e.mjs` 96/96, `engine-parity-ci.mjs` 52/52, `economy-ui-e2e.mjs`
+  155/155, `chargen-flows-e2e.mjs` 66/66. `D-GH-2026-08-22-dm-screen-generic-award-ap`.
 - **2026-08-20 · release: promote preview → main (v1.442)** — carries PR #438 (stepped-Premium pricing),
   PR #441 (unbar Rage/Wild Shape/Bardic Inspiration die), PR #440 (zcold cleanup), and the
   CI-path-filter-gap task-board entry. `BUILD` v1.439 → v1.442.
