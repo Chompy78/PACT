@@ -146,3 +146,27 @@ always-live total. Deliberately does **not** also snapshot the source campaign's
 rule or drawback cap — always combines player+DM AP, which is the common case; a DM who needs the exact
 live rule should use "👁 View". Display/budget-math only, no `js/engine.js`/`DATA.version` change;
 `engine-parity-ci.mjs` unaffected (52/0). Full record: `docs/sessions/2026-08-22-amble-archer-rename-and-ap-split.md`.
+
+**Follow-up (same day) — `/code-review` caught a real regression this addendum introduced.** Two
+independent review passes flagged that `window._cgCopySourceAp` is set exactly once
+(`_cgConsumeViewChar()`) and cleared in only two places (`_cgResetCloudApState()`, and every load path
+that calls it) — but `_cgResolveDmApStatus()`, the function the cloud-load path uses INSTEAD of
+`_cgResetCloudApState()` (per its own comment: "the cloud-load handler... sets its own values right
+after"), never touched it. Before this addendum that was harmless — the field was display-only. Once
+`_cgDmOpts()` started reading it for real budget math, the same staleness became a correctness bug: a
+DM who opened a "Copy to CharGen" sandbox, then loaded a second, unrelated, non-campaign character in
+the same tab, would have that second character's budget silently inflated by the first copy's frozen
+AP. Both reviews also confirmed a live regression this introduced in `tool-pricing-ci.mjs` — two
+pre-existing assertions still pinned the old (0 AP, "not campaign-bound") behavior and were failing
+against this branch's own diff.
+
+Fixed: `_cgResolveDmApStatus()` now clears `_cgCopySourceAp`/`_cgCopySourceName` at its top, so any
+subsequent character load (cloud load, campaign join) starts clean. Updated the two stale
+`tool-pricing-ci.mjs` assertions to match the new, correct behavior, and added a third that pins the
+staleness fix itself (open a copy, then simulate loading an unrelated character, assert the frozen AP
+does not survive). Also fixed a now-inaccurate comment on `randomizeBuild()` that still claimed
+`_cgDmOpts()` is a no-op for any non-active-campaign build (no longer true for an open DM-copy sandbox).
+`tool-pricing-ci.mjs`: 163 passed / 0 failed (one unrelated pre-existing timing flake — "CharGen never
+became ready for the heritage-pack check" — reproduced intermittently on this exact same code both
+before and after this follow-up, confirmed unrelated by re-running). `engine-parity-ci.mjs` unaffected
+(52/0).

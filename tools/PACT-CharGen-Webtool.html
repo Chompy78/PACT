@@ -712,6 +712,13 @@ document.addEventListener('campaign-ready', function () {
 // again after this call returns; a caller that needs to display/act on THIS resolution's specific
 // result (e.g. "you just joined campaign X") must use the return value, not the global afterward.
 async function _cgResolveDmApStatus(ap, campaignId){
+  // fix/chargen-dm-copy-ap-stale (2026-08-22): a "Copy to CharGen" sandbox's frozen AP snapshot
+  // (window._cgCopySourceAp) is now budget-relevant (_cgDmOpts()), not just display text, so it MUST be
+  // cleared here too -- this is the function _cgResetCloudApState()'s own comment names as the one
+  // exempt caller ("sets its own values right after"), and before this line that exemption didn't cover
+  // this field, so a copy opened earlier in the same tab silently outlived its own load into a totally
+  // unrelated cloud/local character loaded afterward, inflating that character's budget.
+  window._cgCopySourceAp = 0; window._cgCopySourceName = '';
   window._dmAp = ap || 0;
   window._ignorePlayerAp = false;
   // feat/campaign-ap-budget-enforce: cached alongside _ignorePlayerAp, same lifecycle (resolved here
@@ -4304,7 +4311,10 @@ function randomizeRoll(){
   // isn't left under-built. Passing _cgDmOpts() to BOTH the ceiling and C() also measures the OVER BUDGET
   // warning against spendable, not the player-only budget, so the affordability gate below doesn't trip
   // spuriously once spend passes the player budget. _cgDmOpts() is a no-op ({dmAp:0,ignorePlayerAp:false})
-  // for a local build with no active campaign, so ordinary local randomize behaviour is unchanged.
+  // for an ordinary local build with no active campaign, so ordinary local randomize behaviour is
+  // unchanged; a "Copy to CharGen" sandbox (window._cgCopySourceAp>0) is the one non-active-campaign
+  // exception -- its fill ceiling deliberately DOES include the frozen DM AP snapshot, same as the rest
+  // of that build's budget math (feat/chargen-dm-view, 2026-08-22 addendum).
   const _dmO=_cgDmOpts();
   // A spendable of 0 is a REAL answer, not a missing one: a character that joined a campaign by code
   // starts with no AP until the DM grants some. The old `spendable || DATA.level1AP || 79` treated it as

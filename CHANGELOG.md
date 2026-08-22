@@ -6,6 +6,16 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(chargen): DM-copy AP snapshot could bleed into an unrelated character's budget
+  (`/code-review` catch)** — two independent review passes on the AP-snapshot fix below found it left
+  `window._cgCopySourceAp` (now budget-relevant) uncleared by `_cgResolveDmApStatus()`, the function
+  every OTHER character load funnels through — so a DM who opened a "Copy to CharGen" sandbox, then
+  loaded a second unrelated non-campaign character in the same tab, would see that second character's
+  budget silently inflated by the first copy's frozen AP. Also caught: two `tool-pricing-ci.mjs`
+  assertions left pinned to the old (0 AP) behavior, now failing against this branch's own diff. Fixed
+  all three, plus a now-inaccurate `randomizeBuild()` comment; added a regression test for the
+  staleness fix itself. `tool-pricing-ci.mjs`: 163/0 (1 unrelated pre-existing timing flake, confirmed
+  by re-running against the exact same code). See the decision's "Follow-up" note.
 - **2026-08-22 · fix(chargen): "Copy to CharGen" DM sandbox showed 0 DM AP and falsely read as over
   budget** — the disconnected copy `_cgConsumeViewChar()` makes (`D-GH-2026-08-10-chargen-dm-view`)
   already captured the source character's real DM AP for display (`window._cgCopySourceAp`), but the
