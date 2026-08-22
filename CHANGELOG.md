@@ -6,6 +6,14 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(dm-console): the "📒 AP history" popup was hardcoded white, unreadable in dark
+  theme** — `.hist-modal .inner` had `background:#fff` and its heading `color:var(--navy)`, neither
+  theme-aware; the table's inherited (correctly theme-aware) light dark-theme text landed on that
+  hardcoded white card, nearly illegible. Switched to `var(--card)` / `var(--heading)` — the same tokens
+  every other card/heading in this file already uses, nothing new introduced. Verified across all five
+  themes. Also clarified (no code change): the per-character award form's gold/bonus-time fields only
+  appear when the campaign's Gold & downtime economy band (Campaign Rules) isn't "off" — by design, not
+  a bug. `D-GH-2026-08-22-dm-screen-generic-award-ap` (addendum).
 - **2026-08-22 · feat(dm-console): generic "Award AP" tick-list sub card; fix(dm-console): banned-
   drawback grid could go permanently stale mid-session; fix(tools): disabled/banned boon-drawback items
   hard to read in every theme** — new sub card under the campaign selector on DM Console's master card:

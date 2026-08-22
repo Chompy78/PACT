@@ -92,3 +92,27 @@ validation alerts fire, and the archived-campaign peek lock disables every contr
 `testing/scripts/engine-parity-ci.mjs` (52/52), `testing/scripts/economy-ui-e2e.mjs` (155/155),
 `testing/scripts/chargen-flows-e2e.mjs` (66/66). No `js/engine.js` or `DATA` changes — `DATA.version` not
 bumped.
+
+## Addendum (2026-08-22) — the per-character "📒 AP history" modal was hardcoded white
+Follow-up report on the same session: the AP-history popup a DM opens from a roster card's "📒 AP
+history" button (`tools/DM-Console.html`'s `.hist-modal`, built in the click-delegation handler around
+`B.getAwardHistory(...)`) had a **hardcoded `background:#fff`** on `.hist-modal .inner`, plus an inline
+`<h3 style="color:var(--navy)">` heading — neither followed the theme system at all. Reproduced with
+Playwright: in dark theme the modal rendered as a stark white card with its table rows (inherited
+`--ink`, correctly the *light* dark-theme text color, but wrong against a hardcoded white background)
+nearly unreadable — text and background both technically theme-driven, just fighting each other. Fixed
+by switching the background to `var(--card)` (the same token every other panel/card in this file already
+uses) and the heading to `var(--heading)` (this file's own established "heading text, adapts per theme"
+token — `--navy` default, `#c9d6ec` in dark — already used by `.card .cname`/`.secrow`/`.ov-h`/etc.
+elsewhere in the same file). No new tokens introduced; this was two lines using the wrong
+already-existing ones. Verified visually across all five themes (default/dark/dnd/royal/forest) — default/
+royal/forest keep a white card (their own `--card` is white by design, unchanged), dark now shows the
+dark card background with legible text, dnd now shows its cream parchment card. `dm-console-ui-e2e.mjs`
+re-run clean (96/96) after the change.
+
+Separately asked in the same message: **where are the "award gold & bonus time" fields?** They're not
+missing — `awardBody()` only renders them when the campaign's economy is on
+(`window._engineEcon.economySetting(rules) !== 'off'`), i.e. Campaign Rules → "Gold & downtime economy"
+is set to something other than its default "off" band. No code change; this is by design (a campaign
+that doesn't use the gold/downtime economy shouldn't show gold/time award fields DMs would never use),
+just non-obvious enough to record here since it was raised as if the fields were missing/broken.

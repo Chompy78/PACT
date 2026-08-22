@@ -511,7 +511,7 @@
   .archname:hover,.archname:focus-visible{color:var(--blue);text-decoration-style:solid}
   /* ---- history modal ---- */
   .hist-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center}
-  .hist-modal .inner{background:#fff;border-radius:12px;max-width:640px;width:94%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:16px 20px}
+  .hist-modal .inner{background:var(--card);border-radius:12px;max-width:640px;width:94%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:16px 20px}
   .hist-modal table{width:100%;border-collapse:collapse;font-size:12px}
   .hist-modal th{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);font-weight:700}
   .hist-modal td{padding:4px 8px;border-bottom:1px solid var(--line)}
@@ -2418,7 +2418,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
           var modal = document.createElement('div');
           modal.className = 'hist-modal';
           modal.innerHTML = '<div class="inner">'+
-            '<h3 style="margin:0 0 10px;color:var(--navy)">'+esc(hname)+' — AP history</h3>'+
+            '<h3 style="margin:0 0 10px;color:var(--heading)">'+esc(hname)+' — AP history</h3>'+
             (trows
               ? '<table><thead><tr><th>Date</th><th>Amount</th><th>DM</th><th>Note</th></tr></thead><tbody>'+trows+'</tbody></table>'
               : '<p style="color:var(--muted)">No awards yet.</p>')+
