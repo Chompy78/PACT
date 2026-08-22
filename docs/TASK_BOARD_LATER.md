@@ -308,6 +308,51 @@ workaround permanently rather than a reason to delay.
 of the three governs and why — including "the workaround is the answer" as a legitimate outcome — and, if
 either build option is chosen, it ships with `testing/scripts/economy-ui-e2e.mjs` covering it.
 
+## Consider moving Current HP / Temp HP / Hit Dice left into LOG-backed data — TODO
+```
+In tools/PACT-Live-Char-Sheet.html, Current HP, Temp HP, and Hit Dice left are NOT part of the
+event-sourced character (LOG/cloud `stats`). They live entirely in a localStorage-only scratchpad —
+`_sheetStoreKey()` ('pactCharSheetManual:' + SHEET_TOOL, e.g. 'pactCharSheetManual:livesheet'),
+written/read via `_csStore()`/`csSave(id,fieldId,val)`/`csLoad(id)`, seeded by `_mfIn('curHP',
+String(r.hp), ...)` where r.hp is only the computed-max-HP DEFAULT, and rehydrated per character by
+`hydrateSheet(id)` on load. This means these fields are per-device, per-browser: not synced to the
+cloud, not visible to a DM, not shared between a player's phone and laptop, and lost if local storage
+is cleared. This is already disclosed in the UI (the "📱 This device only — not saved to the cloud or
+shared with other devices" hint added under the HP/Temp HP/Hit Dice box).
+
+Investigate whether this should change, and if so how. Two options, not a foregone conclusion:
+
+(a) Migrate into the LOG-backed path (the way `appearance` was migrated in an earlier change) so these
+    fields sync to the cloud and are visible to a DM. This is a real schema/design decision, not a
+    mechanical fix — it raises:
+      - Does every HP tick belong in the append-only LOG as its own event (damage/heal/temp-HP-grant),
+        or does it become a mutable "current state" field alongside LOG rather than derived from it —
+        which breaks the project's "never store derived values, derive at runtime" rule as currently
+        understood, since current HP is inherently a running total that only makes sense as either an
+        event stream or a stored snapshot, not a pure recompute like AP/gold?
+      - Migration story for characters that already have local-only HP values sitting in
+        localStorage today — do they get folded in on next load, silently dropped, or left as-is?
+      - Interaction with undo/redo and the time-travel/scrub UI (`foldBuild(uptoIdx)`) — if HP becomes
+        LOG-backed, scrubbing to an earlier point must show HP as it was at that point, which is a
+        bigger behavioral change than the other LOG-backed fields.
+    Given the schema implications, run this through /make-code-cold-plan-review before implementing
+    either direction.
+
+(b) Leave as-is. The localStorage scratchpad plus the already-shipped "device only" hint is treated as
+    the permanent, intentional answer — Current HP/Temp HP/Hit Dice left are combat-transient bookkeeping
+    a player tracks per-session, not part of the character's durable build. This needs no further work.
+
+Do not implement either option without a decision — this task is to weigh them, not to pick (a) by
+default.
+```
+**Effort:** decision + (if (a) chosen) medium-large implementation · **Risk:** low to investigate;
+medium-high to implement (a) — it changes what "the character" durably contains and touches undo/redo,
+time-travel scrub, and the cloud sync path.
+
+**Done when:** a decision record states which option governs and why (including "leave as-is, the
+device-only hint is the permanent answer" as a legitimate outcome) — and, if (a) is chosen, it ships
+with an engine-parity/tool-pricing-ci fixture covering HP behavior under undo/redo and time-travel scrub.
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
