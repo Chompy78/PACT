@@ -27,32 +27,6 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## Duplicate class-unlock (and arts/boons/sub-ability) events double-charge AP — TODO
-Branch `fix/engine-pricing-edge-cases` (bundle with the two engine findings on NOW — same `DATA.version`
-bump). `js/engine.js:344, 357-359`. Unlike proficiency lists (deduped every replay via `_dedupeProfLists`)
-and features (explicit "already bought" `fcount[lab]` guard), `unlockedClasses`/`arts`/`boons`/
-`subAbilities` sum raw array entries with no ownership check. A second identical unlock event charges a
-full extra 8 AP even though the *gating* logic elsewhere already treats it as one class — pricing and
-gating disagree on the same data. Live Sheet's own `DUP_FIELD` dup-guard table doesn't cover `unlockclass`
-either; the buy panel's protection there is display-only (hiding the already-owned option).
-
-**Effort:** low · **Risk:** low — ambiguity is low for `unlockedClasses` specifically (the fix is
-"extend `_dedupeProfLists()` to cover it, same pattern as the nine lists it already dedupes"); `arts`/
-`boons`/`subAbilities` need a deliberate decision on whether they're meant to be re-buyable before
-touching them — don't assume no just because unlockedClasses clearly should dedupe.
-
-```text
-1. Extend _dedupeProfLists() (js/engine.js:792-795) to also cover unlockedClasses — this is the one with
-   a demonstrated, unambiguous double-charge.
-2. Decide deliberately (record in DECISIONS.md) whether arts/boons/subAbilities are meant to be
-   re-buyable; only extend the dedupe to them if the answer is no.
-3. Parity fixture: a duplicate unlockclass event for an already-unlocked class must not increase
-   compute() total. Bundle the DATA.version bump with the other two engine findings on NOW.
-```
-
-**Done when:** a duplicate `unlockclass` event no longer double-charges; the arts/boons/subAbilities
-question is answered and recorded; a parity fixture pins the unlockedClasses case; bundled version bump.
-
 ## DM Console has no UI to see or revoke an already-redeemed co-DM's access — TODO
 Branch `feat/dm-console-codm-revoke-ui`. `tools/DM-Console.html:2652` (imports) — pulls in
 `createDmInvite`/`redeemDmInvite`/`listCampaignInvites`/`setInviteRevoked` but never `removeDm`/

@@ -19,26 +19,6 @@ Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page 
 prune, PWA stale-version reload-prompt fix, Live Sheet mobile density/collapse) has landed and graduated
 to `CHANGELOG.md`.
 
-## activeEvents()'s buyoff/dmRemoveBoon matching trusts payload.v/refVal with no null guard — TODO
-Branch `fix/engine-pricing-edge-cases` (bundle with the other engine findings on NOW — same
-`DATA.version` bump, or handle separately since this one is purely defensive with no output change for
-valid data — judgment call at implementation time). `js/engine.js:877-891`. A drawback/boon event missing
-its value field, and a later buyoff/removal event missing its reference field, both key into the same
-`"undefined"` bucket and incorrectly match. No crash — a silent state-corruption path — and needs an
-already-malformed LOG to trigger (not reachable through either shipped tool's own `emit()` calls today).
-
-**Effort:** low · **Risk:** low — a defensive null-check addition with no behavior change for any valid
-LOG.
-
-```text
-1. Add an early skip in the _openDraws/_openBoons matching loop when the key is null/undefined.
-2. No parity fixture needed unless one already exercises a malformed-payload case — if not, add one
-   confirming a null-keyed buyoff no longer matches an unrelated null-keyed drawback.
-```
-
-**Done when:** a malformed event with a missing `payload.v`/`refVal` no longer incorrectly matches another
-malformed event on the same undefined key.
-
 
 ## Merge concurrent character edits instead of refusing them — TODO
 Branch `feat/character-log-merge`. The deep fix behind `fix/optimistic-character-save` (NOW), which only

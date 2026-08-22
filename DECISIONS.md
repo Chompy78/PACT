@@ -10,6 +10,21 @@
 
 ## Index
 
+## D-GH-2026-08-22-engine-pricing-edge-cases — four js/engine.js pricing edge cases, DATA.version v0.358 → v0.359
+- Attunement/Ki/Sorcery points could go free or refund AP once bought past their price tables' last
+  entry (live-reachable via Live Sheet's ordinary buy buttons, no gate stops long play from reaching
+  25/21-rung ladders); an out-of-range ability score priced below a legitimately-bought 20; a duplicate
+  `unlockclass` LOG event double-charged AP for a class already unlocked; `activeEvents()`'s FIFO
+  buyoff/dmRemoveBoon matching could cross-match two unrelated malformed events on the same `undefined`
+  key. All four clamp/dedupe/guard against the existing pattern already used elsewhere in the file
+  (`unlockCum`'s own comment: "a clamp under-charges at worst; `|| 0` paid the player"). `arts`/`boons`/
+  `subAbilities` deliberately NOT added to the dedupe list alongside `unlockedClasses` — whether
+  duplicates there should be legal is an unanswered rules question, not assumed either way. 5 new
+  parity fixtures; `engine-parity-ci.mjs` 57/0, `tool-pricing-ci.mjs` 163/0, `log-fuzz.mjs` 500/500 clean.
+  Not a Players Guide change — see the record's "Why" section for why this is a bug fix restoring
+  already-intended behavior, not a mechanics change. Full record:
+  `decisions/2026/D-GH-2026-08-22-engine-pricing-edge-cases.md`.
+
 ## D-GH-2026-08-22-audit-batch-mechanical-fixes — 10 low-risk playability/usability fixes from the 2026-08-22 audit, batched
 - The audit's non-security findings (14 remaining after the esc()/XSS batch), triaged into what's safe to
   fix directly in one batch vs. what needs its own dedicated pass: 10 mechanical, single-file, no-design-
