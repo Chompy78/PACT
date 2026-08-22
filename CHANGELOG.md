@@ -6,6 +6,20 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-20 · release: promote preview → main (v1.442)** — carries PR #438 (stepped-Premium pricing),
+  PR #441 (unbar Rage/Wild Shape/Bardic Inspiration die), PR #440 (zcold cleanup), and the
+  CI-path-filter-gap task-board entry. `BUILD` v1.439 → v1.442.
+- **2026-08-20 · docs(version-sync): tag only meaningful promotions, not every one** — see
+  `D-GH-2026-08-20-tag-only-meaningful-promotions`. Also found and documented a mispointed `v1.442` tag
+  (pointed at the v1.439 merge commit) and confirmed the cloud-session tag-push 403 covers deletion too;
+  the bad tag still needs manual removal.
+- **2026-08-22 · data: deleted 3 owner-confirmed test characters from the live Amble campaign
+  (no code/version change)** — `Sera Valor 3rd`, `Cedric Brightblade`, `Moss Stormspud (COPY)`, all
+  already unbound from the campaign; ownership verified before deleting (2 of the 3 traced to a
+  different test account than initially stated). Recoverable via `character_backups`. Also ran a
+  headless AP-cost audit of the remaining 7 Amble characters against current pricing (v1.442 /
+  `DATA.version` v0.358): 6 fit within their granted AP, Anders Pipeleaf is 4 AP over budget (flagged to
+  owner, not yet resolved). Full record: `docs/sessions/2026-08-22-amble-dm-ap-audit-and-test-cleanup.md`.
 - **2026-08-20 · rules(data): unbar Rage/Wild Shape/Bardic Inspiration die (no version bump)** — removes
   the `"bar":true` flag added 2026-08-19 (`D-GH-2026-08-19-bar-blocked-features`) to take these three
   features off the market while their flat-once Premium pricing defect was pending. That defect is now

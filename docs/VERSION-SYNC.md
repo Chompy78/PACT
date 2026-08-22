@@ -56,9 +56,15 @@ Everything else must **match** that value:
    isn't actually incompatible — this happened for real between PR #293 (squashed) and #294, and had
    to be fixed with a manual reconciliation merge. Regular feature PRs into `preview` can still squash
    freely; this rule is promotion-PRs-only.
-6. Tag the resulting `main` commit `v<major>.<PR#>` (same value) — and cut a GitHub Release from it
-   if desired. **This step cannot be done from a cloud/web Claude Code session** — tag and release
-   pushes get a hard platform 403 there regardless of numbering scheme (see
+6. **Tag only if this promotion is actually meaningful** — a real feature/rules landing, a relaunch,
+   a milestone. **Skip the tag for a housekeeping-only promotion** (docs cleanup, a version-sync-only
+   commit, a promotion that carries nothing but small fixes) — see
+   `D-GH-2026-08-20-tag-only-meaningful-promotions` for why: only 13 tags existed across dozens of
+   past promotions before this was written down, so "tag every promotion" was never actually the real
+   practice, just an unstated literal reading of this step. When a promotion *does* warrant a tag, tag
+   the resulting `main` commit `v<major>.<PR#>` (same value) — and cut a GitHub Release from it if
+   desired. **This step cannot be done from a cloud/web Claude Code session** — tag and release pushes
+   (creation **and deletion**) get a hard platform 403 there regardless of numbering scheme (see
    `docs/sessions/2026-07-19-github-release-tag-cloud-session-restriction.md`). Do it from a local
    terminal session, or via the GitHub web UI.
 

@@ -10,6 +10,18 @@
 
 ## Index
 
+## D-GH-2026-08-20-tag-only-meaningful-promotions — don't tag every `preview`→`main` promotion, and fix a mispointed tag along the way
+- `docs/VERSION-SYNC.md` step 6 said, unconditionally, to tag every promotion's resulting `main` commit.
+  Only 13 tags exist across far more than 13 real promotions, so that was never the actual practice —
+  just an unstated literal reading nobody followed, repeated as a checklist item on every promotion PR
+  regardless of whether it carried anything tag-worthy. Now says explicitly: tag only a meaningful
+  promotion (real feature/rules landing, relaunch, milestone), skip housekeeping-only ones. Separately,
+  a tag literally named `v1.442` was found already pointing at the wrong commit (the v1.439 merge, not
+  any real v1.442 content) — confirmed the platform-403 restriction on tag pushes from a cloud session
+  covers deletion too, not just creation (no GitHub-API mutation tool exists for it either); the bad tag
+  itself still needs manual removal (local terminal or GitHub web UI), not fixable from this session.
+  Full record: `decisions/2026/D-GH-2026-08-20-tag-only-meaningful-promotions.md`.
+
 ## D-GH-2026-08-20-premium-autogrowth-to-stepped — Rage/Wild Shape/Bardic Inspiration die become stepped-Premium; hard prerequisite blocking; three more features retrofitted
 - Implements `pact-guide`'s `D-2026-08-19-premium-autogrowth-to-stepped`: Rage, Wild Shape, and Bardic
   Inspiration die convert from flat-once Premium to a Premium unlock + half-price named upgrade steps,
