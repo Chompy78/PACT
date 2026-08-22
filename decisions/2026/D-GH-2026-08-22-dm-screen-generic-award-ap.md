@@ -151,3 +151,35 @@ Award AP tick-list from the base decision above) in one change, not a special ca
 alone. Verified visually across dark and dnd themes.
 
 `dm-console-ui-e2e.mjs` re-run clean (96/96) after both changes.
+
+## Addendum (2026-08-22) — the three-card lock made into an actual supercard; custom fields 1/2 on the default Card view
+Direct follow-up question: *"does all the fields the lock button applies to need to be in its own
+sub-supercard?"* Yes — and the previous addendum's `ruleLockHint` fix was itself incomplete because of
+this: it lived inside `campRulesTile`'s own `<details>`, so it was invisible unless that ONE of the
+three locked cards (`campRulesTile`/`campAdvancementTile`/`campCustomFieldsTile`) happened to be the one
+a DM opened first — a DM who opened "Level budget curve…" directly would still see greyed-out fields
+with zero explanation. Restructured: the three cards, plus the "Save rules / Locked" row that used to
+float as a bare, uncontained row after them, are now wrapped in one outer **`campRulesGroup`**
+("supercard" — new `.subtile-group` class, border-only/no fill so the `.subtile`s nested inside still
+read as a distinct layer against it, same relationship they already have against `.panel`).
+`ruleLockHint` moved to the top of that wrapper, outside all three `<details>` — now visible immediately
+on scroll, with zero clicks, and its one click unlocks all three (verified: economy band, starting-tier
+AP, and a custom-field-definition input all flip `disabled` together). `_ruleLockEls()`/`_peekLockEls()`
+needed no change to their tile-ID scanning (`getElementById` finds a node regardless of nesting depth);
+`ruleLockHint` only needed moving from "excluded from `_ruleLockEls()`'s scan" (dead code once it left
+those tiles) to "swept by `_peekLockEls()`'s extras" (same treatment as `ruleLockBtn`, unaffected by the
+move) — verified `ruleLockHint.disabled === true` while peeking an archived campaign, still.
+
+Separate ask in the same message (clarified as "fields" not "buttons"): show the campaign's two NUMBER
+custom fields ("Custom 1"/"Custom 2" — `num1`/`num2` under Custom character fields) on the **default**
+Card view, not only inside the collapsed "DM tools" section where `customFieldValuesBody()` already
+lets a DM edit them. Added two more cells to `cardHTML()`'s stat strip (alongside AP left/HP/AC/…),
+read-only display of `dm.customFields.num1`/`.num2` under whatever label the campaign gave them, only
+when the campaign actually defined that slot's label (`window._dmCampaignApRules.customFields`, the
+same source `customFieldValuesBody()` already reads — no new plumbing). Deliberately NUMBER fields only,
+not the two TEXT ones — a stat cell reads naturally as a number the way HP/AC/Prof already do, and
+freeform text doesn't fit that shape; the two text slots stay DM-tools-only, unchanged. A local
+(non-campaign) roster card or a campaign with no custom fields defined falls through both guards to "no
+cells added" — verified live (no extra stat cells rendered when `window._dmCampaignApRules` is null).
+
+`dm-console-ui-e2e.mjs` and `economy-ui-e2e.mjs` both re-run clean (96/96, 155/155) after these changes.

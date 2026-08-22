@@ -465,6 +465,13 @@
   /* ---- campaign panel: nested tiles (feat/dm-console-ui) ---- */
   .subtile{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
   .subtile:last-child{margin-bottom:0}
+  /* A "supercard" wrapping several .subtiles that share one lock/save control (feat/campaign-rules-
+     lock-supercard) — deliberately no fill of its own (transparent, so the panel's own --card shows
+     through), just a border, so the .subtiles inside still read as the visually distinct layer against
+     it, the same as they already do against .panel. Two same-colored fills stacked would blur together. */
+  .subtile-group{border:1px solid var(--line);border-radius:12px;padding:10px 10px 2px;margin-bottom:10px}
+  .subtile-group:last-child{margin-bottom:0}
+  .subtile-group > .subtile:last-child{margin-bottom:10px}
   .subtile .stitle{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;margin-bottom:8px}
   #dmNotesText{min-height:90px;padding:8px 10px;resize:vertical;font-family:inherit}
   .ruleblock{margin-bottom:6px}
@@ -734,11 +741,20 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             </details>
           </div>
 
+          <!-- feat/campaign-rules-lock-supercard: campRulesTile/campAdvancementTile/campCustomFieldsTile
+               plus the Save/Lock row below them all share ONE lock (_setRulesLocked/_ruleLockEls), but
+               used to just be four separate-looking siblings — three identical cards followed by a bare
+               button row, nothing showing they were one locked unit. Wrapped in campRulesGroup so the
+               containment itself says "these belong together", with ruleLockHint living at the group's
+               top (outside all three <details>, so it's visible the moment a DM scrolls here — not
+               gated behind opening any one of the three accordions first, which is what happened when
+               the hint lived inside campRulesTile's own <details>). -->
+          <div class="subtile-group" id="campRulesGroup">
+            <button type="button" id="ruleLockHint" style="display:block;width:100%;text-align:left;appearance:none;background:var(--warn-bg);color:var(--ink);border:1px solid var(--warn);border-radius:10px;padding:8px 10px;font:inherit;font-size:11.5px;cursor:pointer;margin-bottom:10px"></button>
           <div class="subtile" id="campRulesTile">
             <details id="campRulesDetails">
               <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
               <div style="margin-top:8px">
-                <button type="button" id="ruleLockHint" style="display:block;width:100%;text-align:left;appearance:none;background:var(--warn-bg);color:var(--ink);border:1px solid var(--warn);border-radius:10px;padding:8px 10px;font:inherit;font-size:11.5px;cursor:pointer;margin-bottom:10px"></button>
                 <div class="ruleblock" id="ruleCopyBlock" style="display:none">
                   <div class="lbl">Copy rules from another campaign</div>
                   <div style="display:flex;gap:6px;align-items:center">
@@ -874,6 +890,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <span id="ruleSaveStatus" style="font-size:11px;color:var(--muted)"></span>
           </div>
           <div class="grantnote" style="margin:0 0 10px">Saves the Campaign Rules and advancement settings above together.</div>
+          </div>
 
           <div class="subtile" id="dmNotesTile">
             <div class="stitle">DM notes about THIS CAMPAIGN</div>
@@ -1627,6 +1644,22 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     // s.available is the same figure the player's own Live Sheet calls "AP left", from the same engine
     // AND the same formula (spendable − frozen spend) — including the DM-granted pool, which is why it
     // now agrees with the player's sheet instead of showing a DM-funded character as deeply overspent.
+    // feat/card-view-custom-fields: the campaign's two NUMBER custom fields (num1/num2 — "Custom 1"/
+    // "Custom 2" under Campaign Rules → Custom character fields) on the default Card view's stat strip
+    // itself, not just buried inside the collapsed "DM tools" section below (customFieldValuesBody,
+    // where the DM actually sets the value). Read-only here — editing still happens in DM tools. Only
+    // the two NUMBER slots, not the two TEXT ones: a stat cell reads naturally as a number ("Renown 4")
+    // the way HP/AC/Prof already do, and text1/text2 (freeform strings) don't fit that shape. Local
+    // (non-campaign) roster cards have no window._dmCampaignApRules, so both guards fall through to
+    // "not defined" and these cells simply don't appear — same as a campaign that never named them.
+    var cfDefs = (window._dmCampaignApRules && window._dmCampaignApRules.customFields) || {};
+    var cfVals = (dm && dm.customFields) || {};
+    function cfCell(slot){
+      var def = cfDefs[slot];
+      if(!def || !def.label) return false;
+      var v = cfVals[slot];
+      return [def.label, (v==null || v==='') ? '—' : v];
+    }
     var statCells = [
       ['AP left', avail],
       ['HP', s.hp],
@@ -1634,7 +1667,9 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       ['Speed', (s.speed!=null? s.speed+'′' : '—')],
       ['Pass. Perc', passivePerc(s)],
       ['Prof', sgnSafe(s.prof)],
-      ['Save DC', (s.saveDC==null?'—':s.saveDC)]
+      ['Save DC', (s.saveDC==null?'—':s.saveDC)],
+      cfCell('num1'),
+      cfCell('num2')
     ].filter(Boolean);
     var statsHTML = statCells.map(function(c){
       return '<div class="stat"><div class="k">'+esc(c[0])+'</div><div class="v">'+(c[2]?c[1]:esc(c[1]))+'</div></div>';
@@ -2698,8 +2733,11 @@ document.addEventListener('campaign-ready', function () {
     // inert as everything else while viewing read-only history. (Copy/Refresh buttons stay in scope on
     // purpose — an archived campaign's invite codes are dead links, so copying one is a trap worth
     // closing too. The sole exemption, applied inside _scopedControlEls(), is the ⓘ info buttons: they
-    // only alert() their own title, nothing to guard.)
-    return _scopedControlEls(_PEEK_SCOPES, [document.getElementById('ruleSaveBtn'), ruleLockBtn]);
+    // only alert() their own title, nothing to guard.) ruleLockHint (feat/campaign-rules-lock-supercard)
+    // is the same story as ruleLockBtn — it lives outside all three rule tiles, on purpose, so it isn't
+    // swept by _ruleLockEls()'s own scan (it must stay clickable to unlock them); it still needs sweeping
+    // HERE or an archived peek would leave it clickable.
+    return _scopedControlEls(_PEEK_SCOPES, [document.getElementById('ruleSaveBtn'), ruleLockBtn, ruleLockHint]);
   }
 
   /* Restores rather than blanket-enables on exit: several of these controls have their own disabled
@@ -3569,14 +3607,12 @@ document.addEventListener('campaign-ready', function () {
   // toggling a ban checkbox or a curve field before that click ever happens. ruleMultiDisc stands in for
   // ignoreChk as the "am I currently locked" source of truth on toggle (same disabled-state trick).
   function _ruleLockEls(){
-    // ruleLockHint is deliberately excluded here (unlike everything else this scan disables) — it is
-    // itself the DM's way OUT of the locked state, sitting right at the top of a long panel so they
-    // don't have to scroll to "Locked" at the bottom to discover it exists. Disabling it when locked
-    // would disable the one control whose whole job is unlocking. Still swept by the SEPARATE
-    // archived-peek lock below (campRulesTile is already in _PEEK_SCOPES) — peeking a read-only
-    // archived campaign must still make it inert, same as ruleLockBtn.
-    return _scopedControlEls(['campRulesTile', 'campAdvancementTile', 'campCustomFieldsTile'], [document.getElementById('ruleSaveBtn')])
-      .filter(function(el){ return el.id !== 'ruleLockHint'; });
+    // ruleLockHint lives in campRulesGroup, outside all three of these tiles (same reason ruleLockBtn
+    // does) — it is itself the DM's way OUT of the locked state, so this scan must never reach it:
+    // disabling it when locked would disable the one control whose whole job is unlocking. Still swept
+    // by the SEPARATE archived-peek lock (_peekLockEls() sweeps it explicitly, same as ruleLockBtn) —
+    // peeking a read-only archived campaign must still make it inert.
+    return _scopedControlEls(['campRulesTile', 'campAdvancementTile', 'campCustomFieldsTile'], [document.getElementById('ruleSaveBtn')]);
   }
   function _setRulesLocked(locked){
     _ruleLockEls().forEach(function(el){ el.disabled = locked; });

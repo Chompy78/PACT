@@ -6,6 +6,19 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(dm-console): Campaign Rules' three locked cards wrapped into one actual "supercard";
+  feat(dm-console): custom fields 1/2 shown on the default Card view** — the earlier same-day unlock-hint
+  fix lived inside just one of the THREE cards the rules lock actually covers
+  (`campRulesTile`/`campAdvancementTile`/`campCustomFieldsTile`), so a DM opening any card but that one
+  still saw greyed-out fields unexplained. Wrapped all three, plus the "Save rules / Locked" row that
+  used to float uncontained after them, in one outer `campRulesGroup` ("supercard", new
+  `.subtile-group` class); moved the unlock hint to its top, outside every `<details>`, so it's visible
+  on scroll with no clicks and unlocks all three cards at once (verified). Also: the campaign's two
+  NUMBER custom fields ("Custom 1"/"Custom 2") now show as extra stat cells on the default Card view
+  itself (alongside AP left/HP/AC/…), not only inside the collapsed DM tools section where they're
+  edited — read-only there, only when the campaign actually named that slot; text1/text2 unchanged
+  (DM-tools-only, they don't fit a stat-cell shape). `dm-console-ui-e2e.mjs` 96/96, `economy-ui-e2e.mjs`
+  155/155. `D-GH-2026-08-22-dm-screen-generic-award-ap` (addendum).
 - **2026-08-22 · fix(dm-console): Campaign Rules' lock hid the economy dropdown with no way to find the
   unlock control; Banned-list/Award-AP checkbox labels too low-contrast vs CharGen** — Campaign Rules
   locks by default on every campaign switch, but its only unlock button sits at the very bottom of a
