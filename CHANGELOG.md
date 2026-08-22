@@ -6,6 +6,35 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(tools): 10 mechanical playability/usability fixes from the 2026-08-22 audit** —
+  batched low-risk sweep across all three tools, each independently confirmed and covered by
+  `engine-parity-ci.mjs` (52/0) and `tool-pricing-ci.mjs` (163/0, two fixtures updated to build a real
+  over/under-budget LOG instead of stubbing `compute()`, since the budget-gate fix below changes exactly
+  what `_lsOverApBudget()` reads). **Live Sheet:** the cloud-save budget gate (`_lsOverApBudget()` and
+  the manual "Save to cloud" handler) now reads the frozen ledger via `apAvailable(null)` instead of
+  re-pricing against today's `DATA` — a post-freeze price-table change could otherwise trip the gate for
+  a character who was never over budget, or silently bypass it in the other direction; `importJSON()`
+  now confirms before replacing the current character, matching `resetAll()`'s existing pattern; Current
+  HP/Temp HP/Hit Dice left now show a "this device only" hint, since they're still plain-localStorage
+  scratch that doesn't survive a device switch (shallow fix — the deeper LOG-backed migration is a
+  separate owner decision, not filed as a task pending that call). **DM Console:** an AP/gold-only award
+  now triggers a full roster reload instead of a stale local patch, so the card's headline "AP left"/
+  Level numbers are never stale; declaring a party-wide downtime window now confirms first (it silently
+  wiped unspent time campaign-wide with one click); removed the dead `viewAt` time-travel variable (no
+  scrub UI ever consumed it); the local-roster remove button's touch target grew from 28×28 to 40×40 to
+  match the file's other controls. **CharGen:** the AP ledger's itemization rows now use `_csEsc()`
+  instead of a partial `&lt;`-only replace; the AP budget field clamps to `Math.max(0, …)`, closing a
+  path where a stray leading minus (easy on a mobile numeric keypad) minted a genuine negative award
+  event; the character-name field gained a 60-char `maxlength`. **`/code-review` catch on this same PR:**
+  CharGen's `_cgOverApBudget()` had the identical re-pricing bug the Live Sheet fix above closes —
+  fixed the same way (frozen ledger via `economy(LOG).spent` against `compute().spendable`), plus the
+  budget field's own displayed value now corrects itself after the negative-clamp fix above (it used to
+  keep showing e.g. "-79" indefinitely while the real recorded award silently became 0). Two more
+  `tool-pricing-ci.mjs` fixtures updated to match, and both needed an explicit DM-AP-context reset
+  (`window._dmApStatus`/`_dmAp`/`_ignorePlayerAp`/`_cgCopySourceAp`) the original compute()-stubbed
+  tests never needed, since a real LOG-based test is now exposed to whatever DM-context globals an
+  earlier check in the same page session left set. Full record:
+  `D-GH-2026-08-22-audit-batch-mechanical-fixes`.
 - **2026-08-22 · fix(security): closed five stored-XSS/attribute-injection gaps in CharGen and Live
   Sheet** — a full tool audit found `renderCharSheet()`'s language/mastery/drawback fields,
   `validate()`'s rules-drift warning text, and the drawback buy-off button's `onclick` all rendered a

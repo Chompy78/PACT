@@ -10,6 +10,21 @@
 
 ## Index
 
+## D-GH-2026-08-22-audit-batch-mechanical-fixes — 10 low-risk playability/usability fixes from the 2026-08-22 audit, batched
+- The audit's non-security findings (14 remaining after the esc()/XSS batch), triaged into what's safe to
+  fix directly in one batch vs. what needs its own dedicated pass: 10 mechanical, single-file, no-design-
+  decision fixes shipped here (Live Sheet's frozen-ledger budget gate + import confirm + HP-sync hint;
+  DM Console's roster staleness + downtime confirm + dead-code removal + touch target; CharGen's ledger
+  escaping + budget clamp + name maxlength). The three engine-pricing findings (uncapped ladders, ability-
+  score bound, duplicate-unlock dedupe) are sequenced into their own branch since they share a
+  `DATA.version` bump. Two findings are explicitly NOT fixed here: the co-DM revoke UI (real feature work,
+  its own branch) and archived-campaign RPC enforcement (a production RLS/RPC change — deferred pending
+  `/make-code-cold-plan-review`, per this project's own standing rule for that class of change). The HP-
+  sync finding's deeper fix (moving `curHP`/`tempHP`/`hdLeft` into the LOG-backed path) is likewise not
+  filed as a task — it's a real schema decision only the owner can make; the shallow visibility fix ships
+  now, the deep option is a live open question, not a queued task. Full record:
+  `decisions/2026/D-GH-2026-08-22-audit-batch-mechanical-fixes.md`.
+
 ## D-GH-2026-08-22-esc-gap-chargen-livesheet — closing five stored-XSS/attribute-injection gaps in CharGen and Live Sheet
 - A full tool audit found five places (eight counting the CharGen↔Live Sheet `renderCharSheet()`
   duplication plus one same-shape mirror found while fixing) where a player-controlled value reached

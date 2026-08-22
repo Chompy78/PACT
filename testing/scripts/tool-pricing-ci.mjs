@@ -444,35 +444,44 @@ try {
     ['32', 'silver', 'A grizzled veteran.']);
 
   // feat/campaign-ap-budget-enforce: a campaign-bound character's CLOUD save (manual + autosave) is
-  // refused once compute()'s remaining<0, when the campaign's rules.enforceApBudget is true-or-absent.
-  // compute() itself needs no change (task step 8), so these isolate _lsOverApBudget()'s own gating
-  // logic from real AP-pricing arithmetic by stubbing compute() to a fixed {remaining} — the pricing
-  // math is already exhaustively covered by engine-parity-ci.mjs.
+  // refused once the FROZEN LEDGER reads over budget, when the campaign's rules.enforceApBudget is
+  // true-or-absent. fix/livesheet-budget-gate-frozen-ledger (2026-08-22): _lsOverApBudget() used to
+  // read compute().remaining (a re-price against TODAY's rules, which can diverge from what was
+  // actually paid) — now reads apAvailable(null) (economy()'s frozen spent vs compute()'s spendable
+  // ceiling), so these build a REAL over/under-budget LOG rather than stubbing compute() — stubbing it
+  // would no longer exercise the code path this test means to cover, since compute() is not what
+  // _lsOverApBudget() consults for the remaining figure any more.
   console.log('\nLive Sheet — cloud save is blocked while over AP budget, enforced by the campaign');
-  check('_lsOverApBudget gates on campaign-bound + enforcement + remaining<0, independently',
-    await ls.evaluate(`(()=>{
-      const real=compute;
-      window._lsCampaignId=null; window._cloudCampaignRules={enforceApBudget:true}; window.compute=()=>({remaining:-3});
-      const r1=_lsOverApBudget();   // not bound -> false regardless of remaining
+  check('_lsOverApBudget gates on campaign-bound + enforcement + frozen-ledger-over, independently',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      // 10 AP awarded, 50 AP spent — genuinely over budget on the frozen ledger.
+      LOG.push({type:'award',amount:10,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:50,label:'Test (50 AP)',seq:SEQ++,ts:Date.now()});
+      window._lsCampaignId=null; window._cloudCampaignRules={enforceApBudget:true};
+      const r1=_lsOverApBudget();   // not bound -> false regardless of being over budget
       window._lsCampaignId='camp-1'; window._cloudCampaignRules={enforceApBudget:false};
       const r2=_lsOverApBudget();   // bound but enforcement explicitly off -> false
       window._cloudCampaignRules={};   // absent key -> default true
       const r3=_lsOverApBudget();   // bound + default-enforced + over -> true
-      window.compute=()=>({remaining:3});
+      LOG.length=0;SEQ=1;
+      // 50 AP awarded, 10 AP spent — genuinely under budget.
+      LOG.push({type:'award',amount:50,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:10,label:'Test (10 AP)',seq:SEQ++,ts:Date.now()});
       const r4=_lsOverApBudget();   // bound + enforced + UNDER -> false
-      window.compute=real; window._lsCampaignId=null;
+      window._lsCampaignId=null;
       return [r1, r2, r3, r4];})()`),
     [false, false, true, false]);
   check('autosave push skips silently while over budget, warning once per session not every cycle',
     await ls.evaluate(`(()=>{${LS_SETUP}
-      const real=compute; window.compute=()=>({remaining:-7});
+      LOG.push({type:'award',amount:10,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:50,label:'Test (50 AP)',seq:SEQ++,ts:Date.now()});
       window._lsCampaignId='camp-1'; window._cloudCampaignRules={};
       window.flash=m=>window.__f.push(String(m));
       let calls=0; const realBridge=window._syncBridge;
       window._syncBridge={saveCharacter:async()=>{calls++;return{};}};
       _lsBudgetWarned=false;
       return _lsCloudPushOnce().then(()=>_lsCloudPushOnce()).then(()=>{
-        window.compute=real; window._syncBridge=realBridge; window._lsCampaignId=null;
+        window._syncBridge=realBridge; window._lsCampaignId=null;
         return [calls, window.__f.length];});})()`),
     [0, 1]);
   check('autosave push proceeds normally when enforcement is off, even over budget',
@@ -1209,23 +1218,36 @@ try {
     [true, true]);
 
   // feat/campaign-ap-budget-enforce: a campaign-bound character's CLOUD save (manual + autosave) is
-  // refused once compute()'s remaining<0, when the campaign's rules.enforceApBudget is true-or-absent.
-  // compute() itself needs no change (task step 8), so these isolate _cgOverApBudget()'s own gating
-  // logic from real AP-pricing arithmetic by stubbing compute() to a fixed {remaining} — the pricing
-  // math is already exhaustively covered by engine-parity-ci.mjs.
+  // refused once the FROZEN LEDGER reads over budget, when the campaign's rules.enforceApBudget is
+  // true-or-absent. fix/tool-mechanical-fixes (2026-08-22, /code-review catch on that PR):
+  // _cgOverApBudget() used to read compute().remaining — the same re-price-against-today's-rules bug
+  // already fixed in Live Sheet's _lsOverApBudget() — now reads (compute().spendable - economy(LOG).spent)
+  // instead, so these build a REAL over/under-budget LOG rather than stubbing compute(), matching the
+  // Live Sheet fixture rewrite above (a compute() stub no longer exercises the code path this gate
+  // consults).
   console.log('\nCharGen — cloud save is blocked while over AP budget, enforced by the campaign');
-  check('_cgOverApBudget gates on campaign-bound + enforcement + remaining<0, independently',
+  check('_cgOverApBudget gates on campaign-bound + enforcement + frozen-ledger-over, independently',
     await cg.evaluate(`(()=>{
-      const real=compute;
-      window._cgCampaignBound=false; window._cgEnforceApBudget=true; window.compute=()=>({remaining:-3});
-      const r1=_cgOverApBudget();   // not bound -> false regardless of remaining
+      LOG.length=0;SEQ=1;
+      // Neutral DM-AP context — _cgDmOpts() must return {dmAp:0,...} so spendable is driven purely by
+      // this test's own award events, not whatever DM-context globals an earlier check in this same
+      // page session left set (window._dmApStatus/_dmAp/_ignorePlayerAp/_cgCopySourceAp).
+      window._dmApStatus=null; window._dmAp=0; window._ignorePlayerAp=false; window._cgCopySourceAp=0;
+      // 10 AP awarded, 50 AP spent — genuinely over budget on the frozen ledger.
+      LOG.push({type:'award',amount:10,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:50,label:'Test (50 AP)',seq:SEQ++,ts:Date.now()});
+      window._cgCampaignBound=false; window._cgEnforceApBudget=true;
+      const r1=_cgOverApBudget();   // not bound -> false regardless of being over budget
       window._cgCampaignBound=true; window._cgEnforceApBudget=false;
       const r2=_cgOverApBudget();   // bound but enforcement explicitly off -> false
       window._cgEnforceApBudget=true;
       const r3=_cgOverApBudget();   // bound + enforced + over -> true
-      window.compute=()=>({remaining:3});
+      LOG.length=0;SEQ=1;
+      // 50 AP awarded, 10 AP spent — genuinely under budget.
+      LOG.push({type:'award',amount:50,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:10,label:'Test (10 AP)',seq:SEQ++,ts:Date.now()});
       const r4=_cgOverApBudget();   // bound + enforced + UNDER -> false
-      window.compute=real; window._cgCampaignBound=false;
+      window._cgCampaignBound=false;
       return [r1, r2, r3, r4];})()`),
     [false, false, true, false]);
   // onSaveClick() itself is NOT directly testable here: its "☁ Save to cloud" button only exists in
@@ -1237,14 +1259,17 @@ try {
   // exact same gate end-to-end through a path that doesn't need sign-in.
   check('autosave push skips silently while over budget, warning once per session not every cycle',
     await cg.evaluate(`(()=>{
-      const real=compute; window.compute=()=>({remaining:-7});
+      LOG.length=0;SEQ=1;
+      window._dmApStatus=null; window._dmAp=0; window._ignorePlayerAp=false; window._cgCopySourceAp=0;
+      LOG.push({type:'award',amount:10,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:50,label:'Test (50 AP)',seq:SEQ++,ts:Date.now()});
       window._cgCampaignBound=true; window._cgEnforceApBudget=true;
       window.__f=[]; window.flash=m=>window.__f.push(String(m));
       let calls=0; const realBridge=window._syncBridge;
       window._syncBridge={saveCharacter:async()=>{calls++;return{};}};
       _cgBudgetWarned=false;
       return _cgCloudPushOnce().then(()=>_cgCloudPushOnce()).then(()=>{
-        window.compute=real; window._syncBridge=realBridge; window._cgCampaignBound=false;
+        window._syncBridge=realBridge; window._cgCampaignBound=false;
         return [calls, window.__f.length];});})()`),
     [0, 1]);
   check('autosave push proceeds normally for a non-campaign character, however negative remaining is',

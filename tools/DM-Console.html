@@ -193,7 +193,9 @@
   .card .csub{font-size:13px; color:var(--muted); margin-top:3px}
   .card .csub .tier{display:inline-block;background:var(--light);color:var(--navy);border-radius:6px;padding:1px 7px;font-weight:600;font-size:12px;margin-left:2px}
   .rmcard{
-    position:absolute; top:12px; right:12px; width:28px; height:28px; border-radius:7px;
+    /* 40x40 touch target (was 28x28) to match this file's other controls (.btn's min-height:40px)
+       — the visible icon/border stays the same size, only the tappable area grows. */
+    position:absolute; top:8px; right:8px; width:40px; height:40px; border-radius:7px;
     border:1px solid var(--line); background:#fff; color:var(--muted); cursor:pointer; font-size:16px; line-height:1;
     display:flex; align-items:center; justify-content:center;
   }
@@ -1055,7 +1057,6 @@ let REDO=[];       // popped events for redo
 let SEQ=1;
 let __charId=null;                                   // stable per-character id for hand-typed sheet fields
 function currentCharId(){return __charId;}
-let viewAt=null;   // time-travel: render state as-of this many events (null = head)
 let RULES='v0.176';   // set from engine DATA.version at engine-ready (module bridge, D-GH26)
 let loadedRules=null;   // rules version stamped on a loaded file/localStorage; null until an older-version build is imported. Dormant while only the current version exists.
 
@@ -1067,7 +1068,9 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 // foldBuild/activeEvents/economy are thin adapters over js/engine.js's real (array-based)
 // versions (D-GH37) — uptoIdx-based time travel stays local (slice LOG, hand the slice to the
 // engine); window._engineFold is set by the module bridge, present by the time these are called
-// (UI boot is gated on engine-ready).
+// (UI boot is gated on engine-ready). The uptoIdx parameter is plumbed but NOT wired to any control
+// in this tool today — every call site below passes null (head). Kept for parity with Live Sheet's
+// identical adapter shape, which DOES have a scrub UI; don't assume one exists here too.
 function eventsUpTo(uptoIdx){ return uptoIdx==null ? LOG : LOG.slice(0,uptoIdx); }
 function activeEvents(uptoIdx){ return window._engineFold.activeEvents(eventsUpTo(uptoIdx)); }
 function foldBuild(uptoIdx){ return window._engineFold.foldBuild(eventsUpTo(uptoIdx)); }
@@ -2346,9 +2349,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
           // A bonus changes this character's composed downtime total, which lives in a cache
           // (window._dmDowntimeWindows) this closure cannot refresh itself — window._dmReloadRoster
           // is the SAME cross-boundary bridge feat/dm-edit-events already uses for "something changed
-          // that a local field patch can't express, re-fetch the whole roster". AP/gold-only awards
-          // skip it and use the cheaper local patch + render instead.
-          if(bonus!==0 && window._dmReloadRoster) window._dmReloadRoster();
+          // that a local field patch can't express, re-fetch the whole roster". Always reload rather
+          // than branching on bonus!==0: an AP/gold-only award patches entry.dm.ap/entry.dm.gold above,
+          // but the card's own "AP left"/Level stat strip reads entry.summary (from the last
+          // cloudAnalyze()), not dm.ap/dm.gold directly — a local render() alone would leave those two
+          // headline numbers stale until the next unrelated refresh (fix/dm-console-roster-award-
+          // staleness). The extra reload cost is worth a card that's never wrong.
+          if(window._dmReloadRoster) window._dmReloadRoster();
           else renderCloudRoster(el);
           if(errs.length) alert('Some awards failed: '+errs.join('; '));
         });
@@ -2563,6 +2570,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         var dNote = (dNoteEl&&dNoteEl.value||'').trim();
         var dCampId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
         if(!daysEl || daysEl.value===''){ alert('Enter the new window size in days.'); return; }
+        if(!confirm('Declare a new '+days+'-day downtime window for the whole party?\n\nThis replaces the current window for EVERY character in the campaign — any bonus time granted under the old window is wiped, not banked. This cannot be undone.')) return;
         declareBtn.disabled = true;
         B.declareDowntime(dCampId, days, null, dNote).then(function(){
           declareBtn.disabled = false;
