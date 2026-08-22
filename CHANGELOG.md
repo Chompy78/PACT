@@ -25,7 +25,15 @@
   match the file's other controls. **CharGen:** the AP ledger's itemization rows now use `_csEsc()`
   instead of a partial `&lt;`-only replace; the AP budget field clamps to `Math.max(0, …)`, closing a
   path where a stray leading minus (easy on a mobile numeric keypad) minted a genuine negative award
-  event; the character-name field gained a 60-char `maxlength`. Full record:
+  event; the character-name field gained a 60-char `maxlength`. **`/code-review` catch on this same PR:**
+  CharGen's `_cgOverApBudget()` had the identical re-pricing bug the Live Sheet fix above closes —
+  fixed the same way (frozen ledger via `economy(LOG).spent` against `compute().spendable`), plus the
+  budget field's own displayed value now corrects itself after the negative-clamp fix above (it used to
+  keep showing e.g. "-79" indefinitely while the real recorded award silently became 0). Two more
+  `tool-pricing-ci.mjs` fixtures updated to match, and both needed an explicit DM-AP-context reset
+  (`window._dmApStatus`/`_dmAp`/`_ignorePlayerAp`/`_cgCopySourceAp`) the original compute()-stubbed
+  tests never needed, since a real LOG-based test is now exposed to whatever DM-context globals an
+  earlier check in the same page session left set. Full record:
   `D-GH-2026-08-22-audit-batch-mechanical-fixes`.
 - **2026-08-22 · fix(security): closed five stored-XSS/attribute-injection gaps in CharGen and Live
   Sheet** — a full tool audit found `renderCharSheet()`'s language/mastery/drawback fields,

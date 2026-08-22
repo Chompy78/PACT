@@ -58,6 +58,30 @@ over/under-budget LOG (`award` + `buy` events with real `cost` values) instead o
 which is a strictly better test anyway — it also exercises `apCeiling()`/`economy()`, not just the gating
 branch logic in isolation.
 
+## Addendum — /code-review catch: CharGen had the identical budget-gate bug, unaudited
+`/code-review` on the PR for this batch found `tools/PACT-CharGen-Webtool.html`'s `_cgOverApBudget()`
+(CharGen's counterpart to Live Sheet's `_lsOverApBudget()`) had the *exact same* re-price-against-today's-
+rules bug — the original 2026-08-22 audit's L1 finding named only the two Live Sheet call sites, and
+CharGen's sibling function was never independently checked. Fixed identically: `economy(LOG).spent`
+against `compute(readBuild(), _cgDmOpts()).spendable` instead of `.remaining`. Also caught: the AP budget
+field's own displayed value was never corrected after the negative-clamp fix (C4) above — the input kept
+showing the typed negative number indefinitely while the recorded award silently became 0, a
+display/reality mismatch introduced by this same batch. Both fixed in the same PR before merge; two
+`tool-pricing-ci.mjs` fixtures needed the same real-LOG rewrite as their Live Sheet counterparts, plus an
+explicit DM-AP-context reset the compute()-stubbed originals never needed (a real-LOG test is exposed to
+whatever DM-context globals an earlier check in the same page session left set — the stubbed version
+bypassed `_cgDmOpts()` entirely, so it never mattered before).
+
+The DM Console unconditional-reload finding (see the triage table's D1 row) was also raised again by
+`/code-review` as a performance regression (every AP/gold-only award now costs a full roster re-fetch
+instead of a cheap local patch). Considered a genuine partial-refresh alternative — `cloudAnalyze(row)` is
+pure and local (no network call), so re-running it on just the awarded entry looked promising — but it
+needs the *raw* roster row shape (`row.stats.rules`, `row.stats.SEQ`), which isn't preserved on the
+transformed `cloudRoster` entries (only `dm.log`, the bare LOG array, survives the transform). Reconstructing
+a synthetic row from the transformed entry would silently drop `rules`/`SEQ` context and risk a subtly
+wrong summary for a marginal performance gain on what are typically small DM rosters. Kept the
+unconditional reload as the already-documented, deliberate tradeoff it was designed to be.
+
 ## Why
 This batch exists as a deliberate middle tier between "trivial enough to not need a task at all" and "big
 enough to need its own dedicated review": each of these 10 findings, taken alone, would have been a

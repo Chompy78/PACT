@@ -1490,12 +1490,19 @@ function _cgDmOpts(){
   return {dmAp:0,ignorePlayerAp:false,drawbackCap:undefined};
 }
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on,
-// who has actually spent past their budget right now. compute() needs no change — remaining<0
-// already means "over budget" (task step 8). Blocks only the CLOUD save path; Local "Save to file"
-// never calls this.
+// who has actually spent past their budget right now. Reads the FROZEN ledger (economy(LOG).spent
+// against compute()'s spendable ceiling) — NOT compute().remaining, which re-prices every owned item
+// against today's DATA tables and can diverge from what was actually paid, exactly the bug fixed in
+// Live Sheet's _lsOverApBudget() by fix/livesheet-budget-gate-frozen-ledger (2026-08-22) — found here
+// too by /code-review on that same PR (this file imports economy/foldBuild via the same module bridge,
+// so the identical fix applies). While a character is still an unlocked DRAFT, repriceDraft() keeps
+// economy().spent continuously in sync with compute().total on every mutation, so this rarely differs
+// pre-lock — the divergence this guards against is specifically a LOCKED character, where re-pricing
+// stops by design (D7) but this gate would otherwise still re-price anyway. Blocks only the CLOUD save
+// path; Local "Save to file" never calls this.
 function _cgOverApBudget(){
   if(!window._cgCampaignBound || !window._cgEnforceApBudget) return false;
-  return compute(readBuild(), _cgDmOpts()).remaining < 0;
+  return (compute(readBuild(), _cgDmOpts()).spendable - economy(LOG).spent) < 0;
 }
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
@@ -2979,6 +2986,10 @@ function _cgSyncAward(){
   // permanently "over budget" with no hint the budget field itself was the cause. Clamp to match the
   // field's own declared minimum.
   const base=(raw===''||raw==null||!Number.isFinite(parsed))?DATA.level1AP:Math.max(0,parsed);
+  // Correct the field's own displayed value when the clamp above actually changed something (a typed
+  // negative) — otherwise the input keeps showing e.g. "-79" indefinitely while the real recorded award
+  // silently became 0, a display/reality mismatch /code-review caught on this same fix.
+  if(Number.isFinite(parsed)&&parsed<0){const bi=$('budget');if(bi)bi.value=base;}
   const amt=base;
   // Don't mint a zero award for a character that has none. Without this, every load of a DM-AP-only
   // character would append `award 0` — a meaningless event that also makes the log look edited.
