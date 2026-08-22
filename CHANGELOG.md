@@ -6,6 +6,17 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(dm-console): Campaign Rules' lock hid the economy dropdown with no way to find the
+  unlock control; Banned-list/Award-AP checkbox labels too low-contrast vs CharGen** — Campaign Rules
+  locks by default on every campaign switch, but its only unlock button sits at the very bottom of a
+  long panel while "Gold & downtime economy" sits in the middle — a DM sees a greyed-out dropdown with
+  nothing nearby explaining why. Added `#ruleLockHint`, an always-visible clickable banner at the TOP of
+  the panel that states the lock and toggles the same lock state `ruleLockBtn` already drives (excluded
+  from the rules-lock's own disable-scan so it can't disable itself; still swept by the separate
+  archived-peek lock, verified). Separately, `.rulegrid label` (every Banned-species/boons/masteries/
+  drawbacks/arts checkbox, plus the new Award AP tick-list) switched from `color:var(--muted)` to
+  CharGen's own `color:var(--ink);font-weight:700` — not a WCAG failure but a real, requested
+  match-CharGen's-legibility fix. `dm-console-ui-e2e.mjs` 96/96. `D-GH-2026-08-22-dm-screen-generic-award-ap` (addendum).
 - **2026-08-22 · fix(dm-console): the "📒 AP history" popup was hardcoded white, unreadable in dark
   theme** — `.hist-modal .inner` had `background:#fff` and its heading `color:var(--navy)`, neither
   theme-aware; the table's inherited (correctly theme-aware) light dark-theme text landed on that

@@ -116,3 +116,38 @@ missing — `awardBody()` only renders them when the campaign's economy is on
 is set to something other than its default "off" band. No code change; this is by design (a campaign
 that doesn't use the gold/downtime economy shouldn't show gold/time award fields DMs would never use),
 just non-obvious enough to record here since it was raised as if the fields were missing/broken.
+
+## Addendum (2026-08-22) — "Gold & downtime economy is set to off and I can't change [it]"; "the tick boxes are still too hard to read"
+Two more reports on the same thread, both real.
+
+**The economy dropdown genuinely was unreachable, and the reason wasn't obvious.** Campaign Rules (and
+Advancement/Custom fields) land locked by default on every campaign switch (`_setRulesLocked(true)`,
+existing, deliberate — "stop a scroll-past or a stray click from silently toggling a ban"). The ONLY
+unlock control (`ruleLockBtn`, "🔒 Locked" next to "Save rules") sits at the very BOTTOM of a long panel
+— species/origin/class bans, weapon masteries, boons, drawbacks, arts, the drawback cap, the economy
+band, house-rule toggles — while "Gold & downtime economy" sits roughly in the middle. A DM opening
+Campaign Rules sees the economy `<select>` visibly greyed out with nothing nearby explaining why or
+where to fix it. Confirmed live (Playwright, dark theme): the select renders disabled from the moment
+the panel opens; nothing above or beside it says so. Fixed by adding **`#ruleLockHint`** — a clickable,
+always-visible banner right under the "Campaign Rules" summary (top of the panel, above every setting
+it covers) that states the lock is on and toggles it directly, no scrolling required. Reuses the exact
+same `_setRulesLocked`/`ruleMultiDisc.disabled` state `ruleLockBtn` already drives — not a second lock,
+a second door into the same one. It had to be explicitly excluded from `_ruleLockEls()`'s own disable
+scan (else it would disable itself the moment it's needed — the same "cannot climb inside your own
+hole" bug the original `ruleLockBtn` avoids by living outside `campRulesTile` entirely; this control
+can't, since it needs to render inside the tile to be visible at the top of it) while staying covered
+by the SEPARATE archived-peek lock (`campRulesTile` was already in `_PEEK_SCOPES`) — verified directly:
+`ruleLockHint.disabled === true` while peeking an archived campaign, same as `ruleLockBtn`.
+
+**The Banned-* checkbox labels (and the new Award AP tick-list, same `.rulegrid` class) really were
+lower-contrast than CharGen's equivalent.** Not a WCAG failure — `.rulegrid label{color:var(--muted)}`
+already cleared AA (5.37–5.96:1 across all five themes) — but CharGen's own checkbox labels
+(`.ck .c{color:var(--ink);font-weight:700}`) are bold and full-strength `--ink`, roughly 2–3× higher
+contrast (11.69–16.36:1) and visibly heavier. Matched it: `.rulegrid label` now uses `color:var(--ink)`
++ `font-weight:700`, the same declaration shape CharGen uses, rather than inventing a new style — this
+was a "look like CharGen's" request specifically, so the fix is literally CharGen's own rule copied onto
+DM Console's equivalent selector. Covers every `.rulegrid` in the file (all the Banned-* lists AND the
+Award AP tick-list from the base decision above) in one change, not a special case for the new list
+alone. Verified visually across dark and dnd themes.
+
+`dm-console-ui-e2e.mjs` re-run clean (96/96) after both changes.

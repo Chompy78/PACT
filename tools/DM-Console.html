@@ -470,7 +470,7 @@
   .ruleblock{margin-bottom:6px}
   .ruleblock>.lbl{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:3px}
   .rulegrid{display:flex;flex-wrap:wrap;gap:4px 10px}
-  .rulegrid label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap}
+  .rulegrid label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--ink);font-weight:700;cursor:pointer;white-space:nowrap}
   .hrchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:3px 8px;margin:2px 4px 2px 0}
   .hrchip button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;padding:0}
   /* Custom character field definitions (feat/dm-custom-character-fields) — 4 fixed rows,
@@ -738,6 +738,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <details id="campRulesDetails">
               <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
               <div style="margin-top:8px">
+                <button type="button" id="ruleLockHint" style="display:block;width:100%;text-align:left;appearance:none;background:var(--warn-bg);color:var(--ink);border:1px solid var(--warn);border-radius:10px;padding:8px 10px;font:inherit;font-size:11.5px;cursor:pointer;margin-bottom:10px"></button>
                 <div class="ruleblock" id="ruleCopyBlock" style="display:none">
                   <div class="lbl">Copy rules from another campaign</div>
                   <div style="display:flex;gap:6px;align-items:center">
@@ -2601,6 +2602,7 @@ document.addEventListener('campaign-ready', function () {
   var ruleHouseRuleName = document.getElementById('ruleHouseRuleName');
   var ruleSaveStatus = document.getElementById('ruleSaveStatus');
   var ruleLockBtn    = document.getElementById('ruleLockBtn');
+  var ruleLockHint   = document.getElementById('ruleLockHint');
   var ruleCopyBlock  = document.getElementById('ruleCopyBlock');
   var ruleCopyFrom   = document.getElementById('ruleCopyFrom');
   var ruleCopyStatus = document.getElementById('ruleCopyStatus');
@@ -3567,10 +3569,22 @@ document.addEventListener('campaign-ready', function () {
   // toggling a ban checkbox or a curve field before that click ever happens. ruleMultiDisc stands in for
   // ignoreChk as the "am I currently locked" source of truth on toggle (same disabled-state trick).
   function _ruleLockEls(){
-    return _scopedControlEls(['campRulesTile', 'campAdvancementTile', 'campCustomFieldsTile'], [document.getElementById('ruleSaveBtn')]);
+    // ruleLockHint is deliberately excluded here (unlike everything else this scan disables) — it is
+    // itself the DM's way OUT of the locked state, sitting right at the top of a long panel so they
+    // don't have to scroll to "Locked" at the bottom to discover it exists. Disabling it when locked
+    // would disable the one control whose whole job is unlocking. Still swept by the SEPARATE
+    // archived-peek lock below (campRulesTile is already in _PEEK_SCOPES) — peeking a read-only
+    // archived campaign must still make it inert, same as ruleLockBtn.
+    return _scopedControlEls(['campRulesTile', 'campAdvancementTile', 'campCustomFieldsTile'], [document.getElementById('ruleSaveBtn')])
+      .filter(function(el){ return el.id !== 'ruleLockHint'; });
   }
   function _setRulesLocked(locked){
     _ruleLockEls().forEach(function(el){ el.disabled = locked; });
+    if(ruleLockHint){
+      ruleLockHint.innerHTML = locked
+        ? '🔒 <b>Campaign Rules are locked</b> — including the economy band, banned lists, and everything else below. Click here to unlock them (or use "Locked" next to Save rules at the bottom).'
+        : '🔓 <b>Unlocked</b> — the settings below can be changed. Click here to re-lock, or just click Save rules (it re-locks automatically).';
+    }
     if(!ruleLockBtn) return;
     ruleLockBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
     ruleLockBtn.innerHTML = locked ? '&#128274; Locked' : '&#128275; Unlocked';
@@ -3578,9 +3592,9 @@ document.addEventListener('campaign-ready', function () {
       ? 'These settings apply campaign-wide — species/class/mastery bans, the AP curve, and what new joiners start with. Click to unlock them.'
       : 'Unlocked — the fields above can be changed. Saving re-locks automatically.';
   }
-  if(ruleLockBtn) ruleLockBtn.addEventListener('click', function(){
-    _setRulesLocked(!ruleMultiDisc.disabled);
-  });
+  function _toggleRulesLock(){ _setRulesLocked(!ruleMultiDisc.disabled); }
+  if(ruleLockBtn) ruleLockBtn.addEventListener('click', _toggleRulesLock);
+  if(ruleLockHint) ruleLockHint.addEventListener('click', _toggleRulesLock);
   if(document.getElementById('ruleLockInfo'))
     document.getElementById('ruleLockInfo').addEventListener('click', function(){ alert(this.title); });
   _setRulesLocked(true);   // initial state, before any campaign is even selected
