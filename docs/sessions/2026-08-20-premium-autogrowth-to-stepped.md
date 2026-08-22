@@ -94,3 +94,36 @@ Landed as PR #441, `CHANGELOG.md`/`DECISIONS.md`/the bar-blocked-features record
 lesson (candidate for `ai-lessons-learned`, not project-specific): a `git pull` "divergent branches"
 error means don't trust further work on that local ref at all — re-fetch and re-derive from the remote's
 actual tip before drawing any conclusion from what is or isn't present on the branch.
+
+## Second follow-up, same day: the CI path-filter gap, the preview→main promotion, and a mispointed tag
+
+While checking PR #441's CI status before merging, only 2 of the repo's 11 real workflow gates had run
+(`Lighthouse CI`, `Service-worker staleness e2e`) — none of `engine-parity`, `tool-pricing`,
+`static-audit`, `chargen-flows`, `dm-console-ui`, `character-gen-e2e`, or `cloud-e2e` triggered. Reading
+each workflow's `on: pull_request: paths:` list directly showed why: all seven watch `js/engine.js` but
+none watch `js/engine-data.js` — the file REV-14a split `DATA` out into. PR #441 touched only
+`engine-data.js`, so it silently skipped every gate meant to catch a `DATA`-driven `compute()`
+regression; it merged green only because nothing red ever ran, not because the relevant checks passed
+(they were verified manually instead — 52/52 parity, 29/0 audit — matching what CI would have shown).
+Logged as a NEXT task (`ci/engine-data-path-filters`) rather than fixed inline, since it's a repo-wide
+config gap outside either PR's own scope.
+
+With #440 and #441 both merged (standing approval: "merge both once CI is green"), the owner asked to
+promote `preview` → `main`. Opened PR #442, set `BUILD` to `v1.442` (major carried forward from
+`v1.439`) in `js/engine.js` and mirrored it in the three tools per `docs/VERSION-SYNC.md`'s procedure,
+and merged once all 11 CI checks went green.
+
+**The tagging step surfaced two separate problems, not one.** First, the owner pushed back on being
+asked to tag *every* promotion: `git tag -l` showed only 13 tags across far more than 13 real
+promotions, so "tag every promotion" (what `VERSION-SYNC.md` step 6 said unconditionally) was never
+the actual practice — just an unstated literal reading of a doc line nobody had been following. Second,
+checking that same tag list turned up a tag already named `v1.442` — pointing at `f6b44ef`, the
+**v1.439** merge commit, not any real v1.442 content, since PR #442 hadn't even merged yet at the time
+it was found. Both `git push origin --delete v1.442` and the GitHub MCP tool surface (no
+`delete_ref`/`delete_tag` mutation exists there, only read-only `get_tag`/`list_tags`) failed with the
+same platform 403 already documented for tag *creation* — confirming the cloud-session restriction
+covers deletion too. `docs/VERSION-SYNC.md` step 6 rewritten to say "tag only a meaningful promotion,"
+and a decision record (`D-GH-2026-08-20-tag-only-meaningful-promotions`) captures both findings so the
+next session doesn't have to rediscover either. The owner fixed the tag from their own machine —
+`git tag -f v1.442` on the real merge commit, confirmed matching `effd08c` (the actual PR #442 merge,
+current tip of `main`) before this session closed.
