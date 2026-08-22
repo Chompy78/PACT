@@ -1295,9 +1295,9 @@ function validate(){
   if(loadedRules && loadedRules!==RULES) issues.push('Loaded under '+loadedRules+' rules; now running '+RULES+'. Past prices are frozen (kept); new buys use '+RULES+' prices. Any cost change shows as "locked / reprice" drift.');
   // committed items that no longer exist / are no longer buyable in current rules
   LOG.filter(e=>e.type==='buy').forEach(e=>{
-    if(e.cat==='feature'&&!DATA.features[e.payload.v]) issues.push('Feature no longer in rules: '+e.payload.v);
-    if(e.cat==='boon'&&!DATA.boons[e.payload.v]) issues.push('Boon no longer in rules: '+e.payload.v);
-    if(e.cat==='drawback'&&!(e.payload.v in DATA.drawbacks)) issues.push('Drawback no longer in rules: '+e.payload.v);
+    if(e.cat==='feature'&&!DATA.features[e.payload.v]) issues.push('Feature no longer in rules: '+esc(e.payload.v));
+    if(e.cat==='boon'&&!DATA.boons[e.payload.v]) issues.push('Boon no longer in rules: '+esc(e.payload.v));
+    if(e.cat==='drawback'&&!(e.payload.v in DATA.drawbacks)) issues.push('Drawback no longer in rules: '+esc(e.payload.v));
   });
   compute(b).warnings.filter(w=>!/^OVER BUDGET/.test(w)).forEach(w=>issues.push('Rule warning: '+w));
   // Toggle-flip grandfather notice (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): if
@@ -1411,8 +1411,8 @@ function render(){
   sh+='<div class="kpis">'+[['AC',r.ac],['HP',r.hp],['Init',sgn(r.init)],['Speed',r.speed+'ft'],['DC',r.hasDC?r.saveDC:'—'],['HD',b.hd+'d6']].concat((b.ki>0)?[['Ki',b.ki]]:[]).concat((b.sorcery>0)?[['SP',b.sorcery]]:[]).concat((b.hardy>0)?[['Vigor',b.hardy]]:[]).concat((b.tough>0)?[['Grit',b.tough]]:[]).concat((b.attune>0)?[['Attune',b.attune]]:[]).map(k=>'<div class="kp" title="'+esc(_kbd[k[0]]||'')+'"><b>'+k[1]+'</b><span>'+k[0]+'</span></div>').join('')+'</div>';
   const _ftip=function(label,tip){return '<span class="itip"'+(tip?' title="'+esc(tip)+'"':'')+'>'+esc(label)+'</span>';};
   const feats=[]; b.features.forEach(l=>{var nm=l.split(': ')[1]||l;feats.push(_ftip(nm, nm!==l?l:''));}); b.boons.forEach(x=>feats.push(_ftip('Boon: '+x,(DATA.boons[x]||{}).fx||'')));
-  sh+='<div class="seg"><b>Saves:</b> '+(b.saves.join(', ')||'—')+'</div><div class="seg"><b>Skills:</b> '+(b.skills.join(', ')||'—')+'</div>';
-  if(b.tools.length||b.instruments.length)sh+='<div class="seg"><b>Tools/Instr:</b> '+b.tools.concat(b.instruments).join(', ')+'</div>';
+  sh+='<div class="seg"><b>Saves:</b> '+(b.saves.map(esc).join(', ')||'—')+'</div><div class="seg"><b>Skills:</b> '+(b.skills.map(esc).join(', ')||'—')+'</div>';
+  if(b.tools.length||b.instruments.length)sh+='<div class="seg"><b>Tools/Instr:</b> '+b.tools.concat(b.instruments).map(esc).join(', ')+'</div>';
   if(feats.length)sh+='<div class="seg"><b>Features:</b> '+feats.join(' · ')+'</div>';
   // V1: Arts & Techniques / Maneuvers / Metamagic — these carry full effect text (DATA.*.fx)
   const _aTip=(name,src)=>{var o=src[name]||{};return _ftip(name,(o.fx||'')+(o.page?' (PHB p.'+o.page+')':''));};
@@ -1468,7 +1468,7 @@ function render(){
           act='<span class="dmlocked" title="Your DM has locked this drawback — it can\'t be bought off">🔒 locked</span>';
         } else {
           const rateLabel=(e.dmEdit&&e.dmRemovalCost==='flat')?'buy off (flat)':'buy off 3×';
-          act='<button class="x" onclick="buyoffDrawback(\''+(e.payload.v||'').replace(/'/g,"\\'")+'\')">'+rateLabel+'</button>';
+          act='<button class="x" data-v="'+esc(e.payload.v||'')+'" onclick="buyoffDrawback(this.dataset.v)">'+rateLabel+'</button>';
         }
       }
       // Same DATA.racial(...).pack flag the buy panel already reads (line ~1215) — not a new signal.
@@ -1970,10 +1970,10 @@ function renderCharSheet(b,r,ctx){
   if((b.ki||0)>0)H.push('<div class="shbox"><h5>Ki / Focus Points</h5><div class="shrow on"><span>● Total Ki / Focus points</span><span>'+(b.ki||0)+'</span></div></div>');if((b.sorcery||0)>0)H.push('<div class="shbox"><h5>Sorcery Points</h5><div class="shrow on"><span>● Total sorcery points</span><span>'+(b.sorcery||0)+'</span></div></div>');H.push('<div class="shbox"><h5>Skills</h5>'+DATA.skillList.map(function(s){var bo=(b.skills||[]).includes(s[0]),ex=(b.expertise||[]).includes(s[0]);var bn=m[s[1]]+(bo?r.prof:0)+(ex?r.prof:0);return '<div class="shrow'+(bo?' on':'')+'"><span>'+(bo?'●':'○')+' '+s[0]+' <i style="color:'+A[s[1]]+'">('+s[1]+')</i>'+(ex?' ✦':'')+'</span><span>'+_sgn(bn)+'</span></div>';}).join('')+'</div>');
   {var perc=(b.skills||[]).includes("Perception"),pex=(b.expertise||[]).includes("Perception");var pp=10+m.WIS+(perc?r.prof:0)+(pex?r.prof:0);
    H.push('<div class="shbox"><h5>Passive Perception</h5><div class="shsmall" style="font-size:20px;font-weight:800;text-align:center;color:var(--navytx)">'+pp+'</div></div>');}
-  H.push('<div class="shbox"><h5>Proficiencies &amp; Languages</h5><div class="shsmall">Languages: '+((b.languageNames&&b.languageNames.filter(Boolean).length)?b.languageNames.filter(Boolean).join(', ')+' ('+(b.languages||1)+')':(b.languages||1))+
+  H.push('<div class="shbox"><h5>Proficiencies &amp; Languages</h5><div class="shsmall">Languages: '+((b.languageNames&&b.languageNames.filter(Boolean).length)?b.languageNames.filter(Boolean).map(_csEsc).join(', ')+' ('+(b.languages||1)+')':(b.languages||1))+
     '<br>Weapons: '+([(b.weaponProf&&b.weaponProf.simple?'Simple':''),(b.weaponProf&&b.weaponProf.allMartial?'All martial':(b.weaponProf&&b.weaponProf.martial?b.weaponProf.martial+' martial':'')),(b.weaponProf&&b.weaponProf.improvised?'Improvised':'')].filter(Boolean).join(', ')||'—')+
     '<br>Armour: '+([(b.armour&&b.armour.light?'Light':''),(b.armour&&b.armour.medium?'Medium':''),(b.armour&&b.armour.heavy?'Heavy':''),(b.armour&&b.armour.shield?'Shield':'')].filter(Boolean).join(', ')||'—')+
-    '<br>Masteries: '+((b.masteries||[]).join(', ')||'—')+'</div></div>');
+    '<br>Masteries: '+((b.masteries||[]).map(_csEsc).join(', ')||'—')+'</div></div>');
   {var tl=[].concat(b.tools||[],b.instruments||[],b.customProfs||[]);
    if(tl.length)H.push('<div class="shbox"><h5>Tools &amp; Instruments</h5>'+tl.map(function(t){var ab=DATA.toolAbil&&DATA.toolAbil[t];var tex=(b.toolExpertise||[]).includes(t);var bn=ab?(m[ab]+r.prof+(tex?r.prof:0)):null;return '<div class="shrow on"><span>● '+_csEsc(t)+(ab?' <i style="color:'+A[ab]+'">('+ab+')</i>':'')+(tex?' ✦':'')+'</span><span>'+(bn!=null?_sgn(bn):'')+'</span></div>';}).join('')+'</div>');}
   {var _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[];var _ls=(b.racialSpells||[]);if(b.lineage||_ls.length){var _lbox='<div class="shbox"><h5>Lineage'+(b.lineage?' — '+b.lineage:'')+' <span class="shtag">spell-like</span></h5>';if(!_ls.length){_lbox+='<div style="font-size:10.5px;color:var(--grey)">No lineage spell-likes bought yet.</div>';}else{_lbox+=_ls.map(function(nm){var sp=_lin.find(function(x){return x[0]===nm;});var kind='spell-like — '+(sp?(sp[2]===0?'cantrip':'L'+sp[2]+' · 1/long rest'):'innate');return '<div class="shrow on"><span>● '+_csEsc(nm)+'</span><span style="color:var(--grey)">'+kind+'</span></div>';}).join('');}_lbox+='</div>';H.push(_lbox);}}
@@ -1993,7 +1993,7 @@ function renderCharSheet(b,r,ctx){
     '<div class="shsmall" style="margin-top:4px;color:var(--grey)">Starting gold from AP: <b>'+r.goldGp+' gp</b></div></div>');
   var F=[];(b.features||[]).forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0)});});(b.subAbilities||[]).forEach(function(k){var a=DATA.subAbilMap[k];if(a)F.push({t:a.sub+': '+a.name,pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[k]:0)});});(function(){var _pk=(typeof packTraitsFor==='function')?packTraitsFor(b.species,b.species2):[];var _seen={};return (b.racialTraits||[]).concat(_pk).filter(function(l){if(_seen[l])return false;_seen[l]=1;return true;});})().forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0)});});(b.boons||[]).forEach(function(x){var _ea=(b.epicBoonAbil||{})[x];F.push({t:'Boon — '+x+(_ea?(' (+2 '+_ea+')'):'')});});
   H.push('<div class="shbox"><h5>Features &amp; Traits</h5><div class="shsmall">'+(F.length?F.map(function(x){return '• <span'+(x.pg?' title="PHB p.'+x.pg+'" style="cursor:help;border-bottom:1px dotted var(--grey,#999)"':'')+'>'+_csEsc(x.t)+'</span>';}).join('<br>'):'—')+'</div></div>');
-  if((b.drawbacks||[]).length)H.push('<div class="shbox"><h5>Drawbacks</h5><div class="shsmall">'+b.drawbacks.map(function(d){return '• '+d;}).join('<br>')+'</div></div>');
+  if((b.drawbacks||[]).length)H.push('<div class="shbox"><h5>Drawbacks</h5><div class="shsmall">'+b.drawbacks.map(function(d){return '• '+_csEsc(d);}).join('<br>')+'</div></div>');
   {var _fsn=(b.fightingStyleNames||[]).filter(Boolean);if(_fsn.length){var _fsb='<div class="shbox"><h5>Fighting Style</h5>';_fsn.forEach(function(nm){var ar=(DATA.arts||{})[nm]||{};_fsb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(ar.fx||'')+'</span></div>';if(ar.grantCantrips){var _gc=((b.fsCantripNames||{})[nm]||[]).filter(Boolean);_fsb+='<div class="shrow"><span style="padding-left:10px;font-size:10px">'+_csEsc(ar.grantCantrips.list)+' cantrips ('+_csEsc(ar.grantCantrips.ab)+'): '+_csEsc(_gc.join(', ')||'(unnamed)')+'</span></div>';}});_fsb+='</div>';H.push(_fsb);}}
   {var _mmn=(b.metamagicNames||[]).filter(Boolean);if(_mmn.length){var _mmb='<div class="shbox"><h5>Metamagic</h5>';_mmn.forEach(function(nm){var mo=((DATA.metamagicOptions||[]).filter(function(o){return o.n===nm;})[0])||{};_mmb+='<div class="shrow on"><span>'+_csEsc(nm)+(mo.sp?(' <em style="color:var(--grey);font-size:9px">'+mo.sp+' SP</em>'):'')+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mmb+='</div>';H.push(_mmb);}}
   {var _mvn=(b.maneuverNames||[]).filter(Boolean);if(_mvn.length){var _mvb='<div class="shbox"><h5>Battle Master Maneuvers</h5>';_mvn.forEach(function(nm){var mo=((DATA.maneuvers||[]).filter(function(o){return o.n===nm;})[0])||{};_mvb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mvb+='</div>';H.push(_mvb);}}

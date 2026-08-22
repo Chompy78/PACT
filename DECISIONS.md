@@ -10,6 +10,21 @@
 
 ## Index
 
+## D-GH-2026-08-22-esc-gap-chargen-livesheet — closing five stored-XSS/attribute-injection gaps in CharGen and Live Sheet
+- A full tool audit found five places (eight counting the CharGen↔Live Sheet `renderCharSheet()`
+  duplication plus one same-shape mirror found while fixing) where a player-controlled value reached
+  `innerHTML`/an HTML attribute without `esc()`/`_csEsc()` — three reachable through completely ordinary
+  UI use (naming a language, importing a JSON save, buying off a drawback), cross-user reachable via
+  cloud sync, share links, and DM Console's roster/`?viewChar=` view. Fixed by wrapping the affected
+  array joins in `esc()`/`_csEsc()` matching every sibling field in the same functions, escaping
+  `validate()`'s three `payload.v` interpolations at the point they're built (not blanket over the whole
+  issues array, which intentionally embeds real HTML elsewhere), and moving the buy-off button's value
+  out of an inline `onclick` string into an escaped `data-v` attribute plus `dataset.v` read, closing a
+  second independent attribute-injection vector on the same field. Verified with a new throwaway CDP
+  script (`testing/scripts/esc-gap-verify.mjs`) driving the actual fixed code with the audit's exact
+  payloads — 9/0 — plus `engine-parity-ci.mjs` 52/0 and `tool-pricing-ci.mjs` 163/0 confirming no
+  regression. Full record: `decisions/2026/D-GH-2026-08-22-esc-gap-chargen-livesheet.md`.
+
 ## D-GH-2026-08-22-dm-console-stale-campaign-switch-race — a stale campaign-switch response could clobber the newly-selected campaign's data
 - Found while investigating a `dm-console-ui-e2e.mjs` CI failure on the `preview`→`main` promotion PR
   (#446) that reproduced identically twice in CI but passed locally: `loadInvites()`/`loadRoster()`/

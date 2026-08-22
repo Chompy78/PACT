@@ -6,6 +6,18 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(security): closed five stored-XSS/attribute-injection gaps in CharGen and Live
+  Sheet** — a full tool audit found `renderCharSheet()`'s language/mastery/drawback fields,
+  `validate()`'s rules-drift warning text, and the drawback buy-off button's `onclick` all rendered a
+  player-controlled value into `innerHTML`/an HTML attribute without `esc()`/`_csEsc()`, three reachable
+  through ordinary UI use (naming a language, importing a JSON save, buying off a drawback) and
+  cross-user via cloud sync, share links, and DM Console's roster/`?viewChar=` view. Fixed all sites
+  (plus the byte-identical `renderCharSheet()` duplicate in Live Sheet and one same-shape mirror found
+  while fixing) by escaping consistently with every sibling field, and closed the buy-off button's
+  attribute-injection vector by moving its value into an escaped `data-v` attribute instead of an
+  inline string. Verified against the actual fixed code with the audit's exact payloads (new
+  `testing/scripts/esc-gap-verify.mjs`, 9/0), plus `engine-parity-ci.mjs` 52/0 and `tool-pricing-ci.mjs`
+  163/0 confirming no regression. `D-GH-2026-08-22-esc-gap-chargen-livesheet`.
 - **2026-08-22 · fix(dm-console): a stale campaign-switch response could clobber the newly-selected
   campaign's invites/warnings and party-downtime data** — found while investigating a CI failure on
   the `preview`→`main` promotion PR: `dm-console-ui-e2e.mjs`'s invite-warnings-banner tests failed
