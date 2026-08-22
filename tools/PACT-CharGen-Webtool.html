@@ -712,6 +712,13 @@ document.addEventListener('campaign-ready', function () {
 // again after this call returns; a caller that needs to display/act on THIS resolution's specific
 // result (e.g. "you just joined campaign X") must use the return value, not the global afterward.
 async function _cgResolveDmApStatus(ap, campaignId){
+  // fix/chargen-dm-copy-ap-stale (2026-08-22): a "Copy to CharGen" sandbox's frozen AP snapshot
+  // (window._cgCopySourceAp) is now budget-relevant (_cgDmOpts()), not just display text, so it MUST be
+  // cleared here too -- this is the function _cgResetCloudApState()'s own comment names as the one
+  // exempt caller ("sets its own values right after"), and before this line that exemption didn't cover
+  // this field, so a copy opened earlier in the same tab silently outlived its own load into a totally
+  // unrelated cloud/local character loaded afterward, inflating that character's budget.
+  window._cgCopySourceAp = 0; window._cgCopySourceName = '';
   window._dmAp = ap || 0;
   window._ignorePlayerAp = false;
   // feat/campaign-ap-budget-enforce: cached alongside _ignorePlayerAp, same lifecycle (resolved here
@@ -1467,7 +1474,21 @@ function _cgDrawbackCap(){
   var b=window._campaignBridge, c=window._cloudCampaign;
   return (b&&b.drawbackCapFromRules) ? b.drawbackCapFromRules(c&&c.rules) : undefined;
 }
-function _cgDmOpts(){var a=window._dmApStatus==='active';return {dmAp:a?(window._dmAp||0):0,ignorePlayerAp:a&&!!window._ignorePlayerAp,drawbackCap:a?_cgDrawbackCap():undefined};}
+// A disconnected "Copy to CharGen" sandbox (feat/chargen-dm-view, D-GH-2026-08-10-chargen-dm-view)
+// leaves _dmApStatus at 'none' by design (_cgResetCloudApState()) so nothing here can bind back to the
+// live campaign. That correctly meant no LIVE dmAp/ignorePlayerAp/drawbackCap — but it also meant the
+// copy's budget math saw 0 DM AP entirely, reading as falsely over budget for any character that had
+// spent DM-granted AP (reported 2026-08-22). Fix: when the copy carries a frozen snapshot
+// (window._cgCopySourceAp, captured once at copy-open time by _cgConsumeViewChar()), feed THAT into the
+// budget instead of 0. Combines with player AP unconditionally (the common case) -- this frozen number
+// deliberately does not re-fetch the source campaign's ignore-player-AP rule or drawback cap, so it can
+// drift from a campaign that changes those after the copy was made; "👁 View" (genuinely live,
+// read-only) is the route for an always-accurate total.
+function _cgDmOpts(){
+  if(window._dmApStatus==='active') return {dmAp:(window._dmAp||0),ignorePlayerAp:!!window._ignorePlayerAp,drawbackCap:_cgDrawbackCap()};
+  if(window._cgCopySourceAp>0) return {dmAp:window._cgCopySourceAp,ignorePlayerAp:false,drawbackCap:undefined};
+  return {dmAp:0,ignorePlayerAp:false,drawbackCap:undefined};
+}
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on,
 // who has actually spent past their budget right now. compute() needs no change — remaining<0
 // already means "over budget" (task step 8). Blocks only the CLOUD save path; Local "Save to file"
@@ -1545,10 +1566,10 @@ function _apSourceHTML(r){
     label='☁ '+r.spendable+' AP — '+r.playerAp+' player + '+dmAp+' DM';
     tip='Your spendable budget combines the Player AP field ('+r.playerAp+') with '+dmAp+' AP your DM has granted this character. Combined live at display time — never saved as one number.';
   } else if(window._cgCopySourceAp>0){
-    label='👁 '+r.playerAp+' AP — DM copy, not campaign-bound';
-    tip='This is a snapshot of \u201c'+(window._cgCopySourceName||'a character')+'\u201d, deliberately NOT bound to its campaign, so its '
-      +window._cgCopySourceAp+' DM-granted AP does not count here and nothing you do can spend it. The original still has it. '
-      +'Open the character itself (\u2601 Cloud menu) to build against the real budget.';
+    label='👁 '+r.spendable+' AP — DM copy ('+r.playerAp+' player + '+window._cgCopySourceAp+' DM, frozen)';
+    tip='This is a snapshot of \u201c'+(window._cgCopySourceName||'a character')+'\u201d, deliberately NOT bound to its campaign \u2014 nothing you do here can spend the original\u2019s real AP or touch its real data. Its '
+      +window._cgCopySourceAp+' DM-granted AP is counted above as a frozen snapshot from when this copy was opened, so the budget reads correctly, but it will NOT update if the DM awards more AP later. '
+      +'Re-open \ud83d\udccb Copy to CharGen for a fresh snapshot, or use \ud83d\udc41 View for the always-live real total.';
   } else {
     label='🔒 '+r.playerAp+' AP — player only';
     tip="This build isn't bound to a cloud campaign, so only the Player AP field counts. Load a cloud character bound to a campaign (☁ Cloud menu) to add DM-granted AP.";
@@ -4290,7 +4311,10 @@ function randomizeRoll(){
   // isn't left under-built. Passing _cgDmOpts() to BOTH the ceiling and C() also measures the OVER BUDGET
   // warning against spendable, not the player-only budget, so the affordability gate below doesn't trip
   // spuriously once spend passes the player budget. _cgDmOpts() is a no-op ({dmAp:0,ignorePlayerAp:false})
-  // for a local build with no active campaign, so ordinary local randomize behaviour is unchanged.
+  // for an ordinary local build with no active campaign, so ordinary local randomize behaviour is
+  // unchanged; a "Copy to CharGen" sandbox (window._cgCopySourceAp>0) is the one non-active-campaign
+  // exception -- its fill ceiling deliberately DOES include the frozen DM AP snapshot, same as the rest
+  // of that build's budget math (feat/chargen-dm-view, 2026-08-22 addendum).
   const _dmO=_cgDmOpts();
   // A spendable of 0 is a REAL answer, not a missing one: a character that joined a campaign by code
   // starts with no AP until the DM grants some. The old `spendable || DATA.level1AP || 79` treated it as

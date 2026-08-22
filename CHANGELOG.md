@@ -6,6 +6,44 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(chargen): DM-copy AP snapshot could bleed into an unrelated character's budget
+  (`/code-review` catch)** — two independent review passes on the AP-snapshot fix below found it left
+  `window._cgCopySourceAp` (now budget-relevant) uncleared by `_cgResolveDmApStatus()`, the function
+  every OTHER character load funnels through — so a DM who opened a "Copy to CharGen" sandbox, then
+  loaded a second unrelated non-campaign character in the same tab, would see that second character's
+  budget silently inflated by the first copy's frozen AP. Also caught: two `tool-pricing-ci.mjs`
+  assertions left pinned to the old (0 AP) behavior, now failing against this branch's own diff. Fixed
+  all three, plus a now-inaccurate `randomizeBuild()` comment; added a regression test for the
+  staleness fix itself. `tool-pricing-ci.mjs`: 163/0 (1 unrelated pre-existing timing flake, confirmed
+  by re-running against the exact same code). See the decision's "Follow-up" note.
+- **2026-08-22 · fix(chargen): "Copy to CharGen" DM sandbox showed 0 DM AP and falsely read as over
+  budget** — the disconnected copy `_cgConsumeViewChar()` makes (`D-GH-2026-08-10-chargen-dm-view`)
+  already captured the source character's real DM AP for display (`window._cgCopySourceAp`), but the
+  copy's own budget math (`_cgDmOpts()`) still fed `compute()` a hardcoded 0, since it gates on
+  `_dmApStatus==='active'` (deliberately false for a disconnected copy). Now feeds the frozen snapshot
+  into the budget when present, so the copy's OVER BUDGET reading matches the real character's; the
+  AP-source tooltip updated to say the DM AP now counts as a frozen snapshot. Considered (and rejected)
+  a live-syncing shadow-campaign alternative — see the decision's 2026-08-22 addendum. Display/budget
+  only, `tools/PACT-CharGen-Webtool.html`, no `js/engine.js`/`DATA` change — parity 52/0.
+- **2026-08-22 · fix(dm-console): removed character kept showing until a manual reload** — the
+  unbind-character success handler patched its local `cloudRoster` copy and re-rendered only via
+  `renderCloudRoster(el)`, which repaints `#campRoster`'s own card grid but not `#tableRoot` (Table
+  view) or the Customisable card view. A DM viewing either of those still saw the just-removed
+  character until something else forced a full `render()` (switching views, reloading). Now calls the
+  shared `render()` dispatcher instead, which re-checks the active view and repaints whichever one is
+  on screen. UI-only, `tools/DM-Console.html`, no `js/engine.js`/`DATA` involvement — parity 52/0.
+- **2026-08-22 · data: Amble campaign — renamed "New Character" to "Archer" and reconciled its DM AP
+  ledger (no code/version change)** — at the owner's request: (1) renamed the character both in
+  `characters.name` and in its own event log's singleton `name` event (the LOG event is what
+  CharGen/Live Sheet/DM Console actually display for a character with real build data — the DB column
+  alone only covers the no-data-yet placeholder card, so both had to change); (2) replaced Archer's
+  single 33 AP `ap_awards` entry with three itemized entries (Creation budget +30, Chapter 1 bonus +3,
+  Chapter 3 set +17, later corrected to +16 per owner follow-up) totaling the same running `characters.ap`
+  before/after each edit; (3) for the other 6 Amble characters, split each one's combined "Chapter 3 set
+  + bonus" (+17 or +18) `ap_awards` entry into two — "Chapter 3 set" (+16) and "Chapter 3 bonus" (+1 or
+  +2, whatever the original minus 16 was) — preserving each character's total AP and DM/timestamp
+  attribution. All changes verified against `characters.ap` == `sum(ap_awards.amount)` after each step.
+  Full record: `docs/sessions/2026-08-22-amble-archer-rename-and-ap-split.md`.
 - **2026-08-22 · fix(dm-console): `/code-review high` before merge — unbinding a character left its
   checkbox stuck in Award AP; a name-fallback chain deduped** — `.unbind-btn` mutated `cloudRoster` and
   repainted via the internal `renderCloudRoster()`, bypassing the wrapper `renderCampAwardAp()` was
