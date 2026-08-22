@@ -67,6 +67,16 @@ one:
   dmRemoveBoon). Purely defensive — no output change for any valid LOG, since neither tool's `emit()`
   ever omits these fields.
 
+**`/code-review ultra` catch, folded in before merge:** `tools/PACT-CharGen-Webtool.html`'s `annotate()`
+function (the per-ability "N AP" display label next to each stat stepper) read the same `DATA.ABIL`
+table with the same unclamped `DATA.ABIL[sc]||0` lookup finding 2 fixed in `compute()` — a different
+file/function than anything this diff otherwise touched, so it wasn't caught by the original audit. Not
+reachable through CharGen's own UI (its stepper is hard-capped 2-20), only via an out-of-range imported
+score, and purely cosmetic even then (the real total shown elsewhere already comes from the correctly-
+clamped engine import) — but left unfixed it would have shown a stale "0 AP" label sitting next to the
+now-correctly-priced real total, a confusing inconsistency for anyone who ever imports a tampered file.
+Fixed with the identical `Math.min(20,Math.max(2,sc))` clamp.
+
 **Verification.** Five new fixtures pin the boundary/edge-case behavior going forward: `CG-033` through
 `CG-036` (builds, one per ladder/ability-score case) and `EV-020` (events, the duplicate-unlock case —
 needed a LOG-replay fixture rather than a raw build, since `_dedupeProfLists()` only runs inside

@@ -25,7 +25,10 @@
   under-charges at worst; `|| 0` paid the player"). 5 new parity fixtures (CG-033–036, EV-020);
   `engine-parity-ci.mjs` 57/0, `tool-pricing-ci.mjs` 163/0, `log-fuzz.mjs` 500/500 iterations clean.
   Not a Players Guide change — the intended rules (uncapped-by-design ladders, a 20-cap on scores, one
-  unlock per class) don't change, only the engine's enforcement of them. Full record:
+  unlock per class) don't change, only the engine's enforcement of them. **`/code-review ultra` catch:**
+  CharGen's per-ability "N AP" display label (`annotate()`) read the same table with the same unclamped
+  lookup for a cosmetic purpose — fixed to match `compute()`'s clamp so an out-of-range imported score
+  can't show a stale "0 AP" label next to the (correctly-priced) real total. Full record:
   `D-GH-2026-08-22-engine-pricing-edge-cases`.
 - **2026-08-22 · fix(tools): 10 mechanical playability/usability fixes from the 2026-08-22 audit** —
   batched low-risk sweep across all three tools, each independently confirmed and covered by

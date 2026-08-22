@@ -4454,7 +4454,11 @@ function stepDesc(label,n){const nm=(label.split(': ')[1]||'').toLowerCase();
 function annotate(b,r){
   const get=lab=>{const x=r.lines.find(l=>l[0]===lab);return x?x[1]:0;};
   // ability mods / AP
-  for(const a of ABILS){const m=r.mods[a];const sc=b.stats[a]||10;const ap=DATA.ABIL[sc]||0;
+  // /code-review catch on fix/engine-pricing-edge-cases: matches compute()'s own clamp so this display
+  // label can't show a stale unclamped figure (0 AP) for an out-of-range imported score once compute()
+  // itself started clamping to [2,20] — cosmetic-only (CharGen's own stepper is hard-capped 2-20, so
+  // this only differs from the naive lookup for a score reachable solely via an out-of-range import).
+  for(const a of ABILS){const m=r.mods[a];const sc=b.stats[a]||10;const ap=DATA.ABIL[Math.min(20,Math.max(2,sc))]||0;
     const low=sc<6;
     const mb=$('st_'+a+'_m');if(mb){mb.textContent=(m>=0?'+':'')+m;mb.className='abmodbig';mb.style.background=ABCOL[a];}
     const e=$('st_'+a+'_i');if(e){e.textContent=ap+' AP'+(low?'  ⚠ below min 6 (DM approval)':'');e.style.color=low?'var(--bad)':'';}
