@@ -6,6 +6,23 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · feat(dm-console): generic "Award AP" tick-list sub card; fix(dm-console): banned-
+  drawback grid could go permanently stale mid-session; fix(tools): disabled/banned boon-drawback items
+  hard to read in every theme** — new sub card under the campaign selector on DM Console's master card:
+  tick any number of roster characters, set one AP amount + note, Award — each character gets its own
+  independent `awardAp` call (a partial failure doesn't block the rest), same as the existing per-
+  character form. Locked by the same archived-campaign peek guard as every other campaign-scoped
+  control. `renderRuleGrids()` (Banned species/boons/masteries/drawbacks/arts) no longer renders its
+  option list once and freezes forever — it now re-renders whenever the available option set actually
+  changes, verified live by seeding a new `DATA.drawbacks` entry mid-session. (Audit found
+  `js/engine-data.js` itself already had all 90 drawbacks in sync — no `DATA` change, no version bump —
+  the staleness guard was the actual gap.) Disabled/banned/already-owned boon-drawback checkboxes and
+  item-buttons (CharGen's `.gridck label.ck.barred`/`:disabled` rules, the Live Sheet's `.ib.dis`) go
+  from 0.5–0.55 opacity to 0.7 — measured: the old values failed WCAG AA contrast (4.5:1) against every
+  one of the five themes' own ink/card colors (3.08–4.68), 0.7 clears all five (5.58–6.63). DM Console
+  has no equivalent disabled-checkbox styling of its own, so no change was needed there.
+  `testing/scripts/dm-console-ui-e2e.mjs` 96/96, `engine-parity-ci.mjs` 52/52, `economy-ui-e2e.mjs`
+  155/155, `chargen-flows-e2e.mjs` 66/66. `D-GH-2026-08-22-dm-screen-generic-award-ap`.
 - **2026-08-20 · release: promote preview → main (v1.442)** — carries PR #438 (stepped-Premium pricing),
   PR #441 (unbar Rage/Wild Shape/Bardic Inspiration die), PR #440 (zcold cleanup), and the
   CI-path-filter-gap task-board entry. `BUILD` v1.439 → v1.442.

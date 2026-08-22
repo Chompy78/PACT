@@ -598,6 +598,23 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <ul id="campWarnList"></ul>
           </div>
 
+          <div class="subtile" id="campAwardApTile">
+            <div class="stitle">Award AP</div>
+            <div class="grantnote" style="margin-top:0;margin-bottom:8px">Tick whoever earned it, set an amount and a note, and award every ticked character the same AP at once &mdash; for a shared session reward instead of awarding each character one at a time on their own roster card below.</div>
+            <div class="rulegrid" id="campAwardApList"></div>
+            <div id="campAwardApEmpty" style="display:none;font-size:11px;color:var(--muted)">No characters in this campaign yet.</div>
+            <div style="display:flex;align-items:center;gap:8px;margin:8px 0 0">
+              <button type="button" class="btn sm ghost" id="campAwardApSelAll">Select all</button>
+              <button type="button" class="btn sm ghost" id="campAwardApSelNone">Select none</button>
+            </div>
+            <div class="award-form" style="margin-top:8px">
+              <input type="number" value="0" step="1" class="award-amt" id="campAwardApAmt" placeholder="AP">
+              <input type="text" class="award-note" id="campAwardApNote" placeholder="note — e.g. cleared the crypt">
+              <button type="button" class="btn sm" id="campAwardApBtn">Award</button>
+            </div>
+            <span id="campAwardApStatus" style="font-size:11px;color:var(--muted)"></span>
+          </div>
+
           <div class="subtile" id="campOwnerTile">
             <div class="stitle">Owner settings</div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -2164,9 +2181,37 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // expands the row at `expandIndex` (the detail body — where AP Earned/Spent/Available live — only
   // renders for the open card, same as a real click on its header would), then renders directly.
   window._dmRenderCardsTest = function(rows,expandIndex){ cloudRoster = (rows||[]).map(cloudAnalyze); expanded = (expandIndex==null?null:expandIndex); renderCards(); };
+  // The generic "Award AP" tile (feat/dm-screen-generic-award-ap) — a tick-list of every character
+  // currently in cloudRoster, so a DM can award the same AP amount + note to any number of them at
+  // once from the top of the panel instead of repeating the per-character award form card by card.
+  // Lives in THIS closure (not the campaign-ready one the button handler is wired in) because it's the
+  // only place cloudRoster itself is reachable — same cross-boundary reason window._dmRenderCloudRoster
+  // exists at all. Re-renders every time the roster is (re)painted; preserves whatever was already
+  // ticked across that repaint (e.g. after a previous award) rather than dropping the DM's selection.
+  function renderCampAwardAp(){
+    var el = document.getElementById('campAwardApList');
+    var empty = document.getElementById('campAwardApEmpty');
+    if(!el) return;
+    var prevChecked = new Set(Array.prototype.slice.call(el.querySelectorAll('input:checked')).map(function(cb){ return cb.value; }));
+    if(!cloudRoster.length){
+      el.innerHTML = '';
+      if(empty) empty.style.display = '';
+      return;
+    }
+    if(empty) empty.style.display = 'none';
+    el.innerHTML = cloudRoster.map(function(rec){
+      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'New Character';
+      var ck = prevChecked.has(String(rec.id)) ? ' checked' : '';
+      return '<label><input type="checkbox" class="campAwardApChk" value="'+esc(rec.id)+'"'+ck+'> '+esc(nm)+'</label>';
+    }).join('');
+  }
+  window._dmAwardApChecked = function(){
+    return Array.prototype.slice.call(document.querySelectorAll('#campAwardApList input:checked')).map(function(cb){ return cb.value; });
+  };
   window._dmRenderCloudRoster = function(container, rows){
     _cloudRosterEl = container;
     cloudRoster = (rows||[]).map(cloudAnalyze);
+    renderCampAwardAp();
     // render() (below) is the single place that decides whether this container shows cards or defers
     // to the shared Table view, based on the current view-toggle state — call it instead of drawing
     // straight to `container` here, so a (re)load while Table view is active doesn't flash cards.
@@ -2568,6 +2613,12 @@ document.addEventListener('campaign-ready', function () {
   var dmNotesText   = document.getElementById('dmNotesText');
   var dmNotesSaveBtn = document.getElementById('dmNotesSaveBtn');
   var dmNotesStatus = document.getElementById('dmNotesStatus');
+  var campAwardApAmt    = document.getElementById('campAwardApAmt');
+  var campAwardApNote   = document.getElementById('campAwardApNote');
+  var campAwardApBtn    = document.getElementById('campAwardApBtn');
+  var campAwardApStatus = document.getElementById('campAwardApStatus');
+  var campAwardApSelAll  = document.getElementById('campAwardApSelAll');
+  var campAwardApSelNone = document.getElementById('campAwardApSelNone');
   var importPanel   = document.getElementById('importPanel');
   var importCampNote = document.getElementById('importCampNote');
   var localToolsPanel = document.getElementById('localToolsPanel');
@@ -2621,7 +2672,7 @@ document.addEventListener('campaign-ready', function () {
   // Campaign-scoped controls only. #campManageTile is deliberately absent — "+ Create campaign" and
   // the Unarchive buttons belong to the DM, not to the campaign being peeked, and locking the way
   // back out would be a trap.
-  var _PEEK_SCOPES = ['campOwnerTile','campInviteTile','campDmInviteTile','campRulesTile','campAdvancementTile','campCustomFieldsTile','dmNotesTile','campRoster'];
+  var _PEEK_SCOPES = ['campAwardApTile','campOwnerTile','campInviteTile','campDmInviteTile','campRulesTile','campAdvancementTile','campCustomFieldsTile','dmNotesTile','campRoster'];
 
   /* Shared by _peekLockEls() and _ruleLockEls() below: both are "every input/select/textarea/button
      under these tile ids, plus these extra elements that live outside any tile, minus the ⓘ info
@@ -2704,9 +2755,18 @@ document.addEventListener('campaign-ready', function () {
   function renderRuleGrids(){
     RULE_GRIDS.forEach(function(pair){
       var el = document.getElementById(pair[0]);
-      if(!el || el.childElementCount) return;   // render option list once
+      if(!el) return;
       var tip = pair[2];
       var names = pair[1]().slice().sort(function(a,b){ return a.localeCompare(b); });
+      // Re-render whenever the AVAILABLE option set actually changed, rather than "has children so
+      // skip forever" (the old guard) — a DATA update mid-session (new drawbacks/boons/etc. added)
+      // used to leave whichever grid rendered first permanently stuck at that old option list for the
+      // rest of the page's life. Cheap to compare: a joined, sorted name signature stashed on the
+      // element itself. loadRulesIntoPanel() re-applies the checked state right after this call either
+      // way, so a re-render here never drops what the DM already ticked.
+      var sig = names.join('');
+      if(el.dataset.rgSig === sig) return;
+      el.dataset.rgSig = sig;
       el.innerHTML = names.map(function(name){
         var t = tip ? tip(name) : '';
         return '<label'+(t?' title="'+esc(t)+'"':'')+'><input type="checkbox" value="'+esc(name)+'">'+esc(name)+'</label>';
@@ -3127,6 +3187,39 @@ document.addEventListener('campaign-ready', function () {
     }
   });
 
+  // Generic "Award AP" tile (feat/dm-screen-generic-award-ap) — award the same AP amount + note to
+  // every ticked character in one action. The tick-list itself lives in the earlier UI-layer closure
+  // (window._dmAwardApChecked bridges it, same reason window._campBridge/_peekBlocks are read off
+  // window elsewhere in this file) since that's the only place cloudRoster is reachable from.
+  if(campAwardApSelAll) campAwardApSelAll.addEventListener('click', function(){
+    document.querySelectorAll('#campAwardApList input[type=checkbox]').forEach(function(cb){ cb.checked = true; });
+  });
+  if(campAwardApSelNone) campAwardApSelNone.addEventListener('click', function(){
+    document.querySelectorAll('#campAwardApList input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+  });
+  if(campAwardApBtn) campAwardApBtn.addEventListener('click', async function(){
+    if(!currentCampId || _peekBlocks()) return;
+    var ids = window._dmAwardApChecked ? window._dmAwardApChecked() : [];
+    var amt = parseFloat(campAwardApAmt.value) || 0;
+    var note = (campAwardApNote.value||'').trim();
+    if(!ids.length){ alert('Tick at least one character to award.'); return; }
+    if(amt===0){ alert('Enter a non-zero AP amount.'); return; }
+    campAwardApBtn.disabled = true;
+    campAwardApStatus.textContent = 'Awarding…';
+    // Independent per-character RPCs, same as the per-character award form (awardBody()) — a failure
+    // on one character must not roll back or block the others, so allSettled + a combined report
+    // rather than Promise.all.
+    var results = await Promise.allSettled(ids.map(function(id){ return B.awardAp(id, amt, note); }));
+    campAwardApBtn.disabled = false;
+    var okCount = results.filter(function(r){ return r.status==='fulfilled'; }).length;
+    var errs = results.filter(function(r){ return r.status==='rejected'; })
+                       .map(function(r){ return (r.reason&&r.reason.message)||String(r.reason); });
+    campAwardApStatus.textContent = okCount+'/'+ids.length+' character'+(ids.length===1?'':'s')+' awarded '+amt+' AP'+
+      (errs.length ? ' — some failed: '+errs.join('; ') : '.');
+    if(okCount>0){ campAwardApAmt.value='0'; campAwardApNote.value=''; }
+    loadRoster(currentCampId);   // refresh every card's AP figure and re-tick from the fresh roster
+  });
+
   // Populate the "Copy rules from…" picker with the DM's OTHER campaigns (exclude the one being edited).
   // Hidden entirely when there's nothing to copy from. Options use textContent (no innerHTML), so campaign
   // names need no esc() here — same pattern as the campaign selector above.
@@ -3270,6 +3363,7 @@ document.addEventListener('campaign-ready', function () {
     if(!camp){
       campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none';
       dmNotesText.value = ''; dmNotesStatus.textContent = '';
+      campAwardApAmt.value = '0'; campAwardApNote.value = ''; campAwardApStatus.textContent = '';
       window._dmCampaignApRules = null;   // no campaign selected → no DM AP context to price against
       window._dmPartyWindow = null; window._dmDowntimeWindows = {};
       _renderPeekState();   // clears the banner and releases the lock
@@ -3306,6 +3400,8 @@ document.addEventListener('campaign-ready', function () {
     // "Archive this campaign" is meaningless on one that already is — hide it outright rather than
     // show a disabled danger button the DM has to reason about.
     campArchiveBlock.style.display = (camp.isOwner && !peekCamp) ? '' : 'none';
+    // A stale amount/note from the previous campaign must not carry over onto whoever's ticked here.
+    campAwardApAmt.value = '0'; campAwardApNote.value = ''; campAwardApStatus.textContent = '';
     inviteLinkRow.style.display = 'none';
     inviteLinkOut.value = '';
     inviteStatus.textContent = '';
