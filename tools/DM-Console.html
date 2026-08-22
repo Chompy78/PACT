@@ -2432,7 +2432,11 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         unbindBtn.disabled = true;
         B.unbindCharacter(ucid).then(function(){
           cloudRoster = cloudRoster.filter(function(x){return String(x.id)!==String(ucid);});
-          renderCloudRoster(el);
+          // render() (the shared dispatcher above), not renderCloudRoster(el) directly: the latter only
+          // repaints #campRoster's own cards, so a DM viewing Table or Customisable view kept seeing the
+          // just-removed character until something else forced a full render (e.g. a manual reload).
+          // render() re-checks `view` and refreshes whichever of Card/Table/Custom is actually on screen.
+          render();
         }).catch(function(err){ unbindBtn.disabled=false; alert('Remove failed: '+err.message); });
         return;
       }

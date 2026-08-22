@@ -6,6 +6,25 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(dm-console): removed character kept showing until a manual reload** — the
+  unbind-character success handler patched its local `cloudRoster` copy and re-rendered only via
+  `renderCloudRoster(el)`, which repaints `#campRoster`'s own card grid but not `#tableRoot` (Table
+  view) or the Customisable card view. A DM viewing either of those still saw the just-removed
+  character until something else forced a full `render()` (switching views, reloading). Now calls the
+  shared `render()` dispatcher instead, which re-checks the active view and repaints whichever one is
+  on screen. UI-only, `tools/DM-Console.html`, no `js/engine.js`/`DATA` involvement — parity 52/0.
+- **2026-08-22 · data: Amble campaign — renamed "New Character" to "Archer" and reconciled its DM AP
+  ledger (no code/version change)** — at the owner's request: (1) renamed the character both in
+  `characters.name` and in its own event log's singleton `name` event (the LOG event is what
+  CharGen/Live Sheet/DM Console actually display for a character with real build data — the DB column
+  alone only covers the no-data-yet placeholder card, so both had to change); (2) replaced Archer's
+  single 33 AP `ap_awards` entry with three itemized entries (Creation budget +30, Chapter 1 bonus +3,
+  Chapter 3 set +17, later corrected to +16 per owner follow-up) totaling the same running `characters.ap`
+  before/after each edit; (3) for the other 6 Amble characters, split each one's combined "Chapter 3 set
+  + bonus" (+17 or +18) `ap_awards` entry into two — "Chapter 3 set" (+16) and "Chapter 3 bonus" (+1 or
+  +2, whatever the original minus 16 was) — preserving each character's total AP and DM/timestamp
+  attribution. All changes verified against `characters.ap` == `sum(ap_awards.amount)` after each step.
+  Full record: `docs/sessions/2026-08-22-amble-archer-rename-and-ap-split.md`.
 - **2026-08-20 · release: promote preview → main (v1.442)** — carries PR #438 (stepped-Premium pricing),
   PR #441 (unbar Rage/Wild Shape/Bardic Inspiration die), PR #440 (zcold cleanup), and the
   CI-path-filter-gap task-board entry. `BUILD` v1.439 → v1.442.
