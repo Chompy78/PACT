@@ -38,11 +38,26 @@ player-controlled field crossing into the DM's browser, the exact class of gap t
 `esc()` invariant exists for) and a Remove button; Remove confirms first, naming the co-DM and the
 consequence, matching this file's established confirm-before-destructive-action pattern.
 
+**`/code-review` catch, folded in before merge: the owner appeared in their own co-DM list.**
+`getCampaignDms()` selects every row in `campaign_dms` for a campaign with no filtering, and
+`sql/schema.sql`'s `add_owner_as_dm` trigger auto-inserts the campaign's owner into that same table on
+creation (so `is_campaign_owner()`/`is_campaign_dm()` can share one membership table) — a detail this
+task's own audit finding never surfaced, since it only checked whether the *table* existed and was
+readable, not what rows it actually contained for a real campaign. Without a filter, `loadCoDms()` listed
+the owner alongside real co-DMs, with a Remove button that would have hit `remove_dm()`'s own "the owner
+cannot be removed" server-side guard and dead-ended in a raw error alert — directly contradicting this
+tile's own copy ("the owner is not listed"). Fixed by filtering `getCampaignDms()`'s result against
+`camp.dm_id` (the owner's profile id, already carried on every campaign object from `listMyCampaigns()`)
+before it ever reaches `_coDms`/the render. Added a new test seam, `window._dmSetCampaignsTest`, so this
+filter is exercised end-to-end (stub `getCampaignDms` to return an owner row plus a real co-DM row, call
+the actual `loadCoDms()`, assert only the real co-DM survives) rather than only unit-testing the render
+step on already-filtered synthetic data.
+
 **Test coverage without a live backend.** Added `window._dmCoDmsTest` (`{render, setRows}`), the same
 synthetic-data test-seam shape already used for `window._dmPartyDowntimeTest` and others in this file —
 lets `tool-pricing-ci.mjs` drive `renderCoDms()` and the Remove button's click handler against synthetic
 rows and a stubbed `window._campBridge.removeDm`, with no sign-in or live Supabase connection required.
-Four new checks: rendering produces one row per co-DM with the Remove button correctly keyed to
+Five new checks (four plus the owner-filter check below): rendering produces one row per co-DM with the Remove button correctly keyed to
 `dm_id` (and confirms a malicious `display_name` can't inject via this new render path — same
 esc()-coverage discipline the 2026-08-22 audit's XSS batch established); an empty list shows a
 placeholder rather than a blank panel; clicking Remove confirms first and then calls
@@ -79,8 +94,8 @@ own characters (it doesn't) and the copy should say so rather than leave it to b
 
 ## Status
 Implemented on `feat/dm-console-codm-revoke-ui`, off `preview` at the post-PR-#451 tip.
-`engine-parity-ci.mjs`: 57/0 (untouched — no engine change). `tool-pricing-ci.mjs`: 167/0 (163 existing +
-4 new). `docs/TASK_BOARD_NEXT.md` graduated for this finding (D3). Not independently verified against a
+`engine-parity-ci.mjs`: 57/0 (untouched — no engine change). `tool-pricing-ci.mjs`: 168/0 (163 existing +
+5 new). `docs/TASK_BOARD_NEXT.md` graduated for this finding (D3). Not independently verified against a
 live two-account signed-in session (this environment has no such harness) — the removal mechanism's
 correctness rests on the RPC/RLS reading above (no session-level caching layer sits between a request and
 `campaign_dms`, so a removed co-DM's very next request re-evaluates `is_campaign_dm()` against the

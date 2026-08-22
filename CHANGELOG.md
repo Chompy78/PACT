@@ -10,8 +10,13 @@
   already-existing, already-owner-gated `getCampaignDms()`/`removeDm()` (`js/campaign.js`) — a
   `SECURITY DEFINER` RPC that independently re-checks ownership server-side — into a new owner-only
   panel tile, same gating pattern as "Archive campaign". Remove asks for confirmation naming the co-DM
-  and the consequence. 4 new `tool-pricing-ci.mjs` checks (rendering/escaping on synthetic data, the
-  confirm+RPC-call wiring, decline-leaves-it-alone) — 167/0. `D-GH-2026-08-22-dm-console-codm-revoke-ui`.
+  and the consequence. **`/code-review` catch:** `getCampaignDms()` returns every `campaign_dms` row,
+  and the `add_owner_as_dm` trigger auto-inserts the owner into that same table on campaign creation —
+  without a filter, the owner showed up in their own "co-DMs" list with a Remove button that would hit
+  `remove_dm()`'s own "the owner cannot be removed" guard and dead-end in a raw error, directly
+  contradicting the tile's own copy. `loadCoDms()` now filters by `dm_id` before rendering. 5 new
+  `tool-pricing-ci.mjs` checks (rendering/escaping on synthetic data, the confirm+RPC-call wiring,
+  decline-leaves-it-alone, the owner-filter) — 168/0. `D-GH-2026-08-22-dm-console-codm-revoke-ui`.
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 

@@ -3118,6 +3118,7 @@ document.addEventListener('campaign-ready', function () {
   // _renderPartyDowntime()/awardBody() both gate on it being set — same reasoning as every other
   // window._dm*Test seam here, letting the gate drive real rendering without a live campaign select.
   window._dmSetCampIdTest = function(id){ currentCampId = id; };
+  window._dmSetCampaignsTest = function(camps){ currentCampaigns = camps || []; };   // for loadCoDms()'s owner-filter test
   // Advancement-dial helpers (feat/advancement-tracks): live L20 preview + preset↔field sync.
   // DATA tables are read lazily inside each handler so a panel opened before engine-ready
   // still wires up (falling back to the preset defaults until DATA arrives).
@@ -3888,7 +3889,15 @@ document.addEventListener('campaign-ready', function () {
     try {
       var rows = await B.getCampaignDms(forCampId);
       if(!_isCurrentCamp(forCampId)) return;
-      _coDms = rows;
+      // /code-review catch: getCampaignDms() returns EVERY campaign_dms row, and the add_owner_as_dm
+      // trigger (sql/schema.sql) auto-inserts the owner into that same table on campaign creation — so
+      // without this filter the owner shows up in their own "co-DMs" list with a Remove button that
+      // would hit remove_dm()'s own "the owner cannot be removed" guard and dead-end in a raw error,
+      // directly contradicting this tile's own copy ("the owner is not listed"). Filter by dm_id, the
+      // owner's profile id already carried on the campaign object from listMyCampaigns().
+      var _owner = currentCampaigns.find(function(c){return c.id===forCampId;});
+      var _ownerId = _owner ? _owner.dm_id : null;
+      _coDms = rows.filter(function(d){ return d.dm_id !== _ownerId; });
       renderCoDms();
     } catch(err){
       if(!_isCurrentCamp(forCampId)) return;
@@ -3914,7 +3923,7 @@ document.addEventListener('campaign-ready', function () {
   // test seam: lets tool-pricing-ci.mjs exercise renderCoDms()'s escaping and the remove-button wiring
   // on synthetic data, without a live Supabase backend or real sign-in (same shape as
   // window._dmPartyDowntimeTest above).
-  window._dmCoDmsTest = { render: renderCoDms, setRows: function(rows){ _coDms = rows || []; } };
+  window._dmCoDmsTest = { render: renderCoDms, setRows: function(rows){ _coDms = rows || []; }, load: loadCoDms, getRows: function(){ return _coDms; } };
 
   if(campCoDmsRefresh) campCoDmsRefresh.addEventListener('click', function(){ loadCoDms(); });
 

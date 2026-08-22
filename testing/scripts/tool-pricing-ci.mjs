@@ -1540,6 +1540,27 @@ try {
         return calls;
       });})()`),
     0);
+  // /code-review catch on this same PR: getCampaignDms() returns every campaign_dms row, and the
+  // add_owner_as_dm trigger (sql/schema.sql) auto-inserts the owner into that table on campaign
+  // creation — loadCoDms() must filter the owner's row out itself (client-side, matching camp.dm_id),
+  // or the owner shows up in their own "co-DMs" list with a Remove button that would hit remove_dm()'s
+  // "the owner cannot be removed" guard and dead-end in a raw error.
+  check('loadCoDms() filters the campaign owner out of the co-DM list (they are not a "co"-DM)',
+    await dm.evaluate(`(()=>{
+      window._dmSetCampIdTest('camp-owner-filter-test');
+      window._dmSetCampaignsTest([{id:'camp-owner-filter-test', dm_id:'owner-xyz', isOwner:true}]);
+      const realGet = window._campBridge.getCampaignDms;
+      window._campBridge.getCampaignDms = () => Promise.resolve([
+        {dm_id:'owner-xyz', name:'The Owner', added_by:null, created_at:'2026-01-01T00:00:00Z'},
+        {dm_id:'dm-real-1', name:'A Real Co-DM', added_by:'owner-xyz', created_at:'2026-08-01T00:00:00Z'}
+      ]);
+      return window._dmCoDmsTest.load().then(() => {
+        window._campBridge.getCampaignDms = realGet;
+        window._dmSetCampIdTest(null); window._dmSetCampaignsTest([]);
+        const rows = window._dmCoDmsTest.getRows();
+        return [rows.length, rows.some(r => r.dm_id === 'owner-xyz'), rows.some(r => r.dm_id === 'dm-real-1')];
+      });})()`),
+    [1, false, true]);
 
   // feat/ap-model-reconcile: a fully DM-funded character (0 in their own log, ignore_player_ap on)
   // used to show apLevel 0 (trackLevel(eco.earned) alone). earnedWithDm() fixes it identically to the
