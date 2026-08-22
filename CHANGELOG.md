@@ -6,6 +6,27 @@
 
 > **Format note (2026-07-28):** entries older than 2026-07-17 were rotated out to `docs/CHANGELOG-archive-2026-06-29-to-2026-07-16.md` — see `decisions/2026/D-GH-2026-07-28-decisions-changelog-task-board-split.md`.
 
+- **2026-08-22 · fix(engine): four pricing edge cases from the 2026-08-22 audit — `DATA.version` v0.358 →
+  v0.359** — Attunement/Ki/Sorcery points went FREE (or refunded AP) once bought past their price
+  tables' last entry (13/25/21 rungs respectively, none Hit-Dice-gated) — live-reachable purely by
+  clicking Live Sheet's existing buy buttons repeatedly, no LOG tampering needed, since none of the
+  three are in Live Sheet's `_CTX_PRICERS` list so their marginal cost is a whole-build `compute()`
+  delta that goes negative at the boundary. Ability scores above 20 similarly fell through `|| 0`,
+  pricing a purchased STR 25 identically to STR 10 while giving a strictly better modifier — not
+  reachable through any shipped tool's UI, but `compute()` is the single source of truth every caller
+  (a hand-edited save, DM Console's edit path) trusts. A duplicate `unlockclass` LOG event
+  double-charged 8 AP for a class already unlocked, since `unlockedClasses` wasn't among the nine
+  proficiency lists `_dedupeProfLists()` already covers — extended to a tenth; `arts`/`boons`/
+  `subAbilities` deliberately left alone pending an owner decision on whether duplicates there should
+  even be legal (not filed as a task — see the decision record). `activeEvents()`'s buyoff/dmRemoveBoon
+  FIFO matching also gained a null-guard so two malformed events (missing `payload.v`/`refVal`) can no
+  longer cross-match on the same `undefined` key — defensive only, no output change for any valid LOG.
+  All four clamp to their table/ladder's existing pattern (`unlockCum`'s own comment: "a clamp
+  under-charges at worst; `|| 0` paid the player"). 5 new parity fixtures (CG-033–036, EV-020);
+  `engine-parity-ci.mjs` 57/0, `tool-pricing-ci.mjs` 163/0, `log-fuzz.mjs` 500/500 iterations clean.
+  Not a Players Guide change — the intended rules (uncapped-by-design ladders, a 20-cap on scores, one
+  unlock per class) don't change, only the engine's enforcement of them. Full record:
+  `D-GH-2026-08-22-engine-pricing-edge-cases`.
 - **2026-08-22 · fix(tools): 10 mechanical playability/usability fixes from the 2026-08-22 audit** —
   batched low-risk sweep across all three tools, each independently confirmed and covered by
   `engine-parity-ci.mjs` (52/0) and `tool-pricing-ci.mjs` (163/0, two fixtures updated to build a real

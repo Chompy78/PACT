@@ -216,8 +216,14 @@ export function compute(b, opts){
   const _ITEMS={}; function addItems(lab,items){ const a=(items||[]).filter(x=>x); if(a.length)_ITEMS[lab]=a; }
   const st=b.stats||{};
   // base AP is paid on the purchased scores only
-  let abilAP=0;for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){abilAP+=(DATA.ABIL[st[a]||10]||0);} add("Ability scores",abilAP);
-  for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){const sc=st[a]||10; if(sc<6) W.push(a+" "+sc+" is below the normal floor of 6 — needs DM approval");}
+  // fix/engine-pricing-edge-cases (2026-08-22): DATA.ABIL only defines keys 2-20 — an unclamped score
+  // above 20 fell through to `|| 0`, so a score of e.g. 25 cost NOTHING beyond 20's price while still
+  // giving a strictly better modifier. Not reachable through any shipped tool's UI (CharGen's stepper is
+  // hard-capped 2-20), but compute() is the single source of truth every caller trusts — a hand-edited
+  // save, DM Console's edit path, or a reloaded tampered file all bypass the UI cap. Clamped the same way
+  // unlockCum's cumulative lookup already is (see its own comment: "a clamp under-charges at worst").
+  let abilAP=0;for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){const _sc=Math.min(20,Math.max(2,st[a]||10));abilAP+=(DATA.ABIL[_sc]||0);} add("Ability scores",abilAP);
+  for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){const sc=st[a]||10; if(sc<6) W.push(a+" "+sc+" is below the normal floor of 6 — needs DM approval"); if(sc>20) W.push(a+" "+sc+" is above the normal ceiling of 20 — priced as 20");}
   const effScore={}; const mod={};
   const _flat={STR:0,DEX:0,CON:0,INT:0,WIS:0,CHA:0};if((b.features||[]).includes("Barbarian: Primal Champion")){_flat.STR+=4;_flat.CON+=4;}const _eb=b.epicBoonAbil||{};for(const _bl of (b.boons||[])){const _bo=DATA.boons[_bl];if(_bo&&_bo.epic){const _a=_eb[_bl];if(_a&&_flat[_a]!==undefined)_flat[_a]+=2;else W.push(_bl+": choose an ability to raise (+2)");}}for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){effScore[a]=Math.min(30,(st[a]||10)+_flat[a]);mod[a]=_mod(effScore[a]);}
   const hd=b.hd||1; const row=DATA.HD[hd-1];
@@ -266,7 +272,14 @@ export function compute(b, opts){
   // languages — first free, then an escalating ladder (+1,+2,+3…): 4 langs = 6 AP. (n-1)·n/2
   const langs=b.languages||1; add("Languages",Math.max(0,(langs-1)*langs/2));
   // §6 Attunement slots (Steep 4/6/8/10), no cap, no gate
-  const attune=b.attune||0; add("Attunement slots",DATA.attune[attune]||0);
+  // fix/engine-pricing-edge-cases (2026-08-22): uncapped by design (no HD gate), but the table itself
+  // still ends (13 entries) — `|| 0` let a purchase past the last index go FREE, and because Live
+  // Sheet's buy panel prices this as a whole-build compute() delta (attune isn't in _CTX_PRICERS), the
+  // purchase that CROSSES the boundary priced as a REFUND. Reachable purely by clicking Live Sheet's
+  // "buy the next one" button repeatedly — no LOG tampering needed. Clamp the index, same pattern as
+  // unlockCum's cumulative lookup (its own comment: "a clamp under-charges at worst; `|| 0` paid the
+  // player") — every purchase past the table's end costs the same as the last rung, rather than nothing.
+  const attune=b.attune||0; add("Attunement slots",DATA.attune[Math.min(attune,DATA.attune.length-1)]||0);
   // Arts & Techniques (flat AP per item like boons; has hd gate + minStats prereqs)
   let artAP=0;const _AI=[];for(const lab of (b.arts||[])){const ar=DATA.arts[lab];if(!ar)continue;const _ac=(+ar.ap||0);artAP+=_ac;_AI.push([lab,_ac]);
     if(hd<(+ar.hd||1)) W.push(lab+': needs '+(+ar.hd||1)+'+ Hit Dice');
@@ -418,17 +431,27 @@ export function compute(b, opts){
   {const _ds=new Set();(b.traditions||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(d&&d.name)_ds.add(d.name);});});
    (b.features||[]).forEach(function(lab){var f=DATA.features[lab];if(f&&f.needsDisc&&!_ds.has(f.needsDisc))W.push("⛔ "+(lab.split(": ")[1]||lab)+" requires the "+f.needsDisc+" Discipline (found it in Spellcasting)");});}
   // v0.088: resource gates — ki/sorcery-using abilities require >=1 of the resource
-  {const _kiTot=(DATA.kiCum&&DATA.kiCum[b.ki||0])||0;
+  // fix/engine-pricing-edge-cases (2026-08-22): clamp matches the pricing lookup below — an unclamped
+  // index past kiCum's end used to read undefined||0, so a character who owns MANY ki points past the
+  // table boundary would incorrectly show "0 ki" here and warn that a Ki-using feature needs ki bought
+  // first, despite having plenty.
+  {const _kiTot=(DATA.kiCum&&DATA.kiCum[Math.min(b.ki||0,DATA.kiCum.length-1)])||0;
    if(_kiTot<1)(b.features||[]).forEach(function(lab){var f=DATA.features[lab];if(f&&f.needsKi)W.push("⛔ "+(lab.split(": ")[1]||lab)+" requires at least 1 Ki / Focus point (buy Ki points first)");});
    else if(!(b.features||[]).some(function(lab){var f=DATA.features[lab];return f&&f.needsKi;}))W.push("You have "+_kiTot+" Ki / Focus point"+(_kiTot>1?"s":"")+" but no Ki-using ability yet — buy a Ki feature, or refund the points if you won't use them.");}
   {const _hasSorc=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Sorcerer";});});
    const _spTot=(b.sorcery||0);
    if(_spTot<1)(b.features||[]).forEach(function(lab){var f=DATA.features[lab];if(f&&f.needsSorc)W.push("⛔ "+(lab.split(": ")[1]||lab)+" requires at least 1 sorcery point (buy sorcery points first)");});}
-  // §5/§11 Ki (Focus) & Sorcery points — gentle ladder, no Hit-Dice gate
-  const ki=b.ki||0; add("Ki / Focus points",(DATA.kiCum&&DATA.kiCum[ki])||0);  // v0.172: bands-of-4 ladder
+  // §5/§11 Ki (Focus) & Sorcery points — gentle ladder, no Hit-Dice gate. fix/engine-pricing-edge-cases
+  // (2026-08-22): both tables still END (25/21 entries) despite being uncapped-by-design — an unclamped
+  // index past either one fell through `|| 0`, going FREE, and because neither is in Live Sheet's
+  // _CTX_PRICERS special-case list, the purchase that crossed the boundary priced as a REFUND (a
+  // whole-build compute() delta going negative). Reachable purely by clicking Live Sheet's buy buttons
+  // repeatedly, no HD gate on either track to stop long high-level play from reaching it. Clamp the
+  // index, same pattern as unlockCum/attune above.
+  const ki=b.ki||0; add("Ki / Focus points",(DATA.kiCum&&DATA.kiCum[Math.min(ki,DATA.kiCum.length-1)])||0);  // v0.172: bands-of-4 ladder
   const sorcery=(b.sorcery||0);  // hard block: extra sorcery requires T2
   // v0.172: base pool (= Hit Dice) is FREE with the Sorcerer Discipline — b.sorcery = EXTRA points bought
-  add("Sorcery points",(DATA.sorcCum&&DATA.sorcCum[sorcery])||0);
+  add("Sorcery points",(DATA.sorcCum&&DATA.sorcCum[Math.min(sorcery,DATA.sorcCum.length-1)])||0);
   if((b.sorcery||0)>0){var _hsd=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Sorcerer";});});if(!_hsd)W.push("⛔ Sorcery points require the Sorcerer discipline (open Arcane › Sorcerer)");else if(hd<2)W.push("⛔ Sorcery points require 2 Hit Dice (T2)");}
   // §14 Martially Bound — taking it grants 2 AP up front (like a drawback), discount applied in the features loop above
   if(mbClass) add("Martially Bound (gain)",-2);
@@ -785,11 +808,19 @@ export function compute(b, opts){
  *   { type:'name',   name }                             - sets character name
  * ========================================================================== */
 
-// The nine single-instance proficiency lists, which never hold duplicates. Applied at the end of
+// The ten single-instance proficiency lists, which never hold duplicates. Applied at the end of
 // _replay() (the historical home of this code) and again per-event by repriceDraft(). Idempotent, and
 // deduping early reaches the same final build as deduping once at the end — a later duplicate push
 // still appends and is collapsed on the next call.
-const _PROF_LISTS = ['saves','skills','expertise','toolExpertise','tools','instruments','masteries','racialTraits','racialSpells'];
+//
+// unlockedClasses added (fix/engine-pricing-edge-cases, 2026-08-22): compute()'s class-unlock pricing
+// reads this array's LENGTH as the unlock count (see "Class unlocks" above), with no ownership check —
+// a duplicate unlockclass event for an already-unlocked class charged a full extra 8 AP even though the
+// GATING logic elsewhere already treats it as one class. arts/boons/subAbilities are NOT included here:
+// unlike unlockedClasses, whether a duplicate there should dedupe, refund, or be blocked outright is a
+// rules question that hasn't been answered (see the NEXT-board task) — don't extend this list to them
+// without that answer first.
+const _PROF_LISTS = ['saves','skills','expertise','toolExpertise','tools','instruments','masteries','racialTraits','racialSpells','unlockedClasses'];
 function _dedupeProfLists(b) {
   for (const k of _PROF_LISTS) if (Array.isArray(b[k]) && b[k].length > 1) b[k] = [...new Set(b[k])];
 }
@@ -874,17 +905,28 @@ export function activeEvents(events) {
   // themselves — an unmatched buyoff/removal is a no-op the UI should never emit, and defensively
   // shouldn't manufacture a phantom ledger line either.
   const lost = [];
+  // fix/engine-pricing-edge-cases (2026-08-22): a malformed event missing its value/reference field
+  // (payload.v or refVal) used to key into the same `undefined` bucket as every OTHER malformed event
+  // of that type, letting an unrelated buyoff/removal incorrectly cancel an unrelated drawback/boon
+  // purchase. Not reachable through either shipped tool's own emit() calls today (both always populate
+  // these fields) — needs an already-malformed LOG (hand-edited, or a future bug elsewhere) — but a
+  // silent cross-match on `undefined` is exactly the "missing validation on event payloads" gap this
+  // file's own review standard calls out. `v == null` (not `===`) catches both null and undefined.
   evs.forEach((e, i) => {
     if (e.type === 'buy' && e.cat === 'drawback') {
       const v = e.payload && e.payload.v;
+      if (v == null) return;
       (_openDraws[v] = _openDraws[v] || []).push(i);
     } else if (e.type === 'buyoff') {
+      if (e.refVal == null) return;
       const q = _openDraws[e.refVal];
       if (q && q.length) { boughtOff.add(q.shift()); lost.push({ kind: 'drawback', label: e.refVal, cost: Number(e.cost) || 0 }); }
     } else if (e.type === 'buy' && e.cat === 'boon') {
       const v = e.payload && e.payload.v;
+      if (v == null) return;
       (_openBoons[v] = _openBoons[v] || []).push(i);
     } else if (e.type === 'dmRemoveBoon') {
+      if (e.refVal == null) return;
       const q = _openBoons[e.refVal];
       if (q && q.length) { const _idx = q.shift(); boonRemoved.add(_idx); const _orig = evs[_idx]; lost.push({ kind: 'boon', label: e.refVal, cost: Number(_orig && _orig.cost) || 0 }); }
     }
