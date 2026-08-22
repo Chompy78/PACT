@@ -465,12 +465,19 @@
   /* ---- campaign panel: nested tiles (feat/dm-console-ui) ---- */
   .subtile{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
   .subtile:last-child{margin-bottom:0}
+  /* A "supercard" wrapping several .subtiles that share one lock/save control (feat/campaign-rules-
+     lock-supercard) — deliberately no fill of its own (transparent, so the panel's own --card shows
+     through), just a border, so the .subtiles inside still read as the visually distinct layer against
+     it, the same as they already do against .panel. Two same-colored fills stacked would blur together. */
+  .subtile-group{border:1px solid var(--line);border-radius:12px;padding:10px 10px 2px;margin-bottom:10px}
+  .subtile-group:last-child{margin-bottom:0}
+  .subtile-group > .subtile:last-child{margin-bottom:10px}
   .subtile .stitle{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;margin-bottom:8px}
   #dmNotesText{min-height:90px;padding:8px 10px;resize:vertical;font-family:inherit}
   .ruleblock{margin-bottom:6px}
   .ruleblock>.lbl{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:3px}
   .rulegrid{display:flex;flex-wrap:wrap;gap:4px 10px}
-  .rulegrid label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap}
+  .rulegrid label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--ink);font-weight:700;cursor:pointer;white-space:nowrap}
   .hrchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:3px 8px;margin:2px 4px 2px 0}
   .hrchip button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;padding:0}
   /* Custom character field definitions (feat/dm-custom-character-fields) — 4 fixed rows,
@@ -511,7 +518,7 @@
   .archname:hover,.archname:focus-visible{color:var(--blue);text-decoration-style:solid}
   /* ---- history modal ---- */
   .hist-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center}
-  .hist-modal .inner{background:#fff;border-radius:12px;max-width:640px;width:94%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:16px 20px}
+  .hist-modal .inner{background:var(--card);border-radius:12px;max-width:640px;width:94%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:16px 20px}
   .hist-modal table{width:100%;border-collapse:collapse;font-size:12px}
   .hist-modal th{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);font-weight:700}
   .hist-modal td{padding:4px 8px;border-bottom:1px solid var(--line)}
@@ -555,7 +562,6 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
       <button type="button" class="btn sm" id="refreshRosterBtn" style="margin-left:auto">⟳ Refresh</button>
     </div>
     <div class="tbtoolbar" id="xToolbar" style="display:none"><button class="colbtn" id="xBtn" type="button">🧩 Customise boxes ▾</button><div class="colpanel" id="xPanel"></div></div>
-    <div id="campDowntime"></div>
     <div id="campRoster"><div class="camp-empty">Select a campaign in the panel above to load the live roster.</div></div>
   </div>
 
@@ -596,6 +602,31 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
           <div id="campWarnBanner" style="display:none" role="status">
             <b>&#9888; Worth a look</b>
             <ul id="campWarnList"></ul>
+          </div>
+
+          <div class="subtile" id="campAwardApTile">
+            <div class="stitle">Award AP</div>
+            <div class="grantnote" style="margin-top:0;margin-bottom:8px">Tick whoever earned it, set an amount and a note, and award every ticked character the same AP at once &mdash; for a shared session reward instead of awarding each character one at a time on their own roster card below.</div>
+            <div class="rulegrid" id="campAwardApList"></div>
+            <div id="campAwardApEmpty" style="display:none;font-size:11px;color:var(--muted)">No characters in this campaign yet.</div>
+            <div style="display:flex;align-items:center;gap:8px;margin:8px 0 0">
+              <button type="button" class="btn sm ghost" id="campAwardApSelAll">Select all</button>
+              <button type="button" class="btn sm ghost" id="campAwardApSelNone">Select none</button>
+            </div>
+            <div class="award-form" style="margin-top:8px">
+              <input type="number" value="0" step="1" class="award-amt" id="campAwardApAmt" placeholder="AP">
+              <input type="text" class="award-note" id="campAwardApNote" placeholder="note — e.g. cleared the crypt">
+              <button type="button" class="btn sm" id="campAwardApBtn">Award</button>
+            </div>
+            <span id="campAwardApStatus" style="font-size:11px;color:var(--muted)"></span>
+          </div>
+
+          <!-- feat/move-party-downtime-to-camp-panel: was a bare ruleblock above the roster cards
+               (#campSection, before #campRoster) — moved here, next to Award AP, since both are
+               "give the whole party something at once" controls and belong in the same group of
+               campaign-wide DM actions rather than sitting alone above the character grid. -->
+          <div class="subtile" id="campDowntimeTile">
+            <div id="campDowntime"></div>
           </div>
 
           <div class="subtile" id="campOwnerTile">
@@ -717,6 +748,16 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             </details>
           </div>
 
+          <!-- feat/campaign-rules-lock-supercard: campRulesTile/campAdvancementTile/campCustomFieldsTile
+               plus the Save/Lock row below them all share ONE lock (_setRulesLocked/_ruleLockEls), but
+               used to just be four separate-looking siblings — three identical cards followed by a bare
+               button row, nothing showing they were one locked unit. Wrapped in campRulesGroup so the
+               containment itself says "these belong together", with ruleLockHint living at the group's
+               top (outside all three <details>, so it's visible the moment a DM scrolls here — not
+               gated behind opening any one of the three accordions first, which is what happened when
+               the hint lived inside campRulesTile's own <details>). -->
+          <div class="subtile-group" id="campRulesGroup">
+            <button type="button" id="ruleLockHint" style="display:block;width:100%;text-align:left;appearance:none;background:var(--warn-bg);color:var(--ink);border:1px solid var(--warn);border-radius:10px;padding:8px 10px;font:inherit;font-size:11.5px;cursor:pointer;margin-bottom:10px"></button>
           <div class="subtile" id="campRulesTile">
             <details id="campRulesDetails">
               <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
@@ -856,6 +897,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <span id="ruleSaveStatus" style="font-size:11px;color:var(--muted)"></span>
           </div>
           <div class="grantnote" style="margin:0 0 10px">Saves the Campaign Rules and advancement settings above together.</div>
+          </div>
 
           <div class="subtile" id="dmNotesTile">
             <div class="stitle">DM notes about THIS CAMPAIGN</div>
@@ -1108,7 +1150,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.443';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.446';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1609,6 +1651,22 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     // s.available is the same figure the player's own Live Sheet calls "AP left", from the same engine
     // AND the same formula (spendable − frozen spend) — including the DM-granted pool, which is why it
     // now agrees with the player's sheet instead of showing a DM-funded character as deeply overspent.
+    // feat/card-view-custom-fields: the campaign's two NUMBER custom fields (num1/num2 — "Custom 1"/
+    // "Custom 2" under Campaign Rules → Custom character fields) on the default Card view's stat strip
+    // itself, not just buried inside the collapsed "DM tools" section below (customFieldValuesBody,
+    // where the DM actually sets the value). Read-only here — editing still happens in DM tools. Only
+    // the two NUMBER slots, not the two TEXT ones: a stat cell reads naturally as a number ("Renown 4")
+    // the way HP/AC/Prof already do, and text1/text2 (freeform strings) don't fit that shape. Local
+    // (non-campaign) roster cards have no window._dmCampaignApRules, so both guards fall through to
+    // "not defined" and these cells simply don't appear — same as a campaign that never named them.
+    var cfDefs = (window._dmCampaignApRules && window._dmCampaignApRules.customFields) || {};
+    var cfVals = (dm && dm.customFields) || {};
+    function cfCell(slot){
+      var def = cfDefs[slot];
+      if(!def || !def.label) return false;
+      var v = cfVals[slot];
+      return [def.label, (v==null || v==='') ? '—' : v];
+    }
     var statCells = [
       ['AP left', avail],
       ['HP', s.hp],
@@ -1616,7 +1674,9 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       ['Speed', (s.speed!=null? s.speed+'′' : '—')],
       ['Pass. Perc', passivePerc(s)],
       ['Prof', sgnSafe(s.prof)],
-      ['Save DC', (s.saveDC==null?'—':s.saveDC)]
+      ['Save DC', (s.saveDC==null?'—':s.saveDC)],
+      cfCell('num1'),
+      cfCell('num2')
     ].filter(Boolean);
     var statsHTML = statCells.map(function(c){
       return '<div class="stat"><div class="k">'+esc(c[0])+'</div><div class="v">'+(c[2]?c[1]:esc(c[1]))+'</div></div>';
@@ -2101,12 +2161,19 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
             customFields: row.customFields || {} }
     };
   }
+  // Shared by every place that needs a cloudRoster record's display name outside its own full
+  // cardHTML() render (a placeholder card, the Award AP tick-list, …) — was three separately-typed
+  // copies of the same fallback chain (found by /code-review); one future new fallback source now
+  // only needs updating here.
+  function _rosterDisplayName(rec){
+    return rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'New Character';
+  }
   // A roster row can exist with no character data yet — e.g. a redeemed invite the player hasn't
   // opened CharGen/Live Sheet from (same "hasData" gap js/sync.js's listMyCharacters() already
   // documents) — show a lightweight placeholder instead of running dmAnalyze() on an empty LOG.
   function cloudCardHTML(rec){
     if(!rec.hasData){
-      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'New Character';
+      var nm = _rosterDisplayName(rec);
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
@@ -2117,6 +2184,14 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   }
   function renderCloudRoster(container){
     if(!container) return;
+    // renderCampAwardAp() lives here (not just in window._dmRenderCloudRoster, its other caller) —
+    // this function is ALSO called directly by write handlers that patch cloudRoster themselves and
+    // repaint without going through the window bridge (e.g. .unbind-btn below). Skipping it here left
+    // a just-removed character's checkbox stuck, still checked, in the Award AP tick-list until the
+    // next full loadRoster() — caught by /code-review, not by any test, since nothing exercised
+    // unbind-then-award together. Centralizing the call here means no future cloudRoster-mutating
+    // caller of this function can reintroduce the same gap.
+    renderCampAwardAp();
     if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; return; }
     container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
   }
@@ -2126,7 +2201,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // character's custom-field values (and everything else DM tools offers) without switching views.
   function customCardHTML(rec){
     if(!rec.hasData){
-      var nm = rec.dm.playerLabel || (rec.summary&&rec.summary.name) || rec.rowName || 'New Character';
+      var nm = _rosterDisplayName(rec);
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
@@ -2164,9 +2239,37 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // expands the row at `expandIndex` (the detail body — where AP Earned/Spent/Available live — only
   // renders for the open card, same as a real click on its header would), then renders directly.
   window._dmRenderCardsTest = function(rows,expandIndex){ cloudRoster = (rows||[]).map(cloudAnalyze); expanded = (expandIndex==null?null:expandIndex); renderCards(); };
+  // The generic "Award AP" tile (feat/dm-screen-generic-award-ap) — a tick-list of every character
+  // currently in cloudRoster, so a DM can award the same AP amount + note to any number of them at
+  // once from the top of the panel instead of repeating the per-character award form card by card.
+  // Lives in THIS closure (not the campaign-ready one the button handler is wired in) because it's the
+  // only place cloudRoster itself is reachable — same cross-boundary reason window._dmRenderCloudRoster
+  // exists at all. Re-renders every time the roster is (re)painted; preserves whatever was already
+  // ticked across that repaint (e.g. after a previous award) rather than dropping the DM's selection.
+  function renderCampAwardAp(){
+    var el = document.getElementById('campAwardApList');
+    var empty = document.getElementById('campAwardApEmpty');
+    if(!el) return;
+    var prevChecked = new Set(Array.prototype.slice.call(el.querySelectorAll('input:checked')).map(function(cb){ return cb.value; }));
+    if(!cloudRoster.length){
+      el.innerHTML = '';
+      if(empty) empty.style.display = '';
+      return;
+    }
+    if(empty) empty.style.display = 'none';
+    el.innerHTML = cloudRoster.map(function(rec){
+      var nm = _rosterDisplayName(rec);
+      var ck = prevChecked.has(String(rec.id)) ? ' checked' : '';
+      return '<label><input type="checkbox" class="campAwardApChk" value="'+esc(rec.id)+'"'+ck+'> '+esc(nm)+'</label>';
+    }).join('');
+  }
+  window._dmAwardApChecked = function(){
+    return Array.prototype.slice.call(document.querySelectorAll('#campAwardApList input:checked')).map(function(cb){ return cb.value; });
+  };
   window._dmRenderCloudRoster = function(container, rows){
     _cloudRosterEl = container;
     cloudRoster = (rows||[]).map(cloudAnalyze);
+    renderCampAwardAp();
     // render() (below) is the single place that decides whether this container shows cards or defers
     // to the shared Table view, based on the current view-toggle state — call it instead of drawing
     // straight to `container` here, so a (re)load while Table view is active doesn't flash cards.
@@ -2249,30 +2352,6 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
           else renderCloudRoster(el);
           if(errs.length) alert('Some awards failed: '+errs.join('; '));
         });
-        return;
-      }
-
-      // The party-wide downtime declaration (Players Guide §16) — replaces the current window for
-      // EVERY character in the campaign at once, so it goes through window._dmReloadRoster (the same
-      // cross-boundary full-refresh bridge feat/dm-edit-events uses) to re-resolve the party base,
-      // every roster character's own composed total, and repaint both the control and the roster in
-      // one pass — a bonus granted under the old window is wiped by this exact same call, on the
-      // server, simply by virtue of get_downtime_window() only ever reading the LATEST base row.
-      var declareBtn = t.closest ? t.closest('.declare-btn') : null;
-      if(declareBtn){
-        var dEl = document.getElementById('campDowntime');
-        var daysEl = dEl && dEl.querySelector('.declare-days');
-        var dNoteEl = dEl && dEl.querySelector('.declare-note');
-        var dStatus = dEl && dEl.querySelector('.declare-status');
-        var days = Math.round(parseFloat(daysEl&&daysEl.value)||0);
-        var dNote = (dNoteEl&&dNoteEl.value||'').trim();
-        var dCampId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
-        if(!daysEl || daysEl.value===''){ alert('Enter the new window size in days.'); return; }
-        declareBtn.disabled = true;
-        B.declareDowntime(dCampId, days, null, dNote).then(function(){
-          declareBtn.disabled = false;
-          if(window._dmReloadRoster) window._dmReloadRoster();
-        }).catch(function(err){ declareBtn.disabled=false; if(dStatus) dStatus.textContent=''; alert('Declare failed: '+err.message); });
         return;
       }
 
@@ -2373,7 +2452,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
           var modal = document.createElement('div');
           modal.className = 'hist-modal';
           modal.innerHTML = '<div class="inner">'+
-            '<h3 style="margin:0 0 10px;color:var(--navy)">'+esc(hname)+' — AP history</h3>'+
+            '<h3 style="margin:0 0 10px;color:var(--heading)">'+esc(hname)+' — AP history</h3>'+
             (trows
               ? '<table><thead><tr><th>Date</th><th>Amount</th><th>DM</th><th>Note</th></tr></thead><tbody>'+trows+'</tbody></table>'
               : '<p style="color:var(--muted)">No awards yet.</p>')+
@@ -2432,8 +2511,101 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         unbindBtn.disabled = true;
         B.unbindCharacter(ucid).then(function(){
           cloudRoster = cloudRoster.filter(function(x){return String(x.id)!==String(ucid);});
-          renderCloudRoster(el);
+          // render() (the shared dispatcher above), not renderCloudRoster(el) directly: the latter only
+          // repaints #campRoster's own cards, so a DM viewing Table or Customisable view kept seeing the
+          // just-removed character until something else forced a full render (e.g. a manual reload).
+          // render() re-checks `view` and refreshes whichever of Card/Table/Custom is actually on screen.
+          render();
         }).catch(function(err){ unbindBtn.disabled=false; alert('Remove failed: '+err.message); });
+        return;
+      }
+    });
+  })();
+
+  // Party downtime declare/history (feat/move-party-downtime-to-camp-panel) — its own small delegation,
+  // NOT folded into wireCloudRosterDelegation() above. That one is deliberately scoped to #campRoster
+  // (a click on a roster card), and #campDowntime/#campDowntimeTile now live elsewhere in the DOM
+  // (inside the Campaign panel, next to Award AP) — a sibling of #campRoster, not a descendant of it,
+  // so clicks inside it never bubbled through that listener. (True before this move too, when
+  // #campDowntime sat as #campRoster's sibling directly under #campSection — "Declare for the party"
+  // and its RPC were unreachable by click since the day this control was written; caught fixing this.)
+  // #campDowntimeTile itself is the delegation root (not #campDowntime) because it's stable across
+  // _renderPartyDowntime()'s innerHTML rebuilds — #campDowntime's own children get replaced every call.
+  (function wirePartyDowntimeDelegation(){
+    var el = document.getElementById('campDowntimeTile');
+    if(!el) return;
+    el.addEventListener('click', function(ev){
+      var t = ev.target;
+      var B = window._campBridge;
+      if(!B) return;
+
+      // Same peek-write-guard shape as wireCloudRosterDelegation's — a declaration is a write, must
+      // refuse independently of whatever the disabled attribute says (see _applyPeekLock's own
+      // comment on why "disabled" alone is never trusted for peek).
+      if(window._dmPeekActive && t.closest && t.closest('.declare-btn')){
+        if(window._dmPeekBlocks) window._dmPeekBlocks();
+        return;
+      }
+
+      // The party-wide downtime declaration (Players Guide §16) — replaces the current window for
+      // EVERY character in the campaign at once, so it goes through window._dmReloadRoster (the same
+      // cross-boundary full-refresh bridge feat/dm-edit-events uses) to re-resolve the party base,
+      // every roster character's own composed total, and repaint both the control and the roster in
+      // one pass — a bonus granted under the old window is wiped by this exact same call, on the
+      // server, simply by virtue of get_downtime_window() only ever reading the LATEST base row.
+      var declareBtn = t.closest ? t.closest('.declare-btn') : null;
+      if(declareBtn){
+        var dEl = document.getElementById('campDowntime');
+        var daysEl = dEl && dEl.querySelector('.declare-days');
+        var dNoteEl = dEl && dEl.querySelector('.declare-note');
+        var dStatus = dEl && dEl.querySelector('.declare-status');
+        var days = Math.round(parseFloat(daysEl&&daysEl.value)||0);
+        var dNote = (dNoteEl&&dNoteEl.value||'').trim();
+        var dCampId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
+        if(!daysEl || daysEl.value===''){ alert('Enter the new window size in days.'); return; }
+        declareBtn.disabled = true;
+        B.declareDowntime(dCampId, days, null, dNote).then(function(){
+          declareBtn.disabled = false;
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){ declareBtn.disabled=false; if(dStatus) dStatus.textContent=''; alert('Declare failed: '+err.message); });
+        return;
+      }
+
+      // Party downtime history — every base and per-character bonus declaration ever made for this
+      // campaign, newest first. Same .hist-modal/getXHistory pattern as the per-character AP history
+      // button (wireCloudRosterDelegation, above); the only real difference is resolving each row's
+      // (nullable) character_id to a name for display, since a downtime row can be either the party
+      // base (characterId null) or one character's bonus. Not peek-guarded (a read, same as .hist-btn).
+      var downtimeHistBtn = t.closest ? t.closest('.downtime-hist-btn') : null;
+      if(downtimeHistBtn){
+        var dhCampId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
+        if(!dhCampId) return;
+        B.getDowntimeHistory(dhCampId).then(function(data){
+          var trows = (data||[]).map(function(r){
+            var ts = (r.createdAt||'').slice(0,16).replace('T',' ');
+            var whoCell;
+            if(r.characterId){
+              var rentry = cloudRoster.filter(function(x){return String(x.id)===String(r.characterId);})[0];
+              var whoName = (rentry&&rentry.summary&&rentry.summary.name) || (rentry&&rentry.dm.playerLabel) || 'a character';
+              whoCell = esc(whoName)+' <span style="opacity:.7">(bonus)</span>';
+            } else {
+              whoCell = '<b>Party base</b>';
+            }
+            var dmName = r.dm||'DM';
+            return '<tr><td>'+esc(ts)+'</td><td><b>'+esc(String(r.days))+'</b></td><td>'+whoCell+'</td><td>'+esc(dmName)+'</td><td>'+esc(r.note||'')+'</td></tr>';
+          }).join('');
+          var dmodal = document.createElement('div');
+          dmodal.className = 'hist-modal';
+          dmodal.innerHTML = '<div class="inner">'+
+            '<h3 style="margin:0 0 10px;color:var(--heading)">Party downtime history</h3>'+
+            (trows
+              ? '<table><thead><tr><th>Date</th><th>Days</th><th>For</th><th>DM</th><th>Note</th></tr></thead><tbody>'+trows+'</tbody></table>'
+              : '<p style="color:var(--muted)">No downtime declared yet.</p>')+
+            '<div style="text-align:right;margin-top:12px"><button class="btn sm" onclick="this.closest(\'.hist-modal\').remove()">Close</button></div>'+
+            '</div>';
+          dmodal.addEventListener('click', function(e){ if(e.target===dmodal) dmodal.remove(); });
+          document.body.appendChild(dmodal);
+        }).catch(function(err){ alert('Error: '+err.message); });
         return;
       }
     });
@@ -2478,13 +2650,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
-  import { getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
+  import { getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -2556,6 +2728,7 @@ document.addEventListener('campaign-ready', function () {
   var ruleHouseRuleName = document.getElementById('ruleHouseRuleName');
   var ruleSaveStatus = document.getElementById('ruleSaveStatus');
   var ruleLockBtn    = document.getElementById('ruleLockBtn');
+  var ruleLockHint   = document.getElementById('ruleLockHint');
   var ruleCopyBlock  = document.getElementById('ruleCopyBlock');
   var ruleCopyFrom   = document.getElementById('ruleCopyFrom');
   var ruleCopyStatus = document.getElementById('ruleCopyStatus');
@@ -2568,6 +2741,12 @@ document.addEventListener('campaign-ready', function () {
   var dmNotesText   = document.getElementById('dmNotesText');
   var dmNotesSaveBtn = document.getElementById('dmNotesSaveBtn');
   var dmNotesStatus = document.getElementById('dmNotesStatus');
+  var campAwardApAmt    = document.getElementById('campAwardApAmt');
+  var campAwardApNote   = document.getElementById('campAwardApNote');
+  var campAwardApBtn    = document.getElementById('campAwardApBtn');
+  var campAwardApStatus = document.getElementById('campAwardApStatus');
+  var campAwardApSelAll  = document.getElementById('campAwardApSelAll');
+  var campAwardApSelNone = document.getElementById('campAwardApSelNone');
   var importPanel   = document.getElementById('importPanel');
   var importCampNote = document.getElementById('importCampNote');
   var localToolsPanel = document.getElementById('localToolsPanel');
@@ -2598,6 +2777,12 @@ document.addEventListener('campaign-ready', function () {
   var currentCampaigns = [];
   var archivedCampaigns = [];
   var currentCampId = null;
+  // Shared by every stale-response guard below (loadInvites/_refreshDowntimeWindows/loadRoster) — a
+  // fire-and-forget fetch started for one campaign whose result lands after the DM has switched (or
+  // deselected) must not overwrite the now-current campaign's data. One helper so a future guard site
+  // can't hand-copy the comparison and drift (found by /code-review: the first draft of these three
+  // guards already used two different local-variable names for the same check).
+  function _isCurrentCamp(id){ return id === currentCampId; }
   var currentHouseRules = {};
   var _dmWasSignedIn = false;
 
@@ -2621,7 +2806,7 @@ document.addEventListener('campaign-ready', function () {
   // Campaign-scoped controls only. #campManageTile is deliberately absent — "+ Create campaign" and
   // the Unarchive buttons belong to the DM, not to the campaign being peeked, and locking the way
   // back out would be a trap.
-  var _PEEK_SCOPES = ['campOwnerTile','campInviteTile','campDmInviteTile','campRulesTile','campAdvancementTile','campCustomFieldsTile','dmNotesTile','campRoster'];
+  var _PEEK_SCOPES = ['campAwardApTile','campDowntimeTile','campOwnerTile','campInviteTile','campDmInviteTile','campRulesTile','campAdvancementTile','campCustomFieldsTile','dmNotesTile','campRoster'];
 
   /* Shared by _peekLockEls() and _ruleLockEls() below: both are "every input/select/textarea/button
      under these tile ids, plus these extra elements that live outside any tile, minus the ⓘ info
@@ -2645,8 +2830,11 @@ document.addEventListener('campaign-ready', function () {
     // inert as everything else while viewing read-only history. (Copy/Refresh buttons stay in scope on
     // purpose — an archived campaign's invite codes are dead links, so copying one is a trap worth
     // closing too. The sole exemption, applied inside _scopedControlEls(), is the ⓘ info buttons: they
-    // only alert() their own title, nothing to guard.)
-    return _scopedControlEls(_PEEK_SCOPES, [document.getElementById('ruleSaveBtn'), ruleLockBtn]);
+    // only alert() their own title, nothing to guard.) ruleLockHint (feat/campaign-rules-lock-supercard)
+    // is the same story as ruleLockBtn — it lives outside all three rule tiles, on purpose, so it isn't
+    // swept by _ruleLockEls()'s own scan (it must stay clickable to unlock them); it still needs sweeping
+    // HERE or an archived peek would leave it clickable.
+    return _scopedControlEls(_PEEK_SCOPES, [document.getElementById('ruleSaveBtn'), ruleLockBtn, ruleLockHint]);
   }
 
   /* Restores rather than blanket-enables on exit: several of these controls have their own disabled
@@ -2704,9 +2892,18 @@ document.addEventListener('campaign-ready', function () {
   function renderRuleGrids(){
     RULE_GRIDS.forEach(function(pair){
       var el = document.getElementById(pair[0]);
-      if(!el || el.childElementCount) return;   // render option list once
+      if(!el) return;
       var tip = pair[2];
       var names = pair[1]().slice().sort(function(a,b){ return a.localeCompare(b); });
+      // Re-render whenever the AVAILABLE option set actually changed, rather than "has children so
+      // skip forever" (the old guard) — a DATA update mid-session (new drawbacks/boons/etc. added)
+      // used to leave whichever grid rendered first permanently stuck at that old option list for the
+      // rest of the page's life. Cheap to compare: a joined, sorted name signature stashed on the
+      // element itself. loadRulesIntoPanel() re-applies the checked state right after this call either
+      // way, so a re-render here never drops what the DM already ticked.
+      var sig = names.join('');
+      if(el.dataset.rgSig === sig) return;
+      el.dataset.rgSig = sig;
       el.innerHTML = names.map(function(name){
         var t = tip ? tip(name) : '';
         return '<label'+(t?' title="'+esc(t)+'"':'')+'><input type="checkbox" value="'+esc(name)+'">'+esc(name)+'</label>';
@@ -3127,6 +3324,39 @@ document.addEventListener('campaign-ready', function () {
     }
   });
 
+  // Generic "Award AP" tile (feat/dm-screen-generic-award-ap) — award the same AP amount + note to
+  // every ticked character in one action. The tick-list itself lives in the earlier UI-layer closure
+  // (window._dmAwardApChecked bridges it, same reason window._campBridge/_peekBlocks are read off
+  // window elsewhere in this file) since that's the only place cloudRoster is reachable from.
+  if(campAwardApSelAll) campAwardApSelAll.addEventListener('click', function(){
+    document.querySelectorAll('#campAwardApList input[type=checkbox]').forEach(function(cb){ cb.checked = true; });
+  });
+  if(campAwardApSelNone) campAwardApSelNone.addEventListener('click', function(){
+    document.querySelectorAll('#campAwardApList input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+  });
+  if(campAwardApBtn) campAwardApBtn.addEventListener('click', async function(){
+    if(!currentCampId || _peekBlocks()) return;
+    var ids = window._dmAwardApChecked ? window._dmAwardApChecked() : [];
+    var amt = parseFloat(campAwardApAmt.value) || 0;
+    var note = (campAwardApNote.value||'').trim();
+    if(!ids.length){ alert('Tick at least one character to award.'); return; }
+    if(amt===0){ alert('Enter a non-zero AP amount.'); return; }
+    campAwardApBtn.disabled = true;
+    campAwardApStatus.textContent = 'Awarding…';
+    // Independent per-character RPCs, same as the per-character award form (awardBody()) — a failure
+    // on one character must not roll back or block the others, so allSettled + a combined report
+    // rather than Promise.all.
+    var results = await Promise.allSettled(ids.map(function(id){ return B.awardAp(id, amt, note); }));
+    campAwardApBtn.disabled = false;
+    var okCount = results.filter(function(r){ return r.status==='fulfilled'; }).length;
+    var errs = results.filter(function(r){ return r.status==='rejected'; })
+                       .map(function(r){ return (r.reason&&r.reason.message)||String(r.reason); });
+    campAwardApStatus.textContent = okCount+'/'+ids.length+' character'+(ids.length===1?'':'s')+' awarded '+amt+' AP'+
+      (errs.length ? ' — some failed: '+errs.join('; ') : '.');
+    if(okCount>0){ campAwardApAmt.value='0'; campAwardApNote.value=''; }
+    loadRoster(currentCampId);   // refresh every card's AP figure and re-tick from the fresh roster
+  });
+
   // Populate the "Copy rules from…" picker with the DM's OTHER campaigns (exclude the one being edited).
   // Hidden entirely when there's nothing to copy from. Options use textContent (no innerHTML), so campaign
   // names need no esc() here — same pattern as the campaign selector above.
@@ -3270,6 +3500,7 @@ document.addEventListener('campaign-ready', function () {
     if(!camp){
       campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none';
       dmNotesText.value = ''; dmNotesStatus.textContent = '';
+      campAwardApAmt.value = '0'; campAwardApNote.value = ''; campAwardApStatus.textContent = '';
       window._dmCampaignApRules = null;   // no campaign selected → no DM AP context to price against
       window._dmPartyWindow = null; window._dmDowntimeWindows = {};
       _renderPeekState();   // clears the banner and releases the lock
@@ -3277,6 +3508,7 @@ document.addEventListener('campaign-ready', function () {
       // Deselecting a campaign must also clear the cloud roster — see the sign-out branch above for why.
       if(window._dmRenderCloudRoster) window._dmRenderCloudRoster(campRoster, []);
       var _cd = document.getElementById('campDowntime'); if(_cd) _cd.innerHTML = '';
+      var _cdt = document.getElementById('campDowntimeTile'); if(_cdt) _cdt.style.display = 'none';
       setImportPanelDimmed(false);
       return;
     }
@@ -3306,6 +3538,8 @@ document.addEventListener('campaign-ready', function () {
     // "Archive this campaign" is meaningless on one that already is — hide it outright rather than
     // show a disabled danger button the DM has to reason about.
     campArchiveBlock.style.display = (camp.isOwner && !peekCamp) ? '' : 'none';
+    // A stale amount/note from the previous campaign must not carry over onto whoever's ticked here.
+    campAwardApAmt.value = '0'; campAwardApNote.value = ''; campAwardApStatus.textContent = '';
     inviteLinkRow.style.display = 'none';
     inviteLinkOut.value = '';
     inviteStatus.textContent = '';
@@ -3471,10 +3705,20 @@ document.addEventListener('campaign-ready', function () {
   // toggling a ban checkbox or a curve field before that click ever happens. ruleMultiDisc stands in for
   // ignoreChk as the "am I currently locked" source of truth on toggle (same disabled-state trick).
   function _ruleLockEls(){
+    // ruleLockHint lives in campRulesGroup, outside all three of these tiles (same reason ruleLockBtn
+    // does) — it is itself the DM's way OUT of the locked state, so this scan must never reach it:
+    // disabling it when locked would disable the one control whose whole job is unlocking. Still swept
+    // by the SEPARATE archived-peek lock (_peekLockEls() sweeps it explicitly, same as ruleLockBtn) —
+    // peeking a read-only archived campaign must still make it inert.
     return _scopedControlEls(['campRulesTile', 'campAdvancementTile', 'campCustomFieldsTile'], [document.getElementById('ruleSaveBtn')]);
   }
   function _setRulesLocked(locked){
     _ruleLockEls().forEach(function(el){ el.disabled = locked; });
+    if(ruleLockHint){
+      ruleLockHint.innerHTML = locked
+        ? '🔒 <b>Campaign Rules are locked</b> — including the economy band, banned lists, and everything else below. Click here to unlock them (or use "Locked" next to Save rules at the bottom).'
+        : '🔓 <b>Unlocked</b> — the settings below can be changed. Click here to re-lock, or just click Save rules (it re-locks automatically).';
+    }
     if(!ruleLockBtn) return;
     ruleLockBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
     ruleLockBtn.innerHTML = locked ? '&#128274; Locked' : '&#128275; Unlocked';
@@ -3482,9 +3726,9 @@ document.addEventListener('campaign-ready', function () {
       ? 'These settings apply campaign-wide — species/class/mastery bans, the AP curve, and what new joiners start with. Click to unlock them.'
       : 'Unlocked — the fields above can be changed. Saving re-locks automatically.';
   }
-  if(ruleLockBtn) ruleLockBtn.addEventListener('click', function(){
-    _setRulesLocked(!ruleMultiDisc.disabled);
-  });
+  function _toggleRulesLock(){ _setRulesLocked(!ruleMultiDisc.disabled); }
+  if(ruleLockBtn) ruleLockBtn.addEventListener('click', _toggleRulesLock);
+  if(ruleLockHint) ruleLockHint.addEventListener('click', _toggleRulesLock);
   if(document.getElementById('ruleLockInfo'))
     document.getElementById('ruleLockInfo').addEventListener('click', function(){ alert(this.title); });
   _setRulesLocked(true);   // initial state, before any campaign is even selected
@@ -3565,12 +3809,21 @@ document.addEventListener('campaign-ready', function () {
 
   async function loadInvites(){
     if(!currentCampId || !inviteList) return;
+    // Stale-response guard: this fires from the auto-refresh listeners (focus/visibilitychange) below,
+    // fire-and-forget, with no cancellation — if the DM switches campaigns (or the panel deselects)
+    // while this fetch is in flight, a late resolve/reject must not overwrite the NOW-current
+    // campaign's _invites with an old campaign's data (or a stale error). forCampId pins which
+    // campaign THIS call is for; only apply the result if currentCampId still matches it afterward.
+    var forCampId = currentCampId;
     inviteList.textContent = 'Loading…';
     try {
-      _invites = await B.listCampaignInvites(currentCampId);
+      var rows = await B.listCampaignInvites(forCampId);
+      if(!_isCurrentCamp(forCampId)) return;
+      _invites = rows;
       renderInvites();
       renderDmInvites();
     } catch(err){
+      if(!_isCurrentCamp(forCampId)) return;
       // Both panels share one fetch/one _invites array, so a failure here must clear BOTH -- otherwise
       // the co-DM panel silently keeps showing whatever it last rendered (possibly a different
       // campaign's data, right after a switch) with no sign anything failed (code-review, 2026-08-09).
@@ -3951,47 +4204,71 @@ document.addEventListener('campaign-ready', function () {
   // Non-fatal per character, mirroring _lsResolveDmAp's tolerance in the Live Sheet: a network
   // hiccup on one lookup must not blank out the whole roster's downtime display.
   async function _refreshDowntimeWindows(campId, characterIds){
+    // Stale-response guard (code-review finding on the loadRoster()/loadInvites() fix above): this
+    // writes window._dmPartyWindow/window._dmDowntimeWindows — shared caches dmToolsBody()/the party
+    // control read SYNCHRONOUSLY at render time — so a slower, now-superseded call for an OLD campId
+    // must not clobber them after a newer, faster call for the CURRENT campaign already populated
+    // them correctly. loadRoster()'s own campId!==currentCampId check happens AFTER this returns,
+    // which is too late for these globals; guarded at every await boundary here instead.
+    if(!_isCurrentCamp(campId)) return;
     window._dmPartyWindow = null;
     window._dmDowntimeWindows = {};
     var rules = (window._dmCampaignApRules && window._dmCampaignApRules.rules) || {};
     var band = window._engineEcon ? window._engineEcon.economySetting(rules) : 'off';
     if(band === 'off' || !campId) return;
-    try { window._dmPartyWindow = await B.getDowntimeWindow(campId, null); } catch(e){ /* leave null — treated as "no window declared" */ }
+    // Resolved into a LOCAL first, not straight into window._dmPartyWindow: assigning inside the
+    // awaited expression itself would write the global before the staleness re-check below ever ran
+    // (caught live — an earlier version of this guard did exactly that and still leaked stale data).
+    var partyWindow = null;
+    try { partyWindow = await B.getDowntimeWindow(campId, null); } catch(e){ /* leave null — treated as "no window declared" */ }
+    if(!_isCurrentCamp(campId)) return;
+    window._dmPartyWindow = partyWindow;
     await Promise.all((characterIds||[]).map(function(cid){
-      return B.getDowntimeWindow(campId, cid).then(function(w){ window._dmDowntimeWindows[cid] = w; })
+      return B.getDowntimeWindow(campId, cid).then(function(w){ if(_isCurrentCamp(campId)) window._dmDowntimeWindows[cid] = w; })
         .catch(function(){ /* leave unset for this one character; the rest still render */ });
     }));
   }
 
   // The party-wide downtime control (Players Guide §16) — ONE declaration for the whole table, not
-  // per-character, which is why it lives here (above the roster) rather than on any one card. Hidden
-  // entirely when the campaign plays with the economy off, same reasoning the award form's gold/
-  // bonus-time fields use.
+  // per-character. Lives in its own subtile (#campDowntimeTile) next to Award AP, both being "give
+  // the whole party something at once" controls — moved there from above the roster cards
+  // (feat/move-party-downtime-to-camp-panel). #campDowntimeTile supplies the box/border now (this
+  // function used to draw its own on the inner ruleblock — dropped to avoid a border-in-a-border);
+  // hidden entirely (both the content AND the wrapping subtile) when the campaign plays with the
+  // economy off, same reasoning the award form's gold/bonus-time fields use.
   function _renderPartyDowntime(){
     var el = document.getElementById('campDowntime'); if(!el) return;
+    var tile = document.getElementById('campDowntimeTile');
     var rules = (window._dmCampaignApRules && window._dmCampaignApRules.rules) || {};
     var band = window._engineEcon ? window._engineEcon.economySetting(rules) : 'off';
-    if(band === 'off' || !currentCampId){ el.innerHTML=''; return; }
+    if(band === 'off' || !currentCampId){ el.innerHTML=''; if(tile) tile.style.display='none'; return; }
+    if(tile) tile.style.display='';
     var fmt = (window._engineEcon && window._engineEcon.formatDowntime) ? window._engineEcon.formatDowntime : function(n){ return n+' days'; };
     var w = window._dmPartyWindow;
     var cur = w ? ('<b>'+esc(fmt(w.days))+'</b> <span style="opacity:.7">declared '+new Date(w.declaredAt).toLocaleDateString()+'</span>')
                 : '<span style="opacity:.7">No window declared yet — every character shows an immediate overdraft until you declare one.</span>';
-    el.innerHTML = '<div class="ruleblock" style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">' +
+    el.innerHTML =
       '<div class="lbl">🕐 Party downtime window <span style="opacity:.7;font-weight:400">— applies to every character in this campaign at once</span></div>' +
       '<div style="margin:4px 0 8px">'+cur+'</div>' +
       '<div class="award-form">' +
       '<input type="number" step="1" class="declare-days" placeholder="days" title="The new window size, in days (1 week = 7, 1 month = 30, 1 year = 365). Replaces the current window for everyone — it does not add to it.">' +
       '<input type="text" class="declare-note" placeholder="note — e.g. &quot;three months pass before the siege&quot;">' +
-      '<button type="button" class="btn sm declare-btn">Declare for the party</button></div>' +
+      '<button type="button" class="btn sm declare-btn">Declare for the party</button>' +
+      '<button type="button" class="btn sm ghost downtime-hist-btn">📒 History</button></div>' +
       '<div style="font-size:11px;opacity:.75;margin-top:3px">Declaring a new window replaces the old one for everyone — unspent time from the last window is gone, not banked. Downtime is in <b>days</b>.</div>' +
-      '<span class="declare-status" style="font-size:11px;color:var(--muted)"></span></div>';
+      '<span class="declare-status" style="font-size:11px;color:var(--muted)"></span>';
   }
 
   async function loadRoster(campId){
     campRoster.innerHTML = '<div class="camp-empty">Loading…</div>';
     var rows;
-    try { rows = await B.getRoster(campId); } catch(err){ campRoster.innerHTML='<div class="camp-empty">Error: '+esc(err.message)+'</div>'; return; }
+    // Stale-response guard, same reasoning as loadInvites() above — this also fires from the
+    // focus/visibilitychange auto-refresh with no cancellation, and has TWO awaits a campaign switch
+    // can land between; re-check campId against currentCampId after each before touching the DOM.
+    try { rows = await B.getRoster(campId); } catch(err){ if(!_isCurrentCamp(campId)) return; campRoster.innerHTML='<div class="camp-empty">Error: '+esc(err.message)+'</div>'; return; }
+    if(!_isCurrentCamp(campId)) return;
     await _refreshDowntimeWindows(campId, rows.map(function(r){ return r.id; }));
+    if(!_isCurrentCamp(campId)) return;
     _renderPartyDowntime();
     _paintRoster(rows);
   }

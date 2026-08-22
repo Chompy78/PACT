@@ -1546,6 +1546,11 @@ try {
   // indistinguishable from the feature not existing. And a CharGen DM copy is deliberately unbound, so
   // since the grant became a campaign character's ENTIRE budget it opened reading "0 AP — player only",
   // which looks like lost AP rather than an unbound snapshot.
+  // Addendum, reported 2026-08-22: fixing the DISPLAY line above (D-GH-2026-08-10-chargen-dm-view) wasn't
+  // enough on its own — the copy's own BUDGET math still fed compute() a hardcoded 0, so it still read as
+  // falsely over budget. _cgDmOpts() now feeds the same frozen snapshot (window._cgCopySourceAp) into the
+  // budget, so the two checks below flipped: the label no longer says "not campaign-bound" (it now states
+  // the frozen total instead), and the copy's dmAp is the snapshot value, not 0.
   console.log('\nDM-granted AP must be visible in both player tools');
   {
     const cgd = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
@@ -1559,11 +1564,22 @@ try {
       /\d+ player \+ 54 DM/.test(await apLine(`window._dmApStatus='active';window._dmAp=54;window._ignorePlayerAp=false;`)), true);
     check('...and names the DM total when player AP is ignored (every Amble character)',
       /54 AP — DM only/.test(await apLine(`window._dmApStatus='active';window._dmAp=54;window._ignorePlayerAp=true;`)), true);
-    check('...and a DM copy says it is unbound rather than silently reading 0',
-      /DM copy, not campaign-bound/.test(await apLine(`window._dmApStatus='none';window._dmAp=0;window._cgCopySourceAp=54;window._cgCopySourceName='Moss';`)), true);
-    // The copy must never be able to SPEND the AP it now mentions — display-only is the whole point.
-    check('...without the copy being able to spend it',
+    check('...and a DM copy shows its frozen DM AP total, not a silent 0',
+      /DM copy \(\d+ player \+ 54 DM, frozen\)/.test(await apLine(`window._dmApStatus='none';window._dmAp=0;window._cgCopySourceAp=54;window._cgCopySourceName='Moss';`)), true);
+    // The copy's budget now counts that frozen snapshot (2026-08-22 addendum) -- it's a point-in-time
+    // number the copy can freely "spend" in its own sandboxed compute(), but nothing here writes back to
+    // the source campaign or the source character's real, live AP either way.
+    check('...and the copy\'s budget math counts that same frozen total',
       await cgd.evaluate(`(()=>{window._dmApStatus='none';window._dmAp=0;window._cgCopySourceAp=54;
+        return _cgDmOpts().dmAp;})()`), 54);
+    // fix/chargen-dm-copy-ap-stale (2026-08-22): now that the frozen snapshot is budget-relevant, it must
+    // not survive past the copy it belongs to. _cgResolveDmApStatus() is the single function every OTHER
+    // character load (cloud load, campaign join) funnels through, so simulate exactly that: a copy is
+    // open (_cgCopySourceAp=54), then an unrelated, non-campaign character loads (campaignId=null) —
+    // the stale snapshot must be cleared, not silently inflate that unrelated character's budget.
+    check('...and that frozen total does NOT bleed into the next, unrelated character loaded afterward',
+      await cgd.evaluate(`(async()=>{window._cgCopySourceAp=54;
+        await _cgResolveDmApStatus(0,null);
         return _cgDmOpts().dmAp;})()`), 0);
     await cgd.close();
 

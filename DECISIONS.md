@@ -10,6 +10,30 @@
 
 ## Index
 
+## D-GH-2026-08-22-dm-console-stale-campaign-switch-race — a stale campaign-switch response could clobber the newly-selected campaign's data
+- Found while investigating a `dm-console-ui-e2e.mjs` CI failure on the `preview`→`main` promotion PR
+  (#446) that reproduced identically twice in CI but passed locally: `loadInvites()`/`loadRoster()`/
+  `_refreshDowntimeWindows()` are triggered fire-and-forget by focus/visibilitychange auto-refresh
+  listeners with no guard against the DM switching (or deselecting) campaigns while a fetch is still in
+  flight — a slow response for the OLD campaign could overwrite `_invites`, the roster, and the party
+  downtime globals with stale data after the NEW campaign already rendered correctly. Fixed with a
+  shared `_isCurrentCamp(id)` guard re-checked after every await boundary before any DOM/global write.
+  A code-review pass caught a real near-miss mid-fix: the first draft's assignment happened *inside* the
+  awaited expression, before its own staleness check ever ran. Landed as its own PR into `preview`
+  (not bundled into the promotion PR) per `docs/VERSION-SYNC.md`. Full record:
+  `decisions/2026/D-GH-2026-08-22-dm-console-stale-campaign-switch-race.md`.
+
+## D-GH-2026-08-22-dm-screen-generic-award-ap — generic Award AP tile, banned-drawback grid staleness fix, disabled-item contrast fix
+- New tick-list "Award AP" sub card on DM Console's master card (under the campaign selector, above
+  Owner settings) — tick any number of roster characters, one amount + note, one Award action, awarded
+  independently per character. Hardened `renderRuleGrids()` (Banned species/boons/drawbacks/arts) so a
+  mid-session `DATA` addition is no longer permanently invisible once a grid has rendered once — a
+  measured audit found `js/engine-data.js` itself already fully in sync (90/90 drawbacks), so the report
+  of "missing" drawbacks pointed at a staleness class of bug rather than a data gap. Raised disabled/
+  banned/owned boon-drawback opacity 0.5–0.55 → 0.7 in CharGen and the Live Sheet (measured: the shipped
+  values failed WCAG AA contrast in all five themes; 0.7 clears it in all five). Full record:
+  `decisions/2026/D-GH-2026-08-22-dm-screen-generic-award-ap.md`.
+
 ## D-GH-2026-08-20-tag-only-meaningful-promotions — don't tag every `preview`→`main` promotion, and fix a mispointed tag along the way
 - `docs/VERSION-SYNC.md` step 6 said, unconditionally, to tag every promotion's resulting `main` commit.
   Only 13 tags exist across far more than 13 real promotions, so that was never the actual practice —
@@ -459,6 +483,9 @@
   Copy id is `SHA-256(source id, viewing DM's id)`, formatted as a UUID: deterministic per (source, DM)
   pair for overwrite-per-source, structurally asserted to never equal the source id. Cloud-saved, not
   campaign-bound. "📋 Copy to CharGen" added beside DM Console's existing read-only "👁 View" button.
+  **Addendum (2026-08-22):** the copy's budget math ignored the DM AP its own display line showed —
+  fixed by feeding the already-captured frozen snapshot into the budget instead of 0; rejected a
+  live-syncing shadow-campaign alternative as disproportionate.
   Full record: `decisions/2026/D-GH-2026-08-10-chargen-dm-view.md`.
 - **D-GH-2026-08-10-invite-peek-auth-scope** — new `peek_player_invite(token)` RPC resolves a player
   invite to its campaign name without redeeming it, closing the "CharGen's accept confirm() can't name
