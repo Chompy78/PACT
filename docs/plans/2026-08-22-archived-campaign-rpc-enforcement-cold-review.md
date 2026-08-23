@@ -3,6 +3,10 @@
 **v2 — revised after 5-reviewer cold review.** See `## Review outcome` at the end for the full triage.
 Supersedes the v1 draft merged as PR #454; this is a same-file revision, not a new plan.
 
+**Decided (2026-08-23):** both open product questions below are resolved — **block both**
+`dm_unbind_character` and `characters_delete` while a campaign is archived, per this plan's own
+recommendation. No implementation has shipped yet; this only removes the last open decision blocking it.
+
 ## Goal
 Today, "an archived campaign is read-only" is enforced **only in client JavaScript** (scattered
 `if(window._dmPeekActive && ...) return;` guards in one tool's UI). No database function or row-level
@@ -101,16 +105,17 @@ during this revision — not assumed):**
   `sql/` uses a plain message string with no `using errcode = ...` clause anywhere. A reviewer suggestion
   to add one for this migration is addressed under Review outcome (rejected, with reasoning).
 
-**Assumed, not yet verified — flagged as an explicit open decision, not silently resolved:**
-- **Whether `dm_unbind_character` should be blocked on an archived campaign.** Three of five reviewers
-  independently flagged this as a real product decision, not something to leave implicit. Recommendation
-  (not yet a decision — needs sign-off before the migration ships): **block it.** An archived campaign is
-  meant to be frozen; if a DM genuinely needs to recover a character from one, `unarchive_campaign()` →
-  `dm_unbind_character()` → `archive_campaign()` already accomplishes that in three calls with zero new
-  code, so blocking the direct path while archived costs no real capability.
-- **Whether `characters_delete` should be blocked on an archived campaign** (the newly-found path above) —
-  same shape of question as `dm_unbind_character`, same recommendation and same reasoning: unarchive first
-  if a deletion is genuinely needed.
+**Decided, not merely assumed (2026-08-23):**
+- **`dm_unbind_character` is blocked on an archived campaign.** Three of five reviewers independently
+  flagged this as a real product decision, not something to leave implicit; this plan recommended blocking
+  it, and that recommendation is now the decision. An archived campaign is meant to be frozen; if a DM
+  genuinely needs to recover a character from one, `unarchive_campaign()` → `dm_unbind_character()` →
+  `archive_campaign()` already accomplishes that in three calls with zero new code, so blocking the direct
+  path while archived costs no real capability.
+- **`characters_delete` is blocked on an archived campaign** (the newly-found path above) — same shape of
+  question as `dm_unbind_character`, same reasoning: unarchive first if a deletion is genuinely needed.
+
+**Still assumed, not yet verified — flagged as an explicit open item:**
 - **That no *other* write path exists beyond the seven enumerated above.** This revision's broader
   grep (every `create policy`/`for update|insert|delete|all`/`grant update|insert|delete` statement, not
   just a function-name search) is stronger evidence than v1's narrower pass, and it is what surfaced
@@ -338,8 +343,8 @@ RLS policy) reject a write against an archived campaign, verified by direct sign
 client UI, including the negative-authority-ordering and positive-still-readable controls above; the
 Supabase advisor shows no new findings versus its pre-migration baseline; `unarchive_campaign()` still
 works and re-enables all seven paths afterward; the `dm_unbind_character`-while-archived and
-`characters_delete`-while-archived product questions have an actual decision recorded (not silently
-resolved by shipping code), even if the decision is "yes, block both, per this plan's recommendation";
+`characters_delete`-while-archived product questions are implemented per the 2026-08-23 decision above
+(block both);
 `docs/TASK_BOARD_NEXT.md`'s entry is graduated to `CHANGELOG.md`/`DECISIONS.md` in the same change, with
 the "Done when" language matching this plan's now-narrower, seven-path goal rather than the original
 board text's unscoped "every write path" wording.
@@ -412,9 +417,11 @@ Copilot itself argued for a hypothetical eighth path.
   how every other RPC in this repo is already tested.
 - Splitting this plan into multiple smaller plans. All five reviewers explicitly rejected this; unchanged.
 
-**Not yet resolved — carried forward as open items, not silently decided:**
-- The `dm_unbind_character`-while-archived and `characters_delete`-while-archived product decisions (this
-  plan states a recommendation; an actual sign-off is still needed before the migration ships).
+**Resolved since this revision was first drafted:**
+- The `dm_unbind_character`-while-archived and `characters_delete`-while-archived product decisions — both
+  **decided 2026-08-23: block both**, per this plan's own recommendation. See the top of this document.
+
+**Still not resolved — carried forward as an open item:**
 - Whether `sql/schema.sql` genuinely never needs a matching hand-edit per migration (flagged as unverified
   in v1's Files involved section; still unverified — no reviewer addressed this, and it wasn't re-checked
   in this revision since it's a process question, not a security one).
