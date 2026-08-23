@@ -28,6 +28,15 @@ to `CHANGELOG.md`.
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
 ## "Archived campaign is read-only" is enforced client-side only — the DM-write RPCs have no matching check — TODO
+**2026-08-23 update: the required `/make-code-cold-plan-review` pass is done — this task is unblocked
+for implementation.** Full plan, 5-reviewer cold review, and both flagged product decisions (block
+`dm_unbind_character` and the newly-found `characters_delete` while archived — see below) are recorded in
+`docs/plans/2026-08-22-archived-campaign-rpc-enforcement-cold-review.md`. That plan's own inventory is
+more current than this entry's original text — it found 7 write paths, not the 6 named below, and
+corrected two names (`set_ignore_player_ap`/`set_campaign_rules` aren't RPCs at all, they're a
+column-grant + RLS-policy path). Read the plan before starting implementation; treat the steps below as
+superseded by it, not a second, independent checklist.
+
 Branch `fix/archived-campaign-rpc-enforcement`. `tools/DM-Console.html:2299-2305, 2545-2548` plus six more
 `_dmPeekActive`-style guard sites scattered across click handlers. Cross-checked against the actual
 backend: `award_ap()` (`sql/migrations/2026-06-29-codm-ap-ledger.sql`) checks only `is_campaign_dm()` —
