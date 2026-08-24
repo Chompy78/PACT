@@ -913,41 +913,6 @@ simply misses and reinstalls, which is today's behaviour). Worst-of lands at low
 downloading it (visible in the job log), an install that stalls fails at the install step with a message
 naming the install — not as a skipped test step — and all seven jobs still pass on a normal PR.
 
-## Live Sheet drawback purchases bypass legalCheck() entirely — no drawback gate is enforced there — TODO
-Branch `fix/livesheet-drawback-legalcheck`. `takeDrawback()` (`tools/PACT-Live-Char-Sheet.html`) calls
-`emit()` directly with no `legalCheck()` call at all, so **no** drawback gate is enforced in that tool —
-not just the new `DATA.drawbackReq` caster gate added in `feat/drawbacks-phobias-expansion`, but the
-**pre-existing** `DATA.drawbackMaxStats` stat caps from `b016331` too. This contradicts that decision's own
-claim ("The Live Sheet's `buy()` already blocks anything not matched by SOFT_WARN, so both directions were
-already refused there") — disproven by `/code-review max`: a Fighter can tick Mana Leak, and a character
-can hold a drawback whose stat cap their current score already breaks, with nothing in that tool's UI or
-save path surfacing it (the engine's advisory `⛔` line in `compute().warnings` exists but nothing reads
-it there).
-**Effort:** medium · **Risk:** medium — ambiguity is low (the fix is routing drawback purchases through
-`legalCheck()`/`buy()`, the same path every other purchase category in that tool already uses); damage
-scale is medium (a purchase-flow-control change in a live tool, though scoped to one category); damage
-likelihood is low-medium (well-trodden pattern, but no e2e coverage of the disabled/blocked state exists
-today for either gate to catch a regression) — worst-of lands at medium.
-
-```text
-1. Route takeDrawback() through legalCheck()/buy() instead of its direct emit() shortcut, mirroring how
-   every other purchase category in the Live Sheet already works. A hard (⛔) violation must be refused
-   at the point of purchase, the same way CharGen's checkbox guard now refuses it (see
-   feat/drawbacks-phobias-expansion).
-2. Related bug, same review pass, same code path: CharGen's random builder (actDraw/tryAct) increments
-   _draws BEFORE tryAct's rollback and never restores it on rejection — a randomly-picked drawback that
-   gets rejected (stat cap, or since this task, a caster-gate violation) silently costs a draw attempt.
-   Pre-existing, not introduced by drawbackReq, but fold the fix in here since it touches the same
-   candidate-filter/rollback code.
-3. Add browser-driven coverage (dm-console-ui-e2e.mjs or chargen-flows-e2e.mjs) asserting the Live Sheet
-   actually refuses a hard drawback violation — no equivalent e2e coverage exists today for the
-   disabled-checkbox behavior in EITHER tool, for EITHER gate (drawbackMaxStats or drawbackReq).
-```
-
-**Done when:** drawback purchases in the Live Sheet go through `legalCheck()` the same way every other
-purchase category does; a hard (⛔) drawback violation is refused there exactly as CharGen's checkbox
-guard refuses it; `actDraw`'s rollback no longer leaks a draw attempt on a rejected candidate; a new
-browser-driven check confirms the enforcement; `testing/tests/engine-parity.html` still 0 failed.
 
 ## guide-price-check.mjs has zero drawback-price coverage against the engine — TODO
 Branch `test/guide-drawback-price-check`. `testing/scripts/guide-price-check.mjs` verifies guide prices
