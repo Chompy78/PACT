@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-24 · fix(tools): the new missing-DATA-reference warnings now classify as advisory, not a hard
+  issue; +6 fixtures** — `/code-review ultra` post-merge audit of `feat/warn-missing-data-refs` found
+  CharGen's `isAdvisory()` and Live Sheet's `_lsIsAdvisory()` were never updated for the new "is no longer
+  in the rules data" notice, so it rendered as an urgent ⚠ issue with a dead "jump to control" click
+  target and inflated the top-level issue count — contradicting the message's own "no cost/effect
+  applied" wording. Fixed both classifiers. Also added fixtures CG-039–CG-044, closing a coverage gap
+  where only 2 of the 8 new warning sites (boons, racialSpells) had regression tests. Two more findings
+  from the same review (latent label-derivation edge cases in subAbilities/subSpellBundles, a `SOFT_WARN`
+  gap) verified not currently reachable with live DATA or through any UI path — deferred, recorded in
+  full in the decision record rather than fixed reflexively. `D-GH-2026-08-24-missing-data-ref-warning-classification`.
+
 - **2026-08-24 · feat(engine): warn when `compute()` encounters a rules-table reference no longer in
   DATA** — 8 sites (racial traits, boons, drawbacks, arts, features, subAbilities, subSpellBundles,
   racialSpells/lineage) silently zero-priced a saved reference retired from the rules with no warning.

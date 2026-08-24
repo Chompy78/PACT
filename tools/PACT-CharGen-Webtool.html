@@ -4878,7 +4878,11 @@ function warnTarget(w){var m;
   return null;}
 function sectionIdForWarning(w){for(var i=0;i<SECTIONS.length;i++){if(SECTIONS[i].warns.some(function(k){return w.indexOf(k)>=0;}))return 'sec'+(i+1);}return null;}
 // informational notes (not hard rule violations) — never counted as "issues" in the banner or section badges
-function isAdvisory(w){return /no Ki-using ability/.test(w)||/switched off player-entered AP/.test(w);}
+// "is no longer in the rules data" (code-review catch on feat/warn-missing-data-refs): the message's own
+// wording says "no cost/effect applied" — there is nothing to fix, so it must not render as an urgent ⚠
+// hard issue (it also has no matching warnTarget() case, so the "jump to control" click affordance would
+// be dead) or inflate the top-level issue banner.
+function isAdvisory(w){return /no Ki-using ability/.test(w)||/switched off player-entered AP/.test(w)||/is no longer in the rules data/.test(w);}
 function jumpToControl(id){const el=$(id);if(!el)return false;
   const fs=el.closest?el.closest('fieldset'):null;if(fs)fs.classList.remove('collapsed');var _h1=document.querySelector('.stickyhead');if(_h1&&getComputedStyle(_h1).position==='static'){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('flashhl');setTimeout(function(){el.classList.remove('flashhl');},1700);return true;}
   let off=0;const head=document.querySelector('.stickyhead');
