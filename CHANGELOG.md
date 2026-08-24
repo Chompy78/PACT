@@ -4,6 +4,13 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-24 · docs: purged the "pace curve" mislabel from 5 historical records** — annotated (never
+  rewrote) `DECISIONS.md`, `D-GH49.md`, `D-GH-2026-07-14-advancement-tracks.md`,
+  `D-GH-2026-08-02-creation-lock-switch.md`, and the 2026-07-14 session log with dated correction notes
+  pointing at `D-GH-2026-08-03-ap-budget-curve-standard`, per its own follow-up list. Original wording
+  preserved verbatim in every record. `docs/PACT-Players-Guide.html` deliberately untouched (out of this
+  task's scope). engine-parity 57/0, unaffected.
+
 - **2026-08-22 · feat(dm-console): "Current co-DMs" list with a Remove action** — the console let a DM
   withdraw an *unredeemed* co-DM invite, but once someone actually redeemed one and joined the campaign,
   there was no way to see who currently had DM access or undo a mistaken/compromised grant. Wires the

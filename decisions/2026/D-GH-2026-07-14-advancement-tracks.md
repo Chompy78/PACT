@@ -14,6 +14,12 @@ Status: Active
   "PACT level = Hit Dice = D&D 2024 level" identity rule, already the D&D-equivalent) and
   `≈ AP-Level {apLevel(eco.earned)}` (earned AP mapped to the fixed default table). A proposed third
   "≈ D&D N" chip would just restate `Level {b.hd}` one comma over.
+  > Correction (2026-08-24, see D-GH-2026-08-03-ap-budget-curve-standard): the
+  > "AP earned by level 1→50…20→491" framing above is wrong — that ladder was the
+  > Emberwatch sample characters, not an earned-per-level rule. PACT defines a
+  > *budget* curve (Standard L1 79/+24) and a separate *award pace* (~7/session).
+  > The follow-up note below predicted a `DATA.version` bump would be needed; that
+  > prediction came true — see D-GH-2026-08-03-ap-budget-curve-standard.
 - **Options:** (A) implement the four-axis model literally as the latest handoff proposed — including a
   distinct `DND_LEVEL_EQUIVALENT` table + chip, consolidating `ap-by-level.js` into `advancement.js` with a
   deprecation shim, and adding the new level chip *alongside* the existing two. (B) implement only the

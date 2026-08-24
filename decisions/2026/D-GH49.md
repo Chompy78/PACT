@@ -8,6 +8,11 @@ Status: Active
   as `DATA.levelAP` (`{1:50…20:491}`) and `DATA.level1AP` (50), so it was effectively un-editable and read
   by all three tools plus `compute()`'s racial-trait creation-lock (`_spent > DATA.level1AP`). A second,
   unused inverse copy (`DATA.benchLevels`) also sits in the literal.
+  > Superseded (2026-08-24, see D-GH-2026-08-03-ap-budget-curve-standard): the
+  > {1:50…20:491} / level1AP 50 figures cited here were the Players Guide appendix's
+  > twenty pregenerated Emberwatch sample characters, mistaken for a rules curve.
+  > The live values are now 79-based (budget curve: Standard L1 79/+24). Figures
+  > left as-written to preserve the record of what was believed at the time.
 - **Options:** (A) full rename — move to the file, expose only `apByLevel`/`defaultAp`, and rename every
   `levelAP`/`level1AP` usage across the three tools *and* inside `compute()`'s lock path. (B) externalize to
   the file, expose the new `apByLevel`/`defaultAp` names, and keep `levelAP`/`level1AP` as aliases pointing

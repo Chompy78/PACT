@@ -90,6 +90,12 @@ vendor families). This record covers the **engine slice only** — the tool/UI h
   already yields it at N=0, so no level-0 row is missing from any table. This also explains the
   "Level 0" shown on a real character's DM Console card: 17 AP spent is genuinely below a complete
   level-1 build, so the label was correct.
+  > Terminology correction (2026-08-24, see D-GH-2026-08-03-ap-budget-curve-standard):
+  > this addendum's "pace curve" naming and its L1=50 figure are wrong. There is no
+  > AP-earned-per-level curve; L1 on the budget curve is 79 (Standard). The
+  > mechanism described here — the creation-lock threshold reading the campaign
+  > budget curve — is correct and unchanged; only the naming and the 50 figure are
+  > superseded.
 - **Decision / what shipped:** new pure export `creationLockThreshold(campaignRules)` in
   `js/engine.js` — returns `rules.levelBudgetCurve.l1` when tuned, else `DATA.level1AP`. Callers
   stamp the result into a character's log as `creationLockConfig{threshold}`; replay still never
