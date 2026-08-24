@@ -389,6 +389,31 @@ try {
       return [before, clickable, after];})()`),
     [false, true, true]);
 
+  // fix/livesheet-drawback-legalcheck: takeDrawback() used to emit() straight past legalCheck()/buy()'s
+  // hard-violation gate — the only drawback purchase path in this tool with no rules enforcement at all.
+  // Neither gate (drawbackMaxStats nor drawbackReq) had any e2e coverage in either tool before this.
+  console.log('\nLive Sheet — a hard drawback violation is refused, not silently taken');
+  check('a stat-capped drawback is refused once the cap is already broken (drawbackMaxStats)',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'buy',cat:'abil',payload:{ab:'CON',to:14},cost:priceOf('abil',{ab:'CON',to:14}),label:'CON 14',seq:SEQ++,ts:Date.now()});
+      const n=LOG.length;
+      takeDrawback('Asthmatic');
+      return [LOG.length===n, foldBuild(null).drawbacks.includes('Asthmatic'),
+              /Purchase blocked/.test(window.__a[0]||''), /Asthmatic/.test(window.__a[0]||'')];})()`),
+    [true, false, true, true]);
+  check('a caster-gated drawback is refused on a non-caster (drawbackReq)',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      const n=LOG.length;
+      takeDrawback('Mana Leak');
+      return [LOG.length===n, foldBuild(null).drawbacks.includes('Mana Leak'),
+              /Purchase blocked/.test(window.__a[0]||''), /Mana Leak/.test(window.__a[0]||'')];})()`),
+    [true, false, true, true]);
+  check('regression guard: the same drawback still buys cleanly once the gate no longer applies',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      takeDrawback('Asthmatic');
+      return [foldBuild(null).drawbacks.includes('Asthmatic'), window.__a.length];})()`),
+    [true, 0]);
+
   // code-review finding (this session): the ledger's "dead" styling only ever checked
   // boughtOff (drawbacks) — a DM-removed boon's original buy row rendered as a normal, fully-priced,
   // still-active purchase, with the only sign anything happened a separate, uncorrelated dmRemoveBoon

@@ -790,7 +790,13 @@ const _CTX_PRICERS={
   // The two bonds: a flat +2 AP gain, one-way. A build diff would additionally hand back a retroactive
   // discount on already-owned features/spells — the original refund bug these two were escaped for.
   mbound:function(){return -2;},
-  dbound:function(){return -2;}
+  dbound:function(){return -2;},
+  // Drawback: DATA.drawbacks[name], negated (a drawback GRANTS AP, so it is priced as a negative cost) —
+  // flat table price, same shape as mbound/dbound above. Needed for fix/livesheet-drawback-legalcheck:
+  // the default whole-build-delta path below would be WRONG here regardless of context — drawbacks are
+  // modeled as income since v0.354 and never move compute().total at all (js/engine.js's "MODEL (b)"
+  // comment), so priceOf('drawback',...) would silently return 0 without this entry.
+  drawback:function(cur,p){return -((DATA.drawbacks[p.v]||0));}
 };
 // price a prospective change: its own listed price for a context change, else a delta against the
 // CURRENT committed build (correct for an ordinary purchase, which changes nothing else's price)
@@ -870,7 +876,7 @@ function buy(cat,payload,label){
   if(followup.length)flash('✎ Now open Names and pick the ability — '+followup.join('; '));
   if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
 }
-function takeDrawback(v){ const refund=DATA.drawbacks[v]||0; emit({type:'buy',cat:'drawback',payload:{v},cost:-refund,label:'Drawback — '+v,level:foldBuild(null).hd}); }
+function takeDrawback(v){ buy('drawback',{v},'Drawback — '+v); }
 // feat/dm-edit-events: finds the drawback-buy event a NEW buyoff would target — the oldest still-open
 // (not yet bought-off) purchase of this value, same FIFO order activeEvents() itself resolves buyoffs
 // in (D-GH-2026-08-06-buyoff-keyed-by-event). Needed here because buyoffDrawback() must consult THAT
