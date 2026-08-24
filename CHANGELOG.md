@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-24 · feat(engine): warn when `compute()` encounters a rules-table reference no longer in
+  DATA** — 8 sites (racial traits, boons, drawbacks, arts, features, subAbilities, subSpellBundles,
+  racialSpells/lineage) silently zero-priced a saved reference retired from the rules with no warning.
+  Additive only — existing skip/zero-fallback pricing unchanged at every site, confirmed by 0 output
+  drift across all 57 pre-existing fixtures. `subSpellBundles` needed real care: its lookup is
+  overloaded (a falsy bundle means either "class/subclass genuinely missing" or "this subclass
+  legitimately sells no bundle" — only the former warns). The 8th site (`racialSpells`) and a stored-XSS
+  regression in both CharGen's and Live Sheet's warning renderers (the new warnings are the first case
+  where the label itself is attacker-controlled free text, not a curated `DATA` key) were both caught by
+  `/code-review ultra` after the initial 7-site change — fixed with `esc(w)` at both render sites,
+  matching DM Console's existing correct pattern. New fixtures CG-037, CG-038; 2 new XSS regression
+  checks in `tool-pricing-ci.mjs`. `D-GH-2026-08-24-warn-missing-data-refs`.
 - **2026-08-24 · docs: graduated 3 merged PRs' task-board entries that were left un-graduated at merge
   time** — `ci/engine-data-path-filters` (#458), `ci/cache-chromium` (#459), and
   `test/guide-drawback-price-check` (#460) each shipped without their `CHANGELOG.md`/task-board-graduation

@@ -281,7 +281,7 @@ export function compute(b, opts){
   // player") — every purchase past the table's end costs the same as the last rung, rather than nothing.
   const attune=b.attune||0; add("Attunement slots",DATA.attune[Math.min(attune,DATA.attune.length-1)]||0);
   // Arts & Techniques (flat AP per item like boons; has hd gate + minStats prereqs)
-  let artAP=0;const _AI=[];for(const lab of (b.arts||[])){const ar=DATA.arts[lab];if(!ar)continue;const _ac=(+ar.ap||0);artAP+=_ac;_AI.push([lab,_ac]);
+  let artAP=0;const _AI=[];for(const lab of (b.arts||[])){const ar=DATA.arts[lab];if(!ar){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _ac=(+ar.ap||0);artAP+=_ac;_AI.push([lab,_ac]);
     if(hd<(+ar.hd||1)) W.push(lab+': needs '+(+ar.hd||1)+'+ Hit Dice');
     const _ams=ar.minStatsAny;if(_ams&&_ams.stats){const _anyMet=_ams.stats.some(function(_a){return (st[_a]||10)>=_ams.val;});if(!_anyMet)W.push(lab+': requires '+_ams.stats.join(' or ')+' '+_ams.val+'+');}
     const ms=ar.minStats||{};for(const [_ab,_mn] of Object.entries(ms)){if((st[_ab]||10)<_mn)W.push(lab+': requires '+_ab+' '+_mn+'+');}
@@ -334,7 +334,17 @@ export function compute(b, opts){
   //     fall back to the whole-build b.inPlay flag, which baseBuild() still sets true unconditionally —
   //     restoring this mechanism's pre-D-GH31 behavior for any caller that doesn't (yet) go through real
   //     LOG replay, rather than silently defaulting every such trait to "unlocked."
-  let racAP=0;const _SI=[];for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;const isO=(r.race===b.species||r.race===b.species2);
+  // feat/warn-missing-data-refs: several loops below silently `continue` past a saved reference (racial
+  // trait/boon/drawback/art/feature/subAbility/subSpellBundle) that no longer exists in DATA — e.g. a
+  // trait/feature renamed or retired from the rules. The character keeps the stale label but gets zero
+  // cost/effect from it with nothing telling anyone why. Fixed additively: each PRIMARY pricing loop that
+  // hits this case now pushes a warning naming the missing reference; existing skip/zero-fallback pricing
+  // behavior is unchanged. Several of these categories are ALSO iterated by a SECONDARY loop further down
+  // (e.g. racialTraits' cross-species/reqRace checks at line ~348, features' prereq chain at line ~398) —
+  // those secondary loops deliberately do NOT also warn, to avoid pushing the same "missing reference"
+  // warning two or three times for one stale label; the primary pricing loop is the single canonical
+  // checkpoint for "does this reference still exist in DATA."
+  let racAP=0;const _SI=[];for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r){W.push((lab.split(": ")[1]||lab)+" is no longer in the rules data — no cost/effect applied");continue;}const isO=(r.race===b.species||r.race===b.species2);
     const _hasLockEntry=!!(b._raceTraitLocked&&Object.prototype.hasOwnProperty.call(b._raceTraitLocked,lab));
     const _locked=_hasLockEntry?!!b._raceTraitLocked[lab]:!!b.inPlay;
     // In-pack traits carry their real MASTER[tier][band] origin price (v0.344) so that moving a
@@ -348,7 +358,7 @@ export function compute(b, opts){
   for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;const isO=(r.race===b.species||r.race===b.species2);if(!isO&&(r.tier||1)>1)W.push((lab.split(': ')[1]||lab)+': only Tier 1 traits are available cross-species');}{var _rtSet=new Set(b.racialTraits||[]);var _ownsR=function(nm){if(_rtSet.has(nm))return true;var _r=DATA.racial[nm];return !!(_r&&_r.pack&&(_r.race===b.species||_r.race===b.species2));};for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;var _sn=(lab.split(": ")[1]||lab);if(r.reqRace&&!_ownsR(r.reqRace))W.push("⛔ "+_sn+" requires "+((r.reqRace.split(": ")[1])||r.reqRace));if(r.minHD&&hd<r.minHD)W.push("⛔ "+_sn+" needs "+r.minHD+" Hit Dice (level "+r.minHD+")");}}
   // §10 lineage spell-likes: cap-exempt cantrips + half-price 1/long-rest spells (Appendix B prices)
   {const _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[]; let _rs=0;
-   for(const nm of (b.racialSpells||[])){const s=_lin.find(x=>x[0]===nm); if(!s)continue; _rs+=s[1];
+   for(const nm of (b.racialSpells||[])){const s=_lin.find(x=>x[0]===nm); if(!s){W.push(nm+" is no longer in the rules data — no cost/effect applied");continue;} _rs+=s[1];
      if(s[2]>0 && hd<(DATA.hdGate[s[2]-1]||1)) W.push("Lineage spell "+nm+" (L"+s[2]+") needs "+(DATA.hdGate[s[2]-1])+" Hit Dice");}
    add("Lineage spell-likes",_rs);}
   // class access — unlock cost is 7 × classes already owned (origin + any 2nd origin counted first)
@@ -401,7 +411,7 @@ export function compute(b, opts){
   // features — non-stepped: buy once. Stepped (rep): each re-buy is the next tier up.
   let featAP=0; const fcount={}; const _FI=[];
   let blockedAP=0; const _BLI=[];
-  for(const _lab0 of (b.features||[])){const lab=FEAT_ALIAS(_lab0);const f=DATA.features[lab];if(!f)continue;
+  for(const _lab0 of (b.features||[])){const lab=FEAT_ALIAS(_lab0);const f=DATA.features[lab];if(!f){W.push((lab.split(": ")[1]||lab)+" is no longer in the rules data — no cost/effect applied");continue;}
     fcount[lab]=(fcount[lab]||0)+1; const n=fcount[lab];
     if(!f.rep && n>1){W.push((lab.split(": ")[1]||lab)+": already bought — can only be taken once (not a stepped feature)");continue;}
     let origin,cross,stick;
@@ -457,7 +467,7 @@ export function compute(b, opts){
   if(mbClass) add("Martially Bound (gain)",-2);
   // subclass abilities (à la carte) + unlocks: first subclass per class is free, others 15 AP
   const freeSub=b.freeSub||{}; const subUsed={}; let subAP=0;const _UI=[];
-  for(const key of (b.subAbilities||[])){const a=DATA.subAbilMap[key];if(!a)continue;
+  for(const key of (b.subAbilities||[])){const a=DATA.subAbilMap[key];if(!a){W.push((String(key).split("|").pop()||key)+" is no longer in the rules data — no cost/effect applied");continue;}
     (subUsed[a.cls]=subUsed[a.cls]||{})[a.sub]=1;
     const isO=(a.cls===b.originClass||a.cls===b.originClass2);const isUS=!isO&&_unlkSet.has(a.cls);const _uc=isO?a.origin:(isUS?Math.max(1,a.cross-a.tier):a.cross);subAP+=_uc;_UI.push([(a.cls+" › "+a.sub+": "+a.name),_uc]);}
   add("Subclass abilities",subAP);addItems("Subclass abilities",_UI);
@@ -486,7 +496,7 @@ export function compute(b, opts){
   // See D-GH-2026-08-17-subclass-class-access-gate (Superseded) and D-GH-2026-08-18-flat-class-unlock.
   // v0.196: paid subclass "expanded spell list" bundles — opt-in, one buy = whole bundle
   //   (always-prepared bonus spells + free cap-exempt cantrips are granted in eligibleSpells, gated on purchase).
-  for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");const _sc=(DATA.subclasses[_p[0]]||{})[_p[1]];const _bn=_sc&&_sc.spellBundle;if(!_bn)continue;
+  for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");const _sc=(DATA.subclasses[_p[0]]||{})[_p[1]];if(!_sc){W.push((_p[1]||_bk)+" is no longer in the rules data — no cost/effect applied");continue;}const _bn=_sc.spellBundle;if(!_bn)continue;
     // v0.350: bundles now price on the same three tiers as any other subclass ability —
     // origin / unlocked (sticker) / cross-class (sticker + Tier). They used to have only two, so
     // unlocking a class bought a 0 AP reduction on a bundle while saving real AP on that class's
@@ -610,7 +620,7 @@ export function compute(b, opts){
   // boons (§14): flat AP priced like features, gated by Hit Dice. DM house-rules (b.houseRules) may
   // add custom boons/drawbacks or override their AP; those overrides win over the printed values.
   const HR=b.houseRules||{}; const HRb=HR.boons||{}; const HRd=HR.draws||{};
-  let boonAP=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo)continue;const _bc=(+bo.ap||0);boonAP+=_bc;_BI.push([lab,_bc]);
+  let boonAP=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _bc=(+bo.ap||0);boonAP+=_bc;_BI.push([lab,_bc]);
     if(hd<(+bo.hd||1)) W.push(lab+": boon needs "+(+bo.hd||1)+"+ Hit Dice");
     const _bms=bo.minStats||{};for(const [_ba,_bm] of Object.entries(_bms)){if((st[_ba]||10)<_bm) W.push(lab+': boon requires '+_ba+' '+_bm+'+');}
     const _bbmsa=bo.minStatsAny;if(_bbmsa&&_bbmsa.stats){const _banyMet=_bbmsa.stats.some(function(_bba){return (st[_bba]||10)>=_bbmsa.val;});if(!_banyMet)W.push(lab+': boon requires '+_bbmsa.stats.join(' or ')+' '+_bbmsa.val+'+');} }
@@ -648,7 +658,7 @@ export function compute(b, opts){
   // slot yet", so it must not count as having a Foundation. An earlier version of this check used
   // `(t.disciplines||[]).length`, which a bare placeholder object satisfies with no name at all.
   const _hasDisc=(b.traditions||[]).some(function(t){return t&&(t.disciplines||[]).some(function(d){return d&&d.name&&d.name!=='(none)';});});
-  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){if(!HRd[lab]&&DATA.drawbacks[lab]===undefined)continue;const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
+  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
     // ⛔ = a HARD rules violation, the same marker reqRace/minHD use. Owner's ruling 2026-08-19: a stat
     // cap is enforced in BOTH directions — you may not take a capped drawback above the cap, and you may
     // not raise the score past it while holding one ("your score can never exceed 12"). Without the
