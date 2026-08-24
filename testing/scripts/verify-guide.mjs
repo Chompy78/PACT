@@ -136,11 +136,19 @@ record('theming        ',
 // DECODE ENTITIES BEFORE COMPARING. The first version of this comparison reported ten mismatches, seven
 // of which were `&#x27;` vs `'` on descriptions that were otherwise identical. And compare the WHOLE
 // cell, not `includes()` — five cells had extra text appended that a substring test waved through.
+//
+// AP-PRICE COMPARISON (added — closes the gap `guide-price-check.mjs` never covered for drawbacks;
+// see docs/TASK_BOARD_NEXT.md's "guide-price-check.mjs has zero drawback-price coverage"). Confirmed
+// first that the description-text match above does NOT transitively catch a price drift: none of
+// DATA.drawbackFx's 90 entries mention their own AP value anywhere in the description text (checked
+// directly against the live DATA, not assumed) — the guide's "AP gained" column is genuinely
+// independent information, so it needs its own comparison, not a byproduct of the one above.
 {
   const dec = t => t.replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"');
   const H = dec(html);
   const fx = DATA.drawbackFx || {}, caps = DATA.drawbackMaxStats || {}, req = DATA.drawbackReq || {};
-  const differs = [], undocumented = [], missing = [], reqUndocumented = [];
+  const drawbacks = DATA.drawbacks || {};
+  const differs = [], undocumented = [], missing = [], reqUndocumented = [], priceMismatch = [];
   // Known exception: the 6 `Affliction — X (ABIL)` entries share ONE guide row ("Affliction (choose an
   // ability)") by design, so they never match their own <td> and must not count as a coverage failure.
   const SHARED_ROW = /^Affliction —/;
@@ -148,26 +156,35 @@ record('theming        ',
   for (const [name, text] of Object.entries(fx)) {
     if (!text) continue;
     const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const m = H.match(new RegExp('<td[^>]*>' + esc + '</td>\\s*<td[^>]*>([\\s\\S]*?)</td>'));
+    // Three cells per row: Drawback | What it does | AP gained. Capture all three so the AP-gained
+    // cell (group 2) is available alongside the description cell (group 1) already used above.
+    const m = H.match(new RegExp('<td[^>]*>' + esc + '</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>([\\s\\S]*?)</td>'));
     if (!m) {
       if (!SHARED_ROW.test(name)) missing.push(name);   // a real drawback with NO guide row at all
       continue;
     }
     matched++;
     if (m[1].replace(/<[^>]+>/g, '').trim() !== text.trim()) differs.push(name);
+    const guideCell = m[2].replace(/<[^>]+>/g, '').trim();
+    const guideAp = parseInt(guideCell.replace(/^\+/, ''), 10);
+    const engineAp = drawbacks[name];
+    if (typeof engineAp === 'number' && (!Number.isFinite(guideAp) || guideAp !== engineAp)) {
+      priceMismatch.push(`${name} (guide ${guideCell || '?'}, DATA +${engineAp})`);
+    }
   }
   for (const d of Object.keys(caps)) if (!/cap:/i.test(fx[d] || '')) undocumented.push(d);
   // Reverse of the cap check: a drawback DATA.drawbackReq gates as caster-only must say so in its own
   // prose, or a player reads "why can't I take this" nowhere — mirrors the Foundation-prereq wording
   // Arts already use ("Requires a Spellcasting Foundation to take.").
   for (const d of Object.keys(req)) if (req[d].caster && !/spellcasting/i.test(fx[d] || '')) reqUndocumented.push(d);
-  const ok = !differs.length && !undocumented.length && !missing.length && !reqUndocumented.length;
+  const ok = !differs.length && !undocumented.length && !missing.length && !reqUndocumented.length && !priceMismatch.length;
   record('drawback text', ok,
     ok
-      ? `${matched} descriptions agree with the guide · all ${Object.keys(caps).length} stat caps documented · all ${Object.keys(req).length} caster gates documented`
+      ? `${matched} descriptions agree with the guide · all ${Object.keys(caps).length} stat caps documented · all ${Object.keys(req).length} caster gates documented · all ${matched} AP values match`
       : `${differs.length} differ [${differs.join(', ')}] · ${missing.length} missing from the guide entirely [${missing.join(', ')}] · `
         + `${undocumented.length} capped but undocumented [${undocumented.join(', ')}] · `
-        + `${reqUndocumented.length} caster-gated but undocumented [${reqUndocumented.join(', ')}]`);
+        + `${reqUndocumented.length} caster-gated but undocumented [${reqUndocumented.join(', ')}] · `
+        + `${priceMismatch.length} AP mismatches [${priceMismatch.join(', ')}]`);
 }
 
 // ---- 8. version markers ---------------------------------------------------------------------
