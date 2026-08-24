@@ -8,6 +8,8 @@
 > see `D-GH-2026-07-28-decisions-changelog-task-board-split` below. Each bullet below ends with a
 > "Full record:" pointer to that decision's own `Context → Options → Decision → Why → Status` writeup.
 
+## Index
+
 ## D-GH-2026-08-24-missing-data-ref-warning-classification — fix 3 confirmed findings from a post-merge /code-review ultra
 - CharGen's `isAdvisory()` and Live Sheet's `_lsIsAdvisory()` were never updated when
   `feat/warn-missing-data-refs` added 8 new "is no longer in the rules data" warnings, so the notice
@@ -17,8 +19,6 @@
   label edge cases, a `SOFT_WARN` gap) verified not reachable with live DATA or any UI path — deferred,
   recorded rather than fixed reflexively. Full record:
   `decisions/2026/D-GH-2026-08-24-missing-data-ref-warning-classification.md`.
-
-## Index
 
 ## D-GH-2026-08-24-warn-missing-data-refs — warn (don't silently no-op) when compute() hits a DATA reference that's been retired
 - 8 loops in `compute()` silently `continue`d past a saved racial trait/boon/drawback/art/feature/
