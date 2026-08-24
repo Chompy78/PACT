@@ -25,6 +25,7 @@ on:
       - "tools/PACT-Live-Char-Sheet.html"
       - "tools/PACT-CharGen-Webtool.html"
       - "js/engine.js"
+      - "js/engine-data.js"
       - "js/advancement.js"
       - "js/ap-by-level.js"
       - "testing/scripts/tool-pricing-ci.mjs"
