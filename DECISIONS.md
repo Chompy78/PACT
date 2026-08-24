@@ -21,6 +21,13 @@
   and a stored-XSS regression (the new warnings are the first to echo attacker-controlled free text
   rather than a curated `DATA` key) in both CharGen's and Live Sheet's warning renderers, fixed with
   `esc(w)`. Full record: `decisions/2026/D-GH-2026-08-24-warn-missing-data-refs.md`.
+## D-GH-2026-08-24-livesheet-drawback-legalcheck — route Live Sheet drawback purchases through legalCheck()/buy()
+- `takeDrawback()` called `emit()` directly, the only purchase category in the Live Sheet with no rules
+  enforcement at all — a Fighter could tick a caster-only drawback, and a broken stat cap went unenforced.
+  Routing through `buy()` required a new `_CTX_PRICERS.drawback` entry: the default whole-build-delta
+  pricer returns 0 for drawbacks, since they're modeled as income (not negative spend) since v0.354 —
+  verified directly against `js/engine.js`'s own "MODEL (b)" comment before wiring anything, not assumed.
+  Full record: `decisions/2026/D-GH-2026-08-24-livesheet-drawback-legalcheck.md`.
 
 ## D-GH-2026-08-22-dm-console-codm-revoke-ui — a "Current co-DMs" list with a Remove action
 - The console could withdraw an unredeemed co-DM invite but had no way to see or remove someone who had

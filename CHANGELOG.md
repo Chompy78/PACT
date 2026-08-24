@@ -16,6 +16,15 @@
   `/code-review ultra` after the initial 7-site change — fixed with `esc(w)` at both render sites,
   matching DM Console's existing correct pattern. New fixtures CG-037, CG-038; 2 new XSS regression
   checks in `tool-pricing-ci.mjs`. `D-GH-2026-08-24-warn-missing-data-refs`.
+- **2026-08-24 · fix(livesheet): drawback purchases now go through `legalCheck()`; fix(chargen): a
+  rejected random drawback no longer leaks a draw attempt** — `takeDrawback()` bypassed all rules
+  enforcement in the Live Sheet (a Fighter could tick Mana Leak, a broken stat cap went unenforced).
+  Routed through `buy()`, which required a new `_CTX_PRICERS.drawback` entry — the default whole-build-
+  delta pricer returns 0 for drawbacks, which are modeled as income since v0.354, not negative spend.
+  CharGen's random builder's `_draws` counter is now only spent when `tryAct(actDraw)` actually succeeds.
+  3 new browser-driven checks in `tool-pricing-ci.mjs` (both gates, plus a regression guard) — 171/0,
+  confirmed to fail red against the pre-fix code before confirming green against the fix.
+  `D-GH-2026-08-24-livesheet-drawback-legalcheck`.
 
 - **2026-08-24 · docs: purged the "pace curve" mislabel from 5 historical records** — annotated (never
   rewrote) `DECISIONS.md`, `D-GH49.md`, `D-GH-2026-07-14-advancement-tracks.md`,
