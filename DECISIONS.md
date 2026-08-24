@@ -1411,6 +1411,12 @@
   replaced (not added to) Live Sheet's earned-AP `apLevel` chip with a spent-AP tuned-curve
   `trackLevel`; left `js/ap-by-level.js` untouched (pace curve ≠ budget curve)
   Full record: `decisions/2026/D-GH-2026-07-14-advancement-tracks.md`.
+  > Correction (2026-08-24, see D-GH-2026-08-03-ap-budget-curve-standard): the term
+  > "pace curve" here is a mislabel. PACT has no AP-earned-per-level curve — the
+  > rules define a *budget* curve (Standard L1 79/+24, Generous 83/+28, prelude L0
+  > 55) and a separate *award pace* (~7 AP/session). The decision this line
+  > records — leaving `js/ap-by-level.js` untouched — was still correct at the time;
+  > only the parenthetical naming is wrong.
 - **D-GH-2026-07-13-campaign-membership-helpers** — De-duplicate campaign-membership SQL
   checks: one new ungranted helper for the invite_code lookup, reuse the pre-existing
   `is_campaign_member()` for the membership check rather than adding a second near-duplicate
