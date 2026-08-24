@@ -10,6 +10,15 @@
 
 ## Index
 
+## D-GH-2026-08-24-warn-missing-data-refs — warn (don't silently no-op) when compute() hits a DATA reference that's been retired
+- 7 loops in `compute()` silently `continue`d past a saved racial trait/boon/drawback/art/feature/
+  subAbility/subSpellBundle reference no longer in `DATA` — zero cost/effect, no warning, no trace.
+  Fixed additively (existing pricing behavior unchanged, confirmed by 0 output drift across all 57
+  pre-existing fixtures); `subSpellBundles` needed care to avoid a false positive (its lookup is
+  overloaded between "genuinely missing" and "legitimately no bundle"); two categories are also iterated
+  by a secondary loop for unrelated checks, deliberately not duplicated to avoid 2-3x warning noise for
+  one stale label. Full record: `decisions/2026/D-GH-2026-08-24-warn-missing-data-refs.md`.
+
 ## D-GH-2026-08-22-dm-console-codm-revoke-ui — a "Current co-DMs" list with a Remove action
 - The console could withdraw an unredeemed co-DM invite but had no way to see or remove someone who had
   already redeemed one and become a co-DM — a real gap given this project's history with the invite/join

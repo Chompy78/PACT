@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-24 · feat(engine): warn when `compute()` encounters a rules-table reference no longer in
+  DATA** — 7 sites (racial traits, boons, drawbacks, arts, features, subAbilities, subSpellBundles)
+  silently zero-priced a saved reference retired from the rules with no warning. Additive only —
+  existing skip/zero-fallback pricing unchanged at every site, confirmed by 0 output drift across all
+  57 pre-existing fixtures. `subSpellBundles` needed real care: its lookup is overloaded (a falsy bundle
+  means either "class/subclass genuinely missing" or "this subclass legitimately sells no bundle" — only
+  the former warns). New fixture CG-037. `D-GH-2026-08-24-warn-missing-data-refs`.
+
 - **2026-08-24 · docs: purged the "pace curve" mislabel from 5 historical records** — annotated (never
   rewrote) `DECISIONS.md`, `D-GH49.md`, `D-GH-2026-07-14-advancement-tracks.md`,
   `D-GH-2026-08-02-creation-lock-switch.md`, and the 2026-07-14 session log with dated correction notes
