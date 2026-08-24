@@ -413,6 +413,17 @@ try {
       takeDrawback('Asthmatic');
       return [foldBuild(null).drawbacks.includes('Asthmatic'), window.__a.length];})()`),
     [true, 0]);
+  // code-review catch on this PR: the drawback-cap advisory warning ("Drawbacks grant N AP — the guide
+  // caps them at 12 AP...") is explicitly designed by js/engine.js to clamp the grant or merely advise,
+  // never to block the purchase — but it matched neither SOFT_WARN nor EXPECTED_FOLLOWUP, so routing
+  // takeDrawback() through legalCheck() would have turned an advisory into a hard block with no rule
+  // actually broken. A local (uncapped) character over the guide's 12 AP cap must still buy cleanly.
+  check('exceeding the advisory drawback-AP cap (12, no campaign) is a soft warning, not a hard block',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      takeDrawback('Borrowed Time'); takeDrawback('Hexed Luck');
+      return [foldBuild(null).drawbacks.sort(), economy(null).drawbackEarned,
+              window.__a.length, /caps them at/.test((LOG[LOG.length-1].warns||[])[0]||'')];})()`),
+    [['Borrowed Time', 'Hexed Luck'], 14, 0, true]);
 
   // code-review finding (this session): the ledger's "dead" styling only ever checked
   // boughtOff (drawbacks) — a DM-removed boon's original buy row rendered as a normal, fully-priced,

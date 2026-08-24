@@ -819,7 +819,14 @@ function emit(ev){ if(_viewOnlyBlock())return; ev.seq=SEQ++; ev.ts=Date.now(); e
 function award(amount,note,disc){ if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
 // these stay confirm-through. Everything else a purchase raises is a hard rules violation → blocked with a popup.
-const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability/i;
+// "caps them at" (code-review catch on fix/livesheet-drawback-legalcheck): the drawback-cap warning
+// (js/engine.js, both the campaign-enforced and guide-advisory forms) is explicitly designed to clamp
+// the AP granted or merely advise — never to block the purchase itself (see engine.js's own comment:
+// "A local, un-bound character keeps the advisory warning and the full grant... there is nobody to
+// adjudicate for them"). Before this PR, takeDrawback() bypassed legalCheck() entirely so this warning
+// was never checked at purchase time; routing it through buy() would have turned it into a hard block
+// with no rule actually being broken, since it matches neither this regex nor EXPECTED_FOLLOWUP.
+const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at/i;
 // EXPECTED FOLLOW-UP = not a warning at all. The purchase is legal and complete; a choice that belongs
 // to it is made afterwards, in the ✎ Names dialog. Epic boons are the only case today: MUT.boon pushes
 // the label but cannot set epicBoonAbil (js/engine.js:545), so compute() on the candidate build always
