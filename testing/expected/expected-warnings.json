@@ -102,5 +102,23 @@
  ],
  "CG-038": [
   "Retired Spell Not In Lineage is no longer in the rules data — no cost/effect applied"
+ ],
+ "CG-039": [
+  "Retired Art Not In DATA is no longer in the rules data — no cost/effect applied"
+ ],
+ "CG-040": [
+  "Retired Trait Not In DATA is no longer in the rules data — no cost/effect applied"
+ ],
+ "CG-041": [
+  "Retired Feature Not In DATA is no longer in the rules data — no cost/effect applied"
+ ],
+ "CG-042": [
+  "Retired Ability Not In DATA is no longer in the rules data — no cost/effect applied"
+ ],
+ "CG-043": [
+  "Retired Subclass Not In DATA is no longer in the rules data — no cost/effect applied"
+ ],
+ "CG-044": [
+  "Retired Drawback Not In DATA is no longer in the rules data — no cost/effect applied"
  ]
 }

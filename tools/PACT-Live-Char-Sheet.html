@@ -1331,11 +1331,13 @@ function validate(){
   return issues;
 }
 // Advisory (informational, non-blocking) validate() notes vs hard "needs review" issues — mirrors
-// CharGen's isAdvisory() verbatim (same two patterns) so both tools classify the identical notice the
-// same way. The ignore_player_ap grandfather notice is a NORMAL, expected state ("purchases are kept,
-// it never gates anything"), so it must render as a calm ⓘ note, not inflate the ⚠ "Needs review (N)"
-// count the way every other issue does (feat/campaign-ap-model review follow-up).
-function _lsIsAdvisory(w){return /switched off player-entered AP/.test(w)||/no Ki-using ability/.test(w)||/^Creation AP not confirmed/.test(w);}
+// CharGen's isAdvisory() patterns so both tools classify the identical notice the same way. The
+// ignore_player_ap grandfather notice is a NORMAL, expected state ("purchases are kept, it never gates
+// anything"), so it must render as a calm ⓘ note, not inflate the ⚠ "Needs review (N)" count the way
+// every other issue does (feat/campaign-ap-model review follow-up). "is no longer in the rules data"
+// (code-review catch on feat/warn-missing-data-refs) is the same kind of non-actionable notice — the
+// message itself says "no cost/effect applied", so it must not inflate that count either.
+function _lsIsAdvisory(w){return /switched off player-entered AP/.test(w)||/no Ki-using ability/.test(w)||/^Creation AP not confirmed/.test(w)||/is no longer in the rules data/.test(w);}
 
 // ---------------- buy panel builders ----------------
 function opt(v){return '<option value="'+String(v).replace(/"/g,'&quot;')+'">'+v+'</option>';}

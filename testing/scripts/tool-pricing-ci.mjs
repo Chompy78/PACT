@@ -275,6 +275,19 @@ try {
       return [!!tray.querySelector('img'), tray.innerHTML.includes('&lt;img')];})()`),
     [false, true]);
 
+  // code-review catch on fix/missing-data-ref-warning-classification: _lsIsAdvisory() was left unaware
+  // of the new "is no longer in the rules data" notice, so it counted as a hard "needs review" issue and
+  // rendered with the urgent treatment — contradicting the message's own wording ("no cost/effect
+  // applied" — there is nothing to fix). Confirms the notice both fires and classifies as advisory.
+  console.log('\nLive Sheet — a missing-DATA-reference notice classifies as advisory, not a hard issue');
+  check('_lsIsAdvisory() recognizes the missing-DATA-reference notice',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'buy',cat:'boon',payload:{v:'Retired Boon Not In DATA'},cost:0,label:'boon',seq:SEQ++,ts:1});
+      render();
+      const hit=validate().find(w=>/is no longer in the rules data/.test(w));
+      return [!!hit, hit?_lsIsAdvisory(hit):null];})()`),
+    [true, true]);
+
   // The campaign binding is written into the autosave envelope but load() used to drop it, so every
   // page refresh detached a campaign-bound character until an async cloud round-trip re-resolved it —
   // and that round-trip minted a fresh id when none was set, queried a character that had never
@@ -777,6 +790,19 @@ try {
       const warns=document.getElementById('warns');
       return [!!warns.querySelector('img'), warns.innerHTML.includes('&lt;img')];})()`),
     [false, true]);
+
+  // code-review catch on fix/missing-data-ref-warning-classification: isAdvisory() was left unaware of
+  // the new "is no longer in the rules data" notice, so it counted as a hard ⚠ issue (inflating the
+  // top-level banner) with a dead "jump to control" click target (warnTarget() has no matching case) —
+  // contradicting the message's own wording ("no cost/effect applied" — there is nothing to fix).
+  console.log('\nCharGen — a missing-DATA-reference notice classifies as advisory, not a hard issue');
+  check('isAdvisory() recognizes the missing-DATA-reference notice',
+    await cg.evaluate(`(()=>{LOG.length=0;SEQ=1;
+      LOG.push({type:'buy',cat:'boon',payload:{v:'Retired Boon Not In DATA'},cost:0,label:'boon',seq:SEQ++,ts:1,level:1});
+      render();
+      const w=(window.__WARNS||[]).find(w=>/is no longer in the rules data/.test(w));
+      return [!!w, w?isAdvisory(w):null];})()`),
+    [true, true]);
 
   // ---- draft reconciliation (fix/species-pack-not-charged) ----------------------------------
   // While the character is a draft there is ONE pricing context, so "what was paid" must equal "what
