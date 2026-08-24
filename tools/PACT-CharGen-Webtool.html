@@ -4389,12 +4389,12 @@ function randomizeRoll(){
   const actBoon=x=>{const cand=(DATA.boonList||[]).filter(k=>{const bo=DATA.boons[k];if(!bo||x.boons.includes(k))return false;if(x.hd<(bo.hd||1))return false;if(bo.minStats){for(const a in bo.minStats)if((x.stats[a]||10)<bo.minStats[a])return false;}if(bo.minStatsAny&&bo.minStatsAny.stats&&!bo.minStatsAny.stats.some(a=>(x.stats[a]||10)>=bo.minStatsAny.val))return false;return true;});if(!cand.length)return false;x.boons.push(pick(cand));};
   const actArt=x=>{x.arts=x.arts||[];const cand=(DATA.artList||[]).filter(k=>{const ar=DATA.arts[k];if(!ar||x.arts.includes(k))return false;if(x.hd<(ar.hd||1))return false;if(ar.minStatsAny&&ar.minStatsAny.stats&&!ar.minStatsAny.stats.some(a=>(x.stats[a]||10)>=ar.minStatsAny.val))return false;if(ar.prereqNote&&/Foundation/i.test(ar.prereqNote)&&!(x.traditions&&x.traditions.length))return false;return true;});if(!cand.length)return false;x.arts.push(pick(cand));};
   const actRacial=x=>{const cand=(DATA.racialList||[]).filter(l=>{const rr=DATA.racial[l];return rr&&!rr.pack&&(rr.race===x.species||rr.race===x.species2)&&!x.racialTraits.includes(l)&&x.hd>=((DATA.tierHD&&DATA.tierHD[rr.tier])||1);});if(!cand.length)return false;x.racialTraits.push(pick(cand));};
-  // feat/drawbacks-phobias-expansion: candidate filter also respects DATA.drawbackReq (caster-only drawbacks), same shape as the existing drawbackMaxStats filter — otherwise the randomizer could roll Mana Leak/Ritual-Blind/Wild Surge onto a Fighter and tryAct would reject it AFTER _draws was already spent (see the tryAct rollback note tracked separately), wasting one of a scarce number of draw attempts more often than the stat-cap case alone.
-  const actDraw=x=>{if(_draws>=_maxDraws)return false;const _hasFoundX=(x.traditions||[]).some(t=>t&&(t.disciplines||[]).some(d=>d&&d.name&&d.name!=='(none)'));const cand=(DATA.drawbackList||[]).filter(k=>{if(x.drawbacks.includes(k))return false;const mx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k];if(mx){for(const a in mx)if((x.stats[a]||10)>mx[a])return false;}const rq=DATA.drawbackReq&&DATA.drawbackReq[k];if(rq&&rq.caster&&!_hasFoundX)return false;return true;});if(!cand.length)return false;x.drawbacks.push(pick(cand));_draws++;};
+  // feat/drawbacks-phobias-expansion: candidate filter also respects DATA.drawbackReq (caster-only drawbacks), same shape as the existing drawbackMaxStats filter — closes the stat-cap/caster-gate rejection paths, but tryAct can still reject a candidate that clears both (e.g. pushing the character's total drawback AP over a campaign's enforced drawbackCap). fix/livesheet-drawback-legalcheck: _draws is now incremented by the CALLER only when tryAct(actDraw) actually succeeds — actDraw itself no longer increments it, so a tryAct rollback (rare, but real) no longer silently spends a draw attempt for a drawback that was never actually added.
+  const actDraw=x=>{if(_draws>=_maxDraws)return false;const _hasFoundX=(x.traditions||[]).some(t=>t&&(t.disciplines||[]).some(d=>d&&d.name&&d.name!=='(none)'));const cand=(DATA.drawbackList||[]).filter(k=>{if(x.drawbacks.includes(k))return false;const mx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k];if(mx){for(const a in mx)if((x.stats[a]||10)>mx[a])return false;}const rq=DATA.drawbackReq&&DATA.drawbackReq[k];if(rq&&rq.caster&&!_hasFoundX)return false;return true;});if(!cand.length)return false;x.drawbacks.push(pick(cand));};
   for(let q=0;q<3;q++)tryAct(actBoon);
   tryAct(actArt);tryAct(actArt);
   for(let q=0;q<3;q++)tryAct(actRacial);
-  if(rnd(100)<55)tryAct(actDraw);
+  if(rnd(100)<55&&tryAct(actDraw))_draws++;
   // 6) weighted action pool — each returns false to skip (e.g. nothing left to buy)
   const A=[
     actBoon,actBoon,actArt,actArt,actArt,actRacial,actRacial,actRacial,actRacial,actDraw,
@@ -4424,7 +4424,7 @@ function randomizeRoll(){
   ];
   // 4) spend until the budget is (near) exhausted or we keep failing to find anything affordable+legal
   let stuck=0, iters=0;
-  while(stuck<50 && iters<3000 && (budget - C(b).total) > 0){ iters++; if(tryAct(pick(A))) stuck=0; else stuck++; }
+  while(stuck<50 && iters<3000 && (budget - C(b).total) > 0){ iters++; const act=pick(A); if(tryAct(act)){ stuck=0; if(act===actDraw)_draws++; } else stuck++; }
   for(let q=0;q<8;q++){tryAct(actBoon);tryAct(actArt);tryAct(actRacial);tryAct(actRacial);}
   // Chunk B: randomize is ONE undoable step — push a single pre-roll frame, then suspend across applyBuild
   // AND the appearance/name resync so the tail's second LOG rebuild records no extra frame.
