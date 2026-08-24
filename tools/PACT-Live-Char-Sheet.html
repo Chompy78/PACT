@@ -1308,7 +1308,7 @@ function validate(){
     if(e.cat==='boon'&&!DATA.boons[e.payload.v]) issues.push('Boon no longer in rules: '+esc(e.payload.v));
     if(e.cat==='drawback'&&!(e.payload.v in DATA.drawbacks)) issues.push('Drawback no longer in rules: '+esc(e.payload.v));
   });
-  compute(b).warnings.filter(w=>!/^OVER BUDGET/.test(w)).forEach(w=>issues.push('Rule warning: '+w));
+  compute(b).warnings.filter(w=>!/^OVER BUDGET/.test(w)).forEach(w=>issues.push('Rule warning: '+esc(w)));
   // Toggle-flip grandfather notice (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): if
   // ignore_player_ap is on and the frozen ledger shows more spent than DM AP alone could have funded,
   // some of that spend came from player AP that no longer counts. Non-blocking — purchases are kept

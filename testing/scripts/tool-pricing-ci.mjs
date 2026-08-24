@@ -255,6 +255,26 @@ try {
     window.flash=m=>window.__f.push(String(m));
     LOG.length=0;SEQ=1;REDO.length=0;`;
 
+  // code-review catch on feat/warn-missing-data-refs: that PR pushes compute().warnings with the raw
+  // saved reference label for a boon/racialTrait/drawback/art/feature/subAbility/subSpellBundle no
+  // longer in DATA -- the FIRST time compute() ever puts genuinely attacker-controlled text into W.
+  // validate()'s tray built its issues list from these warnings unescaped, same class of bug REV-12
+  // already closed elsewhere in this tool. A hand-edited/imported LOG event naming a nonexistent boon
+  // as an HTML-injection payload must render as inert text in the validation tray, not execute.
+  console.log('\nLive Sheet — a missing-DATA-reference warning renders escaped, not as live HTML');
+  // Ground truth is a live DOM query (querySelector), not a string search: the browser normalizes
+  // attribute quoting on innerHTML round-trip (<img src=x> serializes back as <img src="x">), which
+  // makes a bare 'indexOf("<img src=x")' string match a false negative even when the injection landed
+  // for real -- caught only by actually re-running this with the fix reverted and reading the debug
+  // output, not by trusting the string-match version on first green.
+  check('an unrecognized boon name carrying an HTML-injection payload renders inert in the tray',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'buy',cat:'boon',payload:{v:'<img src=x onerror="window.__xss=1">'},cost:0,label:'boon',seq:SEQ++,ts:1});
+      render();
+      const tray=document.getElementById('tray');
+      return [!!tray.querySelector('img'), tray.innerHTML.includes('&lt;img')];})()`),
+    [false, true]);
+
   // The campaign binding is written into the autosave envelope but load() used to drop it, so every
   // page refresh detached a campaign-bound character until an async cloud round-trip re-resolved it —
   // and that round-trip minted a fresh id when none was set, queried a character that had never
@@ -701,6 +721,26 @@ try {
       const s=_creationLockState();
       return LOG.length===n+1 && s.threshold===75 && s.confirmed===true
         && !/Creation AP not confirmed/.test(document.getElementById('warns').innerText);})()`), true);
+
+  // code-review catch on feat/warn-missing-data-refs: that PR pushes compute().warnings with the raw
+  // saved reference label for a boon/racialTrait/drawback/art/feature/subAbility/subSpellBundle no
+  // longer in DATA -- the FIRST time compute() ever puts genuinely attacker-controlled text (not a
+  // curated, known DATA key) into W. #warns renders r.warnings straight into innerHTML with no esc(),
+  // same class of bug REV-12 already closed elsewhere in this tool. A hand-edited/imported LOG event
+  // naming a nonexistent boon as an HTML-injection payload must render as inert text, not execute.
+  console.log('\nCharGen — a missing-DATA-reference warning renders escaped, not as live HTML');
+  // Ground truth is a live DOM query (querySelector), not a string search: the browser normalizes
+  // attribute quoting on innerHTML round-trip (<img src=x> serializes back as <img src="x">), which
+  // makes a bare 'indexOf("<img src=x")' string match a false negative even when the injection landed
+  // for real -- caught only by actually re-running this with the fix reverted and reading the debug
+  // output, not by trusting the string-match version on first green.
+  check('an unrecognized boon name carrying an HTML-injection payload renders inert in #warns',
+    await cg.evaluate(`(()=>{LOG.length=0;SEQ=1;
+      LOG.push({type:'buy',cat:'boon',payload:{v:'<img src=x onerror="window.__xss=1">'},cost:0,label:'boon',seq:SEQ++,ts:1,level:1});
+      render();
+      const warns=document.getElementById('warns');
+      return [!!warns.querySelector('img'), warns.innerHTML.includes('&lt;img')];})()`),
+    [false, true]);
 
   // ---- draft reconciliation (fix/species-pack-not-charged) ----------------------------------
   // While the character is a draft there is ONE pricing context, so "what was paid" must equal "what

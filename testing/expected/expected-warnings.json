@@ -99,5 +99,8 @@
  "EV-020": [],
  "CG-037": [
   "Retired Boon Not In DATA is no longer in the rules data — no cost/effect applied"
+ ],
+ "CG-038": [
+  "Retired Spell Not In Lineage is no longer in the rules data — no cost/effect applied"
  ]
 }

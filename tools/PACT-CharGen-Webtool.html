@@ -5030,7 +5030,7 @@ function _cgRenderInner(){
   const mf=$('meterfill');if(mf){mf.style.width=Math.max(0,Math.min(100,pct))+'%';mf.className='meterfill '+(over?'mover':near?'mnear':'mok');}
   const sl=$('status');sl.textContent=r.status;sl.className='statusline '+(r.remaining<0?'bad':'good');
   window.__WARNS=r.warnings;
-  {var _wr=r.warnings.map((w,i)=>{var adv=isAdvisory(w);return '<li class="wlink'+(adv?' adv':'')+'" title="'+(adv?'Informational note':'Jump to the control that caused this')+'" onclick="jumpForWarning(__WARNS['+i+'])">'+(adv?'ⓘ':'⚠')+' '+w+'</li>';});
+  {var _wr=r.warnings.map((w,i)=>{var adv=isAdvisory(w);return '<li class="wlink'+(adv?' adv':'')+'" title="'+(adv?'Informational note':'Jump to the control that caused this')+'" onclick="jumpForWarning(__WARNS['+i+'])">'+(adv?'ⓘ':'⚠')+' '+esc(w)+'</li>';});
    // Unconfirmed creation AP (D-GH-2026-08-05-pricing-model, D3) belongs with the other advisories ABOVE
    // the Guide, not inside it — it is a "something needs your attention" note like the Ki one, not a
    // build suggestion. Clears on confirmation, or once spend passes the default (past that the question

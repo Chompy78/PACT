@@ -358,7 +358,7 @@ export function compute(b, opts){
   for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;const isO=(r.race===b.species||r.race===b.species2);if(!isO&&(r.tier||1)>1)W.push((lab.split(': ')[1]||lab)+': only Tier 1 traits are available cross-species');}{var _rtSet=new Set(b.racialTraits||[]);var _ownsR=function(nm){if(_rtSet.has(nm))return true;var _r=DATA.racial[nm];return !!(_r&&_r.pack&&(_r.race===b.species||_r.race===b.species2));};for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;var _sn=(lab.split(": ")[1]||lab);if(r.reqRace&&!_ownsR(r.reqRace))W.push("⛔ "+_sn+" requires "+((r.reqRace.split(": ")[1])||r.reqRace));if(r.minHD&&hd<r.minHD)W.push("⛔ "+_sn+" needs "+r.minHD+" Hit Dice (level "+r.minHD+")");}}
   // §10 lineage spell-likes: cap-exempt cantrips + half-price 1/long-rest spells (Appendix B prices)
   {const _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[]; let _rs=0;
-   for(const nm of (b.racialSpells||[])){const s=_lin.find(x=>x[0]===nm); if(!s)continue; _rs+=s[1];
+   for(const nm of (b.racialSpells||[])){const s=_lin.find(x=>x[0]===nm); if(!s){W.push(nm+" is no longer in the rules data — no cost/effect applied");continue;} _rs+=s[1];
      if(s[2]>0 && hd<(DATA.hdGate[s[2]-1]||1)) W.push("Lineage spell "+nm+" (L"+s[2]+") needs "+(DATA.hdGate[s[2]-1])+" Hit Dice");}
    add("Lineage spell-likes",_rs);}
   // class access — unlock cost is 7 × classes already owned (origin + any 2nd origin counted first)

@@ -22,6 +22,13 @@ by count (`DATA.mastery[mast.length]`), not by per-name lookup; `unlockedClasses
 logic, not a DATA-table lookup; "feats" isn't a real category in this data model (no `b.feats` field
 exists at all — likely already covered under "features").
 
+**`/code-review ultra` found an 8th site the original audit missed:** `b.racialSpells` (lineage
+spell-likes, looked up via `_lin.find(x=>x[0]===nm)`) has the identical shape — a per-name `DATA`
+lookup that silently contributed 0 AP with no warning on a miss. Verified directly against
+`js/engine.js` before fixing; same fix pattern (`_lin.find` fails → push the same warning wording,
+`continue`, unchanged pricing behavior otherwise). New fixture **CG-038** (`lineage: "Drow"`,
+`racialSpells: ["Retired Spell Not In Lineage"]`) covers it the same way CG-037 covers boons.
+
 At each of the 7 sites, added exactly one line: when the lookup fails, push a warning naming the missing
 reference (`"<label> is no longer in the rules data — no cost/effect applied"`) before the existing
 `continue`. Existing skip/zero-fallback pricing behavior is completely unchanged — confirmed by 0 output
@@ -56,7 +63,26 @@ matching the file's actual, verified convention over the task board's off-the-cu
 CG-001): confirms the missing reference contributes 0 AP (total 2, identical to CG-001's baseline,
 unaffected by the unrecognized boon) while the expected warning fires. Computed via `compute()` directly
 before writing the expected CSV row/warnings entry, not guessed. `testing/tests/engine-parity.html`'s
-`FIXTURES` manifest updated in the same change.
+`FIXTURES` manifest updated in the same change. **CG-038** (added for the code-review addendum above)
+follows the identical pattern for the `racialSpells` site.
+
+**`/code-review ultra` also found a real stored-XSS regression the original 7-site change introduced.**
+Every prior warning in `compute()` names a curated `DATA` key (a rules-authored string); these 8 new
+"is no longer in the rules data" warnings are the first case where the *label itself* is
+attacker-controlled free text — whatever a signed-in user stored as a boon/trait/feature/spell name
+before it was retired from `DATA` now flows verbatim into `compute().warnings`, and both CharGen and
+Live Sheet render that array into `innerHTML` unescaped at the two sites that surface it:
+`tools/PACT-CharGen-Webtool.html`'s warning-list renderer and `tools/PACT-Live-Char-Sheet.html`'s
+"Rule warning: " issue line. DM Console's equivalent render already used `esc()`, which is what exposed
+the other two as the actual bug rather than a pattern. Fixed both call sites with `esc(w)`, matching
+the file's own existing convention (Live Sheet's adjacent line 1307-1309 already did this for a
+different, pre-existing "no longer in rules" check — the fix brings the new sites in line with a
+pattern already present in the same file, not a new one). Verified with two new `tool-pricing-ci.mjs`
+regression tests (one per tool) that push a `boon` LOG entry with an `<img src=x onerror=...>` payload
+as the label and assert (a) no live `<img>` element lands in the DOM (`querySelector('img')` false) and
+(b) the escaped text is present in the rendered HTML (`innerHTML.includes('&lt;img')` true) — both
+confirmed to fail red against the reverted fix before being trusted as green confirmations of the real
+one.
 
 ## Why
 
@@ -70,12 +96,19 @@ before writing the expected CSV row/warnings entry, not guessed. `testing/tests/
 - **Duplicate warnings for one stale label would have undermined trust in the warning itself.** A player
   seeing the same "is no longer in the rules data" line three times for one racial trait would reasonably
   assume something is more broken than it is.
+- **A warning that names attacker-controlled text is a new trust boundary, not a cosmetic addition.**
+  Every other warning in `compute()` echoes a curated `DATA` key; these are the first to echo whatever a
+  user previously stored as a free-text label. Skipping `esc()` at the two render sites would have turned
+  a "helpful diagnostic" feature into a stored-XSS path the moment cloud data crosses between users —
+  exactly the class of bug `AGENTS.md`'s `esc()` hard invariant (REV-12) exists to prevent, and exactly
+  why `/code-review` treats it as a blocking finding rather than a style nit.
 
 ## Verification
 
-`engine-parity-ci.mjs`: 58/0 (57 pre-existing fixtures unaffected, CG-037 exercises the new warning path
-with a value computed directly from `compute()`, not guessed). `tool-pricing-ci.mjs`: 168/0, unaffected —
-this change is scoped to `js/engine.js`'s pricing loops, no tool file touched.
+`engine-parity-ci.mjs`: 59/0 (57 pre-existing fixtures unaffected, CG-037 and CG-038 exercise the two
+new warning paths with values computed directly from `compute()`, not guessed). `tool-pricing-ci.mjs`:
+170/0 (168 pre-existing checks unaffected, plus the 2 new XSS-regression tests — one per tool — both
+confirmed to fail red against the reverted fix before being trusted green).
 
 ## Status
 
