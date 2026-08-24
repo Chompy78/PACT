@@ -37,8 +37,15 @@ jobs:
       - name: Install test deps
         working-directory: testing
         run: npm ci
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('testing/package-lock.json') }}
+
       - name: Install Chromium
         working-directory: testing
+        timeout-minutes: 5
         run: npx playwright install --with-deps chromium
       - name: Theme switcher checks
         run: node testing/scripts/guide-theme-e2e.mjs
