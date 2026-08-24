@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-24 · fix(db): archived campaigns are now write-locked server-side, not just in the DM
+  Console UI; `sql/migrations/2026-08-22-archived-campaign-write-lockdown.sql`** — `award_ap`,
+  `award_gold`, `declare_downtime`, `dm_edit_character_log`, `dm_unbind_character` now reject a write
+  against an archived campaign (new `assert_campaign_active()` check, right after each function's
+  existing DM-authority check), and the `campaigns_update`/`characters_delete` RLS policies gained the
+  same check via a new `is_campaign_dm_and_active()` predicate. `characters_delete`'s missing archive
+  check — any campaign DM could otherwise hard-delete a bound character with no check at all — was found
+  during this work's own broader write-surface audit, not in the original task-board finding. Cold-reviewed
+  by 5 independent reviewers before implementation (production RLS/RPC change). Verified with a full
+  fixture-based role/state matrix directly against production (no local Supabase stack available in this
+  environment): all seven paths confirmed to reject while archived and restore after
+  `unarchive_campaign()`; negative-authority-ordering, positive-still-readable, and cross-campaign-
+  isolation controls all held. `engine-parity-ci.mjs` 65/0 (null control — no `js/` file touched).
+  Supabase advisor: no new finding class. See `DECISIONS.md`
+  D-GH-2026-08-22-archived-campaign-rpc-enforcement.
+
 - **2026-08-24 · fix(tools): the new missing-DATA-reference warnings now classify as advisory, not a hard
   issue; +6 fixtures** — `/code-review ultra` post-merge audit of `feat/warn-missing-data-refs` found
   CharGen's `isAdvisory()` and Live Sheet's `_lsIsAdvisory()` were never updated for the new "is no longer

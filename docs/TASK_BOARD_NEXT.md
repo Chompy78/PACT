@@ -27,56 +27,6 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## "Archived campaign is read-only" is enforced client-side only — the DM-write RPCs have no matching check — TODO
-**2026-08-23 update: the required `/make-code-cold-plan-review` pass is done — this task is unblocked
-for implementation.** Full plan, 5-reviewer cold review, and both flagged product decisions (block
-`dm_unbind_character` and the newly-found `characters_delete` while archived — see below) are recorded in
-`docs/plans/2026-08-22-archived-campaign-rpc-enforcement-cold-review.md`. That plan's own inventory is
-more current than this entry's original text — it found 7 write paths, not the 6 named below, and
-corrected two names (`set_ignore_player_ap`/`set_campaign_rules` aren't RPCs at all, they're a
-column-grant + RLS-policy path). Read the plan before starting implementation; treat the steps below as
-superseded by it, not a second, independent checklist.
-
-Branch `fix/archived-campaign-rpc-enforcement`. `tools/DM-Console.html:2299-2305, 2545-2548` plus six more
-`_dmPeekActive`-style guard sites scattered across click handlers. Cross-checked against the actual
-backend: `award_ap()` (`sql/migrations/2026-06-29-codm-ap-ledger.sql`) checks only `is_campaign_dm()` —
-no `archived_at IS NULL` condition — and `is_campaign_dm()`/`is_campaign_owner()` in
-`sql/rls-policies.sql` likewise never reference `archived_at`. Every write action while peeking an
-archived campaign is blocked purely by scattered `if(window._dmPeekActive && ...) return;` checks in this
-file's click handlers, not by anything the server itself enforces. Lower severity than a cross-user issue
-(the only actor who can reach this state — a campaign's own DM/co-DM — already holds full RPC authority
-over the campaign), but "archived = safe to browse" is a client convention today, not an invariant — it
-would not survive a stray direct call or a future click-handler refactor that misses one of the several
-guard sites this pattern requires remembering.
-
-**⚠ Do not implement without running `/make-code-cold-plan-review` first.** This is a production
-RLS/RPC change on the same security boundary the invitation-system and DM-creation-lock work already
-treats as high-risk (AGENTS.md: "RLS is the only real security boundary"). Deferred from this audit sweep
-for that reason — the mechanical/UI-only findings in this batch were fixed directly; this one needs its
-own dedicated pass with Supabase advisor verification, not a same-session bundle fix.
-
-**Effort:** medium · **Risk:** high — ambiguity is low on the mechanism (add `archived_at is null` to each
-DM-write RPC) but damage scale is high (any mistake here is a production RLS/RPC change); damage
-likelihood is low-medium (the advisor catches shape but not intent, and this project's RLS/grant drift has
-bitten it before per D-GH15/D-GH12). **Not sweep-eligible.**
-
-```text
-1. Inventory every DM-write RPC (award_ap, dm_edit_character_log, set_ignore_player_ap, declare_downtime,
-   set_campaign_rules, and any others touching campaign/character state) and confirm which lack an
-   archived_at check — don't assume the four named above are the complete list.
-2. Add archived_at is null to each, as a migration.
-3. After the migration, run the Supabase advisor (get_advisors) and skim get_logs before opening the PR —
-   this project has been bitten twice by grant/RLS drift the advisor catches for free (D-GH15, D-GH12).
-4. Verify signed-in: an archived campaign's DM cannot award AP / edit a character log / change settings
-   via a direct RPC call, not just through the (already-correct) client UI.
-5. Confirm no LEGITIMATE workflow needs to write to an archived campaign (e.g. un-archiving itself must
-   still work) — the check must exempt whatever RPC actually un-archives a campaign, if any.
-```
-
-**Done when:** every DM-write RPC rejects a write against an archived campaign server-side, verified by a
-direct signed-in RPC call (not just through the UI); the Supabase advisor reports no new findings; the
-un-archive path (if any) still works.
-
 ## REV-14b — split js/engine.js's compute() into named sub-pricers — TODO
 Branch refactor/rev-14b-compute-subpricers. Second half of REV-14 (REV-14a — the DATA extraction — shipped
 in PR #251); decompose compute()'s single ~370-line body (~lines 76–446) into named `_price*` helpers. Full

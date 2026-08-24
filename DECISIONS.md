@@ -10,6 +10,23 @@
 
 ## Index
 
+## D-GH-2026-08-22-archived-campaign-rpc-enforcement — server-side enforcement that an archived campaign is write-locked
+- "Archived = read-only" was enforced only in `tools/DM-Console.html`'s client JS — no RLS policy or RPC
+  rejected a write against an archived campaign. Cold-reviewed by 5 independent reviewers before
+  implementation per `AGENTS.md`'s high-risk-change rule. Scope: seven write paths (five
+  `SECURITY DEFINER` RPCs — `award_ap`, `award_gold`, `declare_downtime`, `dm_edit_character_log`,
+  `dm_unbind_character` — plus the `campaigns_update` and `characters_delete` RLS policies), narrower
+  than the task board's original unscoped wording; two of the board's five presumed RPC names
+  (`set_ignore_player_ap`/`set_campaign_rules`) turned out to be a column-grant, not functions;
+  `characters_delete`'s missing archive check (a DM could otherwise hard-delete a bound character with
+  no check at all) was found during this work's own broader write-surface audit, not named by the
+  original finding. One fail-closed `is_campaign_active()` primitive, two call-site helpers derived from
+  it. Verified with a full fixture-based role/state matrix run directly against production via
+  authenticated-role SQL simulation (this environment has no Docker/Supabase-CLI for a local stack) —
+  all seven paths confirmed to reject while archived and restore after `unarchive_campaign()`;
+  negative-authority-ordering, positive-still-readable, and cross-campaign-isolation controls all
+  confirmed. Full record: `decisions/2026/D-GH-2026-08-22-archived-campaign-rpc-enforcement.md`.
+
 ## D-GH-2026-08-24-missing-data-ref-warning-classification — fix 3 confirmed findings from a post-merge /code-review ultra
 - CharGen's `isAdvisory()` and Live Sheet's `_lsIsAdvisory()` were never updated when
   `feat/warn-missing-data-refs` added 8 new "is no longer in the rules data" warnings, so the notice
