@@ -57,10 +57,17 @@ jobs:
         working-directory: testing
         run: npm ci
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: /opt/pw-browsers
+          key: ${{ runner.os }}-playwright-${{ hashFiles('testing/package-lock.json') }}-pw-browsers
+
       # Pinned to a cache path the gate's own findChrome() already probes, so the binary it picks is the
       # one we installed rather than whatever the image happens to have.
       - name: Install Chromium
         working-directory: testing
+        timeout-minutes: 5
         run: npx playwright install --with-deps chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
