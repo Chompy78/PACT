@@ -16,6 +16,34 @@
   `/code-review ultra` after the initial 7-site change — fixed with `esc(w)` at both render sites,
   matching DM Console's existing correct pattern. New fixtures CG-037, CG-038; 2 new XSS regression
   checks in `tool-pricing-ci.mjs`. `D-GH-2026-08-24-warn-missing-data-refs`.
+- **2026-08-24 · docs: graduated 3 merged PRs' task-board entries that were left un-graduated at merge
+  time** — `ci/engine-data-path-filters` (#458), `ci/cache-chromium` (#459), and
+  `test/guide-drawback-price-check` (#460) each shipped without their `CHANGELOG.md`/task-board-graduation
+  step, a violation of `AGENTS.md`'s own per-change checklist step 5/7 caught while writing this session's
+  sweep-log entry. Backfilled below with entries stamped at their actual merge dates; task-board sections
+  removed. No code changed in this commit.
+
+- **2026-08-24 · ci(engine-data): add `js/engine-data.js` to 6 workflows' path filters** — `engine-parity.yml`,
+  `tool-pricing.yml`, `static-audit.yml`, `chargen-flows.yml`, `dm-console-ui.yml`, `character-gen-e2e.yml`
+  already watched `js/engine.js` but not its `DATA` split-out (REV-14a), so a PR touching only
+  `engine-data.js` silently skipped all six — observed for real on PR #441 (only 2 of 9 workflows ran).
+  `cloud-e2e.yml` deliberately left unchanged (never watched `js/engine.js` by design). PR #458.
+
+- **2026-08-24 · ci: cache Chromium in the 7 browser-driven CI jobs + a step-level install timeout** —
+  `character-gen-e2e`, `chargen-flows`, `cloud-e2e`, `dm-console-ui`, `guide-theme`, `sw-cache-e2e`,
+  `tool-pricing` ran `npx playwright install --with-deps chromium` uncached; observed 4 real install
+  stalls across PRs #429/#430 the same night, each misreading as a test failure once the job's own
+  timeout killed it mid-install. Added `actions/cache` keyed on runner OS + Playwright lockfile hash, plus
+  a 5-minute step-level timeout on the install step itself so a stall now fails naming the install step
+  instead of silently skipping every test. PR #459.
+
+- **2026-08-24 · test(guide): drawback AP-gained prices now verified against `DATA.drawbacks`** —
+  `guide-price-check.mjs` had zero drawback-price coverage, the same class of gap that produced the
+  six-day Grit ladder divergence (`D-GH-2026-08-12-grit-steep-ladder`). Extended `verify-guide.mjs`'s
+  existing drawback-text check to also compare the guide's "AP gained" column against `DATA.drawbacks`;
+  confirmed live by deliberately mispricing one drawback on a scratch copy and watching the check catch
+  it by name. All 84 AP values (90 drawbacks minus 6 sharing the Affliction row) match. PR #460.
+
 - **2026-08-24 · fix(livesheet): drawback purchases now go through `legalCheck()`; fix(chargen): a
   rejected random drawback no longer leaks a draw attempt** — `takeDrawback()` bypassed all rules
   enforcement in the Live Sheet (a Fighter could tick Mana Leak, a broken stat cap went unenforced).
