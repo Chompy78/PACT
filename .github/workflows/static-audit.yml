@@ -27,6 +27,7 @@ on:
       - "tools/PACT-Live-Char-Sheet.html"
       - "tools/DM-Console.html"
       - "js/engine.js"
+      - "js/engine-data.js"
       - "sql/schema.sql"
       - "sql/rls-policies.sql"
       - "testing/scripts/audit.py"
