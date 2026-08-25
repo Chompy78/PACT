@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-25 · test(dm-console): stub `listCampaignInvites` to remove a real CI-only race in the
+  warnings-banner check; `testing/scripts/dm-console-ui-e2e.mjs`** — `dm-console-ui` failed once in CI on
+  the PR #469 promotion; local repro + one CI re-run both passed, so it was first called a flake and
+  merged. Re-investigated while writing the session close-out after noticing `CHANGELOG.md` already
+  recorded a directly analogous 2026-08-22 incident (PR #447) in the *same test file* that was NOT a
+  flake. Traced the real cause this time: `selectCampaign()` fire-and-forgets `loadInvites()`, which
+  calls the real, unstubbed `listCampaignInvites()` against live Supabase and unconditionally calls
+  `renderCampWarnings()` on both its success and error path — a slow real network round-trip landing
+  after the test's own synthetic `seedInvites()` calls silently clobbers the assertion's data. Fixed by
+  stubbing the call for that one check block instead of guessing a longer timeout. 96/96 on 3 consecutive
+  runs. Test-only — no `tools/`/`js/`/`sql/` change, so `main` carried no live defect from this. See
+  `DECISIONS.md` D-GH-2026-08-25-dm-console-warnings-race-flake.
+
 - **2026-08-25 · fix(auth): password reset was broken end-to-end — wrong redirect target plus no page
   to handle it; `js/auth.js`, `login.html`** — `forgotPassword()` redirected to the app homepage, which
   has no recovery handling, so the recovery session Supabase establishes was silently discarded; even a
