@@ -431,9 +431,25 @@ check('re-selecting the campaign re-locks it', peek.reselectRelocks === true);
 // 12. Campaign warnings banner (feat/dm-console-warnings-and-rules-lock) — surfaces stale/unused invites
 //     and a 0-AP player invite without the DM having to open the collapsed invite panels. seedInvites()
 //     drives the real renderCampWarnings() (mirrors seedInvites' existing use for renderInvites() above).
+//
+// CI-only failure investigated 2026-08-25 (PR #469's promotion): this block re-selects 'live-1', which
+// (via selectCampaign()) fire-and-forgets a REAL, unstubbed loadInvites() -> B.listCampaignInvites() —
+// this file's own header explains why that's normally harmless ("only network calls fail, which is
+// irrelevant to wiring and arithmetic"), but THIS block is the one place that's false: loadInvites()
+// unconditionally calls renderCampWarnings() on both its success AND error path (DM-Console.html), so a
+// slow-to-settle real network round-trip landing AFTER this block's own seedInvites() calls silently
+// clobbers _invites back to [] and wipes the banner this block just asserted — reproduced by tracing the
+// exact code path, not just re-running until green (see D-GH-2026-08-25-dm-console-warnings-race-flake).
+// Fixed by stubbing B.listCampaignInvites for this block's duration so there is no real network call
+// left to race against — removes the non-determinism instead of trying to out-wait it, matching this
+// file's own established rule ("waiting on a condition beats sleeping on a guess") elsewhere.
 const warn = await page.evaluate(async ()=>{
   const P = window._dmArchivedPeek;
+  const B = window._campBridge;
   const out = {};
+  const realListCampaignInvites = B.listCampaignInvites;
+  B.listCampaignInvites = () => Promise.resolve([]);
+  try {
   await P.select('live-1');
   await new Promise(r=>setTimeout(r,60));
   const bannerDisplay = () => getComputedStyle(document.getElementById('campWarnBanner')).display;
@@ -472,6 +488,9 @@ const warn = await page.evaluate(async ()=>{
   await new Promise(r=>setTimeout(r,40));
   out.deselectHidesBanner = bannerDisplay() === 'none';
   return out;
+  } finally {
+    B.listCampaignInvites = realListCampaignInvites;   // no later check relies on the stub; restore anyway
+  }
 });
 check('no invites -> warnings banner hidden', warn.emptyHidesBanner === true);
 check('a stale + zero-AP + settled + fresh + stale-dm + settled-dm + exhausted-reusable-dm mix shows the banner',

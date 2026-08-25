@@ -10,6 +10,21 @@
 
 ## Index
 
+## D-GH-2026-08-25-dm-console-warnings-race-flake — a "flake" verdict on dm-console-ui-e2e.mjs was wrong; root-caused and fixed the real race
+- `dm-console-ui` failed once in CI on PR #469 (the promotion PR); local repro + one CI re-run both
+  passed, so it was called a flake and PR #469 was merged. That conclusion needed re-checking:
+  `CHANGELOG.md` already documented a directly analogous 2026-08-22 incident (PR #447) in the *same test
+  file* that was NOT a flake — a genuine stale-response race. Traced the actual code path this time
+  rather than re-running again: `selectCampaign()` fire-and-forgets `loadInvites()`, which calls the
+  real, unstubbed `listCampaignInvites()` against live Supabase (the source of the 400/401s in the
+  failing log); `loadInvites()` unconditionally calls `renderCampWarnings()` on both its success and
+  error path, so a slow real network round-trip landing after the test's own synthetic `seedInvites()`
+  calls silently clobbers the test's data. Fixed by stubbing `listCampaignInvites` for that one check
+  block instead of guessing a longer timeout — removes the non-determinism rather than out-waiting it.
+  96/96 on 3 consecutive local runs. Test-only change (no `tools/`/`js/`/`sql/` touched), so `main` isn't
+  carrying a live defect — rides the next normal promotion. Full record:
+  `decisions/2026/D-GH-2026-08-25-dm-console-warnings-race-flake.md`.
+
 ## D-GH-2026-08-25-password-reset-flow — password reset was broken end-to-end; fixed the redirect target and built the missing recovery page
 - Two defects, not one: `forgotPassword()` redirected to the app homepage (no recovery handling at all),
   and even a correct redirect would have landed nowhere — `updatePassword()` existed in `js/auth.js` but
