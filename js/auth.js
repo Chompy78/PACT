@@ -11,6 +11,14 @@ import { supabase } from './supabase-client.js';
 
 const REDIRECT_BASE = 'https://chompy78.github.io/PACT/';
 
+// Password-reset emails must land on a page that actually HANDLES Supabase's recovery redirect
+// (login.html's recovery branch listens for the PASSWORD_RECOVERY auth event and shows a
+// new-password form) — a separate constant from REDIRECT_BASE, which register()'s
+// emailRedirectTo below still correctly points at the app homepage. Previously this reused
+// REDIRECT_BASE, so a reset link landed on index.html, which has no recovery handling at all —
+// see fix/password-reset-flow / D-GH-2026-08-25-password-reset-flow.
+const RESET_REDIRECT = REDIRECT_BASE + 'login.html';
+
 /**
  * Register a new user. displayName is stored in auth metadata and copied into
  * public.profiles by the signup trigger (see sql/schema.sql).
@@ -36,10 +44,10 @@ export async function login(email, password) {
   return data;
 }
 
-/** Send a password-reset email (link returns the user to the app). */
+/** Send a password-reset email (link returns the user to login.html's recovery form). */
 export async function forgotPassword(email) {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: REDIRECT_BASE,
+    redirectTo: RESET_REDIRECT,
   });
   if (error) throw error;
 }

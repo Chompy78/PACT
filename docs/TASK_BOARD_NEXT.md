@@ -27,56 +27,6 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## "Archived campaign is read-only" is enforced client-side only — the DM-write RPCs have no matching check — TODO
-**2026-08-23 update: the required `/make-code-cold-plan-review` pass is done — this task is unblocked
-for implementation.** Full plan, 5-reviewer cold review, and both flagged product decisions (block
-`dm_unbind_character` and the newly-found `characters_delete` while archived — see below) are recorded in
-`docs/plans/2026-08-22-archived-campaign-rpc-enforcement-cold-review.md`. That plan's own inventory is
-more current than this entry's original text — it found 7 write paths, not the 6 named below, and
-corrected two names (`set_ignore_player_ap`/`set_campaign_rules` aren't RPCs at all, they're a
-column-grant + RLS-policy path). Read the plan before starting implementation; treat the steps below as
-superseded by it, not a second, independent checklist.
-
-Branch `fix/archived-campaign-rpc-enforcement`. `tools/DM-Console.html:2299-2305, 2545-2548` plus six more
-`_dmPeekActive`-style guard sites scattered across click handlers. Cross-checked against the actual
-backend: `award_ap()` (`sql/migrations/2026-06-29-codm-ap-ledger.sql`) checks only `is_campaign_dm()` —
-no `archived_at IS NULL` condition — and `is_campaign_dm()`/`is_campaign_owner()` in
-`sql/rls-policies.sql` likewise never reference `archived_at`. Every write action while peeking an
-archived campaign is blocked purely by scattered `if(window._dmPeekActive && ...) return;` checks in this
-file's click handlers, not by anything the server itself enforces. Lower severity than a cross-user issue
-(the only actor who can reach this state — a campaign's own DM/co-DM — already holds full RPC authority
-over the campaign), but "archived = safe to browse" is a client convention today, not an invariant — it
-would not survive a stray direct call or a future click-handler refactor that misses one of the several
-guard sites this pattern requires remembering.
-
-**⚠ Do not implement without running `/make-code-cold-plan-review` first.** This is a production
-RLS/RPC change on the same security boundary the invitation-system and DM-creation-lock work already
-treats as high-risk (AGENTS.md: "RLS is the only real security boundary"). Deferred from this audit sweep
-for that reason — the mechanical/UI-only findings in this batch were fixed directly; this one needs its
-own dedicated pass with Supabase advisor verification, not a same-session bundle fix.
-
-**Effort:** medium · **Risk:** high — ambiguity is low on the mechanism (add `archived_at is null` to each
-DM-write RPC) but damage scale is high (any mistake here is a production RLS/RPC change); damage
-likelihood is low-medium (the advisor catches shape but not intent, and this project's RLS/grant drift has
-bitten it before per D-GH15/D-GH12). **Not sweep-eligible.**
-
-```text
-1. Inventory every DM-write RPC (award_ap, dm_edit_character_log, set_ignore_player_ap, declare_downtime,
-   set_campaign_rules, and any others touching campaign/character state) and confirm which lack an
-   archived_at check — don't assume the four named above are the complete list.
-2. Add archived_at is null to each, as a migration.
-3. After the migration, run the Supabase advisor (get_advisors) and skim get_logs before opening the PR —
-   this project has been bitten twice by grant/RLS drift the advisor catches for free (D-GH15, D-GH12).
-4. Verify signed-in: an archived campaign's DM cannot award AP / edit a character log / change settings
-   via a direct RPC call, not just through the (already-correct) client UI.
-5. Confirm no LEGITIMATE workflow needs to write to an archived campaign (e.g. un-archiving itself must
-   still work) — the check must exempt whatever RPC actually un-archives a campaign, if any.
-```
-
-**Done when:** every DM-write RPC rejects a write against an archived campaign server-side, verified by a
-direct signed-in RPC call (not just through the UI); the Supabase advisor reports no new findings; the
-un-archive path (if any) still works.
-
 ## REV-14b — split js/engine.js's compute() into named sub-pricers — TODO
 Branch refactor/rev-14b-compute-subpricers. Second half of REV-14 (REV-14a — the DATA extraction — shipped
 in PR #251); decompose compute()'s single ~370-line body (~lines 76–446) into named `_price*` helpers. Full
@@ -182,49 +132,6 @@ impossible. **Not** sweep-eligible.
 today's behaviour exactly, joining past the limit fails with a message naming the limit, lowering the
 limit never removes an existing character, the race guard is demonstrably still closed at the new N,
 the advisor reports no new findings, and `cloud-e2e` covers limit=1, limit=2 and the refusal.
-
-## Password reset is broken end-to-end — the email link lands on the homepage — TODO
-Branch `fix/password-reset-flow`. Reported by the owner: clicking the reset link in the recovery email
-takes you to the main PACT homepage, not to anywhere you can set a new password. Confirmed in the code,
-and it is **two** defects, not one — fixing only the link would still leave the flow dead:
-
-1. **Wrong destination.** `js/auth.js:41-43` calls `resetPasswordForEmail(email, { redirectTo:
-   REDIRECT_BASE })`, and `REDIRECT_BASE` (`js/auth.js:12`) is `https://chompy78.github.io/PACT/` — the
-   app menu. `index.html` has no recovery handling, so the recovery session is established and then
-   silently discarded.
-2. **There is no reset page at all.** `setNewPassword()` exists (`js/auth.js:52`, calling
-   `supabase.auth.updateUser({password})`, with a comment noting Supabase has put the user in a
-   temporary recovery session by then) but **nothing anywhere calls it** — verified by grep across all
-   `.html`/`.js` outside `js/vendor/`. `login.html` has no recovery branch and no new-password form.
-   So even pointed at `login.html`, the link would land on a sign-in form the user can't use.
-
-**Effort:** medium · **Risk:** medium — auth flow on production, and the failure mode is a locked-out
-user rather than a visible error. Needs a real end-to-end test with a live recovery email; the happy
-path cannot be verified by unit-level checks alone. Not sweep-eligible.
-
-```text
-1. Add a recovery branch (a `?type=recovery` route on login.html, or a small reset.html) that listens
-   for Supabase's PASSWORD_RECOVERY auth event and shows a new-password form, then calls the existing
-   setNewPassword(). Prefer login.html — one auth page, one place service-worker caching has to be
-   right — unless the fragment handling makes a dedicated page materially simpler.
-2. Point resetPasswordForEmail's redirectTo at that page. Note REDIRECT_BASE is ALSO used by signUp's
-   emailRedirectTo (js/auth.js:25), where the homepage IS correct — so introduce a separate constant
-   rather than repointing the shared one.
-3. Add the new URL to the Supabase project's Auth → URL Configuration → Redirect URLs allow-list.
-   A redirect not on that list is silently rewritten to the Site URL — which is very likely the real
-   reason this lands on the homepage, so CHECK THIS FIRST: the allow-list may make step 2 a no-op
-   until it is fixed, and it is a dashboard setting, not a repo change.
-4. The recovery token arrives in the URL fragment/query and is consumed on load — make sure the page
-   reads it before anything (service worker, a redirect, a router) can drop it, and that the service
-   worker does not serve a cached copy of the page that misses the fragment handler.
-5. Handle the expired/already-used token case with a real message and a way to request a new email,
-   not a blank form.
-6. Confirm sign-UP confirmation emails still land on the homepage correctly after the constant split.
-```
-
-**Done when:** a real recovery email's link opens a page that accepts a new password, the new password
-works for sign-in, an expired link says so and offers a resend, the signup confirmation email is
-unaffected, and the redirect URL is on the Supabase allow-list.
 
 ## Record which of D1/D2 governs a pre-lock level-up — the divergence itself is GONE — TODO
 Branch `docs/prelock-pricing-rule`. **Re-measured 2026-08-19 on v0.356: the divergence does not

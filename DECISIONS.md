@@ -10,6 +10,40 @@
 
 ## Index
 
+## D-GH-2026-08-25-password-reset-flow — password reset was broken end-to-end; fixed the redirect target and built the missing recovery page
+- Two defects, not one: `forgotPassword()` redirected to the app homepage (no recovery handling at all),
+  and even a correct redirect would have landed nowhere — `updatePassword()` existed in `js/auth.js` but
+  nothing called it. Fixed with a new `RESET_REDIRECT` constant (`login.html`, separate from
+  `REDIRECT_BASE`, which `signUp()` still correctly uses) and a new recovery view in `login.html`.
+  Detection logic (`type=recovery` vs `error=` in the URL fragment) verified directly against the
+  vendored Supabase client source rather than assumed from memory; a synchronous pre-import hint script
+  avoids a real race between the client's own async hash-clearing and the page's boot logic. The
+  existing "already signed in → bounce to index.html" check had to move behind the new recovery/error
+  branches — Supabase's recovery redirect establishes a real session, so it would otherwise have kicked
+  a genuine recovery visit away before they ever saw the new-password form. **Needs a Supabase dashboard
+  step this session's tools can't perform:** `https://chompy78.github.io/PACT/login.html` must be added
+  to Auth → URL Configuration → Redirect URLs before this works in production. No automated e2e coverage
+  added (`cloud-e2e.mjs` needs Docker, unavailable in this environment) — verified instead via syntax
+  checks, a DOM-id cross-reference, and a manual trace of all four boot-state branches. Full record:
+  `decisions/2026/D-GH-2026-08-25-password-reset-flow.md`.
+
+## D-GH-2026-08-22-archived-campaign-rpc-enforcement — server-side enforcement that an archived campaign is write-locked
+- "Archived = read-only" was enforced only in `tools/DM-Console.html`'s client JS — no RLS policy or RPC
+  rejected a write against an archived campaign. Cold-reviewed by 5 independent reviewers before
+  implementation per `AGENTS.md`'s high-risk-change rule. Scope: seven write paths (five
+  `SECURITY DEFINER` RPCs — `award_ap`, `award_gold`, `declare_downtime`, `dm_edit_character_log`,
+  `dm_unbind_character` — plus the `campaigns_update` and `characters_delete` RLS policies), narrower
+  than the task board's original unscoped wording; two of the board's five presumed RPC names
+  (`set_ignore_player_ap`/`set_campaign_rules`) turned out to be a column-grant, not functions;
+  `characters_delete`'s missing archive check (a DM could otherwise hard-delete a bound character with
+  no check at all) was found during this work's own broader write-surface audit, not named by the
+  original finding. One fail-closed `is_campaign_active()` primitive, two call-site helpers derived from
+  it. Verified with a full fixture-based role/state matrix run directly against production via
+  authenticated-role SQL simulation (this environment has no Docker/Supabase-CLI for a local stack) —
+  all seven paths confirmed to reject while archived and restore after `unarchive_campaign()`;
+  negative-authority-ordering, positive-still-readable, and cross-campaign-isolation controls all
+  confirmed. Full record: `decisions/2026/D-GH-2026-08-22-archived-campaign-rpc-enforcement.md`.
+
 ## D-GH-2026-08-24-missing-data-ref-warning-classification — fix 3 confirmed findings from a post-merge /code-review ultra
 - CharGen's `isAdvisory()` and Live Sheet's `_lsIsAdvisory()` were never updated when
   `feat/warn-missing-data-refs` added 8 new "is no longer in the rules data" warnings, so the notice
