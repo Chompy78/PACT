@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-25 · fix(auth): password reset was broken end-to-end — wrong redirect target plus no page
+  to handle it; `js/auth.js`, `login.html`** — `forgotPassword()` redirected to the app homepage, which
+  has no recovery handling, so the recovery session Supabase establishes was silently discarded; even a
+  correct redirect would have landed nowhere, since `updatePassword()` existed but nothing called it.
+  Added a `RESET_REDIRECT` constant pointing at `login.html` (separate from `REDIRECT_BASE`, which
+  `signUp()` still correctly uses) and a new recovery view there: a synchronous pre-import script detects
+  `type=recovery`/`error=` in the URL fragment before the Supabase client's own async hash-clearing can
+  race it (mechanics verified against the vendored client source, not assumed), a "verifying…" state
+  waits for the real `PASSWORD_RECOVERY` event, and an expired/invalid-token state offers a resend. The
+  existing signed-in bounce-to-index check now runs only when neither branch applies — it would otherwise
+  fire on a genuine recovery visit too, since the recovery redirect itself establishes a session.
+  **Needs a manual Supabase dashboard step** (add `https://chompy78.github.io/PACT/login.html` to Auth →
+  URL Configuration → Redirect URLs) that this session's tools cannot perform — flagged, not silently
+  assumed done. `engine-parity-ci.mjs` 65/0, `tool-pricing-ci.mjs` 176/0 (both null controls; no `js/`
+  rules code touched). See `DECISIONS.md` D-GH-2026-08-25-password-reset-flow.
+
 - **2026-08-24 · fix(db): archived campaigns are now write-locked server-side, not just in the DM
   Console UI; `sql/migrations/2026-08-22-archived-campaign-write-lockdown.sql`** — `award_ap`,
   `award_gold`, `declare_downtime`, `dm_edit_character_log`, `dm_unbind_character` now reject a write

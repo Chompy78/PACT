@@ -10,6 +10,23 @@
 
 ## Index
 
+## D-GH-2026-08-25-password-reset-flow — password reset was broken end-to-end; fixed the redirect target and built the missing recovery page
+- Two defects, not one: `forgotPassword()` redirected to the app homepage (no recovery handling at all),
+  and even a correct redirect would have landed nowhere — `updatePassword()` existed in `js/auth.js` but
+  nothing called it. Fixed with a new `RESET_REDIRECT` constant (`login.html`, separate from
+  `REDIRECT_BASE`, which `signUp()` still correctly uses) and a new recovery view in `login.html`.
+  Detection logic (`type=recovery` vs `error=` in the URL fragment) verified directly against the
+  vendored Supabase client source rather than assumed from memory; a synchronous pre-import hint script
+  avoids a real race between the client's own async hash-clearing and the page's boot logic. The
+  existing "already signed in → bounce to index.html" check had to move behind the new recovery/error
+  branches — Supabase's recovery redirect establishes a real session, so it would otherwise have kicked
+  a genuine recovery visit away before they ever saw the new-password form. **Needs a Supabase dashboard
+  step this session's tools can't perform:** `https://chompy78.github.io/PACT/login.html` must be added
+  to Auth → URL Configuration → Redirect URLs before this works in production. No automated e2e coverage
+  added (`cloud-e2e.mjs` needs Docker, unavailable in this environment) — verified instead via syntax
+  checks, a DOM-id cross-reference, and a manual trace of all four boot-state branches. Full record:
+  `decisions/2026/D-GH-2026-08-25-password-reset-flow.md`.
+
 ## D-GH-2026-08-22-archived-campaign-rpc-enforcement — server-side enforcement that an archived campaign is write-locked
 - "Archived = read-only" was enforced only in `tools/DM-Console.html`'s client JS — no RLS policy or RPC
   rejected a write against an archived campaign. Cold-reviewed by 5 independent reviewers before

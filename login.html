@@ -60,12 +60,61 @@
       <div id="msg" class="msg"></div>
     </div>
 
+    <!-- Recovery: arrived via a password-reset email link (Supabase's PASSWORD_RECOVERY redirect).
+         See the sync inline script below (sets window.__pactAuthRedirect before this module runs)
+         and the boot logic at the bottom of the module script. -->
+    <div id="recoveryView" class="hidden">
+      <div id="recoveryChecking">
+        <p class="sub">Verifying your reset link…</p>
+      </div>
+
+      <div id="recoveryForm" class="hidden">
+        <p class="sub">Choose a new password for your account.</p>
+        <form id="newPasswordForm" autocomplete="on">
+          <label for="newPassword">New password</label>
+          <input id="newPassword" type="password" autocomplete="new-password" required minlength="6">
+          <label for="newPassword2">Confirm new password</label>
+          <input id="newPassword2" type="password" autocomplete="new-password" required minlength="6">
+          <button id="newPasswordBtn" class="primary" type="submit">Set new password</button>
+        </form>
+        <div id="recoveryMsg" class="msg"></div>
+      </div>
+
+      <div id="recoveryExpired" class="hidden">
+        <p class="sub">This reset link is invalid or has expired.</p>
+        <label for="resendEmail">Email</label>
+        <input id="resendEmail" type="email" autocomplete="email">
+        <button id="resendBtn" class="primary" type="button">Send a new reset email</button>
+        <div id="resendMsg" class="msg"></div>
+      </div>
+    </div>
+
   </div>
 
+  <script>
+    // Runs BEFORE the module script below (classic scripts execute in document order before a
+    // deferred `type=module` script does), so this can never race the Supabase client's own
+    // async hash-clearing during _initialize() -- by the time our module imports supabase-client.js
+    // and that client starts consuming the URL, we've already captured what we need synchronously.
+    // Recovery links land here as `#access_token=...&type=recovery&...`; an invalid/expired/
+    // already-used token instead lands as `#error=...&error_code=...&error_description=...`
+    // (Supabase's own /auth/v1/verify redirect distinguishes these before we ever see the URL).
+    (function () {
+      var hash = location.hash || '';
+      var isRecovery = /(?:^|[&#])type=recovery(?:&|$)/.test(hash);
+      var hasError = /(?:^|[&#])error=/.test(hash);
+      var desc = null;
+      if (hasError) {
+        var m = /[&#]error_description=([^&]*)/.exec(hash);
+        if (m) { try { desc = decodeURIComponent(m[1].replace(/\+/g, ' ')); } catch (e) { desc = null; } }
+      }
+      window.__pactAuthRedirect = { recovery: isRecovery, error: hasError, errorDescription: desc };
+    })();
+  </script>
   <script type="module">
     import {
-      register, login, forgotPassword,
-      currentUser
+      register, login, forgotPassword, updatePassword,
+      currentUser, onAuthChange
     } from './js/auth.js';
     import { PENDING_INVITE_KEY } from './js/campaign.js';
 
@@ -96,6 +145,28 @@
       msg('');
     }
     function msg(text, kind) { const el = $('msg'); el.textContent = text; el.className = 'msg ' + (kind || ''); }
+
+    // Recovery-view state — see the sync inline script above for how a visit is classified.
+    function showRecoveryChecking() {
+      $('authView').classList.add('hidden');
+      $('recoveryView').classList.remove('hidden');
+      $('recoveryChecking').classList.remove('hidden');
+      $('recoveryForm').classList.add('hidden');
+      $('recoveryExpired').classList.add('hidden');
+    }
+    function showRecoveryForm() {
+      $('recoveryChecking').classList.add('hidden');
+      $('recoveryForm').classList.remove('hidden');
+      $('recoveryExpired').classList.add('hidden');
+    }
+    function showRecoveryExpired(detail) {
+      $('authView').classList.add('hidden');
+      $('recoveryView').classList.remove('hidden');
+      $('recoveryChecking').classList.add('hidden');
+      $('recoveryForm').classList.add('hidden');
+      $('recoveryExpired').classList.remove('hidden');
+      if (detail) { const el = $('resendMsg'); el.textContent = detail; el.className = 'msg err'; }
+    }
 
     // A signed-in visitor has nothing to do on this page — index.html's own header already shows
     // "Signed in as X · Log out" (see index.html's authBtn wiring). Send them straight there instead of
@@ -139,6 +210,35 @@
       catch (err) { msg(err.message || String(err), 'err'); }
     };
 
+    function recoveryMsg(text, kind) {
+      const el = $('recoveryMsg'); el.textContent = text; el.className = 'msg ' + (kind || '');
+    }
+    $('newPasswordForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const p1 = $('newPassword').value, p2 = $('newPassword2').value;
+      if (p1 !== p2) { recoveryMsg('Passwords do not match.', 'err'); return; }
+      $('newPasswordBtn').disabled = true;
+      recoveryMsg('Working…');
+      try {
+        await updatePassword(p1);
+        recoveryMsg('Password updated — signing you in…', 'ok');
+        setTimeout(goToIndex, 900);
+      } catch (err) {
+        recoveryMsg(err.message || String(err), 'err');
+      } finally {
+        $('newPasswordBtn').disabled = false;
+      }
+    };
+
+    $('resendBtn').onclick = async () => {
+      const email = $('resendEmail').value.trim();
+      const el = $('resendMsg');
+      const setResendMsg = (t, k) => { el.textContent = t; el.className = 'msg ' + (k || ''); };
+      if (!email) { setResendMsg('Enter your email above first.', 'err'); return; }
+      try { await forgotPassword(email); setResendMsg('Reset email sent to ' + email + '.', 'ok'); }
+      catch (err) { setResendMsg(err.message || String(err), 'err'); }
+    };
+
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/PACT/service-worker.js').then(function (reg) {
         reg.update();
@@ -159,8 +259,27 @@
       });
     }
 
-    // Already signed in (bookmark, back button, etc.) — nothing to do here either; bounce to index.html.
-    (async () => { if (await currentUser()) goToIndex(); })();
+    // Recovery/error redirect takes priority over the normal "already signed in" bounce below —
+    // Supabase's own PASSWORD_RECOVERY flow establishes a real session as part of the redirect, so
+    // currentUser() would resolve truthy for a genuine recovery visit too; without this branch that
+    // bounce would fire first and the user would never see the new-password form.
+    const authRedirect = window.__pactAuthRedirect || { recovery: false, error: false, errorDescription: null };
+    if (authRedirect.error) {
+      showRecoveryExpired(authRedirect.errorDescription);
+    } else if (authRedirect.recovery) {
+      showRecoveryChecking();
+      let resolved = false;
+      const unsub = onAuthChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') { resolved = true; unsub(); showRecoveryForm(); }
+      });
+      // Defensive only: the sync hint already found type=recovery with no error= param, so
+      // PASSWORD_RECOVERY should fire almost immediately (Supabase's own internal same-tick
+      // dispatch). This timeout exists for a malformed-redirect case the hint didn't already catch.
+      setTimeout(() => { if (!resolved) { unsub(); showRecoveryExpired(); } }, 5000);
+    } else {
+      // Already signed in (bookmark, back button, etc.) — nothing to do here either; bounce to index.html.
+      (async () => { if (await currentUser()) goToIndex(); })();
+    }
   </script>
 </body>
 </html>
