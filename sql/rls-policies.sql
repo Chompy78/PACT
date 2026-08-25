@@ -72,6 +72,42 @@ returns boolean language sql security definer stable set search_path = public, p
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Archived-campaign write lockdown (D-GH-2026-08-22-archived-campaign-rpc-enforcement;
+-- sql/migrations/2026-08-22-archived-campaign-write-lockdown.sql). "Archived = read-only"
+-- was previously enforced only in tools/DM-Console.html's client-side UI guards -- these
+-- three functions make it a real server-side invariant for the seven write paths enumerated
+-- in that migration (five SECURITY DEFINER RPCs plus the campaigns_update/characters_delete
+-- RLS policies below). Deliberately does NOT touch is_campaign_dm() itself -- that helper
+-- also backs several READ policies, and a DM/co-DM must still be able to see an archived
+-- campaign; only write paths gain the extra check.
+--
+-- is_campaign_active() is the one boolean primitive (fail-closed by construction: a
+-- missing/wrong campaign id returns false, not "silently passes"); the other two are
+-- call-site helpers derived from it -- assert_campaign_active() for the five RPCs (call it
+-- immediately AFTER each function's existing is_campaign_dm() authority check, so an
+-- unauthorized caller still gets "only a campaign DM can..." rather than leaking archive
+-- state to someone with no access at all), is_campaign_dm_and_active() for the two RLS
+-- policies (where the archive check has to compose into a single USING/WITH CHECK predicate).
+create or replace function public.is_campaign_active(p_campaign uuid)
+returns boolean language sql security definer stable set search_path = public, pg_temp as $$
+  select exists (select 1 from campaigns where id = p_campaign and archived_at is null);
+$$;
+
+create or replace function public.assert_campaign_active(p_campaign uuid)
+returns void language plpgsql security definer stable set search_path = public, pg_temp as $$
+begin
+  if not is_campaign_active(p_campaign) then
+    raise exception 'This campaign is archived and read-only';
+  end if;
+end;
+$$;
+
+create or replace function public.is_campaign_dm_and_active(p_campaign uuid)
+returns boolean language sql security definer stable set search_path = public, pg_temp as $$
+  select is_campaign_dm(p_campaign) and is_campaign_active(p_campaign);
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Enable RLS
 -- ---------------------------------------------------------------------------
 alter table public.profiles           enable row level security;
@@ -144,10 +180,11 @@ drop policy if exists campaigns_insert on public.campaigns;
 create policy campaigns_insert on public.campaigns
   for insert with check (dm_id = auth.uid());
 
--- Any DM may edit campaign settings (e.g. ignore_player_ap).
+-- Any DM of an ACTIVE (non-archived) campaign may edit campaign settings (e.g.
+-- ignore_player_ap). See D-GH-2026-08-22-archived-campaign-rpc-enforcement.
 drop policy if exists campaigns_update on public.campaigns;
 create policy campaigns_update on public.campaigns
-  for update using (is_campaign_dm(id)) with check (is_campaign_dm(id));
+  for update using (is_campaign_dm_and_active(id)) with check (is_campaign_dm_and_active(id));
 
 -- Delete stays owner-only.
 drop policy if exists campaigns_delete on public.campaigns;
@@ -232,9 +269,13 @@ drop policy if exists characters_update on public.characters;
 create policy characters_update on public.characters
   for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
+-- The owner's own delete path is untouched (matches the "a player's own client
+-- saving/removing their own character must keep working" principle already established for
+-- characters_update); only the DM-authority branch gains the archive check. See
+-- D-GH-2026-08-22-archived-campaign-rpc-enforcement.
 drop policy if exists characters_delete on public.characters;
 create policy characters_delete on public.characters
-  for delete using (owner_id = auth.uid() or is_campaign_dm(campaign_id));
+  for delete using (owner_id = auth.uid() or is_campaign_dm_and_active(campaign_id));
 
 -- ---------------------------------------------------------------------------
 -- character_dm_notes — DM-only per-character notes/label. Never the character's
@@ -365,6 +406,7 @@ begin
   if not is_campaign_dm(v_campaign) then
     raise exception 'Only a campaign DM can award AP';
   end if;
+  perform assert_campaign_active(v_campaign);
 
   insert into ap_awards (character_id, dm_id, campaign_id, amount, note)
     values (p_character, auth.uid(), v_campaign, p_amount, p_note);
@@ -409,6 +451,7 @@ begin
   if not is_campaign_dm(v_campaign) then
     raise exception 'Only a campaign DM can award gold';
   end if;
+  perform assert_campaign_active(v_campaign);
   if coalesce(p_gold, 0) = 0 then
     raise exception 'Award must change gold';
   end if;
@@ -453,6 +496,7 @@ begin
   if not is_campaign_dm(p_campaign) then
     raise exception 'Only a campaign DM can declare downtime';
   end if;
+  perform assert_campaign_active(p_campaign);
   if p_days is null then
     raise exception 'Days is required';
   end if;
@@ -525,6 +569,7 @@ begin
   if not is_campaign_dm(v_campaign) then
     raise exception 'Only a campaign DM can remove a character from the campaign';
   end if;
+  perform assert_campaign_active(v_campaign);
 
   update characters set campaign_id = null where id = p_character;
 end;
@@ -583,6 +628,7 @@ begin
   if not is_campaign_dm(v_campaign) then
     raise exception 'Only a campaign DM can edit this character';
   end if;
+  perform assert_campaign_active(v_campaign);
   if v_stats is null or not (v_stats ? 'LOG') then
     raise exception 'Character has no log to edit';
   end if;
@@ -934,11 +980,22 @@ grant execute on function public.is_campaign_member(uuid) to authenticated;
 grant execute on function public.shares_campaign(uuid)    to authenticated;
 grant execute on function public.gen_invite_code()        to authenticated;
 
+-- Archived-campaign write lockdown helpers (see their definitions above).
+-- is_campaign_dm_and_active must be directly callable by authenticated, since it's evaluated
+-- in the querying role's context as an RLS predicate (campaigns_update, characters_delete).
+grant execute on function public.is_campaign_active(uuid)        to authenticated;
+grant execute on function public.assert_campaign_active(uuid)    to authenticated;
+grant execute on function public.is_campaign_dm_and_active(uuid) to authenticated;
+
 revoke execute on function public.is_campaign_dm(uuid)     from public;
 revoke execute on function public.is_campaign_owner(uuid)  from public;
 revoke execute on function public.is_campaign_member(uuid) from public;
 revoke execute on function public.shares_campaign(uuid)    from public;
 revoke execute on function public.gen_invite_code()        from public;
+
+revoke execute on function public.is_campaign_active(uuid)        from public;
+revoke execute on function public.assert_campaign_active(uuid)    from public;
+revoke execute on function public.is_campaign_dm_and_active(uuid) from public;
 
 -- Client-facing RPCs already granted to authenticated above: just strip the
 -- redundant PUBLIC grant.

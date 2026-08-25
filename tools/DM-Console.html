@@ -193,7 +193,9 @@
   .card .csub{font-size:13px; color:var(--muted); margin-top:3px}
   .card .csub .tier{display:inline-block;background:var(--light);color:var(--navy);border-radius:6px;padding:1px 7px;font-weight:600;font-size:12px;margin-left:2px}
   .rmcard{
-    position:absolute; top:12px; right:12px; width:28px; height:28px; border-radius:7px;
+    /* 40x40 touch target (was 28x28) to match this file's other controls (.btn's min-height:40px)
+       — the visible icon/border stays the same size, only the tappable area grows. */
+    position:absolute; top:8px; right:8px; width:40px; height:40px; border-radius:7px;
     border:1px solid var(--line); background:#fff; color:var(--muted); cursor:pointer; font-size:16px; line-height:1;
     display:flex; align-items:center; justify-content:center;
   }
@@ -748,6 +750,28 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             </details>
           </div>
 
+          <!-- feat/dm-console-codm-revoke-ui (2026-08-22): who currently HAS DM access, not just who's
+               been invited — the invite list above only shows outstanding/settled invites, it drops off
+               the moment someone redeems one and actually becomes a co-DM. Owner-only, same gating as
+               campArchiveBlock below (display:none by default; selectCampaign() shows it for
+               camp.isOwner). removeDm() is a SECURITY DEFINER RPC that independently re-checks
+               ownership server-side — this tile hiding for a non-owner is a UX nicety, not the real
+               authorization boundary. -->
+          <div class="subtile" id="campCoDmsTile" style="display:none">
+            <details id="campCoDmsDetails">
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Current co-DMs <span class="dsum" id="campCoDmsSummary"></span></summary>
+              <div style="margin-top:8px">
+                <div class="ruleblock">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div class="grantnote" style="margin:0">Everyone with DM access to this campaign right now (the owner is not listed — the owner can never be removed).</div>
+                    <button type="button" class="btn sm ghost" id="campCoDmsRefresh" style="margin-left:auto">Refresh</button>
+                  </div>
+                  <div id="campCoDmsList" style="margin-top:8px"></div>
+                </div>
+              </div>
+            </details>
+          </div>
+
           <!-- feat/campaign-rules-lock-supercard: campRulesTile/campAdvancementTile/campCustomFieldsTile
                plus the Save/Lock row below them all share ONE lock (_setRulesLocked/_ruleLockEls), but
                used to just be four separate-looking siblings — three identical cards followed by a bare
@@ -1055,7 +1079,6 @@ let REDO=[];       // popped events for redo
 let SEQ=1;
 let __charId=null;                                   // stable per-character id for hand-typed sheet fields
 function currentCharId(){return __charId;}
-let viewAt=null;   // time-travel: render state as-of this many events (null = head)
 let RULES='v0.176';   // set from engine DATA.version at engine-ready (module bridge, D-GH26)
 let loadedRules=null;   // rules version stamped on a loaded file/localStorage; null until an older-version build is imported. Dormant while only the current version exists.
 
@@ -1067,7 +1090,9 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 // foldBuild/activeEvents/economy are thin adapters over js/engine.js's real (array-based)
 // versions (D-GH37) — uptoIdx-based time travel stays local (slice LOG, hand the slice to the
 // engine); window._engineFold is set by the module bridge, present by the time these are called
-// (UI boot is gated on engine-ready).
+// (UI boot is gated on engine-ready). The uptoIdx parameter is plumbed but NOT wired to any control
+// in this tool today — every call site below passes null (head). Kept for parity with Live Sheet's
+// identical adapter shape, which DOES have a scrub UI; don't assume one exists here too.
 function eventsUpTo(uptoIdx){ return uptoIdx==null ? LOG : LOG.slice(0,uptoIdx); }
 function activeEvents(uptoIdx){ return window._engineFold.activeEvents(eventsUpTo(uptoIdx)); }
 function foldBuild(uptoIdx){ return window._engineFold.foldBuild(eventsUpTo(uptoIdx)); }
@@ -1150,7 +1175,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.446';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.469';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -2346,9 +2371,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
           // A bonus changes this character's composed downtime total, which lives in a cache
           // (window._dmDowntimeWindows) this closure cannot refresh itself — window._dmReloadRoster
           // is the SAME cross-boundary bridge feat/dm-edit-events already uses for "something changed
-          // that a local field patch can't express, re-fetch the whole roster". AP/gold-only awards
-          // skip it and use the cheaper local patch + render instead.
-          if(bonus!==0 && window._dmReloadRoster) window._dmReloadRoster();
+          // that a local field patch can't express, re-fetch the whole roster". Always reload rather
+          // than branching on bonus!==0: an AP/gold-only award patches entry.dm.ap/entry.dm.gold above,
+          // but the card's own "AP left"/Level stat strip reads entry.summary (from the last
+          // cloudAnalyze()), not dm.ap/dm.gold directly — a local render() alone would leave those two
+          // headline numbers stale until the next unrelated refresh (fix/dm-console-roster-award-
+          // staleness). The extra reload cost is worth a card that's never wrong.
+          if(window._dmReloadRoster) window._dmReloadRoster();
           else renderCloudRoster(el);
           if(errs.length) alert('Some awards failed: '+errs.join('; '));
         });
@@ -2563,6 +2592,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         var dNote = (dNoteEl&&dNoteEl.value||'').trim();
         var dCampId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
         if(!daysEl || daysEl.value===''){ alert('Enter the new window size in days.'); return; }
+        if(!confirm('Declare a new '+days+'-day downtime window for the whole party?\n\nThis replaces the current window for EVERY character in the campaign — any bonus time granted under the old window is wiped, not banked. This cannot be undone.')) return;
         declareBtn.disabled = true;
         B.declareDowntime(dCampId, days, null, dNote).then(function(){
           declareBtn.disabled = false;
@@ -2649,14 +2679,14 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). A failure here costs campaigns and the roster, not the
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
-  import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign } from '../js/campaign.js';
+  import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm } from '../js/campaign.js';
   import { getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign };
+  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -2721,6 +2751,10 @@ document.addEventListener('campaign-ready', function () {
   var joinDmToken = document.getElementById('joinDmToken');
   var joinDmBtn = document.getElementById('joinDmBtn');
   var joinDmStatus = document.getElementById('joinDmStatus');
+  var campCoDmsTile = document.getElementById('campCoDmsTile');
+  var campCoDmsList = document.getElementById('campCoDmsList');
+  var campCoDmsSummary = document.getElementById('campCoDmsSummary');
+  var campCoDmsRefresh = document.getElementById('campCoDmsRefresh');
   var ruleMultiDisc = document.getElementById('ruleMultiDisc');
   var ruleDrawCapOn = document.getElementById('ruleDrawbackCapOn');
   var ruleDrawCapAp = document.getElementById('ruleDrawbackCapAp');
@@ -3084,6 +3118,7 @@ document.addEventListener('campaign-ready', function () {
   // _renderPartyDowntime()/awardBody() both gate on it being set — same reasoning as every other
   // window._dm*Test seam here, letting the gate drive real rendering without a live campaign select.
   window._dmSetCampIdTest = function(id){ currentCampId = id; };
+  window._dmSetCampaignsTest = function(camps){ currentCampaigns = camps || []; };   // for loadCoDms()'s owner-filter test
   // Advancement-dial helpers (feat/advancement-tracks): live L20 preview + preset↔field sync.
   // DATA tables are read lazily inside each handler so a panel opened before engine-ready
   // still wires up (falling back to the preset defaults until DATA arrives).
@@ -3499,6 +3534,7 @@ document.addEventListener('campaign-ready', function () {
     if(peekCamp) camp = peekCamp;
     if(!camp){
       campCodes.style.display='none'; campSection.style.display='none'; campArchiveBlock.style.display='none';
+      campCoDmsTile.style.display='none'; if(campCoDmsList) campCoDmsList.innerHTML=''; _coDms=[];
       dmNotesText.value = ''; dmNotesStatus.textContent = '';
       campAwardApAmt.value = '0'; campAwardApNote.value = ''; campAwardApStatus.textContent = '';
       window._dmCampaignApRules = null;   // no campaign selected → no DM AP context to price against
@@ -3538,6 +3574,9 @@ document.addEventListener('campaign-ready', function () {
     // "Archive this campaign" is meaningless on one that already is — hide it outright rather than
     // show a disabled danger button the DM has to reason about.
     campArchiveBlock.style.display = (camp.isOwner && !peekCamp) ? '' : 'none';
+    campCoDmsTile.style.display = camp.isOwner ? '' : 'none';   // visible while peeking an archived
+                                  // campaign too (read-only view of who has access) — only the write
+                                  // path (the Remove button) is peek-blocked, same as every other write.
     // A stale amount/note from the previous campaign must not carry over onto whoever's ticked here.
     campAwardApAmt.value = '0'; campAwardApNote.value = ''; campAwardApStatus.textContent = '';
     inviteLinkRow.style.display = 'none';
@@ -3565,6 +3604,7 @@ document.addEventListener('campaign-ready', function () {
     _renderPeekState();   // after the panel is populated, before anything can be clicked
     loadRoster(id);
     loadInvites();
+    if(camp.isOwner) loadCoDms(); else if(campCoDmsList) campCoDmsList.innerHTML='';
   }
 
   campSel.addEventListener('change', function(){ selectCampaign(campSel.value); });
@@ -3835,6 +3875,74 @@ document.addEventListener('campaign-ready', function () {
     renderCampWarnings();   // covers both the success and error path — an error clears _invites, which
                              // correctly clears any warnings computed from the previous fetch too
   }
+
+  // feat/dm-console-codm-revoke-ui (2026-08-22): who currently HAS access, distinct from _invites (who
+  // was ever SENT one). Owner-only — selectCampaign() only calls this when camp.isOwner, and the whole
+  // tile is hidden otherwise — but getCampaignDms() itself is readable by any DM/member of the campaign
+  // per its RLS policy, so this fetch would succeed for a co-DM too if ever called; the gate here is
+  // "don't show a co-DM a Remove button that would just fail server-side", not the real boundary.
+  var _coDms = [];
+  async function loadCoDms(){
+    if(!currentCampId || !campCoDmsList) return;
+    var forCampId = currentCampId;   // same stale-response guard shape as loadInvites()
+    campCoDmsList.textContent = 'Loading…';
+    try {
+      var rows = await B.getCampaignDms(forCampId);
+      if(!_isCurrentCamp(forCampId)) return;
+      // /code-review catch: getCampaignDms() returns EVERY campaign_dms row, and the add_owner_as_dm
+      // trigger (sql/schema.sql) auto-inserts the owner into that same table on campaign creation — so
+      // without this filter the owner shows up in their own "co-DMs" list with a Remove button that
+      // would hit remove_dm()'s own "the owner cannot be removed" guard and dead-end in a raw error,
+      // directly contradicting this tile's own copy ("the owner is not listed"). Filter by dm_id, the
+      // owner's profile id already carried on the campaign object from listMyCampaigns().
+      var _owner = currentCampaigns.find(function(c){return c.id===forCampId;});
+      var _ownerId = _owner ? _owner.dm_id : null;
+      _coDms = rows.filter(function(d){ return d.dm_id !== _ownerId; });
+      renderCoDms();
+    } catch(err){
+      if(!_isCurrentCamp(forCampId)) return;
+      _coDms = [];
+      campCoDmsList.textContent = 'Could not load co-DMs: ' + (err && err.message ? err.message : err);
+    }
+  }
+
+  function renderCoDms(){
+    if(!campCoDmsList) return;
+    if(campCoDmsSummary) campCoDmsSummary.textContent = _coDms.length ? ('· ' + _coDms.length) : '';
+    if(!_coDms.length){ campCoDmsList.innerHTML = '<div style="font-size:11px;color:var(--muted)">No co-DMs yet — invited co-DMs appear here once they redeem their invite.</div>'; return; }
+    campCoDmsList.innerHTML = _coDms.map(function(d){
+      var name = d.name ? esc(d.name) : '(unnamed)';
+      var since = d.created_at ? new Date(d.created_at).toLocaleDateString() : '';
+      return '<div class="codmrow" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--line)">' +
+        '<span style="font-size:12px">' + name + (since ? ' <span style="color:var(--muted);font-size:11px">· co-DM since ' + esc(since) + '</span>' : '') + '</span>' +
+        '<button type="button" class="btn sm danger codm-remove-btn" data-cid="' + esc(d.dm_id) + '" data-name="' + name.replace(/"/g,'&quot;') + '" style="margin-left:auto">Remove</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  // test seam: lets tool-pricing-ci.mjs exercise renderCoDms()'s escaping and the remove-button wiring
+  // on synthetic data, without a live Supabase backend or real sign-in (same shape as
+  // window._dmPartyDowntimeTest above).
+  window._dmCoDmsTest = { render: renderCoDms, setRows: function(rows){ _coDms = rows || []; }, load: loadCoDms, getRows: function(){ return _coDms; } };
+
+  if(campCoDmsRefresh) campCoDmsRefresh.addEventListener('click', function(){ loadCoDms(); });
+
+  if(campCoDmsList) campCoDmsList.addEventListener('click', async function(ev){
+    var btn = ev.target.closest ? ev.target.closest('.codm-remove-btn') : null;
+    if(!btn || !currentCampId) return;
+    if(_peekBlocks()) return;   // same write-guard shape as every other campaign-write control
+    var dmId = btn.getAttribute('data-cid');
+    var name = btn.getAttribute('data-name') || 'this co-DM';
+    if(!confirm('Remove ' + name + ' as a co-DM of this campaign?\n\nThey lose DM access immediately — rules, rosters, AP awards, everything. They keep any characters they play, and can be re-invited later.')) return;
+    btn.disabled = true;
+    try {
+      await B.removeDm(currentCampId, dmId);
+      loadCoDms();
+    } catch(err){
+      btn.disabled = false;
+      alert('Could not remove co-DM: ' + (err && err.message ? err.message : err));
+    }
+  });
 
   function inviteUrl(token){
     return new URL('PACT-CharGen-Webtool.html?invite=' + encodeURIComponent(token), location.href).href;

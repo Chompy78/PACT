@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.446.html**-->
+<!--**PACT-Live-Char-Sheet v1.469.html**-->
 
 <!doctype html>
 <!--
@@ -652,13 +652,18 @@ function _lsWallet(uptoIdx){
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on
 // (default true when absent/unset — opposite default from ignore_player_ap), who has actually spent
 // past their budget right now. window._cloudCampaignRules is refreshCloudCampaignRules()'s cache — the
-// same rules object window._ignorePlayerAp above is already sourced from. compute() needs no change —
-// remaining<0 already means "over budget". Blocks only the CLOUD save path, never local Save.
+// same rules object window._ignorePlayerAp above is already sourced from. Reads the FROZEN ledger via
+// apAvailable() — NOT compute().remaining, which re-prices every owned item against today's DATA
+// tables and can diverge from what was actually paid (fix/livesheet-budget-gate-frozen-ledger,
+// 2026-08-22: a post-freeze price-table change could otherwise trip this gate for a character whose
+// frozen ledger was never over budget, or silently pass one that was, in either direction — the same
+// class of bug feat/ap-model-reconcile tracks for display, now closed here for this gate too). Blocks
+// only the CLOUD save path, never local Save.
 function _lsOverApBudget(){
   if(!window._lsCampaignId) return false;
   var r = window._cloudCampaignRules;
   if(r && r.enforceApBudget === false) return false;
-  return compute(foldBuild(null),_dmOpts()).remaining < 0;
+  return apAvailable(null) < 0;
 }
 function apCeiling(uptoIdx){ return compute(foldBuild(uptoIdx),_dmOpts()).spendable; }
 // Pure formula (no I/O) — the one place "AP available" is defined, shared by apAvailable() below AND by
@@ -785,7 +790,13 @@ const _CTX_PRICERS={
   // The two bonds: a flat +2 AP gain, one-way. A build diff would additionally hand back a retroactive
   // discount on already-owned features/spells — the original refund bug these two were escaped for.
   mbound:function(){return -2;},
-  dbound:function(){return -2;}
+  dbound:function(){return -2;},
+  // Drawback: DATA.drawbacks[name], negated (a drawback GRANTS AP, so it is priced as a negative cost) —
+  // flat table price, same shape as mbound/dbound above. Needed for fix/livesheet-drawback-legalcheck:
+  // the default whole-build-delta path below would be WRONG here regardless of context — drawbacks are
+  // modeled as income since v0.354 and never move compute().total at all (js/engine.js's "MODEL (b)"
+  // comment), so priceOf('drawback',...) would silently return 0 without this entry.
+  drawback:function(cur,p){return -((DATA.drawbacks[p.v]||0));}
 };
 // price a prospective change: its own listed price for a context change, else a delta against the
 // CURRENT committed build (correct for an ordinary purchase, which changes nothing else's price)
@@ -808,7 +819,14 @@ function emit(ev){ if(_viewOnlyBlock())return; ev.seq=SEQ++; ev.ts=Date.now(); e
 function award(amount,note,disc){ if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
 // these stay confirm-through. Everything else a purchase raises is a hard rules violation → blocked with a popup.
-const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability/i;
+// "caps them at" (code-review catch on fix/livesheet-drawback-legalcheck): the drawback-cap warning
+// (js/engine.js, both the campaign-enforced and guide-advisory forms) is explicitly designed to clamp
+// the AP granted or merely advise — never to block the purchase itself (see engine.js's own comment:
+// "A local, un-bound character keeps the advisory warning and the full grant... there is nobody to
+// adjudicate for them"). Before this PR, takeDrawback() bypassed legalCheck() entirely so this warning
+// was never checked at purchase time; routing it through buy() would have turned it into a hard block
+// with no rule actually being broken, since it matches neither this regex nor EXPECTED_FOLLOWUP.
+const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at/i;
 // EXPECTED FOLLOW-UP = not a warning at all. The purchase is legal and complete; a choice that belongs
 // to it is made afterwards, in the ✎ Names dialog. Epic boons are the only case today: MUT.boon pushes
 // the label but cannot set epicBoonAbil (js/engine.js:545), so compute() on the candidate build always
@@ -865,7 +883,7 @@ function buy(cat,payload,label){
   if(followup.length)flash('✎ Now open Names and pick the ability — '+followup.join('; '));
   if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
 }
-function takeDrawback(v){ const refund=DATA.drawbacks[v]||0; emit({type:'buy',cat:'drawback',payload:{v},cost:-refund,label:'Drawback — '+v,level:foldBuild(null).hd}); }
+function takeDrawback(v){ buy('drawback',{v},'Drawback — '+v); }
 // feat/dm-edit-events: finds the drawback-buy event a NEW buyoff would target — the oldest still-open
 // (not yet bought-off) purchase of this value, same FIFO order activeEvents() itself resolves buyoffs
 // in (D-GH-2026-08-06-buyoff-keyed-by-event). Needed here because buyoffDrawback() must consult THAT
@@ -1182,7 +1200,11 @@ function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=
   // Tamper-evidence (D-GH48): verify the INCOMING file before save() re-signs it with the current
   // contents. Non-blocking — a hand-edited/corrupted file is flagged but still loads.
   const _tampered=!!(window.verifyCharacterEnvelope&&window.verifyCharacterEnvelope(d).tampered);
-  if(d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
+  // fix/livesheet-import-confirm (2026-08-22): importing used to replace LOG/SEQ/REDO with no
+  // confirmation at all, unlike resetAll()'s matching confirm() below — a misclick or wrong file
+  // silently and irrecoverably destroyed the in-progress character, including any cloud autosave
+  // still in flight. Mirrors resetAll()'s pattern exactly.
+  if(d.LOG&&confirm('Import will replace your current character and its history. Continue?')){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
   // Compose the load notice so a file that is BOTH tampered AND a different rules version shows both.
   var _msgs=[];
   if(_tampered){_msgs.push('⚠ This file was edited outside PACT — its signature no longer matches. It has still been loaded; double-check the numbers before playing.');}
@@ -1295,11 +1317,11 @@ function validate(){
   if(loadedRules && loadedRules!==RULES) issues.push('Loaded under '+loadedRules+' rules; now running '+RULES+'. Past prices are frozen (kept); new buys use '+RULES+' prices. Any cost change shows as "locked / reprice" drift.');
   // committed items that no longer exist / are no longer buyable in current rules
   LOG.filter(e=>e.type==='buy').forEach(e=>{
-    if(e.cat==='feature'&&!DATA.features[e.payload.v]) issues.push('Feature no longer in rules: '+e.payload.v);
-    if(e.cat==='boon'&&!DATA.boons[e.payload.v]) issues.push('Boon no longer in rules: '+e.payload.v);
-    if(e.cat==='drawback'&&!(e.payload.v in DATA.drawbacks)) issues.push('Drawback no longer in rules: '+e.payload.v);
+    if(e.cat==='feature'&&!DATA.features[e.payload.v]) issues.push('Feature no longer in rules: '+esc(e.payload.v));
+    if(e.cat==='boon'&&!DATA.boons[e.payload.v]) issues.push('Boon no longer in rules: '+esc(e.payload.v));
+    if(e.cat==='drawback'&&!(e.payload.v in DATA.drawbacks)) issues.push('Drawback no longer in rules: '+esc(e.payload.v));
   });
-  compute(b).warnings.filter(w=>!/^OVER BUDGET/.test(w)).forEach(w=>issues.push('Rule warning: '+w));
+  compute(b).warnings.filter(w=>!/^OVER BUDGET/.test(w)).forEach(w=>issues.push('Rule warning: '+esc(w)));
   // Toggle-flip grandfather notice (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): if
   // ignore_player_ap is on and the frozen ledger shows more spent than DM AP alone could have funded,
   // some of that spend came from player AP that no longer counts. Non-blocking — purchases are kept
@@ -1309,11 +1331,13 @@ function validate(){
   return issues;
 }
 // Advisory (informational, non-blocking) validate() notes vs hard "needs review" issues — mirrors
-// CharGen's isAdvisory() verbatim (same two patterns) so both tools classify the identical notice the
-// same way. The ignore_player_ap grandfather notice is a NORMAL, expected state ("purchases are kept,
-// it never gates anything"), so it must render as a calm ⓘ note, not inflate the ⚠ "Needs review (N)"
-// count the way every other issue does (feat/campaign-ap-model review follow-up).
-function _lsIsAdvisory(w){return /switched off player-entered AP/.test(w)||/no Ki-using ability/.test(w)||/^Creation AP not confirmed/.test(w);}
+// CharGen's isAdvisory() patterns so both tools classify the identical notice the same way. The
+// ignore_player_ap grandfather notice is a NORMAL, expected state ("purchases are kept, it never gates
+// anything"), so it must render as a calm ⓘ note, not inflate the ⚠ "Needs review (N)" count the way
+// every other issue does (feat/campaign-ap-model review follow-up). "is no longer in the rules data"
+// (code-review catch on feat/warn-missing-data-refs) is the same kind of non-actionable notice — the
+// message itself says "no cost/effect applied", so it must not inflate that count either.
+function _lsIsAdvisory(w){return /switched off player-entered AP/.test(w)||/no Ki-using ability/.test(w)||/^Creation AP not confirmed/.test(w)||/is no longer in the rules data/.test(w);}
 
 // ---------------- buy panel builders ----------------
 function opt(v){return '<option value="'+String(v).replace(/"/g,'&quot;')+'">'+v+'</option>';}
@@ -1411,8 +1435,8 @@ function render(){
   sh+='<div class="kpis">'+[['AC',r.ac],['HP',r.hp],['Init',sgn(r.init)],['Speed',r.speed+'ft'],['DC',r.hasDC?r.saveDC:'—'],['HD',b.hd+'d6']].concat((b.ki>0)?[['Ki',b.ki]]:[]).concat((b.sorcery>0)?[['SP',b.sorcery]]:[]).concat((b.hardy>0)?[['Vigor',b.hardy]]:[]).concat((b.tough>0)?[['Grit',b.tough]]:[]).concat((b.attune>0)?[['Attune',b.attune]]:[]).map(k=>'<div class="kp" title="'+esc(_kbd[k[0]]||'')+'"><b>'+k[1]+'</b><span>'+k[0]+'</span></div>').join('')+'</div>';
   const _ftip=function(label,tip){return '<span class="itip"'+(tip?' title="'+esc(tip)+'"':'')+'>'+esc(label)+'</span>';};
   const feats=[]; b.features.forEach(l=>{var nm=l.split(': ')[1]||l;feats.push(_ftip(nm, nm!==l?l:''));}); b.boons.forEach(x=>feats.push(_ftip('Boon: '+x,(DATA.boons[x]||{}).fx||'')));
-  sh+='<div class="seg"><b>Saves:</b> '+(b.saves.join(', ')||'—')+'</div><div class="seg"><b>Skills:</b> '+(b.skills.join(', ')||'—')+'</div>';
-  if(b.tools.length||b.instruments.length)sh+='<div class="seg"><b>Tools/Instr:</b> '+b.tools.concat(b.instruments).join(', ')+'</div>';
+  sh+='<div class="seg"><b>Saves:</b> '+(b.saves.map(esc).join(', ')||'—')+'</div><div class="seg"><b>Skills:</b> '+(b.skills.map(esc).join(', ')||'—')+'</div>';
+  if(b.tools.length||b.instruments.length)sh+='<div class="seg"><b>Tools/Instr:</b> '+b.tools.concat(b.instruments).map(esc).join(', ')+'</div>';
   if(feats.length)sh+='<div class="seg"><b>Features:</b> '+feats.join(' · ')+'</div>';
   // V1: Arts & Techniques / Maneuvers / Metamagic — these carry full effect text (DATA.*.fx)
   const _aTip=(name,src)=>{var o=src[name]||{};return _ftip(name,(o.fx||'')+(o.page?' (PHB p.'+o.page+')':''));};
@@ -1468,7 +1492,7 @@ function render(){
           act='<span class="dmlocked" title="Your DM has locked this drawback — it can\'t be bought off">🔒 locked</span>';
         } else {
           const rateLabel=(e.dmEdit&&e.dmRemovalCost==='flat')?'buy off (flat)':'buy off 3×';
-          act='<button class="x" onclick="buyoffDrawback(\''+(e.payload.v||'').replace(/'/g,"\\'")+'\')">'+rateLabel+'</button>';
+          act='<button class="x" data-v="'+esc(e.payload.v||'')+'" onclick="buyoffDrawback(this.dataset.v)">'+rateLabel+'</button>';
         }
       }
       // Same DATA.racial(...).pack flag the buy panel already reads (line ~1215) — not a new signal.
@@ -1970,10 +1994,10 @@ function renderCharSheet(b,r,ctx){
   if((b.ki||0)>0)H.push('<div class="shbox"><h5>Ki / Focus Points</h5><div class="shrow on"><span>● Total Ki / Focus points</span><span>'+(b.ki||0)+'</span></div></div>');if((b.sorcery||0)>0)H.push('<div class="shbox"><h5>Sorcery Points</h5><div class="shrow on"><span>● Total sorcery points</span><span>'+(b.sorcery||0)+'</span></div></div>');H.push('<div class="shbox"><h5>Skills</h5>'+DATA.skillList.map(function(s){var bo=(b.skills||[]).includes(s[0]),ex=(b.expertise||[]).includes(s[0]);var bn=m[s[1]]+(bo?r.prof:0)+(ex?r.prof:0);return '<div class="shrow'+(bo?' on':'')+'"><span>'+(bo?'●':'○')+' '+s[0]+' <i style="color:'+A[s[1]]+'">('+s[1]+')</i>'+(ex?' ✦':'')+'</span><span>'+_sgn(bn)+'</span></div>';}).join('')+'</div>');
   {var perc=(b.skills||[]).includes("Perception"),pex=(b.expertise||[]).includes("Perception");var pp=10+m.WIS+(perc?r.prof:0)+(pex?r.prof:0);
    H.push('<div class="shbox"><h5>Passive Perception</h5><div class="shsmall" style="font-size:20px;font-weight:800;text-align:center;color:var(--navytx)">'+pp+'</div></div>');}
-  H.push('<div class="shbox"><h5>Proficiencies &amp; Languages</h5><div class="shsmall">Languages: '+((b.languageNames&&b.languageNames.filter(Boolean).length)?b.languageNames.filter(Boolean).join(', ')+' ('+(b.languages||1)+')':(b.languages||1))+
+  H.push('<div class="shbox"><h5>Proficiencies &amp; Languages</h5><div class="shsmall">Languages: '+((b.languageNames&&b.languageNames.filter(Boolean).length)?b.languageNames.filter(Boolean).map(_csEsc).join(', ')+' ('+(b.languages||1)+')':(b.languages||1))+
     '<br>Weapons: '+([(b.weaponProf&&b.weaponProf.simple?'Simple':''),(b.weaponProf&&b.weaponProf.allMartial?'All martial':(b.weaponProf&&b.weaponProf.martial?b.weaponProf.martial+' martial':'')),(b.weaponProf&&b.weaponProf.improvised?'Improvised':'')].filter(Boolean).join(', ')||'—')+
     '<br>Armour: '+([(b.armour&&b.armour.light?'Light':''),(b.armour&&b.armour.medium?'Medium':''),(b.armour&&b.armour.heavy?'Heavy':''),(b.armour&&b.armour.shield?'Shield':'')].filter(Boolean).join(', ')||'—')+
-    '<br>Masteries: '+((b.masteries||[]).join(', ')||'—')+'</div></div>');
+    '<br>Masteries: '+((b.masteries||[]).map(_csEsc).join(', ')||'—')+'</div></div>');
   {var tl=[].concat(b.tools||[],b.instruments||[],b.customProfs||[]);
    if(tl.length)H.push('<div class="shbox"><h5>Tools &amp; Instruments</h5>'+tl.map(function(t){var ab=DATA.toolAbil&&DATA.toolAbil[t];var tex=(b.toolExpertise||[]).includes(t);var bn=ab?(m[ab]+r.prof+(tex?r.prof:0)):null;return '<div class="shrow on"><span>● '+_csEsc(t)+(ab?' <i style="color:'+A[ab]+'">('+ab+')</i>':'')+(tex?' ✦':'')+'</span><span>'+(bn!=null?_sgn(bn):'')+'</span></div>';}).join('')+'</div>');}
   {var _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[];var _ls=(b.racialSpells||[]);if(b.lineage||_ls.length){var _lbox='<div class="shbox"><h5>Lineage'+(b.lineage?' — '+b.lineage:'')+' <span class="shtag">spell-like</span></h5>';if(!_ls.length){_lbox+='<div style="font-size:10.5px;color:var(--grey)">No lineage spell-likes bought yet.</div>';}else{_lbox+=_ls.map(function(nm){var sp=_lin.find(function(x){return x[0]===nm;});var kind='spell-like — '+(sp?(sp[2]===0?'cantrip':'L'+sp[2]+' · 1/long rest'):'innate');return '<div class="shrow on"><span>● '+_csEsc(nm)+'</span><span style="color:var(--grey)">'+kind+'</span></div>';}).join('');}_lbox+='</div>';H.push(_lbox);}}
@@ -1984,6 +2008,13 @@ function renderCharSheet(b,r,ctx){
     '<div class="cs-hpbox"><div class="cs-hp big"><label>Current HP  ·  (max '+r.hp+')</label>'+_mfIn('curHP',String(r.hp),'cs-num','','Current HP')+'</div>'+
     '<div class="cs-hp"><label>Temp HP</label>'+_mfIn('tempHP','','cs-num','','Temporary HP')+'</div>'+
     '<div class="cs-hp"><label>Hit Dice left</label>'+_mfIn('hdLeft',String(lvl),'cs-num','','Hit Dice remaining')+'</div></div>'+
+    // fix/livesheet-hp-sync-hint (2026-08-22, shallow half of the HP-sync audit finding): these three
+    // fields are device-local scratch (plain localStorage, same bucket as Player Name/Backstory Notes)
+    // — they do NOT round-trip through cloud sync or Save/Load like the rest of the character. Switching
+    // devices silently resets Current HP to max with nothing telling the player why. This note makes
+    // that visible; it doesn't close the gap (a LOG-backed migration would) — see the NEXT-board task
+    // for the deeper fix, deliberately out of scope here pending an owner decision.
+    '<div style="font-size:10px;color:var(--grey);margin-top:2px">📱 This device only — not saved to the cloud or shared with other devices</div>'+
     '<div class="dsv"><b>Death Saves</b> <span>✓ '+_mfCk('ds_s1',false,'Death save success 1')+_mfCk('ds_s2',false,'Death save success 2')+_mfCk('ds_s3',false,'Death save success 3')+'</span> <span>✗ '+_mfCk('ds_f1',false,'Death save failure 1')+_mfCk('ds_f2',false,'Death save failure 2')+_mfCk('ds_f3',false,'Death save failure 3')+'</span></div></div>');
   // attacks / weapons table (editable, persisted)
   var wrows='';for(var i=0;i<6;i++){var wn=i+1;wrows+='<tr><td>'+_mfIn('wpn'+i+'_name','','','','Weapon '+wn+' name')+'</td><td>'+_mfIn('wpn'+i+'_atk','','','','Weapon '+wn+' attack bonus')+'</td><td>'+_mfIn('wpn'+i+'_dmg','','','','Weapon '+wn+' damage and type')+'</td></tr>';}
@@ -1993,7 +2024,7 @@ function renderCharSheet(b,r,ctx){
     '<div class="shsmall" style="margin-top:4px;color:var(--grey)">Starting gold from AP: <b>'+r.goldGp+' gp</b></div></div>');
   var F=[];(b.features||[]).forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0)});});(b.subAbilities||[]).forEach(function(k){var a=DATA.subAbilMap[k];if(a)F.push({t:a.sub+': '+a.name,pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[k]:0)});});(function(){var _pk=(typeof packTraitsFor==='function')?packTraitsFor(b.species,b.species2):[];var _seen={};return (b.racialTraits||[]).concat(_pk).filter(function(l){if(_seen[l])return false;_seen[l]=1;return true;});})().forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0)});});(b.boons||[]).forEach(function(x){var _ea=(b.epicBoonAbil||{})[x];F.push({t:'Boon — '+x+(_ea?(' (+2 '+_ea+')'):'')});});
   H.push('<div class="shbox"><h5>Features &amp; Traits</h5><div class="shsmall">'+(F.length?F.map(function(x){return '• <span'+(x.pg?' title="PHB p.'+x.pg+'" style="cursor:help;border-bottom:1px dotted var(--grey,#999)"':'')+'>'+_csEsc(x.t)+'</span>';}).join('<br>'):'—')+'</div></div>');
-  if((b.drawbacks||[]).length)H.push('<div class="shbox"><h5>Drawbacks</h5><div class="shsmall">'+b.drawbacks.map(function(d){return '• '+d;}).join('<br>')+'</div></div>');
+  if((b.drawbacks||[]).length)H.push('<div class="shbox"><h5>Drawbacks</h5><div class="shsmall">'+b.drawbacks.map(function(d){return '• '+_csEsc(d);}).join('<br>')+'</div></div>');
   {var _fsn=(b.fightingStyleNames||[]).filter(Boolean);if(_fsn.length){var _fsb='<div class="shbox"><h5>Fighting Style</h5>';_fsn.forEach(function(nm){var ar=(DATA.arts||{})[nm]||{};_fsb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(ar.fx||'')+'</span></div>';if(ar.grantCantrips){var _gc=((b.fsCantripNames||{})[nm]||[]).filter(Boolean);_fsb+='<div class="shrow"><span style="padding-left:10px;font-size:10px">'+_csEsc(ar.grantCantrips.list)+' cantrips ('+_csEsc(ar.grantCantrips.ab)+'): '+_csEsc(_gc.join(', ')||'(unnamed)')+'</span></div>';}});_fsb+='</div>';H.push(_fsb);}}
   {var _mmn=(b.metamagicNames||[]).filter(Boolean);if(_mmn.length){var _mmb='<div class="shbox"><h5>Metamagic</h5>';_mmn.forEach(function(nm){var mo=((DATA.metamagicOptions||[]).filter(function(o){return o.n===nm;})[0])||{};_mmb+='<div class="shrow on"><span>'+_csEsc(nm)+(mo.sp?(' <em style="color:var(--grey);font-size:9px">'+mo.sp+' SP</em>'):'')+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mmb+='</div>';H.push(_mmb);}}
   {var _mvn=(b.maneuverNames||[]).filter(Boolean);if(_mvn.length){var _mvb='<div class="shbox"><h5>Battle Master Maneuvers</h5>';_mvn.forEach(function(nm){var mo=((DATA.maneuvers||[]).filter(function(o){return o.n===nm;})[0])||{};_mvb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mvb+='</div>';H.push(_mvb);}}
@@ -2770,9 +2801,13 @@ document.addEventListener('sync-ready', function () {
             // ignore_player_ap). Reuses the freshly-fetched `camp` above rather than a second fetch;
             // dmAp/ignorePlayerAp still come from the established global DM-AP context (_dmOpts(),
             // same source every other compute() call in this file uses) — window.X, matching this
-            // handler's own defensive scope style right above.
+            // handler's own defensive scope style right above. Reads the FROZEN ledger via
+            // apAvailable(null) — NOT compute().remaining, which re-prices against today's DATA and can
+            // diverge from what was actually paid; see _lsOverApBudget()'s comment for the full
+            // reasoning (fix/livesheet-budget-gate-frozen-ledger, 2026-08-22) — this is the same bug,
+            // fixed at its second call site.
             if (camp && !(camp.rules && camp.rules.enforceApBudget === false) && window.compute) {
-              var _rem = window.compute(b, window._dmOpts ? window._dmOpts() : {}).remaining;
+              var _rem = apAvailable(null);
               if (_rem < 0) {
                 btn.disabled = false; btn.textContent = '☁ Save to cloud';
                 alert('⛔ Not saved to the cloud — this character is ' + (-_rem) + ' AP over budget, and '

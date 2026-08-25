@@ -1,0 +1,59 @@
+{
+ "description": "fix/engine-pricing-edge-cases (2026-08-22): a duplicate unlockclass event for a class already unlocked used to double-charge AP, because compute() priced Class unlocks off unlockedClasses.length with no ownership check. Two identical unlockclass events for 'Wizard' must fold to a single unlock — total must equal the SAME character with only one unlockclass event, not double.",
+ "baseSnapshot": {
+  "name": "Test Fighter",
+  "budget": 100,
+  "originClass": "Fighter",
+  "originClass2": "(none)",
+  "species": "Human",
+  "stats": {
+   "STR": 10,
+   "DEX": 10,
+   "CON": 10,
+   "INT": 10,
+   "WIS": 10,
+   "CHA": 10
+  },
+  "hd": 1,
+  "profBonus": 2,
+  "saves": [],
+  "skills": [],
+  "weaponProf": {
+   "simple": true
+  },
+  "armour": {
+   "light": true
+  },
+  "inPlay": true
+ },
+ "events": [
+  {
+   "type": "award",
+   "amount": 100,
+   "label": "AP award"
+  },
+  {
+   "type": "buy",
+   "cat": "unlockclass",
+   "payload": {
+    "v": "Wizard"
+   },
+   "cost": 8,
+   "label": "Unlock — Wizard"
+  },
+  {
+   "type": "buy",
+   "cat": "unlockclass",
+   "payload": {
+    "v": "Wizard"
+   },
+   "cost": 8,
+   "label": "Unlock — Wizard (duplicate)"
+  },
+  {
+   "type": "name",
+   "name": "Test Fighter",
+   "label": "Name — Test Fighter"
+  }
+ ]
+}

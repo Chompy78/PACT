@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.446.html**-->
+<!--**PACT-CharGen-Webtool v1.469.html**-->
 
 <!doctype html>
 <!--
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.446 · Rules v0.339</title><style>
+<title>PACT Character Generator — Web Tool v1.469 · Rules v0.339</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -497,7 +497,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.446</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.469</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -1490,12 +1490,19 @@ function _cgDmOpts(){
   return {dmAp:0,ignorePlayerAp:false,drawbackCap:undefined};
 }
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on,
-// who has actually spent past their budget right now. compute() needs no change — remaining<0
-// already means "over budget" (task step 8). Blocks only the CLOUD save path; Local "Save to file"
-// never calls this.
+// who has actually spent past their budget right now. Reads the FROZEN ledger (economy(LOG).spent
+// against compute()'s spendable ceiling) — NOT compute().remaining, which re-prices every owned item
+// against today's DATA tables and can diverge from what was actually paid, exactly the bug fixed in
+// Live Sheet's _lsOverApBudget() by fix/livesheet-budget-gate-frozen-ledger (2026-08-22) — found here
+// too by /code-review on that same PR (this file imports economy/foldBuild via the same module bridge,
+// so the identical fix applies). While a character is still an unlocked DRAFT, repriceDraft() keeps
+// economy().spent continuously in sync with compute().total on every mutation, so this rarely differs
+// pre-lock — the divergence this guards against is specifically a LOCKED character, where re-pricing
+// stops by design (D7) but this gate would otherwise still re-price anyway. Blocks only the CLOUD save
+// path; Local "Save to file" never calls this.
 function _cgOverApBudget(){
   if(!window._cgCampaignBound || !window._cgEnforceApBudget) return false;
-  return compute(readBuild(), _cgDmOpts()).remaining < 0;
+  return (compute(readBuild(), _cgDmOpts()).spendable - economy(LOG).spent) < 0;
 }
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
@@ -2080,7 +2087,7 @@ function buildForm(F){
   // prefixed ids need no per-field entry in PATCH_FIELD_SLOT.
   function apCustomField(idx){return '<div class="row apcustom"><input type="text" id="ap_custom'+idx+'Label" class="apin apcustomlabel" placeholder="Label (e.g. Catchphrase)" aria-label="Custom detail '+idx+' label"><input type="text" id="ap_custom'+idx+'Text" class="apin" placeholder="One sentence…" aria-label="Custom detail '+idx+' text"></div>';}
   grp('1 · Setup &amp; Character Description',
-    '<div class="row"><label class="l">Character name</label><input type="text" id="cname"><button class="btn ghost" type="button" onclick="genName()" title="Roll a random name in the chosen style(s)">🎲 Generate</button></div>'+
+    '<div class="row"><label class="l">Character name</label><input type="text" id="cname" maxlength="60"><button class="btn ghost" type="button" onclick="genName()" title="Roll a random name in the chosen style(s)">🎲 Generate</button></div>'+
     '<div class="namelab">Name flavour</div><div class="namesty">'+styleChips+'</div>'+
     '<div class="namelab">Influence</div><div class="namesty influ">'+influChips+'</div>'+
     '<div class="hint" style="margin:2px 0 4px 218px">Tick flavours and/or influence toggles — the generator blends every chosen pool. Species/Class-linked pull from your origin species &amp; class. Leave the name as-is to keep it.</div>'+
@@ -2973,7 +2980,16 @@ function _cgSyncAward(){
   // pool, not in an award event), and `0 || DATA.level1AP` silently turned that into 79. Only a blank or
   // unparseable field falls back to the level-1 default.
   const raw=val('budget'), parsed=Number(raw);
-  const base=(raw===''||raw==null||!Number.isFinite(parsed))?DATA.level1AP:parsed;
+  // fix/chargen-budget-negative-clamp (2026-08-22): the field's min="0" attribute isn't enforced against
+  // manually-typed input (only the spinner respects it), so a stray leading "-" — easy to fat-finger on a
+  // mobile numeric keypad — used to mint a genuine negative award event, leaving the character
+  // permanently "over budget" with no hint the budget field itself was the cause. Clamp to match the
+  // field's own declared minimum.
+  const base=(raw===''||raw==null||!Number.isFinite(parsed))?DATA.level1AP:Math.max(0,parsed);
+  // Correct the field's own displayed value when the clamp above actually changed something (a typed
+  // negative) — otherwise the input keeps showing e.g. "-79" indefinitely while the real recorded award
+  // silently became 0, a display/reality mismatch /code-review caught on this same fix.
+  if(Number.isFinite(parsed)&&parsed<0){const bi=$('budget');if(bi)bi.value=base;}
   const amt=base;
   // Don't mint a zero award for a character that has none. Without this, every load of a DM-AP-only
   // character would append `award 0` — a meaningless event that also makes the log look edited.
@@ -4373,12 +4389,12 @@ function randomizeRoll(){
   const actBoon=x=>{const cand=(DATA.boonList||[]).filter(k=>{const bo=DATA.boons[k];if(!bo||x.boons.includes(k))return false;if(x.hd<(bo.hd||1))return false;if(bo.minStats){for(const a in bo.minStats)if((x.stats[a]||10)<bo.minStats[a])return false;}if(bo.minStatsAny&&bo.minStatsAny.stats&&!bo.minStatsAny.stats.some(a=>(x.stats[a]||10)>=bo.minStatsAny.val))return false;return true;});if(!cand.length)return false;x.boons.push(pick(cand));};
   const actArt=x=>{x.arts=x.arts||[];const cand=(DATA.artList||[]).filter(k=>{const ar=DATA.arts[k];if(!ar||x.arts.includes(k))return false;if(x.hd<(ar.hd||1))return false;if(ar.minStatsAny&&ar.minStatsAny.stats&&!ar.minStatsAny.stats.some(a=>(x.stats[a]||10)>=ar.minStatsAny.val))return false;if(ar.prereqNote&&/Foundation/i.test(ar.prereqNote)&&!(x.traditions&&x.traditions.length))return false;return true;});if(!cand.length)return false;x.arts.push(pick(cand));};
   const actRacial=x=>{const cand=(DATA.racialList||[]).filter(l=>{const rr=DATA.racial[l];return rr&&!rr.pack&&(rr.race===x.species||rr.race===x.species2)&&!x.racialTraits.includes(l)&&x.hd>=((DATA.tierHD&&DATA.tierHD[rr.tier])||1);});if(!cand.length)return false;x.racialTraits.push(pick(cand));};
-  // feat/drawbacks-phobias-expansion: candidate filter also respects DATA.drawbackReq (caster-only drawbacks), same shape as the existing drawbackMaxStats filter — otherwise the randomizer could roll Mana Leak/Ritual-Blind/Wild Surge onto a Fighter and tryAct would reject it AFTER _draws was already spent (see the tryAct rollback note tracked separately), wasting one of a scarce number of draw attempts more often than the stat-cap case alone.
-  const actDraw=x=>{if(_draws>=_maxDraws)return false;const _hasFoundX=(x.traditions||[]).some(t=>t&&(t.disciplines||[]).some(d=>d&&d.name&&d.name!=='(none)'));const cand=(DATA.drawbackList||[]).filter(k=>{if(x.drawbacks.includes(k))return false;const mx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k];if(mx){for(const a in mx)if((x.stats[a]||10)>mx[a])return false;}const rq=DATA.drawbackReq&&DATA.drawbackReq[k];if(rq&&rq.caster&&!_hasFoundX)return false;return true;});if(!cand.length)return false;x.drawbacks.push(pick(cand));_draws++;};
+  // feat/drawbacks-phobias-expansion: candidate filter also respects DATA.drawbackReq (caster-only drawbacks), same shape as the existing drawbackMaxStats filter — closes the stat-cap/caster-gate rejection paths, but tryAct can still reject a candidate that clears both (e.g. pushing the character's total drawback AP over a campaign's enforced drawbackCap). fix/livesheet-drawback-legalcheck: _draws is now incremented by the CALLER only when tryAct(actDraw) actually succeeds — actDraw itself no longer increments it, so a tryAct rollback (rare, but real) no longer silently spends a draw attempt for a drawback that was never actually added.
+  const actDraw=x=>{if(_draws>=_maxDraws)return false;const _hasFoundX=(x.traditions||[]).some(t=>t&&(t.disciplines||[]).some(d=>d&&d.name&&d.name!=='(none)'));const cand=(DATA.drawbackList||[]).filter(k=>{if(x.drawbacks.includes(k))return false;const mx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k];if(mx){for(const a in mx)if((x.stats[a]||10)>mx[a])return false;}const rq=DATA.drawbackReq&&DATA.drawbackReq[k];if(rq&&rq.caster&&!_hasFoundX)return false;return true;});if(!cand.length)return false;x.drawbacks.push(pick(cand));};
   for(let q=0;q<3;q++)tryAct(actBoon);
   tryAct(actArt);tryAct(actArt);
   for(let q=0;q<3;q++)tryAct(actRacial);
-  if(rnd(100)<55)tryAct(actDraw);
+  if(rnd(100)<55&&tryAct(actDraw))_draws++;
   // 6) weighted action pool — each returns false to skip (e.g. nothing left to buy)
   const A=[
     actBoon,actBoon,actArt,actArt,actArt,actRacial,actRacial,actRacial,actRacial,actDraw,
@@ -4408,7 +4424,7 @@ function randomizeRoll(){
   ];
   // 4) spend until the budget is (near) exhausted or we keep failing to find anything affordable+legal
   let stuck=0, iters=0;
-  while(stuck<50 && iters<3000 && (budget - C(b).total) > 0){ iters++; if(tryAct(pick(A))) stuck=0; else stuck++; }
+  while(stuck<50 && iters<3000 && (budget - C(b).total) > 0){ iters++; const act=pick(A); if(tryAct(act)){ stuck=0; if(act===actDraw)_draws++; } else stuck++; }
   for(let q=0;q<8;q++){tryAct(actBoon);tryAct(actArt);tryAct(actRacial);tryAct(actRacial);}
   // Chunk B: randomize is ONE undoable step — push a single pre-roll frame, then suspend across applyBuild
   // AND the appearance/name resync so the tail's second LOG rebuild records no extra frame.
@@ -4438,7 +4454,11 @@ function stepDesc(label,n){const nm=(label.split(': ')[1]||'').toLowerCase();
 function annotate(b,r){
   const get=lab=>{const x=r.lines.find(l=>l[0]===lab);return x?x[1]:0;};
   // ability mods / AP
-  for(const a of ABILS){const m=r.mods[a];const sc=b.stats[a]||10;const ap=DATA.ABIL[sc]||0;
+  // /code-review catch on fix/engine-pricing-edge-cases: matches compute()'s own clamp so this display
+  // label can't show a stale unclamped figure (0 AP) for an out-of-range imported score once compute()
+  // itself started clamping to [2,20] — cosmetic-only (CharGen's own stepper is hard-capped 2-20, so
+  // this only differs from the naive lookup for a score reachable solely via an out-of-range import).
+  for(const a of ABILS){const m=r.mods[a];const sc=b.stats[a]||10;const ap=DATA.ABIL[Math.min(20,Math.max(2,sc))]||0;
     const low=sc<6;
     const mb=$('st_'+a+'_m');if(mb){mb.textContent=(m>=0?'+':'')+m;mb.className='abmodbig';mb.style.background=ABCOL[a];}
     const e=$('st_'+a+'_i');if(e){e.textContent=ap+' AP'+(low?'  ⚠ below min 6 (DM approval)':'');e.style.color=low?'var(--bad)':'';}
@@ -4858,7 +4878,11 @@ function warnTarget(w){var m;
   return null;}
 function sectionIdForWarning(w){for(var i=0;i<SECTIONS.length;i++){if(SECTIONS[i].warns.some(function(k){return w.indexOf(k)>=0;}))return 'sec'+(i+1);}return null;}
 // informational notes (not hard rule violations) — never counted as "issues" in the banner or section badges
-function isAdvisory(w){return /no Ki-using ability/.test(w)||/switched off player-entered AP/.test(w);}
+// "is no longer in the rules data" (code-review catch on feat/warn-missing-data-refs): the message's own
+// wording says "no cost/effect applied" — there is nothing to fix, so it must not render as an urgent ⚠
+// hard issue (it also has no matching warnTarget() case, so the "jump to control" click affordance would
+// be dead) or inflate the top-level issue banner.
+function isAdvisory(w){return /no Ki-using ability/.test(w)||/switched off player-entered AP/.test(w)||/is no longer in the rules data/.test(w);}
 function jumpToControl(id){const el=$(id);if(!el)return false;
   const fs=el.closest?el.closest('fieldset'):null;if(fs)fs.classList.remove('collapsed');var _h1=document.querySelector('.stickyhead');if(_h1&&getComputedStyle(_h1).position==='static'){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('flashhl');setTimeout(function(){el.classList.remove('flashhl');},1700);return true;}
   let off=0;const head=document.querySelector('.stickyhead');
@@ -4893,7 +4917,7 @@ function renderLedger(r,b){
   let html='',matched={};
   const row=l=>'<tr class="lrow" data-lab="'+l[0].replace(/"/g,'&quot;')+'" onclick="explainCost(this.dataset.lab)" title="'+explainText(l[0],b,r).replace(/"/g,'&quot;')+' — click for the full breakdown"><td style="padding-left:12px">'+l[0]+' <span class="qm">?</span></td><td class="v">'+l[1]+'</td></tr>';
   // v0.314: show each item purchased under its category line, not just the category subtotal
-  const itemRow=x=>'<tr class="lrow litem"><td style="padding-left:26px;color:var(--grey);font-size:11px">'+String(x[0]).replace(/</g,'&lt;')+'</td><td class="v" style="color:var(--grey);font-size:11px">'+x[1]+'</td></tr>';
+  const itemRow=x=>'<tr class="lrow litem"><td style="padding-left:26px;color:var(--grey);font-size:11px">'+_csEsc(x[0])+'</td><td class="v" style="color:var(--grey);font-size:11px">'+x[1]+'</td></tr>';
   LGROUPS.forEach(g=>{const ls=r.lines.filter(l=>g.lines.some(p=>l[0].indexOf(p)===0));ls.forEach(l=>matched[l[0]]=1);
     if(!ls.length)return;const sub=ls.reduce((s,l)=>s+l[1],0);
     html+='<tr class="lgh"><td>'+g.t+'</td><td class="v">'+sub+'</td></tr>';
@@ -5010,7 +5034,7 @@ function _cgRenderInner(){
   const mf=$('meterfill');if(mf){mf.style.width=Math.max(0,Math.min(100,pct))+'%';mf.className='meterfill '+(over?'mover':near?'mnear':'mok');}
   const sl=$('status');sl.textContent=r.status;sl.className='statusline '+(r.remaining<0?'bad':'good');
   window.__WARNS=r.warnings;
-  {var _wr=r.warnings.map((w,i)=>{var adv=isAdvisory(w);return '<li class="wlink'+(adv?' adv':'')+'" title="'+(adv?'Informational note':'Jump to the control that caused this')+'" onclick="jumpForWarning(__WARNS['+i+'])">'+(adv?'ⓘ':'⚠')+' '+w+'</li>';});
+  {var _wr=r.warnings.map((w,i)=>{var adv=isAdvisory(w);return '<li class="wlink'+(adv?' adv':'')+'" title="'+(adv?'Informational note':'Jump to the control that caused this')+'" onclick="jumpForWarning(__WARNS['+i+'])">'+(adv?'ⓘ':'⚠')+' '+esc(w)+'</li>';});
    // Unconfirmed creation AP (D-GH-2026-08-05-pricing-model, D3) belongs with the other advisories ABOVE
    // the Guide, not inside it — it is a "something needs your attention" note like the Ki one, not a
    // build suggestion. Clears on confirmation, or once spend passes the default (past that the question
@@ -5136,10 +5160,10 @@ function renderCharSheet(b,r,ctx){
   if((b.ki||0)>0)H.push('<div class="shbox"><h5>Ki / Focus Points</h5><div class="shrow on"><span>● Total Ki / Focus points</span><span>'+(b.ki||0)+'</span></div></div>');if((b.sorcery||0)>0)H.push('<div class="shbox"><h5>Sorcery Points</h5><div class="shrow on"><span>● Total sorcery points</span><span>'+(b.sorcery||0)+'</span></div></div>');H.push('<div class="shbox"><h5>Skills</h5>'+DATA.skillList.map(function(s){var bo=(b.skills||[]).includes(s[0]),ex=(b.expertise||[]).includes(s[0]);var bn=m[s[1]]+(bo?r.prof:0)+(ex?r.prof:0);return '<div class="shrow'+(bo?' on':'')+'"><span>'+(bo?'●':'○')+' '+s[0]+' <i style="color:'+A[s[1]]+'">('+s[1]+')</i>'+(ex?' ✦':'')+'</span><span>'+_sgn(bn)+'</span></div>';}).join('')+'</div>');
   {var perc=(b.skills||[]).includes("Perception"),pex=(b.expertise||[]).includes("Perception");var pp=10+m.WIS+(perc?r.prof:0)+(pex?r.prof:0);
    H.push('<div class="shbox"><h5>Passive Perception</h5><div class="shsmall" style="font-size:20px;font-weight:800;text-align:center;color:var(--navytx)">'+pp+'</div></div>');}
-  H.push('<div class="shbox"><h5>Proficiencies &amp; Languages</h5><div class="shsmall">Languages: '+((b.languageNames&&b.languageNames.filter(Boolean).length)?b.languageNames.filter(Boolean).join(', ')+' ('+(b.languages||1)+')':(b.languages||1))+
+  H.push('<div class="shbox"><h5>Proficiencies &amp; Languages</h5><div class="shsmall">Languages: '+((b.languageNames&&b.languageNames.filter(Boolean).length)?b.languageNames.filter(Boolean).map(_csEsc).join(', ')+' ('+(b.languages||1)+')':(b.languages||1))+
     '<br>Weapons: '+([(b.weaponProf&&b.weaponProf.simple?'Simple':''),(b.weaponProf&&b.weaponProf.allMartial?'All martial':(b.weaponProf&&b.weaponProf.martial?b.weaponProf.martial+' martial':'')),(b.weaponProf&&b.weaponProf.improvised?'Improvised':'')].filter(Boolean).join(', ')||'—')+
     '<br>Armour: '+([(b.armour&&b.armour.light?'Light':''),(b.armour&&b.armour.medium?'Medium':''),(b.armour&&b.armour.heavy?'Heavy':''),(b.armour&&b.armour.shield?'Shield':'')].filter(Boolean).join(', ')||'—')+
-    '<br>Masteries: '+((b.masteries||[]).join(', ')||'—')+'</div></div>');
+    '<br>Masteries: '+((b.masteries||[]).map(_csEsc).join(', ')||'—')+'</div></div>');
   {var tl=[].concat(b.tools||[],b.instruments||[],b.customProfs||[]);
    if(tl.length)H.push('<div class="shbox"><h5>Tools &amp; Instruments</h5>'+tl.map(function(t){var ab=DATA.toolAbil&&DATA.toolAbil[t];var tex=(b.toolExpertise||[]).includes(t);var bn=ab?(m[ab]+r.prof+(tex?r.prof:0)):null;return '<div class="shrow on"><span>● '+_csEsc(t)+(ab?' <i style="color:'+A[ab]+'">('+ab+')</i>':'')+(tex?' ✦':'')+'</span><span>'+(bn!=null?_sgn(bn):'')+'</span></div>';}).join('')+'</div>');}
   {var _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[];var _ls=(b.racialSpells||[]);if(b.lineage||_ls.length){var _lbox='<div class="shbox"><h5>Lineage'+(b.lineage?' — '+b.lineage:'')+' <span class="shtag">spell-like</span></h5>';if(!_ls.length){_lbox+='<div style="font-size:10.5px;color:var(--grey)">No lineage spell-likes bought yet.</div>';}else{_lbox+=_ls.map(function(nm){var sp=_lin.find(function(x){return x[0]===nm;});var kind='spell-like — '+(sp?(sp[2]===0?'cantrip':'L'+sp[2]+' · 1/long rest'):'innate');return '<div class="shrow on"><span>● '+_csEsc(nm)+'</span><span style="color:var(--grey)">'+kind+'</span></div>';}).join('');}_lbox+='</div>';H.push(_lbox);}}
@@ -5159,7 +5183,7 @@ function renderCharSheet(b,r,ctx){
     '<div class="shsmall" style="margin-top:4px;color:var(--grey)">Starting gold from AP: <b>'+r.goldGp+' gp</b></div></div>');
   var F=[];(b.features||[]).forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0)});});(b.subAbilities||[]).forEach(function(k){var a=DATA.subAbilMap[k];if(a)F.push({t:a.sub+': '+a.name,pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[k]:0)});});(b.racialTraits||[]).forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0)});});(b.boons||[]).forEach(function(x){var _ea=(b.epicBoonAbil||{})[x];F.push({t:'Boon — '+x+(_ea?(' (+2 '+_ea+')'):'')});});
   H.push('<div class="shbox"><h5>Features &amp; Traits</h5><div class="shsmall">'+(F.length?F.map(function(x){return '• <span'+(x.pg?' title="PHB p.'+x.pg+'" style="cursor:help;border-bottom:1px dotted var(--grey,#999)"':'')+'>'+_csEsc(x.t)+'</span>';}).join('<br>'):'—')+'</div></div>');
-  if((b.drawbacks||[]).length)H.push('<div class="shbox"><h5>Drawbacks</h5><div class="shsmall">'+b.drawbacks.map(function(d){return '• '+d;}).join('<br>')+'</div></div>');
+  if((b.drawbacks||[]).length)H.push('<div class="shbox"><h5>Drawbacks</h5><div class="shsmall">'+b.drawbacks.map(function(d){return '• '+_csEsc(d);}).join('<br>')+'</div></div>');
   {var _fsn=(b.fightingStyleNames||[]).filter(Boolean);if(_fsn.length){var _fsb='<div class="shbox"><h5>Fighting Style</h5>';_fsn.forEach(function(nm){var ar=(DATA.arts||{})[nm]||{};_fsb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(ar.fx||'')+'</span></div>';if(ar.grantCantrips){var _gc=((b.fsCantripNames||{})[nm]||[]).filter(Boolean);_fsb+='<div class="shrow"><span style="padding-left:10px;font-size:10px">'+_csEsc(ar.grantCantrips.list)+' cantrips ('+_csEsc(ar.grantCantrips.ab)+'): '+_csEsc(_gc.join(', ')||'(unnamed)')+'</span></div>';}});_fsb+='</div>';H.push(_fsb);}}
   {var _mmn=(b.metamagicNames||[]).filter(Boolean);if(_mmn.length){var _mmb='<div class="shbox"><h5>Metamagic</h5>';_mmn.forEach(function(nm){var mo=((DATA.metamagicOptions||[]).filter(function(o){return o.n===nm;})[0])||{};_mmb+='<div class="shrow on"><span>'+_csEsc(nm)+(mo.sp?(' <em style="color:var(--grey);font-size:9px">'+mo.sp+' SP</em>'):'')+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mmb+='</div>';H.push(_mmb);}}
   {var _mvn=(b.maneuverNames||[]).filter(Boolean);if(_mvn.length){var _mvb='<div class="shbox"><h5>Battle Master Maneuvers</h5>';_mvn.forEach(function(nm){var mo=((DATA.maneuvers||[]).filter(function(o){return o.n===nm;})[0])||{};_mvb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mvb+='</div>';H.push(_mvb);}}

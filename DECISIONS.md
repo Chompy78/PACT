@@ -10,6 +10,124 @@
 
 ## Index
 
+## D-GH-2026-08-25-password-reset-flow — password reset was broken end-to-end; fixed the redirect target and built the missing recovery page
+- Two defects, not one: `forgotPassword()` redirected to the app homepage (no recovery handling at all),
+  and even a correct redirect would have landed nowhere — `updatePassword()` existed in `js/auth.js` but
+  nothing called it. Fixed with a new `RESET_REDIRECT` constant (`login.html`, separate from
+  `REDIRECT_BASE`, which `signUp()` still correctly uses) and a new recovery view in `login.html`.
+  Detection logic (`type=recovery` vs `error=` in the URL fragment) verified directly against the
+  vendored Supabase client source rather than assumed from memory; a synchronous pre-import hint script
+  avoids a real race between the client's own async hash-clearing and the page's boot logic. The
+  existing "already signed in → bounce to index.html" check had to move behind the new recovery/error
+  branches — Supabase's recovery redirect establishes a real session, so it would otherwise have kicked
+  a genuine recovery visit away before they ever saw the new-password form. **Needs a Supabase dashboard
+  step this session's tools can't perform:** `https://chompy78.github.io/PACT/login.html` must be added
+  to Auth → URL Configuration → Redirect URLs before this works in production. No automated e2e coverage
+  added (`cloud-e2e.mjs` needs Docker, unavailable in this environment) — verified instead via syntax
+  checks, a DOM-id cross-reference, and a manual trace of all four boot-state branches. Full record:
+  `decisions/2026/D-GH-2026-08-25-password-reset-flow.md`.
+
+## D-GH-2026-08-22-archived-campaign-rpc-enforcement — server-side enforcement that an archived campaign is write-locked
+- "Archived = read-only" was enforced only in `tools/DM-Console.html`'s client JS — no RLS policy or RPC
+  rejected a write against an archived campaign. Cold-reviewed by 5 independent reviewers before
+  implementation per `AGENTS.md`'s high-risk-change rule. Scope: seven write paths (five
+  `SECURITY DEFINER` RPCs — `award_ap`, `award_gold`, `declare_downtime`, `dm_edit_character_log`,
+  `dm_unbind_character` — plus the `campaigns_update` and `characters_delete` RLS policies), narrower
+  than the task board's original unscoped wording; two of the board's five presumed RPC names
+  (`set_ignore_player_ap`/`set_campaign_rules`) turned out to be a column-grant, not functions;
+  `characters_delete`'s missing archive check (a DM could otherwise hard-delete a bound character with
+  no check at all) was found during this work's own broader write-surface audit, not named by the
+  original finding. One fail-closed `is_campaign_active()` primitive, two call-site helpers derived from
+  it. Verified with a full fixture-based role/state matrix run directly against production via
+  authenticated-role SQL simulation (this environment has no Docker/Supabase-CLI for a local stack) —
+  all seven paths confirmed to reject while archived and restore after `unarchive_campaign()`;
+  negative-authority-ordering, positive-still-readable, and cross-campaign-isolation controls all
+  confirmed. Full record: `decisions/2026/D-GH-2026-08-22-archived-campaign-rpc-enforcement.md`.
+
+## D-GH-2026-08-24-missing-data-ref-warning-classification — fix 3 confirmed findings from a post-merge /code-review ultra
+- CharGen's `isAdvisory()` and Live Sheet's `_lsIsAdvisory()` were never updated when
+  `feat/warn-missing-data-refs` added 8 new "is no longer in the rules data" warnings, so the notice
+  rendered as an urgent hard issue with a dead click target and inflated issue counts — contradicting its
+  own "no cost/effect applied" wording. Fixed both classifiers; added fixtures CG-039–CG-044 to close a
+  6-of-8-sites coverage gap. Two more findings from the same review (latent subAbilities/subSpellBundles
+  label edge cases, a `SOFT_WARN` gap) verified not reachable with live DATA or any UI path — deferred,
+  recorded rather than fixed reflexively. Full record:
+  `decisions/2026/D-GH-2026-08-24-missing-data-ref-warning-classification.md`.
+
+## D-GH-2026-08-24-warn-missing-data-refs — warn (don't silently no-op) when compute() hits a DATA reference that's been retired
+- 8 loops in `compute()` silently `continue`d past a saved racial trait/boon/drawback/art/feature/
+  subAbility/subSpellBundle/racialSpell reference no longer in `DATA` — zero cost/effect, no warning, no
+  trace. Fixed additively (existing pricing behavior unchanged, confirmed by 0 output drift across all 57
+  pre-existing fixtures); `subSpellBundles` needed care to avoid a false positive (its lookup is
+  overloaded between "genuinely missing" and "legitimately no bundle"); two categories are also iterated
+  by a secondary loop for unrelated checks, deliberately not duplicated to avoid 2-3x warning noise for
+  one stale label. `/code-review ultra` caught two real issues post-hoc: the 8th site (`racialSpells`)
+  and a stored-XSS regression (the new warnings are the first to echo attacker-controlled free text
+  rather than a curated `DATA` key) in both CharGen's and Live Sheet's warning renderers, fixed with
+  `esc(w)`. Full record: `decisions/2026/D-GH-2026-08-24-warn-missing-data-refs.md`.
+## D-GH-2026-08-24-livesheet-drawback-legalcheck — route Live Sheet drawback purchases through legalCheck()/buy()
+- `takeDrawback()` called `emit()` directly, the only purchase category in the Live Sheet with no rules
+  enforcement at all — a Fighter could tick a caster-only drawback, and a broken stat cap went unenforced.
+  Routing through `buy()` required a new `_CTX_PRICERS.drawback` entry: the default whole-build-delta
+  pricer returns 0 for drawbacks, since they're modeled as income (not negative spend) since v0.354 —
+  verified directly against `js/engine.js`'s own "MODEL (b)" comment before wiring anything, not assumed.
+  Full record: `decisions/2026/D-GH-2026-08-24-livesheet-drawback-legalcheck.md`.
+
+## D-GH-2026-08-22-dm-console-codm-revoke-ui — a "Current co-DMs" list with a Remove action
+- The console could withdraw an unredeemed co-DM invite but had no way to see or remove someone who had
+  already redeemed one and become a co-DM — a real gap given this project's history with the invite/join
+  privilege-escalation bug. `removeDm()`/`getCampaignDms()` already existed in `js/campaign.js`, unused;
+  verified server-side authorization directly (the RPC is `SECURITY DEFINER` and independently re-checks
+  `is_campaign_owner()`, plus blocks removing the owner) before wiring any UI to it. New owner-only panel
+  tile, gated the same way "Archive campaign" already is; Remove confirms first. 4 new synthetic-data
+  tests (no live backend needed) cover rendering/escaping and the confirm+RPC wiring — 167/0. Full
+  record: `decisions/2026/D-GH-2026-08-22-dm-console-codm-revoke-ui.md`.
+
+## D-GH-2026-08-22-engine-pricing-edge-cases — four js/engine.js pricing edge cases, DATA.version v0.358 → v0.359
+- Attunement/Ki/Sorcery points could go free or refund AP once bought past their price tables' last
+  entry (live-reachable via Live Sheet's ordinary buy buttons, no gate stops long play from reaching
+  25/21-rung ladders); an out-of-range ability score priced below a legitimately-bought 20; a duplicate
+  `unlockclass` LOG event double-charged AP for a class already unlocked; `activeEvents()`'s FIFO
+  buyoff/dmRemoveBoon matching could cross-match two unrelated malformed events on the same `undefined`
+  key. All four clamp/dedupe/guard against the existing pattern already used elsewhere in the file
+  (`unlockCum`'s own comment: "a clamp under-charges at worst; `|| 0` paid the player"). `arts`/`boons`/
+  `subAbilities` deliberately NOT added to the dedupe list alongside `unlockedClasses` — whether
+  duplicates there should be legal is an unanswered rules question, not assumed either way. 5 new
+  parity fixtures; `engine-parity-ci.mjs` 57/0, `tool-pricing-ci.mjs` 163/0, `log-fuzz.mjs` 500/500 clean.
+  Not a Players Guide change — see the record's "Why" section for why this is a bug fix restoring
+  already-intended behavior, not a mechanics change. Full record:
+  `decisions/2026/D-GH-2026-08-22-engine-pricing-edge-cases.md`.
+
+## D-GH-2026-08-22-audit-batch-mechanical-fixes — 10 low-risk playability/usability fixes from the 2026-08-22 audit, batched
+- The audit's non-security findings (14 remaining after the esc()/XSS batch), triaged into what's safe to
+  fix directly in one batch vs. what needs its own dedicated pass: 10 mechanical, single-file, no-design-
+  decision fixes shipped here (Live Sheet's frozen-ledger budget gate + import confirm + HP-sync hint;
+  DM Console's roster staleness + downtime confirm + dead-code removal + touch target; CharGen's ledger
+  escaping + budget clamp + name maxlength). The three engine-pricing findings (uncapped ladders, ability-
+  score bound, duplicate-unlock dedupe) are sequenced into their own branch since they share a
+  `DATA.version` bump. Two findings are explicitly NOT fixed here: the co-DM revoke UI (real feature work,
+  its own branch) and archived-campaign RPC enforcement (a production RLS/RPC change — deferred pending
+  `/make-code-cold-plan-review`, per this project's own standing rule for that class of change). The HP-
+  sync finding's deeper fix (moving `curHP`/`tempHP`/`hdLeft` into the LOG-backed path) is likewise not
+  filed as a task — it's a real schema decision only the owner can make; the shallow visibility fix ships
+  now, the deep option is a live open question, not a queued task. Full record:
+  `decisions/2026/D-GH-2026-08-22-audit-batch-mechanical-fixes.md`.
+
+## D-GH-2026-08-22-esc-gap-chargen-livesheet — closing five stored-XSS/attribute-injection gaps in CharGen and Live Sheet
+- A full tool audit found five places (eight counting the CharGen↔Live Sheet `renderCharSheet()`
+  duplication plus one same-shape mirror found while fixing) where a player-controlled value reached
+  `innerHTML`/an HTML attribute without `esc()`/`_csEsc()` — three reachable through completely ordinary
+  UI use (naming a language, importing a JSON save, buying off a drawback), cross-user reachable via
+  cloud sync, share links, and DM Console's roster/`?viewChar=` view. Fixed by wrapping the affected
+  array joins in `esc()`/`_csEsc()` matching every sibling field in the same functions, escaping
+  `validate()`'s three `payload.v` interpolations at the point they're built (not blanket over the whole
+  issues array, which intentionally embeds real HTML elsewhere), and moving the buy-off button's value
+  out of an inline `onclick` string into an escaped `data-v` attribute plus `dataset.v` read, closing a
+  second independent attribute-injection vector on the same field. Verified with a new throwaway CDP
+  script (`testing/scripts/esc-gap-verify.mjs`) driving the actual fixed code with the audit's exact
+  payloads — 9/0 — plus `engine-parity-ci.mjs` 52/0 and `tool-pricing-ci.mjs` 163/0 confirming no
+  regression. Full record: `decisions/2026/D-GH-2026-08-22-esc-gap-chargen-livesheet.md`.
+
 ## D-GH-2026-08-22-dm-console-stale-campaign-switch-race — a stale campaign-switch response could clobber the newly-selected campaign's data
 - Found while investigating a `dm-console-ui-e2e.mjs` CI failure on the `preview`→`main` promotion PR
   (#446) that reproduced identically twice in CI but passed locally: `loadInvites()`/`loadRoster()`/
@@ -1356,6 +1474,12 @@
   replaced (not added to) Live Sheet's earned-AP `apLevel` chip with a spent-AP tuned-curve
   `trackLevel`; left `js/ap-by-level.js` untouched (pace curve ≠ budget curve)
   Full record: `decisions/2026/D-GH-2026-07-14-advancement-tracks.md`.
+  > Correction (2026-08-24, see D-GH-2026-08-03-ap-budget-curve-standard): the term
+  > "pace curve" here is a mislabel. PACT has no AP-earned-per-level curve — the
+  > rules define a *budget* curve (Standard L1 79/+24, Generous 83/+28, prelude L0
+  > 55) and a separate *award pace* (~7 AP/session). The decision this line
+  > records — leaving `js/ap-by-level.js` untouched — was still correct at the time;
+  > only the parenthetical naming is wrong.
 - **D-GH-2026-07-13-campaign-membership-helpers** — De-duplicate campaign-membership SQL
   checks: one new ungranted helper for the invite_code lookup, reuse the pre-existing
   `is_campaign_member()` for the membership check rather than adding a second near-duplicate

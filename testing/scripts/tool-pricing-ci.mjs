@@ -255,6 +255,39 @@ try {
     window.flash=m=>window.__f.push(String(m));
     LOG.length=0;SEQ=1;REDO.length=0;`;
 
+  // code-review catch on feat/warn-missing-data-refs: that PR pushes compute().warnings with the raw
+  // saved reference label for a boon/racialTrait/drawback/art/feature/subAbility/subSpellBundle no
+  // longer in DATA -- the FIRST time compute() ever puts genuinely attacker-controlled text into W.
+  // validate()'s tray built its issues list from these warnings unescaped, same class of bug REV-12
+  // already closed elsewhere in this tool. A hand-edited/imported LOG event naming a nonexistent boon
+  // as an HTML-injection payload must render as inert text in the validation tray, not execute.
+  console.log('\nLive Sheet — a missing-DATA-reference warning renders escaped, not as live HTML');
+  // Ground truth is a live DOM query (querySelector), not a string search: the browser normalizes
+  // attribute quoting on innerHTML round-trip (<img src=x> serializes back as <img src="x">), which
+  // makes a bare 'indexOf("<img src=x")' string match a false negative even when the injection landed
+  // for real -- caught only by actually re-running this with the fix reverted and reading the debug
+  // output, not by trusting the string-match version on first green.
+  check('an unrecognized boon name carrying an HTML-injection payload renders inert in the tray',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'buy',cat:'boon',payload:{v:'<img src=x onerror="window.__xss=1">'},cost:0,label:'boon',seq:SEQ++,ts:1});
+      render();
+      const tray=document.getElementById('tray');
+      return [!!tray.querySelector('img'), tray.innerHTML.includes('&lt;img')];})()`),
+    [false, true]);
+
+  // code-review catch on fix/missing-data-ref-warning-classification: _lsIsAdvisory() was left unaware
+  // of the new "is no longer in the rules data" notice, so it counted as a hard "needs review" issue and
+  // rendered with the urgent treatment — contradicting the message's own wording ("no cost/effect
+  // applied" — there is nothing to fix). Confirms the notice both fires and classifies as advisory.
+  console.log('\nLive Sheet — a missing-DATA-reference notice classifies as advisory, not a hard issue');
+  check('_lsIsAdvisory() recognizes the missing-DATA-reference notice',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'buy',cat:'boon',payload:{v:'Retired Boon Not In DATA'},cost:0,label:'boon',seq:SEQ++,ts:1});
+      render();
+      const hit=validate().find(w=>/is no longer in the rules data/.test(w));
+      return [!!hit, hit?_lsIsAdvisory(hit):null];})()`),
+    [true, true]);
+
   // The campaign binding is written into the autosave envelope but load() used to drop it, so every
   // page refresh detached a campaign-bound character until an async cloud round-trip re-resolved it —
   // and that round-trip minted a fresh id when none was set, queried a character that had never
@@ -389,6 +422,42 @@ try {
       return [before, clickable, after];})()`),
     [false, true, true]);
 
+  // fix/livesheet-drawback-legalcheck: takeDrawback() used to emit() straight past legalCheck()/buy()'s
+  // hard-violation gate — the only drawback purchase path in this tool with no rules enforcement at all.
+  // Neither gate (drawbackMaxStats nor drawbackReq) had any e2e coverage in either tool before this.
+  console.log('\nLive Sheet — a hard drawback violation is refused, not silently taken');
+  check('a stat-capped drawback is refused once the cap is already broken (drawbackMaxStats)',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      LOG.push({type:'buy',cat:'abil',payload:{ab:'CON',to:14},cost:priceOf('abil',{ab:'CON',to:14}),label:'CON 14',seq:SEQ++,ts:Date.now()});
+      const n=LOG.length;
+      takeDrawback('Asthmatic');
+      return [LOG.length===n, foldBuild(null).drawbacks.includes('Asthmatic'),
+              /Purchase blocked/.test(window.__a[0]||''), /Asthmatic/.test(window.__a[0]||'')];})()`),
+    [true, false, true, true]);
+  check('a caster-gated drawback is refused on a non-caster (drawbackReq)',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      const n=LOG.length;
+      takeDrawback('Mana Leak');
+      return [LOG.length===n, foldBuild(null).drawbacks.includes('Mana Leak'),
+              /Purchase blocked/.test(window.__a[0]||''), /Mana Leak/.test(window.__a[0]||'')];})()`),
+    [true, false, true, true]);
+  check('regression guard: the same drawback still buys cleanly once the gate no longer applies',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      takeDrawback('Asthmatic');
+      return [foldBuild(null).drawbacks.includes('Asthmatic'), window.__a.length];})()`),
+    [true, 0]);
+  // code-review catch on this PR: the drawback-cap advisory warning ("Drawbacks grant N AP — the guide
+  // caps them at 12 AP...") is explicitly designed by js/engine.js to clamp the grant or merely advise,
+  // never to block the purchase — but it matched neither SOFT_WARN nor EXPECTED_FOLLOWUP, so routing
+  // takeDrawback() through legalCheck() would have turned an advisory into a hard block with no rule
+  // actually broken. A local (uncapped) character over the guide's 12 AP cap must still buy cleanly.
+  check('exceeding the advisory drawback-AP cap (12, no campaign) is a soft warning, not a hard block',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      takeDrawback('Borrowed Time'); takeDrawback('Hexed Luck');
+      return [foldBuild(null).drawbacks.sort(), economy(null).drawbackEarned,
+              window.__a.length, /caps them at/.test((LOG[LOG.length-1].warns||[])[0]||'')];})()`),
+    [['Borrowed Time', 'Hexed Luck'], 14, 0, true]);
+
   // code-review finding (this session): the ledger's "dead" styling only ever checked
   // boughtOff (drawbacks) — a DM-removed boon's original buy row rendered as a normal, fully-priced,
   // still-active purchase, with the only sign anything happened a separate, uncorrelated dmRemoveBoon
@@ -444,35 +513,44 @@ try {
     ['32', 'silver', 'A grizzled veteran.']);
 
   // feat/campaign-ap-budget-enforce: a campaign-bound character's CLOUD save (manual + autosave) is
-  // refused once compute()'s remaining<0, when the campaign's rules.enforceApBudget is true-or-absent.
-  // compute() itself needs no change (task step 8), so these isolate _lsOverApBudget()'s own gating
-  // logic from real AP-pricing arithmetic by stubbing compute() to a fixed {remaining} — the pricing
-  // math is already exhaustively covered by engine-parity-ci.mjs.
+  // refused once the FROZEN LEDGER reads over budget, when the campaign's rules.enforceApBudget is
+  // true-or-absent. fix/livesheet-budget-gate-frozen-ledger (2026-08-22): _lsOverApBudget() used to
+  // read compute().remaining (a re-price against TODAY's rules, which can diverge from what was
+  // actually paid) — now reads apAvailable(null) (economy()'s frozen spent vs compute()'s spendable
+  // ceiling), so these build a REAL over/under-budget LOG rather than stubbing compute() — stubbing it
+  // would no longer exercise the code path this test means to cover, since compute() is not what
+  // _lsOverApBudget() consults for the remaining figure any more.
   console.log('\nLive Sheet — cloud save is blocked while over AP budget, enforced by the campaign');
-  check('_lsOverApBudget gates on campaign-bound + enforcement + remaining<0, independently',
-    await ls.evaluate(`(()=>{
-      const real=compute;
-      window._lsCampaignId=null; window._cloudCampaignRules={enforceApBudget:true}; window.compute=()=>({remaining:-3});
-      const r1=_lsOverApBudget();   // not bound -> false regardless of remaining
+  check('_lsOverApBudget gates on campaign-bound + enforcement + frozen-ledger-over, independently',
+    await ls.evaluate(`(()=>{${LS_SETUP}
+      // 10 AP awarded, 50 AP spent — genuinely over budget on the frozen ledger.
+      LOG.push({type:'award',amount:10,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:50,label:'Test (50 AP)',seq:SEQ++,ts:Date.now()});
+      window._lsCampaignId=null; window._cloudCampaignRules={enforceApBudget:true};
+      const r1=_lsOverApBudget();   // not bound -> false regardless of being over budget
       window._lsCampaignId='camp-1'; window._cloudCampaignRules={enforceApBudget:false};
       const r2=_lsOverApBudget();   // bound but enforcement explicitly off -> false
       window._cloudCampaignRules={};   // absent key -> default true
       const r3=_lsOverApBudget();   // bound + default-enforced + over -> true
-      window.compute=()=>({remaining:3});
+      LOG.length=0;SEQ=1;
+      // 50 AP awarded, 10 AP spent — genuinely under budget.
+      LOG.push({type:'award',amount:50,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:10,label:'Test (10 AP)',seq:SEQ++,ts:Date.now()});
       const r4=_lsOverApBudget();   // bound + enforced + UNDER -> false
-      window.compute=real; window._lsCampaignId=null;
+      window._lsCampaignId=null;
       return [r1, r2, r3, r4];})()`),
     [false, false, true, false]);
   check('autosave push skips silently while over budget, warning once per session not every cycle',
     await ls.evaluate(`(()=>{${LS_SETUP}
-      const real=compute; window.compute=()=>({remaining:-7});
+      LOG.push({type:'award',amount:10,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:50,label:'Test (50 AP)',seq:SEQ++,ts:Date.now()});
       window._lsCampaignId='camp-1'; window._cloudCampaignRules={};
       window.flash=m=>window.__f.push(String(m));
       let calls=0; const realBridge=window._syncBridge;
       window._syncBridge={saveCharacter:async()=>{calls++;return{};}};
       _lsBudgetWarned=false;
       return _lsCloudPushOnce().then(()=>_lsCloudPushOnce()).then(()=>{
-        window.compute=real; window._syncBridge=realBridge; window._lsCampaignId=null;
+        window._syncBridge=realBridge; window._lsCampaignId=null;
         return [calls, window.__f.length];});})()`),
     [0, 1]);
   check('autosave push proceeds normally when enforcement is off, even over budget',
@@ -692,6 +770,39 @@ try {
       const s=_creationLockState();
       return LOG.length===n+1 && s.threshold===75 && s.confirmed===true
         && !/Creation AP not confirmed/.test(document.getElementById('warns').innerText);})()`), true);
+
+  // code-review catch on feat/warn-missing-data-refs: that PR pushes compute().warnings with the raw
+  // saved reference label for a boon/racialTrait/drawback/art/feature/subAbility/subSpellBundle no
+  // longer in DATA -- the FIRST time compute() ever puts genuinely attacker-controlled text (not a
+  // curated, known DATA key) into W. #warns renders r.warnings straight into innerHTML with no esc(),
+  // same class of bug REV-12 already closed elsewhere in this tool. A hand-edited/imported LOG event
+  // naming a nonexistent boon as an HTML-injection payload must render as inert text, not execute.
+  console.log('\nCharGen — a missing-DATA-reference warning renders escaped, not as live HTML');
+  // Ground truth is a live DOM query (querySelector), not a string search: the browser normalizes
+  // attribute quoting on innerHTML round-trip (<img src=x> serializes back as <img src="x">), which
+  // makes a bare 'indexOf("<img src=x")' string match a false negative even when the injection landed
+  // for real -- caught only by actually re-running this with the fix reverted and reading the debug
+  // output, not by trusting the string-match version on first green.
+  check('an unrecognized boon name carrying an HTML-injection payload renders inert in #warns',
+    await cg.evaluate(`(()=>{LOG.length=0;SEQ=1;
+      LOG.push({type:'buy',cat:'boon',payload:{v:'<img src=x onerror="window.__xss=1">'},cost:0,label:'boon',seq:SEQ++,ts:1,level:1});
+      render();
+      const warns=document.getElementById('warns');
+      return [!!warns.querySelector('img'), warns.innerHTML.includes('&lt;img')];})()`),
+    [false, true]);
+
+  // code-review catch on fix/missing-data-ref-warning-classification: isAdvisory() was left unaware of
+  // the new "is no longer in the rules data" notice, so it counted as a hard ⚠ issue (inflating the
+  // top-level banner) with a dead "jump to control" click target (warnTarget() has no matching case) —
+  // contradicting the message's own wording ("no cost/effect applied" — there is nothing to fix).
+  console.log('\nCharGen — a missing-DATA-reference notice classifies as advisory, not a hard issue');
+  check('isAdvisory() recognizes the missing-DATA-reference notice',
+    await cg.evaluate(`(()=>{LOG.length=0;SEQ=1;
+      LOG.push({type:'buy',cat:'boon',payload:{v:'Retired Boon Not In DATA'},cost:0,label:'boon',seq:SEQ++,ts:1,level:1});
+      render();
+      const w=(window.__WARNS||[]).find(w=>/is no longer in the rules data/.test(w));
+      return [!!w, w?isAdvisory(w):null];})()`),
+    [true, true]);
 
   // ---- draft reconciliation (fix/species-pack-not-charged) ----------------------------------
   // While the character is a draft there is ONE pricing context, so "what was paid" must equal "what
@@ -1209,23 +1320,36 @@ try {
     [true, true]);
 
   // feat/campaign-ap-budget-enforce: a campaign-bound character's CLOUD save (manual + autosave) is
-  // refused once compute()'s remaining<0, when the campaign's rules.enforceApBudget is true-or-absent.
-  // compute() itself needs no change (task step 8), so these isolate _cgOverApBudget()'s own gating
-  // logic from real AP-pricing arithmetic by stubbing compute() to a fixed {remaining} — the pricing
-  // math is already exhaustively covered by engine-parity-ci.mjs.
+  // refused once the FROZEN LEDGER reads over budget, when the campaign's rules.enforceApBudget is
+  // true-or-absent. fix/tool-mechanical-fixes (2026-08-22, /code-review catch on that PR):
+  // _cgOverApBudget() used to read compute().remaining — the same re-price-against-today's-rules bug
+  // already fixed in Live Sheet's _lsOverApBudget() — now reads (compute().spendable - economy(LOG).spent)
+  // instead, so these build a REAL over/under-budget LOG rather than stubbing compute(), matching the
+  // Live Sheet fixture rewrite above (a compute() stub no longer exercises the code path this gate
+  // consults).
   console.log('\nCharGen — cloud save is blocked while over AP budget, enforced by the campaign');
-  check('_cgOverApBudget gates on campaign-bound + enforcement + remaining<0, independently',
+  check('_cgOverApBudget gates on campaign-bound + enforcement + frozen-ledger-over, independently',
     await cg.evaluate(`(()=>{
-      const real=compute;
-      window._cgCampaignBound=false; window._cgEnforceApBudget=true; window.compute=()=>({remaining:-3});
-      const r1=_cgOverApBudget();   // not bound -> false regardless of remaining
+      LOG.length=0;SEQ=1;
+      // Neutral DM-AP context — _cgDmOpts() must return {dmAp:0,...} so spendable is driven purely by
+      // this test's own award events, not whatever DM-context globals an earlier check in this same
+      // page session left set (window._dmApStatus/_dmAp/_ignorePlayerAp/_cgCopySourceAp).
+      window._dmApStatus=null; window._dmAp=0; window._ignorePlayerAp=false; window._cgCopySourceAp=0;
+      // 10 AP awarded, 50 AP spent — genuinely over budget on the frozen ledger.
+      LOG.push({type:'award',amount:10,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:50,label:'Test (50 AP)',seq:SEQ++,ts:Date.now()});
+      window._cgCampaignBound=false; window._cgEnforceApBudget=true;
+      const r1=_cgOverApBudget();   // not bound -> false regardless of being over budget
       window._cgCampaignBound=true; window._cgEnforceApBudget=false;
       const r2=_cgOverApBudget();   // bound but enforcement explicitly off -> false
       window._cgEnforceApBudget=true;
       const r3=_cgOverApBudget();   // bound + enforced + over -> true
-      window.compute=()=>({remaining:3});
+      LOG.length=0;SEQ=1;
+      // 50 AP awarded, 10 AP spent — genuinely under budget.
+      LOG.push({type:'award',amount:50,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:10,label:'Test (10 AP)',seq:SEQ++,ts:Date.now()});
       const r4=_cgOverApBudget();   // bound + enforced + UNDER -> false
-      window.compute=real; window._cgCampaignBound=false;
+      window._cgCampaignBound=false;
       return [r1, r2, r3, r4];})()`),
     [false, false, true, false]);
   // onSaveClick() itself is NOT directly testable here: its "☁ Save to cloud" button only exists in
@@ -1237,14 +1361,17 @@ try {
   // exact same gate end-to-end through a path that doesn't need sign-in.
   check('autosave push skips silently while over budget, warning once per session not every cycle',
     await cg.evaluate(`(()=>{
-      const real=compute; window.compute=()=>({remaining:-7});
+      LOG.length=0;SEQ=1;
+      window._dmApStatus=null; window._dmAp=0; window._ignorePlayerAp=false; window._cgCopySourceAp=0;
+      LOG.push({type:'award',amount:10,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Test Feature'},cost:50,label:'Test (50 AP)',seq:SEQ++,ts:Date.now()});
       window._cgCampaignBound=true; window._cgEnforceApBudget=true;
       window.__f=[]; window.flash=m=>window.__f.push(String(m));
       let calls=0; const realBridge=window._syncBridge;
       window._syncBridge={saveCharacter:async()=>{calls++;return{};}};
       _cgBudgetWarned=false;
       return _cgCloudPushOnce().then(()=>_cgCloudPushOnce()).then(()=>{
-        window.compute=real; window._syncBridge=realBridge; window._cgCampaignBound=false;
+        window._syncBridge=realBridge; window._cgCampaignBound=false;
         return [calls, window.__f.length];});})()`),
     [0, 1]);
   check('autosave push proceeds normally for a non-campaign character, however negative remaining is',
@@ -1451,6 +1578,91 @@ try {
       window._dmPeekActive=false; window._campBridge.dmEditCharacterLog=realFn; window._dmPeekBlocks=realBlocks;
       return [calls, blocked];})()`),
     [0, 3]);
+
+  // feat/dm-console-codm-revoke-ui (2026-08-22): the "Current co-DMs" list, driven by
+  // window._dmCoDmsTest (same synthetic-data test-seam shape as window._dmPartyDowntimeTest above) —
+  // no live Supabase backend or sign-in needed, since renderCoDms()/the remove-button click handler
+  // are pure DOM given synthetic rows plus a stubbed window._campBridge.removeDm.
+  console.log('\nDM Console — the "Current co-DMs" list renders escaped and wires the Remove button correctly');
+  check('renders one row per co-DM, escaped, with a name and a Remove button',
+    await dm.evaluate(`(()=>{
+      window._dmCoDmsTest.setRows([
+        {dm_id:'dm-1', name:'<img src=x onerror=window.__xss=1>', added_by:'owner-1', created_at:'2026-08-01T00:00:00Z'},
+        {dm_id:'dm-2', name:'Sam', added_by:'owner-1', created_at:'2026-08-05T00:00:00Z'}
+      ]);
+      window.__xss = 0;
+      window._dmCoDmsTest.render();
+      const list = document.getElementById('campCoDmsList');
+      const rows = list.querySelectorAll('.codmrow');
+      const btns = list.querySelectorAll('.codm-remove-btn');
+      const containsRawTag = list.innerHTML.indexOf('<img src=x') !== -1;
+      return [rows.length, btns.length, containsRawTag, window.__xss,
+              btns[0].getAttribute('data-cid'), btns[1].getAttribute('data-cid')];})()`),
+    [2, 2, false, 0, 'dm-1', 'dm-2']);
+  check('an empty co-DM list shows a placeholder, not a blank panel',
+    await dm.evaluate(`(()=>{
+      window._dmCoDmsTest.setRows([]);
+      window._dmCoDmsTest.render();
+      const list = document.getElementById('campCoDmsList');
+      return [list.querySelectorAll('.codmrow').length, list.textContent.length > 0];})()`),
+    [0, true]);
+  check('clicking Remove confirms, then calls removeDm(campaignId, dm_id) and reloads the list',
+    await dm.evaluate(`(()=>{
+      window._dmSetCampIdTest('camp-codm-test');
+      window._dmCoDmsTest.setRows([{dm_id:'dm-9', name:'Riva', added_by:'owner-1', created_at:'2026-08-10T00:00:00Z'}]);
+      window._dmCoDmsTest.render();
+      let captured = null, confirmed = null, reloadCalls = 0;
+      const realRemove = window._campBridge.removeDm;
+      window._campBridge.removeDm = (campId, dmId) => { captured = [campId, dmId]; return Promise.resolve(); };
+      const realConfirm = window.confirm; window.confirm = (m) => { confirmed = m; return true; };
+      const realGet = window._campBridge.getCampaignDms;
+      window._campBridge.getCampaignDms = () => { reloadCalls++; return Promise.resolve([]); };
+      const btn = document.querySelector('#campCoDmsList .codm-remove-btn[data-cid="dm-9"]');
+      btn.click();
+      return Promise.resolve().then(() => new Promise(r => setTimeout(r, 50))).then(() => {
+        window._campBridge.removeDm = realRemove; window.confirm = realConfirm;
+        window._campBridge.getCampaignDms = realGet; window._dmSetCampIdTest(null);
+        if (!captured) return 'not called';
+        return [captured[0], captured[1], !!confirmed, reloadCalls];
+      });})()`),
+    ['camp-codm-test', 'dm-9', true, 1]);
+  check('declining the confirmation does not call removeDm',
+    await dm.evaluate(`(()=>{
+      window._dmSetCampIdTest('camp-codm-test-2');
+      window._dmCoDmsTest.setRows([{dm_id:'dm-8', name:'Nox', added_by:'owner-1', created_at:'2026-08-11T00:00:00Z'}]);
+      window._dmCoDmsTest.render();
+      let calls = 0;
+      const realRemove = window._campBridge.removeDm;
+      window._campBridge.removeDm = () => { calls++; return Promise.resolve(); };
+      const realConfirm = window.confirm; window.confirm = () => false;
+      const btn = document.querySelector('#campCoDmsList .codm-remove-btn[data-cid="dm-8"]');
+      btn.click();
+      return Promise.resolve().then(() => new Promise(r => setTimeout(r, 20))).then(() => {
+        window._campBridge.removeDm = realRemove; window.confirm = realConfirm; window._dmSetCampIdTest(null);
+        return calls;
+      });})()`),
+    0);
+  // /code-review catch on this same PR: getCampaignDms() returns every campaign_dms row, and the
+  // add_owner_as_dm trigger (sql/schema.sql) auto-inserts the owner into that table on campaign
+  // creation — loadCoDms() must filter the owner's row out itself (client-side, matching camp.dm_id),
+  // or the owner shows up in their own "co-DMs" list with a Remove button that would hit remove_dm()'s
+  // "the owner cannot be removed" guard and dead-end in a raw error.
+  check('loadCoDms() filters the campaign owner out of the co-DM list (they are not a "co"-DM)',
+    await dm.evaluate(`(()=>{
+      window._dmSetCampIdTest('camp-owner-filter-test');
+      window._dmSetCampaignsTest([{id:'camp-owner-filter-test', dm_id:'owner-xyz', isOwner:true}]);
+      const realGet = window._campBridge.getCampaignDms;
+      window._campBridge.getCampaignDms = () => Promise.resolve([
+        {dm_id:'owner-xyz', name:'The Owner', added_by:null, created_at:'2026-01-01T00:00:00Z'},
+        {dm_id:'dm-real-1', name:'A Real Co-DM', added_by:'owner-xyz', created_at:'2026-08-01T00:00:00Z'}
+      ]);
+      return window._dmCoDmsTest.load().then(() => {
+        window._campBridge.getCampaignDms = realGet;
+        window._dmSetCampIdTest(null); window._dmSetCampaignsTest([]);
+        const rows = window._dmCoDmsTest.getRows();
+        return [rows.length, rows.some(r => r.dm_id === 'owner-xyz'), rows.some(r => r.dm_id === 'dm-real-1')];
+      });})()`),
+    [1, false, true]);
 
   // feat/ap-model-reconcile: a fully DM-funded character (0 in their own log, ignore_player_ap on)
   // used to show apLevel 0 (trackLevel(eco.earned) alone). earnedWithDm() fixes it identically to the

@@ -19,6 +19,7 @@ Completed work (PWA shell, auth, cloud sync, campaigns, hardening, landing-page 
 prune, PWA stale-version reload-prompt fix, Live Sheet mobile density/collapse) has landed and graduated
 to `CHANGELOG.md`.
 
+
 ## Merge concurrent character edits instead of refusing them — TODO
 Branch `feat/character-log-merge`. The deep fix behind `fix/optimistic-character-save` (NOW), which only
 *refuses* a stale write. Do that one first; this supersedes its behaviour rather than conflicting with it.
@@ -119,50 +120,6 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 **Done when:** drawback buyoffs resolve by a stable event reference (with legacy label fallback), `verifyPayload()` cannot throw on any input, `baseBuild()`'s duplicate fields are removed, `noLock`'s scope is structurally constrained or renamed to make misuse unambiguous, and `testing/tests/engine-parity.html` is still 20/0.
 
 ---
-
-## Warn when compute() encounters a rules-table reference that no longer exists in DATA — TODO
-Branch feat/warn-missing-data-refs. Several `compute()` lookups silently no-op when a character
-references a racial trait/boon/drawback (and likely other categories) that's been removed or renamed
-from `DATA` — confirmed sites: racial traits (`js/engine.js` ~L182, L189, `if(!r)continue`), boons
-(~L372, `if(!bo)continue`), drawbacks (~L383, `||0` fallback). The character keeps the stale label in
-its saved data, but gets zero cost/effect from it on recompute with no warning telling anyone why —
-surfaced while discussing what happens if existing abilities get removed from the rules content.
-**Effort:** medium · **Risk:** medium — ambiguity is medium (touch each lookup site individually vs.
-centralize behind one shared helper is a contained, low-stakes call, not an architectural fork); damage
-scale is medium (touches `compute()` directly across several lookup sites, but the change is purely
-additive — new warning text only, no pricing/AP-total change — bounding the blast radius); damage
-likelihood is medium (the parity gate does check warning text via its `legacy_warnings`/
-`new_engine_warnings` columns, but REV-01's own follow-up note already flags a known fixture-coverage
-gap for some `W.push` branches, so a new warning path isn't automatically exercised without a dedicated
-fixture) — eligible for `/sweep-code-tasks`.
-
-```text
-1. Enumerate every DATA lookup in compute()/rebuildStateFromEvents() that silently skips or
-   zero-prices an unrecognized reference — confirmed so far: racialTraits, boons, drawbacks; also
-   check masteries, features, class/subclass references, spells/traditions, and feats for the same
-   pattern (grep for similar `if(!X)continue` / `||0` guards against DATA lookups).
-2. At each site, keep the existing skip/zero-fallback behavior unchanged (this task is additive, not a
-   pricing/behavior change) and push a warning to W naming the specific missing reference, e.g. "⚠
-   '<label>' is no longer in the rules data — no cost/effect applied." Reuse each site's existing
-   W.push warning-string conventions (⛔/⚠ prefixes, label-splitting logic) rather than inventing a new
-   format.
-3. Decide once, up front, whether to centralize these lookups behind one shared helper (e.g. a
-   `_lookupOrWarn(table, key, W)` function) or keep each site's existing ad hoc structure and just add
-   one warning line to each — default to the latter (minimal, additive, lowest risk) unless the audit
-   in step 1 finds it's clearly cleaner to centralize. Don't use this task to also refactor compute()'s
-   overall structure — that's REV-14b's job, tracked separately.
-4. Add at least one new fixture (or extend an existing one) in testing/fixtures/ + testing/expected/
-   with a build referencing a racial trait/boon/drawback deliberately absent from the current DATA, so
-   the new warning path gets real, permanent test coverage — closing exactly the kind of
-   fixture-coverage gap REV-01's own follow-up note already flags for W.push branches.
-5. This is additive/display-only for compute()'s numeric output (AP totals, pricing) — do NOT bump
-   DATA.version; log in CHANGELOG.
-```
-
-**Done when:** every silent-skip DATA lookup in compute() found in the step-1 audit pushes a visible
-warning naming the missing reference instead of silently doing nothing; at least one fixture exercises
-this new warning path; `testing/tests/engine-parity.html` is still 20/0 for all pre-existing fixtures
-(no numeric/pricing change), plus the new fixture passes with the expected warning text.
 
 ---
 
@@ -306,6 +263,51 @@ workaround permanently rather than a reason to delay.
 **Done when:** a decision record (or an addendum on `D-GH-2026-08-19-tool-coin-time-costs`) states which
 of the three governs and why — including "the workaround is the answer" as a legitimate outcome — and, if
 either build option is chosen, it ships with `testing/scripts/economy-ui-e2e.mjs` covering it.
+
+## Consider moving Current HP / Temp HP / Hit Dice left into LOG-backed data — TODO
+```
+In tools/PACT-Live-Char-Sheet.html, Current HP, Temp HP, and Hit Dice left are NOT part of the
+event-sourced character (LOG/cloud `stats`). They live entirely in a localStorage-only scratchpad —
+`_sheetStoreKey()` ('pactCharSheetManual:' + SHEET_TOOL, e.g. 'pactCharSheetManual:livesheet'),
+written/read via `_csStore()`/`csSave(id,fieldId,val)`/`csLoad(id)`, seeded by `_mfIn('curHP',
+String(r.hp), ...)` where r.hp is only the computed-max-HP DEFAULT, and rehydrated per character by
+`hydrateSheet(id)` on load. This means these fields are per-device, per-browser: not synced to the
+cloud, not visible to a DM, not shared between a player's phone and laptop, and lost if local storage
+is cleared. This is already disclosed in the UI (the "📱 This device only — not saved to the cloud or
+shared with other devices" hint added under the HP/Temp HP/Hit Dice box).
+
+Investigate whether this should change, and if so how. Two options, not a foregone conclusion:
+
+(a) Migrate into the LOG-backed path (the way `appearance` was migrated in an earlier change) so these
+    fields sync to the cloud and are visible to a DM. This is a real schema/design decision, not a
+    mechanical fix — it raises:
+      - Does every HP tick belong in the append-only LOG as its own event (damage/heal/temp-HP-grant),
+        or does it become a mutable "current state" field alongside LOG rather than derived from it —
+        which breaks the project's "never store derived values, derive at runtime" rule as currently
+        understood, since current HP is inherently a running total that only makes sense as either an
+        event stream or a stored snapshot, not a pure recompute like AP/gold?
+      - Migration story for characters that already have local-only HP values sitting in
+        localStorage today — do they get folded in on next load, silently dropped, or left as-is?
+      - Interaction with undo/redo and the time-travel/scrub UI (`foldBuild(uptoIdx)`) — if HP becomes
+        LOG-backed, scrubbing to an earlier point must show HP as it was at that point, which is a
+        bigger behavioral change than the other LOG-backed fields.
+    Given the schema implications, run this through /make-code-cold-plan-review before implementing
+    either direction.
+
+(b) Leave as-is. The localStorage scratchpad plus the already-shipped "device only" hint is treated as
+    the permanent, intentional answer — Current HP/Temp HP/Hit Dice left are combat-transient bookkeeping
+    a player tracks per-session, not part of the character's durable build. This needs no further work.
+
+Do not implement either option without a decision — this task is to weigh them, not to pick (a) by
+default.
+```
+**Effort:** decision + (if (a) chosen) medium-large implementation · **Risk:** low to investigate;
+medium-high to implement (a) — it changes what "the character" durably contains and touches undo/redo,
+time-travel scrub, and the cloud sync path.
+
+**Done when:** a decision record states which option governs and why (including "leave as-is, the
+device-only hint is the permanent answer" as a legitimate outcome) — and, if (a) is chosen, it ships
+with an engine-parity/tool-pricing-ci fixture covering HP behavior under undo/redo and time-travel scrub.
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
