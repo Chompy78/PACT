@@ -272,10 +272,17 @@
       const unsub = onAuthChange((event) => {
         if (event === 'PASSWORD_RECOVERY') { resolved = true; unsub(); showRecoveryForm(); }
       });
-      // Defensive only: the sync hint already found type=recovery with no error= param, so
-      // PASSWORD_RECOVERY should fire almost immediately (Supabase's own internal same-tick
-      // dispatch). This timeout exists for a malformed-redirect case the hint didn't already catch.
-      setTimeout(() => { if (!resolved) { unsub(); showRecoveryExpired(); } }, 5000);
+      // The sync hint already found type=recovery with no error= param, so PASSWORD_RECOVERY
+      // normally fires almost immediately (Supabase's own internal same-tick dispatch) — but
+      // supabase-js serializes auth-state work across tabs via a cross-tab lock, so a visitor with
+      // another PACT tab open (or just a slow network loading the vendored client) can see it fire
+      // late, not never. Do NOT unsubscribe on timeout: show the "expired" fallback as a courtesy
+      // (so a genuinely dead link doesn't leave the user staring at "verifying…" forever), but keep
+      // the listener alive — a late PASSWORD_RECOVERY still overrides it with the real form rather
+      // than being silently dropped by an unsub() that already ran. /code-review ultra finding on
+      // PR #468: the original 5s+unsub version could permanently mislabel a valid, merely-slow link
+      // as expired.
+      setTimeout(() => { if (!resolved) showRecoveryExpired(); }, 8000);
     } else {
       // Already signed in (bookmark, back button, etc.) — nothing to do here either; bounce to index.html.
       (async () => { if (await currentUser()) goToIndex(); })();
