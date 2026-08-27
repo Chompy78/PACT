@@ -921,3 +921,67 @@ ambiguity low, damage scale low. Sweep-eligible.
 
 **Done when:** every subclass-ability option shows its Hit-Dice requirement against the character's current
 HD, using the engine's `requiredHD()`; the number shown matches the one in `compute()`'s blocked warning.
+
+---
+
+## A held inert purchase can hard-block levelling, with no way to discard it — TODO
+Branch `feat/discard-inert-purchase`. Direct consequence of getting the level-up price *right*
+(`D-GH-2026-08-27-feature-hd-gate`, round-2 addendum): the "Level up → Hit Die N" tile now quotes the
+Hit-Dice ladder **plus** whatever that step legalises, so a character holding an expensive HD-blocked
+purchase — e.g. a cross-class T7 feature frozen at 0 AP, imported from CharGen — sees the tile go dead as
+`unaff` (`cost > eco.available`), reading "needs 128 AP — you have 40". `awardToNext()` only grants
+`levelDelta(hd)`, and the Live Sheet's buy panel offers no refund/discard path for a held-but-inert
+purchase, so the character cannot level until a DM awards the difference. The quote is not wrong; the gap
+is that there is no way to say "I don't want this after all". Workaround today: reopen in CharGen and
+remove it, or have the DM award the shortfall.
+Related: when the level-up IS afforded, the ledger records one event labelled only "Level up → Hit Die N"
+with no itemisation of what the extra AP paid for — worth solving in the same pass.
+**Effort:** medium · **Risk:** medium — ambiguity is the driver: a discard path for a purchase that is
+already in a frozen ledger is a real event-model question (retract? a buy-off style negative event? refuse
+the import instead?), and the answer must not reopen the free-purchase hole this came from. Damage scale
+is low (the character is gated, not corrupted) and there is a workaround.
+
+```text
+1. Reproduce: import a character from CharGen holding a cross-class T7 feature at low HD, bind it to a
+   campaign, and confirm the level-up tile is unaffordable with no discard affordance.
+2. Decide the event shape -- this is the decision, record it in DECISIONS.md. Whatever is chosen must
+   leave economy().spent and compute().total in agreement afterwards, which is exactly what the
+   blocked-purchase-freeze regression in tool-pricing-ci asserts.
+3. Surface it where the player already sees the problem: the held-but-inert tile (_inertNote) is the
+   natural place to offer "discard", not a separate menu.
+4. Itemise the level-up ledger entry when it carries more than the ladder, so "Level up → Hit Die N" at
+   128 AP explains the 96 + 32 split.
+5. Add a tool-pricing-ci case: discard an inert purchase, then level -- ledger === compute() throughout.
+```
+
+**Done when:** a player holding an inert purchase can either discard it or see plainly why levelling costs
+more, without a DM award being the only route; `economy().spent === compute().total` across the discard.
+
+---
+
+## Racial traits still re-derive the Hit-Dice rule instead of calling `requiredHD()` — TODO
+Branch `refactor/racial-required-hd`. `D-GH-2026-08-27-feature-hd-gate` introduced `requiredHD()` as THE
+single definition of the Hit-Dice rule and its comment says "Do not re-inline it; import it" — but four
+`(DATA.tierHD && DATA.tierHD[x.tier]) || 1` re-derivations remain for racial traits and were deliberately
+left out of scope: `tools/PACT-Live-Char-Sheet.html`'s `racialWhy()`, and three sites in
+`tools/PACT-CharGen-Webtool.html`. `DATA.racial` entries carry `tier` exactly as `DATA.features` do, plus
+a `minHD` floor that maps cleanly onto `requiredHD()`'s existing `hd` floor — so folding them in is
+mechanical. Until then the racial gate can drift from the feature gate the next time `tierHD` semantics
+change, which is precisely the drift the export was created to end.
+**Effort:** low · **Risk:** medium — damage scale is the driver: racial-trait pricing and its ⛔ messaging
+are player-visible and `minHD` must keep behaving as a floor, not an override. Ambiguity is low (the
+mapping is stated above) and likelihood low (parity + tool-pricing gates cover the pricing).
+
+```text
+1. Teach requiredHD() to read `minHD` as a floor alongside `hd`/`lvl`, or normalise the racial entries --
+   whichever keeps DATA.racial untouched is preferable, since that file is the rules dataset.
+2. Replace all four re-derivations with requiredHD() calls. Keep the racial messaging as it is: racial
+   traits say "needs N Hit Dice (level N)" and carry their own reqRace/cross-species wording, which is
+   NOT the same string as the class-ability gate.
+3. compute()'s own racial minHD check should read the same helper, so engine and tools cannot disagree.
+4. Verify no racial price or warning changes: this is a de-duplication, not a rules change, so do NOT
+   bump DATA.version and expect engine-parity to stay green with no expected/ edits.
+```
+
+**Done when:** no tool re-derives `DATA.tierHD[...]` for racial traits; `requiredHD()` owns the rule for
+both class abilities and racial traits; engine-parity 0 failed with no `testing/expected/` changes.
