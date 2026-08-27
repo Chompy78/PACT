@@ -811,6 +811,12 @@ levels; `requiredHD()` already takes an optional per-item `lvl` **floor** (`max(
 so the mechanism exists and only the data is missing. Either author `lvl` on every entry whose Guide text
 names a level, or record the coarser gate as a deliberate simplification — but not neither, because right
 now the engine and the Guide disagree and only the Guide says so out loud.
+
+**The sharpest case is everything above 17 HD.** T7 is the top tier, so it has no higher tier to escalate
+into: *every* ability the Guide places at L18, L19 or L20 collapses onto the same 17 HD gate. Known
+examples: `Sneak Attack (10d6, L19)` and `Paladin: Aura range → 30 ft (L18)` (the latter is in fixture
+CG-015). Hit Dice run to 20, so the gate has three whole levels of headroom it currently cannot use —
+this is a gap in the tier model, not a rounding artefact, and `lvl` floors are how it gets closed.
 **Effort:** medium · **Risk:** medium — damage scale is the driver: this tightens gates on real abilities,
 so it changes `compute()` output and can newly block existing characters; ambiguity is low (the Guide
 states the numbers) and likelihood low (a mechanical data pass with a parity gate behind it).
@@ -829,8 +835,8 @@ states the numbers) and likelihood low (a mechanical data pass with a parity gat
 ```
 
 **Done when:** every ability whose Guide entry names a level either carries a matching `lvl` floor or is
-listed in the decision record as a deliberate approximation; the sweep script reports the remaining
-divergence count; engine-parity 0 failed.
+listed in the decision record as a deliberate approximation; **every L18/L19/L20 ability gates above 17 HD
+rather than at it**; the sweep script reports the remaining divergence count; engine-parity 0 failed.
 
 ---
 
@@ -859,3 +865,59 @@ Not sweep-eligible for that reason.
 
 **Done when:** the Guide's tier table covers all seven tiers and matches `DATA.tierHD` exactly, or the
 divergence is recorded in DECISIONS.md as deliberate with its reason; engine-parity 0 failed.
+
+---
+
+## Live Sheet's buy panel shows an HD-blocked feature as "already purchased" — TODO
+Branch `fix/live-sheet-blocked-shows-owned`. Found by `/code-review ultra` on PR #471. In each of the four
+buy-panel pickers the `b.features.includes(l)` ownership check runs **before** the `requiredHD()` check, so
+a feature the engine reports as `⛔ ... not counted, not owned` renders as `ibOwned` with the tooltip
+"Already purchased" and no re-buy path. The player is told simultaneously that they own it and that they
+do not, with nothing indicating that raising Hit Dice is the remedy. Reachable today by any character built
+in CharGen (which lets you pick any ability regardless of HD) and by existing cloud characters — the
+`Archer` named in `D-GH-2026-08-27-feature-hd-gate` is a live example. Sites: `tools/PACT-Live-Char-Sheet.html`
+origin-class features, Eldritch Invocations, cross-class features, and subclass abilities.
+**Effort:** low · **Risk:** low — display-only, in one tool, with the engine already authoritative on the
+underlying state; ambiguity is low (invert the precedence and render a blocked state), damage scale low.
+Sweep-eligible.
+
+```text
+1. In each of the four pickers, test blocked BEFORE owned: a feature that is both listed in b.features and
+   failing requiredHD() must render as blocked with "needs N Hit Dice", not as ibOwned.
+2. Use the engine's own answer -- requiredHD() is already imported into this tool; do not re-derive.
+3. Do not silently drop it from the list: the player needs to see they hold it and why it is inert, which
+   is the same thing compute()'s "Blocked purchases" ledger line says.
+4. Verify against a real character: load one holding an above-tier ability and confirm the panel and the
+   ledger now agree.
+```
+
+**Done when:** no picker in the Live Sheet renders a feature as owned while `compute()` reports it blocked;
+a `tool-pricing-ci` case asserts the two agree for an above-tier holding.
+
+---
+
+## CharGen's subclass-ability picker has no Hit-Dice annotation — TODO
+Branch `feat/chargen-subpick-hd-annotation`. `D-GH-2026-08-27-feature-hd-gate` annotated CharGen's
+class-feature grid with each ability's requirement (`Extra Attack · T4 At-Will · 5 HD`) but left the
+subclass-ability picker unannotated, so a player picks a T6 subclass ability at 3 HD with no indication at
+all and only discovers it from a `compute()` warning afterwards — the exact blindness the feature grid was
+annotated to remove. Note the two are NOT the same problem: the class-feature grid is built once at init
+(`buildClassPickers()`), which is why its annotation is the static requirement, whereas the `.subpick` loop
+rewrites every option's `textContent` on **every render** with its per-character price — so this picker can
+show a live, per-character *met/unmet* state, which is strictly better than what the feature grid can do.
+Fixture `CG-047` covers the engine side of this path already.
+**Effort:** low · **Risk:** low — display-only, one tool, one loop, with `requiredHD()` already imported;
+ambiguity low, damage scale low. Sweep-eligible.
+
+```text
+1. In the .subpick render loop, append the requirement to each option's textContent alongside the price,
+   using the imported requiredHD(a) -- do not re-derive from DATA.tierHD.
+2. Because this loop runs per render, show met/unmet against the character's current hd rather than only
+   the static number, and keep it legible when the option is already owned.
+3. Match the class-feature grid's wording so the two pickers read as one system.
+4. Manual check: at 3 HD a T6 subclass ability shows its requirement before selection, and the engine's
+   blocked warning after selection says the same number.
+```
+
+**Done when:** every subclass-ability option shows its Hit-Dice requirement against the character's current
+HD, using the engine's `requiredHD()`; the number shown matches the one in `compute()`'s blocked warning.
