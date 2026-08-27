@@ -804,6 +804,12 @@ const _CTX_PRICERS={
     const strip=function(b){const c=clone(b);const h=b.hd||1;
       c.features=(c.features||[]).filter(function(l){const f=DATA.features[alias(l)];return !(f&&h<requiredHD(f));});
       c.subAbilities=(c.subAbilities||[]).filter(function(k){const a=DATA.subAbilMap[k];return !(a&&h<requiredHD(a));});
+      // Arts & Boons are hard-blocked the same way as features/subAbilities (D-GH-2026-08-27-feature-hd-gate
+      // addendum) but were missing here: an HD-blocked Art or Boon passed through unstripped, so it appeared
+      // in BOTH deltaFull and deltaStripped below and canceled out -- the level-up that legalised it quoted
+      // only the ladder step and the purchase activated for free. Caught by /code-review ultra on PR #471.
+      c.arts=(c.arts||[]).filter(function(l){const a=DATA.arts[l];return !(a&&h<requiredHD(a));});
+      c.boons=(c.boons||[]).filter(function(l){const bo=((b.houseRules||{}).boons||{})[l]||DATA.boons[l];return !(bo&&h<(Number(bo.hd)||1));});
       return c;};
     const bump=function(b){const c=clone(b);(MUT.hd||function(){})(c,{to:to});return c;};
     const curS=strip(cur);

@@ -1564,6 +1564,19 @@ try {
       const [id,events]=captured;
       return [id, events.length, events[0].type, events[0].cat, events[0].cost, events[0].dmLocked, events[0].dmRemovalCost];})()`),
     ['test-4', 1, 'buy', 'drawback', 0, true, 'expensive']);
+  // An HD-blocked Art/Boon must be MARKED in the roster display but stay the exact plain name wherever
+  // it is a value source -- the "remove a boon" <select> above matches by exact string, so decorating
+  // s.boons/s.arts themselves (rather than a separate *Display field) would silently break Remove for
+  // any blocked boon. Caught by /code-review ultra on PR #471. DM_EDIT_ROW's Boon of Combat Prowess is
+  // Epic (needs 19 HD) on a 1 HD character with no hd event -- already HD-blocked by construction.
+  check('a blocked boon is marked in the display chips but the remove-dropdown value stays exact',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      const chip=[...card.querySelectorAll('.chip')].find(c=>c.textContent.indexOf('Boon of Combat Prowess')>=0);
+      const opt=card.querySelector('.dm-remove-boon-sel[data-cid="test-4"] option[value="Boon of Combat Prowess"]');
+      return [!!chip, chip?/⛔/.test(chip.textContent):false, !!opt];})()`),
+    [true, true, true]);
   // Archived-campaign peek must block these exactly like Award AP/notes/unbind already are — same
   // handler, same guard, same class of write action.
   check('archived-campaign peek blocks all three DM-edit buttons, same as Award AP',
@@ -2057,6 +2070,31 @@ try {
     await t.close();
     check('a level-up quotes the FULL delta of what it legalises, incl. knock-on ledger lines',
       r[0], r[1]);
+  }
+
+  // strip() inside _CTX_PRICERS.hd originally filtered only b.features/b.subAbilities. Arts & Boons are
+  // hard-blocked the same way (a later round of D-GH-2026-08-27-feature-hd-gate) but were missed: an
+  // HD-blocked Art/Boon passed through unstripped, so it appeared in BOTH deltaFull and deltaStripped
+  // and canceled out -- the level-up that legalised it quoted only the ladder step, and the Art/Boon
+  // activated for free. Caught by /code-review ultra on PR #471. 'Actor' is a general-feat Art, hd:4.
+  {
+    const w = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    await w.evaluate(`(()=>{try{localStorage.clear();return 'cleared';}catch(e){return 'skip:'+e.name;}})()`); await w.close();
+    const t = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    if (!(await t.evaluate(READY(`window._engineFold&&window.DATA&&typeof priceOf==='function'`))))
+      throw new Error('Live Sheet never became ready for the arts/boons knock-on check');
+    const r = await t.evaluate(`(()=>{
+      LOG.push({type:'award',amount:400,label:'headroom',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'patch',payload:{patch:{originClass:'Fighter'}},cost:0,seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'hd',payload:{to:2},cost:0,seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'art',payload:{v:'Actor'},cost:0,seq:SEQ++,ts:Date.now()});
+      const cur=foldBuild(null);
+      const after=clone(cur); MUT.hd(after,{to:5});
+      const real=compute(after).total-compute(cur).total;
+      return [priceOf('hd',{to:5},cur), real, real>0];})()`);
+    await t.close();
+    check('a level-up quotes the full delta when it legalises a blocked Art too',
+      [r[0], r[2]], [r[1], true]);
   }
 
   await cg2.close(); await ls2.close();
