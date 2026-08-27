@@ -4,6 +4,23 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-27 · feat(engine): the Hit-Dice gate extended to Arts & Techniques and Boons;
+  `js/engine.js` · `DATA.version` v0.360 → v0.361** — the original gate scoped to class abilities, leaving
+  feats (Arts) and Boons **advisory**: the engine warned "needs N+ Hit Dice" and then charged and granted
+  them anyway, so a 1 HD character could hold and use a 3 HD Art. Both now behave exactly as class
+  abilities do — 0 AP, not owned, grants nothing, itemised under "Blocked purchases". The trap that made
+  this non-trivial: the epic-boon **+2 ability fold reads `b.boons` ~400 lines above the boon pricing
+  loop**, so gating at the loop alone would have handed a 1 HD character a free +2 — the same shape as
+  round 1's Primal Champion regression. Arts and Boons are therefore resolved into blocked sets at the top
+  of `compute()`, beside the feature sets and before that fold, with `blockedAP`/`_BLI` hoisted so all four
+  datasets feed one ledger line. `CG-051` covers a blocked Art; `CG-052` covers the epic-boon trap (STR
+  stays 10 at 1 HD, becomes 12 at 17). `EV-018` needed 17 HD and a larger award so the DM-removal mechanic
+  it exists to prove still runs. **3 HD stays correct for the general-feat pool** — tiers are level bands
+  gated at the floor (T3 = levels 3–4), the same rule that puts a level-19 Epic boon at 17 HD. Live data
+  checked before shipping: 11 of 25 characters hold Arts or Boons and **none** is above their Hit Dice, so
+  this enforces against zero existing characters. engine-parity 73/73, tool-pricing 180/180. See
+  `DECISIONS.md` D-GH-2026-08-27-feature-hd-gate (Addendum, round 3).
+
 - **2026-08-27 · fix: a blocked purchase grants nothing, and a level-up pays for what it legalises;
   `js/engine.js`, both player tools** — three defects found by `/code-review ultra` on PR #471, two of them
   introduced by the Hit-Dice gate in the same PR. (1) **Ownership was resolved after the ability-score

@@ -38,8 +38,7 @@
  "EV-016": [],
  "EV-017": [],
  "EV-018": [
-  "Boon of Combat Prowess: choose an ability to raise (+2)",
-  "Boon of Combat Prowess: boon needs 17+ Hit Dice"
+  "Boon of Combat Prowess: choose an ability to raise (+2)"
  ],
  "CG-012": [],
  "CG-013": [],
@@ -136,5 +135,11 @@
  ],
  "CG-050": [
   "⛔ Primal Champion — blocked: needs 17 Hit Dice (T7) (not counted, not owned)"
+ ],
+ "CG-051": [
+  "⛔ Actor — blocked: needs 3 Hit Dice (not counted, not owned)"
+ ],
+ "CG-052": [
+  "⛔ Boon of Combat Prowess — blocked: needs 17 Hit Dice (not counted, not owned)"
  ]
 }

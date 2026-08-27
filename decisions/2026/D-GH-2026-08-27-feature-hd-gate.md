@@ -186,3 +186,32 @@ the Warlock-level note still calling that gate "unchanged, still advisory" when 
 **Not fixed, left open:** a character holding an expensive inert purchase can be hard-blocked from
 levelling, because the quote now carries that purchase's full cost and no discard path exists; and four
 `DATA.tierHD[x.tier]` re-derivations remain for racial traits, which `requiredHD()` was meant to own.
+
+### Addendum, round 3 — the gate extended to Arts and Boons (2026-08-27)
+
+The original change scoped to class abilities, leaving **Arts & Techniques and Boons advisory**: `compute()`
+warned "needs N+ Hit Dice" and then charged and granted them anyway, so a 1 HD character could hold and use
+a 3 HD Art. Owner direction: gate them the same way. Done.
+
+**The epic-boon trap, caught before it shipped this time.** The `_flat` ability fold reads `b.boons`
+directly to apply each Epic boon's +2, roughly 400 lines above the boon pricing loop. Blocking boons at the
+loop alone would have handed a 1 HD character a free +2 — the identical shape of the Primal Champion
+regression from round 1. Arts and boons are therefore resolved into blocked sets **at the top of
+`compute()`, beside the feature sets and before the fold**, and `blockedAP`/`_BLI` were hoisted with them
+so the arts loop (which runs well before the feature loop) feeds the same single "Blocked purchases" line.
+That line now emits after the boons loop, so all four datasets contribute to one row. `CG-052` is the
+regression: a blocked Epic boon at 1 HD leaves STR at 10 and totals 0; at 17 HD it prices and grants.
+
+**Live data checked first, per the task's own step 1.** Eleven of the 25 live characters hold Arts or
+Boons; **none** holds one above their Hit Dice, so this enforces against zero existing characters.
+
+**On the 3-vs-4 question for the general-feat pool: 3 is correct and was not changed.** `DATA.tierHD`
+describes each tier as a *band* of levels gated at the band floor — T3 = levels 3–4, T7 = levels 17–20 —
+which the Guide confirms in its own words ("Tier-7 — gated behind Hit Die 17, the level-19 threshold in the
+2024 rules"). A level-4 general feat sits in the T3 band and gates at 3, by the same rule that puts a
+level-19 Epic boon at 17. Moving Arts to 4 would make them the only thing in the game gated mid-band. The
+2024 categories map cleanly onto what the data already had: Origin (L1) and Fighting Style (L1) at 1 HD,
+general feats (L4+) at 3 HD, Epic Boons (L19+) at 17 HD.
+
+Note for whoever takes the racial-trait de-duplication task: both tools read `ar.hd` / `bo.hd` directly
+rather than calling `requiredHD()`, so Arts and Boons carry the same re-derivation the racial sites do.

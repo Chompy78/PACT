@@ -839,43 +839,6 @@ explicitly; if not, every ability above its band floor carries a `lvl` and engin
 
 ---
 
-## Arts & Techniques are only soft-warned, not gated — TODO
-Branch `fix/arts-hd-gate-hard-block`. `D-GH-2026-08-27-feature-hd-gate` hard-blocked class features and
-subclass abilities: an ability above your Hit Dice costs 0 AP, is not owned, and grants nothing. Arts &
-Techniques were deliberately left out of that change and are **still advisory** — `js/engine.js` pushes
-"needs N+ Hit Dice" and then charges and grants the Art anyway. So a 1 Hit Die character can buy and use a
-3 HD Art today, which is exactly the class of hole the gate was written to close, just in a different
-dataset.
-Arts carry their own `hd` (they are NOT tier-gated; tier is only their price band). The current split is
-Origin ×5 and Fighting Style ×12 at 1 HD, and Utility/Combat/Social/Magic ×26 at 3 HD — matching the 2024
-PHB, where Origin feats and Fighting Styles are level 1 and general feats are level 4+.
-**On 3 vs 4 for the general-feat pool: 3 is correct and should not change.** Tiers are level *bands* gated
-at the floor (T3 = levels 3–4), so a level-4 feat gating at 3 HD is the same rule that puts a level-19
-Epic Boon at 17 HD. Moving Arts to 4 would make them the only thing in the game gated mid-band. If a
-level-4 feel is wanted, the lever is the band table itself, not 26 per-item exceptions.
-**Effort:** low · **Risk:** medium — damage scale is the driver: this converts an advisory into a hard
-block on live data, so a character legally holding an above-tier Art today would lose it (0 AP, refunded).
-Ambiguity is low — the mechanism is already built and proven on features. Not sweep-eligible: it changes
-what real characters own.
-
-```text
-1. Check the live characters table FIRST -- the app is NOT pre-launch (25 characters, 8 owners; see
-   AGENTS.md). List every character holding an Art above their Hit Dice before changing anything.
-2. Route the arts loop in compute() through the same treatment as features: 0 AP, not owned, itemised
-   under "Blocked purchases", using requiredHD(art) rather than a local `ar.hd` comparison.
-3. Blocked must mean GRANTS NOTHING, not merely costs nothing -- check whether any Art's effect is read
-   from b.arts anywhere ahead of the block being resolved. That exact trap was the regression found in
-   PR #471's first review round.
-4. Boons carry their own hd too and are also still advisory -- decide in the same pass whether they follow
-   or stay advisory, and record which, so this is not rediscovered a third time.
-5. compute() output changes -> update testing/expected/, add a fixture for a blocked Art, bump
-   DATA.version.
-```
-
-**Done when:** an Art above the character's Hit Dice costs 0 AP, is not owned and grants nothing, exactly
-as a class feature does; a fixture covers it; the decision on Boons is recorded either way.
-
----
 
 ## A held inert purchase can hard-block levelling, with no way to discard it — TODO
 Branch `feat/discard-inert-purchase`. Direct consequence of getting the level-up price *right*

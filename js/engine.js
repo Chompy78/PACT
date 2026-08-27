@@ -261,13 +261,24 @@ export function compute(b, opts){
   // lists Metamagic explicitly as having "no level gate". Gating it would be a rules CHANGE needing its
   // own Guide edit, not the rules catch-up this is.
   const _hdBlockedFeat=new Set();
+  // Arts and Boons carry their own `hd` rather than inheriting a tier gate, and were advisory-only until
+  // now: compute() warned and then charged and granted them anyway. Resolved HERE, with the features,
+  // because the epic-boon +2 ability fold below reads b.boons directly -- blocking a boon after that point
+  // would repeat exactly the Primal Champion regression (blocked meant "costs nothing" instead of
+  // "grants nothing"). blockedAP/_BLI are declared here too so the arts loop, which runs well before the
+  // feature loop, can feed the same single "Blocked purchases" ledger line.
+  let blockedAP=0; const _BLI=[];
+  const _blockedArt=new Set(), _blockedBoon=new Set();
+  for(const _l of (b.arts||[])){const _a=DATA.arts[_l]; if(_a && hd<requiredHD(_a)) _blockedArt.add(_l);}
+  for(const _l of (b.boons||[])){const _bo=((b.houseRules||{}).boons||{})[_l]||DATA.boons[_l];
+    if(_bo && hd<(Number(_bo.hd)||1)) _blockedBoon.add(_l);}
   for(const _lab of _ownedFeatSet){const _f=DATA.features[_lab];
     if(_f && hd < requiredHD(_f)){_blockedFeat.add(_lab);_hdBlockedFeat.add(_lab);}}
   {let _changed=true;while(_changed){_changed=false;for(const _lab of _ownedFeatSet){if(_blockedFeat.has(_lab))continue;
     const _f=DATA.features[_lab];if(!_f||!(_f.prereq&&_f.prereq.length))continue;
     const _bad=_f.prereq.some(function(req){return !_ownedFeatSet.has(req)||_blockedFeat.has(req);});
     if(_bad){_blockedFeat.add(_lab);_changed=true;}}}}
-  const _flat={STR:0,DEX:0,CON:0,INT:0,WIS:0,CHA:0};if(_ownedFeatSet.has("Barbarian: Primal Champion")&&!_blockedFeat.has("Barbarian: Primal Champion")){_flat.STR+=4;_flat.CON+=4;}const _eb=b.epicBoonAbil||{};for(const _bl of (b.boons||[])){const _bo=DATA.boons[_bl];if(_bo&&_bo.epic){const _a=_eb[_bl];if(_a&&_flat[_a]!==undefined)_flat[_a]+=2;else W.push(_bl+": choose an ability to raise (+2)");}}for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){effScore[a]=Math.min(30,(st[a]||10)+_flat[a]);mod[a]=_mod(effScore[a]);}
+  const _flat={STR:0,DEX:0,CON:0,INT:0,WIS:0,CHA:0};if(_ownedFeatSet.has("Barbarian: Primal Champion")&&!_blockedFeat.has("Barbarian: Primal Champion")){_flat.STR+=4;_flat.CON+=4;}const _eb=b.epicBoonAbil||{};for(const _bl of (b.boons||[])){if(_blockedBoon.has(_bl))continue;const _bo=DATA.boons[_bl];if(_bo&&_bo.epic){const _a=_eb[_bl];if(_a&&_flat[_a]!==undefined)_flat[_a]+=2;else W.push(_bl+": choose an ability to raise (+2)");}}for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){effScore[a]=Math.min(30,(st[a]||10)+_flat[a]);mod[a]=_mod(effScore[a]);}
   const row=DATA.HD[hd-1];
   const tier=hd<=1?1:hd<=2?2:hd<=4?3:hd<=8?4:hd<=12?5:hd<=16?6:7;
   add("Hit Dice",row.cum);
@@ -323,8 +334,9 @@ export function compute(b, opts){
   // player") — every purchase past the table's end costs the same as the last rung, rather than nothing.
   const attune=b.attune||0; add("Attunement slots",DATA.attune[Math.min(attune,DATA.attune.length-1)]||0);
   // Arts & Techniques (flat AP per item like boons; has hd gate + minStats prereqs)
-  let artAP=0;const _AI=[];for(const lab of (b.arts||[])){const ar=DATA.arts[lab];if(!ar){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _ac=(+ar.ap||0);artAP+=_ac;_AI.push([lab,_ac]);
-    if(hd<(+ar.hd||1)) W.push(lab+': needs '+(+ar.hd||1)+'+ Hit Dice');
+  let artAP=0;const _AI=[];for(const lab of (b.arts||[])){const ar=DATA.arts[lab];if(!ar){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _ac=(+ar.ap||0);
+    if(_blockedArt.has(lab)){W.push('⛔ '+lab+' — blocked: needs '+requiredHD(ar)+' Hit Dice (not counted, not owned)');blockedAP+=_ac;_BLI.push([lab,_ac]);continue;}
+    artAP+=_ac;_AI.push([lab,_ac]);
     const _ams=ar.minStatsAny;if(_ams&&_ams.stats){const _anyMet=_ams.stats.some(function(_a){return (st[_a]||10)>=_ams.val;});if(!_anyMet)W.push(lab+': requires '+_ams.stats.join(' or ')+' '+_ams.val+'+');}
     const ms=ar.minStats||{};for(const [_ab,_mn] of Object.entries(ms)){if((st[_ab]||10)<_mn)W.push(lab+': requires '+_ab+' '+_mn+'+');}
     if(ar.prereqNote){
@@ -448,7 +460,6 @@ export function compute(b, opts){
   // compute(), BEFORE any mechanical effect reads b.features. See the block above the ability-score fold.)
   // features — non-stepped: buy once. Stepped (rep): each re-buy is the next tier up.
   let featAP=0; const fcount={}; const _FI=[];
-  let blockedAP=0; const _BLI=[];
   for(const _lab0 of (b.features||[])){const lab=FEAT_ALIAS(_lab0);const f=DATA.features[lab];if(!f){W.push((lab.split(": ")[1]||lab)+" is no longer in the rules data — no cost/effect applied");continue;}
     fcount[lab]=(fcount[lab]||0)+1; const n=fcount[lab];
     if(!f.rep && n>1){W.push((lab.split(": ")[1]||lab)+": already bought — can only be taken once (not a stepped feature)");continue;}
@@ -535,7 +546,6 @@ export function compute(b, opts){
     (subUsed[a.cls]=subUsed[a.cls]||{})[a.sub]=1;
     const isO=(a.cls===b.originClass||a.cls===b.originClass2);const isUS=!isO&&_unlkSet.has(a.cls);const _uc=isO?a.origin:(isUS?Math.max(1,a.cross-a.tier):a.cross);subAP+=_uc;_UI.push([_sLab,_uc]);}
   add("Subclass abilities",subAP);addItems("Subclass abilities",_UI);
-  addDisplay("Blocked purchases",blockedAP,_BLI.length>0);addItems("Blocked purchases",_BLI);
   // v0.196: a bought expanded-list bundle also opens its subclass for unlock-accounting
   for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");if(_p[0]&&_p[1])(subUsed[_p[0]]=subUsed[_p[0]]||{})[_p[1]]=1;}
   let subUnlockAP=0; let subUnlockN=0;
@@ -685,11 +695,13 @@ export function compute(b, opts){
   // boons (§14): flat AP priced like features, gated by Hit Dice. DM house-rules (b.houseRules) may
   // add custom boons/drawbacks or override their AP; those overrides win over the printed values.
   const HR=b.houseRules||{}; const HRb=HR.boons||{}; const HRd=HR.draws||{};
-  let boonAP=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _bc=(+bo.ap||0);boonAP+=_bc;_BI.push([lab,_bc]);
-    if(hd<(+bo.hd||1)) W.push(lab+": boon needs "+(+bo.hd||1)+"+ Hit Dice");
+  let boonAP=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _bc=(+bo.ap||0);
+    if(_blockedBoon.has(lab)){W.push('⛔ '+lab+' — blocked: needs '+(Number(bo.hd)||1)+' Hit Dice (not counted, not owned)');blockedAP+=_bc;_BLI.push([lab,_bc]);continue;}
+    boonAP+=_bc;_BI.push([lab,_bc]);
     const _bms=bo.minStats||{};for(const [_ba,_bm] of Object.entries(_bms)){if((st[_ba]||10)<_bm) W.push(lab+': boon requires '+_ba+' '+_bm+'+');}
     const _bbmsa=bo.minStatsAny;if(_bbmsa&&_bbmsa.stats){const _banyMet=_bbmsa.stats.some(function(_bba){return (st[_bba]||10)>=_bbmsa.val;});if(!_banyMet)W.push(lab+': boon requires '+_bbmsa.stats.join(' or ')+' '+_bbmsa.val+'+');} }
   add("Boons",boonAP);addItems("Boons",_BI);
+  addDisplay("Blocked purchases",blockedAP,_BLI.length>0);addItems("Blocked purchases",_BLI);
   // Extra Battle Master maneuvers: an escalating rung — base + step*n for the nth extra purchase, so
   // three cost 4+5+6. Priced HERE as of D-GH-2026-08-06-maneuver-afford-gate (which supersedes its own
   // first answer) so that the affordability gate, the ledger and repriceDraft() all agree on one number.
