@@ -802,136 +802,43 @@ a fixture covers the doubled input for both the priced and the HD-blocked case; 
 
 ---
 
-## Tiers are level BANDS — several distinct levels share one gate. Intended? — TODO
-Branch `docs/tier-band-compression-ruling`. **Supersedes an earlier framing of this task that was wrong**
-and said abilities became "buyable two levels early". They do not. `DATA.tierHD` (1/2/3/5/9/13/17) defines
-each tier as a *band* of character levels gated at the band's floor: T1=[1], T2=[2], T3=[3–4], T4=[5–8],
-T5=[9–12], T6=[13–16], T7=[17–20]. The Guide confirms this at both ends in its own words — Epic Boons are
-"Tier-7 — gated behind Hit Die 17, **the level-19 threshold** in the 2024 rules", and `Sneak Attack (9d6,
-L17)` and `(10d6, L19)` are both T7. The `L18`/`L19` labels scattered through the Guide are **provenance**
-(which 5e level the ability came from), not requirements. So there is no off-by-N bug here and nothing to
-"fix" in the data.
-What IS open is a design question: T7 spans four character levels, so a level-17 and a level-20 ability are
-equally available at 17 Hit Dice, and Hit Dice run to 20 while tiers stop at 7. Whether that compression is
-the intended coarseness or whether the top band wants sub-steps is a rules-owner call. If sub-steps are
-wanted, the mechanism already exists and needs no new machinery: a per-ability `lvl` floor, which four
-Warlock invocations already use to sit at 7, 9, 12 and 15 Hit Dice — off-band values the tier table cannot
-express.
-**Effort:** low (ruling + docs) / medium (if per-ability floors are authored) · **Risk:** medium —
-ambiguity is the driver and it is entirely a design judgement; nothing is broken, so the risk is of
-"fixing" a deliberate simplification. Damage scale low. Not sweep-eligible.
+## Author true 5e levels for the ~550 abilities still falling back to tier — TODO
+Branch `docs/author-true-ability-levels`. Owner ruling (2026-08-27): tier sets **price only**; it must
+never govern availability. `requiredHD()` already reflects this — an item's own `hd`/`lvl` is
+authoritative and overrides tier in both directions; `DATA.tierHD` is now only the **fallback** for an
+item that states no level of its own.
+40 entries were authored on that ruling: 26 general-feat Arts (level 4+), 12 Epic Boons (level 19+), and
+2 class features whose own name already stated a level their gate missed (`Paladin: Aura range → 30 ft
+(L18)`, `Rogue: Improved Cunning Strike (L11)`). **The remaining ~550 class features and subclass
+abilities were deliberately left on the tier fallback**, because no source in this repo or the Guide
+states their true level — authoring them without one means inventing numbers, which is the mistake this
+exact session already made twice while chasing this question. This task is the data-authoring pass that
+closes that gap, once a source exists.
+**Effort:** high (it is ~550 entries) · **Risk:** medium — damage scale is real (changes `compute()`
+output, can newly block live characters) but the mechanism is proven (40 entries already shipped on it)
+and each entry's number, once sourced, is a fact rather than a judgement call. Not sweep-eligible.
 
 ```text
-1. Do NOT change data first. The question for the rules owner is: is a tier deliberately a coarse band, so
-   that every ability from level 17 to 20 costs the same and unlocks together?
-2. If YES: record it in DECISIONS.md as deliberate, and add one line to the Guide's tier table saying a
-   tier is a band gated at its floor. That is the whole task -- it stops this being rediscovered as a bug
-   a third time.
-3. If NO: author `lvl` floors on the abilities whose Guide entry names a level above their band floor.
-   requiredHD() already takes lvl as a floor (max of tier/hd/lvl), so this is data, not code. Start with
-   the T7 band, where the compression is widest.
-4. If (3): compute() output changes -> update testing/expected/, bump DATA.version, and check the live
-   characters table (the app is NOT pre-launch) for anything that newly blocks.
+1. Establish a source per ability before touching data. The Guide states some directly ("(L19)" in a
+   name, "level N+" in prose); the 2024 PHB's own class tables are the fallback for anything the Guide is
+   silent on. Do not infer a level from an ability's tier -- that is exactly the thing being replaced.
+2. Author `lvl` (class features / subclass abilities) the same way the 4 authored entries do. lvl is
+   authoritative and OVERRIDES tier in both directions -- it can sit below the tier band, as
+   Rogue: Improved Cunning Strike (L11, T5/9HD default) already does.
+3. Batch by class or by tier band rather than attempting all 550 in one pass -- each batch gets its own
+   live-data check (25 characters exist; see AGENTS.md) and its own fixture coverage.
+4. compute() output changes -> update testing/expected/ per batch, bump DATA.version once per batch (not
+   once for the whole multi-session effort), and re-derive any changed fixture total through the ACTUAL
+   engine (rebuildStateFromEvents/compute()), never by hand -- round 4 of this same task got EV-018's
+   hand-computed total wrong for exactly this reason.
+5. Update docs/PACT-Players-Guide.html in the same batch as its engine counterpart, per AGENTS.md's
+   "a mechanics change isn't finished until the engine AND the guide land it".
 ```
 
-**Done when:** the band-vs-level question has a recorded ruling; if bands stand, the Guide says so
-explicitly; if not, every ability above its band floor carries a `lvl` and engine-parity is 0 failed.
+**Done when:** every one of the 720 purchasable abilities carries an explicit `lvl` (or the fallback is
+formally accepted as permanent for a named subset, recorded in DECISIONS.md); no ability's Hit-Dice
+requirement is inferred solely from its price tier; engine-parity 0 failed at every batch.
 
----
-
-## Arts & Techniques are only soft-warned, not gated — TODO
-Branch `fix/arts-hd-gate-hard-block`. `D-GH-2026-08-27-feature-hd-gate` hard-blocked class features and
-subclass abilities: an ability above your Hit Dice costs 0 AP, is not owned, and grants nothing. Arts &
-Techniques were deliberately left out of that change and are **still advisory** — `js/engine.js` pushes
-"needs N+ Hit Dice" and then charges and grants the Art anyway. So a 1 Hit Die character can buy and use a
-3 HD Art today, which is exactly the class of hole the gate was written to close, just in a different
-dataset.
-Arts carry their own `hd` (they are NOT tier-gated; tier is only their price band). The current split is
-Origin ×5 and Fighting Style ×12 at 1 HD, and Utility/Combat/Social/Magic ×26 at 3 HD — matching the 2024
-PHB, where Origin feats and Fighting Styles are level 1 and general feats are level 4+.
-**On 3 vs 4 for the general-feat pool: 3 is correct and should not change.** Tiers are level *bands* gated
-at the floor (T3 = levels 3–4), so a level-4 feat gating at 3 HD is the same rule that puts a level-19
-Epic Boon at 17 HD. Moving Arts to 4 would make them the only thing in the game gated mid-band. If a
-level-4 feel is wanted, the lever is the band table itself, not 26 per-item exceptions.
-**Effort:** low · **Risk:** medium — damage scale is the driver: this converts an advisory into a hard
-block on live data, so a character legally holding an above-tier Art today would lose it (0 AP, refunded).
-Ambiguity is low — the mechanism is already built and proven on features. Not sweep-eligible: it changes
-what real characters own.
-
-```text
-1. Check the live characters table FIRST -- the app is NOT pre-launch (25 characters, 8 owners; see
-   AGENTS.md). List every character holding an Art above their Hit Dice before changing anything.
-2. Route the arts loop in compute() through the same treatment as features: 0 AP, not owned, itemised
-   under "Blocked purchases", using requiredHD(art) rather than a local `ar.hd` comparison.
-3. Blocked must mean GRANTS NOTHING, not merely costs nothing -- check whether any Art's effect is read
-   from b.arts anywhere ahead of the block being resolved. That exact trap was the regression found in
-   PR #471's first review round.
-4. Boons carry their own hd too and are also still advisory -- decide in the same pass whether they follow
-   or stay advisory, and record which, so this is not rediscovered a third time.
-5. compute() output changes -> update testing/expected/, add a fixture for a blocked Art, bump
-   DATA.version.
-```
-
-**Done when:** an Art above the character's Hit Dice costs 0 AP, is not owned and grants nothing, exactly
-as a class feature does; a fixture covers it; the decision on Boons is recorded either way.
-
----
-
-## Live Sheet's buy panel shows an HD-blocked feature as "already purchased" — TODO
-Branch `fix/live-sheet-blocked-shows-owned`. Found by `/code-review ultra` on PR #471. In each of the four
-buy-panel pickers the `b.features.includes(l)` ownership check runs **before** the `requiredHD()` check, so
-a feature the engine reports as `⛔ ... not counted, not owned` renders as `ibOwned` with the tooltip
-"Already purchased" and no re-buy path. The player is told simultaneously that they own it and that they
-do not, with nothing indicating that raising Hit Dice is the remedy. Reachable today by any character built
-in CharGen (which lets you pick any ability regardless of HD) and by existing cloud characters — the
-`Archer` named in `D-GH-2026-08-27-feature-hd-gate` is a live example. Sites: `tools/PACT-Live-Char-Sheet.html`
-origin-class features, Eldritch Invocations, cross-class features, and subclass abilities.
-**Effort:** low · **Risk:** low — display-only, in one tool, with the engine already authoritative on the
-underlying state; ambiguity is low (invert the precedence and render a blocked state), damage scale low.
-Sweep-eligible.
-
-```text
-1. In each of the four pickers, test blocked BEFORE owned: a feature that is both listed in b.features and
-   failing requiredHD() must render as blocked with "needs N Hit Dice", not as ibOwned.
-2. Use the engine's own answer -- requiredHD() is already imported into this tool; do not re-derive.
-3. Do not silently drop it from the list: the player needs to see they hold it and why it is inert, which
-   is the same thing compute()'s "Blocked purchases" ledger line says.
-4. Verify against a real character: load one holding an above-tier ability and confirm the panel and the
-   ledger now agree.
-```
-
-**Done when:** no picker in the Live Sheet renders a feature as owned while `compute()` reports it blocked;
-a `tool-pricing-ci` case asserts the two agree for an above-tier holding.
-
----
-
-## CharGen's subclass-ability picker has no Hit-Dice annotation — TODO
-Branch `feat/chargen-subpick-hd-annotation`. `D-GH-2026-08-27-feature-hd-gate` annotated CharGen's
-class-feature grid with each ability's requirement (`Extra Attack · T4 At-Will · 5 HD`) but left the
-subclass-ability picker unannotated, so a player picks a T6 subclass ability at 3 HD with no indication at
-all and only discovers it from a `compute()` warning afterwards — the exact blindness the feature grid was
-annotated to remove. Note the two are NOT the same problem: the class-feature grid is built once at init
-(`buildClassPickers()`), which is why its annotation is the static requirement, whereas the `.subpick` loop
-rewrites every option's `textContent` on **every render** with its per-character price — so this picker can
-show a live, per-character *met/unmet* state, which is strictly better than what the feature grid can do.
-Fixture `CG-047` covers the engine side of this path already.
-**Effort:** low · **Risk:** low — display-only, one tool, one loop, with `requiredHD()` already imported;
-ambiguity low, damage scale low. Sweep-eligible.
-
-```text
-1. In the .subpick render loop, append the requirement to each option's textContent alongside the price,
-   using the imported requiredHD(a) -- do not re-derive from DATA.tierHD.
-2. Because this loop runs per render, show met/unmet against the character's current hd rather than only
-   the static number, and keep it legible when the option is already owned.
-3. Match the class-feature grid's wording so the two pickers read as one system.
-4. Manual check: at 3 HD a T6 subclass ability shows its requirement before selection, and the engine's
-   blocked warning after selection says the same number.
-```
-
-**Done when:** every subclass-ability option shows its Hit-Dice requirement against the character's current
-HD, using the engine's `requiredHD()`; the number shown matches the one in `compute()`'s blocked warning.
-
----
 
 ## A held inert purchase can hard-block levelling, with no way to discard it — TODO
 Branch `feat/discard-inert-purchase`. Direct consequence of getting the level-up price *right*
@@ -965,7 +872,6 @@ is low (the character is gated, not corrupted) and there is a workaround.
 
 **Done when:** a player holding an inert purchase can either discard it or see plainly why levelling costs
 more, without a DM award being the only route; `economy().spent === compute().total` across the discard.
-
 ---
 
 ## Racial traits still re-derive the Hit-Dice rule instead of calling `requiredHD()` — TODO
