@@ -154,3 +154,35 @@ were — commit `7ae7678` on `preview`. The review ran against this branch, whic
 fully owned for free once HD rises, because the Live Sheet prices a level-up as the Hit-Dice ladder alone
 and never as a `compute()` delta; the Live Sheet's buy panel still renders an HD-blocked feature as
 "already purchased"; and CharGen's subclass-ability picker has no HD annotation.
+
+### Addendum, round 2 — second `/code-review ultra` (2026-08-27)
+
+The re-run found that **two of round 1's own fixes were incomplete**, both verified by execution before
+being accepted:
+
+- **The level-up quote was still short.** Charging the fall in the "Blocked purchases" line missed the
+  *other* lines that move when a purchase is legalised: a blocked subclass ability is skipped by the
+  engine's `subUsed[]` marking, so unblocking it adds a 15 AP "Subclass unlocks" line (measured: real
+  delta 32, quoted 17), and an unblocked invocation re-enters the breadth surcharge. Replaced with the
+  difference of two deltas — the real one, and the same one on a build with every currently-HD-blocked
+  purchase stripped — so anything re-pricing for other reasons (the unstamped Vigor/Grit stack this
+  escape exists for) cancels between them and only the unblocking cost survives. The new
+  `tool-pricing-ci` case asserts the quote equals the **full** `compute()` delta, not any one line of it;
+  round 1's case used `Fighter: Extra Attack`, which has no knock-on line and so could not catch this.
+- **CharGen's class-feature annotation never rendered.** `annotate()` rewrites every `.classpick`
+  option's `textContent` wholesale on each render, overwriting the tag `buildClassPickers()` set at init.
+  The affordance existed only between boot and the first render. Both pickers now apply it through one
+  `_cgHdTag()` helper inside `annotate()`.
+
+Also fixed: `_inertNote()` detected only the Hit-Dice block, so a held feature blocked by a missing
+prerequisite still rendered as "Already purchased" — failing the same Done-when the HD case was fixed for
+(the prereq arm checks direct prerequisites only, which is stated in the code rather than implied);
+DM Console rendered class features from the raw build array, showing a blocked feature as held (its
+subclass section was already safe, so this was the remaining unguarded door of the two); and two comments
+that had become false — the adoption claim ("all three tools import it" — DM Console has no picker) and
+the Warlock-level note still calling that gate "unchanged, still advisory" when `requiredHD()` now folds
+`lvl` in as a floor.
+
+**Not fixed, left open:** a character holding an expensive inert purchase can be hard-blocked from
+levelling, because the quote now carries that purchase's full cost and no discard path exists; and four
+`DATA.tierHD[x.tier]` re-derivations remain for racial traits, which `requiredHD()` was meant to own.

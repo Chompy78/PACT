@@ -2005,7 +2005,7 @@ try {
     // Clear storage FIRST: the Live Sheet persists to localStorage, so without this the page inherits
     // whatever the preLock checks above left behind (a HD-5 character), and the premise silently evaporates.
     const w = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
-    await w.evaluate(`localStorage.clear()`); await w.close();
+    await w.evaluate(`(()=>{try{localStorage.clear();return 'cleared';}catch(e){return 'skip:'+e.name;}})()`); await w.close();
 
     const t = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
     if (!(await t.evaluate(READY(`window._engineFold&&window.DATA&&typeof buy==='function'`))))
@@ -2031,6 +2031,32 @@ try {
     await t.close();
     check('...and after levelling, the frozen ledger still equals compute() with the feature owned',
       [r[0] === r[1], r[2]], [true, true]);
+  }
+
+  // The case the first version of this fix got WRONG: legalising a purchase moves ledger lines OTHER than
+  // "Blocked purchases". A blocked subclass ability is skipped by the engine's subUsed[] marking, so
+  // unblocking it can also add a 15 AP "Subclass unlocks" line. Quoting only the blocked-line drop
+  // under-charged by exactly that. 'Fighter: Extra Attack' above has no knock-on line, so it cannot catch
+  // this; this check asserts the quote equals the REAL compute() delta rather than any one line of it.
+  {
+    const w = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    await w.evaluate(`(()=>{try{localStorage.clear();return 'cleared';}catch(e){return 'skip:'+e.name;}})()`); await w.close();
+    const t = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    if (!(await t.evaluate(READY(`window._engineFold&&window.DATA&&typeof priceOf==='function'`))))
+      throw new Error('Live Sheet never became ready for the knock-on-line check');
+    const r = await t.evaluate(`(()=>{
+      LOG.push({type:'award',amount:900,label:'headroom',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'patch',payload:{patch:{originClass:'Barbarian'}},cost:0,seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'hd',payload:{to:3},cost:0,seq:SEQ++,ts:Date.now()});
+      ['Barbarian|Path of the Berserker|Frenzy','Barbarian|Path of the Wild Heart|Aspect of the Wilds']
+        .forEach(v=>LOG.push({type:'buy',cat:'subabil',payload:{v},cost:0,seq:SEQ++,ts:Date.now()}));
+      const cur=foldBuild(null);
+      const after=clone(cur); MUT.hd(after,{to:5});
+      const real=compute(after).total-compute(cur).total;
+      return [priceOf('hd',{to:5},cur), real];})()`);
+    await t.close();
+    check('a level-up quotes the FULL delta of what it legalises, incl. knock-on ledger lines',
+      r[0], r[1]);
   }
 
   await cg2.close(); await ls2.close();

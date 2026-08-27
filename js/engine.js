@@ -186,7 +186,8 @@ function _tierForHD(hd){
 
 // Hit-Dice requirement for one purchasable item (a DATA.features entry, a DATA.subAbilMap entry —
 // anything carrying a `tier`). THE single definition of this rule: compute() gates on it, and all three
-// tools import it rather than re-deriving `b.hd >= DATA.tierHD[tier]` locally. Live Sheet carried FIVE
+// tool with a class-ability picker imports it (CharGen and the Live Sheet) rather than re-deriving
+// `b.hd >= DATA.tierHD[tier]` locally. DM Console has no such picker and does not import it. Live Sheet carried FIVE
 // such copies across its four pickers and CharGen none, which is exactly how a rule the Players Guide states as absolute
 // ("You can never buy an ability before you own the Hit Dice ... it requires") ended up unenforced in the
 // one place that is meant to be authoritative. Do not re-inline it; import it.
@@ -482,9 +483,12 @@ export function compute(b, opts){
   // v0.084: Eldritch Invocations are locked behind the Warlock discipline
   {const _hasWL=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Warlock";});});
    if(!_hasWL)(b.features||[]).forEach(function(lab){var f=DATA.features[lab];if(f&&f.inv)W.push("⛔ "+(lab.split(": ")[1]||lab)+": Eldritch Invocation requires the Warlock discipline (open Arcane › Warlock)");});}
-  // v0.203: elevated Warlock-level gates for invocations — unchanged, still advisory. The prerequisite
-  // check itself (f.prereq) was widened to a hard block above in v3; this is a separate mechanism
-  // (character level, not feature ownership) and was not part of that owner direction.
+  // v0.203: elevated Warlock-level gates for invocations. NO LONGER PURELY ADVISORY as of
+  // D-GH-2026-08-27-feature-hd-gate: requiredHD() folds `lvl` in as a floor, so an invocation above its
+  // level gate is now HARD-blocked by the loop above (0 AP, not owned) and this line is the second,
+  // explanatory half of the same verdict — it names the Warlock-level cause that the blocked warning
+  // reports only as a number. Kept deliberately rather than deduped: dropping it would leave the player
+  // told "needs 12 Hit Dice (level gate)" with nothing saying WHICH level gate. See CG-049.
   {(b.features||[]).forEach(function(lab){var f=DATA.features[lab];if(!f||!f.inv)return;
     if(f.lvl&&(b.hd||0)<f.lvl)W.push("⛔ "+(lab.split(": ")[1]||lab)+" requires Warlock level "+f.lvl);});}
   // v0.087: chassis gates — a feature with needsDisc requires that Discipline founded (e.g. Metamagic→Sorcerer)
