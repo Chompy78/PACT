@@ -802,69 +802,78 @@ a fixture covers the doubled input for both the priced and the HD-blocked case; 
 
 ---
 
-## Guide publishes per-step levels finer than the 7-tier HD gate can express — TODO
-Branch `fix/guide-per-step-level-gates`. `D-GH-2026-08-27-feature-hd-gate` derives every class ability's
-Hit-Dice requirement from its tier via `DATA.tierHD`, but the Guide states levels per *step*: it labels
-`Sneak Attack (9d6, L17)` and `Sneak Attack (10d6, L19)` — both authored **T7**, which gates at 17 HD. So
-10d6 becomes buyable two levels before the Guide says it should. Seven tiers cannot represent nineteen
-levels; `requiredHD()` already takes an optional per-item `lvl` **floor** (`max(tierHD[tier], hd, lvl)`),
-so the mechanism exists and only the data is missing. Either author `lvl` on every entry whose Guide text
-names a level, or record the coarser gate as a deliberate simplification — but not neither, because right
-now the engine and the Guide disagree and only the Guide says so out loud.
-
-**The sharpest case is everything above 17 HD.** T7 is the top tier, so it has no higher tier to escalate
-into: *every* ability the Guide places at L18, L19 or L20 collapses onto the same 17 HD gate. Known
-examples: `Sneak Attack (10d6, L19)` and `Paladin: Aura range → 30 ft (L18)` (the latter is in fixture
-CG-015). Hit Dice run to 20, so the gate has three whole levels of headroom it currently cannot use —
-this is a gap in the tier model, not a rounding artefact, and `lvl` floors are how it gets closed.
-**Effort:** medium · **Risk:** medium — damage scale is the driver: this tightens gates on real abilities,
-so it changes `compute()` output and can newly block existing characters; ambiguity is low (the Guide
-states the numbers) and likelihood low (a mechanical data pass with a parity gate behind it).
+## Tiers are level BANDS — several distinct levels share one gate. Intended? — TODO
+Branch `docs/tier-band-compression-ruling`. **Supersedes an earlier framing of this task that was wrong**
+and said abilities became "buyable two levels early". They do not. `DATA.tierHD` (1/2/3/5/9/13/17) defines
+each tier as a *band* of character levels gated at the band's floor: T1=[1], T2=[2], T3=[3–4], T4=[5–8],
+T5=[9–12], T6=[13–16], T7=[17–20]. The Guide confirms this at both ends in its own words — Epic Boons are
+"Tier-7 — gated behind Hit Die 17, **the level-19 threshold** in the 2024 rules", and `Sneak Attack (9d6,
+L17)` and `(10d6, L19)` are both T7. The `L18`/`L19` labels scattered through the Guide are **provenance**
+(which 5e level the ability came from), not requirements. So there is no off-by-N bug here and nothing to
+"fix" in the data.
+What IS open is a design question: T7 spans four character levels, so a level-17 and a level-20 ability are
+equally available at 17 Hit Dice, and Hit Dice run to 20 while tiers stop at 7. Whether that compression is
+the intended coarseness or whether the top band wants sub-steps is a rules-owner call. If sub-steps are
+wanted, the mechanism already exists and needs no new machinery: a per-ability `lvl` floor, which four
+Warlock invocations already use to sit at 7, 9, 12 and 15 Hit Dice — off-band values the tier table cannot
+express.
+**Effort:** low (ruling + docs) / medium (if per-ability floors are authored) · **Risk:** medium —
+ambiguity is the driver and it is entirely a design judgement; nothing is broken, so the risk is of
+"fixing" a deliberate simplification. Damage scale low. Not sweep-eligible.
 
 ```text
-1. Sweep docs/PACT-Players-Guide.html for every ability whose text names a level ("(10d6, L19)", "level
-   17+", etc.) and diff that level against requiredHD() for the same entry. testing/scripts/
-   guide-price-check.mjs is the existing precedent for a Guide-vs-engine sweep — extend it rather than
-   writing a new one-off.
-2. Where they disagree, author `lvl` on the DATA.features / DATA.subAbilMap entry. Do NOT lower anything
-   below its tier requirement — `lvl` is a floor, never an override.
-3. Re-check the live characters table before shipping (the app is NOT pre-launch — see AGENTS.md): list
-   any character whose owned ability would newly block, and say so in the PR.
-4. compute() output changes -> update testing/expected/ and bump DATA.version. Guide side needs no edit
-   if the Guide is already correct — confirm that per-ability rather than assuming it.
+1. Do NOT change data first. The question for the rules owner is: is a tier deliberately a coarse band, so
+   that every ability from level 17 to 20 costs the same and unlocks together?
+2. If YES: record it in DECISIONS.md as deliberate, and add one line to the Guide's tier table saying a
+   tier is a band gated at its floor. That is the whole task -- it stops this being rediscovered as a bug
+   a third time.
+3. If NO: author `lvl` floors on the abilities whose Guide entry names a level above their band floor.
+   requiredHD() already takes lvl as a floor (max of tier/hd/lvl), so this is data, not code. Start with
+   the T7 band, where the compression is widest.
+4. If (3): compute() output changes -> update testing/expected/, bump DATA.version, and check the live
+   characters table (the app is NOT pre-launch) for anything that newly blocks.
 ```
 
-**Done when:** every ability whose Guide entry names a level either carries a matching `lvl` floor or is
-listed in the decision record as a deliberate approximation; **every L18/L19/L20 ability gates above 17 HD
-rather than at it**; the sweep script reports the remaining divergence count; engine-parity 0 failed.
+**Done when:** the band-vs-level question has a recorded ruling; if bands stand, the Guide says so
+explicitly; if not, every ability above its band floor carries a `lvl` and engine-parity is 0 failed.
 
 ---
 
-## `DATA.tierHD` T1–T3 disagrees with the Guide's prose — TODO
-Branch `docs/tierhd-low-tier-reconcile`. The Guide's published tier table lists only **four** rows —
-T4 (5 HD), T5 (9), T6 (13), T7 (17) — while `DATA.tierHD` also defines `{1:1, 2:2, 3:3}`. Worse, the
-Guide's prose says *"Powers available from level 4 onwards with no chain requirement are Tier 3"*, whereas
-`tierHD[3] = 3`. Harmless while nothing enforced the mapping; since `D-GH-2026-08-27-feature-hd-gate` the
-engine now **enforces** it, so an unpublished and possibly off-by-one number is doing real work. Needs a
-rules-owner ruling on which artefact is authoritative before any code moves — this is the question, not
-the patch.
-**Effort:** low · **Risk:** medium — ambiguity is the driver and it is entirely human: the edit is one
-data value plus a table row, but choosing *which* value requires a decision only the rules owner can make.
-Not sweep-eligible for that reason.
+## Arts & Techniques are only soft-warned, not gated — TODO
+Branch `fix/arts-hd-gate-hard-block`. `D-GH-2026-08-27-feature-hd-gate` hard-blocked class features and
+subclass abilities: an ability above your Hit Dice costs 0 AP, is not owned, and grants nothing. Arts &
+Techniques were deliberately left out of that change and are **still advisory** — `js/engine.js` pushes
+"needs N+ Hit Dice" and then charges and grants the Art anyway. So a 1 Hit Die character can buy and use a
+3 HD Art today, which is exactly the class of hole the gate was written to close, just in a different
+dataset.
+Arts carry their own `hd` (they are NOT tier-gated; tier is only their price band). The current split is
+Origin ×5 and Fighting Style ×12 at 1 HD, and Utility/Combat/Social/Magic ×26 at 3 HD — matching the 2024
+PHB, where Origin feats and Fighting Styles are level 1 and general feats are level 4+.
+**On 3 vs 4 for the general-feat pool: 3 is correct and should not change.** Tiers are level *bands* gated
+at the floor (T3 = levels 3–4), so a level-4 feat gating at 3 HD is the same rule that puts a level-19
+Epic Boon at 17 HD. Moving Arts to 4 would make them the only thing in the game gated mid-band. If a
+level-4 feel is wanted, the lever is the band table itself, not 26 per-item exceptions.
+**Effort:** low · **Risk:** medium — damage scale is the driver: this converts an advisory into a hard
+block on live data, so a character legally holding an above-tier Art today would lose it (0 AP, refunded).
+Ambiguity is low — the mechanism is already built and proven on features. Not sweep-eligible: it changes
+what real characters own.
 
 ```text
-1. Do not change code first. Put the question to the rules owner: does a T3 ability need 3 Hit Dice (what
-   the engine now enforces) or 4 (what the Guide's prose implies)? Same for T2.
-2. Whichever wins, make the other side match: either extend the Guide's tier table to all seven rows, or
-   change DATA.tierHD — never leave them disagreeing, per AGENTS.md's rule that a mechanics change lands
-   in engine AND guide.
-3. If tierHD changes, compute() output changes -> update testing/expected/ and bump DATA.version, and
-   check the live characters table for anything that newly blocks.
-4. Record the ruling in DECISIONS.md — this is a rules decision with a durable "why", not a typo fix.
+1. Check the live characters table FIRST -- the app is NOT pre-launch (25 characters, 8 owners; see
+   AGENTS.md). List every character holding an Art above their Hit Dice before changing anything.
+2. Route the arts loop in compute() through the same treatment as features: 0 AP, not owned, itemised
+   under "Blocked purchases", using requiredHD(art) rather than a local `ar.hd` comparison.
+3. Blocked must mean GRANTS NOTHING, not merely costs nothing -- check whether any Art's effect is read
+   from b.arts anywhere ahead of the block being resolved. That exact trap was the regression found in
+   PR #471's first review round.
+4. Boons carry their own hd too and are also still advisory -- decide in the same pass whether they follow
+   or stay advisory, and record which, so this is not rediscovered a third time.
+5. compute() output changes -> update testing/expected/, add a fixture for a blocked Art, bump
+   DATA.version.
 ```
 
-**Done when:** the Guide's tier table covers all seven tiers and matches `DATA.tierHD` exactly, or the
-divergence is recorded in DECISIONS.md as deliberate with its reason; engine-parity 0 failed.
+**Done when:** an Art above the character's Hit Dice costs 0 AP, is not owned and grants nothing, exactly
+as a class feature does; a fixture covers it; the decision on Boons is recorded either way.
 
 ---
 
