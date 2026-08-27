@@ -27,47 +27,6 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## "Archived campaign is read-only" is enforced client-side only — the DM-write RPCs have no matching check — TODO
-Branch `fix/archived-campaign-rpc-enforcement`. `tools/DM-Console.html:2299-2305, 2545-2548` plus six more
-`_dmPeekActive`-style guard sites scattered across click handlers. Cross-checked against the actual
-backend: `award_ap()` (`sql/migrations/2026-06-29-codm-ap-ledger.sql`) checks only `is_campaign_dm()` —
-no `archived_at IS NULL` condition — and `is_campaign_dm()`/`is_campaign_owner()` in
-`sql/rls-policies.sql` likewise never reference `archived_at`. Every write action while peeking an
-archived campaign is blocked purely by scattered `if(window._dmPeekActive && ...) return;` checks in this
-file's click handlers, not by anything the server itself enforces. Lower severity than a cross-user issue
-(the only actor who can reach this state — a campaign's own DM/co-DM — already holds full RPC authority
-over the campaign), but "archived = safe to browse" is a client convention today, not an invariant — it
-would not survive a stray direct call or a future click-handler refactor that misses one of the several
-guard sites this pattern requires remembering.
-
-**⚠ Do not implement without running `/make-code-cold-plan-review` first.** This is a production
-RLS/RPC change on the same security boundary the invitation-system and DM-creation-lock work already
-treats as high-risk (AGENTS.md: "RLS is the only real security boundary"). Deferred from this audit sweep
-for that reason — the mechanical/UI-only findings in this batch were fixed directly; this one needs its
-own dedicated pass with Supabase advisor verification, not a same-session bundle fix.
-
-**Effort:** medium · **Risk:** high — ambiguity is low on the mechanism (add `archived_at is null` to each
-DM-write RPC) but damage scale is high (any mistake here is a production RLS/RPC change); damage
-likelihood is low-medium (the advisor catches shape but not intent, and this project's RLS/grant drift has
-bitten it before per D-GH15/D-GH12). **Not sweep-eligible.**
-
-```text
-1. Inventory every DM-write RPC (award_ap, dm_edit_character_log, set_ignore_player_ap, declare_downtime,
-   set_campaign_rules, and any others touching campaign/character state) and confirm which lack an
-   archived_at check — don't assume the four named above are the complete list.
-2. Add archived_at is null to each, as a migration.
-3. After the migration, run the Supabase advisor (get_advisors) and skim get_logs before opening the PR —
-   this project has been bitten twice by grant/RLS drift the advisor catches for free (D-GH15, D-GH12).
-4. Verify signed-in: an archived campaign's DM cannot award AP / edit a character log / change settings
-   via a direct RPC call, not just through the (already-correct) client UI.
-5. Confirm no LEGITIMATE workflow needs to write to an archived campaign (e.g. un-archiving itself must
-   still work) — the check must exempt whatever RPC actually un-archives a campaign, if any.
-```
-
-**Done when:** every DM-write RPC rejects a write against an archived campaign server-side, verified by a
-direct signed-in RPC call (not just through the UI); the Supabase advisor reports no new findings; the
-un-archive path (if any) still works.
-
 ## REV-14b — split js/engine.js's compute() into named sub-pricers — TODO
 Branch refactor/rev-14b-compute-subpricers. Second half of REV-14 (REV-14a — the DATA extraction — shipped
 in PR #251); decompose compute()'s single ~370-line body (~lines 76–446) into named `_price*` helpers. Full
@@ -96,51 +55,6 @@ unverified) — worst-of lands at high, never eligible for /sweep-code-tasks.
 
 **Done when:** compute() is a dispatcher over named `_price*` helpers (shared-context design), unchanged
 signature/return shape; full-payload output identical across all fixtures; engine-parity still 20/0.
-
-## Purge the "pace curve" mislabel from the historical records — TODO
-Branch docs/pace-curve-terminology. `D-GH-2026-08-03-ap-budget-curve-standard` established that PACT has
-no AP-earned-per-level curve at all — the `{1:50 … 20:491}` ladder was the Players Guide appendix's
-twenty pregenerated Emberwatch sample characters, and the rules define only a *budget* curve (Standard
-L1 79/+24, Generous 83/+28, prelude L0 55) and an *award pace* (AP per session, ~7). Live code was
-corrected in that change; several archival records still assert the wrong framing as settled fact.
-**Effort:** low · **Risk:** medium — ambiguity is low (the correct wording is already settled by
-`D-GH-2026-08-03-ap-budget-curve-standard`, one obviously-right annotation per site) and damage scale is
-low (docs only, fully `git revert`-able, no code, data or security surface); damage likelihood is medium
-— nothing automated gates doc prose, and the real hazard is an agent "tidying" a historical record and
-silently dropping reasoning, which AGENTS.md's edit-don't-regenerate rule exists to prevent.
-
-```text
-Annotate — do NOT rewrite. These are historical records of what was believed at the time; the repo's
-convention is a dated correction note or addendum, the same shape as the existing "Addendum (2026-08-03)"
-in D-GH-2026-08-02-creation-lock-switch.md. Preserve the original wording and reasoning verbatim; add a
-short note beside it pointing at D-GH-2026-08-03-ap-budget-curve-standard. Never regenerate a whole file.
-
-Sites (verified by grep on 2026-08-03 — re-grep before editing, they may have moved):
-1. DECISIONS.md:448 — "left js/ap-by-level.js untouched (pace curve != budget curve)". The parenthetical
-   is the mislabel; the decision it describes was still correct at the time.
-2. decisions/2026/D-GH49.md:8 — cites DATA.levelAP as {1:50…20:491} / DATA.level1AP 50. Numbers are now
-   79-based; note the supersession rather than editing the figures in place.
-3. decisions/2026/D-GH-2026-07-14-advancement-tracks.md:9 — "(AP earned by level: 1->50…20->491, which is
-   exactly what js/ap-by-level.js's AP_BY_LEVEL already is)". This record ALSO contains the follow-up
-   note that predicted a DATA.version bump would be needed; that prediction came true, so cross-link it.
-4. decisions/2026/D-GH-2026-08-02-creation-lock-switch.md:78/86/88 — the 2026-08-03 addendum's whole
-   two-curve framing. Its mechanism (threshold reads the campaign budget curve) is unaffected and must
-   stay; only the "pace curve" naming and the L1=50 figure are wrong.
-5. docs/sessions/2026-07-14-advancement-tracks-review-saga.md:22 — session note. Lowest priority; a
-   single dated footnote at the top is enough for a session log.
-
-Also re-grep for "1st-level recruit", "491" and "+21/level" outside docs/PACT-Players-Guide.html,
-docs/history/ and CHANGELOG-archive-*.md, in case a site was missed.
-
-Docs-only: do NOT bump DATA.version; log the sweep in CHANGELOG.md as one line. No new DECISIONS.md
-entry is needed — D-GH-2026-08-03-ap-budget-curve-standard already carries the "why", and this task is
-listed there under "Caveats and follow-ups".
-```
-
-**Done when:** `grep -rn "pace curve\|PACE curve" --include=*.md --include=*.js --include=*.html .`
-returns no hit that presents the term as current fact outside `docs/history/` and the changelog archive
-(hits inside an explicit correction note are fine and expected), every edited record still contains its
-original wording, and parity still reports 0 failed.
 
 ---
 
@@ -218,49 +132,6 @@ impossible. **Not** sweep-eligible.
 today's behaviour exactly, joining past the limit fails with a message naming the limit, lowering the
 limit never removes an existing character, the race guard is demonstrably still closed at the new N,
 the advisor reports no new findings, and `cloud-e2e` covers limit=1, limit=2 and the refusal.
-
-## Password reset is broken end-to-end — the email link lands on the homepage — TODO
-Branch `fix/password-reset-flow`. Reported by the owner: clicking the reset link in the recovery email
-takes you to the main PACT homepage, not to anywhere you can set a new password. Confirmed in the code,
-and it is **two** defects, not one — fixing only the link would still leave the flow dead:
-
-1. **Wrong destination.** `js/auth.js:41-43` calls `resetPasswordForEmail(email, { redirectTo:
-   REDIRECT_BASE })`, and `REDIRECT_BASE` (`js/auth.js:12`) is `https://chompy78.github.io/PACT/` — the
-   app menu. `index.html` has no recovery handling, so the recovery session is established and then
-   silently discarded.
-2. **There is no reset page at all.** `setNewPassword()` exists (`js/auth.js:52`, calling
-   `supabase.auth.updateUser({password})`, with a comment noting Supabase has put the user in a
-   temporary recovery session by then) but **nothing anywhere calls it** — verified by grep across all
-   `.html`/`.js` outside `js/vendor/`. `login.html` has no recovery branch and no new-password form.
-   So even pointed at `login.html`, the link would land on a sign-in form the user can't use.
-
-**Effort:** medium · **Risk:** medium — auth flow on production, and the failure mode is a locked-out
-user rather than a visible error. Needs a real end-to-end test with a live recovery email; the happy
-path cannot be verified by unit-level checks alone. Not sweep-eligible.
-
-```text
-1. Add a recovery branch (a `?type=recovery` route on login.html, or a small reset.html) that listens
-   for Supabase's PASSWORD_RECOVERY auth event and shows a new-password form, then calls the existing
-   setNewPassword(). Prefer login.html — one auth page, one place service-worker caching has to be
-   right — unless the fragment handling makes a dedicated page materially simpler.
-2. Point resetPasswordForEmail's redirectTo at that page. Note REDIRECT_BASE is ALSO used by signUp's
-   emailRedirectTo (js/auth.js:25), where the homepage IS correct — so introduce a separate constant
-   rather than repointing the shared one.
-3. Add the new URL to the Supabase project's Auth → URL Configuration → Redirect URLs allow-list.
-   A redirect not on that list is silently rewritten to the Site URL — which is very likely the real
-   reason this lands on the homepage, so CHECK THIS FIRST: the allow-list may make step 2 a no-op
-   until it is fixed, and it is a dashboard setting, not a repo change.
-4. The recovery token arrives in the URL fragment/query and is consumed on load — make sure the page
-   reads it before anything (service worker, a redirect, a router) can drop it, and that the service
-   worker does not serve a cached copy of the page that misses the fragment handler.
-5. Handle the expired/already-used token case with a real message and a way to request a new email,
-   not a blank form.
-6. Confirm sign-UP confirmation emails still land on the homepage correctly after the constant split.
-```
-
-**Done when:** a real recovery email's link opens a page that accepts a new password, the new password
-works for sign-in, an expired link says so and offers a resend, the signup confirmation email is
-unaffected, and the redirect URL is on the Supabase allow-list.
 
 ## Record which of D1/D2 governs a pre-lock level-up — the divergence itself is GONE — TODO
 Branch `docs/prelock-pricing-rule`. **Re-measured 2026-08-19 on v0.356: the divergence does not
@@ -818,44 +689,6 @@ rules-logic or player-data impact.
 landed in `docs/PACT-Players-Guide.html`, and the three-way check (vendored snapshot ↔ `pact-guide`
 canonical ↔ this repo's served copy) passes.
 
-## Seven CI gates never trigger on a `js/engine-data.js`-only change — their path filters watch `js/engine.js` but not its DATA split-out — TODO
-Branch `ci/engine-data-path-filters`. `.github/workflows/engine-parity.yml`, `tool-pricing.yml`,
-`static-audit.yml`, `chargen-flows.yml`, `dm-console-ui.yml`, `character-gen-e2e.yml`, and `cloud-e2e.yml`
-each list `js/engine.js` in their `pull_request: paths:` filter, but none of them list
-`js/engine-data.js` — the file REV-14a split `DATA` out into. A PR that touches only `engine-data.js`
-(a real, common shape: pricing/feature-table changes, not rules-logic changes) silently skips every one
-of these gates, even though `engine-parity.yml` and `tool-pricing.yml` exist specifically to catch
-`DATA`-driven `compute()` regressions.
-
-**Observed for real on PR #441** ("unbar Rage/Wild Shape/Bardic Inspiration die", `js/engine-data.js`
-only, no `js/engine.js` touch): only `Lighthouse CI` and `Service-worker staleness e2e` ran in CI — the
-other seven workflows above never triggered at all. The PR merged green because nothing red ever ran,
-not because the relevant gates passed; `testing/tests/engine-parity.html` (52/52) and
-`testing/scripts/audit.py` (29/0) were only verified by running them manually before pushing. Confirmed
-by reading each workflow file's `on: pull_request: paths:` list directly and cross-checking against the
-actual GitHub Actions check-run list for that PR's branch.
-
-**Effort:** low · **Risk:** low — ambiguity is low (add one path line per file, mirroring the existing
-`js/engine.js` line already present in each — no new logic); damage scale is low (CI config only, no
-app code, no rules, no data); damage likelihood is low (worst case a path is missed and the gap persists
-for that one workflow, same as today). Worst-of lands at low.
-
-```text
-1. In each of the 7 workflow files, add "js/engine-data.js" to the `pull_request: paths:` list,
-   immediately next to the existing "js/engine.js" line.
-2. Re-check whether js/ap-by-level.js and js/advancement.js (already listed individually in some of
-   these files) should also gain any currently-missing sibling paths while touching these blocks —
-   don't expand scope beyond engine-data.js unless a matching gap is found the same way (read the
-   file, don't guess).
-3. Verify the fix the same way the gap was found: on a scratch branch, touch only js/engine-data.js
-   (a no-op whitespace edit is enough) and confirm via `gh`/the GitHub Actions API that the 7 gates
-   now appear as queued/running checks on that branch's PR, not absent.
-```
-
-**Done when:** all 7 workflow files' `pull_request.paths` list includes both `js/engine.js` and
-`js/engine-data.js`; a scratch-branch PR touching only `js/engine-data.js` shows all 7 gates actually
-running (not silently absent) in its check list.
-
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
@@ -899,119 +732,6 @@ whichever route it is bought; and CharGen + Live Sheet still round-trip a charac
 
 ---
 
-## Cache Chromium in the browser CI jobs — an install stall currently reads as a test failure — TODO
-Branch `ci/cache-chromium`. Seven workflows run `npx playwright install --with-deps chromium` with no
-cache: `character-gen-e2e`, `chargen-flows`, `cloud-e2e`, `dm-console-ui`, `guide-theme`, `sw-cache-e2e`,
-`tool-pricing`. Five of them sit inside a `timeout-minutes: 10` budget (`cloud-e2e` has 20,
-`character-gen-e2e` 15), so a slow apt/CDN fetch consumes the whole job before any test starts.
-
-**Observed for real on PR #429** (`d89dc1e`, the `v1.429` promotion): `dm-console-ui` spent **605s** on
-`Install Chromium` and was killed by the 10-minute timeout with the `DM Console UI checks` step *skipped* —
-it reported `cancelled` with three failure annotations while never executing a single assertion. The same
-tree passed **96/96** locally and the other ten jobs on that commit went green, so there was no defect to
-find; the job that would have found one never ran. A re-run of just that job passed. The hazard is that a
-red X from an install stall is indistinguishable at a glance from a red X from a real regression — and the
-documented response to a flaky-looking gate is *"verify locally before the first retry"*, which only works
-if the difference is visible.
-
-**Recurred three more times the same night, on PR #430** (`e66a301`) — `dm-console-ui` once (605s→timeout,
-then a clean re-run) and `e2e` three times in a row (906s, 906s, 907s — each within a second of the job's
-own 15-minute wall) before a fourth re-run finally succeeded at ~800s. All three `e2e` failures were on the
-exact same commit, which changed nothing but `docs/TASK_BOARD_NEXT.md` — no code content to blame, and every
-*other* commit that same workflow ran against that night succeeded. The clustering right at each job's own
-timeout, rather than a spread of durations, is the signature of a genuine hang getting killed by the wall,
-not a slow-but-real install — a slow install would show variable completion times; a hang looks exactly like
-this: fast when the runner's healthy (~100-200s, seen repeatedly the same night), dead at the cap when it
-isn't. Four stalls across two PRs in one session is well past "rare" — this should be treated as a live,
-recurring cost, not a one-off worth a passive mention.
-
-**Effort:** low · **Risk:** low — ambiguity is low (`actions/cache` keyed on the Playwright version is the
-standard pattern, and `PLAYWRIGHT_BROWSERS_PATH` is already how the browser location is controlled); damage
-scale is low (CI config only — no app code, no rules, no data); damage likelihood is low (a wrong cache key
-simply misses and reinstalls, which is today's behaviour). Worst-of lands at low.
-
-```text
-1. Add an actions/cache step to each of the seven workflows above, keyed on the runner OS plus the
-   resolved playwright version from testing/package-lock.json, with PLAYWRIGHT_BROWSERS_PATH pointing at
-   the cached path. Keep `--with-deps` — the apt half cannot be cached and is cheap; it is the browser
-   download that is worth keeping.
-2. Consider factoring the install into a composite action under .github/actions/ rather than pasting the
-   same block seven times — seven copies is exactly how five of them ended up with the same 10-minute
-   budget and the other two did not.
-3. Separately from the cache: give the install its own step-level timeout well below the job budget, so
-   an install stall fails as "install timed out" instead of consuming the job and skipping the tests.
-   This is the part that actually fixes the misdiagnosis; the cache only makes it rarer.
-4. Do not raise the job timeouts as the fix on its own — that hides the stall for longer rather than
-   distinguishing it from a real failure.
-```
-
-**Done when:** a second run of any of the seven workflows restores Chromium from cache rather than
-downloading it (visible in the job log), an install that stalls fails at the install step with a message
-naming the install — not as a skipped test step — and all seven jobs still pass on a normal PR.
-
-## Live Sheet drawback purchases bypass legalCheck() entirely — no drawback gate is enforced there — TODO
-Branch `fix/livesheet-drawback-legalcheck`. `takeDrawback()` (`tools/PACT-Live-Char-Sheet.html`) calls
-`emit()` directly with no `legalCheck()` call at all, so **no** drawback gate is enforced in that tool —
-not just the new `DATA.drawbackReq` caster gate added in `feat/drawbacks-phobias-expansion`, but the
-**pre-existing** `DATA.drawbackMaxStats` stat caps from `b016331` too. This contradicts that decision's own
-claim ("The Live Sheet's `buy()` already blocks anything not matched by SOFT_WARN, so both directions were
-already refused there") — disproven by `/code-review max`: a Fighter can tick Mana Leak, and a character
-can hold a drawback whose stat cap their current score already breaks, with nothing in that tool's UI or
-save path surfacing it (the engine's advisory `⛔` line in `compute().warnings` exists but nothing reads
-it there).
-**Effort:** medium · **Risk:** medium — ambiguity is low (the fix is routing drawback purchases through
-`legalCheck()`/`buy()`, the same path every other purchase category in that tool already uses); damage
-scale is medium (a purchase-flow-control change in a live tool, though scoped to one category); damage
-likelihood is low-medium (well-trodden pattern, but no e2e coverage of the disabled/blocked state exists
-today for either gate to catch a regression) — worst-of lands at medium.
-
-```text
-1. Route takeDrawback() through legalCheck()/buy() instead of its direct emit() shortcut, mirroring how
-   every other purchase category in the Live Sheet already works. A hard (⛔) violation must be refused
-   at the point of purchase, the same way CharGen's checkbox guard now refuses it (see
-   feat/drawbacks-phobias-expansion).
-2. Related bug, same review pass, same code path: CharGen's random builder (actDraw/tryAct) increments
-   _draws BEFORE tryAct's rollback and never restores it on rejection — a randomly-picked drawback that
-   gets rejected (stat cap, or since this task, a caster-gate violation) silently costs a draw attempt.
-   Pre-existing, not introduced by drawbackReq, but fold the fix in here since it touches the same
-   candidate-filter/rollback code.
-3. Add browser-driven coverage (dm-console-ui-e2e.mjs or chargen-flows-e2e.mjs) asserting the Live Sheet
-   actually refuses a hard drawback violation — no equivalent e2e coverage exists today for the
-   disabled-checkbox behavior in EITHER tool, for EITHER gate (drawbackMaxStats or drawbackReq).
-```
-
-**Done when:** drawback purchases in the Live Sheet go through `legalCheck()` the same way every other
-purchase category does; a hard (⛔) drawback violation is refused there exactly as CharGen's checkbox
-guard refuses it; `actDraw`'s rollback no longer leaks a draw attempt on a rejected candidate; a new
-browser-driven check confirms the enforcement; `testing/tests/engine-parity.html` still 0 failed.
-
-## guide-price-check.mjs has zero drawback-price coverage against the engine — TODO
-Branch `test/guide-drawback-price-check`. `testing/scripts/guide-price-check.mjs` verifies guide prices
-against the live engine for other purchase categories but has **no** coverage of drawback AP values at
-all (`grep -c drawback testing/scripts/guide-price-check.mjs` → 0). This is precisely the class of gap
-that produced the six-day Grit ladder divergence (`D-GH-2026-08-12-grit-steep-ladder`) — nothing catches
-a guide drawback price silently drifting from `DATA.drawbacks`.
-**Effort:** low · **Risk:** low — ambiguity is low (the shape to build already exists as
-`guide-price-check.mjs`'s pattern for other categories, or as the description-match technique
-`verify-guide.mjs` already uses); damage scale is low (adds a test, touches no rules or app code); damage
-likelihood is low (a new gate can only fail loud, never silently break something already working).
-
-```text
-verify-guide.mjs (fixed in feat/drawbacks-phobias-expansion) now checks that guide drawback DESCRIPTIONS
-match DATA.drawbackFx byte-for-byte, which transitively catches a price drift too IF the price appears
-inside the description text — but the guide's own "AP gained" table column is a separate cell that check
-does not capture or compare on its own. First confirm whether the description-match check already closes
-this gap in practice (does every drawback's printed AP value also appear inside its own description
-text?) or whether a dedicated price-column comparison is still needed for genuine independent coverage.
-If needed, follow the guide-price-check.mjs pattern used for other categories, or extend verify-guide.mjs
-to capture and compare the "AP gained" cell directly.
-```
-
-**Done when:** either `guide-price-check.mjs` or `verify-guide.mjs` mechanically asserts every
-`DATA.drawbacks[name]` AP value against the guide's own printed "AP gained" column for that drawback,
-independent of the description-text comparison, and the gate fails loudly on a mismatch — proven by
-deliberately mispricing one guide row and confirming the gate goes red before restoring it.
-
 ## pact-guide master's cap-wording has diverged from the served copy — needs reconciliation — TODO
 Branch `docs/guide-cap-wording-reconcile`. Discovered while updating drawback tables for
 `feat/drawbacks-phobias-expansion`: the `pact-guide` project's `PACT-Players-Guide.html` (the canonical
@@ -1045,3 +765,138 @@ for whether the guide-side wording update was intentionally deferred or simply m
 served copy and `pact-guide` master state the SAME enforcement posture for every capped drawback; the
 transfer is verified against `pact-guide`'s own `py/vendor/engine/SYNCED_FROM.txt` per the three-way
 check in `docs/VERSION-SYNC.md`.
+
+---
+
+## Mirrored subclass abilities double-charge when bought through both paths — TODO
+Branch `fix/subclass-mirror-double-charge`. All 192 subclass abilities are mirrored into `DATA.features`,
+so one logical ability can sit in **both** `b.subAbilities` and `b.features` in a single build — and
+`compute()` prices it twice with no warning at all. Verified 2026-08-27 on `Barbarian › Path of the
+Berserker: Frenzy` at 20 HD: subclass path alone 134 AP, feature path alone 134 AP, **both together 140 AP**
+(one extra Frenzy charge), `warnings: []`. Pre-existing and independent of the HD gate, but
+`D-GH-2026-08-27-feature-hd-gate` made it visible by having to gate both doors identically. Two depths:
+**shallow** — dedupe by logical identity inside `compute()` (charge once, warn on the duplicate); **deep** —
+`refactor/subclass-purchase-unify`, collapsing the two purchase paths into one, which the v0.353 §11
+comment already names as the precondition for gating anything ("a rule that guards one of two doors teaches
+players the wrong thing about the door it does not guard"). Recommend the deep fix if it is being scheduled
+anyway, else the shallow one now — a silent double-charge on live characters is worse than a stale mirror.
+**Effort:** medium (shallow) / high (deep) · **Risk:** medium — ambiguity is the driver (which collection
+is canonical, and what a saved LOG holding both should migrate to); damage scale is medium (mis-pricing,
+not data loss) and likelihood low (needs both collections populated for one ability).
+
+```text
+1. Reproduce first: build one character holding the same subclass ability via b.subAbilities AND via its
+   mirrored "cls: name" key in b.features; confirm the AP delta equals one extra charge and no warning.
+2. Decide canonical identity (subAbilMap key vs mirrored feature label) and record it in DECISIONS.md —
+   this is the actual decision; the code is downstream of it.
+3. Shallow: in compute(), collapse duplicates by that identity before pricing — charge once, push a
+   warning naming the duplicate. Deep: unify the purchase paths so the second door stops existing, and
+   state what happens to already-saved LOGs carrying the other shape.
+4. Blocked purchases must dedupe the same way — a doubly-represented, HD-blocked ability must appear once
+   under "Blocked purchases", not twice.
+5. compute() output changes either way -> update testing/expected/ and bump DATA.version.
+```
+
+**Done when:** a build holding one ability through both collections prices it exactly once and says so;
+a fixture covers the doubled input for both the priced and the HD-blocked case; engine-parity 0 failed.
+
+---
+
+## Author true 5e levels for the ~550 abilities still falling back to tier — TODO
+Branch `docs/author-true-ability-levels`. Owner ruling (2026-08-27): tier sets **price only**; it must
+never govern availability. `requiredHD()` already reflects this — an item's own `hd`/`lvl` is
+authoritative and overrides tier in both directions; `DATA.tierHD` is now only the **fallback** for an
+item that states no level of its own.
+40 entries were authored on that ruling: 26 general-feat Arts (level 4+), 12 Epic Boons (level 19+), and
+2 class features whose own name already stated a level their gate missed (`Paladin: Aura range → 30 ft
+(L18)`, `Rogue: Improved Cunning Strike (L11)`). **The remaining ~550 class features and subclass
+abilities were deliberately left on the tier fallback**, because no source in this repo or the Guide
+states their true level — authoring them without one means inventing numbers, which is the mistake this
+exact session already made twice while chasing this question. This task is the data-authoring pass that
+closes that gap, once a source exists.
+**Effort:** high (it is ~550 entries) · **Risk:** medium — damage scale is real (changes `compute()`
+output, can newly block live characters) but the mechanism is proven (40 entries already shipped on it)
+and each entry's number, once sourced, is a fact rather than a judgement call. Not sweep-eligible.
+
+```text
+1. Establish a source per ability before touching data. The Guide states some directly ("(L19)" in a
+   name, "level N+" in prose); the 2024 PHB's own class tables are the fallback for anything the Guide is
+   silent on. Do not infer a level from an ability's tier -- that is exactly the thing being replaced.
+2. Author `lvl` (class features / subclass abilities) the same way the 4 authored entries do. lvl is
+   authoritative and OVERRIDES tier in both directions -- it can sit below the tier band, as
+   Rogue: Improved Cunning Strike (L11, T5/9HD default) already does.
+3. Batch by class or by tier band rather than attempting all 550 in one pass -- each batch gets its own
+   live-data check (25 characters exist; see AGENTS.md) and its own fixture coverage.
+4. compute() output changes -> update testing/expected/ per batch, bump DATA.version once per batch (not
+   once for the whole multi-session effort), and re-derive any changed fixture total through the ACTUAL
+   engine (rebuildStateFromEvents/compute()), never by hand -- round 4 of this same task got EV-018's
+   hand-computed total wrong for exactly this reason.
+5. Update docs/PACT-Players-Guide.html in the same batch as its engine counterpart, per AGENTS.md's
+   "a mechanics change isn't finished until the engine AND the guide land it".
+```
+
+**Done when:** every one of the 720 purchasable abilities carries an explicit `lvl` (or the fallback is
+formally accepted as permanent for a named subset, recorded in DECISIONS.md); no ability's Hit-Dice
+requirement is inferred solely from its price tier; engine-parity 0 failed at every batch.
+
+
+## A held inert purchase can hard-block levelling, with no way to discard it — TODO
+Branch `feat/discard-inert-purchase`. Direct consequence of getting the level-up price *right*
+(`D-GH-2026-08-27-feature-hd-gate`, round-2 addendum): the "Level up → Hit Die N" tile now quotes the
+Hit-Dice ladder **plus** whatever that step legalises, so a character holding an expensive HD-blocked
+purchase — e.g. a cross-class T7 feature frozen at 0 AP, imported from CharGen — sees the tile go dead as
+`unaff` (`cost > eco.available`), reading "needs 128 AP — you have 40". `awardToNext()` only grants
+`levelDelta(hd)`, and the Live Sheet's buy panel offers no refund/discard path for a held-but-inert
+purchase, so the character cannot level until a DM awards the difference. The quote is not wrong; the gap
+is that there is no way to say "I don't want this after all". Workaround today: reopen in CharGen and
+remove it, or have the DM award the shortfall.
+Related: when the level-up IS afforded, the ledger records one event labelled only "Level up → Hit Die N"
+with no itemisation of what the extra AP paid for — worth solving in the same pass.
+**Effort:** medium · **Risk:** medium — ambiguity is the driver: a discard path for a purchase that is
+already in a frozen ledger is a real event-model question (retract? a buy-off style negative event? refuse
+the import instead?), and the answer must not reopen the free-purchase hole this came from. Damage scale
+is low (the character is gated, not corrupted) and there is a workaround.
+
+```text
+1. Reproduce: import a character from CharGen holding a cross-class T7 feature at low HD, bind it to a
+   campaign, and confirm the level-up tile is unaffordable with no discard affordance.
+2. Decide the event shape -- this is the decision, record it in DECISIONS.md. Whatever is chosen must
+   leave economy().spent and compute().total in agreement afterwards, which is exactly what the
+   blocked-purchase-freeze regression in tool-pricing-ci asserts.
+3. Surface it where the player already sees the problem: the held-but-inert tile (_inertNote) is the
+   natural place to offer "discard", not a separate menu.
+4. Itemise the level-up ledger entry when it carries more than the ladder, so "Level up → Hit Die N" at
+   128 AP explains the 96 + 32 split.
+5. Add a tool-pricing-ci case: discard an inert purchase, then level -- ledger === compute() throughout.
+```
+
+**Done when:** a player holding an inert purchase can either discard it or see plainly why levelling costs
+more, without a DM award being the only route; `economy().spent === compute().total` across the discard.
+---
+
+## Racial traits still re-derive the Hit-Dice rule instead of calling `requiredHD()` — TODO
+Branch `refactor/racial-required-hd`. `D-GH-2026-08-27-feature-hd-gate` introduced `requiredHD()` as THE
+single definition of the Hit-Dice rule and its comment says "Do not re-inline it; import it" — but four
+`(DATA.tierHD && DATA.tierHD[x.tier]) || 1` re-derivations remain for racial traits and were deliberately
+left out of scope: `tools/PACT-Live-Char-Sheet.html`'s `racialWhy()`, and three sites in
+`tools/PACT-CharGen-Webtool.html`. `DATA.racial` entries carry `tier` exactly as `DATA.features` do, plus
+a `minHD` floor that maps cleanly onto `requiredHD()`'s existing `hd` floor — so folding them in is
+mechanical. Until then the racial gate can drift from the feature gate the next time `tierHD` semantics
+change, which is precisely the drift the export was created to end.
+**Effort:** low · **Risk:** medium — damage scale is the driver: racial-trait pricing and its ⛔ messaging
+are player-visible and `minHD` must keep behaving as a floor, not an override. Ambiguity is low (the
+mapping is stated above) and likelihood low (parity + tool-pricing gates cover the pricing).
+
+```text
+1. Teach requiredHD() to read `minHD` as a floor alongside `hd`/`lvl`, or normalise the racial entries --
+   whichever keeps DATA.racial untouched is preferable, since that file is the rules dataset.
+2. Replace all four re-derivations with requiredHD() calls. Keep the racial messaging as it is: racial
+   traits say "needs N Hit Dice (level N)" and carry their own reqRace/cross-species wording, which is
+   NOT the same string as the class-ability gate.
+3. compute()'s own racial minHD check should read the same helper, so engine and tools cannot disagree.
+4. Verify no racial price or warning changes: this is a de-duplication, not a rules change, so do NOT
+   bump DATA.version and expect engine-parity to stay green with no expected/ edits.
+```
+
+**Done when:** no tool re-derives `DATA.tierHD[...]` for racial traits; `requiredHD()` owns the rule for
+both class abilities and racial traits; engine-parity 0 failed with no `testing/expected/` changes.

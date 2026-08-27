@@ -4,6 +4,119 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-25 · test(dm-console): stub `listCampaignInvites` to remove a real CI-only race in the
+  warnings-banner check; `testing/scripts/dm-console-ui-e2e.mjs`** — `dm-console-ui` failed once in CI on
+  the PR #469 promotion; local repro + one CI re-run both passed, so it was first called a flake and
+  merged. Re-investigated while writing the session close-out after noticing `CHANGELOG.md` already
+  recorded a directly analogous 2026-08-22 incident (PR #447) in the *same test file* that was NOT a
+  flake. Traced the real cause this time: `selectCampaign()` fire-and-forgets `loadInvites()`, which
+  calls the real, unstubbed `listCampaignInvites()` against live Supabase and unconditionally calls
+  `renderCampWarnings()` on both its success and error path — a slow real network round-trip landing
+  after the test's own synthetic `seedInvites()` calls silently clobbers the assertion's data. Fixed by
+  stubbing the call for that one check block instead of guessing a longer timeout. 96/96 on 3 consecutive
+  runs. Test-only — no `tools/`/`js/`/`sql/` change, so `main` carried no live defect from this. See
+  `DECISIONS.md` D-GH-2026-08-25-dm-console-warnings-race-flake.
+
+- **2026-08-25 · fix(auth): password reset was broken end-to-end — wrong redirect target plus no page
+  to handle it; `js/auth.js`, `login.html`** — `forgotPassword()` redirected to the app homepage, which
+  has no recovery handling, so the recovery session Supabase establishes was silently discarded; even a
+  correct redirect would have landed nowhere, since `updatePassword()` existed but nothing called it.
+  Added a `RESET_REDIRECT` constant pointing at `login.html` (separate from `REDIRECT_BASE`, which
+  `signUp()` still correctly uses) and a new recovery view there: a synchronous pre-import script detects
+  `type=recovery`/`error=` in the URL fragment before the Supabase client's own async hash-clearing can
+  race it (mechanics verified against the vendored client source, not assumed), a "verifying…" state
+  waits for the real `PASSWORD_RECOVERY` event, and an expired/invalid-token state offers a resend. The
+  existing signed-in bounce-to-index check now runs only when neither branch applies — it would otherwise
+  fire on a genuine recovery visit too, since the recovery redirect itself establishes a session.
+  **Needs a manual Supabase dashboard step** (add `https://chompy78.github.io/PACT/login.html` to Auth →
+  URL Configuration → Redirect URLs) that this session's tools cannot perform — flagged, not silently
+  assumed done. `engine-parity-ci.mjs` 65/0, `tool-pricing-ci.mjs` 176/0 (both null controls; no `js/`
+  rules code touched). See `DECISIONS.md` D-GH-2026-08-25-password-reset-flow.
+
+- **2026-08-24 · fix(db): archived campaigns are now write-locked server-side, not just in the DM
+  Console UI; `sql/migrations/2026-08-22-archived-campaign-write-lockdown.sql`** — `award_ap`,
+  `award_gold`, `declare_downtime`, `dm_edit_character_log`, `dm_unbind_character` now reject a write
+  against an archived campaign (new `assert_campaign_active()` check, right after each function's
+  existing DM-authority check), and the `campaigns_update`/`characters_delete` RLS policies gained the
+  same check via a new `is_campaign_dm_and_active()` predicate. `characters_delete`'s missing archive
+  check — any campaign DM could otherwise hard-delete a bound character with no check at all — was found
+  during this work's own broader write-surface audit, not in the original task-board finding. Cold-reviewed
+  by 5 independent reviewers before implementation (production RLS/RPC change). Verified with a full
+  fixture-based role/state matrix directly against production (no local Supabase stack available in this
+  environment): all seven paths confirmed to reject while archived and restore after
+  `unarchive_campaign()`; negative-authority-ordering, positive-still-readable, and cross-campaign-
+  isolation controls all held. `engine-parity-ci.mjs` 65/0 (null control — no `js/` file touched).
+  Supabase advisor: no new finding class. See `DECISIONS.md`
+  D-GH-2026-08-22-archived-campaign-rpc-enforcement.
+
+- **2026-08-24 · fix(tools): the new missing-DATA-reference warnings now classify as advisory, not a hard
+  issue; +6 fixtures** — `/code-review ultra` post-merge audit of `feat/warn-missing-data-refs` found
+  CharGen's `isAdvisory()` and Live Sheet's `_lsIsAdvisory()` were never updated for the new "is no longer
+  in the rules data" notice, so it rendered as an urgent ⚠ issue with a dead "jump to control" click
+  target and inflated the top-level issue count — contradicting the message's own "no cost/effect
+  applied" wording. Fixed both classifiers. Also added fixtures CG-039–CG-044, closing a coverage gap
+  where only 2 of the 8 new warning sites (boons, racialSpells) had regression tests. Two more findings
+  from the same review (latent label-derivation edge cases in subAbilities/subSpellBundles, a `SOFT_WARN`
+  gap) verified not currently reachable with live DATA or through any UI path — deferred, recorded in
+  full in the decision record rather than fixed reflexively. `D-GH-2026-08-24-missing-data-ref-warning-classification`.
+
+- **2026-08-24 · feat(engine): warn when `compute()` encounters a rules-table reference no longer in
+  DATA** — 8 sites (racial traits, boons, drawbacks, arts, features, subAbilities, subSpellBundles,
+  racialSpells/lineage) silently zero-priced a saved reference retired from the rules with no warning.
+  Additive only — existing skip/zero-fallback pricing unchanged at every site, confirmed by 0 output
+  drift across all 57 pre-existing fixtures. `subSpellBundles` needed real care: its lookup is
+  overloaded (a falsy bundle means either "class/subclass genuinely missing" or "this subclass
+  legitimately sells no bundle" — only the former warns). The 8th site (`racialSpells`) and a stored-XSS
+  regression in both CharGen's and Live Sheet's warning renderers (the new warnings are the first case
+  where the label itself is attacker-controlled free text, not a curated `DATA` key) were both caught by
+  `/code-review ultra` after the initial 7-site change — fixed with `esc(w)` at both render sites,
+  matching DM Console's existing correct pattern. New fixtures CG-037, CG-038; 2 new XSS regression
+  checks in `tool-pricing-ci.mjs`. `D-GH-2026-08-24-warn-missing-data-refs`.
+- **2026-08-24 · docs: graduated 3 merged PRs' task-board entries that were left un-graduated at merge
+  time** — `ci/engine-data-path-filters` (#458), `ci/cache-chromium` (#459), and
+  `test/guide-drawback-price-check` (#460) each shipped without their `CHANGELOG.md`/task-board-graduation
+  step, a violation of `AGENTS.md`'s own per-change checklist step 5/7 caught while writing this session's
+  sweep-log entry. Backfilled below with entries stamped at their actual merge dates; task-board sections
+  removed. No code changed in this commit.
+
+- **2026-08-24 · ci(engine-data): add `js/engine-data.js` to 6 workflows' path filters** — `engine-parity.yml`,
+  `tool-pricing.yml`, `static-audit.yml`, `chargen-flows.yml`, `dm-console-ui.yml`, `character-gen-e2e.yml`
+  already watched `js/engine.js` but not its `DATA` split-out (REV-14a), so a PR touching only
+  `engine-data.js` silently skipped all six — observed for real on PR #441 (only 2 of 9 workflows ran).
+  `cloud-e2e.yml` deliberately left unchanged (never watched `js/engine.js` by design). PR #458.
+
+- **2026-08-24 · ci: cache Chromium in the 7 browser-driven CI jobs + a step-level install timeout** —
+  `character-gen-e2e`, `chargen-flows`, `cloud-e2e`, `dm-console-ui`, `guide-theme`, `sw-cache-e2e`,
+  `tool-pricing` ran `npx playwright install --with-deps chromium` uncached; observed 4 real install
+  stalls across PRs #429/#430 the same night, each misreading as a test failure once the job's own
+  timeout killed it mid-install. Added `actions/cache` keyed on runner OS + Playwright lockfile hash, plus
+  a 5-minute step-level timeout on the install step itself so a stall now fails naming the install step
+  instead of silently skipping every test. PR #459.
+
+- **2026-08-24 · test(guide): drawback AP-gained prices now verified against `DATA.drawbacks`** —
+  `guide-price-check.mjs` had zero drawback-price coverage, the same class of gap that produced the
+  six-day Grit ladder divergence (`D-GH-2026-08-12-grit-steep-ladder`). Extended `verify-guide.mjs`'s
+  existing drawback-text check to also compare the guide's "AP gained" column against `DATA.drawbacks`;
+  confirmed live by deliberately mispricing one drawback on a scratch copy and watching the check catch
+  it by name. All 84 AP values (90 drawbacks minus 6 sharing the Affliction row) match. PR #460.
+
+- **2026-08-24 · fix(livesheet): drawback purchases now go through `legalCheck()`; fix(chargen): a
+  rejected random drawback no longer leaks a draw attempt** — `takeDrawback()` bypassed all rules
+  enforcement in the Live Sheet (a Fighter could tick Mana Leak, a broken stat cap went unenforced).
+  Routed through `buy()`, which required a new `_CTX_PRICERS.drawback` entry — the default whole-build-
+  delta pricer returns 0 for drawbacks, which are modeled as income since v0.354, not negative spend.
+  CharGen's random builder's `_draws` counter is now only spent when `tryAct(actDraw)` actually succeeds.
+  3 new browser-driven checks in `tool-pricing-ci.mjs` (both gates, plus a regression guard) — 171/0,
+  confirmed to fail red against the pre-fix code before confirming green against the fix.
+  `D-GH-2026-08-24-livesheet-drawback-legalcheck`.
+
+- **2026-08-24 · docs: purged the "pace curve" mislabel from 5 historical records** — annotated (never
+  rewrote) `DECISIONS.md`, `D-GH49.md`, `D-GH-2026-07-14-advancement-tracks.md`,
+  `D-GH-2026-08-02-creation-lock-switch.md`, and the 2026-07-14 session log with dated correction notes
+  pointing at `D-GH-2026-08-03-ap-budget-curve-standard`, per its own follow-up list. Original wording
+  preserved verbatim in every record. `docs/PACT-Players-Guide.html` deliberately untouched (out of this
+  task's scope). engine-parity 57/0, unaffected.
+
 - **2026-08-22 · feat(dm-console): "Current co-DMs" list with a Remove action** — the console let a DM
   withdraw an *unredeemed* co-DM invite, but once someone actually redeemed one and joined the campaign,
   there was no way to see who currently had DM access or undo a mistaken/compromised grant. Wires the

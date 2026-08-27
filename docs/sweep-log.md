@@ -8,6 +8,55 @@
 
 Entries land here starting with the first real `/sweep-tasks` run.
 
+## 2026-08-24 — sweep run
+
+Batch size requested: unspecified, so asked once via `AskUserQuestion` (recommended 3; offered "All 6" and
+"1 — just the safest one" as alternatives) — user picked **All 6**.
+
+`docs/TASK_BOARD_NEXT.md`/`_LATER.md` held a mix of tagged and untagged open `TODO` tasks. Reading each
+task's own body (not just its Effort/Risk tag) before queuing anything found 6 genuinely eligible —
+every one carrying a mechanically-verifiable "Done when" and no `Risk: high` — and excluded 11+ others
+despite some carrying low/medium tags on their own: several needed a genuine design/taste call (CharGen
+random-generator tuning, the context-pricing whole-build-delta question), several were explicitly
+self-scoped "not sweep-eligible" in their own task text (password reset, invite rate-limiting, the
+Edge-Function AP-validation prerequisite), one spanned a project outside this repo's scope
+(`pact-guide`'s own drawback cap-wording reconciliation), and the rest were `Risk: high` (an absolute
+veto per this skill's own gate) or open-ended audits with no single mechanical pass/fail.
+
+Execute order: ascending effort/risk, per the skill's own tiebreak.
+
+| Task | Branch | PR | Effort/Risk | Outcome |
+|---|---|---|---|---|
+| 7 CI gates never trigger on a `js/engine-data.js`-only change | `ci/engine-data-path-filters` | #458 | low/low | **MERGED** |
+| Cache Chromium in the browser CI jobs + step-level install timeout | `ci/cache-chromium` | #459 | low/low | **MERGED** |
+| `guide-price-check.mjs` has zero drawback-price coverage | `test/guide-drawback-price-check` | #460 | low/low | **MERGED** |
+| Purge the "pace curve" mislabel from 5 historical records | `docs/pace-curve-terminology` | #461 | low/medium | **MERGED** |
+| Live Sheet drawback purchases bypass `legalCheck()` entirely | `fix/livesheet-drawback-legalcheck` | #462 | medium/medium | **MERGED** (2 code-review findings fixed pre-merge: `buy()`'s default pricer would have wrongly zeroed drawback cost; routing through `legalCheck()` would have newly hard-blocked an advisory-only cap warning — both fixed and verified before push) |
+| Warn when `compute()` hits a rules-table reference no longer in DATA | `feat/warn-missing-data-refs` | #463 | medium/medium | **MERGED** (audit found 7 sites at first pass, an 8th — `racialSpells`/lineage — caught by `/code-review ultra` after; the same review also caught a real stored-XSS regression the change introduced, since these are the first `compute().warnings` entries to carry attacker-controlled free text rather than a curated `DATA` key — both fixed and verified before push) |
+
+**Bookkeeping gap found and fixed mid-sweep, not a 7th task:** PRs #458–460 merged without their
+`CHANGELOG.md` entry or task-board graduation (a violation of `AGENTS.md`'s own per-change checklist step
+5/7) — caught by cross-checking each merged PR's actual diff against live GitHub state before writing
+this entry, rather than trusting an in-progress record that claimed they were fully bookkept. Backfilled
+in a same-day follow-up, `docs/graduate-458-459-460-task-board` → **PR #464, MERGED**. Also caught and
+fixed live: PR #462 had genuinely not been merged despite an in-progress record claiming it was — it
+still had 6/6 green CI and a clean merge state, so it was merged as part of closing out this run, not
+re-executed. Two merge conflicts arose from the resulting PR sequencing (#463 against #462, then #463
+against #464, both from CHANGELOG.md's newest-first insertion point) — both resolved by merging `preview`
+into the PR branch and re-verifying (`engine-parity-ci.mjs` 59/0 each time), no rebase/force-push, per
+`AGENTS.md`'s own merge-conflict handling rule.
+
+Circuit breaker: not triggered (0 consecutive failures across all 6 tasks — every task verified against
+its own "Done when" before push: `engine-parity-ci.mjs` 59/0 and `tool-pricing-ci.mjs` 174/0 by the end of
+the run; 2 new tool-pricing regression tests for the XSS fix were confirmed to fail red against the
+reverted fix before being trusted green; the guide-price-check gate was live-tested by deliberately
+mispricing one drawback on a scratch copy and confirming it failed loud before restoring it).
+
+Untagged tasks: not enumerated individually — the boards' untagged items were either `MOSTLY DONE`
+entries with an already-scoped remaining step spanning `pact-guide` (out of this repo's sweep scope) or
+maintainability notes with no "Done when" to check against, none bordering eligibility closely enough to
+warrant a per-item callout this run.
+
 ## 2026-08-10 — sweep run
 
 Batch size requested: 10, filtered to `Effort: medium` (later widened, see below), `Risk: low`/`medium`

@@ -10,6 +10,84 @@
 
 ## Index
 
+## D-GH-2026-08-25-dm-console-warnings-race-flake — a "flake" verdict on dm-console-ui-e2e.mjs was wrong; root-caused and fixed the real race
+- `dm-console-ui` failed once in CI on PR #469 (the promotion PR); local repro + one CI re-run both
+  passed, so it was called a flake and PR #469 was merged. That conclusion needed re-checking:
+  `CHANGELOG.md` already documented a directly analogous 2026-08-22 incident (PR #447) in the *same test
+  file* that was NOT a flake — a genuine stale-response race. Traced the actual code path this time
+  rather than re-running again: `selectCampaign()` fire-and-forgets `loadInvites()`, which calls the
+  real, unstubbed `listCampaignInvites()` against live Supabase (the source of the 400/401s in the
+  failing log); `loadInvites()` unconditionally calls `renderCampWarnings()` on both its success and
+  error path, so a slow real network round-trip landing after the test's own synthetic `seedInvites()`
+  calls silently clobbers the test's data. Fixed by stubbing `listCampaignInvites` for that one check
+  block instead of guessing a longer timeout — removes the non-determinism rather than out-waiting it.
+  96/96 on 3 consecutive local runs. Test-only change (no `tools/`/`js/`/`sql/` touched), so `main` isn't
+  carrying a live defect — rides the next normal promotion. Full record:
+  `decisions/2026/D-GH-2026-08-25-dm-console-warnings-race-flake.md`.
+
+## D-GH-2026-08-25-password-reset-flow — password reset was broken end-to-end; fixed the redirect target and built the missing recovery page
+- Two defects, not one: `forgotPassword()` redirected to the app homepage (no recovery handling at all),
+  and even a correct redirect would have landed nowhere — `updatePassword()` existed in `js/auth.js` but
+  nothing called it. Fixed with a new `RESET_REDIRECT` constant (`login.html`, separate from
+  `REDIRECT_BASE`, which `signUp()` still correctly uses) and a new recovery view in `login.html`.
+  Detection logic (`type=recovery` vs `error=` in the URL fragment) verified directly against the
+  vendored Supabase client source rather than assumed from memory; a synchronous pre-import hint script
+  avoids a real race between the client's own async hash-clearing and the page's boot logic. The
+  existing "already signed in → bounce to index.html" check had to move behind the new recovery/error
+  branches — Supabase's recovery redirect establishes a real session, so it would otherwise have kicked
+  a genuine recovery visit away before they ever saw the new-password form. **Needs a Supabase dashboard
+  step this session's tools can't perform:** `https://chompy78.github.io/PACT/login.html` must be added
+  to Auth → URL Configuration → Redirect URLs before this works in production. No automated e2e coverage
+  added (`cloud-e2e.mjs` needs Docker, unavailable in this environment) — verified instead via syntax
+  checks, a DOM-id cross-reference, and a manual trace of all four boot-state branches. Full record:
+  `decisions/2026/D-GH-2026-08-25-password-reset-flow.md`.
+
+## D-GH-2026-08-22-archived-campaign-rpc-enforcement — server-side enforcement that an archived campaign is write-locked
+- "Archived = read-only" was enforced only in `tools/DM-Console.html`'s client JS — no RLS policy or RPC
+  rejected a write against an archived campaign. Cold-reviewed by 5 independent reviewers before
+  implementation per `AGENTS.md`'s high-risk-change rule. Scope: seven write paths (five
+  `SECURITY DEFINER` RPCs — `award_ap`, `award_gold`, `declare_downtime`, `dm_edit_character_log`,
+  `dm_unbind_character` — plus the `campaigns_update` and `characters_delete` RLS policies), narrower
+  than the task board's original unscoped wording; two of the board's five presumed RPC names
+  (`set_ignore_player_ap`/`set_campaign_rules`) turned out to be a column-grant, not functions;
+  `characters_delete`'s missing archive check (a DM could otherwise hard-delete a bound character with
+  no check at all) was found during this work's own broader write-surface audit, not named by the
+  original finding. One fail-closed `is_campaign_active()` primitive, two call-site helpers derived from
+  it. Verified with a full fixture-based role/state matrix run directly against production via
+  authenticated-role SQL simulation (this environment has no Docker/Supabase-CLI for a local stack) —
+  all seven paths confirmed to reject while archived and restore after `unarchive_campaign()`;
+  negative-authority-ordering, positive-still-readable, and cross-campaign-isolation controls all
+  confirmed. Full record: `decisions/2026/D-GH-2026-08-22-archived-campaign-rpc-enforcement.md`.
+
+## D-GH-2026-08-24-missing-data-ref-warning-classification — fix 3 confirmed findings from a post-merge /code-review ultra
+- CharGen's `isAdvisory()` and Live Sheet's `_lsIsAdvisory()` were never updated when
+  `feat/warn-missing-data-refs` added 8 new "is no longer in the rules data" warnings, so the notice
+  rendered as an urgent hard issue with a dead click target and inflated issue counts — contradicting its
+  own "no cost/effect applied" wording. Fixed both classifiers; added fixtures CG-039–CG-044 to close a
+  6-of-8-sites coverage gap. Two more findings from the same review (latent subAbilities/subSpellBundles
+  label edge cases, a `SOFT_WARN` gap) verified not reachable with live DATA or any UI path — deferred,
+  recorded rather than fixed reflexively. Full record:
+  `decisions/2026/D-GH-2026-08-24-missing-data-ref-warning-classification.md`.
+
+## D-GH-2026-08-24-warn-missing-data-refs — warn (don't silently no-op) when compute() hits a DATA reference that's been retired
+- 8 loops in `compute()` silently `continue`d past a saved racial trait/boon/drawback/art/feature/
+  subAbility/subSpellBundle/racialSpell reference no longer in `DATA` — zero cost/effect, no warning, no
+  trace. Fixed additively (existing pricing behavior unchanged, confirmed by 0 output drift across all 57
+  pre-existing fixtures); `subSpellBundles` needed care to avoid a false positive (its lookup is
+  overloaded between "genuinely missing" and "legitimately no bundle"); two categories are also iterated
+  by a secondary loop for unrelated checks, deliberately not duplicated to avoid 2-3x warning noise for
+  one stale label. `/code-review ultra` caught two real issues post-hoc: the 8th site (`racialSpells`)
+  and a stored-XSS regression (the new warnings are the first to echo attacker-controlled free text
+  rather than a curated `DATA` key) in both CharGen's and Live Sheet's warning renderers, fixed with
+  `esc(w)`. Full record: `decisions/2026/D-GH-2026-08-24-warn-missing-data-refs.md`.
+## D-GH-2026-08-24-livesheet-drawback-legalcheck — route Live Sheet drawback purchases through legalCheck()/buy()
+- `takeDrawback()` called `emit()` directly, the only purchase category in the Live Sheet with no rules
+  enforcement at all — a Fighter could tick a caster-only drawback, and a broken stat cap went unenforced.
+  Routing through `buy()` required a new `_CTX_PRICERS.drawback` entry: the default whole-build-delta
+  pricer returns 0 for drawbacks, since they're modeled as income (not negative spend) since v0.354 —
+  verified directly against `js/engine.js`'s own "MODEL (b)" comment before wiring anything, not assumed.
+  Full record: `decisions/2026/D-GH-2026-08-24-livesheet-drawback-legalcheck.md`.
+
 ## D-GH-2026-08-22-dm-console-codm-revoke-ui — a "Current co-DMs" list with a Remove action
 - The console could withdraw an unredeemed co-DM invite but had no way to see or remove someone who had
   already redeemed one and become a co-DM — a real gap given this project's history with the invite/join
@@ -1411,6 +1489,12 @@
   replaced (not added to) Live Sheet's earned-AP `apLevel` chip with a spent-AP tuned-curve
   `trackLevel`; left `js/ap-by-level.js` untouched (pace curve ≠ budget curve)
   Full record: `decisions/2026/D-GH-2026-07-14-advancement-tracks.md`.
+  > Correction (2026-08-24, see D-GH-2026-08-03-ap-budget-curve-standard): the term
+  > "pace curve" here is a mislabel. PACT has no AP-earned-per-level curve — the
+  > rules define a *budget* curve (Standard L1 79/+24, Generous 83/+28, prelude L0
+  > 55) and a separate *award pace* (~7 AP/session). The decision this line
+  > records — leaving `js/ap-by-level.js` untouched — was still correct at the time;
+  > only the parenthetical naming is wrong.
 - **D-GH-2026-07-13-campaign-membership-helpers** — De-duplicate campaign-membership SQL
   checks: one new ungranted helper for the invite_code lookup, reuse the pre-existing
   `is_campaign_member()` for the membership check rather than adding a second near-duplicate

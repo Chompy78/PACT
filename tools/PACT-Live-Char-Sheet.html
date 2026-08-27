@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.446.html**-->
+<!--**PACT-Live-Char-Sheet v1.469.html**-->
 
 <!doctype html>
 <!--
@@ -790,7 +790,13 @@ const _CTX_PRICERS={
   // The two bonds: a flat +2 AP gain, one-way. A build diff would additionally hand back a retroactive
   // discount on already-owned features/spells — the original refund bug these two were escaped for.
   mbound:function(){return -2;},
-  dbound:function(){return -2;}
+  dbound:function(){return -2;},
+  // Drawback: DATA.drawbacks[name], negated (a drawback GRANTS AP, so it is priced as a negative cost) —
+  // flat table price, same shape as mbound/dbound above. Needed for fix/livesheet-drawback-legalcheck:
+  // the default whole-build-delta path below would be WRONG here regardless of context — drawbacks are
+  // modeled as income since v0.354 and never move compute().total at all (js/engine.js's "MODEL (b)"
+  // comment), so priceOf('drawback',...) would silently return 0 without this entry.
+  drawback:function(cur,p){return -((DATA.drawbacks[p.v]||0));}
 };
 // price a prospective change: its own listed price for a context change, else a delta against the
 // CURRENT committed build (correct for an ordinary purchase, which changes nothing else's price)
@@ -813,7 +819,14 @@ function emit(ev){ if(_viewOnlyBlock())return; ev.seq=SEQ++; ev.ts=Date.now(); e
 function award(amount,note,disc){ if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
 // these stay confirm-through. Everything else a purchase raises is a hard rules violation → blocked with a popup.
-const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability/i;
+// "caps them at" (code-review catch on fix/livesheet-drawback-legalcheck): the drawback-cap warning
+// (js/engine.js, both the campaign-enforced and guide-advisory forms) is explicitly designed to clamp
+// the AP granted or merely advise — never to block the purchase itself (see engine.js's own comment:
+// "A local, un-bound character keeps the advisory warning and the full grant... there is nobody to
+// adjudicate for them"). Before this PR, takeDrawback() bypassed legalCheck() entirely so this warning
+// was never checked at purchase time; routing it through buy() would have turned it into a hard block
+// with no rule actually being broken, since it matches neither this regex nor EXPECTED_FOLLOWUP.
+const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at/i;
 // EXPECTED FOLLOW-UP = not a warning at all. The purchase is legal and complete; a choice that belongs
 // to it is made afterwards, in the ✎ Names dialog. Epic boons are the only case today: MUT.boon pushes
 // the label but cannot set epicBoonAbil (js/engine.js:545), so compute() on the candidate build always
@@ -870,7 +883,7 @@ function buy(cat,payload,label){
   if(followup.length)flash('✎ Now open Names and pick the ability — '+followup.join('; '));
   if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
 }
-function takeDrawback(v){ const refund=DATA.drawbacks[v]||0; emit({type:'buy',cat:'drawback',payload:{v},cost:-refund,label:'Drawback — '+v,level:foldBuild(null).hd}); }
+function takeDrawback(v){ buy('drawback',{v},'Drawback — '+v); }
 // feat/dm-edit-events: finds the drawback-buy event a NEW buyoff would target — the oldest still-open
 // (not yet bought-off) purchase of this value, same FIFO order activeEvents() itself resolves buyoffs
 // in (D-GH-2026-08-06-buyoff-keyed-by-event). Needed here because buyoffDrawback() must consult THAT
@@ -1308,7 +1321,7 @@ function validate(){
     if(e.cat==='boon'&&!DATA.boons[e.payload.v]) issues.push('Boon no longer in rules: '+esc(e.payload.v));
     if(e.cat==='drawback'&&!(e.payload.v in DATA.drawbacks)) issues.push('Drawback no longer in rules: '+esc(e.payload.v));
   });
-  compute(b).warnings.filter(w=>!/^OVER BUDGET/.test(w)).forEach(w=>issues.push('Rule warning: '+w));
+  compute(b).warnings.filter(w=>!/^OVER BUDGET/.test(w)).forEach(w=>issues.push('Rule warning: '+esc(w)));
   // Toggle-flip grandfather notice (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): if
   // ignore_player_ap is on and the frozen ledger shows more spent than DM AP alone could have funded,
   // some of that spend came from player AP that no longer counts. Non-blocking — purchases are kept
@@ -1318,11 +1331,13 @@ function validate(){
   return issues;
 }
 // Advisory (informational, non-blocking) validate() notes vs hard "needs review" issues — mirrors
-// CharGen's isAdvisory() verbatim (same two patterns) so both tools classify the identical notice the
-// same way. The ignore_player_ap grandfather notice is a NORMAL, expected state ("purchases are kept,
-// it never gates anything"), so it must render as a calm ⓘ note, not inflate the ⚠ "Needs review (N)"
-// count the way every other issue does (feat/campaign-ap-model review follow-up).
-function _lsIsAdvisory(w){return /switched off player-entered AP/.test(w)||/no Ki-using ability/.test(w)||/^Creation AP not confirmed/.test(w);}
+// CharGen's isAdvisory() patterns so both tools classify the identical notice the same way. The
+// ignore_player_ap grandfather notice is a NORMAL, expected state ("purchases are kept, it never gates
+// anything"), so it must render as a calm ⓘ note, not inflate the ⚠ "Needs review (N)" count the way
+// every other issue does (feat/campaign-ap-model review follow-up). "is no longer in the rules data"
+// (code-review catch on feat/warn-missing-data-refs) is the same kind of non-actionable notice — the
+// message itself says "no cost/effect applied", so it must not inflate that count either.
+function _lsIsAdvisory(w){return /switched off player-entered AP/.test(w)||/no Ki-using ability/.test(w)||/^Creation AP not confirmed/.test(w)||/is no longer in the rules data/.test(w);}
 
 // ---------------- buy panel builders ----------------
 function opt(v){return '<option value="'+String(v).replace(/"/g,'&quot;')+'">'+v+'</option>';}

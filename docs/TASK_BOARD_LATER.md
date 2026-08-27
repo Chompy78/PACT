@@ -121,50 +121,6 @@ D-GH-<date>-engine-review-cleanup if item 1 or 4 changes real behavior (not just
 
 ---
 
-## Warn when compute() encounters a rules-table reference that no longer exists in DATA — TODO
-Branch feat/warn-missing-data-refs. Several `compute()` lookups silently no-op when a character
-references a racial trait/boon/drawback (and likely other categories) that's been removed or renamed
-from `DATA` — confirmed sites: racial traits (`js/engine.js` ~L182, L189, `if(!r)continue`), boons
-(~L372, `if(!bo)continue`), drawbacks (~L383, `||0` fallback). The character keeps the stale label in
-its saved data, but gets zero cost/effect from it on recompute with no warning telling anyone why —
-surfaced while discussing what happens if existing abilities get removed from the rules content.
-**Effort:** medium · **Risk:** medium — ambiguity is medium (touch each lookup site individually vs.
-centralize behind one shared helper is a contained, low-stakes call, not an architectural fork); damage
-scale is medium (touches `compute()` directly across several lookup sites, but the change is purely
-additive — new warning text only, no pricing/AP-total change — bounding the blast radius); damage
-likelihood is medium (the parity gate does check warning text via its `legacy_warnings`/
-`new_engine_warnings` columns, but REV-01's own follow-up note already flags a known fixture-coverage
-gap for some `W.push` branches, so a new warning path isn't automatically exercised without a dedicated
-fixture) — eligible for `/sweep-code-tasks`.
-
-```text
-1. Enumerate every DATA lookup in compute()/rebuildStateFromEvents() that silently skips or
-   zero-prices an unrecognized reference — confirmed so far: racialTraits, boons, drawbacks; also
-   check masteries, features, class/subclass references, spells/traditions, and feats for the same
-   pattern (grep for similar `if(!X)continue` / `||0` guards against DATA lookups).
-2. At each site, keep the existing skip/zero-fallback behavior unchanged (this task is additive, not a
-   pricing/behavior change) and push a warning to W naming the specific missing reference, e.g. "⚠
-   '<label>' is no longer in the rules data — no cost/effect applied." Reuse each site's existing
-   W.push warning-string conventions (⛔/⚠ prefixes, label-splitting logic) rather than inventing a new
-   format.
-3. Decide once, up front, whether to centralize these lookups behind one shared helper (e.g. a
-   `_lookupOrWarn(table, key, W)` function) or keep each site's existing ad hoc structure and just add
-   one warning line to each — default to the latter (minimal, additive, lowest risk) unless the audit
-   in step 1 finds it's clearly cleaner to centralize. Don't use this task to also refactor compute()'s
-   overall structure — that's REV-14b's job, tracked separately.
-4. Add at least one new fixture (or extend an existing one) in testing/fixtures/ + testing/expected/
-   with a build referencing a racial trait/boon/drawback deliberately absent from the current DATA, so
-   the new warning path gets real, permanent test coverage — closing exactly the kind of
-   fixture-coverage gap REV-01's own follow-up note already flags for W.push branches.
-5. This is additive/display-only for compute()'s numeric output (AP totals, pricing) — do NOT bump
-   DATA.version; log in CHANGELOG.
-```
-
-**Done when:** every silent-skip DATA lookup in compute() found in the step-1 audit pushes a visible
-warning naming the missing reference instead of silently doing nothing; at least one fixture exercises
-this new warning path; `testing/tests/engine-parity.html` is still 20/0 for all pre-existing fixtures
-(no numeric/pricing change), plus the new fixture passes with the expected warning text.
-
 ---
 
 **Low-severity review findings:**
@@ -352,6 +308,40 @@ time-travel scrub, and the cloud sync path.
 **Done when:** a decision record states which option governs and why (including "leave as-is, the
 device-only hint is the permanent answer" as a legitimate outcome) — and, if (a) is chosen, it ships
 with an engine-parity/tool-pricing-ci fixture covering HP behavior under undo/redo and time-travel scrub.
+
+---
+
+## CharGen writes HD as a replace-in-place patch slot, destroying HD history — TODO
+Branch `refactor/hd-event-vocabulary`. The two tools record Hit Dice in **different event vocabularies**:
+the Live Sheet appends `cat:'hd'` events (`payload.to`), while CharGen writes a replace-in-place
+`cat:'patch'` slot (`PATCH_SLOTS.HD_PROF`, carrying `hd` and `profBonus` together). A CharGen-authored
+character therefore carries **no record of what its HD was when any purchase was made** — the LOG is not a
+true history for that field. Consequences: (a) purchase-time gating ("legal when bought stays legal", the
+principled answer to a character whose HD is later lowered by undo — R4 of the HD-gate cold review) is
+impossible for those characters, even though `_replay()` already stamps purchase-time tier for Vigor ranks
+and could do the same here; (b) anything reasoning about HD over time silently reads 1. Found the hard way
+on 2026-08-27, when a live-data query filtered on `cat='hd'` and every CharGen character came back as 1 HD.
+**Effort:** high · **Risk:** high — damage scale is the driver: it changes the event vocabulary that 25
+live characters' saved LOGs are written in, so it needs a migration story, not just a code change.
+Ambiguity is medium (which vocabulary wins is a real design call) and likelihood medium.
+
+```text
+1. Decide which vocabulary is canonical: append-only `cat:'hd'` events (real history, but CharGen's patch
+   slots exist to keep identity edits replaceable rather than accumulating) or a patch slot that records
+   its prior value. Record the decision — this is the architectural question, the rest is mechanics.
+2. Whichever wins, both tools must emit it. Watch PATCH_SLOTS.HD_PROF: it bundles hd WITH profBonus, so
+   splitting hd out changes the slot's shape and replacePatchSlot()'s in-place semantics.
+3. Migration: 25 live characters exist (the app is NOT pre-launch). Old LOGs must keep folding to the same
+   build — foldBuild()/MUT must read both shapes indefinitely, or a one-time migration must be written and
+   verified against a copy of the live data first.
+4. Only once history is trustworthy, revisit purchase-time gating as its own task — do not bundle it here.
+5. Behaviour-preserving for existing builds: fold output must be identical before vs after. Do NOT bump
+   DATA.version unless compute() output genuinely changes.
+```
+
+**Done when:** both tools record HD changes in one vocabulary that preserves prior values; folding any
+existing saved LOG (old or new shape) yields an identical build; a fixture covers each shape.
+
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.

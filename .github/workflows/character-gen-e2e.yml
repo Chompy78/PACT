@@ -14,6 +14,7 @@ on:
       - "tools/PACT-Live-Char-Sheet.html"
       - "tools/DM-Console.html"
       - "js/engine.js"
+      - "js/engine-data.js"
       - "js/character-store.js"
       - "testing/scripts/random-manual-e2e.mjs"
       - "testing/package.json"
@@ -49,8 +50,15 @@ jobs:
         working-directory: testing
         run: npm ci
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('testing/package-lock.json') }}
+
       - name: Install Chromium
         working-directory: testing
+        timeout-minutes: 5
         run: npx playwright install --with-deps chromium
 
       - name: Run the harness

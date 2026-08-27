@@ -1,5 +1,11 @@
 # 2026-07-14 — Campaign advancement dials: the multi-AI review saga
 
+> Footnote (2026-08-24): terminology in this session log predates
+> D-GH-2026-08-03-ap-budget-curve-standard, which established that PACT has no
+> AP-earned-per-level "pace curve" — only a budget curve (Standard L1 79/+24) and
+> an award pace (~7/session). Left unedited as a record of the discussion at the
+> time.
+
 Companion to `DECISIONS.md` `D-GH-2026-07-14-advancement-tracks` (the *why* of what shipped) and the two
 PRs merged this session: **#205** (campaign-join race → friendly error) and **#206** (advancement dials).
 This note preserves the *messy middle* of #206 — specifically why the design pivoted and how five external
