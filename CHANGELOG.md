@@ -4,6 +4,25 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-27 · fix: a blocked purchase grants nothing, and a level-up pays for what it legalises;
+  `js/engine.js`, both player tools** — three defects found by `/code-review ultra` on PR #471, two of them
+  introduced by the Hit-Dice gate in the same PR. (1) **Ownership was resolved after the ability-score
+  fold**, which reads raw `b.features` for `Barbarian: Primal Champion`'s +4 STR/+4 CON — so a 1 HD
+  Barbarian got the stats and their HP/AC/save-DC knock-ons for **0 AP** while the engine reported the
+  feature "not counted, not owned" (that build cost 19 AP before the gate). Ownership now resolves at the
+  top of `compute()`, before anything reads `b.features` for an effect. (2) **A purchase frozen at cost 0
+  while HD-blocked became free once Hit Dice rose:** the Live Sheet priced a level-up as the Hit-Dice
+  ladder alone, so nothing charged for the purchases the level-up legalised — `compute().total` 128 against
+  `economy().spent` 96, no warning. `repriceDraft()` never had this bug (it prices every event as the
+  `compute()` delta), so the level-up now charges the ladder **plus the drop in compute()'s own "Blocked
+  purchases" line**. Removing the context escape outright was tried and reverted — it re-prices an
+  unstamped Vigor/Grit stack, which is exactly what CharGen produces. (3) **All four Live Sheet pickers
+  tested ownership before the HD check**, rendering a held-but-blocked feature as "Already purchased"; they
+  now show it as held-but-inert with the remedy, and CharGen's subclass picker gained a live met/unmet HD
+  annotation. New `tool-pricing-ci` coverage for the CharGen-import → level-up path. engine-parity 71/71,
+  tool-pricing 179/179. Graduates the three task-board items these close. See `DECISIONS.md`
+  D-GH-2026-08-27-feature-hd-gate (Addendum).
+
 - **2026-08-27 · feat(engine): enforce the Hit-Dice requirement on class abilities, via one shared
   `requiredHD()`; `js/engine.js`, both player tools · `DATA.version` v0.359 → v0.360** — the Players Guide
   states this as absolute ("You can never buy an ability before you own the Hit Dice ... it requires") and
