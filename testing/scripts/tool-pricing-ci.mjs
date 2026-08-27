@@ -314,7 +314,7 @@ try {
   check('all 12 epic boons buy on a HD-17 character, with no alert and no confirm',
     await ls.evaluate(`(()=>{${LS_SETUP}
       LOG.push({type:'award',amount:900,label:'AP award',seq:SEQ++,ts:Date.now()});
-      for(let h=2;h<=17;h++){const b=foldBuild(null);
+      for(let h=2;h<=19;h++){const b=foldBuild(null);
         LOG.push({type:'buy',cat:'hd',payload:{to:h},cost:priceOf('hd',{to:h},b),label:'Level up',seq:SEQ++,ts:Date.now(),level:b.hd});}
       const epics=DATA.boonList.filter(x=>DATA.boons[x].epic);
       epics.forEach(n=>buy('boon',{v:n},n));
@@ -348,7 +348,7 @@ try {
   check('the epic-boon tile keeps its guidance text but drops the amber warning styling',
     await ls.evaluate(`(()=>{${LS_SETUP}
       LOG.push({type:'award',amount:900,label:'AP award',seq:SEQ++,ts:Date.now()});
-      for(let h=2;h<=17;h++){const b=foldBuild(null);
+      for(let h=2;h<=19;h++){const b=foldBuild(null);
         LOG.push({type:'buy',cat:'hd',payload:{to:h},cost:priceOf('hd',{to:h},b),label:'Level up',seq:SEQ++,ts:Date.now(),level:b.hd});}
       render(); setBuyQuery('boon of truesight');
       const t=[...document.querySelectorAll('#buy button.ib')].find(x=>/Boon of Truesight/.test(x.innerText||''));
@@ -471,7 +471,7 @@ try {
   check('a DM-removed boon\'s original purchase row goes dead in the ledger; a retake afterward stays live',
     await ls.evaluate(`(()=>{${LS_SETUP}
       LOG.push({type:'award',amount:900,label:'AP award',seq:SEQ++,ts:Date.now()});
-      for(let h=2;h<=17;h++){const b=foldBuild(null);
+      for(let h=2;h<=19;h++){const b=foldBuild(null);
         LOG.push({type:'buy',cat:'hd',payload:{to:h},cost:priceOf('hd',{to:h},b),label:'Level up',seq:SEQ++,ts:Date.now(),level:b.hd});}
       const v='Boon of Combat Prowess';
       buy('boon',{v},v);
@@ -1005,8 +1005,8 @@ try {
   check('epicBoonAbil survives load -> DOM rebuild, and the warning clears',
     await cg.evaluate(`(()=>{
       const L=[{type:'award',amount:900,label:'AP award',seq:1,ts:1}]; let s=2;
-      for(let h=2;h<=17;h++)L.push({type:'buy',cat:'hd',payload:{to:h},cost:0,label:'lvl',seq:s++,ts:1,level:h-1});
-      L.push({type:'buy',cat:'boon',payload:{v:'Boon of Fate'},cost:25,label:'Boon of Fate',seq:s++,ts:1,level:17});
+      for(let h=2;h<=19;h++)L.push({type:'buy',cat:'hd',payload:{to:h},cost:0,label:'lvl',seq:s++,ts:1,level:h-1});
+      L.push({type:'buy',cat:'boon',payload:{v:'Boon of Fate'},cost:25,label:'Boon of Fate',seq:s++,ts:1,level:19});
       L.push({type:'names',eb:{'Boon of Fate':'STR'},label:'Named spells & languages',seq:s++,ts:1});
       _cgApplyEnvelope({schema:'pact-character/1',rules:DATA.version,name:'EB',LOG:L,SEQ:s},{clearHistory:true});
       replaceWholeLogFromBuild(_domReadBuild());

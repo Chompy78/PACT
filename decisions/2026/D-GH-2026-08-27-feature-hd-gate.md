@@ -215,3 +215,44 @@ general feats (L4+) at 3 HD, Epic Boons (L19+) at 17 HD.
 
 Note for whoever takes the racial-trait de-duplication task: both tools read `ar.hd` / `bo.hd` directly
 rather than calling `requiredHD()`, so Arts and Boons carry the same re-derivation the racial sites do.
+
+### Addendum, round 4 — tier demoted to pricing-only; true levels authored where known (2026-08-27)
+
+**Owner ruling:** "the Tiers are really just for costings." `requiredHD()` changed accordingly —
+an item's own `hd`/`lvl` is now the authoritative Hit-Dice requirement and **overrides tier in both
+directions** (it can sit below the tier band as well as above); tier's `tierHD` lookup is only the
+**fallback** for an item that states no level of its own, not the intended source of truth.
+
+**What was actually authored, and why not further.** Checked before writing anything: the Guide states a
+true level for roughly 11 of the 720 purchasable abilities. Of those, 4 already matched their gate.
+Authored the rest:
+- **26 general-feat Arts**, `hd` 3 → 4 (2024: general feats are level 4+).
+- **12 Epic Boons**, `hd` 17 → 19 (2024: Epic Boon feats are level 19+; the Guide already said so in
+  prose — "gated behind Hit Die 17, the level-19 threshold" — the *data* just hadn't caught up).
+- **2 class features whose own name already states a level their gate missed:**
+  `Paladin: Aura range → 30 ft (L18)` (was 17, gains `lvl:18`) and
+  `Rogue: Improved Cunning Strike (L11)` (was 9, gains `lvl:11` — a genuine tightening, since L11 sits
+  below its T5/9-HD default).
+
+**The other ~550 class features and subclass abilities were deliberately NOT touched.** No source in this
+repo or the Guide states their true level, so authoring them would mean inventing numbers — the exact
+mistake already made twice earlier in this same session (the "level 4" misreading, and the first
+"5 characters break" query). Left resolving to their tier band's floor via the new fallback, which is
+explicitly interim, not the intended end state — restated in code comments and the task board so it is
+not lost.
+
+**Live data checked before any of the 40 values changed:** none of the 11 characters holding an Art, Boon
+or the two named features holds one of the 40 moved entries. Zero characters affected.
+
+**Fixture discipline held, with one correction to my own arithmetic.** `CG-051`/`CG-052` needed only
+their warning text updated (both fixtures were already below the new thresholds). `CG-015` needed `hd`
+raised 17→18 (still proves both legacy feature-alias keys resolve; total moved by exactly the Hit-Dice
+ladder step). `EV-018` needed its `hd` event raised 17→19. Its total was first hand-computed at 121 by
+composing known deltas outside the engine — **wrong**, because Epic-boon pricing also depends on
+`_vigorRankTier`-style purchase-time context the hand arithmetic didn't reproduce. Caught by re-deriving
+through the real `rebuildStateFromEvents`/`compute()` pipeline rather than trusting the hand total; the
+correct value is 167. Four `tool-pricing-ci` sites hard-coded a `h<=17` leveling ceiling for tests
+specifically about Epic Boons and needed raising to 19; one of those inlined a Boon-of-Fate purchase whose
+own `level:17` field needed the same correction.
+
+engine-parity 73/73, tool-pricing 180/180 (3 consecutive runs). `DATA.version` bumped again for this round.

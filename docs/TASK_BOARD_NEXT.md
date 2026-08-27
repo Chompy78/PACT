@@ -802,42 +802,42 @@ a fixture covers the doubled input for both the priced and the HD-blocked case; 
 
 ---
 
-## Tiers are level BANDS — several distinct levels share one gate. Intended? — TODO
-Branch `docs/tier-band-compression-ruling`. **Supersedes an earlier framing of this task that was wrong**
-and said abilities became "buyable two levels early". They do not. `DATA.tierHD` (1/2/3/5/9/13/17) defines
-each tier as a *band* of character levels gated at the band's floor: T1=[1], T2=[2], T3=[3–4], T4=[5–8],
-T5=[9–12], T6=[13–16], T7=[17–20]. The Guide confirms this at both ends in its own words — Epic Boons are
-"Tier-7 — gated behind Hit Die 17, **the level-19 threshold** in the 2024 rules", and `Sneak Attack (9d6,
-L17)` and `(10d6, L19)` are both T7. The `L18`/`L19` labels scattered through the Guide are **provenance**
-(which 5e level the ability came from), not requirements. So there is no off-by-N bug here and nothing to
-"fix" in the data.
-What IS open is a design question: T7 spans four character levels, so a level-17 and a level-20 ability are
-equally available at 17 Hit Dice, and Hit Dice run to 20 while tiers stop at 7. Whether that compression is
-the intended coarseness or whether the top band wants sub-steps is a rules-owner call. If sub-steps are
-wanted, the mechanism already exists and needs no new machinery: a per-ability `lvl` floor, which four
-Warlock invocations already use to sit at 7, 9, 12 and 15 Hit Dice — off-band values the tier table cannot
-express.
-**Effort:** low (ruling + docs) / medium (if per-ability floors are authored) · **Risk:** medium —
-ambiguity is the driver and it is entirely a design judgement; nothing is broken, so the risk is of
-"fixing" a deliberate simplification. Damage scale low. Not sweep-eligible.
+## Author true 5e levels for the ~550 abilities still falling back to tier — TODO
+Branch `docs/author-true-ability-levels`. Owner ruling (2026-08-27): tier sets **price only**; it must
+never govern availability. `requiredHD()` already reflects this — an item's own `hd`/`lvl` is
+authoritative and overrides tier in both directions; `DATA.tierHD` is now only the **fallback** for an
+item that states no level of its own.
+40 entries were authored on that ruling: 26 general-feat Arts (level 4+), 12 Epic Boons (level 19+), and
+2 class features whose own name already stated a level their gate missed (`Paladin: Aura range → 30 ft
+(L18)`, `Rogue: Improved Cunning Strike (L11)`). **The remaining ~550 class features and subclass
+abilities were deliberately left on the tier fallback**, because no source in this repo or the Guide
+states their true level — authoring them without one means inventing numbers, which is the mistake this
+exact session already made twice while chasing this question. This task is the data-authoring pass that
+closes that gap, once a source exists.
+**Effort:** high (it is ~550 entries) · **Risk:** medium — damage scale is real (changes `compute()`
+output, can newly block live characters) but the mechanism is proven (40 entries already shipped on it)
+and each entry's number, once sourced, is a fact rather than a judgement call. Not sweep-eligible.
 
 ```text
-1. Do NOT change data first. The question for the rules owner is: is a tier deliberately a coarse band, so
-   that every ability from level 17 to 20 costs the same and unlocks together?
-2. If YES: record it in DECISIONS.md as deliberate, and add one line to the Guide's tier table saying a
-   tier is a band gated at its floor. That is the whole task -- it stops this being rediscovered as a bug
-   a third time.
-3. If NO: author `lvl` floors on the abilities whose Guide entry names a level above their band floor.
-   requiredHD() already takes lvl as a floor (max of tier/hd/lvl), so this is data, not code. Start with
-   the T7 band, where the compression is widest.
-4. If (3): compute() output changes -> update testing/expected/, bump DATA.version, and check the live
-   characters table (the app is NOT pre-launch) for anything that newly blocks.
+1. Establish a source per ability before touching data. The Guide states some directly ("(L19)" in a
+   name, "level N+" in prose); the 2024 PHB's own class tables are the fallback for anything the Guide is
+   silent on. Do not infer a level from an ability's tier -- that is exactly the thing being replaced.
+2. Author `lvl` (class features / subclass abilities) the same way the 4 authored entries do. lvl is
+   authoritative and OVERRIDES tier in both directions -- it can sit below the tier band, as
+   Rogue: Improved Cunning Strike (L11, T5/9HD default) already does.
+3. Batch by class or by tier band rather than attempting all 550 in one pass -- each batch gets its own
+   live-data check (25 characters exist; see AGENTS.md) and its own fixture coverage.
+4. compute() output changes -> update testing/expected/ per batch, bump DATA.version once per batch (not
+   once for the whole multi-session effort), and re-derive any changed fixture total through the ACTUAL
+   engine (rebuildStateFromEvents/compute()), never by hand -- round 4 of this same task got EV-018's
+   hand-computed total wrong for exactly this reason.
+5. Update docs/PACT-Players-Guide.html in the same batch as its engine counterpart, per AGENTS.md's
+   "a mechanics change isn't finished until the engine AND the guide land it".
 ```
 
-**Done when:** the band-vs-level question has a recorded ruling; if bands stand, the Guide says so
-explicitly; if not, every ability above its band floor carries a `lvl` and engine-parity is 0 failed.
-
----
+**Done when:** every one of the 720 purchasable abilities carries an explicit `lvl` (or the fallback is
+formally accepted as permanent for a named subset, recorded in DECISIONS.md); no ability's Hit-Dice
+requirement is inferred solely from its price tier; engine-parity 0 failed at every batch.
 
 
 ## A held inert purchase can hard-block levelling, with no way to discard it — TODO

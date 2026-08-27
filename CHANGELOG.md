@@ -4,6 +4,23 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-27 · feat(engine): tier demoted to pricing-only — an ability's own level is now the
+  Hit-Dice authority; `js/engine.js`, `js/engine-data.js` · `DATA.version` v0.361 → v0.362** — owner
+  ruling: "the Tiers are really just for costings." `requiredHD()` now treats an item's own `hd`/`lvl` as
+  authoritative, overriding tier in **both** directions; `DATA.tierHD` is the fallback only for an item
+  that states no level of its own. Authored true levels for the 40 abilities a source actually states: 26
+  general-feat Arts (3→4 HD, 2024 general feats are level 4+), 12 Epic Boons (17→19 HD, level 19+ — the
+  Guide's prose already said "the level-19 threshold", the data hadn't caught up), and 2 class features
+  whose own name stated a level their gate missed (`Paladin: Aura range → 30 ft (L18)`,
+  `Rogue: Improved Cunning Strike (L11)`, the latter a genuine *tightening* below its tier default).
+  **The remaining ~550 class features and subclass abilities were deliberately left on the tier fallback**
+  — no source in this repo or the Guide states their true level, and authoring them without one would mean
+  inventing numbers. That data-authoring pass is now its own task-board item. Live data checked before any
+  value moved: none of the 11 characters holding an affected Art/Boon/feature is above the new
+  requirement. 4 fixtures updated; one hand-computed total (`EV-018`) was caught wrong and corrected by
+  re-deriving through the real replay pipeline instead of composed arithmetic. engine-parity 73/73,
+  tool-pricing 180/180. See `DECISIONS.md` D-GH-2026-08-27-feature-hd-gate (Addendum, round 4).
+
 - **2026-08-27 · feat(engine): the Hit-Dice gate extended to Arts & Techniques and Boons;
   `js/engine.js` · `DATA.version` v0.360 → v0.361** — the original gate scoped to class abilities, leaving
   feats (Arts) and Boons **advisory**: the engine warned "needs N+ Hit Dice" and then charged and granted

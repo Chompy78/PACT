@@ -197,8 +197,17 @@ function _tierForHD(hd){
 // level gate; it is folded in here so callers get one number instead of combining two rules themselves.
 export function requiredHD(item){
   if(!item) return 1;
-  const g = DATA.tierHD || {};
-  return Math.max(Number(g[item.tier || 1]) || 1, Number(item.hd) || 0, Number(item.lvl) || 0);
+  // TIER SETS PRICE, NOT AVAILABILITY (owner ruling, 2026-08-27). An ability's own `lvl`/`hd` is the
+  // authoritative requirement and OVERRIDES its tier — including downward, so an expensive-but-early
+  // ability is expressible. Tier is only the fallback for entries that do not yet state a level.
+  //
+  // That fallback is INTERIM, not the intent. The Guide names a real level for roughly 11 of the 720
+  // purchasable abilities; the other ~550 class features and subclass abilities have no stated level in
+  // this repo or the Guide, so they still resolve to their tier band's floor. Authoring the rest needs a
+  // source, not a guess — see the task board. Anything carrying an explicit value is already exact.
+  const explicit = Math.max(Number(item.hd) || 0, Number(item.lvl) || 0);
+  if (explicit > 0) return explicit;
+  return Number((DATA.tierHD || {})[item.tier || 1]) || 1;
 }
 
 
