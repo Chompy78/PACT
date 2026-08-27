@@ -1825,12 +1825,17 @@ try {
     check('a Dwarf Ranger\'s subclass ability and both pack traits all appear',
       await dms.evaluate(`(()=>{
         const el=document.getElementById('campRoster'); el.innerHTML='';
-        window._dmRenderCloudRoster(el, [{id:'m',name:'Moss',ap:0,player:'',playerLabel:'',dmNotes:'',stats:{SEQ:6,LOG:[
+        window._dmRenderCloudRoster(el, [{id:'m',name:'Moss',ap:0,player:'',playerLabel:'',dmNotes:'',stats:{SEQ:7,LOG:[
           {type:'award',amount:200,seq:1},
           {type:'buy',cat:'oclass',payload:{v:'Ranger'},cost:0,seq:2},
           {type:'buy',cat:'species',payload:{v:'Dwarf'},cost:0,seq:3},
-          {type:'buy',cat:'feature',payload:{v:'Ranger: Favored Enemy'},cost:3,seq:4},
-          {type:'buy',cat:'subabil',payload:{v:'Ranger|Beast Master|Primal Companion'},cost:9,seq:5}]}}]);
+          // Primal Companion is T3, so this character needs 3 Hit Dice to own it legally
+          // (D-GH-2026-08-27-feature-hd-gate). Without this the purchase is blocked and the roster
+          // correctly stops listing it as owned, which would make this visibility test pass or fail
+          // for a reason that has nothing to do with the DM Console blindness it exists to catch.
+          {type:'buy',cat:'hd',payload:{to:3},cost:5,seq:4},
+          {type:'buy',cat:'feature',payload:{v:'Ranger: Favored Enemy'},cost:3,seq:5},
+          {type:'buy',cat:'subabil',payload:{v:'Ranger|Beast Master|Primal Companion'},cost:9,seq:6}]}}]);
         const c=el.querySelector('.chead'); if(c) c.click();
         const t=el.innerText||'';
         return [/Ranger › Beast Master: Primal Companion/.test(t),   // the reported one

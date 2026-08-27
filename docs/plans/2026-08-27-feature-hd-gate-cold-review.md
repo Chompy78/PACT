@@ -173,5 +173,45 @@ Output your review as a Markdown file named `feature-hd-gate-review-<your-model-
 ---
 
 ## Review outcome
-*(to be filled in after review — reviewer, date, findings accepted / rejected / deferred, and any change made
-to this plan as a result)*
+
+**Cold-reviewed by 4 independent reviewers, 2026-08-27:** DeepSeek, GPT-5.6 Luna, Microsoft Copilot
+(Claude Opus 4.8 base, high effort), M365 Copilot (GPT-5 reasoning). All four returned "approve with
+changes". Implemented as `D-GH-2026-08-27-feature-hd-gate`; see that record for the shipped design.
+
+**Unanimous and accepted.** Hard block over soft warning; derived gate over authoring 551 values; folding
+the HD check into the `_blockedFeat` fixed point (Copilot: "the load-bearing insight of the whole plan");
+covering both purchase paths.
+
+**R1 — accepted, and it was right.** All four said the fixture mitigation was intent, not enforcement.
+Converted to enforcement by measurement: every re-baselined total decomposes into "HD-ladder cost +
+newly-legal purchases", and the four prereq fixtures show **+0 newly-legal** while retaining their
+original warning strings byte-for-byte. Copilot's "split into HD-block and prereq-block variants" was
+adopted in spirit via the new CG-045–049 fixtures rather than by splitting the originals.
+
+**R3 — reviewers right on the consequence, wrong on the mechanism; plan wrong too.** All four attributed
+the 17-HD-to-finish-a-ladder outcome to the plan's effective-step-tier clause. Measurement showed that
+clause changes **nothing** (byte-identical fixture impact with and without it): only one dataset entry is
+`rep`, and its price is overridden, so the escalated-tier expression is dead code for it. The consequence
+is real but comes from individually authored tiers. The author's first response — "you misread the data" —
+was itself judged (by a fresh no-context agent) as refuting the messenger: the plan had explicitly asked
+reviewers to scrutinise R3. **Clause 4 was cut entirely**, on three further verified grounds: its stated
+rationale was false for the only entry it touches, its justifying Guide quote is from the *Proficiency
+Bonus* section, and the Guide lists that entry as having "no level gate".
+
+**Pre-launch assumption — accepted, verified, and FALSE.** All four flagged it as highest blast radius.
+Checked directly against live Supabase: 25 characters, 8 owners, 4 campaigns, one updated the previous
+day. Exactly one non-campaign character is affected. `AGENTS.md`'s pre-launch line corrected.
+
+**M365 F3 accepted** — `hd`/`lvl` documented as additional **floors**, not overrides. **M365 F5 accepted** —
+both direct causes reported, HD first, with `CG-048` asserting it. **Copilot's `lvl`-coverage note
+accepted** — `CG-049` exercises it. **Reviewers' shared "one canonical eligibility function" thread
+(M365's follow-up tech-debt note) promoted from deferred to the centrepiece**: the shipped change exports
+`requiredHD()`/`canPurchase()` and deletes Live Sheet's seven copies, rather than adding an eighth.
+
+**Deferred to their own task-board items** (see the decision record): mirrored-subclass double-charge;
+per-step level granularity (L19 vs T7); CharGen's HD patch-slot destroying HD history, which blocks
+purchase-time gating; and the `DATA.tierHD` T1–T3 vs Guide-prose question.
+
+**Rejected.** M365 F6 (structured reason codes replacing warning strings) — a change to `compute()`'s
+public output shape, explicitly out of scope. Copilot B1 (version-gating the block) — sized against a
+blast radius that measurement showed does not exist.

@@ -4,6 +4,24 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-27 · feat(engine): enforce the Hit-Dice requirement on class abilities, via one shared
+  `requiredHD()`; `js/engine.js`, both player tools · `DATA.version` v0.359 → v0.360** — the Players Guide
+  states this as absolute ("You can never buy an ability before you own the Hit Dice ... it requires") and
+  `DATA.tierHD` has always carried the mapping, but the engine never checked it: a 1 HD Fighter could buy
+  Extra Attack **and** Extra Attack (3rd) and `compute()` said only "OVER BUDGET". The rule existed in three
+  places with three answers — engine none, Live Sheet seven inline copies that had already drifted from each
+  other over the `lvl` floor, CharGen none. Now `js/engine.js` exports `requiredHD()`/`canPurchase()` as the
+  single definition; `compute()` hard-blocks on it (0 AP, not owned, itemised under "Blocked purchases")
+  across **both** the feature and subclass-ability paths, seeded into the existing `_blockedFeat` fixed
+  point so an HD-blocked prerequisite blocks its dependents transitively; Live Sheet's seven copies are
+  deleted in favour of the export and CharGen annotates each option with its requirement. No stepped-tier
+  escalation — measured as changing nothing (one `rep` entry exists, and its price is overridden), and the
+  Guide lists that entry as having "no level gate". 15 fixtures re-baselined by raising HD and re-deriving,
+  never by regenerating expected output; the four prereq regression fixtures keep their original warning
+  strings byte-for-byte. 5 new fixtures (CG-045–049). engine-parity 70/70, tool-pricing 176/176. Live data
+  checked rather than assumed: 25 characters/8 owners/4 campaigns exist (the app is **not** pre-launch), and
+  exactly one non-campaign character is affected. See `DECISIONS.md` D-GH-2026-08-27-feature-hd-gate.
+
 - **2026-08-25 · test(dm-console): stub `listCampaignInvites` to remove a real CI-only race in the
   warnings-banner check; `testing/scripts/dm-console-ui-e2e.mjs`** — `dm-console-ui` failed once in CI on
   the PR #469 promotion; local repro + one CI re-run both passed, so it was first called a flake and

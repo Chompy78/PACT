@@ -80,8 +80,7 @@
   "⛔ Eldritch Smite — blocked: requires Pact of the Blade first (not counted, not owned)"
  ],
  "CG-031": [
-  "⛔ Devouring Blade — blocked: requires Thirsting Blade first (not counted, not owned)",
-  "⛔ Devouring Blade requires Warlock level 12"
+  "⛔ Devouring Blade — blocked: requires Thirsting Blade first (not counted, not owned)"
  ],
  "CG-032": [
   "⛔ Eldritch Smite — blocked: requires Pact of the Blade first (not counted, not owned)"
@@ -120,5 +119,19 @@
  ],
  "CG-044": [
   "Retired Drawback Not In DATA is no longer in the rules data — no cost/effect applied"
+ ],
+ "CG-045": [
+  "⛔ Extra Attack — blocked: needs 5 Hit Dice (T4) (not counted, not owned)"
+ ],
+ "CG-046": [],
+ "CG-047": [
+  "⛔ Frenzy — blocked: needs 3 Hit Dice (T3) (not counted, not owned)"
+ ],
+ "CG-048": [
+  "⛔ Rage (3 uses/long rest) — blocked: needs 3 Hit Dice (T3) & requires Rage first (not counted, not owned)"
+ ],
+ "CG-049": [
+  "⛔ Devouring Blade — blocked: needs 12 Hit Dice (T5) (not counted, not owned)",
+  "⛔ Devouring Blade requires Warlock level 12"
  ]
 }

@@ -1,9 +1,9 @@
 {
- "name": "",
+ "name": "Brother Aldric",
  "budget": 200,
- "originClass": "Bard",
+ "originClass": "Barbarian",
  "originClass2": "(none)",
- "species": "(none)",
+ "species": "Human",
  "species2": "(none)",
  "racialTraits": [],
  "lineage": "",
@@ -16,7 +16,7 @@
   "WIS": 10,
   "CHA": 10
  },
- "hd": 9,
+ "hd": 2,
  "profBonus": 2,
  "hardy": 0,
  "tough": 0,
@@ -44,12 +44,11 @@
  },
  "extraClasses": 0,
  "unlockedClasses": [],
- "features": [
-  "Bard: Bardic Inspiration die",
-  "Bard: Bardic Inspiration die (d10)"
- ],
+ "features": [],
  "traditions": [],
- "subAbilities": [],
+ "subAbilities": [
+  "Barbarian|Path of the Berserker|Frenzy"
+ ],
  "subSpellBundles": [],
  "freeSub": {},
  "drawbacks": [],
@@ -102,7 +101,7 @@
   "companion": "",
   "overall": ""
  },
- "size": "Small",
+ "size": "Medium",
  "houseRules": {
   "boons": {},
   "draws": {},
@@ -118,5 +117,5 @@
   }
  },
  "version": "v0.322",
- "id": "cg027bardicinspirationskipstepblocked"
+ "id": "test-cg013-subability-three-tiers"
 }

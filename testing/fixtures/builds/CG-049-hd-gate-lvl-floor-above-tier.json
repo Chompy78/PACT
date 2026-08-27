@@ -1,7 +1,7 @@
 {
  "name": "",
  "budget": 200,
- "originClass": "Bard",
+ "originClass": "Warlock",
  "originClass2": "(none)",
  "species": "(none)",
  "species2": "(none)",
@@ -16,7 +16,7 @@
   "WIS": 10,
   "CHA": 10
  },
- "hd": 9,
+ "hd": 11,
  "profBonus": 2,
  "hardy": 0,
  "tough": 0,
@@ -45,10 +45,52 @@
  "extraClasses": 0,
  "unlockedClasses": [],
  "features": [
-  "Bard: Bardic Inspiration die",
-  "Bard: Bardic Inspiration die (d10)"
+  "Warlock: Pact of the Blade",
+  "Warlock: Thirsting Blade",
+  "Warlock: Devouring Blade"
  ],
- "traditions": [],
+ "traditions": [
+  {
+   "name": "Arcane",
+   "rank": 1,
+   "disciplines": [
+    {
+     "name": "Warlock",
+     "bound": false,
+     "cantrips": 2,
+     "slots": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "known": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "pactSlots": 2,
+     "arcanum": [
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   ]
+  }
+ ],
  "subAbilities": [],
  "subSpellBundles": [],
  "freeSub": {},
@@ -118,5 +160,5 @@
   }
  },
  "version": "v0.322",
- "id": "cg027bardicinspirationskipstepblocked"
+ "id": "cg031warlockinvocationtransitiveblock"
 }

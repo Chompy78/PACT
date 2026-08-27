@@ -22,6 +22,12 @@ is staging and promotes into `main`).
   the real defect was a display divergence, fixed display-only. The deferred long-term question —
   whether `js/engine.js` should grow a frozen-ledger-aware remaining-AP export — is now a NEXT item,
   `feat/ap-model-reconcile`, in `docs/TASK_BOARD_NEXT.md`.)
+- **The app is NO LONGER pre-launch — do not inherit that premise.** It was true when D-GH37 lifted its
+  pause, and several later decisions leaned on it (`D-GH-2026-07-25-cloud-load-empty-characters` last
+  confirmed 0 rows on 2026-07-25). Re-checked against live Supabase on **2026-08-27**: **25 characters,
+  8 distinct owners, 4 campaigns**, one updated the day before. A change that invalidates existing
+  characters now has real people behind it — measure the blast radius against the live `characters` table
+  rather than assuming it is empty, as `D-GH-2026-08-27-feature-hd-gate` did.
 - **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); Live Sheet's
   `compute()`-vs-frozen-`economy()` divergence (see D-GH30 and `feat/ap-model-reconcile`) — any UI that
   displays "AP left" for an event-sourced character must use the frozen ledger, not a retroactive
@@ -164,7 +170,7 @@ labeled, not whether confirmation is still required for shared/hard-to-reverse s
   the engine's real replay populates a per-trait `b._raceTraitLocked` map that these tools' old local folds
   never produced, and `compute()`'s racial-trait pricing depends on that map's presence; bridging without a
   historical-data migration would have silently re-priced existing characters. The pause was lifted (D-GH37)
-  once confirmed this app is still pre-launch (no real characters to protect) — see D-GH37 for the full
+  once confirmed this app was then pre-launch (no real characters to protect) — see D-GH37 for the full
   reasoning, including a related finding: no tool's UI actually triggers the `creationLocked`/`campaignBound`
   events this pricing mechanism depends on yet, so it doesn't functionally do anything in any tool today
   regardless of the bridge. `MUT` is bridged in **all three tools**: **Live Sheet** (byte-identical to the

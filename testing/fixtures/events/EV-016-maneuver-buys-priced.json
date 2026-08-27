@@ -1,46 +1,56 @@
 {
-  "description": "Extra Battle Master maneuvers are priced by compute() on an escalating rung: base + step*n for the nth extra purchase, so three cost 4 + 5 + 6 = 15 (DATA.maneuverBuy = {base:4, step:1}). Before D-GH-2026-08-06-maneuver-afford-gate's superseding answer, compute() never read maneuverBuys at all: the ledger could not explain the spend, the Live Sheet needed a bespoke pricing escape for its affordability gate to work, and repriceDraft() rewrote all three frozen costs to 0 while KEEPING the maneuvers - silently handing 15 AP back on a CharGen round-trip. This fixture exists because no fixture carried maneuverBuys at all until now, so the whole category had zero coverage while the suite reported green - the same blind spot that hid the Grit and Vigor ladders. The 'Extra maneuvers' ledger line must read 15.",
-  "baseSnapshot": {},
-  "events": [
-    {
-      "type": "award",
-      "amount": 200,
-      "note": "Test budget",
-      "label": "Award — Test budget (200 AP)"
-    },
-    {
-      "type": "buy",
-      "cat": "feature",
-      "payload": {
-        "v": "Fighter: Combat Superiority (maneuvers)"
-      },
-      "cost": 14,
-      "level": 1,
-      "label": "Fighter: Combat Superiority (maneuvers)"
-    },
-    {
-      "type": "buy",
-      "cat": "mvbuy",
-      "payload": {},
-      "cost": 4,
-      "level": 1,
-      "label": "Extra Battle Master maneuver (1st — 4 AP)"
-    },
-    {
-      "type": "buy",
-      "cat": "mvbuy",
-      "payload": {},
-      "cost": 5,
-      "level": 1,
-      "label": "Extra Battle Master maneuver (2nd — 5 AP)"
-    },
-    {
-      "type": "buy",
-      "cat": "mvbuy",
-      "payload": {},
-      "cost": 6,
-      "level": 1,
-      "label": "Extra Battle Master maneuver (3rd — 6 AP)"
-    }
-  ]
+ "description": "Extra Battle Master maneuvers are priced by compute() on an escalating rung: base + step*n for the nth extra purchase, so three cost 4 + 5 + 6 = 15 (DATA.maneuverBuy = {base:4, step:1}). Before D-GH-2026-08-06-maneuver-afford-gate's superseding answer, compute() never read maneuverBuys at all: the ledger could not explain the spend, the Live Sheet needed a bespoke pricing escape for its affordability gate to work, and repriceDraft() rewrote all three frozen costs to 0 while KEEPING the maneuvers - silently handing 15 AP back on a CharGen round-trip. This fixture exists because no fixture carried maneuverBuys at all until now, so the whole category had zero coverage while the suite reported green - the same blind spot that hid the Grit and Vigor ladders. The 'Extra maneuvers' ledger line must read 15.",
+ "baseSnapshot": {},
+ "events": [
+  {
+   "type": "award",
+   "amount": 200,
+   "note": "Test budget",
+   "label": "Award — Test budget (200 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "hd",
+   "payload": {
+    "to": 3
+   },
+   "cost": 5,
+   "level": 1,
+   "label": "Hit Dice → 3 (Combat Superiority is T3, needs 3 HD)"
+  },
+  {
+   "type": "buy",
+   "cat": "feature",
+   "payload": {
+    "v": "Fighter: Combat Superiority (maneuvers)"
+   },
+   "cost": 14,
+   "level": 1,
+   "label": "Fighter: Combat Superiority (maneuvers)"
+  },
+  {
+   "type": "buy",
+   "cat": "mvbuy",
+   "payload": {},
+   "cost": 4,
+   "level": 1,
+   "label": "Extra Battle Master maneuver (1st — 4 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "mvbuy",
+   "payload": {},
+   "cost": 5,
+   "level": 1,
+   "label": "Extra Battle Master maneuver (2nd — 5 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "mvbuy",
+   "payload": {},
+   "cost": 6,
+   "level": 1,
+   "label": "Extra Battle Master maneuver (3rd — 6 AP)"
+  }
+ ]
 }
