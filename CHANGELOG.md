@@ -4,6 +4,25 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-27 · feat(engine): authored true 2024 levels for the remaining ~550 class features/subclass
+  abilities; split 4 mis-bundled features; `js/engine-data.js` · `DATA.version` bump** — closes the
+  task the previous entry deferred. Source: the owner's own page-by-page adjudication of a real 2024 PHB
+  extraction (`docs/phb-rules-final.jsonl`), 577 rows High confidence and 27 Medium, not this session's
+  guesswork. Applied 280 `lvl` overrides — 278 tighten a gate above its tier-band floor, 2 loosen one below
+  it (only possible because `requiredHD()` now overrides tier in both directions). Split
+  `Fighter: Tactical Mind/Shift/Master`, `Monk: Empowered Strikes/Self-Restoration`,
+  `Monk: Perfect Focus/Body and Mind`, `Ranger: Roving/Tireless` into 8 separately-leveled, separately-
+  priced features — each re-tiered by its own level using the engine's existing tier-shift pricing formula,
+  the same one `rep` features already use — since each was bundling 2024 abilities the PHB gates and prices
+  at different levels under one name. Zero live characters held any bundled key, so no migration was
+  needed. Live data checked first: of 8 characters holding a class/subclass ability, only the one already
+  known-blocked since round 1 is affected — no new character, no Amble character. 8 fixtures re-baselined
+  (raised `hd` to the new minimum and re-derived through `compute()`); `CG-050` is the one exception — it
+  exists to prove a *blocked* purchase grants nothing, so its `hd` stayed put and only its expected warning
+  text moved. engine-parity 73/73, tool-pricing 180/180. Guide sync and the JSONL's own bundling are filed
+  as separate follow-ups, not rushed into this round. See `DECISIONS.md`
+  D-GH-2026-08-27-feature-hd-gate (Addendum, round 5).
+
 - **2026-08-27 · feat(engine): tier demoted to pricing-only — an ability's own level is now the
   Hit-Dice authority; `js/engine.js`, `js/engine-data.js` · `DATA.version` v0.361 → v0.362** — owner
   ruling: "the Tiers are really just for costings." `requiredHD()` now treats an item's own `hd`/`lvl` as

@@ -256,3 +256,68 @@ specifically about Epic Boons and needed raising to 19; one of those inlined a B
 own `level:17` field needed the same correction.
 
 engine-parity 73/73, tool-pricing 180/180 (3 consecutive runs). `DATA.version` bumped again for this round.
+
+### Addendum, round 5 — the remaining ~550 abilities authored; 4 bundled features split (2026-08-27)
+
+Closes `docs/TASK_BOARD_NEXT.md`'s "Author true 5e levels for the ~550 abilities still falling back to
+tier". Round 4 explicitly deferred this because no source existed. The owner then supplied one: a real
+extraction of the 2024 PHB, `docs/phb-rules-final.jsonl` (1,576 entries with page numbers), pushed to
+`preview`.
+
+**The source needed a human pass, not a blind script.** An automated match (`level\s+(\d+)` against the
+extracted text) hit 351 of 468 Class Feature entries, but spot-checking caught two traps worth naming so
+they aren't rediscovered: `"starting at level N"` marks an *upgrade* to a feature already owned, not its
+unlock, and `Druid: Archdruid`'s only "level 4" is *"a level 4 spell slot"* — a spell-slot level, not a
+character level. Both are filtered in the extraction script, but the automated pass still left 50 rows
+with more than one candidate level and 87 rows the matcher couldn't find at all. The owner's own research
+(not this session's) resolved every one of those, cross-checked page-by-page against the PHB, with an
+honest confidence tag on each row — 577 High, 27 Medium.
+
+**Applied:** 280 `lvl` overrides — 278 High-confidence, all tightening a gate above its tier-band floor;
+2 Medium-confidence (`Warlock: Far Scribe` 9→5, `Warlock: Rebuke of the Talisman` 2→3 — both flagged "2014
+version, not in 2024 PHB core, best guess", applied on explicit owner instruction rather than left as a
+guess with no record). Only 2 of the 280 *loosen* a gate below its tier floor (`Paladin: Harness Divine
+Power` 3→2, `Warlock: Far Scribe`); `requiredHD()`'s round-4 change to override tier in both directions is
+what makes that expressible at all.
+
+**Four PACT features were bundling separately-leveled 2024 abilities under one name and one price** —
+an artifact of how the source list was originally compiled, not the real rules. Split, each re-tiered by
+its own now-known level using the engine's own existing tier-shift pricing formula (the same one `rep`
+features already use: `stick = MASTER[tier][band]; origin = max(1, stick-(tier-1)); cross = stick+tier`),
+holding the original bundle's `band` constant per split (band encodes a feature's *shape* — passive vs.
+per-rest vs. at-will — which splitting doesn't change):
+- `Fighter: Tactical Mind/Shift/Master` → three features, L2/L5/L9.
+- `Monk: Empowered Strikes/Self-Restoration` → two, L6/L10.
+- `Monk: Perfect Focus/Body and Mind` → two, L15/L20.
+- `Ranger: Roving/Tireless` → two, L6/L10.
+
+Checked before splitting: zero live characters hold any of the four bundled keys, so no migration or
+alias was needed — a straight delete-and-replace.
+
+**Live data checked before anything moved, as every prior round in this record has done:** of the 8 live
+characters holding a class feature or subclass ability, exactly one is affected — `Archer`, unbound, not
+in a campaign, already known-blocked since round 1 (`Wizard | Evoker | Potent Cantrip`, T3). No new
+character became blocked; no Amble character is affected.
+
+**8 fixtures needed re-baselining**, all abilities whose true level sits above the old T7=17 ceiling
+(Sneak Attack 10d6 = L19, Primal Champion = L20, etc.): `CG-022/023/025/026/027/028/029` had `hd` raised to
+the new minimum and their totals re-derived through `compute()` — the two prereq-regression fixtures
+(`CG-022`, `CG-027`) keep exactly one warning, the prereq one, proving they still test what they were
+written to test. `CG-050` is the one exception to "raise HD": it exists to prove a *blocked* purchase
+grants nothing, so raising its HD to 20 would make Primal Champion legal and defeat the fixture — its `hd`
+stays at 1 and only its expected warning text (`needs 20 Hit Dice`, was 17) was updated.
+
+`DATA.version` bumped once for this round. engine-parity 73/73, tool-pricing 180/180 (2 consecutive clean
+runs after the known harness-readiness flake on unrelated checks).
+
+**Not done here, filed separately:**
+- **`docs/PACT-Players-Guide.html` was not updated in this round**, though the task's own step 5 asks for
+  it in the same batch. ~280 numbers moved; the Guide sync is real, separate work reached through the
+  `pact-guide` project (see `AGENTS.md`'s "A mechanics change isn't finished until the engine AND the
+  guide land it"). Filed as its own task rather than rushed.
+- **The source `phb-rules-final.jsonl` itself still has the 4 bundled entries** this round split on the
+  PACT side. Fixing the JSONL at its source (splitting each into its correctly-separated sub-entries with
+  correct page numbers) is filed as its own task so a future re-extraction doesn't need this same manual
+  re-adjudication.
+- **Racial traits (38 entries) still re-derive `DATA.tierHD` locally** rather than calling `requiredHD()`
+  — unchanged from round 3's note, still open on the board.
