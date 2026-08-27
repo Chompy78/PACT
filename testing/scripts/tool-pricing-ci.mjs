@@ -1995,6 +1995,44 @@ try {
   await preLock('level to 5 first, then buy — ledger === compute()',
     [['hd',{to:2}],['hd',{to:3}],['hd',{to:4}],['hd',{to:5}],['grit',{to:1}]]);
 
+  // A purchase held while HD-BLOCKED must not become free when the level-up legalises it.
+  // (D-GH-2026-08-27-feature-hd-gate addendum; found by /code-review ultra on PR #471.)
+  // It cannot be reproduced through buy() -- legalCheck() refuses a blocked purchase -- so the event is
+  // pushed straight into LOG at cost 0, which is exactly how one arrives from CharGen or an import:
+  // repriceDraft() prices it as the compute() delta it caused, and while blocked that delta is 0.
+  // Before the fix the level-up charged the Hit-Dice ladder alone and the feature came out free.
+  {
+    // Clear storage FIRST: the Live Sheet persists to localStorage, so without this the page inherits
+    // whatever the preLock checks above left behind (a HD-5 character), and the premise silently evaporates.
+    const w = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    await w.evaluate(`localStorage.clear()`); await w.close();
+
+    const t = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    if (!(await t.evaluate(READY(`window._engineFold&&window.DATA&&typeof buy==='function'`))))
+      throw new Error('Live Sheet never became ready for the blocked-purchase-freeze check');
+    await t.evaluate(`window.confirm=()=>true;`);
+    await t.evaluate(`LOG.push({type:'award',amount:400,label:'headroom',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Fighter: Extra Attack'},cost:0,label:'EA frozen at 0 while blocked',seq:SEQ++,ts:Date.now(),level:1});`);
+
+    // Expect the ladder step plus exactly what compute() itemised as blocked -- not a hardcoded price,
+    // so the check does not depend on the fresh character's origin class.
+    const [startHd, blockedBefore] = await t.evaluate(`(()=>{const b=foldBuild(null);
+      const ln=(compute(b).lines||[]).find(l=>l&&l[0]==='Blocked purchases');
+      return [b.hd, ln?(+ln[1]||0):0];})()`);
+    check('the frozen 0-cost purchase is actually blocked to begin with', blockedBefore > 0, true);
+    const quoted = await t.evaluate(`priceOf('hd',{to:5},foldBuild(null))`);
+    const ladder = await t.evaluate('(DATA.HD[4].cum-DATA.HD[' + (startHd - 1) + '].cum)');
+    check('a level-up that legalises a blocked purchase quotes the ladder PLUS that purchase',
+      quoted, ladder + blockedBefore);
+
+    await t.evaluate(`buy('hd',{to:5})`);
+    const r = await t.evaluate(`(()=>{const bb=foldBuild(null);
+      return [economy(null).spent, compute(bb,_dmOpts()).total, bb.features.indexOf('Fighter: Extra Attack')>=0];})()`);
+    await t.close();
+    check('...and after levelling, the frozen ledger still equals compute() with the feature owned',
+      [r[0] === r[1], r[2]], [true, true]);
+  }
+
   await cg2.close(); await ls2.close();
 
   await dm.close();
