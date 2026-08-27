@@ -765,3 +765,159 @@ for whether the guide-side wording update was intentionally deferred or simply m
 served copy and `pact-guide` master state the SAME enforcement posture for every capped drawback; the
 transfer is verified against `pact-guide`'s own `py/vendor/engine/SYNCED_FROM.txt` per the three-way
 check in `docs/VERSION-SYNC.md`.
+
+---
+
+## Mirrored subclass abilities double-charge when bought through both paths — TODO
+Branch `fix/subclass-mirror-double-charge`. All 192 subclass abilities are mirrored into `DATA.features`,
+so one logical ability can sit in **both** `b.subAbilities` and `b.features` in a single build — and
+`compute()` prices it twice with no warning at all. Verified 2026-08-27 on `Barbarian › Path of the
+Berserker: Frenzy` at 20 HD: subclass path alone 134 AP, feature path alone 134 AP, **both together 140 AP**
+(one extra Frenzy charge), `warnings: []`. Pre-existing and independent of the HD gate, but
+`D-GH-2026-08-27-feature-hd-gate` made it visible by having to gate both doors identically. Two depths:
+**shallow** — dedupe by logical identity inside `compute()` (charge once, warn on the duplicate); **deep** —
+`refactor/subclass-purchase-unify`, collapsing the two purchase paths into one, which the v0.353 §11
+comment already names as the precondition for gating anything ("a rule that guards one of two doors teaches
+players the wrong thing about the door it does not guard"). Recommend the deep fix if it is being scheduled
+anyway, else the shallow one now — a silent double-charge on live characters is worse than a stale mirror.
+**Effort:** medium (shallow) / high (deep) · **Risk:** medium — ambiguity is the driver (which collection
+is canonical, and what a saved LOG holding both should migrate to); damage scale is medium (mis-pricing,
+not data loss) and likelihood low (needs both collections populated for one ability).
+
+```text
+1. Reproduce first: build one character holding the same subclass ability via b.subAbilities AND via its
+   mirrored "cls: name" key in b.features; confirm the AP delta equals one extra charge and no warning.
+2. Decide canonical identity (subAbilMap key vs mirrored feature label) and record it in DECISIONS.md —
+   this is the actual decision; the code is downstream of it.
+3. Shallow: in compute(), collapse duplicates by that identity before pricing — charge once, push a
+   warning naming the duplicate. Deep: unify the purchase paths so the second door stops existing, and
+   state what happens to already-saved LOGs carrying the other shape.
+4. Blocked purchases must dedupe the same way — a doubly-represented, HD-blocked ability must appear once
+   under "Blocked purchases", not twice.
+5. compute() output changes either way -> update testing/expected/ and bump DATA.version.
+```
+
+**Done when:** a build holding one ability through both collections prices it exactly once and says so;
+a fixture covers the doubled input for both the priced and the HD-blocked case; engine-parity 0 failed.
+
+---
+
+## Guide publishes per-step levels finer than the 7-tier HD gate can express — TODO
+Branch `fix/guide-per-step-level-gates`. `D-GH-2026-08-27-feature-hd-gate` derives every class ability's
+Hit-Dice requirement from its tier via `DATA.tierHD`, but the Guide states levels per *step*: it labels
+`Sneak Attack (9d6, L17)` and `Sneak Attack (10d6, L19)` — both authored **T7**, which gates at 17 HD. So
+10d6 becomes buyable two levels before the Guide says it should. Seven tiers cannot represent nineteen
+levels; `requiredHD()` already takes an optional per-item `lvl` **floor** (`max(tierHD[tier], hd, lvl)`),
+so the mechanism exists and only the data is missing. Either author `lvl` on every entry whose Guide text
+names a level, or record the coarser gate as a deliberate simplification — but not neither, because right
+now the engine and the Guide disagree and only the Guide says so out loud.
+
+**The sharpest case is everything above 17 HD.** T7 is the top tier, so it has no higher tier to escalate
+into: *every* ability the Guide places at L18, L19 or L20 collapses onto the same 17 HD gate. Known
+examples: `Sneak Attack (10d6, L19)` and `Paladin: Aura range → 30 ft (L18)` (the latter is in fixture
+CG-015). Hit Dice run to 20, so the gate has three whole levels of headroom it currently cannot use —
+this is a gap in the tier model, not a rounding artefact, and `lvl` floors are how it gets closed.
+**Effort:** medium · **Risk:** medium — damage scale is the driver: this tightens gates on real abilities,
+so it changes `compute()` output and can newly block existing characters; ambiguity is low (the Guide
+states the numbers) and likelihood low (a mechanical data pass with a parity gate behind it).
+
+```text
+1. Sweep docs/PACT-Players-Guide.html for every ability whose text names a level ("(10d6, L19)", "level
+   17+", etc.) and diff that level against requiredHD() for the same entry. testing/scripts/
+   guide-price-check.mjs is the existing precedent for a Guide-vs-engine sweep — extend it rather than
+   writing a new one-off.
+2. Where they disagree, author `lvl` on the DATA.features / DATA.subAbilMap entry. Do NOT lower anything
+   below its tier requirement — `lvl` is a floor, never an override.
+3. Re-check the live characters table before shipping (the app is NOT pre-launch — see AGENTS.md): list
+   any character whose owned ability would newly block, and say so in the PR.
+4. compute() output changes -> update testing/expected/ and bump DATA.version. Guide side needs no edit
+   if the Guide is already correct — confirm that per-ability rather than assuming it.
+```
+
+**Done when:** every ability whose Guide entry names a level either carries a matching `lvl` floor or is
+listed in the decision record as a deliberate approximation; **every L18/L19/L20 ability gates above 17 HD
+rather than at it**; the sweep script reports the remaining divergence count; engine-parity 0 failed.
+
+---
+
+## `DATA.tierHD` T1–T3 disagrees with the Guide's prose — TODO
+Branch `docs/tierhd-low-tier-reconcile`. The Guide's published tier table lists only **four** rows —
+T4 (5 HD), T5 (9), T6 (13), T7 (17) — while `DATA.tierHD` also defines `{1:1, 2:2, 3:3}`. Worse, the
+Guide's prose says *"Powers available from level 4 onwards with no chain requirement are Tier 3"*, whereas
+`tierHD[3] = 3`. Harmless while nothing enforced the mapping; since `D-GH-2026-08-27-feature-hd-gate` the
+engine now **enforces** it, so an unpublished and possibly off-by-one number is doing real work. Needs a
+rules-owner ruling on which artefact is authoritative before any code moves — this is the question, not
+the patch.
+**Effort:** low · **Risk:** medium — ambiguity is the driver and it is entirely human: the edit is one
+data value plus a table row, but choosing *which* value requires a decision only the rules owner can make.
+Not sweep-eligible for that reason.
+
+```text
+1. Do not change code first. Put the question to the rules owner: does a T3 ability need 3 Hit Dice (what
+   the engine now enforces) or 4 (what the Guide's prose implies)? Same for T2.
+2. Whichever wins, make the other side match: either extend the Guide's tier table to all seven rows, or
+   change DATA.tierHD — never leave them disagreeing, per AGENTS.md's rule that a mechanics change lands
+   in engine AND guide.
+3. If tierHD changes, compute() output changes -> update testing/expected/ and bump DATA.version, and
+   check the live characters table for anything that newly blocks.
+4. Record the ruling in DECISIONS.md — this is a rules decision with a durable "why", not a typo fix.
+```
+
+**Done when:** the Guide's tier table covers all seven tiers and matches `DATA.tierHD` exactly, or the
+divergence is recorded in DECISIONS.md as deliberate with its reason; engine-parity 0 failed.
+
+---
+
+## Live Sheet's buy panel shows an HD-blocked feature as "already purchased" — TODO
+Branch `fix/live-sheet-blocked-shows-owned`. Found by `/code-review ultra` on PR #471. In each of the four
+buy-panel pickers the `b.features.includes(l)` ownership check runs **before** the `requiredHD()` check, so
+a feature the engine reports as `⛔ ... not counted, not owned` renders as `ibOwned` with the tooltip
+"Already purchased" and no re-buy path. The player is told simultaneously that they own it and that they
+do not, with nothing indicating that raising Hit Dice is the remedy. Reachable today by any character built
+in CharGen (which lets you pick any ability regardless of HD) and by existing cloud characters — the
+`Archer` named in `D-GH-2026-08-27-feature-hd-gate` is a live example. Sites: `tools/PACT-Live-Char-Sheet.html`
+origin-class features, Eldritch Invocations, cross-class features, and subclass abilities.
+**Effort:** low · **Risk:** low — display-only, in one tool, with the engine already authoritative on the
+underlying state; ambiguity is low (invert the precedence and render a blocked state), damage scale low.
+Sweep-eligible.
+
+```text
+1. In each of the four pickers, test blocked BEFORE owned: a feature that is both listed in b.features and
+   failing requiredHD() must render as blocked with "needs N Hit Dice", not as ibOwned.
+2. Use the engine's own answer -- requiredHD() is already imported into this tool; do not re-derive.
+3. Do not silently drop it from the list: the player needs to see they hold it and why it is inert, which
+   is the same thing compute()'s "Blocked purchases" ledger line says.
+4. Verify against a real character: load one holding an above-tier ability and confirm the panel and the
+   ledger now agree.
+```
+
+**Done when:** no picker in the Live Sheet renders a feature as owned while `compute()` reports it blocked;
+a `tool-pricing-ci` case asserts the two agree for an above-tier holding.
+
+---
+
+## CharGen's subclass-ability picker has no Hit-Dice annotation — TODO
+Branch `feat/chargen-subpick-hd-annotation`. `D-GH-2026-08-27-feature-hd-gate` annotated CharGen's
+class-feature grid with each ability's requirement (`Extra Attack · T4 At-Will · 5 HD`) but left the
+subclass-ability picker unannotated, so a player picks a T6 subclass ability at 3 HD with no indication at
+all and only discovers it from a `compute()` warning afterwards — the exact blindness the feature grid was
+annotated to remove. Note the two are NOT the same problem: the class-feature grid is built once at init
+(`buildClassPickers()`), which is why its annotation is the static requirement, whereas the `.subpick` loop
+rewrites every option's `textContent` on **every render** with its per-character price — so this picker can
+show a live, per-character *met/unmet* state, which is strictly better than what the feature grid can do.
+Fixture `CG-047` covers the engine side of this path already.
+**Effort:** low · **Risk:** low — display-only, one tool, one loop, with `requiredHD()` already imported;
+ambiguity low, damage scale low. Sweep-eligible.
+
+```text
+1. In the .subpick render loop, append the requirement to each option's textContent alongside the price,
+   using the imported requiredHD(a) -- do not re-derive from DATA.tierHD.
+2. Because this loop runs per render, show met/unmet against the character's current hd rather than only
+   the static number, and keep it legible when the option is already owned.
+3. Match the class-feature grid's wording so the two pickers read as one system.
+4. Manual check: at 3 HD a T6 subclass ability shows its requirement before selection, and the engine's
+   blocked warning after selection says the same number.
+```
+
+**Done when:** every subclass-ability option shows its Hit-Dice requirement against the character's current
+HD, using the engine's `requiredHD()`; the number shown matches the one in `compute()`'s blocked warning.
