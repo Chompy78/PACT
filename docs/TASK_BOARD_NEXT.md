@@ -802,77 +802,6 @@ a fixture covers the doubled input for both the priced and the HD-blocked case; 
 
 ---
 
-## Author true 5e levels for the ~550 abilities still falling back to tier — TODO
-Branch `docs/author-true-ability-levels`. Owner ruling (2026-08-27): tier sets **price only**; it must
-never govern availability. `requiredHD()` already reflects this — an item's own `hd`/`lvl` is
-authoritative and overrides tier in both directions; `DATA.tierHD` is now only the **fallback** for an
-item that states no level of its own.
-40 entries were authored on that ruling: 26 general-feat Arts (level 4+), 12 Epic Boons (level 19+), and
-2 class features whose own name already stated a level their gate missed (`Paladin: Aura range → 30 ft
-(L18)`, `Rogue: Improved Cunning Strike (L11)`). **The remaining ~550 class features and subclass
-abilities were deliberately left on the tier fallback**, because no source in this repo or the Guide
-states their true level — authoring them without one means inventing numbers, which is the mistake this
-exact session already made twice while chasing this question. This task is the data-authoring pass that
-closes that gap, once a source exists.
-**Effort:** high (it is ~550 entries) · **Risk:** medium — damage scale is real (changes `compute()`
-output, can newly block live characters) but the mechanism is proven (40 entries already shipped on it)
-and each entry's number, once sourced, is a fact rather than a judgement call. Not sweep-eligible.
-
-```text
-1. Establish a source per ability before touching data. The Guide states some directly ("(L19)" in a
-   name, "level N+" in prose); the 2024 PHB's own class tables are the fallback for anything the Guide is
-   silent on. Do not infer a level from an ability's tier -- that is exactly the thing being replaced.
-2. Author `lvl` (class features / subclass abilities) the same way the 4 authored entries do. lvl is
-   authoritative and OVERRIDES tier in both directions -- it can sit below the tier band, as
-   Rogue: Improved Cunning Strike (L11, T5/9HD default) already does.
-3. Batch by class or by tier band rather than attempting all 550 in one pass -- each batch gets its own
-   live-data check (25 characters exist; see AGENTS.md) and its own fixture coverage.
-4. compute() output changes -> update testing/expected/ per batch, bump DATA.version once per batch (not
-   once for the whole multi-session effort), and re-derive any changed fixture total through the ACTUAL
-   engine (rebuildStateFromEvents/compute()), never by hand -- round 4 of this same task got EV-018's
-   hand-computed total wrong for exactly this reason.
-5. Update docs/PACT-Players-Guide.html in the same batch as its engine counterpart, per AGENTS.md's
-   "a mechanics change isn't finished until the engine AND the guide land it".
-```
-
-**Done when:** every one of the 720 purchasable abilities carries an explicit `lvl` (or the fallback is
-formally accepted as permanent for a named subset, recorded in DECISIONS.md); no ability's Hit-Dice
-requirement is inferred solely from its price tier; engine-parity 0 failed at every batch.
-
-
-## A held inert purchase can hard-block levelling, with no way to discard it — TODO
-Branch `feat/discard-inert-purchase`. Direct consequence of getting the level-up price *right*
-(`D-GH-2026-08-27-feature-hd-gate`, round-2 addendum): the "Level up → Hit Die N" tile now quotes the
-Hit-Dice ladder **plus** whatever that step legalises, so a character holding an expensive HD-blocked
-purchase — e.g. a cross-class T7 feature frozen at 0 AP, imported from CharGen — sees the tile go dead as
-`unaff` (`cost > eco.available`), reading "needs 128 AP — you have 40". `awardToNext()` only grants
-`levelDelta(hd)`, and the Live Sheet's buy panel offers no refund/discard path for a held-but-inert
-purchase, so the character cannot level until a DM awards the difference. The quote is not wrong; the gap
-is that there is no way to say "I don't want this after all". Workaround today: reopen in CharGen and
-remove it, or have the DM award the shortfall.
-Related: when the level-up IS afforded, the ledger records one event labelled only "Level up → Hit Die N"
-with no itemisation of what the extra AP paid for — worth solving in the same pass.
-**Effort:** medium · **Risk:** medium — ambiguity is the driver: a discard path for a purchase that is
-already in a frozen ledger is a real event-model question (retract? a buy-off style negative event? refuse
-the import instead?), and the answer must not reopen the free-purchase hole this came from. Damage scale
-is low (the character is gated, not corrupted) and there is a workaround.
-
-```text
-1. Reproduce: import a character from CharGen holding a cross-class T7 feature at low HD, bind it to a
-   campaign, and confirm the level-up tile is unaffordable with no discard affordance.
-2. Decide the event shape -- this is the decision, record it in DECISIONS.md. Whatever is chosen must
-   leave economy().spent and compute().total in agreement afterwards, which is exactly what the
-   blocked-purchase-freeze regression in tool-pricing-ci asserts.
-3. Surface it where the player already sees the problem: the held-but-inert tile (_inertNote) is the
-   natural place to offer "discard", not a separate menu.
-4. Itemise the level-up ledger entry when it carries more than the ladder, so "Level up → Hit Die N" at
-   128 AP explains the 96 + 32 split.
-5. Add a tool-pricing-ci case: discard an inert purchase, then level -- ledger === compute() throughout.
-```
-
-**Done when:** a player holding an inert purchase can either discard it or see plainly why levelling costs
-more, without a DM award being the only route; `economy().spent === compute().total` across the discard.
----
 
 ## Racial traits still re-derive the Hit-Dice rule instead of calling `requiredHD()` — TODO
 Branch `refactor/racial-required-hd`. `D-GH-2026-08-27-feature-hd-gate` introduced `requiredHD()` as THE
@@ -900,3 +829,67 @@ mapping is stated above) and likelihood low (parity + tool-pricing gates cover t
 
 **Done when:** no tool re-derives `DATA.tierHD[...]` for racial traits; `requiredHD()` owns the rule for
 both class abilities and racial traits; engine-parity 0 failed with no `testing/expected/` changes.
+
+---
+
+## Sync `docs/PACT-Players-Guide.html` for the ~280 abilities whose Hit-Dice level just moved — TODO
+Branch `docs/guide-sync-authored-levels`. `D-GH-2026-08-27-feature-hd-gate` (round 5) authored a true 2024
+level for ~550 class features/subclass abilities and split 4 mis-bundled ones, moving ~280 Hit-Dice
+requirements off the tier-band floor onto their real value. The engine and `docs/PACT-Players-Guide.html`
+now disagree wherever the Guide states or implies a level for one of those abilities — the exact class of
+drift `AGENTS.md` names as "a rules change that ships in `js/engine.js` but not in the Players Guide is
+half-done, not done." The master lives in the separate `pact-guide` project, reached via the home-server
+MCP connector; `docs/PACT-Players-Guide.html` here is a served copy, not the source (see `AGENTS.md`'s
+"served copy" ⛔ box before touching it directly — it carries assets the master must not gain).
+**Effort:** high (≈280 numbers across two documents in two different projects) · **Risk:** medium — pure
+documentation, no `compute()` change, so damage scale is low; ambiguity is the driver, since matching each
+engine `lvl` to the Guide's prose/table entry for the same ability is a per-item lookup, not a bulk rule.
+
+```text
+1. Read docs/VERSION-SYNC.md's transfer procedure before touching either copy -- a plain cp in either
+   direction destroys served-copy-only assets (10 embedded WebP images, theme blocks, chapter-banner CSS).
+2. Work FROM the engine, not the Guide: for each of the ~280 authored lvl values, find that ability's Guide
+   entry and state its level explicitly where the Guide currently only implies a tier.
+3. The 4 split features (Tactical Mind/Shift/Master, Empowered Strikes/Self-Restoration, Perfect Focus/
+   Body and Mind, Roving/Tireless) need a structural Guide edit, not just a number: the Guide likely still
+   describes them as one bundled entry and now needs three (or two) with separate prices.
+4. Update pact-guide's master file via the home-server connector; run node testing/scripts/verify-guide.mjs
+   before AND after any transfer -- that script is the success condition, not a clean diff.
+5. Record documents-rules per docs/VERSION-SYNC.md once reconciled, so the pointer states which engine
+   version the prose was last checked against.
+```
+
+**Done when:** every authored `lvl` this round has a matching, explicit level in the Guide; the 4 split
+features read as separate entries in the Guide, not one bundle; `verify-guide.mjs` passes.
+
+---
+
+## `docs/phb-rules-final.jsonl` bundles 4 separately-leveled 2024 features under one entry — TODO
+Branch `docs/fix-phb-jsonl-bundled-entries`. The PHB text extraction that grounded round 5's level
+authoring (`D-GH-2026-08-27-feature-hd-gate`) crammed together features WotC prints at different levels on
+the class tables, because the source list was compiled by grouping similar-sounding names rather than by
+level. PACT's own data has already been corrected (the features were split), but the *source* file still
+carries the bundling, so the next person who re-derives from it inherits the same wrong premise and has to
+re-discover the split by hand, as this round did.
+The four: **Fighter** — `Tactical Mind` / `Shift` / `Master`, three distinct Battle-Master-flavoured
+features on the core Fighter table at L2/L5/L9, sharing a name theme but gained years apart. **Monk** —
+`Empowered Strikes` (unarmed strikes count as magical) / `Self-Restoration` (shed conditions), unrelated
+features at L6/L10 that the bundling hid a 4-level gap between. **Monk** — `Perfect Focus` (a focus-recovery
+feature, L15) / `Body and Mind` (the L20 capstone), two very different power tiers wrongly sharing a line.
+**Ranger** — `Roving` (extra movement/climb-swim speed) / `Tireless` (temp HP + reduced exhaustion), L6/L9
+improvements, again distinct features on the Ranger table.
+**Effort:** low · **Risk:** low — a data-quality fix to a reference extraction, not to PACT's own rules
+data; nothing in `compute()` reads this file.
+
+```text
+1. In docs/phb-rules-final.jsonl, split each of the 4 bundled Class Feature entries into its correctly-
+   separated sub-entries (Fighter's one row becomes three; the other three each become two), preserving
+   the source's own id/category/source/page/pdf_page/page_confidence shape for each new row.
+2. Assign each split entry the correct page number if it differs from the original bundled row's page --
+   check against the actual PHB page range for that class's feature table.
+3. Cross-check the split against what PACT's engine-data.js already landed for these (see the round-5
+   addendum in decisions/2026/D-GH-2026-08-27-feature-hd-gate.md) so the two agree.
+```
+
+**Done when:** the JSONL carries one entry per named 2024 feature, none of the 4 bundles remain, and a
+fresh re-derivation from the file alone would reproduce the same split PACT's engine already has.
