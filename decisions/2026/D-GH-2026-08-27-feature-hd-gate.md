@@ -18,7 +18,7 @@ The rule was implemented in three places with three different answers:
 | | before |
 |---|---|
 | `js/engine.js` (authoritative) | no gate at all |
-| Live Sheet | **seven** inline `b.hd < DATA.tierHD[x.tier]` copies — and they disagreed with each other: three omitted the `lvl` floor that a fourth applied |
+| Live Sheet | **five** inline `b.hd < DATA.tierHD[x.tier]` copies across its four pickers — and they disagreed with each other: three omitted the `lvl` floor that a fourth applied. (`grep -c DATA.tierHD` on `preview` returns 8: these five, plus two racial-trait sites deliberately kept, plus one comment.) |
 | CharGen | no class-ability gate (it used `tierHD` for racial traits only) |
 | DM Console | no picker; but it *renders* rosters, so it displays the result |
 
@@ -41,8 +41,10 @@ the one with no opinion, so whichever UI a character was built in decided whethe
 
 ## Decision
 
-1. **`js/engine.js` exports `requiredHD(item, effectiveTier)` and `canPurchase(hd, item, effectiveTier)`** —
-   the single definition. `requiredHD` returns `max(DATA.tierHD[tier], item.hd, item.lvl)`. `hd`/`lvl` are
+1. **`js/engine.js` exports `requiredHD(item)`** — the single definition, returning
+   `max(DATA.tierHD[tier], item.hd, item.lvl)`. (A `canPurchase()` convenience predicate and an
+   `effectiveTier` parameter were drafted and then removed before merge: PR #471's review found both had
+   zero call sites, and `effectiveTier` existed only for the stepped escalation that was cut.) `hd`/`lvl` are
    additional **floors, never overrides**: an item may raise its own requirement above its tier's, never
    lower it. The `lvl` term folds in the pre-existing Warlock-invocation level gate so callers get one
    number instead of combining two rules themselves.
@@ -53,7 +55,7 @@ the one with no opinion, so whichever UI a character was built in decided whethe
 3. **The HD check seeds the existing `_blockedFeat` fixed point rather than running after it.** A hard
    block means not-owned, so anything naming an HD-blocked feature as its prerequisite must block
    transitively. A later pass would leave those dependents reading their prerequisite as owned.
-4. **Live Sheet's seven copies are deleted** and call `requiredHD()`; **CharGen imports it** and annotates
+4. **Live Sheet's five class-ability copies are deleted** and call `requiredHD()`; **CharGen imports it** and annotates
    each ability option with its requirement. Only the racial-trait site remains local — racial traits gate
    on `minHD`, a different field with different messaging, and are out of scope here.
 5. **Stepped (`rep`) features are gated on their own tier, NOT an escalated step tier.** Considered and
@@ -64,8 +66,9 @@ the one with no opinion, so whichever UI a character was built in decided whethe
 **Why one exported function (I2) and not an inline check (I1).** The bug was not "the engine forgot a
 check"; it was "the rule had three implementations and the authoritative component had none." An inline
 check adds an eighth copy and leaves the next divergence available. Exporting one function makes the
-divergence unrepresentable, and it cost almost nothing because all three tools already have module
-bridges (Live Sheet and DM Console from the start, CharGen since D-GH26). The seven Live Sheet copies had
+divergence unrepresentable, and it cost almost nothing because the two tools with class-ability pickers
+(CharGen and the Live Sheet) already have module
+bridges (Live Sheet and DM Console from the start, CharGen since D-GH26). The five Live Sheet copies had
 *already* drifted from each other over the `lvl` floor, which is the concrete evidence that they would
 have drifted again.
 
@@ -114,3 +117,40 @@ boundary, the subclass door, both gates firing at once, and the `lvl` floor exce
 - **`DATA.tierHD` T1–T3 vs the Guide.** The Guide's published table lists only T4–T7. Its prose says
   *"Powers available from level 4 onwards with no chain requirement are Tier 3"* while `tierHD[3] = 3`.
   Needs a rules-owner ruling on which is authoritative.
+
+## Addendum — `/code-review ultra` on PR #471 (2026-08-27)
+
+The review found a **live regression this change introduced**, plus a set of accuracy and consistency
+defects. Fixed before merge:
+
+**Blocked must mean "grants nothing", not just "costs nothing" — the load-bearing correction.**
+Ownership resolution (`_ownedFeatSet` / `_blockedFeat` / `_hdBlockedFeat`) originally sat next to the
+pricing loop that consumes it, ~180 lines *below* the ability-score fold. That fold reads raw
+`b.features` for `Barbarian: Primal Champion`'s +4 STR/+4 CON, so a 1 HD Barbarian got the stats — and the
+HP/AC/save-DC knock-ons — **for 0 AP**, while `compute()` reported the feature as "not counted, not owned".
+Verified: `total 0, STR 14, CON 14, hp 8` where the same build cost 19 AP before this PR. The block is now
+resolved *before* any mechanical effect reads `b.features`, and `CG-050` is the regression fixture. The
+general rule this establishes: **any future effect that reads `b.features` must consult `_blockedFeat`**,
+which is why the resolution now sits at the top of `compute()` with a comment saying so.
+
+Also fixed: `canPurchase()` and `requiredHD()`'s `effectiveTier` parameter were removed (zero call sites —
+`effectiveTier` existed only for the cut stepped escalation); the warning for a `lvl`-floor block no longer
+mislabels itself as a tier requirement (`"needs 12 Hit Dice (T5)"` claimed a T5 ability needs 12 HD, false
+for every other T5 ability — now `"(level gate)"`); the maneuver-affordability tests were running on a
+character whose Combat Superiority was itself blocked, silently inverting their premise; CharGen's
+"Blocked purchases" help text explained only the prerequisite cause; and `EV-016` was restored to a
+10-line insertion after a writer pass had reflowed all 46.
+
+**Corrected claims.** This record said the Live Sheet carried "seven" copies. It carried **five**
+class-ability sites; `grep -c` returns 8 including two racial sites this record separately says were kept,
+plus a comment. It also said "all three tools call" the export — DM Console has no class-ability picker
+and imports nothing — and that CharGen annotates "each ability option", when only the class-feature grid
+is annotated. All corrected here, in `DECISIONS.md` and in `CHANGELOG.md`.
+
+**One review finding was a false positive:** that three of the four deferred items were never filed. They
+were — commit `7ae7678` on `preview`. The review ran against this branch, which predates it.
+
+**Open, not fixed here** — see the task board: a purchase frozen at `cost 0` while HD-blocked can become
+fully owned for free once HD rises, because the Live Sheet prices a level-up as the Hit-Dice ladder alone
+and never as a `compute()` delta; the Live Sheet's buy panel still renders an HD-blocked feature as
+"already purchased"; and CharGen's subclass-ability picker has no HD annotation.

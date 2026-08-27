@@ -12,10 +12,10 @@
 
 ## D-GH-2026-08-27-feature-hd-gate — class abilities are Hit-Dice gated in the engine, via one shared `requiredHD()`
 - The Players Guide states the Hit-Dice requirement as absolute and `DATA.tierHD` always held the mapping,
-  but `js/engine.js` never enforced it — while the Live Sheet carried seven inline copies (already drifted
+  but `js/engine.js` never enforced it — while the Live Sheet carried five inline copies (already drifted
   from each other over the `lvl` floor) and CharGen carried none. Chose a hard block (0 AP, not owned) driven
-  by a single exported `requiredHD()`/`canPurchase()` that all three tools call, rather than an eighth inline
-  copy; gated both the feature and mirrored-subclass purchase paths; rejected stepped-tier escalation after
+  by a single exported `requiredHD()` that both class-ability pickers call (CharGen and the Live Sheet;
+  DM Console has no picker), rather than a sixth inline copy; gated both the feature and mirrored-subclass purchase paths; rejected stepped-tier escalation after
   measuring it changes nothing and contradicts the Guide's "no level gate" note on the only `rep` entry.
   `DATA.version` v0.359 → v0.360. Full record: `decisions/2026/D-GH-2026-08-27-feature-hd-gate.md`.
 

@@ -9,12 +9,13 @@
   states this as absolute ("You can never buy an ability before you own the Hit Dice ... it requires") and
   `DATA.tierHD` has always carried the mapping, but the engine never checked it: a 1 HD Fighter could buy
   Extra Attack **and** Extra Attack (3rd) and `compute()` said only "OVER BUDGET". The rule existed in three
-  places with three answers — engine none, Live Sheet seven inline copies that had already drifted from each
-  other over the `lvl` floor, CharGen none. Now `js/engine.js` exports `requiredHD()`/`canPurchase()` as the
+  places with three answers — engine none, Live Sheet five inline copies that had already drifted from each
+  other over the `lvl` floor, CharGen none. Now `js/engine.js` exports `requiredHD()` as the
   single definition; `compute()` hard-blocks on it (0 AP, not owned, itemised under "Blocked purchases")
   across **both** the feature and subclass-ability paths, seeded into the existing `_blockedFeat` fixed
-  point so an HD-blocked prerequisite blocks its dependents transitively; Live Sheet's seven copies are
-  deleted in favour of the export and CharGen annotates each option with its requirement. No stepped-tier
+  point so an HD-blocked prerequisite blocks its dependents transitively; Live Sheet's five copies are
+  deleted in favour of the export and CharGen annotates each class-feature option with its requirement
+  (its subclass-ability picker is a follow-up). No stepped-tier
   escalation — measured as changing nothing (one `rep` entry exists, and its price is overridden), and the
   Guide lists that entry as having "no level gate". 15 fixtures re-baselined by raising HD and re-deriving,
   never by regenerating expected output; the four prereq regression fixtures keep their original warning

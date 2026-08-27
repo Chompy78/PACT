@@ -360,6 +360,11 @@ try {
   // path in the tool. Measured before the fix: 0 AP -> -22 over four clicks at 4/5/6/7.
   console.log('\nLive Sheet — the extra-maneuver purchase goes through the affordability gate');
   const MV = `${LS_SETUP}
+    // Combat Superiority is T3, so the character needs 3 Hit Dice to OWN it
+    // (D-GH-2026-08-27-feature-hd-gate). Without this the feature is blocked -- 0 AP, not owned -- and the
+    // three maneuver checks below would still pass while silently asserting the gate's behaviour for a
+    // character who does not have Combat Superiority at all, which is the opposite of this fixture's premise.
+    LOG.push({type:'buy',cat:'hd',payload:{to:3},cost:5,label:'HD 3',seq:SEQ++,ts:Date.now(),level:1});
     LOG.push({type:'buy',cat:'feature',payload:{v:'Fighter: Combat Superiority (maneuvers)'},cost:0,label:'CS',seq:SEQ++,ts:Date.now(),level:1});
     const avail=()=>_apRemaining(compute(foldBuild(null),_dmOpts()).spendable,economy(null).spent);
     const drain=avail();if(drain)LOG.push({type:'award',amount:-drain,label:'AP award',disc:true,seq:SEQ++,ts:Date.now()});`;

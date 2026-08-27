@@ -131,7 +131,10 @@
   "⛔ Rage (3 uses/long rest) — blocked: needs 3 Hit Dice (T3) & requires Rage first (not counted, not owned)"
  ],
  "CG-049": [
-  "⛔ Devouring Blade — blocked: needs 12 Hit Dice (T5) (not counted, not owned)",
+  "⛔ Devouring Blade — blocked: needs 12 Hit Dice (level gate) (not counted, not owned)",
   "⛔ Devouring Blade requires Warlock level 12"
+ ],
+ "CG-050": [
+  "⛔ Primal Champion — blocked: needs 17 Hit Dice (T7) (not counted, not owned)"
  ]
 }
