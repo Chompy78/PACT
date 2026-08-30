@@ -1,0 +1,57 @@
+GPT-4o (default)
+
+## Review of creation-lock-switch-r2.md
+
+This is revision 2, and it convincingly resolves the five blocking clusters from the first round. The decisions to make threshold and unlock log events, keep the campaignBound gate, strengthen the backfill proof, and explicitly defer server-side enforcement are all sound. However, the current plan introduces one new blocking gap around backfill threshold materialisation, plus a few moderate coherence issues. The plan is close but not yet ready to implement without addressing these.
+
+---
+
+## Findings
+
+### 1. Backfill does not include a creationLockConfig event to set the campaign’s creation budget as threshold (blocking, high confidence)
+- The plan states that the threshold must default to the campaign’s creation budget (e.g., 70 AP) for campaign characters, not to DATA.level1AP (50 AP), to avoid locking a player mid-creation.
+- Yet the backfill step only appends campaignBound to the four live logs. It does not append a creationLockConfig event with the threshold set to the campaign’s budget.
+- For those characters, after backfill, the engine sees no config event; auto is unset, so it falls back to campaignBound, but threshold unset falls back to DATA.level1AP. Thus, the auto‑lock will trigger at 50 AP, contradicting the explicit decision.
+- The plan says materialisation on next load will append the correct config, but there is a window between backfill and the player’s next load where the character is mis‑configured. If the player makes a purchase during that window (e.g., after the DM runs the backfill but before the player reconnects), the auto‑lock may fire prematurely.
+- Fix: The backfill must also append a creationLockConfig event (with auto unset and threshold set to the campaign’s creation budget) for each character. This should be included in the dry‑run and verified in the full‑state diff.
+
+### 2. Re‑arming auto‑lock after an unlock is undefined (moderate, high confidence)
+- creationUnlocked suppresses automatic locking “until re‑armed”, but the plan does not specify what re‑arming means or how a DM/player can re‑enable auto‑lock after an unlock.
+- Without this, a DM who unlocks a character (e.g., to allow further creation) cannot later restore the auto‑lock without resorting to an explicit creationLocked event, which is a stronger action than the original auto‑lock.
+- This is a usability and predictability gap. The plan should define a clear mechanism (e.g., appending a new creationLockConfig event, or removing the creationUnlocked event by re‑locking) and document it.
+
+### 3. DM removal from the unlocked list has no effect (moderate, high confidence)
+- Materialisation appends creationUnlocked if the character is in the DM’s unlocked list and “isn’t already unlocked”.
+- If the DM later removes the character from the list, the existing creationUnlocked event remains, so the character stays unlocked indefinitely (unless the DM or player explicitly locks it).
+- There is no mechanism to “un‑unlock” via the campaign settings. This conflicts with the expectation that the DM controls unlock status; removing from the list should logically re‑lock the character (or restore the previous lock state).
+- Suggestion: Define that when the DM removes a character from the unlocked list, the client should append a creationLocked or re‑enable auto‑lock via a new config event. Alternatively, state explicitly that removal only prevents future auto‑unlocks and that the DM must manually lock if desired.
+
+### 4. The equality guard for materialising creationUnlocked may cause loops when the player re‑locks (moderate, low confidence)
+- The guard “isn’t already unlocked” checks the current lock state. If a player appends a creationLocked after an unlock, the character becomes locked, so on next load the materialisation will append another creationUnlocked. This is not a loop, but it will effectively force the DM’s unlock to override the player’s explicit lock every time the player loads.
+- This may be intended (DM override), but it should be clearly documented as a DM‑enforced policy, because it contradicts the “last‑write‑wins” precedence stated for lock/unlock events (the DM’s materialised event wins on every load).
+
+### 5. The threshold comparison operator is stated as strict > but not reflected in verification (minor, high confidence)
+- The plan says crossing the threshold keeps the purchase that crosses it cheap (strict >). This is correct.
+- However, none of the listed verification fixtures explicitly test the boundary case where cumulative spend equals the threshold. A fixture for spend == threshold should be added to confirm that the lock does not fire on that purchase.
+
+### 6. Solo auto‑lock opt‑in: how does a solo player set it? (minor, moderate confidence)
+- The plan says “solo tools additionally expose the auto‑lock opt‑in”, but does not describe the UI or the event sequence. This is implementation detail, but it should be clear that the player appends a creationLockConfig{auto:true} event. If missing, a solo player has no way to enable auto‑lock. This is minor because it’s likely obvious to implementers.
+
+### 7. “Stale cached state after backfill” verification step is weak (moderate, low confidence)
+- The step “open each character in all three tools and confirm they recompute rather than serve stale cached state” is subjective. A more objective check would be to force a cache invalidation (e.g., clear local storage) and then verify that compute() output matches the known good state after backfill. This is not blocking but could catch subtle caching bugs.
+
+---
+
+## Solid aspects (no concerns)
+- The split between explicit and automatic lock, with last‑write‑wins precedence, is now coherent and well‑specified.
+- The materialisation approach (appending events on load) is sound and avoids server‑side state.
+- The backfill dry‑run proof (full folded build + per‑purchase stamps) is appropriately strengthened.
+- The handling of solo auto‑lock via explicit opt‑in is clean and does not rely on campaignBound.
+- The decision to keep campaignBound for campaign characters is correctly preserved, and the reversal from revision 1 is justified.
+
+---
+
+## Summary
+The plan is close to ready, but the missing threshold config in the backfill is a blocking issue that must be resolved before implementation. The moderate issues around unlock re‑arming and DM removal should be addressed to avoid surprising behaviour. Once these are fixed, the verification steps and overall architecture are sufficient for v1.
+
+Overall verdict: Not yet ready – blocking issue #1 must be fixed.

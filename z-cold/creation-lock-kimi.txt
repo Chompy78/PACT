@@ -1,0 +1,70 @@
+ Kimi Chat (Moonshot AI)
+
+```markdown
+# creation-lock-switch-r2-review-Kimi.md
+
+## Overall Assessment
+The revised plan is materially sounder than revision 1. The preservation of event-sourcing purity, the append-at-end backfill strategy, and the explicit acceptance criteria for fixture stability are strong. However, the plan is being reviewed after PR #305 has already shipped its core engine changes, which limits the review's preventive value. Several operational gaps remain—principally around the lifecycle of DM unlock suppression, offline exploitability, and the robustness of materialisation guards—that could produce surprising runtime states.
+
+---
+
+## Findings
+
+### 1. DM Unlock Re-arming Mechanism is Undefined
+- **Severity:** blocking  
+- **Confidence:** high  
+
+The plan states that `creationUnlocked` suppresses automatic locking "until re-armed," but never specifies what re-arming is or who can trigger it. If a DM removes a character from the campaign's unlocked list, the prior `creationUnlocked` event remains in the log. On replay, that event continues to suppress the automatic threshold indefinitely. The DM has no described action to restore auto-lock for that character without the player's voluntary cooperation (re-finalising). This leaves a permanent, DM-irreversible escape hatch, which contradicts the stated goal of making finished-state "controllable." The precedence rule and suppression semantics need a concrete re-arming trigger—e.g., a new `creationLockConfig` event, a DM "re-lock" action, or explicit invalidation of the suppression by a newer campaign setting.
+
+### 2. Offline Play Creates a Frozen Cheap-Pricing Exploit
+- **Severity:** moderate  
+- **Confidence:** high  
+
+A player whose client is offline does not materialise new `creationLockConfig` or `campaignBound` events. They can make purchases that cross the threshold while the local replay lacks the arming conditions, freezing those purchases at cheap prices. When they reconnect, materialisation appends the missing events, but the prior purchases remain cheap due to freeze-at-purchase semantics. The plan acknowledges propagation delay but frames it as benign lag rather than a rules exploit. Because the self-enforcing threshold only evaluates correctly during online replay, a player can deliberately go offline, spend freely, and sync later to lock in cheap prices. The plan should either address this in the threat model or specify that spending is disabled in offline mode.
+
+### 3. Undo Authorship on DM-Issued Events is Unspecified
+- **Severity:** moderate  
+- **Confidence:** high  
+
+The live sheet's undo pops the last event unconditionally (refusing only to cross non-discount AP awards). The plan explicitly accepts that "a player can undo their own finalise," but does not state whether a player can undo a DM-issued `creationUnlocked`. If undo is strictly LIFO without authorship checks, a player can erase the DM's unlock, causing the automatic threshold to re-fire on next replay (assuming the suppression event is gone). This makes DM unlock unreliable. The plan should clarify whether `creationUnlocked` events are protected from player undo, or whether undo requires authorship gating.
+
+### 4. Materialisation Equality Guard is Underspecified
+- **Severity:** moderate  
+- **Confidence:** moderate  
+
+The materialisation logic relies on "an equality check so it cannot loop or duplicate." The plan does not specify how equality is computed. If the implementation uses naive JSON stringification, key ordering or whitespace differences could cause false negatives, leading to duplicate `creationLockConfig` or `campaignBound` events on every load. If it uses reference equality, freshly reconstructed objects will never match cached ones. This is identified by the plan itself as "the most intricate piece," yet its primary guard condition lacks specification. Recommend documenting exact equality semantics (e.g., deep-equal over sorted-key JSON) and adding a fixture that tests object-key-order robustness.
+
+### 5. Campaign Transfer and Stale `campaignBound` Events
+- **Severity:** moderate  
+- **Confidence:** moderate  
+
+If a character is transferred from one campaign to another, the old `campaignBound` event persists in the log. The plan states that automatic lock requires `campaignBound`, but does not describe how multiple `campaignBound` events interact or how a character's current campaign membership is determined during replay. A stale `campaignBound` from Campaign A could arm the threshold even while the character is in Campaign B with different settings. The materialisation step should specify whether it replaces, invalidates, or ignores stale campaign markers when membership changes.
+
+### 6. In-Flight Implementation Undermines Review Gate
+- **Severity:** minor  
+- **Confidence:** high  
+
+The document contains multiple admissions that prior revision-1 steps were "WRONG" and that refinements were "made during implementation." While intellectually honest, conducting a design review on a plan whose core engine changes are already shipped in PR #305 means the review is validating post-hoc reasoning rather than preventing defects. Several round-1 findings (e.g., the campaign-bound/backfill contradiction) were caught by implementation reality, not by review. For future plans, recommend freezing the design review before merging code.
+
+### 7. Missing Negative Undo Test for Threshold-Crossing Purchases
+- **Severity:** minor  
+- **Confidence:** high  
+
+The verification list includes "undoing the campaign marker re-adds it on next load" and "threshold raised back above spend (auto-lock un-fires)," but does not explicitly test undoing a *purchase* that crossed the threshold. Because automatic lock is derived fresh on replay, removing a purchase that pushed cumulative spend over the threshold should un-fire the auto-lock for future purchases. This is a critical undo-path regression test that should be added to the fixture list.
+
+### 8. `creationLockConfig` Tri-State Fallback is Correct but Fragile
+- **Severity:** minor  
+- **Confidence:** high  
+
+The self-correction on step 1 (from "defaults off" to "unset falls back to `campaignBound`") resolves the fixture breakage, but it introduces a tri-state (`unset` / `true` / `false`) that is more subtle than a boolean. The document explains it well, but this is exactly the kind of semantic drift that becomes legacy debt quickly. Recommend explicitly documenting the tri-state in a decision record or code comment so future maintainers do not simplify it back to a boolean.
+
+---
+
+## Solid Aspects (Confirmed)
+
+- **Backfill append-at-end:** Logically sound given freeze-at-purchase; strengthening the proof from totals to full build + per-purchase stamps is the right call.
+- **Event-sourcing purity:** Rejecting campaign-settings-in-compute preserves replay determinism and API stability; this is the plan's strongest architectural decision.
+- **Two-mode lock distinction:** The explicit/auto dichotomy is well-explained, and the last-write-wins precedence rule is correctly specified.
+- **Fixture coverage:** The expanded fixture list addresses ordering, idempotency, and tier-sensitivity gaps raised in round 1.
+- **Scope limit explicitness:** Stating the honour-system v1 boundary as an intentional decision, rather than an oversight, is correctly defensible for a tabletop RPG tool where social contracts are primary.
+```
