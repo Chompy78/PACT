@@ -1560,6 +1560,14 @@ async function _cgAdoptEnvelopeBinding(d){
   try{ await _cgResolveDmApStatus(ap, campId); render(); }catch(e){}
 }
 function _apEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+// The drawback pool's share of the AP breakdown, or '' when a character has no drawbacks.
+//
+// compute() composes spendable from THREE pools — (playerAp x ignore-toggle) + drawbackAp + dmAp — but
+// every label here used to print only two, so any character with drawbacks showed a breakdown that did
+// not add up to its own headline (observed live: "80 AP — 0 player + 76 DM", a 4 AP contradiction, on a
+// campaign character whose drawbacks grant 4). compute() didn't expose the grant at all until this fix,
+// so the labels COULDN'T have been right. One helper, three call sites, so they cannot drift apart again.
+function _apDrawPart(r){ return (r&&r.drawbackAp) ? (' + '+r.drawbackAp+' drawbacks') : ''; }
 function _apSourceHTML(r){
   var st=window._dmApStatus||'none', ignPlr=!!window._ignorePlayerAp, dmAp=window._dmAp||0;
   var label,tip;
@@ -1567,13 +1575,13 @@ function _apSourceHTML(r){
     label='⚠ DM AP unavailable — showing '+r.playerAp+' player AP only';
     tip="This character is bound to a cloud campaign, but its DM-granted AP couldn't be read right now (offline, or the campaign is still loading). This is NOT the same as having no DM AP — your real spendable total may be higher once it reconnects.";
   } else if(st==='active' && ignPlr){
-    label='🛡 '+r.spendable+' AP — DM only';
-    tip='Your DM has switched off player-entered AP for this campaign. Only DM-granted AP ('+dmAp+') counts toward your budget, so the Player AP field is locked. Purchases already made with player AP are kept (grandfathered), not deleted or refunded.';
+    label='🛡 '+r.spendable+' AP — DM'+(r.drawbackAp?(' + '+r.drawbackAp+' drawbacks'):'')+' only';
+    tip='Your DM has switched off player-entered AP for this campaign. Only DM-granted AP ('+dmAp+')'+(r.drawbackAp?(' plus the '+r.drawbackAp+' AP your drawbacks grant (a drawback is a trade you made, not an award, so it survives the toggle)'):'')+' counts toward your budget, so the Player AP field is locked. Purchases already made with player AP are kept (grandfathered), not deleted or refunded.';
   } else if(st==='active'){
-    label='☁ '+r.spendable+' AP — '+r.playerAp+' player + '+dmAp+' DM';
-    tip='Your spendable budget combines the Player AP field ('+r.playerAp+') with '+dmAp+' AP your DM has granted this character. Combined live at display time — never saved as one number.';
+    label='☁ '+r.spendable+' AP — '+r.playerAp+' player'+_apDrawPart(r)+' + '+dmAp+' DM';
+    tip='Your spendable budget combines the Player AP field ('+r.playerAp+')'+(r.drawbackAp?(', '+r.drawbackAp+' AP granted by your drawbacks,'):'')+' with '+dmAp+' AP your DM has granted this character. Combined live at display time — never saved as one number.';
   } else if(window._cgCopySourceAp>0){
-    label='👁 '+r.spendable+' AP — DM copy ('+r.playerAp+' player + '+window._cgCopySourceAp+' DM, frozen)';
+    label='👁 '+r.spendable+' AP — DM copy ('+r.playerAp+' player'+_apDrawPart(r)+' + '+window._cgCopySourceAp+' DM, frozen)';
     tip='This is a snapshot of \u201c'+(window._cgCopySourceName||'a character')+'\u201d, deliberately NOT bound to its campaign \u2014 nothing you do here can spend the original\u2019s real AP or touch its real data. Its '
       +window._cgCopySourceAp+' DM-granted AP is counted above as a frozen snapshot from when this copy was opened, so the budget reads correctly, but it will NOT update if the DM awards more AP later. '
       +'Re-open \ud83d\udccb Copy to CharGen for a fresh snapshot, or use \ud83d\udc41 View for the always-live real total.';

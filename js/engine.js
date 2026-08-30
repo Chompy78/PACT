@@ -12,7 +12,7 @@
  *                       `DATA.version` is the rules version — bump ONLY on a mechanics/compute() change.
  * Pricing / derivation:
  *   compute(b, opts?) — price a build & derive the sheet. opts:{dmAp?, ignorePlayerAp?}. Returns
- *                       {total, spendable, remaining, budget(=spendable), playerAp, dmAp, warnings,
+ *                       {total, spendable, remaining, budget(=spendable), playerAp, dmAp, drawbackAp, warnings,
  *                        lines, itemize, hp, baseHP, prof, tier, mods, effScore, size, …}. Pure over
  *                       (b, opts). Reads b._lostPurchases (stamped by _replay/foldBuild — see below) to
  *                       itemize a "Lost purchases" ledger line for bought-off drawbacks/DM-removed
@@ -884,7 +884,7 @@ export function compute(b, opts){
     else size='Small';
   }
   else if(_races.indexOf('Tiefling')>=0){ sizeChoosable=true; size=(b.size==='Small')?'Small':'Medium'; }   // v0.194: Tiefling chooses Small or Medium
-  return {total,remaining,budget:spendable,playerAp,dmAp,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
+  return {total,remaining,budget:spendable,playerAp,dmAp,drawbackAp:_dGranted,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
     // Traits owned for free via a heritage pack — derived, never stored. See packTraitsFor().
     packTraits:packTraitsFor(b.species,b.species2),
     ac,init,speed,castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
