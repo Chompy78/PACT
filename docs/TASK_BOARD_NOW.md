@@ -27,6 +27,9 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
+*(empty — see `CHANGELOG.md` for the most recently graduated item)*
+
+---
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
