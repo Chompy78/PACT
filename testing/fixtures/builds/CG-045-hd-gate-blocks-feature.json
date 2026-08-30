@@ -1,9 +1,9 @@
 {
- "name": "",
+ "name": "Brother Aldric",
  "budget": 200,
- "originClass": "Monk",
+ "originClass": "Fighter",
  "originClass2": "(none)",
- "species": "(none)",
+ "species": "Human",
  "species2": "(none)",
  "racialTraits": [],
  "lineage": "",
@@ -16,7 +16,7 @@
   "WIS": 10,
   "CHA": 10
  },
- "hd": 18,
+ "hd": 4,
  "profBonus": 2,
  "hardy": 0,
  "tough": 0,
@@ -45,15 +45,7 @@
  "extraClasses": 0,
  "unlockedClasses": [],
  "features": [
-  "Monk: Martial Arts die",
-  "Monk: Martial Arts die (d8)",
-  "Monk: Martial Arts die (d10)",
-  "Monk: Martial Arts die (d12)",
-  "Monk: Unarmored Movement",
-  "Monk: Unarmored Movement (+15 ft)",
-  "Monk: Unarmored Movement (+20 ft)",
-  "Monk: Unarmored Movement (+25 ft)",
-  "Monk: Unarmored Movement (+30 ft)"
+  "Fighter: Extra Attack"
  ],
  "traditions": [],
  "subAbilities": [],
@@ -109,7 +101,7 @@
   "companion": "",
   "overall": ""
  },
- "size": "Small",
+ "size": "Medium",
  "houseRules": {
   "boons": {},
   "draws": {},
@@ -125,5 +117,5 @@
   }
  },
  "version": "v0.322",
- "id": "cg029martialunarmoredfull"
+ "id": "test-cg013-subability-three-tiers"
 }

@@ -4,9 +4,19 @@
   "events": [
     {
       "type": "award",
-      "amount": 50,
-      "note": "Test budget",
+      "amount": 200,
+      "note": "Test budget (raised 50 -> 200: the fixture now buys 17 Hit Dice so its Epic boon is legal)",
       "label": "Award — Test budget (50 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "hd",
+      "payload": {
+        "to": 19
+      },
+      "cost": 98,
+      "level": 1,
+      "label": "Hit Dice → 19 (Boon of Combat Prowess is Epic, needs 19 HD)"
     },
     {
       "type": "buy",
