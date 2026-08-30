@@ -4,6 +4,109 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-27 · fix(tools): Arts/Boons hard-gate had two tool-layer gaps — Live Sheet under-charged a
+  level-up that legalized a blocked Art/Boon, DM Console didn't mark them blocked;
+  `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`** — third `/code-review ultra` on PR #471.
+  Live Sheet's `_CTX_PRICERS.hd` `strip()` helper only stripped blocked `features`/`subAbilities` before
+  diffing, never `arts`/`boons`; reproduced a 5 AP silent under-charge (real delta 15, quoted 10) on a
+  build leveling past a blocked Art's threshold, then extended `strip()` to cover all four purchase types.
+  DM Console's roster/detail views marked blocked features but not blocked Arts/Boons; fixed by adding
+  `artsDisplay`/`boonsDisplay` fields for the two pure-display call sites while keeping `s.boons` raw,
+  since it also feeds `dmEditBody()`'s remove-a-boon dropdown as an exact-match value. Both fixes verified
+  by reverting and confirming their new `testing/scripts/tool-pricing-ci.mjs` checks fail with the exact
+  wrong numbers before restoring. No `DATA.version` bump — tool-layer only. engine-parity 73/73,
+  tool-pricing 182/182. See `DECISIONS.md` D-GH-2026-08-27-feature-hd-gate (Addendum, round 6).
+
+- **2026-08-27 · feat(engine): authored true 2024 levels for the remaining ~550 class features/subclass
+  abilities; split 4 mis-bundled features; `js/engine-data.js` · `DATA.version` bump** — closes the
+  task the previous entry deferred. Source: the owner's own page-by-page adjudication of a real 2024 PHB
+  extraction (`docs/phb-rules-final.jsonl`), 577 rows High confidence and 27 Medium, not this session's
+  guesswork. Applied 280 `lvl` overrides — 278 tighten a gate above its tier-band floor, 2 loosen one below
+  it (only possible because `requiredHD()` now overrides tier in both directions). Split
+  `Fighter: Tactical Mind/Shift/Master`, `Monk: Empowered Strikes/Self-Restoration`,
+  `Monk: Perfect Focus/Body and Mind`, `Ranger: Roving/Tireless` into 8 separately-leveled, separately-
+  priced features — each re-tiered by its own level using the engine's existing tier-shift pricing formula,
+  the same one `rep` features already use — since each was bundling 2024 abilities the PHB gates and prices
+  at different levels under one name. Zero live characters held any bundled key, so no migration was
+  needed. Live data checked first: of 8 characters holding a class/subclass ability, only the one already
+  known-blocked since round 1 is affected — no new character, no Amble character. 8 fixtures re-baselined
+  (raised `hd` to the new minimum and re-derived through `compute()`); `CG-050` is the one exception — it
+  exists to prove a *blocked* purchase grants nothing, so its `hd` stayed put and only its expected warning
+  text moved. engine-parity 73/73, tool-pricing 180/180. Guide sync and the JSONL's own bundling are filed
+  as separate follow-ups, not rushed into this round. See `DECISIONS.md`
+  D-GH-2026-08-27-feature-hd-gate (Addendum, round 5).
+
+- **2026-08-27 · feat(engine): tier demoted to pricing-only — an ability's own level is now the
+  Hit-Dice authority; `js/engine.js`, `js/engine-data.js` · `DATA.version` v0.361 → v0.362** — owner
+  ruling: "the Tiers are really just for costings." `requiredHD()` now treats an item's own `hd`/`lvl` as
+  authoritative, overriding tier in **both** directions; `DATA.tierHD` is the fallback only for an item
+  that states no level of its own. Authored true levels for the 40 abilities a source actually states: 26
+  general-feat Arts (3→4 HD, 2024 general feats are level 4+), 12 Epic Boons (17→19 HD, level 19+ — the
+  Guide's prose already said "the level-19 threshold", the data hadn't caught up), and 2 class features
+  whose own name stated a level their gate missed (`Paladin: Aura range → 30 ft (L18)`,
+  `Rogue: Improved Cunning Strike (L11)`, the latter a genuine *tightening* below its tier default).
+  **The remaining ~550 class features and subclass abilities were deliberately left on the tier fallback**
+  — no source in this repo or the Guide states their true level, and authoring them without one would mean
+  inventing numbers. That data-authoring pass is now its own task-board item. Live data checked before any
+  value moved: none of the 11 characters holding an affected Art/Boon/feature is above the new
+  requirement. 4 fixtures updated; one hand-computed total (`EV-018`) was caught wrong and corrected by
+  re-deriving through the real replay pipeline instead of composed arithmetic. engine-parity 73/73,
+  tool-pricing 180/180. See `DECISIONS.md` D-GH-2026-08-27-feature-hd-gate (Addendum, round 4).
+
+- **2026-08-27 · feat(engine): the Hit-Dice gate extended to Arts & Techniques and Boons;
+  `js/engine.js` · `DATA.version` v0.360 → v0.361** — the original gate scoped to class abilities, leaving
+  feats (Arts) and Boons **advisory**: the engine warned "needs N+ Hit Dice" and then charged and granted
+  them anyway, so a 1 HD character could hold and use a 3 HD Art. Both now behave exactly as class
+  abilities do — 0 AP, not owned, grants nothing, itemised under "Blocked purchases". The trap that made
+  this non-trivial: the epic-boon **+2 ability fold reads `b.boons` ~400 lines above the boon pricing
+  loop**, so gating at the loop alone would have handed a 1 HD character a free +2 — the same shape as
+  round 1's Primal Champion regression. Arts and Boons are therefore resolved into blocked sets at the top
+  of `compute()`, beside the feature sets and before that fold, with `blockedAP`/`_BLI` hoisted so all four
+  datasets feed one ledger line. `CG-051` covers a blocked Art; `CG-052` covers the epic-boon trap (STR
+  stays 10 at 1 HD, becomes 12 at 17). `EV-018` needed 17 HD and a larger award so the DM-removal mechanic
+  it exists to prove still runs. **3 HD stays correct for the general-feat pool** — tiers are level bands
+  gated at the floor (T3 = levels 3–4), the same rule that puts a level-19 Epic boon at 17 HD. Live data
+  checked before shipping: 11 of 25 characters hold Arts or Boons and **none** is above their Hit Dice, so
+  this enforces against zero existing characters. engine-parity 73/73, tool-pricing 180/180. See
+  `DECISIONS.md` D-GH-2026-08-27-feature-hd-gate (Addendum, round 3).
+
+- **2026-08-27 · fix: a blocked purchase grants nothing, and a level-up pays for what it legalises;
+  `js/engine.js`, both player tools** — three defects found by `/code-review ultra` on PR #471, two of them
+  introduced by the Hit-Dice gate in the same PR. (1) **Ownership was resolved after the ability-score
+  fold**, which reads raw `b.features` for `Barbarian: Primal Champion`'s +4 STR/+4 CON — so a 1 HD
+  Barbarian got the stats and their HP/AC/save-DC knock-ons for **0 AP** while the engine reported the
+  feature "not counted, not owned" (that build cost 19 AP before the gate). Ownership now resolves at the
+  top of `compute()`, before anything reads `b.features` for an effect. (2) **A purchase frozen at cost 0
+  while HD-blocked became free once Hit Dice rose:** the Live Sheet priced a level-up as the Hit-Dice
+  ladder alone, so nothing charged for the purchases the level-up legalised — `compute().total` 128 against
+  `economy().spent` 96, no warning. `repriceDraft()` never had this bug (it prices every event as the
+  `compute()` delta), so the level-up now charges the ladder **plus the drop in compute()'s own "Blocked
+  purchases" line**. Removing the context escape outright was tried and reverted — it re-prices an
+  unstamped Vigor/Grit stack, which is exactly what CharGen produces. (3) **All four Live Sheet pickers
+  tested ownership before the HD check**, rendering a held-but-blocked feature as "Already purchased"; they
+  now show it as held-but-inert with the remedy, and CharGen's subclass picker gained a live met/unmet HD
+  annotation. New `tool-pricing-ci` coverage for the CharGen-import → level-up path. engine-parity 71/71,
+  tool-pricing 179/179. Graduates the three task-board items these close. See `DECISIONS.md`
+  D-GH-2026-08-27-feature-hd-gate (Addendum).
+
+- **2026-08-27 · feat(engine): enforce the Hit-Dice requirement on class abilities, via one shared
+  `requiredHD()`; `js/engine.js`, both player tools · `DATA.version` v0.359 → v0.360** — the Players Guide
+  states this as absolute ("You can never buy an ability before you own the Hit Dice ... it requires") and
+  `DATA.tierHD` has always carried the mapping, but the engine never checked it: a 1 HD Fighter could buy
+  Extra Attack **and** Extra Attack (3rd) and `compute()` said only "OVER BUDGET". The rule existed in three
+  places with three answers — engine none, Live Sheet five inline copies that had already drifted from each
+  other over the `lvl` floor, CharGen none. Now `js/engine.js` exports `requiredHD()` as the
+  single definition; `compute()` hard-blocks on it (0 AP, not owned, itemised under "Blocked purchases")
+  across **both** the feature and subclass-ability paths, seeded into the existing `_blockedFeat` fixed
+  point so an HD-blocked prerequisite blocks its dependents transitively; Live Sheet's five copies are
+  deleted in favour of the export and CharGen annotates each class-feature option with its requirement
+  (its subclass-ability picker is a follow-up). No stepped-tier
+  escalation — measured as changing nothing (one `rep` entry exists, and its price is overridden), and the
+  Guide lists that entry as having "no level gate". 15 fixtures re-baselined by raising HD and re-deriving,
+  never by regenerating expected output; the four prereq regression fixtures keep their original warning
+  strings byte-for-byte. 5 new fixtures (CG-045–049). engine-parity 70/70, tool-pricing 176/176. Live data
+  checked rather than assumed: 25 characters/8 owners/4 campaigns exist (the app is **not** pre-launch), and
+  exactly one non-campaign character is affected. See `DECISIONS.md` D-GH-2026-08-27-feature-hd-gate.
 - **2026-08-30 · docs(tasks): graduate the frozen-ledger NOW task — already fixed on PR #471, board
   entry was stale** — `docs/TASK_BOARD_NOW.md` still listed "A purchase frozen at 0 while HD-blocked
   becomes free once Hit Dice rise" as open on a dedicated `fix/blocked-purchase-freezes-at-zero` branch,
