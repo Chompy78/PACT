@@ -1,7 +1,7 @@
 {
  "name": "",
  "budget": 200,
- "originClass": "Monk",
+ "originClass": "Warlock",
  "originClass2": "(none)",
  "species": "(none)",
  "species2": "(none)",
@@ -16,7 +16,7 @@
   "WIS": 10,
   "CHA": 10
  },
- "hd": 18,
+ "hd": 11,
  "profBonus": 2,
  "hardy": 0,
  "tough": 0,
@@ -45,17 +45,52 @@
  "extraClasses": 0,
  "unlockedClasses": [],
  "features": [
-  "Monk: Martial Arts die",
-  "Monk: Martial Arts die (d8)",
-  "Monk: Martial Arts die (d10)",
-  "Monk: Martial Arts die (d12)",
-  "Monk: Unarmored Movement",
-  "Monk: Unarmored Movement (+15 ft)",
-  "Monk: Unarmored Movement (+20 ft)",
-  "Monk: Unarmored Movement (+25 ft)",
-  "Monk: Unarmored Movement (+30 ft)"
+  "Warlock: Pact of the Blade",
+  "Warlock: Thirsting Blade",
+  "Warlock: Devouring Blade"
  ],
- "traditions": [],
+ "traditions": [
+  {
+   "name": "Arcane",
+   "rank": 1,
+   "disciplines": [
+    {
+     "name": "Warlock",
+     "bound": false,
+     "cantrips": 2,
+     "slots": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "known": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "pactSlots": 2,
+     "arcanum": [
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   ]
+  }
+ ],
  "subAbilities": [],
  "subSpellBundles": [],
  "freeSub": {},
@@ -125,5 +160,5 @@
   }
  },
  "version": "v0.322",
- "id": "cg029martialunarmoredfull"
+ "id": "cg031warlockinvocationtransitiveblock"
 }
