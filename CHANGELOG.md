@@ -4,6 +4,21 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-30 · fix(sql): `campaign_invites` was missing the table-level `revoke` its own comment
+  claimed existed — DM invite notes leaked on a fresh stack, though not in production** — caught by
+  `cloud-e2e`'s "invite note is DM-only" check failing deterministically on an unrelated PR (#472); the
+  comment above `sql/rls-policies.sql`'s `campaign_invites` grant said a table-level grant is dropped
+  before the column-scoped `grant select (...)`, but no `revoke` was ever actually present there or in
+  `sql/migrations/2026-08-09-harden-invitation-system.sql`. Verified directly against production this was
+  **not a live vulnerability** — `note`/`token_hash` carry no `SELECT` for `authenticated` there, because
+  the role that built production's schema inherited a narrower `pg_default_acl` than whatever role
+  `cloud-e2e`'s throwaway local Supabase stack uses; production's safety was incidental, not guaranteed by
+  the SQL. Added the explicit `revoke select on public.campaign_invites from authenticated, anon;` to
+  `sql/rls-policies.sql` plus a no-op-on-production migration, so the restriction holds regardless of
+  ambient default privileges. Migration not applied to production from this session (unnecessary — it's a
+  no-op there); goes through the normal deploy process. Graduates the NEXT-board task a concurrent session
+  independently filed for the same gap (removed from `docs/TASK_BOARD_NEXT.md` in this change). See
+  `D-GH-2026-08-30-invite-note-grant-drift`.
 - **2026-08-27 · fix(tools): Arts/Boons hard-gate had two tool-layer gaps — Live Sheet under-charged a
   level-up that legalized a blocked Art/Boon, DM Console didn't mark them blocked;
   `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`** — third `/code-review ultra` on PR #471.

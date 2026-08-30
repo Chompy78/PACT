@@ -1,0 +1,23 @@
+-- PACT — campaign_invites: explicit table-level REVOKE before the column-scoped SELECT grant.
+-- D-GH-2026-08-30-invite-note-grant-drift.
+--
+-- WHY. sql/rls-policies.sql's campaign_invites section has, since D-GH-2026-08-03-invite-note-dm-only,
+-- carried a comment claiming "the blanket grant is dropped and the wanted columns granted explicitly" —
+-- but no `revoke` statement ever actually ran there; only the column-scoped `grant select (...)` did.
+-- That is harmless wherever `authenticated`/`anon` never picked up a table-level SELECT on this table
+-- from Postgres's `pg_default_acl` in the first place — which is what kept production safe (verified
+-- directly: `information_schema.column_privileges` shows no SELECT on `note`/`token_hash` for
+-- `authenticated` there). But `pg_default_acl` depends on which role issues `create table`, so a build
+-- from schema.sql + rls-policies.sql under a different role — exactly what testing/scripts/cloud-e2e.mjs's
+-- throwaway local Supabase CLI stack does — is not guaranteed the same outcome, and reproducibly leaks
+-- `note` there (caught by the "invite note is DM-only" cloud-e2e check).
+--
+-- This migration makes the restriction hold unconditionally, independent of ambient default privileges,
+-- rather than relying on production's current (correct, but incidental) starting state. It is a no-op
+-- wherever the table-level privilege was never held.
+--
+-- Safe to re-run. See sql/rls-policies.sql for the durable, idempotent version of this statement — this
+-- migration exists only so the applied-migration history matches the reference file for a table already
+-- live in production; a fresh environment gets this from rls-policies.sql directly.
+
+revoke select on public.campaign_invites from authenticated, anon;
