@@ -321,3 +321,42 @@ runs after the known harness-readiness flake on unrelated checks).
   re-adjudication.
 - **Racial traits (38 entries) still re-derive `DATA.tierHD` locally** rather than calling `requiredHD()`
   — unchanged from round 3's note, still open on the board.
+
+### Addendum, round 6 — the Arts/Boons hard-gate fixes from round 3 had two gaps of their own (2026-08-27)
+
+A third `/code-review ultra` on PR #471, after round 5's data-authoring pass, found that round 3's
+Arts/Boons hard-gate (blocked resolution moved to the top of `compute()`; ⛔ markers on features) had left
+two consumers only half-updated — both **outside `js/engine.js`**, so `compute()` itself was already
+correct; these were tool-layer callers that hadn't caught up to the round-3 shape.
+
+**1. Live Sheet's level-up pricer under-charged when a level-up legalized a blocked Art or Boon.**
+`_CTX_PRICERS.hd`'s `strip()` helper — added in round 2's frozen-ledger fix — filtered `b.features` and
+`b.subAbilities` for HD-blocked entries before diffing, but was never extended when round 3 added the same
+blocking to `b.arts`/`b.boons`. Reproduced before fixing: a build holding the `Actor` Art (5 AP) blocked
+at 1 HD, leveling to 5 HD — real delta (`compute` before/after) = 15 AP, the pricer quoted 10, a silent
+5 AP under-charge that would have handed a paid Art away for free on every character whose level-up
+crosses an Art or Boon's threshold. Fixed by extending `strip()` to filter `c.arts`/`c.boons` with the same
+block check `compute()` uses (`requiredHD()` for arts, `bo.hd` for boons), so the existing two-delta
+attribution (`step + (deltaFull - deltaStripped)`) now covers all four purchase types instead of two.
+
+**2. DM Console's roster/detail views marked blocked features but not blocked Arts or Boons.** A DM
+looking at a card had no visual signal that a listed Art or Boon was inert. Caught before shipping, not by
+the reviewer: `s.boons` isn't purely a display value — `dmEditBody()`'s "remove a boon" `<select>` uses it
+as the exact-match `value=` source, so decorating it with "⛔ blocked" would have silently broken Remove
+for any blocked boon. Fixed by keeping `arts`/`boons` raw everywhere they feed logic (including the
+remove-dropdown) and adding separate `artsDisplay`/`boonsDisplay` fields consumed only by the two pure-
+display call sites (`chipGroup` in the roster card, `listSection` in the detail view).
+
+Both findings share a root cause worth naming: round 3 correctly fixed `compute()`'s ownership resolution
+but the arts/boons hard-gate touched two tool-layer files that had their own independent, earlier-written
+mirrors of the features-only blocking logic — extending the engine doesn't automatically extend code that
+duplicated its shape by hand before the extension existed.
+
+**Verification:** both fixes proven by deliberate revert-and-confirm — reverted each, confirmed its new
+`testing/scripts/tool-pricing-ci.mjs` check fails with the exact wrong values (e.g. `expected [15,true],
+got [10,true]`), restored the fix, reconfirmed green. engine-parity 73/73, tool-pricing 182/182 clean; the
+same pre-existing harness-readiness flake noted in earlier rounds fired on unrelated checks during repeated
+runs, never on either new check.
+
+No `DATA.version` bump — no data or `compute()` output changed, only the tool-layer pricer and display
+logic. Commit `ea1279d`.

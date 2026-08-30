@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-27 · fix(tools): Arts/Boons hard-gate had two tool-layer gaps — Live Sheet under-charged a
+  level-up that legalized a blocked Art/Boon, DM Console didn't mark them blocked;
+  `tools/PACT-Live-Char-Sheet.html`, `tools/DM-Console.html`** — third `/code-review ultra` on PR #471.
+  Live Sheet's `_CTX_PRICERS.hd` `strip()` helper only stripped blocked `features`/`subAbilities` before
+  diffing, never `arts`/`boons`; reproduced a 5 AP silent under-charge (real delta 15, quoted 10) on a
+  build leveling past a blocked Art's threshold, then extended `strip()` to cover all four purchase types.
+  DM Console's roster/detail views marked blocked features but not blocked Arts/Boons; fixed by adding
+  `artsDisplay`/`boonsDisplay` fields for the two pure-display call sites while keeping `s.boons` raw,
+  since it also feeds `dmEditBody()`'s remove-a-boon dropdown as an exact-match value. Both fixes verified
+  by reverting and confirming their new `testing/scripts/tool-pricing-ci.mjs` checks fail with the exact
+  wrong numbers before restoring. No `DATA.version` bump — tool-layer only. engine-parity 73/73,
+  tool-pricing 182/182. See `DECISIONS.md` D-GH-2026-08-27-feature-hd-gate (Addendum, round 6).
+
 - **2026-08-27 · feat(engine): authored true 2024 levels for the remaining ~550 class features/subclass
   abilities; split 4 mis-bundled features; `js/engine-data.js` · `DATA.version` bump** — closes the
   task the previous entry deferred. Source: the owner's own page-by-page adjudication of a real 2024 PHB
