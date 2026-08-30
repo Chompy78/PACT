@@ -16,7 +16,8 @@
   the SQL. Added the explicit `revoke select on public.campaign_invites from authenticated, anon;` to
   `sql/rls-policies.sql` plus a no-op-on-production migration, so the restriction holds regardless of
   ambient default privileges. Migration not applied to production from this session (unnecessary — it's a
-  no-op there); goes through the normal deploy process. See
+  no-op there); goes through the normal deploy process. Graduates the NEXT-board task a concurrent session
+  independently filed for the same gap (removed from `docs/TASK_BOARD_NEXT.md` in this change). See
   `D-GH-2026-08-30-invite-note-grant-drift`.
 - **2026-08-30 · docs(tasks): graduate the frozen-ledger NOW task — already fixed on PR #471, board
   entry was stale** — `docs/TASK_BOARD_NOW.md` still listed "A purchase frozen at 0 while HD-blocked

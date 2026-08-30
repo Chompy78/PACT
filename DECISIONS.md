@@ -22,7 +22,8 @@
   whatever role `cloud-e2e`'s throwaway local stack uses). Fixed by adding the explicit
   `revoke select on public.campaign_invites from authenticated, anon;` to both `sql/rls-policies.sql` and
   a new no-op-on-production migration, so the restriction holds regardless of ambient default privileges
-  instead of by accident of which role happened to run the migrations. Full record:
+  instead of by accident of which role happened to run the migrations. Graduates the concurrently-filed
+  NEXT task that found the same gap independently (see the record's Addendum). Full record:
   `decisions/2026/D-GH-2026-08-30-invite-note-grant-drift.md`.
 
 ## D-GH-2026-08-25-dm-console-warnings-race-flake — a "flake" verdict on dm-console-ui-e2e.mjs was wrong; root-caused and fixed the real race

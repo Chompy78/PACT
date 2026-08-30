@@ -79,9 +79,16 @@ not just re-noting.
 - This migration was **not** applied to the live production database from this session — it is a no-op
   there and does not need to ship urgently, so it goes through the project's normal deploy process rather
   than being pushed live directly from an AI session on request scoped to "open a fix PR."
+- Checked `sql/rls-policies.sql` for every other table using this same column-scoped `grant select (...)`
+  pattern: `campaign_invites` is the **only** one (`grep -n '^grant select ('` returns one match). No
+  sweep needed — the pattern doesn't repeat elsewhere in this file today.
 
-## Follow-up (not done here)
+## Addendum (2026-08-30)
 
-Whether the same default-ACL-vs-explicit-grant gap exists on any other table with a column-scoped grant
-in `sql/rls-policies.sql` was not audited — this fix is scoped to the one table `cloud-e2e` actually
-caught. Worth a NEXT-item sweep if this pattern turns out to repeat.
+A second, independent session found this exact gap concurrently — while driving PR #471 to green — and
+filed it as a NEXT-board task (`The local Supabase CI stack leaks campaign_invites.note that production
+correctly withholds`) moments before this PR was opened, landing on `preview` first. Same root cause, same
+"not a live vulnerability" verification, independently reached. That task is graduated here (removed from
+`docs/TASK_BOARD_NEXT.md` in this PR) rather than duplicated — its step 2's suggestion to also audit
+`campaign_invite_redemptions` was checked and doesn't apply: that table has no withheld column and uses an
+unrestricted `grant select on ... to authenticated` (nothing comparable to `note`/`token_hash` to protect).
