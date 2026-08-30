@@ -18,6 +18,19 @@
   ambient default privileges. Migration not applied to production from this session (unnecessary — it's a
   no-op there); goes through the normal deploy process. See
   `D-GH-2026-08-30-invite-note-grant-drift`.
+- **2026-08-30 · docs(tasks): graduate the frozen-ledger NOW task — already fixed on PR #471, board
+  entry was stale** — `docs/TASK_BOARD_NOW.md` still listed "A purchase frozen at 0 while HD-blocked
+  becomes free once Hit Dice rise" as open on a dedicated `fix/blocked-purchase-freezes-at-zero` branch,
+  but the actual fix landed directly on PR #471 itself (`54d46f6`, extended for Arts/Boons in
+  `ea1279d`): Live Sheet's `_CTX_PRICERS.hd` now charges the ladder step plus the real `compute()` delta
+  of everything the level-up newly legalises, not the ladder step alone. Checked the task's own "Done
+  when" against current code before graduating rather than trusting the commit message: `tool-pricing-
+  ci.mjs`'s "the frozen ledger and compute() must agree across level-ups" section directly asserts
+  `compute().total`/frozen-ledger agreement across a level-up that legalises a blocked purchase, covering
+  the exact seam (frozen ledger + level-up pricer) the task named — found while filing an unrelated
+  follow-up task and cross-checking the live board rather than the stale snapshot in a loaded system
+  prompt. No migration concern: the whole HD-gate feature (gate + correct pricing) ships in one PR, so
+  no live character could hold a pre-fix frozen 0-cost blocked purchase.
 
 - **2026-08-25 · test(dm-console): stub `listCampaignInvites` to remove a real CI-only race in the
   warnings-banner check; `testing/scripts/dm-console-ui-e2e.mjs`** — `dm-console-ui` failed once in CI on
