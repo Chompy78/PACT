@@ -27,6 +27,50 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## The local Supabase CI stack leaks campaign_invites.note that production correctly withholds — TODO
+Found while driving PR #471 to green (unrelated to that PR's diff — `sql/` files are untouched by it).
+`testing/scripts/cloud-e2e.mjs`'s "invite note is DM-only" check fails on the local/CI `supabase start`
+stack: a player's direct `select note from campaign_invites` succeeds and leaks the DM's note ("player
+selecting note is refused — LEAKED: [...]"), when it should be refused per
+`D-GH-2026-08-03-invite-note-dm-only`'s column-level revoke in `sql/rls-policies.sql`.
+
+**Verified this is NOT a live production vulnerability:** queried `information_schema.role_column_grants`
+on the live PACT Supabase project (`piuprrrnaotrtxucrtsb`) directly — `authenticated` and `anon` both hold
+only `REFERENCES` on `campaign_invites.note`, no `SELECT`. Production is correctly protected.
+
+So the gap is the local/CI Supabase stack's default privileges diverging from the hosted platform's — most
+likely the local `supabase start` docker image applies a broader default table-level `GRANT` that
+`sql/rls-policies.sql`'s column-scoped grant doesn't fully override, since — per the file's own comment at
+that block — "a column-level revoke cannot subtract from a table-level grant," and only the intended
+columns are ever explicitly granted with no preceding blanket revoke to establish a clean baseline first.
+
+**Effort:** low-medium (the SQL fix is a few lines; nailing the exact local-stack cause first is the bulk
+of the work) · **Risk:** medium — touches grants on a live table, and this project's history flags that
+class of change for care (D-GH15, D-GH12), so verify against both the local stack and re-run the Supabase
+advisor against the live project before merging.
+
+```text
+1. Reproduce locally (`supabase start` + `node testing/scripts/cloud-e2e.mjs`) and confirm the local
+   stack's actual default privileges on a freshly created table (e.g. query
+   information_schema.role_table_grants for campaign_invites right after schema.sql, before
+   rls-policies.sql runs) to nail down exactly what's granting the extra access.
+2. Harden sql/rls-policies.sql so the protection doesn't depend on the local stack's default matching
+   production's: add an explicit `revoke select on public.campaign_invites from public, anon,
+   authenticated;` (or equivalent) immediately before the column-scoped grant, so the intended columns
+   are the only ones ever selectable regardless of what defaults the underlying Postgres instance started
+   with. Apply the same audit to campaign_invite_redemptions and any other table using this
+   column-withholding pattern (token_hash on the same table).
+3. Re-run cloud-e2e locally and in CI to confirm the check goes green without weakening it.
+4. Note in DECISIONS.md (as an addendum to D-GH-2026-08-03-invite-note-dm-only, not a new record) that
+   the original verification was against the live platform only and didn't cover the local/CI stack's
+   default-privilege baseline — that's the actual gap this task closes.
+```
+
+**Done when:** cloud-e2e's "invite note is DM-only" section passes locally and in CI; a Supabase advisor
+check on the live project shows no new findings; a DECISIONS.md addendum is written.
+
+---
+
 ## REV-14b — split js/engine.js's compute() into named sub-pricers — TODO
 Branch refactor/rev-14b-compute-subpricers. Second half of REV-14 (REV-14a — the DATA extraction — shipped
 in PR #251); decompose compute()'s single ~370-line body (~lines 76–446) into named `_price*` helpers. Full
