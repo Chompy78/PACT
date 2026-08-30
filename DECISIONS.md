@@ -10,6 +10,21 @@
 
 ## Index
 
+## D-GH-2026-08-30-invite-note-grant-drift — `campaign_invites`'s column-scoped grant was missing its own documented revoke
+- `sql/rls-policies.sql`'s `campaign_invites` section claimed in a comment (since
+  D-GH-2026-08-03-invite-note-dm-only) that a table-level grant is dropped before the column-scoped
+  `grant select (...)` — but no `revoke` ever actually ran; the same gap exists in
+  `sql/migrations/2026-08-09-harden-invitation-system.sql`. `cloud-e2e`'s "invite note is DM-only" check
+  (caught on PR #472, unrelated to that PR's own diff; re-ran once, failed identically) proved it
+  reproducibly leaks `note` on a fresh Supabase stack. **Verified NOT a live production vulnerability** —
+  queried production directly: `note`/`token_hash` carry no `SELECT` for `authenticated`, and
+  `pg_default_acl` shows why (the role that built production's schema inherited a narrower default than
+  whatever role `cloud-e2e`'s throwaway local stack uses). Fixed by adding the explicit
+  `revoke select on public.campaign_invites from authenticated, anon;` to both `sql/rls-policies.sql` and
+  a new no-op-on-production migration, so the restriction holds regardless of ambient default privileges
+  instead of by accident of which role happened to run the migrations. Full record:
+  `decisions/2026/D-GH-2026-08-30-invite-note-grant-drift.md`.
+
 ## D-GH-2026-08-25-dm-console-warnings-race-flake — a "flake" verdict on dm-console-ui-e2e.mjs was wrong; root-caused and fixed the real race
 - `dm-console-ui` failed once in CI on PR #469 (the promotion PR); local repro + one CI re-run both
   passed, so it was called a flake and PR #469 was merged. That conclusion needed re-checking:
