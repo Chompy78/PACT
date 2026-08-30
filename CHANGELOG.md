@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-27 · feat(dm-console): HD stat box on the roster card, plus per-card hide/show** — the
+  default Card view's stat strip (`cardHTML()`) gets an **HD** box (the character's actual hit-dice
+  level, `s.hd`, distinct from the AP-earned `Level` already shown in the header) appended after the
+  campaign's two custom-field boxes. Every roster card (Card view, Customisable view, and their
+  no-data placeholders, local files and cloud/campaign characters alike) also gets a 🙈 **Hide**
+  button next to Skills/Tools/View; hidden ids persist in a new `pact_dm_v3_hidden_cards`
+  localStorage set (same per-device-preference pattern as the existing `hiddenCols`/`XLayout` keys —
+  display-only, never touches campaign data or `characters.stats`). A "🙈 N hidden — Show all" strip
+  with per-name chips appears above the grid whenever any of that roster's cards are hidden, scoped so
+  "Show all" only clears ids present in that roster (local files vs. one campaign's cloud roster) —
+  a card hidden while viewing a different campaign stays hidden. `engine-parity-ci.mjs` (65/0,
+  `engine.js` untouched) and `tool-pricing-ci.mjs` (176/0 on a clean re-run; one run hit an unrelated
+  "Live Sheet never became ready" harness timing flake, reproduced absent on the pre-change tree too).
 - **2026-08-30 · fix(sql): `campaign_invites` was missing the table-level `revoke` its own comment
   claimed existed — DM invite notes leaked on a fresh stack, though not in production** — caught by
   `cloud-e2e`'s "invite note is DM-only" check failing deterministically on an unrelated PR (#472); the

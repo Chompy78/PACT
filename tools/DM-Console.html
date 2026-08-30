@@ -301,6 +301,18 @@
   .homelink:hover{background:rgba(255,255,255,.26)}
   #viewToggle{min-width:7.6em;text-align:center;}
   .cardactions{margin-top:9px;}
+  .hide-btn:hover{background:var(--warn-bg,#fbf1d7); color:var(--warn,#9a7409); border-color:#ecd99a}
+  /* Declutter strip — grid-column:1/-1 lets it span the full row when it's rendered as the first
+     child of #grid/.cardgrid (both display:grid); harmless elsewhere. */
+  .hidden-strip{
+    grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:7px;
+    background:var(--paper); border:1px dashed var(--line); border-radius:10px;
+    padding:8px 12px; margin-bottom:16px; font-size:12.5px; color:var(--muted);
+  }
+  .hidden-showall{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--blue);border-radius:7px;padding:3px 9px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;}
+  .hidden-showall:hover{background:var(--light)}
+  .hidden-chip{appearance:none;border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:14px;padding:2px 9px;font:inherit;font-size:11.5px;cursor:pointer;}
+  .hidden-chip:hover{background:var(--bad-bg);color:var(--bad);border-color:#f0c4bd}
   /* Customisable card view (feat/dm-custom-character-fields) — a per-device box grid on each
      campaign-roster card, distinct from the fixed .stats/.ap grids the default card view uses. */
   .xgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line)}
@@ -1722,7 +1734,8 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       ['Prof', sgnSafe(s.prof)],
       ['Save DC', (s.saveDC==null?'—':s.saveDC)],
       cfCell('num1'),
-      cfCell('num2')
+      cfCell('num2'),
+      ['HD', (s.hd||0)]
     ].filter(Boolean);
     var statsHTML = statCells.map(function(c){
       return '<div class="stat"><div class="k">'+esc(c[0])+'</div><div class="v">'+(c[2]?c[1]:esc(c[1]))+'</div></div>';
@@ -1735,7 +1748,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         '<div class="cname">'+esc(s.name)+warnIcon+tamperBadge(s)+(dm&&dm.playerLabel?' <span class="tier" title="DM-set player label">'+esc(dm.playerLabel)+'</span>':'')+'</div>' +
         '<div class="csub">'+esc(speciesDisp(s))+' · '+esc(fmtClass(s))+
             ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span></div>' +
-        '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button>'+(dm?' '+viewBtnHTML(r.id):'')+'</div>' +
+        '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button>'+(dm?' '+viewBtnHTML(r.id):'')+' '+hideBtnHTML(r.id)+'</div>' +
       '</div>' +
       '<div class="stats">'+statsHTML+'</div>' +
       buildSections(s, r.id, dm) +
@@ -1755,6 +1768,29 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   var hiddenCols=(function(){ try{ var r=localStorage.getItem(COLKEY); if(r){ var a=JSON.parse(r); return new Set(Array.isArray(a)?a:[]); } }catch(e){} return new Set(['species2','class2','earned','spent']); })();
   function saveCols(){ try{ localStorage.setItem(COLKEY, JSON.stringify(Array.from(hiddenCols))); }catch(e){} }
   function visCols(){ return COLS.filter(function(c){ return c.key==='name' || !hiddenCols.has(c.key); }); }
+
+  /* ---------- per-card hide/show (Card + Customisable view declutter) ----------
+     Per-device DM preference, same localStorage pattern as COLKEY/hiddenCols above — hiding a card
+     is a display choice on this browser only, never data sent anywhere, and never affects the
+     player's character. Keyed by character id, which is unique across both locally-imported files
+     (uid()) and cloud characters (DB id), so one global set is enough — same scope hiddenCols already
+     uses for table columns. Card ids are always run through String() before touching the set: DB ids
+     are strings already, but comparing without coercion would silently miss a match if either side
+     were ever a number. */
+  var HIDECARDKEY='pact_dm_v3_hidden_cards';
+  var hiddenCards=(function(){ try{ var r=localStorage.getItem(HIDECARDKEY); if(r){ var a=JSON.parse(r); return new Set(Array.isArray(a)?a.map(String):[]); } }catch(e){} return new Set(); })();
+  function saveHiddenCards(){ try{ localStorage.setItem(HIDECARDKEY, JSON.stringify(Array.from(hiddenCards))); }catch(e){} }
+  function hideCard(id){ hiddenCards.add(String(id)); saveHiddenCards(); render(); }
+  function showCard(id){ hiddenCards.delete(String(id)); saveHiddenCards(); render(); }
+  function hideBtnHTML(id){ return '<button type="button" class="skbtn hide-btn" data-hide="'+esc(id)+'" title="Hide this card from your view — a display preference on this device only, doesn’t touch the player’s data. Use Show all below the grid to bring it back.">🙈 Hide</button>'; }
+  // items: [{id,name}] of the cards currently hidden within one roster (local files or one campaign's
+  // cloud roster) — `scope` tags which one so Show all only clears ids actually present in that
+  // roster, leaving a card hidden in a different campaign/import alone.
+  function hiddenStripHTML(items, scope){
+    if(!items.length) return '';
+    var chips = items.map(function(it){ return '<button type="button" class="hidden-chip" data-show="'+esc(it.id)+'" title="Show this card again">'+esc(it.name||'Unnamed')+' ✕</button>'; }).join('');
+    return '<div class="hidden-strip">🙈 '+items.length+' card'+(items.length===1?'':'s')+' hidden <button type="button" class="hidden-showall" data-showall="'+esc(scope)+'">Show all</button>'+chips+'</div>';
+  }
   // Table view merges local imports with cloud characters that have real data (placeholders with no
   // saved stats have no .summary and can't feed the table's column get()/disp() functions).
   function _combinedRoster(){ return roster.concat(cloudRoster.filter(function(r){ return r.hasData; })); }
@@ -1914,7 +1950,10 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       // Explicit single-arg call, not roster.map(cardHTML): Array#map also passes (index, array) to
       // its callback, and cardHTML now takes an optional second `dm` arg — bare `.map(cardHTML)` would
       // silently pass every local card's numeric index in as `dm` (truthy for every index >0).
-      grid.innerHTML = roster.map(function(r){ return cardHTML(r); }).join('');
+      var visibleLocal = roster.filter(function(r){ return !hiddenCards.has(String(r.id)); });
+      var hiddenLocal = roster.filter(function(r){ return hiddenCards.has(String(r.id)); });
+      var localStrip = hiddenStripHTML(hiddenLocal.map(function(r){ return {id:r.id, name:(r.summary&&r.summary.name)||r.fileName||'Unnamed'}; }), 'local');
+      grid.innerHTML = localStrip + visibleLocal.map(function(r){ return cardHTML(r); }).join('');
     } else if(grid){
       grid.innerHTML = '';
     }
@@ -2135,7 +2174,19 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       var kn=t.closest? t.closest('[data-known]') : null;
       if(kn){ e.preventDefault(); e.stopPropagation(); var kid=kn.getAttribute('data-known');
         var rr=findRosterEntry(kid);
-        if(rr&&rr.summary) openOv(knownSpellsOverlayHTML(rr.summary.name||'New Character', rr.summary.casting||[])); }
+        if(rr&&rr.summary) openOv(knownSpellsOverlayHTML(rr.summary.name||'New Character', rr.summary.casting||[])); return; }
+      var hd=t.closest? t.closest('[data-hide]') : null;
+      if(hd){ e.preventDefault(); e.stopPropagation(); hideCard(hd.getAttribute('data-hide')); return; }
+      var sh=t.closest? t.closest('[data-show]') : null;
+      if(sh){ e.preventDefault(); e.stopPropagation(); showCard(sh.getAttribute('data-show')); return; }
+      var sa=t.closest? t.closest('[data-showall]') : null;
+      if(sa){
+        e.preventDefault(); e.stopPropagation();
+        var scope=sa.getAttribute('data-showall');
+        var pool=(scope==='local') ? roster : cloudRoster;
+        pool.forEach(function(r){ hiddenCards.delete(String(r.id)); });
+        saveHiddenCards(); render(); return;
+      }
     });
     document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeOv(); });
     document.addEventListener('input', function(e){
@@ -2223,7 +2274,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
-        '<div class="cardactions">'+viewBtnHTML(rec.id)+'</div>'+
+        '<div class="cardactions">'+viewBtnHTML(rec.id)+' '+hideBtnHTML(rec.id)+'</div>'+
         '</div><div style="padding:0 16px 16px">'+dmToolsBody(rec.id, rec.dm)+'</div></div>';
     }
     return cardHTML(rec, rec.dm);
@@ -2239,7 +2290,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     // caller of this function can reintroduce the same gap.
     renderCampAwardAp();
     if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; return; }
-    container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
+    // Hiding is a display-only DM preference (see hiddenCards above) — it never drops a character out
+    // of cloudRoster itself, so Award AP, the table view, and every total still see every character.
+    var visible = cloudRoster.filter(function(r){ return !hiddenCards.has(String(r.id)); });
+    var hidden = cloudRoster.filter(function(r){ return hiddenCards.has(String(r.id)); });
+    var strip = hiddenStripHTML(hidden.map(function(r){ return {id:r.id, name:_rosterDisplayName(r)}; }), 'cloud');
+    if(!visible.length){ container.innerHTML = strip + '<div class="camp-empty">Every character in this campaign is hidden. Use Show all above to bring them back.</div>'; return; }
+    container.innerHTML = strip + '<div class="cardgrid">' + visible.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
   }
   // feat/dm-custom-character-fields (D-GH-2026-08-10): the Customisable card view — a lean header plus
   // the DM's own box layout (see wireCustomize()/loadXLayout() above), with the same collapsible "DM
@@ -2251,7 +2308,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
-        '<div class="cardactions">'+viewBtnHTML(rec.id)+'</div>'+
+        '<div class="cardactions">'+viewBtnHTML(rec.id)+' '+hideBtnHTML(rec.id)+'</div>'+
         '</div><div style="padding:0 16px 16px">'+dmToolsBody(rec.id, rec.dm)+'</div></div>';
     }
     var a = rec.summary;
@@ -2264,14 +2321,18 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
       '<div class="cname">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div>'+
       '<div class="csub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div>'+
-      '<div class="cardactions">'+viewBtnHTML(rec.id)+'</div>'+
+      '<div class="cardactions">'+viewBtnHTML(rec.id)+' '+hideBtnHTML(rec.id)+'</div>'+
       '</div><div class="xgrid">'+boxesHtml+'</div>'+
       '<div style="padding:0 16px 16px">'+secBlock('DM tools (private)', dmToolsBody(rec.id, rec.dm, a.boons))+'</div></div>';
   }
   function renderCustomRoster(container){
     if(!container) return;
     if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; return; }
-    container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return customCardHTML(rec); }).join('') + '</div>';
+    var visible = cloudRoster.filter(function(r){ return !hiddenCards.has(String(r.id)); });
+    var hidden = cloudRoster.filter(function(r){ return hiddenCards.has(String(r.id)); });
+    var strip = hiddenStripHTML(hidden.map(function(r){ return {id:r.id, name:_rosterDisplayName(r)}; }), 'cloud');
+    if(!visible.length){ container.innerHTML = strip + '<div class="camp-empty">Every character in this campaign is hidden. Use Show all above to bring them back.</div>'; return; }
+    container.innerHTML = strip + '<div class="cardgrid">' + visible.map(function(rec){ return customCardHTML(rec); }).join('') + '</div>';
   }
   window._dmAnalyzeTest = cloudAnalyze;   // test seam: lets tool-pricing-ci.mjs assert on the analyzed summary directly, no DOM traversal needed
   // Test seam: lets economy-ui-e2e.mjs render the Award AP/gold/bonus-time form directly off a fake
