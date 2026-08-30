@@ -406,6 +406,12 @@ section('row prices agree with the ledger at all three price tiers');
   // stays a genuine cross-class purchase.
   await p.click('.classunlock[data-cls="Druid"]');
   await p.waitForTimeout(200);
+  // All three individual subclass abilities checked below are T3 ("Per-Rest"), so requiredHD() gates
+  // them at 3 Hit Dice — a fresh 1 HD build (CharGen's default) would have them hard-blocked, dropped
+  // out of the "Subclass abilities" ledger line entirely and into "Blocked purchases" instead, which is
+  // exactly what made this section's ledger lookups come back undefined before this line existed.
+  await p.selectOption('#hd', '3');
+  await p.waitForTimeout(200);
   const r = await p.evaluate(() => {
     for (const k of ['Cleric|Life Domain','Druid|Circle of the Moon','Warlock|Archfey Patron']) addRow('subbundle', k);
     for (const k of ['Cleric|Life Domain|Preserve Life (Channel Divinity)',
