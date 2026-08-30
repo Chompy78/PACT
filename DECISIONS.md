@@ -10,6 +10,16 @@
 
 ## Index
 
+## D-GH-2026-08-30-archive-hd-gate-cold-reviews — cold reviews never left `z-cold/`, because the close-session check looks in the wrong place
+- Ten files sat in `z-cold/` on the auto-sync `zcold` branch. Sorted by content hash rather than
+  filename: five were byte-identical duplicates of already-filed reviews, one a stale plan snapshot, and
+  **four were genuinely unfiled and existed nowhere else** (the `feature-hd-gate` reviews, read by the
+  2026-08-27 session but never relocated). Three compounding faults: the close-session step checks only
+  `z-cold/processed/` and never the root; relocation ran as a copy rather than a move; and in this repo
+  `z-cold/` is gitignored and lives on a separate branch, so the guard can never fire at all. Four
+  reviews filed to `docs/sessions/cold-reviews/`, all ten cleared. Full record:
+  `decisions/2026/D-GH-2026-08-30-archive-hd-gate-cold-reviews.md`
+
 ## D-GH-2026-08-30-invite-note-grant-drift — `campaign_invites`'s column-scoped grant was missing its own documented revoke
 - `sql/rls-policies.sql`'s `campaign_invites` section claimed in a comment (since
   D-GH-2026-08-03-invite-note-dm-only) that a table-level grant is dropped before the column-scoped

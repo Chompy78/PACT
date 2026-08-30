@@ -17,6 +17,15 @@
   a card hidden while viewing a different campaign stays hidden. `engine-parity-ci.mjs` (65/0,
   `engine.js` untouched) and `tool-pricing-ci.mjs` (176/0 on a clean re-run; one run hit an unrelated
   "Live Sheet never became ready" harness timing flake, reproduced absent on the pre-change tree too).
+- **2026-08-30 · docs(sessions): file four `feature-hd-gate` cold reviews that had never left `z-cold/`,
+  and clear the folder** — sorting `z-cold/`'s ten files by content hash showed five were byte-identical
+  duplicates of reviews already in `docs/plans/cold-reviews/`, one a superseded plan snapshot, and four
+  genuinely unfiled with no copy anywhere in the repo. The four are now in `docs/sessions/cold-reviews/`
+  as `2026-08-27-<reviewer>-feature-hd-gate.md`, each stamped with the session log they were triaged in
+  and referenced back from `docs/sessions/2026-08-27-feature-hd-gate.md`. Root cause — the close-session
+  relocation checks `z-cold/processed/` only, copied instead of moving, and cannot fire at all in this
+  repo where `z-cold/` is gitignored and lives on the `zcold` branch. See
+  `D-GH-2026-08-30-archive-hd-gate-cold-reviews`.
 - **2026-08-30 · fix(sql): `campaign_invites` was missing the table-level `revoke` its own comment
   claimed existed — DM invite notes leaked on a fresh stack, though not in production** — caught by
   `cloud-e2e`'s "invite note is DM-only" check failing deterministically on an unrelated PR (#472); the
