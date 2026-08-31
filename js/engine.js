@@ -2003,7 +2003,14 @@ export function repriceDraft(events) {
   });
   // Costs are collected first and written only here, so a lock firing late in the log still protects
   // the events before it — the decision is made on the whole log, never event by event.
-  if (anyLocked) return log;
+  //
+  // `anyLocked` comes from _replay's per-event callback, which reports the state ENTERING each event
+  // and therefore cannot see a lock that is the FINAL event — the same blind spot fixed in
+  // isCreationDraft(). It matters more here than anywhere: since the automatic tripwire was retired,
+  // the ordinary way to lock is pressing "Finish creating", which writes that event last. Without the
+  // second test below, the very next edit would re-price every purchase the lock exists to freeze.
+  // Caught by CI's tool-pricing gate ("a locked log is returned untouched, even after a species edit").
+  if (anyLocked || !isCreationDraft(log)) return log;
   for (const [e, cost] of priced) e.cost = cost;
   return log;
 }
