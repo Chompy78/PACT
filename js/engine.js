@@ -26,6 +26,8 @@
  *                          list ({kind,label,cost}[], feat/ledger-show-lost-purchases) compute() itemizes.
  *   creationLockState(events) — {locked, armed, confirmed, threshold, spentTowardThreshold, …} for one
  *                          log. spentTowardThreshold is the LOCK's accounting, never economy().spent.
+ *   creationCeiling(events, opts?) — {enforced, base, drawbackBonus, ceiling, spent, remaining, locked}.
+ *   wouldExceedCeiling(events, cost, opts?) — may this purchase be made while still in creation?
  *   economy(events)      — {earned, spent, available, drawbackEarned}: AP tally from a LOG (no fold/compute).
  *   earnedWithDm(eco, opts?) — eco.earned composed with DM AP (opts:{dmAp?, ignorePlayerAp?}), mirroring
  *                       compute()'s own spendable formula — feeds Track-Level in both tools
@@ -1163,13 +1165,24 @@ function _lockStates(evs) {
     }
     else if (e.type === 'campaignBound') _campaignBound = true;
     else if (!e.noLock) _spent += _spendCost(e);
-    // Automatic threshold lock. Armed when explicitly opted in (_cfgAuto===true) or, absent any
-    // config, by campaign membership (the legacy behaviour). _cfgAuto===false disarms both.
-    // Suppressed while _explicitUnlocked, so a DM's unlock isn't instantly undone by a character
-    // already sitting over the threshold — the unlock grants creation room until re-armed.
-    const _autoArmed = _cfgAuto === undefined ? _campaignBound : !!_cfgAuto;
-    const _thr = (_cfgThreshold === undefined || _cfgThreshold === null) ? DATA.level1AP : _cfgThreshold;
-    if (_autoArmed && !_explicitUnlocked && _spent > _thr) _locked = true;
+    // THE AUTOMATIC THRESHOLD LOCK WAS RETIRED HERE (feat/creation-ceiling, owner decision R3).
+    //
+    // It used to read:  if (_autoArmed && !_explicitUnlocked && _spent > _thr) _locked = true;
+    //
+    // That is the bug this change exists to kill. Creation ended by INFERENCE — the first time
+    // cumulative spend crossed a threshold, silently, with no user action and no way back. A player
+    // experimenting in the builder could permanently lock a character that had never been played, and
+    // three live characters did exactly that (Moss Stormspud, Skylar, Caspian — locked at 84, 85 and
+    // 87 AP against a 79 default that was never any of their real budgets).
+    //
+    // Creation now ends only by an explicit `creationLocked` event — a person pressing a button. What
+    // replaces the tripwire is a CEILING the player cannot cross by accident (see creationCeiling()):
+    // the purchase is refused at the line and the tools offer the two real exits, rather than letting
+    // them walk through it and silently changing their pricing on the other side.
+    //
+    // `_cfgAuto`, `_cfgThreshold` and `_campaignBound` are still tracked above: the threshold is now
+    // the CEILING's figure (read via creationLockState/creationCeiling), and `campaignBound` still
+    // marks real campaign membership for other callers. Only the automatic *locking* is gone.
   }
   return out;
 }
@@ -1793,9 +1806,18 @@ export function foldBuild(events) {
 // creationLockConfig{auto:true} into all of them.
 export function isCreationDraft(events) {
   const log = (Array.isArray(events) ? events : []).filter(Boolean);
-  let anyLocked = false;
-  _replay(baseBuild(), log, (e, build, wasLocked) => { if (wasLocked) anyLocked = true; });
-  return !anyLocked;
+  // Read the state AFTER the last real event, via the same inert probe chargesGoldAndTime() uses.
+  //
+  // This used to walk _replay()'s per-event callback and ask whether any event was ENTERED already
+  // locked — which cannot see a lock that is the FINAL event, because no later event exists to enter.
+  // That was survivable while the automatic tripwire existed, since spend usually crossed the line
+  // partway through a log. It is NOT survivable now: with the tripwire retired (feat/creation-ceiling),
+  // the only way to lock is pressing "Finish creating", and that event is almost always the last one.
+  // A player would finish creation, save, reload — and be a draft again, with repriceDraft() free to
+  // rewrite the very prices the lock exists to freeze. Caught by CI's tool-pricing gate.
+  const { evs } = activeEvents(log);
+  const st = _lockStates(evs.concat([{ type: '_probe', noLock: true }]));
+  return !st[st.length - 1];
 }
 
 // creationLockState(events): the creation-lock picture for one character's log, in one call —
@@ -1855,6 +1877,61 @@ export function creationLockState(events) {
     spentTowardThreshold: spent,
     remainingToThreshold: threshold - spent,
   };
+}
+
+// creationCeiling(events, opts) — the AP ceiling a character may not spend past while still being
+// built, and where they currently stand against it.
+//
+// Returns {enforced, base, drawbackBonus, ceiling, spent, remaining, locked}.
+//
+// THE RULE (owner, R3): ceiling = the DM's assigned creation figure + the character's drawback grant.
+// The DM's figure is a ONE-OFF SNAPSHOT stamped into the log as `creationLockConfig{threshold}`; it is
+// deliberately NOT recomputed from current DM AP, because a later chapter award must not silently raise
+// a creation budget. (That exact mistake was made against live data while designing this — a reward of
+// +5 AP inflated three characters' apparent ceilings — which is the argument for freezing it.)
+//
+// The DRAWBACK HALF IS LIVE, not snapshotted, and that asymmetry is deliberate: a drawback is a trade
+// the character makes during creation, so taking one mid-build must hand back the room it paid for
+// (owner decision G2 — otherwise a player who took Soul Debt could not spend what it granted them).
+// `opts.drawbackAp` is compute()'s own post-cap grant, passed in rather than re-derived here so the
+// campaign's drawback cap is applied in exactly one place.
+//
+// `enforced` is false when the log carries NO explicit threshold. That is fail-open by design: every
+// character that predates this feature has no ceiling, and a character with no DM to set one (local,
+// solo, offline) must keep working exactly as before. Callers MUST check it — enforcing the
+// `DATA.level1AP` fallback as if it were a real ceiling would strand every existing character at a
+// number nobody chose, which is the very failure being fixed.
+//
+// `spent` is the REAL spend (economy().spent), not creationLockState()'s threshold accounting — a
+// ceiling is about what the character has actually bought, so it must count the creation burst that
+// the lock's own bookkeeping deliberately ignores. Pass it in if you already have it.
+export function creationCeiling(events, opts) {
+  const o = opts || {};
+  const st = creationLockState(events);
+  const drawbackBonus = Math.max(0, Number(o.drawbackAp) || 0);
+  const base = st.threshold;
+  const ceiling = base + drawbackBonus;
+  const spent = Number.isFinite(Number(o.spent)) ? Number(o.spent) : economy(events).spent;
+  return {
+    enforced: st.confirmed,   // no explicit threshold stamped -> no ceiling, see above
+    base, drawbackBonus, ceiling, spent,
+    remaining: ceiling - spent,
+    locked: st.locked,
+  };
+}
+
+// wouldExceedCeiling(events, cost, opts) — the one predicate both player tools gate a purchase on, so
+// "may I buy this?" is answered in the engine rather than re-implemented per tool.
+//
+// False for a LOCKED character (creation is over; the ceiling no longer applies and normal AP
+// affordability takes over), false when nothing is enforced, and false for a refund/grant (cost <= 0 —
+// a drawback must never be refused by the ceiling it raises).
+export function wouldExceedCeiling(events, cost, opts) {
+  const c = Number(cost) || 0;
+  if (c <= 0) return false;
+  const st = creationCeiling(events, opts);
+  if (!st.enforced || st.locked) return false;
+  return (st.spent + c) > st.ceiling;
 }
 
 // repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so
@@ -1926,7 +2003,14 @@ export function repriceDraft(events) {
   });
   // Costs are collected first and written only here, so a lock firing late in the log still protects
   // the events before it — the decision is made on the whole log, never event by event.
-  if (anyLocked) return log;
+  //
+  // `anyLocked` comes from _replay's per-event callback, which reports the state ENTERING each event
+  // and therefore cannot see a lock that is the FINAL event — the same blind spot fixed in
+  // isCreationDraft(). It matters more here than anywhere: since the automatic tripwire was retired,
+  // the ordinary way to lock is pressing "Finish creating", which writes that event last. Without the
+  // second test below, the very next edit would re-price every purchase the lock exists to freeze.
+  // Caught by CI's tool-pricing gate ("a locked log is returned untouched, even after a species edit").
+  if (anyLocked || !isCreationDraft(log)) return log;
   for (const [e, cost] of priced) e.cost = cost;
   return log;
 }

@@ -504,7 +504,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
-<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
+<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" id="cgFinishCreatingBtn" onclick="cgFinishCreating()" title="End character creation." style="display:none">✔ Finish creating</button>
+<button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
 <div class="hd-mobnav"><button class="btn ghost" id="undoBtnM" onclick="undo()" title="Undo" aria-label="Undo" disabled>↶</button><button class="btn ghost" id="redoBtnM" onclick="redo()" title="Redo" aria-label="Redo" disabled>↷</button><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtnM" type="button" title="Local file actions — start a new character, save to a file, or load one" aria-label="Local menu">📁 Local</button></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtnM" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" aria-label="Cloud menu">☁ Cloud</button></span><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px;margin-left:auto"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></div>
@@ -552,7 +553,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, economyOn, wealthLedger, chargesGoldAndTime } from '../js/engine.js';
+  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, economyOn, wealthLedger, chargesGoldAndTime } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, economyOn, wealthLedger, chargesGoldAndTime };
@@ -565,6 +566,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   window._engineBridge = { validate, creationLockThreshold };
+  window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling;
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   document.dispatchEvent(new Event('engine-ready'));
 </script>
@@ -2754,26 +2756,45 @@ function _cgEnsureLockArmed(){
 // clears the unlock, creationUnlocked sets the unlock, and creationLockConfig re-arms by clearing it.
 // Respecting an explicit unlock matters — otherwise a DM's unlock would be undone on the next keystroke
 // by a character already sitting over the threshold, which is the whole reason _explicitUnlocked exists.
-function _cgEnsureLockFired(){
-  const st=_creationLockState();
-  if(!st.armed)return;                      // never auto-lock a character that isn't armed (D-GH32)
-  if(!(st.spent>st.threshold))return;       // strictly greater, matching the engine's `_spent > _thr`
-  let locked=false,explicitUnlocked=false;
-  for(const e of (LOG||[])){
-    if(!e)continue;
-    if(e.type==='creationLocked'){locked=true;explicitUnlocked=false;}
-    else if(e.type==='creationUnlocked'){locked=false;explicitUnlocked=true;}
-    else if(e.type==='creationLockConfig')explicitUnlocked=false;
-  }
-  if(locked||explicitUnlocked)return;
-  LOG.push({seq:SEQ++,ts:Date.now(),type:'creationLocked',rules:DATA.version,
-    label:'Creation locked — '+st.spent+' AP spent, past the '+st.threshold+' AP creation budget'});
+// _cgEnsureLockFired() WAS HERE AND HAS BEEN DELETED (feat/creation-ceiling, R3).
+//
+// It was CharGen's own copy of the automatic spend tripwire, appending `creationLocked` the moment
+// reconciled spend passed the threshold. Retiring the engine's auto-lock without deleting this would
+// have changed nothing where it actually mattered: every character this bug has bitten was locked
+// HERE, by this function. Moss Stormspud, Skylar and Caspian each carry a marker it wrote, at 84, 85
+// and 87 AP against a 79 default that was none of their real budgets.
+//
+// That is the drift shape this project keeps paying for — a canonical rule retired in the engine while
+// a hand-written mirror in a tool quietly keeps the old behaviour. Deleted rather than disabled so it
+// cannot be revived by accident.
+//
+// Creation now ends only through cgFinishCreating() below: a person pressing a button.
+function _cgCeilOpts(){
+  var b = readBuild();
+  return { drawbackAp: compute(b, _cgDmOpts()).drawbackAp || 0, spent: economy(LOG).spent };
 }
+function cgFinishCreating(){
+  var st = (typeof creationCeiling === 'function') ? creationCeiling(LOG, _cgCeilOpts()) : null;
+  if(st && st.locked){ alert('This character has already finished creation.'); return; }
+  var msg = 'Finish creating this character?\n\n';
+  if(st) msg += 'You have spent ' + st.spent + ' of ' + st.ceiling + ' AP.\n\n';
+  msg += 'After this:\n'
+      +  '  \u2022 traits from your own species cost more to add\n'
+      +  '  \u2022 purchases start costing gold and downtime (if your DM has that switched on)\n'
+      +  '  \u2022 your creation limit no longer applies \u2014 you spend whatever AP you have\n\n'
+      +  'Only your DM can reopen creation afterwards.';
+  if(!confirm(msg)) return;
+  LOG.push({ seq:SEQ++, ts:Date.now(), type:'creationLocked', rules:DATA.version,
+             label:'Creation finished' + (st ? (' \u2014 ' + st.spent + ' of ' + st.ceiling + ' AP spent') : '') });
+  render();
+  flash('\u2714 Creation finished \u2014 you now build at in-play prices.');
+}
+window.cgFinishCreating = cgFinishCreating;
 // Reprice FIRST, then decide: the lock must be judged on reconciled costs, and appending the event makes
 // isCreationDraft() false, which is what correctly stops any further repricing. Both live in here rather
 // than at each call site for the same reason the burst tags noLock uniformly — a future LOG-mutating path
 // cannot forget one.
-function _cgRepriceDraft(){LOG=repriceDraft(LOG);_cgEnsureLockFired();}
+function _cgRepriceDraft(){LOG=repriceDraft(LOG);}   // no auto-lock: see the note above cgFinishCreating()
 function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);_cgRepriceDraft();render();}
 
 // Creation-AP confirmation (D-GH-2026-08-05-pricing-model, D3) — the Live Sheet carries a byte-equivalent
@@ -5023,7 +5044,26 @@ function buildGuide(b,r){const tips=[];
 // inside _cgRenderInner). _cgRenderInner's armour/cross-race DOM corrections are LOG_SYNC_GUARD writers:
 // they only make the controls reflect already-determined LOG legality; they emit no events and mutate no
 // LOG. b here is readBuild()=foldBuild(LOG)+name/budget shim.
-function render(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){} }
+function render(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){}
+  // Creation state: reveal "Finish creating" only while this character is genuinely still in creation
+  // AND a ceiling has been stamped for it — otherwise there is nothing to finish against and the
+  // button would be noise on every legacy character. Tooltip carries the numbers so a player meets the
+  // limit before they collide with it.
+  try{
+    var _cgB = $('cgFinishCreatingBtn');
+    if(_cgB && typeof creationCeiling === 'function'){
+      var _cgS = creationCeiling(LOG, _cgCeilOpts());
+      var _cgShow = _cgS.enforced && !_cgS.locked;
+      _cgB.style.display = _cgShow ? '' : 'none';
+      if(_cgShow){
+        _cgB.title = 'Creation budget ' + _cgS.ceiling + ' AP'
+          + (_cgS.drawbackBonus ? (' (' + _cgS.base + ' from your DM + ' + _cgS.drawbackBonus + ' from drawbacks)') : '')
+          + ' \u2014 ' + _cgS.spent + ' spent, ' + Math.max(0,_cgS.remaining) + ' left.'
+          + ' Finishing ends creation: own-species traits cost more afterwards. Only your DM can reopen it.';
+      }
+    }
+  }catch(e){ /* display-only */ }
+}
 function _cgRenderInner(){
   const b=readBuild();
   // Medium/Heavy armour require STR 10 — auto-deselect if Strength drops below 10
