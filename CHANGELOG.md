@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-30 · feat(dm-console): show each character's creation-lock state on their card** — a DM had
+  no way to see whether a character was still being built or had passed its creation limit, per
+  character, anywhere. The card's PACT-build panel now carries a **Creation** row: "locked (past N AP)"
+  or "still building — limit N AP", saying explicitly when N is the engine default rather than a figure
+  set for that character. Read-only; SETTING a ceiling is the unbuilt half of
+  `docs/plans/2026-08-30-creation-ceiling.md`. New pure engine export `creationLockState(events)` supplies
+  it — CharGen and Live Sheet already carry a hand-written copy of this scan each, and a third would have
+  been the drift shape this project keeps paying for. Additive: no `compute()` change, no `DATA.version`
+  bump, parity 73/0.
 - **2026-08-30 · fix(tools): AP breakdowns omitted the drawback pool and contradicted their own
   headline** — `compute()` composes spendable AP from THREE pools (player × ignore-toggle + drawback grant
   + DM) but returned only two of them, so no tool could label the third. Live on a real character:
