@@ -4,6 +4,28 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-31 · feat(chargen): themed random character generator** — the 🎲 Random roll produced
+  incoherent characters, and three defects were measured rather than guessed (harness now committed as
+  `testing/scripts/random-quality-ci.mjs`): Hit Dice were capped at **9 for every budget** because
+  `1+rnd(Math.min(9,…))` clamped the random DRAW rather than the ceiling, so a 535 AP (level-20) budget
+  rolled an HD-5 character and dumped the surplus into 15 boons + 15 arts; at 600 AP **100%** of rolls
+  owned light armour + shield + simple weapons and ~96% heavy armour + all martial weapons *regardless of
+  class*; and skills were starved at level 1 (0.9 of 19) yet flooded at 600 AP (8.9 of 19). Adds a
+  **theme layer** — eight playable concepts (Frontline Bruiser, Skirmisher, Battle-Caster, The Face,
+  Scholar, Wilderness Scout, Trickster, Zealot), each declaring a spend shape, category weights over the
+  `cat` fields `DATA.boons`/`DATA.arts` already carry, ability priorities, an armour/weapon ceiling and
+  shortlists for skills, tools, drawbacks, name style and demeanour. ~18% of picks stay deliberately
+  off-theme so two rolls of one theme still differ. Level now tracks `apLevel(budget)`. The old
+  `confirm()` is replaced by a roll panel (theme picker + target level, remembered between rolls).
+  Legality machinery is untouched — `tryAct()` still gates every buy on budget + no-new-hard-warning.
+  Fixes found on the way: tradition Rank could reach 10 against a UI select that only offers 0–9, which
+  made the select read back as Rank **0** and stranded every spell slot behind a gate; spell slots were
+  picked at a random level despite compute()'s non-increasing-by-level rule, so most were rejected and
+  level-20 casters finished with 0–4 slots; `DATA.castAbility` was used as an "is this a caster" test
+  when it carries an entry for every class, priming a Fighter's INT over its STR; and a drawback's AP
+  refund was never spendable because the ceiling was captured before it. Display/UX only — no rules
+  change, no `DATA.version` bump. Graduates `feat/randomize-tuning` off `docs/TASK_BOARD_NEXT.md`.
+  Full record: `decisions/2026/D-GH-2026-08-31-random-char-generator-optimize.md`.
 - **2026-08-30 · feat(dm-console): show each character's creation-lock state on their card** — a DM had
   no way to see whether a character was still being built or had passed its creation limit, per
   character, anywhere. The card's PACT-build panel now carries a **Creation** row: "locked (past N AP)"

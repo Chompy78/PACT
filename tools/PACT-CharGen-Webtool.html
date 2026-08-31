@@ -244,7 +244,7 @@ h4{margin:8px 0 2px;color:var(--teal);font-size:12.5px}
    inflating — 599px inside a 362px section, clipped invisibly by body{overflow-x:hidden}. Same root
    cause as the class grid, one layer out. */
 .grow{flex:1;min-width:0}
-@media print{.shcols{grid-template-columns:repeat(3,1fr) !important}.shcols2{grid-template-columns:1fr 2fr !important}.shrow{font-size:10.5px}.stickyhead,.layout,.shtop,#explainview,#portraitview{display:none !important}#sheetview{position:static;padding:0}
+@media print{.shcols{grid-template-columns:repeat(3,1fr) !important}.shcols2{grid-template-columns:1fr 2fr !important}.shrow{font-size:10.5px}.stickyhead,.layout,.shtop,#explainview,#portraitview,#rollview{display:none !important}#sheetview{position:static;padding:0}
  /* force a light palette when printing, whatever theme is on screen */
  body,body[data-theme]{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;--good:#2E7D32;--bad:#C00000;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#fff;--card:#fff;background:#fff!important;color:#222!important}}
 /* --- sticky header (topbar + section nav) --- */
@@ -318,6 +318,14 @@ fieldset.collapsed .secbody{display:none}
 .locklab input{margin:0}
 /* --- portrait prompt modal --- */
 #portraitview{display:none;position:fixed;inset:0;background:var(--bg);z-index:55;overflow:auto;padding:14px}
+#rollview{display:none;position:fixed;inset:0;background:var(--bg);z-index:57;overflow:auto;padding:14px}
+.rollthemes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin:6px 0 4px}
+.rollth{display:block;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--card);cursor:pointer}
+.rollth:hover{border-color:var(--blue)}
+.rollth input{margin-right:7px}
+.rollth b{font-size:13.5px;color:var(--navytx)}
+.rollth .hint{display:block;margin:3px 0 0 20px;font-size:11.5px;line-height:1.4}
+.rollth:has(input:checked){border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
 #portraittext,#portraittext_full{width:100%;height:140px;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);line-height:1.5;resize:vertical}
 /* --- narrow / mobile --- */
 /* a11y (M6): visible focus ring on every interactive control */
@@ -505,7 +513,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
-<button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
+<button class="btn ghost" onclick="randomizeBuild()" title="Roll a random character — pick a theme and a target level, then roll. Keeps your current species, class and name.">🎲 Random</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
 <div class="hd-mobnav"><button class="btn ghost" id="undoBtnM" onclick="undo()" title="Undo" aria-label="Undo" disabled>↶</button><button class="btn ghost" id="redoBtnM" onclick="redo()" title="Redo" aria-label="Redo" disabled>↷</button><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtnM" type="button" title="Local file actions — start a new character, save to a file, or load one" aria-label="Local menu">📁 Local</button></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtnM" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" aria-label="Cloud menu">☁ Cloud</button></span><select id="secjump" aria-label="Jump to section" onchange="if(this.value){jumpTo(this.value);}this.selectedIndex=0;"></select><select id="themeselMobile" aria-label="Theme" onchange="setTheme(this.value)" style="min-width:0;width:84px;margin-left:auto"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></div>
 <div class="secnav" id="secnav"></div>
@@ -516,7 +524,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
 <button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button>
-<button class="btn ghost" onclick="randomizeBuild()" title="Roll a random legal character within your AP budget — keeps your current species, class and name">🎲 Random</button>
+<button class="btn ghost" onclick="randomizeBuild()" title="Roll a random character — pick a theme and a target level, then roll. Keeps your current species, class and name.">🎲 Random</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button>
 </div>
 <div id="sheetview"><div class="shtop"><b>📋 Character Sheet</b><button class="btn" onclick="window.print()">🖨 Print</button><button class="btn ghost" onclick="toggleSheet()">✕ Close — back to builder</button></div><div id="sheetbody"></div></div>
@@ -526,6 +534,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <div style="max-width:760px;margin:0 auto"><p class="hint">Paste either prompt into any AI image generator (Midjourney, DALL·E, Firefly, Stable Diffusion…). Edit freely before generating.</p>
 <h4>Head-and-shoulders portrait</h4><textarea id="portraittext" spellcheck="false"></textarea>
 <h4 style="margin-top:10px">Full-body figure</h4><textarea id="portraittext_full" spellcheck="false"></textarea></div></div>
+<div id="rollview"><div class="shtop"><b>🎲 Roll a random character</b><button class="btn" onclick="doRoll()">🎲 Roll</button><button class="btn ghost" onclick="closeRollPanel()">✕ Cancel</button></div>
+<div style="max-width:760px;margin:0 auto" id="rollbody"></div></div>
 <div class="layout">
   <div id="form"></div>
   <aside class="summary">
@@ -1700,6 +1710,10 @@ function genName(){
   let pools=styles.slice();
   if(influ.includes('race')){(RACE_STYLE[val('spec')]||[]).forEach(k=>pools.push(k));}
   if(influ.includes('class')){(CLASS_STYLE[val('oclass')]||[]).forEach(k=>pools.push(k));}
+  // feat/random-char-generator-optimize: a themed whole-character roll adds that theme's name styles,
+  // so the name matches the concept. Additive — the player's own style/influence ticks are still
+  // honoured, and window._rollThemeActive is only ever set for the duration of randomizeRoll()'s own call.
+  {const _th=window._rollThemeActive;if(_th&&_th.name)_th.name.forEach(k=>{if(NAMEDATA[k])pools.push(k);});}
   pools=[...new Set(pools)];
   let firsts=[],lasts=[];
   pools.forEach(k=>{const d=NAMEDATA[k];if(d){firsts=firsts.concat(d.first.map(s=>s.trim()).filter(Boolean));lasts=lasts.concat(d.last);}});
@@ -1850,7 +1864,11 @@ function _rollField(field){
   else if(field==='skin')set('ap_skin',S.scaled?(_wpick(S.scaleskin||WPOOL.skin)+' scales'):(_wpick(S.skin||WPOOL.skin)+' skin'));
   else if(field==='nose')set('ap_nose',_wpick(WPOOL.nose));
   else if(field==='marks')set('ap_marks',(S.horns?'curved horns; ':'')+(S.beard?'a thick braided beard; ':'')+(S.tusks?'prominent tusks; ':'')+_pick(APPEAR.marks));
-  else if(field==='demeanour')set('ap_demeanour',_pick((CLASS_DEMEAN[cls]||[]).concat(APPEAR.demeanour)));
+  // feat/random-char-generator-optimize: during a themed whole-character roll, window._rollThemeActive's own
+  // demeanour words lead (doubled so they outweigh the generic pool without excluding it), so a
+  // Frontline Bruiser reads as battle-worn rather than drawing its manner independently of its build.
+  else if(field==='demeanour'){const _th=window._rollThemeActive;const _td=(_th&&_th.demean)||[];
+    set('ap_demeanour',_pick(_td.concat(_td).concat(CLASS_DEMEAN[cls]||[]).concat(APPEAR.demeanour)));}
   else if(APPEAR[field])set('ap_'+field,_pick(APPEAR[field]));
 }
 const APFIELDS=['gender','age','height','build','hair','eyes','nose','skin','marks','voice','demeanour','quirk','likes','dislikes',
@@ -4323,11 +4341,143 @@ function _cgRestoreAutosave(){try{
 // and randomly spends the remaining AP budget on legal purchases. Casters get a
 // light spell kit. Every tentative buy is kept only if it stays within budget
 // and introduces no new rules warning, so the result is always legal.
-function randomizeBuild(){
-  if(!confirm('Roll a random character?\n\nKeeps anything you have already chosen (species, class, name, budget) and randomly fills everything still unset — biased toward your class and species — within budget.')) return;
-  setTimeout(randomizeRoll,0);
-}
-function randomizeRoll(){
+//
+// feat/random-char-generator-optimize (2026-08-31). The roll used to draw uniformly from one flat
+// action pool until the budget ran dry, which measured badly in three specific ways (numbers from
+// testing/scripts/random-quality-ci.mjs's own harness, 50 rolls per budget, against the pre-change code):
+//   1. HD was capped at 9 at EVERY budget — `1+rnd(Math.min(9,…))` clamped the DRAW, not the ceiling —
+//      so a 535 AP (level-20) budget rolled an HD-5 character on average and could never exceed 9.
+//      The surplus had nowhere to go but breadth: 15 boons + 15 arts on a level-5 body.
+//   2. No thematic coherence. At 600 AP, 100% of rolls owned light armour + shield + simple weapons and
+//      ~96% owned heavy armour + all martial weapons — Wizards included — purely because those are cheap
+//      and legal. Every high-AP character converged on the same walking armoury.
+//   3. Skills were starved at low budget (0.9 of 19 at level 1, because the eager boon/art/racial block
+//      ran before the main loop and ate the budget) and flooded at high budget (8.9 of 19 at 600 AP).
+// The fix is a THEME layer over the same legality machinery, NOT a rewrite of it: tryAct() still gates
+// every purchase on budget + no-new-hard-warning exactly as before. What changed is WHICH purchase gets
+// offered — a theme supplies a spend shape (how much of the budget goes to stats / powers / skills / kit),
+// category weights over the boon and art `cat` fields DATA already carries, ability priorities, an
+// armour/weapon ceiling, and shortlists for skills, tools and drawbacks. THEME_SLIP keeps ~18% of picks
+// off-theme so a Scholar can still surprise you; a fully rigid theme would just rotate the sameness
+// problem rather than fix it.
+
+// Each theme is one playable concept. `cats` weights the EXISTING DATA.boons[k].cat / DATA.arts[k].cat
+// values (boons: Combat, Defence, Skill & Utility, Social, Magic, Wild & Story, Epic; arts: Combat,
+// Fighting Style, Origin, Utility, Magic, Social) — a weight of 0 excludes a category unless the slip
+// fires, so no theme is ever hard-locked out of anything. `shape` is the fraction of budget aimed at each
+// spend bucket and need not sum to exactly 1 (it is used as relative pressure, not as a hard allocation).
+// `armour`/`weapons` are CEILINGS, not targets. `classes`/`species` are only consulted when the player
+// has not already chosen one — the roll never overwrites an existing choice.
+const RTHEMES=[
+ {key:'bruiser',label:'Frontline Bruiser',hint:'Heavy armour, heavy weapon, first into the fire.',
+  abil:['STR','CON'],
+  cats:{Combat:6,Defence:6,'Fighting Style':5,'Skill & Utility':1,Social:1,Magic:0,'Wild & Story':1,Origin:2,Utility:1,Epic:2},
+  skills:['Athletics','Intimidation','Perception','Survival','Initiative','Animal Handling'],
+  tools:["Smith's tools","Land vehicles","Brewer's supplies"],
+  draws:['Berserk Temper','Old Wound','Quick to Quarrel','Reckless','Blunt','Bad Back','Illiterate','Slow Study','Conspicuous','Missing Arm'],
+  armour:'heavy',shield:true,weapons:'martial',
+  shape:{stats:0.30,powers:0.40,skills:0.10,kit:0.20},
+  name:['rugged','heroic'],demean:['fierce','battle-worn','intense','grim and guarded','blunt to a fault'],
+  classes:['Barbarian','Fighter','Paladin'],species:['Orc','Goliath','Dwarf','Dragonborn','Human']},
+
+ {key:'skirmisher',label:'Skirmisher',hint:'Fast, light, hits where the armour is thin.',
+  abil:['DEX','CON'],
+  cats:{Combat:6,'Fighting Style':5,Defence:2,'Skill & Utility':3,Social:1,Magic:0,'Wild & Story':1,Origin:2,Utility:2,Epic:2},
+  skills:['Acrobatics','Stealth','Perception','Initiative','Athletics','Sleight of Hand'],
+  tools:["Thieves' tools","Land vehicles","Cobbler's tools"],
+  draws:['Thin-Skinned','Reckless','Butterfingers','Old Wound','Quick to Quarrel','Gun Shy','Frail','Motion Sick'],
+  armour:'medium',shield:false,weapons:'martial',
+  shape:{stats:0.32,powers:0.38,skills:0.16,kit:0.14},
+  name:['rugged','heroic','common'],demean:['restless','coiled and tense','watchful','wry and dry','quick to smile'],
+  classes:['Monk','Rogue','Fighter','Ranger'],species:['Halfling','Elf','Human','Tiefling','Goliath']},
+
+ {key:'battlecaster',label:'Battle-Caster',hint:'Spells as a weapon, and enough armour to survive casting them.',
+  abil:null,   // null = use the class's own casting ability (DATA.castAbility), then CON
+  cats:{Magic:7,Defence:4,Combat:3,'Skill & Utility':2,Social:1,'Wild & Story':2,Origin:1,Utility:2,'Fighting Style':1,Epic:2},
+  skills:['Arcana','Perception','Initiative','Insight','History','Religion'],
+  tools:["Alchemist's supplies","Calligrapher's supplies","Herbalism kit"],
+  draws:['Mana Leak','Mana-Sick','Wild Surge','Frail','Thin-Skinned','Nightmares','Truename Known','Hexed Luck','Soul Debt','Ritual-Blind'],
+  armour:'medium',shield:true,weapons:'simple',
+  shape:{stats:0.28,powers:0.48,skills:0.12,kit:0.12},
+  name:['mystic','dark'],demean:['intense','studious','brooding','coiled and tense','proud'],
+  classes:['Sorcerer','Warlock','Cleric','Druid','Wizard'],species:['Tiefling','Elf','Aasimar','Human','Dragonborn']},
+
+ {key:'face',label:'The Face',hint:'Talks first. Usually does not have to do anything else.',
+  abil:['CHA','DEX'],
+  cats:{Social:7,'Skill & Utility':5,Magic:2,Combat:1,Defence:1,'Wild & Story':2,Origin:2,Utility:3,'Fighting Style':1,Epic:2},
+  skills:['Persuasion','Deception','Insight','Performance','Intimidation','History'],
+  tools:['Disguise kit','Forgery kit','Playing card set','Dice set'],
+  draws:['Bad Liar','Honest to a Fault','Notorious','Conspicuous','Marked','Cursed Wealth','Dependent','Suggestible','Compulsion'],
+  armour:'light',shield:false,weapons:'simple',
+  shape:{stats:0.28,powers:0.36,skills:0.24,kit:0.12},
+  name:['heroic','common','mystic'],demean:['charming','quick to smile','flamboyant','warm but wary','quietly amused'],
+  classes:['Bard','Sorcerer','Warlock','Rogue','Paladin'],species:['Human','Halfling','Tiefling','Aasimar','Elf']},
+
+ {key:'scholar',label:'Scholar',hint:'Knows the answer, owns the tools, avoids the swords.',
+  abil:['INT','WIS'],
+  cats:{'Skill & Utility':7,Magic:5,Utility:5,Social:2,Defence:1,Combat:0,'Wild & Story':2,Origin:2,'Fighting Style':0,Epic:2},
+  skills:['Arcana','History','Investigation','Nature','Religion','Medicine','Insight'],
+  tools:["Calligrapher's supplies","Cartographer's tools","Alchemist's supplies","Herbalism kit","Jeweler's tools","Tinker's tools"],
+  draws:['Frail','Overthinks Everything','No Head for Heights','Squeamish','Asthmatic','Forgetful','Bad With Animals','Weak-Willed','Slow-Footed','Affliction — Clumsy (DEX)'],
+  armour:'light',shield:false,weapons:'simple',
+  shape:{stats:0.24,powers:0.40,skills:0.28,kit:0.08},
+  name:['mystic','common'],demean:['studious','curious','formal and precise','aloof','endlessly patient'],
+  classes:['Wizard','Cleric','Druid','Bard'],species:['Gnome','Elf','Human','Dwarf','Halfling']},
+
+ {key:'scout',label:'Wilderness Scout',hint:'At home in the wild, and rarely seen coming.',
+  abil:['DEX','WIS'],
+  cats:{'Wild & Story':6,'Skill & Utility':5,Combat:4,Utility:4,'Fighting Style':3,Defence:2,Magic:2,Social:1,Origin:2,Epic:2},
+  skills:['Survival','Perception','Stealth','Nature','Animal Handling','Athletics','Medicine'],
+  tools:["Navigator's tools","Herbalism kit","Cook's utensils","Leatherworker's tools","Woodcarver's tools"],
+  draws:['Agoraphobic','Outsider','Blunt','Illiterate','Bad Back','Superstitious','Not a Morning Person','Old Wound','Weather-Bringer'],
+  armour:'medium',shield:false,weapons:'martial',
+  shape:{stats:0.28,powers:0.36,skills:0.24,kit:0.12},
+  name:['rugged','elvish','common'],demean:['quiet','watchful','aloof','serene','calm and watchful'],
+  classes:['Ranger','Druid','Barbarian','Monk'],species:['Elf','Human','Halfling','Goliath','Orc']},
+
+ {key:'trickster',label:'Trickster',hint:'Locks, pockets, and the truth — all things to be picked.',
+  abil:['DEX','CHA'],
+  cats:{'Skill & Utility':7,Social:4,Combat:3,Utility:4,'Fighting Style':2,Magic:2,Defence:1,'Wild & Story':2,Origin:2,Epic:2},
+  skills:['Stealth','Sleight of Hand','Deception','Investigation','Perception','Acrobatics','Insight'],
+  tools:["Thieves' tools",'Disguise kit','Forgery kit',"Poisoner's kit",'Dice set','Playing card set'],
+  draws:['Notorious','Hunted','Butterfingers','Cursed Wealth','Sweaty Palms','Bad Liar','Compulsion','Marked','Doppelganger','Two Souls'],
+  armour:'light',shield:false,weapons:'simple',
+  shape:{stats:0.26,powers:0.34,skills:0.30,kit:0.10},
+  name:['dark','common'],demean:['sly','guarded','quick to smile','quietly amused','never breaks eye contact'],
+  classes:['Rogue','Bard','Warlock','Monk'],species:['Halfling','Gnome','Tiefling','Human','Elf']},
+
+ {key:'zealot',label:'Zealot',hint:'Faith, oath or pact — and the will to enforce it.',
+  abil:null,   // casting ability (WIS/CHA for the divine classes), then CON
+  cats:{Magic:5,Defence:5,Social:4,Combat:4,'Wild & Story':3,'Skill & Utility':2,'Fighting Style':3,Origin:2,Utility:1,Epic:2},
+  skills:['Religion','Insight','Persuasion','Intimidation','Medicine','Perception','Initiative'],
+  tools:["Calligrapher's supplies","Brewer's supplies","Herbalism kit"],
+  draws:['Code of Honour','Oath of Poverty (permanent)','Merciful','Prophesied Doom','Honest to a Fault','Superstitious','Geas of the Road','Soul Debt','Haunted / Phobia','Marked'],
+  armour:'heavy',shield:true,weapons:'martial',
+  shape:{stats:0.28,powers:0.44,skills:0.12,kit:0.16},
+  name:['heroic','mystic','dark'],demean:['righteous','resolute','devout','solemn','grim and guarded'],
+  classes:['Paladin','Cleric','Warlock','Barbarian'],species:['Aasimar','Human','Dwarf','Dragonborn','Tiefling']},
+];
+const RTHEME_BY_KEY=k=>RTHEMES.find(t=>t.key===k)||null;
+// Fraction of purchases that ignore the theme entirely. Deliberately non-zero: a theme that is obeyed
+// 100% of the time makes every "Frontline Bruiser" the same character, which is the failure this whole
+// change exists to remove — just rotated onto a different axis.
+const THEME_SLIP=0.18;
+// Which themes suit a class the player has ALREADY chosen — used by "Surprise me" so an existing Wizard
+// rolls Scholar/Battle-Caster rather than Frontline Bruiser. Falls back to the full list for anything
+// unlisted, so a new class added to DATA still rolls (broadly) rather than breaking.
+const RTHEME_FOR_CLASS={Barbarian:['bruiser','scout','zealot'],Bard:['face','trickster','scholar'],
+ Cleric:['zealot','battlecaster','scholar'],Druid:['scout','battlecaster','scholar'],
+ Fighter:['bruiser','skirmisher'],Monk:['skirmisher','scout','trickster'],
+ Paladin:['zealot','bruiser','face'],Ranger:['scout','skirmisher'],
+ Rogue:['trickster','skirmisher','face'],Sorcerer:['battlecaster','face'],
+ Warlock:['battlecaster','zealot','trickster'],Wizard:['scholar','battlecaster']};
+const ARM_RANK={none:0,light:1,medium:2,heavy:3};
+
+function randomizeBuild(){ openRollPanel(); }
+
+// theme: a RTHEMES entry, or null for "surprise me" (picked from the chosen class, or at random).
+// lvlWanted: a target character level, or 0/null to derive it from the AP budget (the normal case).
+function randomizeRoll(themeKey,lvlWanted){
   // Deep-clone the working build: readBuild()=foldBuild(LOG) returns nested arrays/objects that ALIAS the
   // LOG event payloads, so randomize's in-place mutations below (b.traditions.push, b.stats[a]=…) would
   // otherwise corrupt the live LOG. Harmless pre-Step-4 (applyBuild rebuilt LOG from the DOM afterward),
@@ -4357,94 +4507,236 @@ function randomizeRoll(){
     else alert('This character has no AP yet — ask your DM to grant some before randomising.');
     return;
   }
-  const budget=_spendable;
+  // `let`, not `const`: a drawback bought below raises compute().spendable, and the ceiling must
+  // follow it (see the drawback loop). Never lowered — only ever raised by a granted refund.
+  let budget=_spendable;
   const C=x=>compute(x,_dmO);
   const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
-  function tryAct(mut){ const snap=JSON.stringify(b);
-    const _hw=ww=>ww.filter(w=>typeof isAdvisory==='function'?!isAdvisory(w):true).length;  // count only HARD (⚠) warnings; advisory (ⓘ) notes are allowed
-    try{ const w0=_hw(C(b).warnings);
-      if(mut(b)===false){ b=JSON.parse(snap); return false; }
-      const r=C(b); if(r.total<=budget && _hw(r.warnings)<=w0) return true;
-    }catch(e){}
-    b=JSON.parse(snap); return false; }
-  const tradOf=cls=>{for(const t in DATA.disc) if((DATA.disc[t]||[]).includes(cls)) return t; return null;};
-  const discOf=x=>{const t=x.traditions.find(tr=>tr&&tr.name===trad); return t&&t.disciplines&&t.disciplines[0];};
+  // weighted pick over [value,weight] pairs; falls back to uniform if every weight is 0
+  const wpick=list=>{let tot=0;for(const x of list)tot+=Math.max(0,x[1]);
+    if(tot<=0)return list.length?list[rnd(list.length)][0]:null;
+    let r=Math.random()*tot;for(const x of list){r-=Math.max(0,x[1]);if(r<0)return x[0];}return list[list.length-1][0];};
+
   const skillNames=DATA.skillList.map(s=>s[0]);
   const prepared=DATA.prepared||[];
   const _snap0=JSON.stringify(b);
-  if(!b.species||b.species==='(none)') b.species=pick(DATA.species);
-  if(!b.originClass||b.originClass==='(none)') b.originClass=pick(DATA.classes);
+
+  // ── theme, then the identity it implies ──────────────────────────────────
+  // Order matters: the theme is chosen FIRST (from the class if one is already set), then it fills in a
+  // missing species/class from its own preference list. That way "Scholar" on an empty sheet rolls a
+  // Wizard rather than the old uniform draw across all twelve classes, but an explicitly-chosen class is
+  // never overwritten — the button's long-standing promise is that it keeps what you already picked.
+  let TH=themeKey?RTHEME_BY_KEY(themeKey):null;
+  if(!TH){
+    const cls=(b.originClass&&b.originClass!=='(none)')?b.originClass:null;
+    const keys=(cls&&RTHEME_FOR_CLASS[cls])||RTHEMES.map(t=>t.key);
+    TH=RTHEME_BY_KEY(pick(keys))||RTHEMES[0];
+  }
+  if(!b.species||b.species==='(none)') b.species=pick((TH.species||[]).filter(s=>DATA.species.includes(s)).length?TH.species.filter(s=>DATA.species.includes(s)):DATA.species);
+  if(!b.originClass||b.originClass==='(none)') b.originClass=pick((TH.classes||[]).filter(c=>DATA.classes.includes(c)).length?TH.classes.filter(c=>DATA.classes.includes(c)):DATA.classes);
+
+  const tradOf=cls=>{for(const t in DATA.disc) if((DATA.disc[t]||[]).includes(cls)) return t; return null;};
+  const discOf=x=>{const t=x.traditions.find(tr=>tr&&tr.name===trad); return t&&t.disciplines&&t.disciplines[0];};
+  // compute() requires spell slots to be NON-INCREASING by level (engine.js: "slots can't exceed the
+  // next-lower level"). Picking a level at random therefore proposed an illegal buy nearly every time
+  // once Rank climbed past 1 — tryAct dutifully rejected it, and level-20 casters finished with 0-4
+  // slots in total. Offering only the levels that keep the pyramid intact builds it bottom-up instead.
+  // (`known` has no such ordering rule — only the Rank/HD gate — so it is left picking freely.)
+  const legalSlotL=(d,R)=>{const out=[],sl=d.slots||[];
+    for(let L=1;L<=Math.min(9,R);L++){const want=(sl[L-1]||0)+1,below=(L===1)?Infinity:(sl[L-2]||0);if(want<=below)out.push(L);}
+    return out;};
+  const trad=tradOf(b.originClass);
+  // Casting ability comes from DATA.castAbility, the engine's own map — this used to be a local CAST_ABIL
+  // literal covering only eight classes, which would silently mis-prime a caster class added to DATA later.
+  const castAb=(DATA.castAbility||{})[b.originClass]||null;
+  // Tradition Rank has a hard ceiling: DATA.hdGate/DATA.rankCum are 9 entries long and the tool's own
+  // Rank control is numOpts(0,9,0). Exceeding it is not merely over-buying — `select.value=10` matches
+  // no option, so the select silently goes blank and reads back as Rank 0 through _domReadBuild(),
+  // which strands every spell slot the roll just bought behind a gate that now says Rank 0. That is
+  // exactly what happened once HD stopped being clamped to 9: the rank loop below runs 9 times from a
+  // base of 1, and at HD 20 every iteration passes its gate, landing on Rank 10.
+  const MAXRANK=Math.max(1,Math.min((DATA.hdGate||[]).length||9,(DATA.rankCum||[]).length||9));
+  // How much this theme cares about magic — drives both the Rank ladder's stopping point and the
+  // weight of the caster actions in the spend pool. Declared here because the ladder runs first.
+  const magicW=(TH.cats&&TH.cats.Magic)||0;
   const CLS_ABIL={Barbarian:['STR','CON'],Bard:['CHA','DEX'],Cleric:['WIS','CON'],Druid:['WIS','CON'],Fighter:['STR','DEX','CON'],Monk:['DEX','WIS'],Paladin:['STR','CHA'],Ranger:['DEX','WIS'],Rogue:['DEX','INT'],Sorcerer:['CHA','CON'],Warlock:['CHA','CON'],Wizard:['INT','DEX']};
   const SPC_ABIL={Orc:['STR','CON'],Dwarf:['CON','WIS'],Elf:['DEX','INT'],Halfling:['DEX','CHA'],Gnome:['INT','CON'],Goliath:['STR','CON'],Dragonborn:['STR','CHA'],Tiefling:['CHA','INT'],Aasimar:['CHA','WIS'],Human:[]};
-  const favAbil=()=>{const f=(CLS_ABIL[b.originClass]||[]).concat(SPC_ABIL[b.species]||[]);return f.length?f:ABILS;};
+  // The theme leads; the class and species then top the list up. A theme with abil:null (the two caster
+  // themes) resolves to the class's OWN casting stat first, so "Battle-Caster" on a Cleric primes WIS and
+  // on a Sorcerer primes CHA instead of forcing one hardcoded stat on both.
+  // `trad&&` matters: DATA.castAbility carries an entry for EVERY class, non-casters included
+  // (Fighter:'INT', Barbarian:'STR', Monk:'WIS', Rogue:'INT') — it names the stat a class WOULD cast
+  // with, not whether it casts at all. Without the guard, a Fighter rolled on either caster theme
+  // primed INT to 16-20 and left STR at 10, on a character that never opens a tradition.
+  const _themeAbil=TH.abil||((trad&&castAb)?[castAb,'CON']:null);
+  const favAbil=()=>{const f=(_themeAbil||[]).concat(CLS_ABIL[b.originClass]||[]).concat(SPC_ABIL[b.species]||[]);
+    const out=[];f.forEach(a=>{if(ABILS.includes(a)&&!out.includes(a))out.push(a);});return out.length?out:ABILS;};
+
+  // ── legality gate (unchanged in substance) ───────────────────────────────
+  // _cur caches compute() for the CURRENT accepted build. Previously every attempt recomputed the
+  // pre-mutation state and the main loop recomputed it a third time for its own budget check — three
+  // compute() calls per iteration where one will do. Any mutation of `b` outside tryAct MUST refresh
+  // _cur (only the species/class assignment above does, and _cur is seeded after it).
+  const _hw=ww=>ww.filter(w=>typeof isAdvisory==='function'?!isAdvisory(w):true).length;  // count only HARD (⚠) warnings; advisory (ⓘ) notes are allowed
+  let _cur=C(b);
+  const spentBy={stats:0,powers:0,skills:0,kit:0};
+  function tryAct(mut,bucket){ const snap=JSON.stringify(b);
+    try{ const w0=_hw(_cur.warnings), t0=_cur.total;
+      if(mut(b)===false){ b=JSON.parse(snap); return false; }
+      const r=C(b);
+      if(r.total<=budget && _hw(r.warnings)<=w0){
+        if(bucket)spentBy[bucket]=(spentBy[bucket]||0)+(r.total-t0);
+        _cur=r; return true;
+      }
+    }catch(e){}
+    b=JSON.parse(snap); return false; }
+
   let _dumps=0;const _maxDumps=rnd(4);
   let _draws=0;const _maxDraws=1+rnd(3);
-  const trad=tradOf(b.originClass);
+
   // pre-prime the CASTING ability to 14 (mod +2) so caster slot caps (= casting-stat mod) aren't 0
-  {const CAST_ABIL={Bard:'CHA',Cleric:'WIS',Druid:'WIS',Sorcerer:'CHA',Warlock:'CHA',Wizard:'INT',Paladin:'CHA',Ranger:'WIS'};const ca=CAST_ABIL[b.originClass];if(ca){while((b.stats[ca]||10)<14){if(!tryAct(x=>{x.stats[ca]=Math.min(20,(x.stats[ca]||10)+2);}))break;}}}
+  if(trad&&castAb){while((b.stats[castAb]||10)<14){if(!tryAct(x=>{x.stats[castAb]=Math.min(20,(x.stats[castAb]||10)+2);},'stats'))break;}}
   // 2) caster kit: open the tradition (Foundation) then a MINIMUM loadout, in priority order
   if(trad && !b.traditions.some(t=>t&&t.name===trad))
-    tryAct(x=>{ x.traditions.push({name:trad,rank:1,disciplines:[{name:x.originClass,bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]}]}); });
+    tryAct(x=>{ x.traditions.push({name:trad,rank:1,disciplines:[{name:x.originClass,bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]}]}); },'powers');
   if(trad){
-    tryAct(x=>{const d=discOf(x);if(!d||(DATA.noCantrip||[]).indexOf(x.originClass)>=0)return false;d.cantrips=(d.cantrips||0)+1;});
-    tryAct(x=>{const d=discOf(x);if(!d)return false;if(x.originClass==='Warlock')d.pactSlots=(d.pactSlots||0)+1;else d.slots[0]=(d.slots[0]||0)+1;});
-    if(!prepared.includes(b.originClass))tryAct(x=>{const d=discOf(x);if(!d)return false;d.known[0]=(d.known[0]||0)+1;});
-    tryAct(x=>{const d=discOf(x);if(!d||(DATA.noCantrip||[]).indexOf(x.originClass)>=0)return false;d.cantrips=(d.cantrips||0)+1;});
-    for(let q=0;q<9;q++){const t=b.traditions.find(tr=>tr&&tr.name===trad);if(!t)break;const nr=(t.rank||0)+1;const gate=(DATA.hdGate&&DATA.hdGate[nr-1])||(2*nr-1);if(b.hd<gate)break;if(!tryAct(x=>{const tt=x.traditions.find(tr=>tr&&tr.name===trad);if(tt)tt.rank=nr;}))break;}
-    for(let q=0;q<6;q++){const t=b.traditions.find(tr=>tr&&tr.name===trad);const R=(t&&t.rank)||1;const L=1+rnd(Math.min(9,R));if(b.originClass==='Warlock'){tryAct(x=>{const d=discOf(x);if(!d)return false;d.pactSlots=(d.pactSlots||0)+1;});}else{tryAct(x=>{const d=discOf(x);if(!d)return false;d.slots[L-1]=(d.slots[L-1]||0)+1;});if(!prepared.includes(b.originClass))tryAct(x=>{const d=discOf(x);if(!d)return false;d.known[L-1]=(d.known[L-1]||0)+1;});}}
+    tryAct(x=>{const d=discOf(x);if(!d||(DATA.noCantrip||[]).indexOf(x.originClass)>=0)return false;d.cantrips=(d.cantrips||0)+1;},'powers');
+    tryAct(x=>{const d=discOf(x);if(!d)return false;if(x.originClass==='Warlock')d.pactSlots=(d.pactSlots||0)+1;else d.slots[0]=(d.slots[0]||0)+1;},'powers');
+    if(!prepared.includes(b.originClass))tryAct(x=>{const d=discOf(x);if(!d)return false;d.known[0]=(d.known[0]||0)+1;},'powers');
+    tryAct(x=>{const d=discOf(x);if(!d||(DATA.noCantrip||[]).indexOf(x.originClass)>=0)return false;d.cantrips=(d.cantrips||0)+1;},'powers');
   }
   // 2c) prime the PRIMARY favoured ability to 16 (gates boons/arts; class-stat alignment)
-  {const favs=favAbil();const p0=favs[0];while((b.stats[p0]||10)<16){if(!tryAct(x=>{x.stats[p0]=Math.min(20,(x.stats[p0]||10)+2);}))break;}}
-  // 3) Hit Dice toward a budget-scaled level
-  const hdTarget=Math.min(20,Math.max(b.hd,1+rnd(Math.min(9,Math.floor(budget/14)+1))));
-  while(b.hd<hdTarget){ if(!tryAct(x=>{x.hd++;})) break; }
+  {const p0=favAbil()[0];while((b.stats[p0]||10)<16){if(!tryAct(x=>{x.stats[p0]=Math.min(20,(x.stats[p0]||10)+2);},'stats'))break;}}
+
+  // 3) Hit Dice toward the level the BUDGET actually pays for.
+  // apLevel() is the tool's own budget→level lookup over DATA.levelAP — the same one that labels the AP
+  // budget input "(≈ Lv N)". The old `1+rnd(Math.min(9,Math.floor(budget/14)+1))` clamped the random draw
+  // itself to 9, so no budget on earth could roll past HD 9; a level-20 character came out at HD ~5 with
+  // its unspent AP dumped into a pile of low-HD boons. Levels are cheap (HD alone is 4% of a level-3
+  // budget rising to 24% at level 20), so buying the level the budget names leaves the great majority of
+  // the AP for everything else. tryAct still has the final say, so an unaffordable target simply stops early.
+  const _lvlCap=(typeof apLevel==='function')?Math.max(1,apLevel(budget)):9;
+  // A requested level is CLAMPED to what the AP actually pays for. Left unclamped, "level 20" on a
+  // 127 AP (Lv 3) budget sank the whole budget into Hit Dice and returned a level-15 character with
+  // no skills, boons or arts — and because the panel persists the choice, every later roll repeated it.
+  const _lvlAsked=(lvlWanted>0)?Math.min(lvlWanted,20):_lvlCap;
+  const _lvlClamped=_lvlAsked>_lvlCap;
+  const hdTarget=Math.min(20,Math.max(b.hd,Math.min(_lvlAsked,_lvlCap)));
+  while(b.hd<hdTarget){ if(!tryAct(x=>{x.hd++;},'powers')) break; }
+  // Rank follows HD: raise the tradition as far as the (now correct) HD gate allows.
+  if(trad){
+    // Rank is expensive (Rank 9 is 72 AP) and buys nothing on its own — it only RAISES THE CEILING on
+    // slots. Climbing to 9 for a theme whose caster actions then carry weight 0 (Magic:0) burnt the
+    // budget on headroom the roll would never use: a Wizard rolled as a Frontline Bruiser reached
+    // Rank 9 holding 0-3 slots. So the ladder now stops where the theme's appetite for magic does.
+    const _rankTarget=magicW>=5?MAXRANK:magicW>=3?Math.ceil(MAXRANK*0.6):magicW>=1?Math.ceil(MAXRANK*0.35):2;
+    for(let q=0;q<MAXRANK;q++){const t=b.traditions.find(tr=>tr&&tr.name===trad);if(!t)break;const nr=(t.rank||0)+1;if(nr>MAXRANK||nr>_rankTarget)break;const gate=(DATA.hdGate&&DATA.hdGate[nr-1])||(2*nr-1);if(b.hd<gate)break;if(!tryAct(x=>{const tt=x.traditions.find(tr=>tr&&tr.name===trad);if(tt)tt.rank=nr;},'powers'))break;}
+    for(let q=0;q<6;q++){const t=b.traditions.find(tr=>tr&&tr.name===trad);const R=(t&&t.rank)||1;const L=1+rnd(Math.min(9,R));if(b.originClass==='Warlock'){tryAct(x=>{const d=discOf(x);if(!d)return false;d.pactSlots=(d.pactSlots||0)+1;},'powers');}else{tryAct(x=>{const d=discOf(x);if(!d)return false;const ll=legalSlotL(d,R);if(!ll.length)return false;const LL=pick(ll);d.slots[LL-1]=(d.slots[LL-1]||0)+1;},'powers');if(!prepared.includes(b.originClass))tryAct(x=>{const d=discOf(x);if(!d)return false;d.known[L-1]=(d.known[L-1]||0)+1;},'powers');}}
+  }
   // 4) prime the SECONDARY favoured ability to 14
-  {const favs=favAbil();const p1=favs[1]||favs[0];while((b.stats[p1]||10)<14){if(!tryAct(x=>{x.stats[p1]=Math.min(20,(x.stats[p1]||10)+2);}))break;}}
+  {const favs=favAbil();const p1=favs[1]||favs[0];while((b.stats[p1]||10)<14){if(!tryAct(x=>{x.stats[p1]=Math.min(20,(x.stats[p1]||10)+2);},'stats'))break;}}
+
+  // ── theme-weighted candidate pickers ─────────────────────────────────────
+  // catPick weights a legal candidate list by the theme's interest in each entry's `cat`. THEME_SLIP of
+  // the time it ignores the theme and picks uniformly, which is what keeps two rolls of the same theme
+  // from converging. A theme weight of 0 therefore still leaves a category reachable, just rarely.
+  const catPick=(cand,catOf)=>{
+    if(Math.random()<THEME_SLIP)return pick(cand);
+    return wpick(cand.map(k=>{const c=catOf(k);const w=(TH.cats&&TH.cats[c]!=null)?TH.cats[c]:1;return [k,w];}));
+  };
+  const listPick=(cand,pref)=>{
+    if(Math.random()<THEME_SLIP)return pick(cand);
+    const on=cand.filter(k=>(pref||[]).includes(k));
+    return on.length?pick(on):pick(cand);
+  };
   // 5) identity actions (boons / arts / racial / drawbacks) — gate-filtered; tryAct enforces budget+legality
-  const actBoon=x=>{const cand=(DATA.boonList||[]).filter(k=>{const bo=DATA.boons[k];if(!bo||x.boons.includes(k))return false;if(x.hd<(bo.hd||1))return false;if(bo.minStats){for(const a in bo.minStats)if((x.stats[a]||10)<bo.minStats[a])return false;}if(bo.minStatsAny&&bo.minStatsAny.stats&&!bo.minStatsAny.stats.some(a=>(x.stats[a]||10)>=bo.minStatsAny.val))return false;return true;});if(!cand.length)return false;x.boons.push(pick(cand));};
-  const actArt=x=>{x.arts=x.arts||[];const cand=(DATA.artList||[]).filter(k=>{const ar=DATA.arts[k];if(!ar||x.arts.includes(k))return false;if(x.hd<(ar.hd||1))return false;if(ar.minStatsAny&&ar.minStatsAny.stats&&!ar.minStatsAny.stats.some(a=>(x.stats[a]||10)>=ar.minStatsAny.val))return false;if(ar.prereqNote&&/Foundation/i.test(ar.prereqNote)&&!(x.traditions&&x.traditions.length))return false;return true;});if(!cand.length)return false;x.arts.push(pick(cand));};
+  const actBoon=x=>{const cand=(DATA.boonList||[]).filter(k=>{const bo=DATA.boons[k];if(!bo||x.boons.includes(k))return false;if(x.hd<(bo.hd||1))return false;if(bo.minStats){for(const a in bo.minStats)if((x.stats[a]||10)<bo.minStats[a])return false;}if(bo.minStatsAny&&bo.minStatsAny.stats&&!bo.minStatsAny.stats.some(a=>(x.stats[a]||10)>=bo.minStatsAny.val))return false;return true;});if(!cand.length)return false;x.boons.push(catPick(cand,k=>(DATA.boons[k]||{}).cat));};
+  const actArt=x=>{x.arts=x.arts||[];const cand=(DATA.artList||[]).filter(k=>{const ar=DATA.arts[k];if(!ar||x.arts.includes(k))return false;if(x.hd<(ar.hd||1))return false;if(ar.minStatsAny&&ar.minStatsAny.stats&&!ar.minStatsAny.stats.some(a=>(x.stats[a]||10)>=ar.minStatsAny.val))return false;if(ar.prereqNote&&/Foundation/i.test(ar.prereqNote)&&!(x.traditions&&x.traditions.length))return false;return true;});if(!cand.length)return false;x.arts.push(catPick(cand,k=>(DATA.arts[k]||{}).cat));};
   const actRacial=x=>{const cand=(DATA.racialList||[]).filter(l=>{const rr=DATA.racial[l];return rr&&!rr.pack&&(rr.race===x.species||rr.race===x.species2)&&!x.racialTraits.includes(l)&&x.hd>=((DATA.tierHD&&DATA.tierHD[rr.tier])||1);});if(!cand.length)return false;x.racialTraits.push(pick(cand));};
   // feat/drawbacks-phobias-expansion: candidate filter also respects DATA.drawbackReq (caster-only drawbacks), same shape as the existing drawbackMaxStats filter — closes the stat-cap/caster-gate rejection paths, but tryAct can still reject a candidate that clears both (e.g. pushing the character's total drawback AP over a campaign's enforced drawbackCap). fix/livesheet-drawback-legalcheck: _draws is now incremented by the CALLER only when tryAct(actDraw) actually succeeds — actDraw itself no longer increments it, so a tryAct rollback (rare, but real) no longer silently spends a draw attempt for a drawback that was never actually added.
-  const actDraw=x=>{if(_draws>=_maxDraws)return false;const _hasFoundX=(x.traditions||[]).some(t=>t&&(t.disciplines||[]).some(d=>d&&d.name&&d.name!=='(none)'));const cand=(DATA.drawbackList||[]).filter(k=>{if(x.drawbacks.includes(k))return false;const mx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k];if(mx){for(const a in mx)if((x.stats[a]||10)>mx[a])return false;}const rq=DATA.drawbackReq&&DATA.drawbackReq[k];if(rq&&rq.caster&&!_hasFoundX)return false;return true;});if(!cand.length)return false;x.drawbacks.push(pick(cand));};
-  for(let q=0;q<3;q++)tryAct(actBoon);
-  tryAct(actArt);tryAct(actArt);
-  for(let q=0;q<3;q++)tryAct(actRacial);
-  if(rnd(100)<55&&tryAct(actDraw))_draws++;
-  // 6) weighted action pool — each returns false to skip (e.g. nothing left to buy)
-  const A=[
-    actBoon,actBoon,actArt,actArt,actArt,actRacial,actRacial,actRacial,actRacial,actDraw,
-    x=>{const a=(Math.random()<0.7?pick(favAbil()):pick(ABILS)); if((x.stats[a]||10)>=20)return false; x.stats[a]=Math.min(20,(x.stats[a]||10)+2);},
-    x=>{const a=(Math.random()<0.7?pick(favAbil()):pick(ABILS)); if((x.stats[a]||10)>=20)return false; x.stats[a]=Math.min(20,(x.stats[a]||10)+2);},
-    x=>{const a=pick(favAbil()); if((x.stats[a]||10)>=20)return false; x.stats[a]=Math.min(20,(x.stats[a]||10)+2);},   // extra weight on favoured stats (+2 step)
-    x=>{if(_dumps>=_maxDumps)return false; const nf=ABILS.filter(a=>!favAbil().includes(a)&&(x.stats[a]||10)>6); if(!nf.length)return false; x.stats[pick(nf)]-=2; _dumps++;},   // occasional dump of a non-favoured stat for AP
-    x=>{const s=pick(skillNames); if(x.skills.includes(s))return false; x.skills.push(s);},
-    x=>{const s=pick(skillNames); if(x.skills.includes(s))return false; x.skills.push(s);},
-    x=>{if(!x.skills.length)return false; const s=pick(x.skills); if(x.expertise.includes(s))return false; x.expertise.push(s);},
-    x=>{const a=pick(ABILS); if(x.saves.includes(a))return false; x.saves.push(a);},
-    x=>{const t=pick(DATA.toolList||[]); if(x.tools.includes(t))return false; x.tools.push(t);},
-    x=>{const owned=x.tools.concat(x.instruments); if(!owned.length)return false; const t=pick(owned); if(x.toolExpertise.includes(t))return false; x.toolExpertise.push(t);},
-    x=>{x.languages=(+x.languages||1)+1;},
-    x=>{ if(x.armour.heavy)return false; if(!x.armour.light)x.armour.light=true; else if(!x.armour.medium)x.armour.medium=true; else x.armour.heavy=true; },
-    x=>{ if(!x.weaponProf.simple)x.weaponProf.simple=true; else if(!x.weaponProf.allMartial)x.weaponProf.allMartial=true; else return false; },
-    x=>{ if(x.armour.shield)return false; x.armour.shield=true; },
-    x=>{ if((+x.profBonus||2)>=6)return false; x.profBonus=(+x.profBonus||2)+1; },
-    x=>{ x.hardy=(+x.hardy||0)+1; },      // Vigor (engine caps it to CON mod → tryAct rejects over-cap)
-    x=>{ x.attune=(+x.attune||0)+1; },
-    // caster actions (no-ops for non-casters)
-    x=>{const d=discOf(x); if(!d||(DATA.noCantrip||[]).indexOf(x.originClass)>=0)return false; d.cantrips=(d.cantrips||0)+1;},
-    x=>{const d=discOf(x); if(!d)return false; const t=x.traditions.find(tr=>tr&&tr.name===trad); const L=1+rnd(Math.min(9,(t&&t.rank)||1)); d.slots[L-1]=(d.slots[L-1]||0)+1;},   // slot at a random level up to current Rank
-    x=>{const d=discOf(x); if(!d||prepared.includes(x.originClass))return false; const t=x.traditions.find(tr=>tr&&tr.name===trad); const L=1+rnd(Math.min(9,(t&&t.rank)||1)); d.known[L-1]=(d.known[L-1]||0)+1;},   // known spell scaled to Rank/HD
-    x=>{const t=x.traditions.find(tr=>tr&&tr.name===trad); if(!t)return false; t.rank=(t.rank||0)+1;},   // raise Rank (HD-gated → unlocks higher spell levels)
-    x=>{const cls=x.originClass; const fl=Object.keys(DATA.features).filter(l=>DATA.features[l]&&DATA.features[l].cls===cls&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&!x.features.includes(l)); if(!fl.length)return false; x.features.push(pick(fl));},   // a random origin-class feature (HD-gated via warnings) — .bar excludes barred features, same flag buildClassPickers() checks
-  ];
-  // 4) spend until the budget is (near) exhausted or we keep failing to find anything affordable+legal
+  // The theme's `draws` shortlist is a PREFERENCE applied by listPick, never a filter: every legal drawback
+  // stays reachable, so a themed roll can still hand you something odd — it just leads with the ones that
+  // read as part of the concept (a Zealot's Code of Honour, a Scholar's Frail).
+  const actDraw=x=>{if(_draws>=_maxDraws)return false;const _hasFoundX=(x.traditions||[]).some(t=>t&&(t.disciplines||[]).some(d=>d&&d.name&&d.name!=='(none)'));const cand=(DATA.drawbackList||[]).filter(k=>{if(x.drawbacks.includes(k))return false;const mx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[k];if(mx){for(const a in mx)if((x.stats[a]||10)>mx[a])return false;}const rq=DATA.drawbackReq&&DATA.drawbackReq[k];if(rq&&rq.caster&&!_hasFoundX)return false;return true;});if(!cand.length)return false;x.drawbacks.push(listPick(cand,TH.draws));};
+  // Drawbacks are rolled here rather than from the spend pool: their cost is NEGATIVE, so putting them
+  // in a bucket would corrupt the spend-shape accounting that bucket pressure is measured against.
+  // First one is a coin-flip-ish 55%, each further one less likely, capped by _maxDraws.
+  // Each accepted drawback RAISES compute().spendable, so the ceiling is re-read — otherwise the
+  // character carries the hindrance but can never spend the AP it granted.
+  for(let q=0;q<_maxDraws;q++){
+    if(rnd(100)>=(q===0?55:30))break;
+    if(!tryAct(actDraw))break;
+    _draws++; budget=Math.max(budget,_cur.spendable||budget);
+  }
+
+  // ── bucketed, theme-weighted spend ───────────────────────────────────────
+  // The old pool was one flat array picked uniformly, so what a character ended up owning was decided by
+  // how many entries of each kind happened to be in that array — which is why every rich character bought
+  // the whole armoury. Now a BUCKET is chosen first (weighted by how far that bucket is from the theme's
+  // target share of the budget), then an action within it. That makes the spend SHAPE a property of the
+  // theme rather than an accident of the pool's composition.
+  const armCeil=ARM_RANK[TH.armour]!=null?ARM_RANK[TH.armour]:3;
+  const POOL={
+    stats:[
+      [x=>{const a=pick(favAbil()); if((x.stats[a]||10)>=20)return false; x.stats[a]=Math.min(20,(x.stats[a]||10)+2);},7],
+      [x=>{const a=pick(ABILS); if((x.stats[a]||10)>=20)return false; x.stats[a]=Math.min(20,(x.stats[a]||10)+2);},2],
+      // an occasional dump of a non-favoured stat, to buy something else with the refund
+      [x=>{if(_dumps>=_maxDumps)return false; const fav=favAbil(); const nf=ABILS.filter(a=>!fav.includes(a)&&(x.stats[a]||10)>6); if(!nf.length)return false; x.stats[pick(nf)]-=2; _dumps++;},1],
+    ],
+    powers:[
+      [actBoon,6],[actArt,6],[actRacial,4],
+      [x=>{const cls=x.originClass; const fl=Object.keys(DATA.features).filter(l=>DATA.features[l]&&DATA.features[l].cls===cls&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&!x.features.includes(l)); if(!fl.length)return false; x.features.push(pick(fl));},3],   // a random origin-class feature (HD-gated via warnings) — .bar excludes barred features, same flag buildClassPickers() checks
+      // caster actions (no-ops for non-casters); weighted by how magical the theme is
+      [x=>{const d=discOf(x); if(!d||(DATA.noCantrip||[]).indexOf(x.originClass)>=0)return false; d.cantrips=(d.cantrips||0)+1;},magicW],
+      [x=>{const d=discOf(x); if(!d)return false; if(x.originClass==='Warlock'){d.pactSlots=(d.pactSlots||0)+1;return;} const t=x.traditions.find(tr=>tr&&tr.name===trad); const ll=legalSlotL(d,(t&&t.rank)||1); if(!ll.length)return false; const L=pick(ll); d.slots[L-1]=(d.slots[L-1]||0)+1;},magicW],
+      [x=>{const d=discOf(x); if(!d||prepared.includes(x.originClass))return false; const t=x.traditions.find(tr=>tr&&tr.name===trad); const L=1+rnd(Math.min(9,(t&&t.rank)||1)); d.known[L-1]=(d.known[L-1]||0)+1;},magicW],
+      [x=>{const t=x.traditions.find(tr=>tr&&tr.name===trad); if(!t)return false; const nr=(t.rank||0)+1; if(nr>MAXRANK)return false; const gate=(DATA.hdGate&&DATA.hdGate[nr-1])||(2*nr-1); if(x.hd<gate)return false; t.rank=nr;},Math.max(1,magicW-2)],
+    ],
+    skills:[
+      [x=>{const cand=skillNames.filter(s=>!x.skills.includes(s)); if(!cand.length)return false; x.skills.push(listPick(cand,TH.skills));},7],
+      [x=>{if(!x.skills.length)return false; const cand=x.skills.filter(s=>!x.expertise.includes(s)); if(!cand.length)return false; x.expertise.push(listPick(cand,TH.skills));},3],
+      [x=>{const cand=ABILS.filter(a=>!x.saves.includes(a)); if(!cand.length)return false; x.saves.push(listPick(cand,favAbil()));},3],
+      [x=>{const cand=(DATA.toolList||[]).filter(t=>!x.tools.includes(t)); if(!cand.length)return false; x.tools.push(listPick(cand,TH.tools));},3],
+      [x=>{const owned=x.tools.concat(x.instruments).filter(t=>!x.toolExpertise.includes(t)); if(!owned.length)return false; x.toolExpertise.push(listPick(owned,TH.tools));},1],
+      [x=>{x.languages=(+x.languages||1)+1;},1],
+    ],
+    kit:[
+      // Armour and weapons stop at the theme's ceiling. This is the single biggest source of the old
+      // incoherence: with no ceiling, every character with AP to spare bought heavy armour and all
+      // martial weapons because they were affordable and raised no warning.
+      [x=>{const have=x.armour.heavy?3:x.armour.medium?2:x.armour.light?1:0; if(have>=armCeil)return false;
+           if(!x.armour.light)x.armour.light=true; else if(!x.armour.medium)x.armour.medium=true; else x.armour.heavy=true;},4],
+      [x=>{if(TH.weapons==='none')return false; if(!x.weaponProf.simple){x.weaponProf.simple=true;return;} if(TH.weapons!=='martial')return false; if(x.weaponProf.allMartial)return false; x.weaponProf.allMartial=true;},4],
+      [x=>{if(!TH.shield||x.armour.shield)return false; x.armour.shield=true;},2],
+      [x=>{ if((+x.profBonus||2)>=6)return false; x.profBonus=(+x.profBonus||2)+1; },2],
+      [x=>{ x.hardy=(+x.hardy||0)+1; },2],      // Vigor (engine caps it to CON mod → tryAct rejects over-cap)
+      [x=>{ x.attune=(+x.attune||0)+1; },1],
+    ],
+  };
+  const BUCKETS=['stats','powers','skills','kit'];
+  const shape=TH.shape||{stats:0.3,powers:0.4,skills:0.2,kit:0.1};
+  // Bucket pressure = how far this bucket still is from its target share. The small constant floor keeps
+  // an over-filled bucket selectable (so leftover AP still finds a home) without letting it dominate.
+  const pickBucket=()=>wpick(BUCKETS.map(k=>[k,Math.max(0,(shape[k]||0)*budget-(spentBy[k]||0))+budget*0.03]));
+
   let stuck=0, iters=0;
-  while(stuck<50 && iters<3000 && (budget - C(b).total) > 0){ iters++; const act=pick(A); if(tryAct(act)){ stuck=0; if(act===actDraw)_draws++; } else stuck++; }
-  for(let q=0;q<8;q++){tryAct(actBoon);tryAct(actArt);tryAct(actRacial);tryAct(actRacial);}
+  while(stuck<60 && iters<3000 && (budget-_cur.total)>0){
+    iters++;
+    const bk=pickBucket();
+    const act=wpick(POOL[bk]);
+    if(!act){stuck++;continue;}
+    if(tryAct(act,bk)) stuck=0; else stuck++;
+  }
+  // Mop-up: spend whatever the shaped loop left on identity picks, which are the ones worth having.
+  for(let q=0;q<8;q++){tryAct(actBoon,'powers');tryAct(actArt,'powers');tryAct(actRacial,'powers');}
   // Chunk B: randomize is ONE undoable step — push a single pre-roll frame, then suspend across applyBuild
   // AND the appearance/name resync so the tail's second LOG rebuild records no extra frame.
   _commitWholeBuildFrame();
   const _prevSusp=_histSuspended;_histSuspended=true;
+  // The theme's flavour half: genName()/randomiseAppearance() consult _rollThemeActive when it is set, so the
+  // name style and demeanour match the build instead of being rolled independently of it. Always cleared
+  // in the finally, so a later manual 🎲 on a field is unaffected by whatever was last rolled.
+  window._rollThemeActive=TH;
   try{
     applyBuild(b);
     try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}
@@ -4454,12 +4746,76 @@ function randomizeRoll(){
     // to the LOG on its own — but it skips that commit while _histSuspended, exactly because THIS
     // resync already covers it a few lines later; see that fix's comment on _rollField's `set`.)
     if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
-  }finally{_histSuspended=_prevSusp;}
-  const spent=C(b).total;
+  }finally{_histSuspended=_prevSusp;window._rollThemeActive=null;}
+  const spent=_cur.total;
   const _changed=JSON.stringify(b)!==_snap0;
-  if(typeof flash==='function') flash(_changed?('🎲 Rolled a random character — '+spent+' / '+budget+' AP spent'+(trad?' (incl. a starter spell kit)':'')+'.'):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');
+  if(typeof flash==='function') flash(_changed?('🎲 Rolled a '+TH.label+' — '+spent+' / '+budget+' AP spent, Lv '+b.hd
+    +(trad?' (incl. a starter spell kit)':'')+'.'+(_lvlClamped?(' Level '+_lvlAsked+' needs more AP than you have, so this is Lv '+_lvlCap+'.'):'')):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');
 }
 
+
+// ── 🎲 Roll panel (feat/random-char-generator-optimize) ────────────────────
+// Replaces the old `confirm()` dialog, which could only ask yes/no and had to be dismissed before every
+// single roll. This is the tool's existing full-screen overlay pattern (#sheetview / #explainview /
+// #portraitview): a plain div toggled by display, no <dialog>, no focus-trap library.
+// Every string rendered below is a constant authored in this file — no player-controlled value reaches
+// innerHTML here, which is why there is no esc() call in this function.
+// The panel's REMEMBERED CHOICE (a theme key string). Distinct from window._rollThemeActive, which is
+// the theme OBJECT and only exists while a roll is in flight — different type, different lifetime.
+let _rollThemeChoice='';    // '' = surprise me
+let _rollLevel=0;     // 0 = auto (derive from the AP budget)
+try{_rollThemeChoice=localStorage.getItem('pact_roll_theme')||'';_rollLevel=+(localStorage.getItem('pact_roll_level')||0)||0;}catch(e){}
+
+function _rollBudgetInfo(){
+  let sp=0,lv=1;
+  try{const r=compute(readBuild(),_cgDmOpts());sp=r.spendable||0;
+    lv=(typeof apLevel==='function')?Math.max(1,apLevel(sp)):1;}catch(e){}
+  return {sp:sp,lv:lv};
+}
+function openRollPanel(){
+  const ov=$('rollview'); if(!ov){ setTimeout(()=>randomizeRoll('',0),0); return; }   // panel missing → roll anyway
+  const info=_rollBudgetInfo();
+  const body=$('rollbody');
+  if(body){
+    let h='<p class="hint" id="rollbudgetline">Budget: <b>'+info.sp+' AP</b> — enough for about <b>level '+info.lv+'</b>. '+
+      'The roll keeps anything you have already chosen (species, origin class, name) and fills in the rest.</p>'+
+      '<div class="sublab2">Theme</div>'+
+      '<div class="rollthemes">'+
+      '<label class="rollth"><input type="radio" name="rollth" value=""><b>✨ Surprise me</b>'+
+      '<span class="hint">Picks a theme that suits your origin class — or any theme, if you have not chosen one.</span></label>';
+    RTHEMES.forEach(t=>{
+      h+='<label class="rollth"><input type="radio" name="rollth" value="'+t.key+'"><b>'+t.label+'</b>'+
+         '<span class="hint">'+t.hint+'</span></label>';
+    });
+    h+='</div>'+
+      '<div class="row" style="margin-top:10px"><label class="l" for="rolllvl">Target level</label>'+
+      '<select id="rolllvl" style="width:190px"><option value="0">Auto — level '+info.lv+' (from your AP)</option>';
+    // Only levels the budget can actually pay for. Offering 1-20 regardless meant picking "Level 20" on a
+    // level-3 budget poured every AP into Hit Dice and returned a character with no skills or powers.
+    for(let L=1;L<=info.lv;L++) h+='<option value="'+L+'">Level '+L+'</option>';
+    h+='</select><span class="hint">Rolling below your level leaves AP for more powers and skills instead.</span></div>';
+    body.innerHTML=h;
+    // Match by comparing values, never by interpolating the stored key into a selector: a localStorage
+    // value carrying a CSS metacharacter would make querySelector THROW here, before the overlay is shown,
+    // leaving the 🎲 Random button permanently inert with no way for the player to clear it.
+    const radios=[...body.querySelectorAll('input[name="rollth"]')];
+    ((radios.find(el=>el.value===_rollThemeChoice))||radios[0]).checked=true;
+    const ls=$('rolllvl');
+    if(ls) ls.value=(_rollLevel>0&&_rollLevel<=info.lv)?String(_rollLevel):'0';
+  }
+  ov.style.display='block'; ov.scrollTop=0;
+}
+function closeRollPanel(){const ov=$('rollview');if(ov)ov.style.display='none';}
+function doRoll(){
+  const sel=document.querySelector('#rollbody input[name="rollth"]:checked');
+  _rollThemeChoice=sel?sel.value:'';
+  const ls=$('rolllvl'); _rollLevel=ls?(+ls.value||0):0;
+  try{localStorage.setItem('pact_roll_theme',_rollThemeChoice);localStorage.setItem('pact_roll_level',String(_rollLevel));}catch(e){}
+  closeRollPanel();
+  // setTimeout keeps the old behaviour of letting the overlay repaint before a roll that can take a few
+  // hundred compute() passes, so the panel never appears to hang on the way out.
+  setTimeout(()=>randomizeRoll(_rollThemeChoice,_rollLevel),0);
+}
 function relabel(sel,fn){if(!sel||!sel.options)return;for(const o of sel.options)o.textContent=fn(+o.value);}
 function stepDesc(label,n){const nm=(label.split(': ')[1]||'').toLowerCase();
   if(nm.indexOf('die')>=0)return (['d6','d8','d10','d12'][n-1]||('step '+n));
