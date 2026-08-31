@@ -1,0 +1,72 @@
+name: Random generator quality gate
+
+# What the 🎲 random character generator PRODUCES had no gate at all until 2026-08-31.
+# random-manual-e2e.mjs says so in its own header — it deliberately never calls randomizeBuild(), because
+# its job is to drive the UI as a human would. tool-pricing-ci.mjs calls randomizeRoll() exactly once, and
+# only to assert appearance survives the LOG resync. So the generator could regress freely, and did: it
+# capped Hit Dice at 9 for every budget on earth, and at 600 AP produced characters where 100% owned light
+# armour + shield + simple weapons regardless of class. See
+# decisions/2026/D-GH-2026-08-31-random-char-generator-optimize.md.
+#
+# A random generator has no single expected output, so this asserts STATISTICAL invariants over many real
+# rolls: legality, that Hit Dice track the level the budget pays for, that armour and weapons never exceed
+# the rolled theme's ceiling, that a theme's favoured boon/art categories lead its picks, that two rolls of
+# one theme still differ, that themes resemble themselves more than each other, that every string a theme
+# names resolves against DATA, that casters finish with a usable (uninverted) slot pyramid, and that the
+# roll panel's preview is derived from the theme rather than restated by hand.
+#
+# Like tool-pricing.yml it drives the REAL tool over the DevTools protocol using only Node built-ins — a
+# Node re-implementation of the search loop would be a second copy of the logic that drifts from the
+# first, which is the exact failure mode AGENTS.md warns about for rules code. It still needs A browser,
+# so Chromium is installed and pinned rather than trusted to the runner image, for the reason
+# tool-pricing.yml documents at length.
+
+on:
+  pull_request:
+    paths:
+      - "tools/PACT-CharGen-Webtool.html"
+      - "js/engine.js"
+      - "js/engine-data.js"
+      - "js/ap-by-level.js"
+      - "testing/scripts/random-quality-ci.mjs"
+      - ".github/workflows/random-quality.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: random-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: /opt/pw-browsers
+          key: ${{ runner.os }}-playwright-${{ hashFiles('testing/package-lock.json') }}-pw-browsers
+
+      - name: Install Chromium
+        working-directory: testing
+        timeout-minutes: 5
+        run: npx playwright install --with-deps chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
+
+      - name: Run the random-generator quality gate
+        run: node testing/scripts/random-quality-ci.mjs
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers

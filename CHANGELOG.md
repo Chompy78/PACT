@@ -27,7 +27,9 @@
   level-20 casters finished with 0–4 slots; `DATA.castAbility` was used as an "is this a caster" test
   when it carries an entry for every class, priming a Fighter's INT over its STR; and a drawback's AP
   refund was never spendable because the ceiling was captured before it. Display/UX only — no rules
-  change, no `DATA.version` bump. Graduates `feat/randomize-tuning` off `docs/TASK_BOARD_NEXT.md`.
+  change, no `DATA.version` bump. New `testing/scripts/random-quality-ci.mjs` (+ `random-quality.yml`)
+  gates what the roll produces — nothing did before. Graduates `feat/randomize-tuning` off
+  `docs/TASK_BOARD_NEXT.md`.
   Full record: `decisions/2026/D-GH-2026-08-31-random-char-generator-optimize.md`.
 - **2026-08-30 · feat(dm-console): show each character's creation-lock state on their card** — a DM had
   no way to see whether a character was still being built or had passed its creation limit, per
