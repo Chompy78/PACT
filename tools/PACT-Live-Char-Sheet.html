@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.479.html**-->
+<!--**PACT-Live-Char-Sheet v1.482.html**-->
 
 <!doctype html>
 <!--
@@ -358,6 +358,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn g" id="exportBtn" onclick="exportJSON()" title="Export character to a file">⬇ <span class="bl">Export</span></button>
 <button class="btn g" onclick="document.getElementById('imp').click()" title="Import a character file">⬆ <span class="bl">Import</span></button>
 <input type="file" id="imp" style="display:none" accept=".json" onchange="if(this.files[0])importJSON(this.files[0]);this.value=''">
+<button class="btn g" id="finishCreatingBtn" onclick="finishCreating()" title="End character creation. Own-species traits get pricier afterwards and purchases start costing gold and downtime; only your DM can reopen it." style="display:none">✔ <span class="bl">Finish creating</span></button>
 <button class="btn g" onclick="switchToCharGen()" title="Open this character back in the Character Generator — no file to export or import">⇆ <span class="bl">Open in CharGen</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" id="cloudBtn" title="Cloud save / load">☁ <span class="bl">Cloud</span></button><div id="cloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span>
 <span id="lsSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span>
@@ -506,6 +507,38 @@ function _dmOpts(){var a=window._rulesStatus==='active';return {dmAp:a?(window._
 // drawbackCap already use — when a campaign's rules can't be read we fall back to the character's
 // own setting rather than guessing at the table's, exactly as the DM-AP chip refuses to show a
 // figure it can't stand behind.
+// Options for creationCeiling()/wouldExceedCeiling(): the drawback grant AFTER this campaign's cap,
+// and the character's REAL spend. Both come from the values already computed for display, so the
+// ceiling can never disagree with the AP figures shown beside it. drawbackAp comes from compute() —
+// the one place the cap is applied — rather than being re-derived here.
+function _ceilOpts(b){
+  var _b = b || foldBuild(null);
+  return { drawbackAp: compute(_b, _dmOpts()).drawbackAp || 0, spent: economy(null).spent };
+}
+// "Finish creating" — the ONLY thing that ends creation now that the automatic spend tripwire is
+// retired (feat/creation-ceiling, R3). Appends the explicit creationLocked event the engine has
+// always understood but which no tool ever emitted here.
+//
+// The confirm states the consequences plainly because they are not reversible from this tool: own-
+// species traits re-price upward, and purchases begin costing gold and downtime where a campaign has
+// that economy switched on.
+function finishCreating(){
+  var st = (typeof creationCeiling === 'function') ? creationCeiling(LOG, _ceilOpts(null)) : null;
+  if(st && st.locked){ flash('This character has already finished creation.'); return; }
+  var msg = 'Finish creating this character?\n\n';
+  if(st) msg += 'You have spent ' + st.spent + ' of ' + st.ceiling + ' AP.\n\n';
+  msg += 'After this:\n'
+      +  '  \u2022 traits from your own species cost more to add\n'
+      +  '  \u2022 purchases start costing gold and downtime (if your DM has that switched on)\n'
+      +  '  \u2022 your creation limit no longer applies \u2014 you spend whatever AP you have\n\n'
+      +  'Only your DM can reopen creation afterwards.';
+  if(!confirm(msg)) return;
+  LOG.push({ seq:SEQ++, ts:Date.now(), type:'creationLocked', rules:RULES,
+             label:'Creation finished' + (st ? (' \u2014 ' + st.spent + ' of ' + st.ceiling + ' AP spent') : '') });
+  save(); render();
+  flash('\u2714 Creation finished \u2014 you now spend at in-play prices.');
+}
+window.finishCreating = finishCreating;
 function _lsEconBand(uptoIdx){
   var E=window._engineEcon; if(!E) return 'off';
   return E.resolveEconomySetting({
@@ -890,6 +923,27 @@ function buy(cat,payload,label){
     alert('⛔ Already owned — "'+payload.v+'" can only be bought once.'); return; }
   const cost=priceOf(cat,payload,b0); const avail=_apRemaining(compute(b0,_dmOpts()).spendable,economy(null).spent);
   if(cat!=='drawback' && cost>avail){ flash('Not enough AP: needs '+cost+', have '+avail); return; }
+  // (B1b) CREATION CEILING (feat/creation-ceiling, R3). While a character is still being built it may
+  // not spend past the ceiling its DM assigned, plus whatever its drawbacks grant. This REPLACES the
+  // old silent auto-lock: rather than letting the purchase through and quietly ending creation on the
+  // far side of it, we stop at the line and name BOTH ways forward. Offering only "finish creating"
+  // would be wrong for a player whose DM topped them up mid-build, which is the commonest way to hit
+  // this. No-ops for a locked character, one with no ceiling stamped, and for drawbacks (cost<=0) —
+  // all decided by the engine, see wouldExceedCeiling().
+  if(typeof wouldExceedCeiling === 'function' && wouldExceedCeiling(LOG, cost, _ceilOpts(b0))){
+    var _c = creationCeiling(LOG, _ceilOpts(b0));
+    alert('\u26D4 That would take you past your creation limit.\n\n'
+      + 'Creation budget: ' + _c.ceiling + ' AP'
+      + (_c.drawbackBonus ? ('  (' + _c.base + ' set by your DM + ' + _c.drawbackBonus + ' from your drawbacks)') : '')
+      + '\nAlready spent: ' + _c.spent + ' AP'
+      + '\nThis purchase: ' + cost + ' AP\n\n'
+      + 'Two ways forward:\n'
+      + '  \u2022 If you have FINISHED building this character, use "Finish creating" \u2014 after that you\n'
+      + '    spend at in-play prices and this limit no longer applies.\n'
+      + '  \u2022 If you are still building and need more budget, ask your DM to raise your limit.');
+    return;
+  }
+
   // (B2) split rules warnings: hard violations are blocked with a popup; intended-but-flagged ones stay confirm-through
   const warns=legalCheck(cat,payload,b0);
   const followup=warns.filter(function(w){return  EXPECTED_FOLLOWUP.test(w);});
@@ -1434,6 +1488,25 @@ function render(){
   const head = viewAt==null;
   const idx = viewAt;
   const b=foldBuild(idx); const eco=economy(idx); const _dmO=_dmOpts(),_dmAp=_dmO.dmAp,_ignPlr=_dmO.ignorePlayerAp; const r=compute(b,_dmO); const m=r.mods;
+  // Creation state: reveal "Finish creating" only while the character is actually still in creation,
+  // and only when a ceiling has been stamped (otherwise there is nothing meaningful to finish against
+  // and the button would be noise on every legacy character). Also surface how much room is left, so
+  // hitting the ceiling is never the first time a player hears about it.
+  try{
+    var _fcb = $('finishCreatingBtn');
+    if(_fcb && typeof creationCeiling === 'function'){
+      var _cs = creationCeiling(LOG, _ceilOpts(b));
+      var _show = _cs.enforced && !_cs.locked;
+      _fcb.style.display = _show ? '' : 'none';
+      if(_show){
+        _fcb.title = 'Creation budget ' + _cs.ceiling + ' AP'
+          + (_cs.drawbackBonus ? (' (' + _cs.base + ' from your DM + ' + _cs.drawbackBonus + ' from drawbacks)') : '')
+          + ' \u2014 ' + _cs.spent + ' spent, ' + Math.max(0,_cs.remaining) + ' left.'
+          + ' Finishing ends creation: own-species traits cost more afterwards and purchases start'
+          + ' costing gold and downtime. Only your DM can reopen it.';
+      }
+    }
+  }catch(e){ /* display-only; never let this stop the sheet rendering */ }
   const _apAvail=_apRemaining(r.spendable,eco.spent), _apOver=_apAvail<0;
   _apNudgeBanner(eco.spent);
   // Resolved once per render and threaded into every trackLevel() call below — trackLevel()
@@ -2494,12 +2567,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, creationCeiling, wouldExceedCeiling, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   window._engineBridge = { validate };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   // Gold-and-downtime economy (Players Guide §16). Bridged onto window exactly as the AP-ledger
   // functions above are, so the classic-script half of this tool reaches them the same way.
+  window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling;
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of
