@@ -939,9 +939,13 @@ try {
               first, n(), isCreationDraft(LOG)];})()`),
     [true, 0, 0, true]);
   // ...and the control that replaced it does end creation, exactly once.
+  // Stub BOTH dialogs, not just confirm: the second call takes the already-locked branch, which calls
+  // alert(), and an unhandled alert blocks a headless browser until the job is cancelled. (It did —
+  // this suite hung for 10 minutes with every assertion passing before the alert stub was added.)
   check('cgFinishCreating() ends creation, and is idempotent',
-    await cg.evaluate(`(()=>{const _c=window.confirm; window.confirm=()=>true;
-      try{ cgFinishCreating(); cgFinishCreating(); }finally{ window.confirm=_c; }
+    await cg.evaluate(`(()=>{const _c=window.confirm,_a=window.alert;
+      window.confirm=()=>true; window.alert=()=>{};
+      try{ cgFinishCreating(); cgFinishCreating(); }finally{ window.confirm=_c; window.alert=_a; }
       return [LOG.filter(e=>e&&e.type==='creationLocked').length, isCreationDraft(LOG)];})()`),
     [1, false]);
   // The whole point: replaying the SAVED log still sees it. Before this the lock was re-derived from
