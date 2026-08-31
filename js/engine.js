@@ -24,6 +24,8 @@
  *   activeEvents(events) — {evs, boughtOff, boonRemoved, lost}: live events + a bought-off-drawback map +
  *                          a DM-removed-boon map (feat/dm-edit-events) + the FIFO-matched lost-purchases
  *                          list ({kind,label,cost}[], feat/ledger-show-lost-purchases) compute() itemizes.
+ *   creationLockState(events) — {locked, armed, confirmed, threshold, spentTowardThreshold, …} for one
+ *                          log. spentTowardThreshold is the LOCK's accounting, never economy().spent.
  *   economy(events)      — {earned, spent, available, drawbackEarned}: AP tally from a LOG (no fold/compute).
  *   earnedWithDm(eco, opts?) — eco.earned composed with DM AP (opts:{dmAp?, ignorePlayerAp?}), mirroring
  *                       compute()'s own spendable formula — feeds Track-Level in both tools
@@ -1794,6 +1796,65 @@ export function isCreationDraft(events) {
   let anyLocked = false;
   _replay(baseBuild(), log, (e, build, wasLocked) => { if (wasLocked) anyLocked = true; });
   return !anyLocked;
+}
+
+// creationLockState(events): the creation-lock picture for one character's log, in one call —
+// `{locked, armed, confirmed, threshold, spentTowardThreshold, remainingToThreshold}`.
+//
+// WHY THIS IS AN ENGINE EXPORT and not a third hand-written copy. CharGen and Live Sheet each carry
+// their own `_creationLockState()` that scans the log for `creationLockConfig` and resolves
+// armed/threshold with the same last-write-wins-per-field rule `_lockStates()` uses. Those two are
+// already duplicates of each other; DM Console needing the same answer would have made three. This
+// project's recurring failure is exactly that shape — a canonical rule extended once while
+// hand-written mirrors of its older form quietly keep the old behaviour (see the round-6 note in
+// `docs/sessions/2026-08-27-feature-hd-gate.md`, where a correct engine fix left two tool-layer copies
+// stale). One export, and the two existing copies can be collapsed onto it as a follow-up.
+//
+// `locked` is authoritative: it comes from the same `_lockStates()` timeline compute()'s racial-trait
+// pricing reads, so it can never disagree with the pricing actually applied. `threshold` is the figure
+// in force (an explicit `creationLockConfig{threshold}`, else `DATA.level1AP`), and `confirmed` says
+// which of those two it is — a caller can then distinguish "measured against this character's own
+// number" from "measured against the engine default", which is precisely the distinction that made two
+// live characters lock against 79 when their campaign's figure was 83.
+//
+// Pure and additive: reads only the log, changes no compute() output, so it needs no `DATA.version`
+// bump.
+//
+// ⚠ `spentTowardThreshold` IS NOT `economy().spent`, AND MUST NOT BE DISPLAYED AS "AP spent".
+// It is the lock's own accounting: the figure `_lockStates()` compares against the threshold, which
+// deliberately EXCLUDES every event tagged `noLock` — and CharGen tags its entire creation burst that
+// way (D-GH34, so an imported higher-budget character can't self-trip the lock partway through a
+// synthetic ordering). The practical effect is stark: measured on the live character Anders Pipeleaf,
+// this reads **0** while `economy().spent` reads **67**. Both are correct for their own question.
+// Named the long way precisely so the two can't be confused at a call site — a number that means one
+// thing being rendered as if it meant another is the exact failure this codebase keeps paying for.
+export function creationLockState(events) {
+  const log = (Array.isArray(events) ? events : []).filter(Boolean);
+  const { evs } = activeEvents(log);
+  let armed, thr = null, spent = 0;
+  for (const e of evs) {
+    if (e.type === 'creationLockConfig' && e.payload) {
+      if (Object.prototype.hasOwnProperty.call(e.payload, 'auto')) armed = e.payload.auto;
+      if (Object.prototype.hasOwnProperty.call(e.payload, 'threshold')) thr = e.payload.threshold;
+    } else if (!e.noLock) spent += _spendCost(e);
+  }
+  const threshold = (thr == null) ? DATA.level1AP : thr;
+  // `locked` is the state AFTER the last real event, obtained the way chargesGoldAndTime() already
+  // does it: run the timeline over the log plus one inert probe, and read the probe's slot.
+  //
+  // NOT `!isCreationDraft(log)`, which was wrong here and was caught only by driving the real console:
+  // _lockStates() reports the state ENTERING each event, so a log whose FINAL event is `creationLocked`
+  // has no later slot carrying the lock, and isCreationDraft() reports it as still a draft. The live
+  // characters that exposed nothing are the ones that happen to have purchases after their lock.
+  const _st = _lockStates(evs.concat([{ type: '_probe', noLock: true }]));
+  return {
+    locked: !!_st[_st.length - 1],
+    armed: armed === undefined ? null : !!armed,   // null = not configured (legacy campaignBound path)
+    confirmed: thr != null,                        // false = falling back to the engine default
+    threshold,
+    spentTowardThreshold: spent,
+    remainingToThreshold: threshold - spent,
+  };
 }
 
 // repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so
