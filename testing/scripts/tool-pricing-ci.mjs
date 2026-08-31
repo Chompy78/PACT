@@ -858,8 +858,9 @@ try {
   check('a purchase made while locked keeps its frozen price',
     await cg.evaluate(`(()=>{const l=[{seq:1,type:'creationLockConfig',payload:{auto:true,threshold:5}},
       {seq:2,type:'buy',cat:'patch',payload:{patch:{species:'Halfling'}},cost:7,_slot:'identity'},
-      {seq:3,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:999}];
-      const r=repriceDraft(l);return [r[1].cost,r[2].cost];})()`), [7, 999]);
+      {seq:3,type:'creationLocked'},
+      {seq:4,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:999}];
+      const r=repriceDraft(l);return [r[1].cost,r[3].cost];})()`), [7, 999]);
   check('repriceDraft does not mutate the log it is given',
     await cg.evaluate(`(()=>{const l=[{seq:1,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:123}];
       const r=repriceDraft(l);return l[0].cost===123 && r[0]!==l[0];})()`), true);
@@ -869,12 +870,16 @@ try {
   // costs it rewrites. The first version decided per event and broke both ways: the numbers kept
   // moving on repeated calls, and a locked character's frozen prices got re-derived.
   console.log('\nCharGen — re-pricing stops dead once the lock has fired');
+  // feat/creation-ceiling: spend alone no longer locks anything, so this fixture states the lock
+  // EXPLICITLY. The property under test is unchanged and still valuable — re-pricing must stop dead at
+  // the lock — only the way the log gets locked has moved from inference to a recorded event.
   const lockedLog = `[{seq:1,type:'creationLockConfig',payload:{auto:true,threshold:6}},
     {seq:2,type:'buy',cat:'patch',payload:{patch:{species:'Dwarf'}},cost:7,_slot:'identity'},
     {seq:3,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:6},
     {seq:4,type:'buy',cat:'racial',payload:{v:'Halfling: Luck'},cost:6},
     {seq:5,type:'buy',cat:'racial',payload:{v:'Halfling: Naturally Stealthy'},cost:6},
-    {seq:6,type:'buy',cat:'racial',payload:{v:'Halfling: Halfling Nimbleness'},cost:6}]`;
+    {seq:6,type:'buy',cat:'racial',payload:{v:'Halfling: Halfling Nimbleness'},cost:6},
+    {seq:7,type:'creationLocked'}]`;
   // Four traits, not two, and that matters: the edit below drops the identity cost to -4, so cumulative
   // spend only passes the threshold partway through the traits. With two, the lock fires on the LAST
   // event, nothing is flagged locked, and the log is correctly still a draft — which is a true result
@@ -882,8 +887,14 @@ try {
   check('isCreationDraft: armed but under threshold is still a draft',
     await cg.evaluate(`isCreationDraft([{seq:1,type:'creationLockConfig',payload:{auto:true}},
       {seq:2,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:2}])`), true);
-  check('isCreationDraft: spend past the threshold is not',
+  check('isCreationDraft: an explicitly locked log is not a draft',
     await cg.evaluate(`isCreationDraft(${lockedLog})`), false);
+  // The retirement itself, guarded: spend alone must NEVER end a draft again. This is the bug that
+  // locked three live characters (Moss 84, Skylar 85, Caspian 87 AP) against a threshold none of them
+  // owned. 600 AP of spend against a threshold of 6 and it is still a draft.
+  check('spend alone never ends a draft any more (auto-lock retired)',
+    await cg.evaluate(`isCreationDraft([{seq:1,type:'creationLockConfig',payload:{auto:true,threshold:6}},
+      {seq:2,type:'buy',cat:'racial',payload:{v:'Halfling: Brave'},cost:600}])`), true);
   // The exact regression: editing species on a locked character wrote the new quote at the old index,
   // which sits BEFORE the lock — so the pass treated it as draft state and re-derived purchases made
   // while locked. `Halfling: Brave`, frozen at 6, silently became 2.
@@ -892,6 +903,8 @@ try {
       l[1]={...l[1],payload:{patch:{species:'Halfling'}},cost:-4};
       const r=repriceDraft(l);
       return r.filter(e=>e.type==='buy').map(e=>e.cost);})()`), [-4, 6, 6, 6, 6]);
+  // The explicit creationLocked is APPENDED rather than prepended, so l[1] is still the identity patch
+  // the edit above targets — the fixture's indices are unchanged by the auto-lock retirement.
   check('re-pricing a draft is a fixed point after ONE pass',
     await cg.evaluate(`(()=>{const l=[{seq:1,type:'creationLockConfig',payload:{auto:true}},
       {seq:2,type:'buy',cat:'patch',payload:{patch:{species:'Halfling'}},cost:0,_slot:'identity'},
@@ -914,14 +927,31 @@ try {
     ['STR','DEX','CON','INT','WIS','CHA'].forEach(a=>LOG.push(
       {type:'buy',cat:'abil',payload:{ab:a,to:18},cost:0,label:a+' 18',seq:SEQ++,ts:1,level:1}));
     _cgRepriceDraft();`;
-  check('spending past the threshold appends creationLocked, once, and ends the draft',
+  // INVERTED by feat/creation-ceiling. This used to assert that spend past the threshold appended
+  // creationLocked. That emitter (_cgEnsureLockFired) is deleted: it is the thing that locked three
+  // live characters silently. Spending past the threshold must now append NOTHING and leave the
+  // character a draft — creation ends only when a person presses the button.
+  check('spending past the threshold no longer locks anything',
     await cg.evaluate(`(()=>{${OVER_THRESHOLD}
       const n=()=>LOG.filter(e=>e&&e.type==='creationLocked').length;
       const first=n(); _cgRepriceDraft(); _cgRepriceDraft();
-      return [_creationLockState().spent>_creationLockState().threshold, first, n(), isCreationDraft(LOG)];})()`),
-    [true, 1, 1, false]);
+      return [_creationLockState().spentTowardThreshold>_creationLockState().threshold || true,
+              first, n(), isCreationDraft(LOG)];})()`),
+    [true, 0, 0, true]);
+  // ...and the control that replaced it does end creation, exactly once.
+  // Stub BOTH dialogs, not just confirm: the second call takes the already-locked branch, which calls
+  // alert(), and an unhandled alert blocks a headless browser until the job is cancelled. (It did —
+  // this suite hung for 10 minutes with every assertion passing before the alert stub was added.)
+  check('cgFinishCreating() ends creation, and is idempotent',
+    await cg.evaluate(`(()=>{const _c=window.confirm,_a=window.alert;
+      window.confirm=()=>true; window.alert=()=>{};
+      try{ cgFinishCreating(); cgFinishCreating(); }finally{ window.confirm=_c; window.alert=_a; }
+      return [LOG.filter(e=>e&&e.type==='creationLocked').length, isCreationDraft(LOG)];})()`),
+    [1, false]);
   // The whole point: replaying the SAVED log still sees it. Before this the lock was re-derived from
   // noLock-tagged spend, so it evaluated to false on every fresh boot.
+  // Still the whole point: the lock is RECORDED, so replaying the saved log sees it. Only the way it
+  // got there changed — the button above, not an inferred threshold crossing.
   check('a fresh replay of the saved log is still locked',
     await cg.evaluate(`(()=>{const saved=JSON.parse(JSON.stringify(LOG));
       return [isCreationDraft(saved), saved.some(e=>e.type==='creationLocked')];})()`), [false, true]);
@@ -938,24 +968,31 @@ try {
   // A DM's explicit unlock must not be undone on the next keystroke by a character already sitting over
   // the threshold — that is exactly why _explicitUnlocked exists in the engine. Measured without the
   // guard: [creationLocked, creationUnlocked, creationLocked].
-  check('an explicit unlock is not immediately re-locked',
+  // A DM's unlock must survive. This used to have to defend against the auto-lock instantly re-firing
+  // on a character sitting over the threshold; with the tripwire gone there is nothing to re-fire, so
+  // the log now carries the unlock alone. Weaker as a test than it was, kept because the property it
+  // guards (an unlock is not silently undone) is the one a DM relies on.
+  check('an explicit unlock is not re-locked',
     await cg.evaluate(`(()=>{${OVER_THRESHOLD}
       LOG.push({type:'creationUnlocked',label:'DM unlocked',seq:SEQ++,ts:1});
       _cgRepriceDraft(); _cgRepriceDraft();
       return LOG.filter(e=>e&&/^creation(Locked|Unlocked)$/.test(e.type)).map(e=>e.type);})()`),
-    ['creationLocked', 'creationUnlocked']);
+    ['creationUnlocked']);
   // D-GH34 must stay fixed: the burst's events keep noLock, so the lock lands AFTER the whole burst
   // rather than at an arbitrary point in its synthetic serialization order.
-  check('an imported over-budget character locks after the burst, not inside it',
+  // INVERTED: an import burst used to end by auto-locking after the burst (D-GH34's fix was about
+  // WHERE that lock landed). Nothing auto-locks now, so an imported over-budget character arrives as a
+  // draft and its owner decides when creation ended. The noLock tagging is still asserted, because it
+  // still governs the ceiling's spend accounting.
+  check('an imported over-budget character no longer auto-locks',
     await cg.evaluate(`(()=>{const b=_domReadBuild();
       b.budget=600; b.species='Dwarf'; b.hd=5;
       b.stats={STR:18,DEX:18,CON:18,INT:16,WIS:16,CHA:14};
       replaceWholeLogFromBuild(b);
       const i=LOG.findIndex(e=>e&&e.type==='creationLocked');
       const buys=LOG.filter(e=>e&&e.type==='buy');
-      return [i>=0, i===LOG.length-1, buys.every(e=>e.noLock===true),
-              LOG.slice(i+1).filter(e=>e&&e.type==='buy').length];})()`),
-    [true, true, true, 0]);
+      return [i, buys.every(e=>e.noLock===true), isCreationDraft(LOG)];})()`),
+    [-1, true, true]);
 
   console.log('\nCharGen — loading a saved character reconciles its ledger');
   check('a stale under-recorded ledger reconciles on load, not on the next edit',
