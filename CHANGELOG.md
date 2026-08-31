@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-30 · fix(tools): AP breakdowns omitted the drawback pool and contradicted their own
+  headline** — `compute()` composes spendable AP from THREE pools (player × ignore-toggle + drawback grant
+  + DM) but returned only two of them, so no tool could label the third. Live on a real character:
+  headline "80 AP", breakdown "0 player + 76 DM" — a 4 AP contradiction, visible to five of the six Amble
+  players. `compute()` now returns `drawbackAp`; CharGen's three AP labels print the drawback share via one
+  shared `_apDrawPart()` helper (three call sites, one definition, so they cannot drift apart again), and
+  DM Console splits its mislabelled "AP earned (own log)" row — which silently attributed drawback AP to
+  the player — into an awards row and a "Granted by drawbacks" row, showing the capped figure and the raw
+  one when a campaign cap bites. Purely additive to the engine's return: no pricing change, parity 73/0,
+  no `DATA.version` bump.
 - **2026-08-27 · feat(dm-console): HD stat box on the roster card, plus per-card hide/show** — the
   default Card view's stat strip (`cardHTML()`) gets an **HD** box (the character's actual hit-dice
   level, `s.hd`, distinct from the AP-earned `Level` already shown in the header) appended after the

@@ -1187,8 +1187,12 @@ function dmAnalyze(exported, apOpts){
     // running ignore_player_ap with the whole budget granted as DM AP, that made every character's
     // entire budget invisible and showed them all deeply overspent.
     earned: eco.earned, spent: eco.spent, available: r.spendable - eco.spent,
-    // The two pools, surfaced so a DM can see where a budget came from rather than one opaque total.
-    playerAp: r.playerAp, dmAp: r.dmAp, spendable: r.spendable, ignoredPlayerAp: !!(apOpts && apOpts.ignorePlayerAp),
+    // The three pools, surfaced so a DM can see where a budget came from rather than one opaque total.
+    // drawbackAp is the grant AFTER the campaign cap (what actually counts toward spendable);
+    // drawbackRaw is what the drawbacks would grant uncapped. economy().earned carries the RAW figure,
+    // so the awards row below must subtract the raw one or it over-reports awards whenever a cap bites.
+    playerAp: r.playerAp, dmAp: r.dmAp, drawbackAp: r.drawbackAp, drawbackRaw: eco.drawbackEarned || 0,
+    spendable: r.spendable, ignoredPlayerAp: !!(apOpts && apOpts.ignorePlayerAp),
     purchases: LOG.filter(function(e){return e.type==='buy';}).length,
     awards: awards, unnamed: unnamed,
     warnings: (r.warnings||[]).length, warningList: (r.warnings||[]).slice(),
@@ -1457,10 +1461,19 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return kvRows(rows);
   }
   function pactBuildBody(s){
-    // Show the ceiling's two pools, not just the net. "AP available" is spendable − spent, and with
+    // Show the ceiling's three pools, not just the net. "AP available" is spendable − spent, and with
     // ignore-player-AP on, a character's own log AP contributes nothing — a DM reading a bare
     // "6 earned / 12 available" could not otherwise reconstruct where the 12 came from.
-    var rows = [['AP earned (own log)', s.earned||0]];
+    //
+    // economy().earned = awards + the drawback grant, so labelling it "own log" alone read as PLAYER AP
+    // and silently attributed the drawback pool to the wrong source: a character with no awards and 4 AP
+    // of drawbacks showed "AP earned (own log) 4", which a DM would reasonably read as the player having
+    // granted themselves 4 AP. Split the drawback share out and label the remainder as awards.
+    var _draw = s.drawbackAp || 0, _rawDraw = s.drawbackRaw || 0;
+    var _awarded = (s.earned || 0) - _rawDraw;   // raw, not capped — see the summary object's note
+    var rows = [['AP earned (own log awards)', _awarded]];
+    if(_draw || _rawDraw) rows.push(['Granted by drawbacks',
+      _rawDraw > _draw ? (_draw + ' (of ' + _rawDraw + ' — capped)') : _draw]);
     if(s.dmAp) rows.push(['DM-granted AP', s.dmAp]);
     if(s.ignoredPlayerAp && s.playerAp) rows.push(['Player AP ignored (campaign setting)', s.playerAp]);
     if(s.dmAp || s.ignoredPlayerAp) rows.push(['Spendable total', s.spendable||0]);
