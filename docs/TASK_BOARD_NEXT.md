@@ -846,3 +846,30 @@ data; nothing in `compute()` reads this file.
 
 **Done when:** the JSONL carries one entry per named 2024 feature, none of the 4 bundles remain, and a
 fresh re-derivation from the file alone would reproduce the same split PACT's engine already has.
+
+## `tool-pricing-ci.mjs` flakes on tab readiness — TODO
+Branch `fix/tool-pricing-tab-flake`. The gate opens a fresh CDP tab per section — around ten across the
+three tools — and the later ones intermittently blow the 30-second `document.readyState==='complete'`
+poll, aborting the run with `CharGen never became ready for the version check` and skipping every
+remaining assertion. The script's own header already documents this shape (it raised the budget from 10s
+to 30s for the same reason in August) but treated it as a runner-speed problem rather than as tab
+contention it creates itself.
+
+**Measured 2026-08-31, not assumed:** on an unmodified tree it failed **3 of 3** runs; on the
+`feat/random-char-generator-optimize` branch it failed 2 of 5. So it is pre-existing, unrelated to what
+is being tested, and frequent enough that a red run currently carries almost no signal — which is the
+real cost: a gate that fails at random trains people to re-run rather than read it.
+
+**Effort:** small · **Risk:** low — test harness only, no app code, no rules logic; worst case the gate
+stays as flaky as it already is.
+
+```
+Reuse ONE tab per tool (CharGen, Live Sheet, DM Console) across all of that tool's sections instead of
+connect()-ing a new one per section, resetting state between sections with the tool's own resetBuild()
+rather than a fresh page load. Keep the existing readiness poll and its 30s budget — the point is to stop
+creating ten concurrent tabs, not to wait longer for them. Verify by running the gate 10 times in a row
+on an unmodified tree.
+```
+
+**Done when:** `node testing/scripts/tool-pricing-ci.mjs` passes 10 consecutive runs on an unmodified
+tree, and the tab count it opens is one per tool rather than one per section.

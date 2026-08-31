@@ -320,6 +320,32 @@ try {
   check('a Fighter on a caster theme still primes a Fighter stat, not INT', misprimed.length === 0,
     misprimed.length ? `${misprimed.length}/${fighters.length}, e.g. INT ${misprimed[0].stats.INT} vs STR ${misprimed[0].stats.STR}/DEX ${misprimed[0].stats.DEX}/CON ${misprimed[0].stats.CON}` : '');
 
+  // ---- the roll panel's preview strip must be DERIVED from the theme, not restated by hand ----
+  // The strip tells the player what a theme will do before they commit to it. If it were ever hand-written
+  // it could drift from what the generator actually does, which is worse than showing nothing — so assert
+  // that for every theme the rendered text carries that theme's own armour ceiling, weapon ceiling and
+  // favoured skills, straight off the same object catPick()/listPick() draw against.
+  const prevBad = await cg.evaluate(`(function(){
+    var bad=[];
+    randomizeBuild();
+    RTHEMES.forEach(function(t){
+      var r=[].slice.call(document.querySelectorAll('#rollbody input[name=rollth]')).find(function(x){return x.value===t.key;});
+      if(!r){bad.push(t.key+': no radio');return;}
+      r.checked=true; r.dispatchEvent(new Event('change',{bubbles:true}));
+      var el=document.getElementById('rollprev'); var txt=el?el.textContent:'';
+      if(txt.indexOf(t.label)<0)bad.push(t.key+': label missing');
+      var armWant=(t.armour==='none')?'no armour':('up to '+t.armour+' armour');
+      if(txt.indexOf(armWant)<0)bad.push(t.key+': armour ceiling not shown ('+armWant+')');
+      var wpnWant=(t.weapons==='martial')?'martial weapons':(t.weapons==='none'?'no weapon training':'simple weapons only');
+      if(txt.indexOf(wpnWant)<0)bad.push(t.key+': weapon ceiling not shown ('+wpnWant+')');
+      if(!!t.shield !== (txt.indexOf('shield')>=0))bad.push(t.key+': shield line disagrees with theme');
+      (t.skills||[]).slice(0,3).forEach(function(sk){if(txt.indexOf(sk)<0)bad.push(t.key+': skill missing '+sk);});
+    });
+    closeRollPanel();
+    return bad;
+  })()`);
+  check('the panel preview is derived from each theme, not restated', prevBad.length === 0, prevBad.slice(0, 6).join(' · '));
+
   // ---- a compact per-theme table, so a human reading CI output can see what it built ----
   console.log('\n  theme                  Lv1 HD/skills/boons   Lv10 HD/sk/bn   Lv20 HD/sk/bn   armour  wpn');
   for (const { th, rows } of all) {

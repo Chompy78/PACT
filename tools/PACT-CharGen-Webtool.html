@@ -326,6 +326,13 @@ fieldset.collapsed .secbody{display:none}
 .rollth b{font-size:13.5px;color:var(--navytx)}
 .rollth .hint{display:block;margin:3px 0 0 20px;font-size:11.5px;line-height:1.4}
 .rollth:has(input:checked){border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+.rollprev{margin:12px 0 4px}
+.rollprev-in{border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:8px;padding:10px 12px;background:var(--card)}
+.rollprev-in>b{font-size:13.5px;color:var(--navytx);display:block;margin-bottom:6px}
+.rollprev-row{display:flex;gap:10px;font-size:12px;line-height:1.5;padding:1px 0}
+.rollprev-k{flex:0 0 104px;color:var(--muted,#667);font-weight:600}
+.rollprev .hint{display:block;margin-top:6px}
+@media(max-width:520px){.rollprev-row{display:block}.rollprev-k{display:block}}
 #portraittext,#portraittext_full{width:100%;height:140px;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);line-height:1.5;resize:vertical}
 /* --- narrow / mobile --- */
 /* a11y (M6): visible focus ring on every interactive control */
@@ -4793,8 +4800,12 @@ function openRollPanel(){
     // Only levels the budget can actually pay for. Offering 1-20 regardless meant picking "Level 20" on a
     // level-3 budget poured every AP into Hit Dice and returned a character with no skills or powers.
     for(let L=1;L<=info.lv;L++) h+='<option value="'+L+'">Level '+L+'</option>';
-    h+='</select><span class="hint">Rolling below your level leaves AP for more powers and skills instead.</span></div>';
+    h+='</select><span class="hint">Rolling below your level leaves AP for more powers and skills instead.</span></div>'+
+      '<div id="rollprev" class="rollprev" aria-live="polite"></div>';
     body.innerHTML=h;
+    body.addEventListener('change',e=>{if(e.target&&e.target.name!=='rollth')return;
+      _rollPreview();
+      const pv=$('rollprev'); if(pv&&pv.scrollIntoView)try{pv.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(err){pv.scrollIntoView(false);}});
     // Match by comparing values, never by interpolating the stored key into a selector: a localStorage
     // value carrying a CSS metacharacter would make querySelector THROW here, before the overlay is shown,
     // leaving the 🎲 Random button permanently inert with no way for the player to clear it.
@@ -4802,8 +4813,46 @@ function openRollPanel(){
     ((radios.find(el=>el.value===_rollThemeChoice))||radios[0]).checked=true;
     const ls=$('rolllvl');
     if(ls) ls.value=(_rollLevel>0&&_rollLevel<=info.lv)?String(_rollLevel):'0';
+    _rollPreview();
   }
   ov.style.display='block'; ov.scrollTop=0;
+}
+
+// What the selected theme actually biases, spelled out before you commit to a roll — the cards only have
+// room for a one-line hint, and "Battle-Caster" does not tell you it caps at medium armour. Every value
+// here is READ BACK OFF THE THEME OBJECT the generator itself uses, never restated by hand: a preview
+// that drifted from the roll would be worse than none. Nothing player-controlled reaches innerHTML (the
+// theme table is authored in this file), which is why there is no esc() call.
+function _rollPreview(){
+  const el=$('rollprev'); if(!el) return;
+  const sel=document.querySelector('#rollbody input[name="rollth"]:checked');
+  const key=sel?sel.value:'';
+  if(!key){
+    el.innerHTML='<div class="rollprev-in"><b>✨ Surprise me</b><span class="hint">'+
+      'Rolls one of the eight themes below. If you have already chosen an origin class, it picks a theme '+
+      'that suits it — a Wizard draws Scholar or Battle-Caster, never Frontline Bruiser.</span></div>';
+    return;
+  }
+  const t=RTHEME_BY_KEY(key); if(!t){el.innerHTML='';return;}
+  // Top categories by the theme's own declared weight — the same numbers catPick() draws against.
+  const cats=Object.keys(t.cats||{}).filter(c=>t.cats[c]>=4)
+    .sort((a,b)=>t.cats[b]-t.cats[a]).slice(0,3);
+  const shape=t.shape||{};
+  const pct=k=>Math.round((shape[k]||0)*100)+'%';
+  const gear=[];
+  gear.push(t.armour==='none'?'no armour':('up to '+t.armour+' armour'));
+  if(t.shield)gear.push('shield');
+  gear.push(t.weapons==='none'?'no weapon training':(t.weapons==='martial'?'martial weapons':'simple weapons only'));
+  const abil=(t.abil&&t.abil.length)?t.abil.join(' then '):'your class\u2019s own casting stat, then CON';
+  const row=(lab,val)=>'<div class="rollprev-row"><span class="rollprev-k">'+lab+'</span><span>'+val+'</span></div>';
+  el.innerHTML='<div class="rollprev-in"><b>'+t.label+'</b>'+
+    row('Raises first', abil)+
+    row('Leans toward', cats.length?(cats.join(' · ')+' boons &amp; arts'):'no strong category')+
+    row('Gear ceiling', gear.join(' · '))+
+    row('Favours skills', (t.skills||[]).slice(0,6).join(', '))+
+    row('Spends about', pct('stats')+' stats · '+pct('powers')+' powers · '+pct('skills')+' skills · '+pct('kit')+' gear')+
+    '<span class="hint">Roughly one purchase in five ignores the theme on purpose, so two rolls of the '+
+    'same theme are never the same character.</span></div>';
 }
 function closeRollPanel(){const ov=$('rollview');if(ov)ov.style.display='none';}
 function doRoll(){

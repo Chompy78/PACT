@@ -16,7 +16,10 @@
   `cat` fields `DATA.boons`/`DATA.arts` already carry, ability priorities, an armour/weapon ceiling and
   shortlists for skills, tools, drawbacks, name style and demeanour. ~18% of picks stay deliberately
   off-theme so two rolls of one theme still differ. Level now tracks `apLevel(budget)`. The old
-  `confirm()` is replaced by a roll panel (theme picker + target level, remembered between rolls).
+  `confirm()` is replaced by a roll panel (theme picker + target level, remembered between rolls) whose
+  preview strip spells out what the selected theme will do — abilities raised first, favoured boon/art
+  categories, armour/weapon ceiling, favoured skills, spend split — every value read back off the theme
+  object the generator itself uses, so it cannot drift from the roll.
   Legality machinery is untouched — `tryAct()` still gates every buy on budget + no-new-hard-warning.
   Fixes found on the way: tradition Rank could reach 10 against a UI select that only offers 0–9, which
   made the select read back as Rank **0** and stranded every spell slot behind a gate; spell slots were

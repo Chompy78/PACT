@@ -72,6 +72,18 @@ Worth generalising: an assertion that an element *exists and responds* says noth
 text fits inside it. The screenshot pass now also measures rendered text width against the control's box,
 so that specific failure is mechanical rather than visual.
 
+The theme preview strip added afterwards repeated the lesson in a second form. It rendered correctly at
+every width — `previewRendered: true`, no overflow, five rows — and was still broken on a phone, because
+nine stacked theme cards push it below the fold: selecting a theme updated something the player could not
+see. Geometry assertions had nothing to say about that; the screenshot did. Fixed with a
+`scrollIntoView({block:'nearest'})` that no-ops when the strip is already visible, so desktop is
+unaffected.
+
+The strip's content is read back off the theme object rather than restated, and a gate assertion now
+holds it there — for all eight themes the rendered text must carry that theme's own armour ceiling,
+weapon ceiling, shield flag and favoured skills. A preview that drifted from what the generator actually
+does would be worse than no preview at all.
+
 Otherwise the panel checked out — no horizontal scroll on page or panel at any width, cards reflow 3-up
 to stacked, and all five colour themes pick up their own tokens (the panel uses only existing `--bg`,
 `--card`, `--line`, `--navytx`, `--blue` variables, no new colours).
