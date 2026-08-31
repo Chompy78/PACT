@@ -314,7 +314,7 @@ try {
   check('all 12 epic boons buy on a HD-17 character, with no alert and no confirm',
     await ls.evaluate(`(()=>{${LS_SETUP}
       LOG.push({type:'award',amount:900,label:'AP award',seq:SEQ++,ts:Date.now()});
-      for(let h=2;h<=17;h++){const b=foldBuild(null);
+      for(let h=2;h<=19;h++){const b=foldBuild(null);
         LOG.push({type:'buy',cat:'hd',payload:{to:h},cost:priceOf('hd',{to:h},b),label:'Level up',seq:SEQ++,ts:Date.now(),level:b.hd});}
       const epics=DATA.boonList.filter(x=>DATA.boons[x].epic);
       epics.forEach(n=>buy('boon',{v:n},n));
@@ -348,7 +348,7 @@ try {
   check('the epic-boon tile keeps its guidance text but drops the amber warning styling',
     await ls.evaluate(`(()=>{${LS_SETUP}
       LOG.push({type:'award',amount:900,label:'AP award',seq:SEQ++,ts:Date.now()});
-      for(let h=2;h<=17;h++){const b=foldBuild(null);
+      for(let h=2;h<=19;h++){const b=foldBuild(null);
         LOG.push({type:'buy',cat:'hd',payload:{to:h},cost:priceOf('hd',{to:h},b),label:'Level up',seq:SEQ++,ts:Date.now(),level:b.hd});}
       render(); setBuyQuery('boon of truesight');
       const t=[...document.querySelectorAll('#buy button.ib')].find(x=>/Boon of Truesight/.test(x.innerText||''));
@@ -360,6 +360,11 @@ try {
   // path in the tool. Measured before the fix: 0 AP -> -22 over four clicks at 4/5/6/7.
   console.log('\nLive Sheet — the extra-maneuver purchase goes through the affordability gate');
   const MV = `${LS_SETUP}
+    // Combat Superiority is T3, so the character needs 3 Hit Dice to OWN it
+    // (D-GH-2026-08-27-feature-hd-gate). Without this the feature is blocked -- 0 AP, not owned -- and the
+    // three maneuver checks below would still pass while silently asserting the gate's behaviour for a
+    // character who does not have Combat Superiority at all, which is the opposite of this fixture's premise.
+    LOG.push({type:'buy',cat:'hd',payload:{to:3},cost:5,label:'HD 3',seq:SEQ++,ts:Date.now(),level:1});
     LOG.push({type:'buy',cat:'feature',payload:{v:'Fighter: Combat Superiority (maneuvers)'},cost:0,label:'CS',seq:SEQ++,ts:Date.now(),level:1});
     const avail=()=>_apRemaining(compute(foldBuild(null),_dmOpts()).spendable,economy(null).spent);
     const drain=avail();if(drain)LOG.push({type:'award',amount:-drain,label:'AP award',disc:true,seq:SEQ++,ts:Date.now()});`;
@@ -466,7 +471,7 @@ try {
   check('a DM-removed boon\'s original purchase row goes dead in the ledger; a retake afterward stays live',
     await ls.evaluate(`(()=>{${LS_SETUP}
       LOG.push({type:'award',amount:900,label:'AP award',seq:SEQ++,ts:Date.now()});
-      for(let h=2;h<=17;h++){const b=foldBuild(null);
+      for(let h=2;h<=19;h++){const b=foldBuild(null);
         LOG.push({type:'buy',cat:'hd',payload:{to:h},cost:priceOf('hd',{to:h},b),label:'Level up',seq:SEQ++,ts:Date.now(),level:b.hd});}
       const v='Boon of Combat Prowess';
       buy('boon',{v},v);
@@ -1000,8 +1005,8 @@ try {
   check('epicBoonAbil survives load -> DOM rebuild, and the warning clears',
     await cg.evaluate(`(()=>{
       const L=[{type:'award',amount:900,label:'AP award',seq:1,ts:1}]; let s=2;
-      for(let h=2;h<=17;h++)L.push({type:'buy',cat:'hd',payload:{to:h},cost:0,label:'lvl',seq:s++,ts:1,level:h-1});
-      L.push({type:'buy',cat:'boon',payload:{v:'Boon of Fate'},cost:25,label:'Boon of Fate',seq:s++,ts:1,level:17});
+      for(let h=2;h<=19;h++)L.push({type:'buy',cat:'hd',payload:{to:h},cost:0,label:'lvl',seq:s++,ts:1,level:h-1});
+      L.push({type:'buy',cat:'boon',payload:{v:'Boon of Fate'},cost:25,label:'Boon of Fate',seq:s++,ts:1,level:19});
       L.push({type:'names',eb:{'Boon of Fate':'STR'},label:'Named spells & languages',seq:s++,ts:1});
       _cgApplyEnvelope({schema:'pact-character/1',rules:DATA.version,name:'EB',LOG:L,SEQ:s},{clearHistory:true});
       replaceWholeLogFromBuild(_domReadBuild());
@@ -1559,6 +1564,19 @@ try {
       const [id,events]=captured;
       return [id, events.length, events[0].type, events[0].cat, events[0].cost, events[0].dmLocked, events[0].dmRemovalCost];})()`),
     ['test-4', 1, 'buy', 'drawback', 0, true, 'expensive']);
+  // An HD-blocked Art/Boon must be MARKED in the roster display but stay the exact plain name wherever
+  // it is a value source -- the "remove a boon" <select> above matches by exact string, so decorating
+  // s.boons/s.arts themselves (rather than a separate *Display field) would silently break Remove for
+  // any blocked boon. Caught by /code-review ultra on PR #471. DM_EDIT_ROW's Boon of Combat Prowess is
+  // Epic (needs 19 HD) on a 1 HD character with no hd event -- already HD-blocked by construction.
+  check('a blocked boon is marked in the display chips but the remove-dropdown value stays exact',
+    await dm.evaluate(`(()=>{
+      window._dmRenderCloudRoster(document.getElementById('campRoster'), ${DM_EDIT_ROW});
+      const card=[...document.querySelectorAll('#campRoster .card')].find(c=>c.dataset.id==='test-4');
+      const chip=[...card.querySelectorAll('.chip')].find(c=>c.textContent.indexOf('Boon of Combat Prowess')>=0);
+      const opt=card.querySelector('.dm-remove-boon-sel[data-cid="test-4"] option[value="Boon of Combat Prowess"]');
+      return [!!chip, chip?/⛔/.test(chip.textContent):false, !!opt];})()`),
+    [true, true, true]);
   // Archived-campaign peek must block these exactly like Award AP/notes/unbind already are — same
   // handler, same guard, same class of write action.
   check('archived-campaign peek blocks all three DM-edit buttons, same as Award AP',
@@ -1825,12 +1843,17 @@ try {
     check('a Dwarf Ranger\'s subclass ability and both pack traits all appear',
       await dms.evaluate(`(()=>{
         const el=document.getElementById('campRoster'); el.innerHTML='';
-        window._dmRenderCloudRoster(el, [{id:'m',name:'Moss',ap:0,player:'',playerLabel:'',dmNotes:'',stats:{SEQ:6,LOG:[
+        window._dmRenderCloudRoster(el, [{id:'m',name:'Moss',ap:0,player:'',playerLabel:'',dmNotes:'',stats:{SEQ:7,LOG:[
           {type:'award',amount:200,seq:1},
           {type:'buy',cat:'oclass',payload:{v:'Ranger'},cost:0,seq:2},
           {type:'buy',cat:'species',payload:{v:'Dwarf'},cost:0,seq:3},
-          {type:'buy',cat:'feature',payload:{v:'Ranger: Favored Enemy'},cost:3,seq:4},
-          {type:'buy',cat:'subabil',payload:{v:'Ranger|Beast Master|Primal Companion'},cost:9,seq:5}]}}]);
+          // Primal Companion is T3, so this character needs 3 Hit Dice to own it legally
+          // (D-GH-2026-08-27-feature-hd-gate). Without this the purchase is blocked and the roster
+          // correctly stops listing it as owned, which would make this visibility test pass or fail
+          // for a reason that has nothing to do with the DM Console blindness it exists to catch.
+          {type:'buy',cat:'hd',payload:{to:3},cost:5,seq:4},
+          {type:'buy',cat:'feature',payload:{v:'Ranger: Favored Enemy'},cost:3,seq:5},
+          {type:'buy',cat:'subabil',payload:{v:'Ranger|Beast Master|Primal Companion'},cost:9,seq:6}]}}]);
         const c=el.querySelector('.chead'); if(c) c.click();
         const t=el.innerText||'';
         return [/Ranger › Beast Master: Primal Companion/.test(t),   // the reported one
@@ -1984,6 +2007,95 @@ try {
   // And the reverse, so the check cannot pass merely because the two prices happen to coincide at HD 1.
   await preLock('level to 5 first, then buy — ledger === compute()',
     [['hd',{to:2}],['hd',{to:3}],['hd',{to:4}],['hd',{to:5}],['grit',{to:1}]]);
+
+  // A purchase held while HD-BLOCKED must not become free when the level-up legalises it.
+  // (D-GH-2026-08-27-feature-hd-gate addendum; found by /code-review ultra on PR #471.)
+  // It cannot be reproduced through buy() -- legalCheck() refuses a blocked purchase -- so the event is
+  // pushed straight into LOG at cost 0, which is exactly how one arrives from CharGen or an import:
+  // repriceDraft() prices it as the compute() delta it caused, and while blocked that delta is 0.
+  // Before the fix the level-up charged the Hit-Dice ladder alone and the feature came out free.
+  {
+    // Clear storage FIRST: the Live Sheet persists to localStorage, so without this the page inherits
+    // whatever the preLock checks above left behind (a HD-5 character), and the premise silently evaporates.
+    const w = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    await w.evaluate(`(()=>{try{localStorage.clear();return 'cleared';}catch(e){return 'skip:'+e.name;}})()`); await w.close();
+
+    const t = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    if (!(await t.evaluate(READY(`window._engineFold&&window.DATA&&typeof buy==='function'`))))
+      throw new Error('Live Sheet never became ready for the blocked-purchase-freeze check');
+    await t.evaluate(`window.confirm=()=>true;`);
+    await t.evaluate(`LOG.push({type:'award',amount:400,label:'headroom',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'feature',payload:{v:'Fighter: Extra Attack'},cost:0,label:'EA frozen at 0 while blocked',seq:SEQ++,ts:Date.now(),level:1});`);
+
+    // Expect the ladder step plus exactly what compute() itemised as blocked -- not a hardcoded price,
+    // so the check does not depend on the fresh character's origin class.
+    const [startHd, blockedBefore] = await t.evaluate(`(()=>{const b=foldBuild(null);
+      const ln=(compute(b).lines||[]).find(l=>l&&l[0]==='Blocked purchases');
+      return [b.hd, ln?(+ln[1]||0):0];})()`);
+    check('the frozen 0-cost purchase is actually blocked to begin with', blockedBefore > 0, true);
+    const quoted = await t.evaluate(`priceOf('hd',{to:5},foldBuild(null))`);
+    const ladder = await t.evaluate('(DATA.HD[4].cum-DATA.HD[' + (startHd - 1) + '].cum)');
+    check('a level-up that legalises a blocked purchase quotes the ladder PLUS that purchase',
+      quoted, ladder + blockedBefore);
+
+    await t.evaluate(`buy('hd',{to:5})`);
+    const r = await t.evaluate(`(()=>{const bb=foldBuild(null);
+      return [economy(null).spent, compute(bb,_dmOpts()).total, bb.features.indexOf('Fighter: Extra Attack')>=0];})()`);
+    await t.close();
+    check('...and after levelling, the frozen ledger still equals compute() with the feature owned',
+      [r[0] === r[1], r[2]], [true, true]);
+  }
+
+  // The case the first version of this fix got WRONG: legalising a purchase moves ledger lines OTHER than
+  // "Blocked purchases". A blocked subclass ability is skipped by the engine's subUsed[] marking, so
+  // unblocking it can also add a 15 AP "Subclass unlocks" line. Quoting only the blocked-line drop
+  // under-charged by exactly that. 'Fighter: Extra Attack' above has no knock-on line, so it cannot catch
+  // this; this check asserts the quote equals the REAL compute() delta rather than any one line of it.
+  {
+    const w = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    await w.evaluate(`(()=>{try{localStorage.clear();return 'cleared';}catch(e){return 'skip:'+e.name;}})()`); await w.close();
+    const t = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    if (!(await t.evaluate(READY(`window._engineFold&&window.DATA&&typeof priceOf==='function'`))))
+      throw new Error('Live Sheet never became ready for the knock-on-line check');
+    const r = await t.evaluate(`(()=>{
+      LOG.push({type:'award',amount:900,label:'headroom',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'patch',payload:{patch:{originClass:'Barbarian'}},cost:0,seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'hd',payload:{to:3},cost:0,seq:SEQ++,ts:Date.now()});
+      ['Barbarian|Path of the Berserker|Frenzy','Barbarian|Path of the Wild Heart|Aspect of the Wilds']
+        .forEach(v=>LOG.push({type:'buy',cat:'subabil',payload:{v},cost:0,seq:SEQ++,ts:Date.now()}));
+      const cur=foldBuild(null);
+      const after=clone(cur); MUT.hd(after,{to:5});
+      const real=compute(after).total-compute(cur).total;
+      return [priceOf('hd',{to:5},cur), real];})()`);
+    await t.close();
+    check('a level-up quotes the FULL delta of what it legalises, incl. knock-on ledger lines',
+      r[0], r[1]);
+  }
+
+  // strip() inside _CTX_PRICERS.hd originally filtered only b.features/b.subAbilities. Arts & Boons are
+  // hard-blocked the same way (a later round of D-GH-2026-08-27-feature-hd-gate) but were missed: an
+  // HD-blocked Art/Boon passed through unstripped, so it appeared in BOTH deltaFull and deltaStripped
+  // and canceled out -- the level-up that legalised it quoted only the ladder step, and the Art/Boon
+  // activated for free. Caught by /code-review ultra on PR #471. 'Actor' is a general-feat Art, hd:4.
+  {
+    const w = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    await w.evaluate(`(()=>{try{localStorage.clear();return 'cleared';}catch(e){return 'skip:'+e.name;}})()`); await w.close();
+    const t = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
+    if (!(await t.evaluate(READY(`window._engineFold&&window.DATA&&typeof priceOf==='function'`))))
+      throw new Error('Live Sheet never became ready for the arts/boons knock-on check');
+    const r = await t.evaluate(`(()=>{
+      LOG.push({type:'award',amount:400,label:'headroom',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'patch',payload:{patch:{originClass:'Fighter'}},cost:0,seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'hd',payload:{to:2},cost:0,seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'buy',cat:'art',payload:{v:'Actor'},cost:0,seq:SEQ++,ts:Date.now()});
+      const cur=foldBuild(null);
+      const after=clone(cur); MUT.hd(after,{to:5});
+      const real=compute(after).total-compute(cur).total;
+      return [priceOf('hd',{to:5},cur), real, real>0];})()`);
+    await t.close();
+    check('a level-up quotes the full delta when it legalises a blocked Art too',
+      [r[0], r[2]], [r[1], true]);
+  }
 
   await cg2.close(); await ls2.close();
 

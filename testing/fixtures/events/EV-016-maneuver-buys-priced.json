@@ -10,6 +10,16 @@
     },
     {
       "type": "buy",
+      "cat": "hd",
+      "payload": {
+        "to": 3
+      },
+      "cost": 5,
+      "level": 1,
+      "label": "Hit Dice → 3 (Combat Superiority is T3, needs 3 HD)"
+    },
+    {
+      "type": "buy",
       "cat": "feature",
       "payload": {
         "v": "Fighter: Combat Superiority (maneuvers)"

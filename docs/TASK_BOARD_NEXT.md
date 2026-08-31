@@ -765,3 +765,131 @@ for whether the guide-side wording update was intentionally deferred or simply m
 served copy and `pact-guide` master state the SAME enforcement posture for every capped drawback; the
 transfer is verified against `pact-guide`'s own `py/vendor/engine/SYNCED_FROM.txt` per the three-way
 check in `docs/VERSION-SYNC.md`.
+
+---
+
+## Mirrored subclass abilities double-charge when bought through both paths — TODO
+Branch `fix/subclass-mirror-double-charge`. All 192 subclass abilities are mirrored into `DATA.features`,
+so one logical ability can sit in **both** `b.subAbilities` and `b.features` in a single build — and
+`compute()` prices it twice with no warning at all. Verified 2026-08-27 on `Barbarian › Path of the
+Berserker: Frenzy` at 20 HD: subclass path alone 134 AP, feature path alone 134 AP, **both together 140 AP**
+(one extra Frenzy charge), `warnings: []`. Pre-existing and independent of the HD gate, but
+`D-GH-2026-08-27-feature-hd-gate` made it visible by having to gate both doors identically. Two depths:
+**shallow** — dedupe by logical identity inside `compute()` (charge once, warn on the duplicate); **deep** —
+`refactor/subclass-purchase-unify`, collapsing the two purchase paths into one, which the v0.353 §11
+comment already names as the precondition for gating anything ("a rule that guards one of two doors teaches
+players the wrong thing about the door it does not guard"). Recommend the deep fix if it is being scheduled
+anyway, else the shallow one now — a silent double-charge on live characters is worse than a stale mirror.
+**Effort:** medium (shallow) / high (deep) · **Risk:** medium — ambiguity is the driver (which collection
+is canonical, and what a saved LOG holding both should migrate to); damage scale is medium (mis-pricing,
+not data loss) and likelihood low (needs both collections populated for one ability).
+
+```text
+1. Reproduce first: build one character holding the same subclass ability via b.subAbilities AND via its
+   mirrored "cls: name" key in b.features; confirm the AP delta equals one extra charge and no warning.
+2. Decide canonical identity (subAbilMap key vs mirrored feature label) and record it in DECISIONS.md —
+   this is the actual decision; the code is downstream of it.
+3. Shallow: in compute(), collapse duplicates by that identity before pricing — charge once, push a
+   warning naming the duplicate. Deep: unify the purchase paths so the second door stops existing, and
+   state what happens to already-saved LOGs carrying the other shape.
+4. Blocked purchases must dedupe the same way — a doubly-represented, HD-blocked ability must appear once
+   under "Blocked purchases", not twice.
+5. compute() output changes either way -> update testing/expected/ and bump DATA.version.
+```
+
+**Done when:** a build holding one ability through both collections prices it exactly once and says so;
+a fixture covers the doubled input for both the priced and the HD-blocked case; engine-parity 0 failed.
+
+---
+
+
+## Racial traits still re-derive the Hit-Dice rule instead of calling `requiredHD()` — TODO
+Branch `refactor/racial-required-hd`. `D-GH-2026-08-27-feature-hd-gate` introduced `requiredHD()` as THE
+single definition of the Hit-Dice rule and its comment says "Do not re-inline it; import it" — but four
+`(DATA.tierHD && DATA.tierHD[x.tier]) || 1` re-derivations remain for racial traits and were deliberately
+left out of scope: `tools/PACT-Live-Char-Sheet.html`'s `racialWhy()`, and three sites in
+`tools/PACT-CharGen-Webtool.html`. `DATA.racial` entries carry `tier` exactly as `DATA.features` do, plus
+a `minHD` floor that maps cleanly onto `requiredHD()`'s existing `hd` floor — so folding them in is
+mechanical. Until then the racial gate can drift from the feature gate the next time `tierHD` semantics
+change, which is precisely the drift the export was created to end.
+**Effort:** low · **Risk:** medium — damage scale is the driver: racial-trait pricing and its ⛔ messaging
+are player-visible and `minHD` must keep behaving as a floor, not an override. Ambiguity is low (the
+mapping is stated above) and likelihood low (parity + tool-pricing gates cover the pricing).
+
+```text
+1. Teach requiredHD() to read `minHD` as a floor alongside `hd`/`lvl`, or normalise the racial entries --
+   whichever keeps DATA.racial untouched is preferable, since that file is the rules dataset.
+2. Replace all four re-derivations with requiredHD() calls. Keep the racial messaging as it is: racial
+   traits say "needs N Hit Dice (level N)" and carry their own reqRace/cross-species wording, which is
+   NOT the same string as the class-ability gate.
+3. compute()'s own racial minHD check should read the same helper, so engine and tools cannot disagree.
+4. Verify no racial price or warning changes: this is a de-duplication, not a rules change, so do NOT
+   bump DATA.version and expect engine-parity to stay green with no expected/ edits.
+```
+
+**Done when:** no tool re-derives `DATA.tierHD[...]` for racial traits; `requiredHD()` owns the rule for
+both class abilities and racial traits; engine-parity 0 failed with no `testing/expected/` changes.
+
+---
+
+## Sync `docs/PACT-Players-Guide.html` for the ~280 abilities whose Hit-Dice level just moved — TODO
+Branch `docs/guide-sync-authored-levels`. `D-GH-2026-08-27-feature-hd-gate` (round 5) authored a true 2024
+level for ~550 class features/subclass abilities and split 4 mis-bundled ones, moving ~280 Hit-Dice
+requirements off the tier-band floor onto their real value. The engine and `docs/PACT-Players-Guide.html`
+now disagree wherever the Guide states or implies a level for one of those abilities — the exact class of
+drift `AGENTS.md` names as "a rules change that ships in `js/engine.js` but not in the Players Guide is
+half-done, not done." The master lives in the separate `pact-guide` project, reached via the home-server
+MCP connector; `docs/PACT-Players-Guide.html` here is a served copy, not the source (see `AGENTS.md`'s
+"served copy" ⛔ box before touching it directly — it carries assets the master must not gain).
+**Effort:** high (≈280 numbers across two documents in two different projects) · **Risk:** medium — pure
+documentation, no `compute()` change, so damage scale is low; ambiguity is the driver, since matching each
+engine `lvl` to the Guide's prose/table entry for the same ability is a per-item lookup, not a bulk rule.
+
+```text
+1. Read docs/VERSION-SYNC.md's transfer procedure before touching either copy -- a plain cp in either
+   direction destroys served-copy-only assets (10 embedded WebP images, theme blocks, chapter-banner CSS).
+2. Work FROM the engine, not the Guide: for each of the ~280 authored lvl values, find that ability's Guide
+   entry and state its level explicitly where the Guide currently only implies a tier.
+3. The 4 split features (Tactical Mind/Shift/Master, Empowered Strikes/Self-Restoration, Perfect Focus/
+   Body and Mind, Roving/Tireless) need a structural Guide edit, not just a number: the Guide likely still
+   describes them as one bundled entry and now needs three (or two) with separate prices.
+4. Update pact-guide's master file via the home-server connector; run node testing/scripts/verify-guide.mjs
+   before AND after any transfer -- that script is the success condition, not a clean diff.
+5. Record documents-rules per docs/VERSION-SYNC.md once reconciled, so the pointer states which engine
+   version the prose was last checked against.
+```
+
+**Done when:** every authored `lvl` this round has a matching, explicit level in the Guide; the 4 split
+features read as separate entries in the Guide, not one bundle; `verify-guide.mjs` passes.
+
+---
+
+## `docs/phb-rules-final.jsonl` bundles 4 separately-leveled 2024 features under one entry — TODO
+Branch `docs/fix-phb-jsonl-bundled-entries`. The PHB text extraction that grounded round 5's level
+authoring (`D-GH-2026-08-27-feature-hd-gate`) crammed together features WotC prints at different levels on
+the class tables, because the source list was compiled by grouping similar-sounding names rather than by
+level. PACT's own data has already been corrected (the features were split), but the *source* file still
+carries the bundling, so the next person who re-derives from it inherits the same wrong premise and has to
+re-discover the split by hand, as this round did.
+The four: **Fighter** — `Tactical Mind` / `Shift` / `Master`, three distinct Battle-Master-flavoured
+features on the core Fighter table at L2/L5/L9, sharing a name theme but gained years apart. **Monk** —
+`Empowered Strikes` (unarmed strikes count as magical) / `Self-Restoration` (shed conditions), unrelated
+features at L6/L10 that the bundling hid a 4-level gap between. **Monk** — `Perfect Focus` (a focus-recovery
+feature, L15) / `Body and Mind` (the L20 capstone), two very different power tiers wrongly sharing a line.
+**Ranger** — `Roving` (extra movement/climb-swim speed) / `Tireless` (temp HP + reduced exhaustion), L6/L9
+improvements, again distinct features on the Ranger table.
+**Effort:** low · **Risk:** low — a data-quality fix to a reference extraction, not to PACT's own rules
+data; nothing in `compute()` reads this file.
+
+```text
+1. In docs/phb-rules-final.jsonl, split each of the 4 bundled Class Feature entries into its correctly-
+   separated sub-entries (Fighter's one row becomes three; the other three each become two), preserving
+   the source's own id/category/source/page/pdf_page/page_confidence shape for each new row.
+2. Assign each split entry the correct page number if it differs from the original bundled row's page --
+   check against the actual PHB page range for that class's feature table.
+3. Cross-check the split against what PACT's engine-data.js already landed for these (see the round-5
+   addendum in decisions/2026/D-GH-2026-08-27-feature-hd-gate.md) so the two agree.
+```
+
+**Done when:** the JSONL carries one entry per named 2024 feature, none of the 4 bundles remain, and a
+fresh re-derivation from the file alone would reproduce the same split PACT's engine already has.

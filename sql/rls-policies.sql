@@ -877,12 +877,26 @@ revoke execute on function public.pact_enforce_locked_history()        from publ
 -- never stored — Security Invariant 1). Note that a column-level revoke cannot subtract from a
 -- table-level grant — the blanket grant is dropped and the wanted columns granted explicitly, which is
 -- why this is a column list and not `grant select on`.
+--
+-- D-GH-2026-08-30-invite-note-grant-drift: the paragraph above describes the intent, but until this
+-- change nothing in this file actually EXECUTED that drop — there was no `revoke` before the `grant
+-- select (...)` below. Production stayed safe only because whatever role actually ran the historical
+-- migration chain there never picked up a table-level SELECT for `authenticated`/`anon` on this table
+-- from Postgres's `pg_default_acl` in the first place (confirmed via `information_schema.column_
+-- privileges`: `note`/`token_hash` carry no SELECT there). A FRESH build from this file — exactly what
+-- `testing/scripts/cloud-e2e.mjs`'s local Supabase CLI stack does — is not guaranteed the same luck:
+-- pg_default_acl depends on which role issues `create table`, and CI's stack reproducibly leaks `note`.
+-- The explicit `revoke` below makes the restriction hold regardless of ambient default privileges,
+-- matching what the comment above already claimed. It is a no-op wherever the privilege was never held
+-- (verified safe against the live production table), so this is safe to apply anywhere.
 -- ---------------------------------------------------------------------------
 alter table public.campaign_invites enable row level security;
 
 drop policy if exists campaign_invites_select on public.campaign_invites;
 create policy campaign_invites_select on public.campaign_invites
   for select using (is_campaign_dm(campaign_id) or redeemed_by = auth.uid());
+
+revoke select on public.campaign_invites from authenticated, anon;   -- see D-GH-2026-08-30 note above
 
 grant select (id, campaign_id, type, mode, token, starting_ap, starting_budget,
               max_redemptions, redeemed_count, expires_at,

@@ -309,6 +309,40 @@ time-travel scrub, and the cloud sync path.
 device-only hint is the permanent answer" as a legitimate outcome) — and, if (a) is chosen, it ships
 with an engine-parity/tool-pricing-ci fixture covering HP behavior under undo/redo and time-travel scrub.
 
+---
+
+## CharGen writes HD as a replace-in-place patch slot, destroying HD history — TODO
+Branch `refactor/hd-event-vocabulary`. The two tools record Hit Dice in **different event vocabularies**:
+the Live Sheet appends `cat:'hd'` events (`payload.to`), while CharGen writes a replace-in-place
+`cat:'patch'` slot (`PATCH_SLOTS.HD_PROF`, carrying `hd` and `profBonus` together). A CharGen-authored
+character therefore carries **no record of what its HD was when any purchase was made** — the LOG is not a
+true history for that field. Consequences: (a) purchase-time gating ("legal when bought stays legal", the
+principled answer to a character whose HD is later lowered by undo — R4 of the HD-gate cold review) is
+impossible for those characters, even though `_replay()` already stamps purchase-time tier for Vigor ranks
+and could do the same here; (b) anything reasoning about HD over time silently reads 1. Found the hard way
+on 2026-08-27, when a live-data query filtered on `cat='hd'` and every CharGen character came back as 1 HD.
+**Effort:** high · **Risk:** high — damage scale is the driver: it changes the event vocabulary that 25
+live characters' saved LOGs are written in, so it needs a migration story, not just a code change.
+Ambiguity is medium (which vocabulary wins is a real design call) and likelihood medium.
+
+```text
+1. Decide which vocabulary is canonical: append-only `cat:'hd'` events (real history, but CharGen's patch
+   slots exist to keep identity edits replaceable rather than accumulating) or a patch slot that records
+   its prior value. Record the decision — this is the architectural question, the rest is mechanics.
+2. Whichever wins, both tools must emit it. Watch PATCH_SLOTS.HD_PROF: it bundles hd WITH profBonus, so
+   splitting hd out changes the slot's shape and replacePatchSlot()'s in-place semantics.
+3. Migration: 25 live characters exist (the app is NOT pre-launch). Old LOGs must keep folding to the same
+   build — foldBuild()/MUT must read both shapes indefinitely, or a one-time migration must be written and
+   verified against a copy of the live data first.
+4. Only once history is trustworthy, revisit purchase-time gating as its own task — do not bundle it here.
+5. Behaviour-preserving for existing builds: fold output must be identical before vs after. Do NOT bump
+   DATA.version unless compute() output genuinely changes.
+```
+
+**Done when:** both tools record HD changes in one vocabulary that preserves prior values; folding any
+existing saved LOG (old or new shape) yields an identical build; a fixture covers each shape.
+
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.

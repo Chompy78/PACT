@@ -301,6 +301,18 @@
   .homelink:hover{background:rgba(255,255,255,.26)}
   #viewToggle{min-width:7.6em;text-align:center;}
   .cardactions{margin-top:9px;}
+  .hide-btn:hover{background:var(--warn-bg,#fbf1d7); color:var(--warn,#9a7409); border-color:#ecd99a}
+  /* Declutter strip — grid-column:1/-1 lets it span the full row when it's rendered as the first
+     child of #grid/.cardgrid (both display:grid); harmless elsewhere. */
+  .hidden-strip{
+    grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:7px;
+    background:var(--paper); border:1px dashed var(--line); border-radius:10px;
+    padding:8px 12px; margin-bottom:16px; font-size:12.5px; color:var(--muted);
+  }
+  .hidden-showall{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--blue);border-radius:7px;padding:3px 9px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;}
+  .hidden-showall:hover{background:var(--light)}
+  .hidden-chip{appearance:none;border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:14px;padding:2px 9px;font:inherit;font-size:11.5px;cursor:pointer;}
+  .hidden-chip:hover{background:var(--bad-bg);color:var(--bad);border-color:#f0c4bd}
   /* Customisable card view (feat/dm-custom-character-fields) — a per-device box grid on each
      campaign-roster card, distinct from the fixed .stats/.ap grids the default card view uses. */
   .xgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line)}
@@ -1142,8 +1154,29 @@ function dmAnalyze(exported, apOpts){
     ki: b.ki||0, sorcery: b.sorcery||0, attune: b.attune||0, bastion: b.bastion||0,
     martiallyBound: (b.martiallyBound && b.martiallyBound!=='(none)') ? b.martiallyBound : '',
     racialTraits: (b.racialTraits||[]).slice(), racialSpells: (b.racialSpells||[]).slice(),
+    // Mark, don't hide: compute() reports an above-tier feature "⛔ not counted, not owned" and charges 0
+    // for it, so listing it unmarked told the DM the character holds something the engine says they do
+    // not (D-GH-2026-08-27-feature-hd-gate addendum). The subclass-ability section was already safe --
+    // it reads itemize['Subclass abilities'], which the engine now excludes blocked entries from.
+    // Arts and Boons are hard-blocked the exact same way (a later round of the same addendum) but were
+    // missed here -- caught by /code-review ultra on PR #471.
+    //
+    // `arts`/`boons` themselves stay RAW names: `boons` doubles as the exact-match value source for the
+    // "DM edit — remove a boon" <select> in dmEditBody() below, so marking the string here would silently
+    // break that control for any blocked boon (the option's value would no longer equal any real boon
+    // name). `artsDisplay`/`boonsDisplay` carry the marker and are used ONLY by the two display call
+    // sites (chipGroup/listSection), never passed to anything that looks a name up.
     arts: (b.arts||[]).slice(), boons: (b.boons||[]).slice(),
-    drawbacks: (b.drawbacks||[]).slice(), features: (b.features||[]).slice(),
+    artsDisplay: (b.arts||[]).map(function(l){
+      var _a=DATA.arts&&DATA.arts[l];
+      return (_a&&typeof requiredHD==='function'&&(b.hd||1)<requiredHD(_a))?(l+' ⛔ blocked'):l;}),
+    boonsDisplay: (b.boons||[]).map(function(l){
+      var _bo=((b.houseRules&&b.houseRules.boons)||{})[l]||(DATA.boons&&DATA.boons[l]);
+      return (_bo&&(b.hd||1)<(Number(_bo.hd)||1))?(l+' ⛔ blocked'):l;}),
+    drawbacks: (b.drawbacks||[]).slice(),
+    features: (b.features||[]).map(function(l){
+      var _a=(typeof FEAT_ALIAS==='function')?FEAT_ALIAS(l):l, _f=DATA.features&&DATA.features[_a];
+      return (_f&&typeof requiredHD==='function'&&(b.hd||1)<requiredHD(_f))?(l+' ⛔ blocked'):l;}),
     casting: casting,
     // ---- economy + flags ----
     // `available` is the SAME quantity the player's own Live Sheet shows as "AP left", computed the
@@ -1154,8 +1187,12 @@ function dmAnalyze(exported, apOpts){
     // running ignore_player_ap with the whole budget granted as DM AP, that made every character's
     // entire budget invisible and showed them all deeply overspent.
     earned: eco.earned, spent: eco.spent, available: r.spendable - eco.spent,
-    // The two pools, surfaced so a DM can see where a budget came from rather than one opaque total.
-    playerAp: r.playerAp, dmAp: r.dmAp, spendable: r.spendable, ignoredPlayerAp: !!(apOpts && apOpts.ignorePlayerAp),
+    // The three pools, surfaced so a DM can see where a budget came from rather than one opaque total.
+    // drawbackAp is the grant AFTER the campaign cap (what actually counts toward spendable);
+    // drawbackRaw is what the drawbacks would grant uncapped. economy().earned carries the RAW figure,
+    // so the awards row below must subtract the raw one or it over-reports awards whenever a cap bites.
+    playerAp: r.playerAp, dmAp: r.dmAp, drawbackAp: r.drawbackAp, drawbackRaw: eco.drawbackEarned || 0,
+    spendable: r.spendable, ignoredPlayerAp: !!(apOpts && apOpts.ignorePlayerAp),
     purchases: LOG.filter(function(e){return e.type==='buy';}).length,
     awards: awards, unnamed: unnamed,
     warnings: (r.warnings||[]).length, warningList: (r.warnings||[]).slice(),
@@ -1175,7 +1212,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.469';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.477';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1424,10 +1461,19 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return kvRows(rows);
   }
   function pactBuildBody(s){
-    // Show the ceiling's two pools, not just the net. "AP available" is spendable − spent, and with
+    // Show the ceiling's three pools, not just the net. "AP available" is spendable − spent, and with
     // ignore-player-AP on, a character's own log AP contributes nothing — a DM reading a bare
     // "6 earned / 12 available" could not otherwise reconstruct where the 12 came from.
-    var rows = [['AP earned (own log)', s.earned||0]];
+    //
+    // economy().earned = awards + the drawback grant, so labelling it "own log" alone read as PLAYER AP
+    // and silently attributed the drawback pool to the wrong source: a character with no awards and 4 AP
+    // of drawbacks showed "AP earned (own log) 4", which a DM would reasonably read as the player having
+    // granted themselves 4 AP. Split the drawback share out and label the remainder as awards.
+    var _draw = s.drawbackAp || 0, _rawDraw = s.drawbackRaw || 0;
+    var _awarded = (s.earned || 0) - _rawDraw;   // raw, not capped — see the summary object's note
+    var rows = [['AP earned (own log awards)', _awarded]];
+    if(_draw || _rawDraw) rows.push(['Granted by drawbacks',
+      _rawDraw > _draw ? (_draw + ' (of ' + _rawDraw + ' — capped)') : _draw]);
     if(s.dmAp) rows.push(['DM-granted AP', s.dmAp]);
     if(s.ignoredPlayerAp && s.playerAp) rows.push(['Player AP ignored (campaign setting)', s.playerAp]);
     if(s.dmAp || s.ignoredPlayerAp) rows.push(['Spendable total', s.spendable||0]);
@@ -1646,7 +1692,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
                 + chipGroup('Subclass abilities', _subAbilChips(s))
                 + chipGroup('Subclass spell lists', _subBundleChips(s)));
     h += secBlock('Spellcasting', castBody(s.casting) + knownBtnHTML(s, id));
-    h += secBlock('Boons · Drawbacks · Arts', chipGroup('Boons',s.boons)+chipGroup('Drawbacks',s.drawbacks)+chipGroup('Arts',s.arts));
+    h += secBlock('Boons · Drawbacks · Arts', chipGroup('Boons',s.boonsDisplay)+chipGroup('Drawbacks',s.drawbacks)+chipGroup('Arts',s.artsDisplay));
     h += secBlock('Lineage & racial', (s.lineage?'<div class="cg"><span class="cglabel">Lineage</span><span class="chip lin">'+esc(s.lineage)+'</span></div>':'')
                 + chipGroup('Traits',_racialChips(s))+chipGroup('Spells',s.racialSpells));
     h += secBlock('PACT build · warnings · AP history', pactBuildBody(s));
@@ -1701,7 +1747,8 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       ['Prof', sgnSafe(s.prof)],
       ['Save DC', (s.saveDC==null?'—':s.saveDC)],
       cfCell('num1'),
-      cfCell('num2')
+      cfCell('num2'),
+      ['HD', (s.hd||0)]
     ].filter(Boolean);
     var statsHTML = statCells.map(function(c){
       return '<div class="stat"><div class="k">'+esc(c[0])+'</div><div class="v">'+(c[2]?c[1]:esc(c[1]))+'</div></div>';
@@ -1714,7 +1761,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         '<div class="cname">'+esc(s.name)+warnIcon+tamperBadge(s)+(dm&&dm.playerLabel?' <span class="tier" title="DM-set player label">'+esc(dm.playerLabel)+'</span>':'')+'</div>' +
         '<div class="csub">'+esc(speciesDisp(s))+' · '+esc(fmtClass(s))+
             ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span></div>' +
-        '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button>'+(dm?' '+viewBtnHTML(r.id):'')+'</div>' +
+        '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button>'+(dm?' '+viewBtnHTML(r.id):'')+' '+hideBtnHTML(r.id)+'</div>' +
       '</div>' +
       '<div class="stats">'+statsHTML+'</div>' +
       buildSections(s, r.id, dm) +
@@ -1734,6 +1781,29 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   var hiddenCols=(function(){ try{ var r=localStorage.getItem(COLKEY); if(r){ var a=JSON.parse(r); return new Set(Array.isArray(a)?a:[]); } }catch(e){} return new Set(['species2','class2','earned','spent']); })();
   function saveCols(){ try{ localStorage.setItem(COLKEY, JSON.stringify(Array.from(hiddenCols))); }catch(e){} }
   function visCols(){ return COLS.filter(function(c){ return c.key==='name' || !hiddenCols.has(c.key); }); }
+
+  /* ---------- per-card hide/show (Card + Customisable view declutter) ----------
+     Per-device DM preference, same localStorage pattern as COLKEY/hiddenCols above — hiding a card
+     is a display choice on this browser only, never data sent anywhere, and never affects the
+     player's character. Keyed by character id, which is unique across both locally-imported files
+     (uid()) and cloud characters (DB id), so one global set is enough — same scope hiddenCols already
+     uses for table columns. Card ids are always run through String() before touching the set: DB ids
+     are strings already, but comparing without coercion would silently miss a match if either side
+     were ever a number. */
+  var HIDECARDKEY='pact_dm_v3_hidden_cards';
+  var hiddenCards=(function(){ try{ var r=localStorage.getItem(HIDECARDKEY); if(r){ var a=JSON.parse(r); return new Set(Array.isArray(a)?a.map(String):[]); } }catch(e){} return new Set(); })();
+  function saveHiddenCards(){ try{ localStorage.setItem(HIDECARDKEY, JSON.stringify(Array.from(hiddenCards))); }catch(e){} }
+  function hideCard(id){ hiddenCards.add(String(id)); saveHiddenCards(); render(); }
+  function showCard(id){ hiddenCards.delete(String(id)); saveHiddenCards(); render(); }
+  function hideBtnHTML(id){ return '<button type="button" class="skbtn hide-btn" data-hide="'+esc(id)+'" title="Hide this card from your view — a display preference on this device only, doesn’t touch the player’s data. Use Show all below the grid to bring it back.">🙈 Hide</button>'; }
+  // items: [{id,name}] of the cards currently hidden within one roster (local files or one campaign's
+  // cloud roster) — `scope` tags which one so Show all only clears ids actually present in that
+  // roster, leaving a card hidden in a different campaign/import alone.
+  function hiddenStripHTML(items, scope){
+    if(!items.length) return '';
+    var chips = items.map(function(it){ return '<button type="button" class="hidden-chip" data-show="'+esc(it.id)+'" title="Show this card again">'+esc(it.name||'Unnamed')+' ✕</button>'; }).join('');
+    return '<div class="hidden-strip">🙈 '+items.length+' card'+(items.length===1?'':'s')+' hidden <button type="button" class="hidden-showall" data-showall="'+esc(scope)+'">Show all</button>'+chips+'</div>';
+  }
   // Table view merges local imports with cloud characters that have real data (placeholders with no
   // saved stats have no .summary and can't feed the table's column get()/disp() functions).
   function _combinedRoster(){ return roster.concat(cloudRoster.filter(function(r){ return r.hasData; })); }
@@ -1790,7 +1860,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   function lineageSection(a){ var hasLin=a.lineage&&a.lineage!==''; var rs=a.racialSpells||[]; if(!hasLin&&!rs.length) return ''; var h='<div class="detail-col"><h3>Lineage</h3>'; if(hasLin) h+='<div class="meta">'+esc(a.lineage)+'</div>'; if(rs.length){ h+='<ul class="flaglist">'; rs.forEach(function(x){ h+='<li>'+esc(x)+'</li>'; }); h+='</ul>'; } return h+'</div>'; }
   function resourcesSection(a){ var rows=[]; if(a.vigor>0) rows.push(['Vigor', a.vigor+(a.vigorCap!=null?(' / '+a.vigorCap+' cap'):'')]); if(a.grit>0) rows.push(['Grit',a.grit]); if(a.ki>0) rows.push(['Ki / Focus',a.ki]); if(a.sorcery>0) rows.push(['Sorcery (extra)',a.sorcery]); if(a.attune>0) rows.push(['Attunement',a.attune]); if(a.martiallyBound) rows.push(['Martially Bound',a.martiallyBound]); if(!rows.length) return ''; var h='<div class="detail-col"><h3>Resources</h3><table class="awards"><tbody>'; rows.forEach(function(r){ h+='<tr><td>'+esc(r[0])+'</td><td style="text-align:right;font-weight:700;color:var(--navy);white-space:nowrap;">'+esc(r[1])+'</td></tr>'; }); return h+'</tbody></table></div>'; }
   function weaponArmourSection(a){ var wp=weaponProfList(a.weaponProf), ar=armourProfList(a.armour); var h='<div class="detail-col"><h3>Weapons &amp; Armour</h3><ul class="flaglist">'; h+='<li><b>Weapons:</b> '+(wp.length?wp.map(esc).join(', '):'<span class="none">None</span>')+'</li>'; h+='<li><b>Armour:</b> '+(ar.length?ar.map(esc).join(', '):'<span class="none">None</span>')+'</li>'; return h+'</ul></div>'; }
-  function detailHTML(a){ var id=_idOf(a); var h='<div class="detail-inner"><div class="detail-actions"><button type="button" class="skbtn" data-sk="'+esc(id)+'">🎯 All skills &amp; bonuses</button> <button type="button" class="skbtn" data-tools="'+esc(id)+'">🛠 Tools</button></div><div class="detail-grid">'; h+='<div class="detail-col"><h3>Award history</h3>'; var aw=(a.awards||[]).slice(); if(!aw.length){ h+='<div class="meta">No AP awards recorded in this character’s log.</div>'; } else { aw.sort(function(x,y){ return (y.ts||0)-(x.ts||0); }); h+='<table class="awards"><thead><tr><th>Amount</th><th>Label</th><th>Date</th></tr></thead><tbody>'; aw.forEach(function(w){ h+='<tr><td class="amt">+'+(w.amount||0)+'</td><td>'+esc(w.label||'—')+(w.disc?'<span class="badge">disc</span>':'')+'</td><td>'+fmtDate(w.ts)+'</td></tr>'; }); h+='</tbody></table>'; } h+='<div class="meta">'+(a.purchases||0)+' purchase'+((a.purchases===1)?'':'s')+' logged · '+(a.earnedTotal!=null?a.earnedTotal:(a.earned||0))+' earned · '+(a.spent||0)+' spent · '+(a.available||0)+' available</div></div>'; h+='<div class="detail-col"><h3>Flags &amp; notes</h3><ul class="flaglist">'; var any=false; if(a.warnings>0){ any=true; h+='<li class="warn">⚠ '+a.warnings+' build warning'+(a.warnings>1?'s':'')+' raised by the rules engine:</li>'; (a.warningList||[]).forEach(function(w){ h+='<li class="warn" style="margin-left:6px;list-style:none;">• '+esc(w)+'</li>'; }); } if(a.unnamed>0){ any=true; h+='<li class="warn">⚠ '+a.unnamed+' unnamed spell/feat entr'+(a.unnamed>1?'ies':'y')+' — player has slots bought but not labelled.</li>'; } if(isTampered(a)){ any=true; h+='<li class="warn">⚠ Tamper-evidence: this file was edited outside PACT — its signature no longer matches. Its numbers may not reflect a legal build; ask the player to re-export from the Live Sheet.</li>'; } if(!any){ h+='<li class="none">No flags — build is clean.</li>'; } h+='</ul><div class="meta">Rules '+esc(a.rules||'?')+' · AP-level '+(a.apLevel==null?'—':a.apLevel)+' · Speed '+(a.speed||'—')+' ft · Pass. Perc '+passivePerc(a)+' · Prof +'+(a.prof||0)+(a.__file?(' · '+esc(a.__file)):'')+'</div></div>'; h+=castingSection(a); h+=resourcesSection(a); h+=lineageSection(a); h+=listSection('Skills',a.skills); h+=listSection('Tools & instruments',(a.tools||[]).concat(a.instruments||[])); h+=listSection('Expertise',a.expertise); h+=listSection('Saving throws',a.saves); h+=listSection('Weapon masteries',a.masteries); h+=weaponArmourSection(a); h+=listSection('Arts & Techniques',a.arts); h+=listSection('Boons',a.boons); h+=listSection('Drawbacks',a.drawbacks); h+=listSection('Class features',a.features); h+=pairSection('Subclass abilities',((a.itemize||{})['Subclass abilities'])||[]); h+=pairSection('Subclass spell lists',(a.lines||[]).filter(function(l){return /^Spell list — /.test(l[0]);}).map(function(l){return [l[0].replace(/^Spell list — /,''),l[1]];})); h+='</div></div>'; return h; }
+  function detailHTML(a){ var id=_idOf(a); var h='<div class="detail-inner"><div class="detail-actions"><button type="button" class="skbtn" data-sk="'+esc(id)+'">🎯 All skills &amp; bonuses</button> <button type="button" class="skbtn" data-tools="'+esc(id)+'">🛠 Tools</button></div><div class="detail-grid">'; h+='<div class="detail-col"><h3>Award history</h3>'; var aw=(a.awards||[]).slice(); if(!aw.length){ h+='<div class="meta">No AP awards recorded in this character’s log.</div>'; } else { aw.sort(function(x,y){ return (y.ts||0)-(x.ts||0); }); h+='<table class="awards"><thead><tr><th>Amount</th><th>Label</th><th>Date</th></tr></thead><tbody>'; aw.forEach(function(w){ h+='<tr><td class="amt">+'+(w.amount||0)+'</td><td>'+esc(w.label||'—')+(w.disc?'<span class="badge">disc</span>':'')+'</td><td>'+fmtDate(w.ts)+'</td></tr>'; }); h+='</tbody></table>'; } h+='<div class="meta">'+(a.purchases||0)+' purchase'+((a.purchases===1)?'':'s')+' logged · '+(a.earnedTotal!=null?a.earnedTotal:(a.earned||0))+' earned · '+(a.spent||0)+' spent · '+(a.available||0)+' available</div></div>'; h+='<div class="detail-col"><h3>Flags &amp; notes</h3><ul class="flaglist">'; var any=false; if(a.warnings>0){ any=true; h+='<li class="warn">⚠ '+a.warnings+' build warning'+(a.warnings>1?'s':'')+' raised by the rules engine:</li>'; (a.warningList||[]).forEach(function(w){ h+='<li class="warn" style="margin-left:6px;list-style:none;">• '+esc(w)+'</li>'; }); } if(a.unnamed>0){ any=true; h+='<li class="warn">⚠ '+a.unnamed+' unnamed spell/feat entr'+(a.unnamed>1?'ies':'y')+' — player has slots bought but not labelled.</li>'; } if(isTampered(a)){ any=true; h+='<li class="warn">⚠ Tamper-evidence: this file was edited outside PACT — its signature no longer matches. Its numbers may not reflect a legal build; ask the player to re-export from the Live Sheet.</li>'; } if(!any){ h+='<li class="none">No flags — build is clean.</li>'; } h+='</ul><div class="meta">Rules '+esc(a.rules||'?')+' · AP-level '+(a.apLevel==null?'—':a.apLevel)+' · Speed '+(a.speed||'—')+' ft · Pass. Perc '+passivePerc(a)+' · Prof +'+(a.prof||0)+(a.__file?(' · '+esc(a.__file)):'')+'</div></div>'; h+=castingSection(a); h+=resourcesSection(a); h+=lineageSection(a); h+=listSection('Skills',a.skills); h+=listSection('Tools & instruments',(a.tools||[]).concat(a.instruments||[])); h+=listSection('Expertise',a.expertise); h+=listSection('Saving throws',a.saves); h+=listSection('Weapon masteries',a.masteries); h+=weaponArmourSection(a); h+=listSection('Arts & Techniques',a.artsDisplay||a.arts); h+=listSection('Boons',a.boonsDisplay||a.boons); h+=listSection('Drawbacks',a.drawbacks); h+=listSection('Class features',a.features); h+=pairSection('Subclass abilities',((a.itemize||{})['Subclass abilities'])||[]); h+=pairSection('Subclass spell lists',(a.lines||[]).filter(function(l){return /^Spell list — /.test(l[0]);}).map(function(l){return [l[0].replace(/^Spell list — /,''),l[1]];})); h+='</div></div>'; return h; }
   function kv(k,v){ return '<div class="kv"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>'; }
   function renderHead(){ var tr='<tr><th class="exq"></th>'; visCols().forEach(function(c){ var active=(sort.key===c.key); var arrow=active?(sort.dir>0?'▲':'▼'):''; var cls=(c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':''); tr+='<th data-key="'+c.key+'" class="'+(active?'active ':'')+cls+'">'+esc(c.label)+'<span class="arrow">'+arrow+'</span></th>'; }); tr+='</tr>'; $('thead').innerHTML=tr; Array.prototype.forEach.call($('thead').querySelectorAll('th'),function(th){ th.addEventListener('click',function(){ var k=th.getAttribute('data-key'); if(!k) return; if(sort.key===k) sort.dir=-sort.dir; else { sort.key=k; sort.dir=(colByKey(k).type==='num')?-1:1; } render(); }); }); }
   function renderBody(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, isSel=(expanded===ri); html+='<tr class="data'+(isSel?' sel':'')+'" data-ri="'+ri+'">'; html+='<td class="exq"><span class="exq-chev">▸</span></td>'; visCols().forEach(function(c){ var cls=(c.cls==='name')?'name':((c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':'')); html+='<td class="'+cls+'">'+c.disp(a)+'</td>'; }); html+='</tr>'; if(isSel){ html+='<tr class="detail"><td colspan="'+(visCols().length+1)+'">'+detailHTML(a)+'</td></tr>'; } }); var tb=$('tbody'); tb.innerHTML=html; Array.prototype.forEach.call(tb.querySelectorAll('tr.data'),function(tr){ tr.addEventListener('click',function(){ var ri=+tr.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); }); }); }
@@ -1893,7 +1963,10 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       // Explicit single-arg call, not roster.map(cardHTML): Array#map also passes (index, array) to
       // its callback, and cardHTML now takes an optional second `dm` arg — bare `.map(cardHTML)` would
       // silently pass every local card's numeric index in as `dm` (truthy for every index >0).
-      grid.innerHTML = roster.map(function(r){ return cardHTML(r); }).join('');
+      var visibleLocal = roster.filter(function(r){ return !hiddenCards.has(String(r.id)); });
+      var hiddenLocal = roster.filter(function(r){ return hiddenCards.has(String(r.id)); });
+      var localStrip = hiddenStripHTML(hiddenLocal.map(function(r){ return {id:r.id, name:(r.summary&&r.summary.name)||r.fileName||'Unnamed'}; }), 'local');
+      grid.innerHTML = localStrip + visibleLocal.map(function(r){ return cardHTML(r); }).join('');
     } else if(grid){
       grid.innerHTML = '';
     }
@@ -2114,7 +2187,19 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       var kn=t.closest? t.closest('[data-known]') : null;
       if(kn){ e.preventDefault(); e.stopPropagation(); var kid=kn.getAttribute('data-known');
         var rr=findRosterEntry(kid);
-        if(rr&&rr.summary) openOv(knownSpellsOverlayHTML(rr.summary.name||'New Character', rr.summary.casting||[])); }
+        if(rr&&rr.summary) openOv(knownSpellsOverlayHTML(rr.summary.name||'New Character', rr.summary.casting||[])); return; }
+      var hd=t.closest? t.closest('[data-hide]') : null;
+      if(hd){ e.preventDefault(); e.stopPropagation(); hideCard(hd.getAttribute('data-hide')); return; }
+      var sh=t.closest? t.closest('[data-show]') : null;
+      if(sh){ e.preventDefault(); e.stopPropagation(); showCard(sh.getAttribute('data-show')); return; }
+      var sa=t.closest? t.closest('[data-showall]') : null;
+      if(sa){
+        e.preventDefault(); e.stopPropagation();
+        var scope=sa.getAttribute('data-showall');
+        var pool=(scope==='local') ? roster : cloudRoster;
+        pool.forEach(function(r){ hiddenCards.delete(String(r.id)); });
+        saveHiddenCards(); render(); return;
+      }
     });
     document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeOv(); });
     document.addEventListener('input', function(e){
@@ -2202,7 +2287,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
-        '<div class="cardactions">'+viewBtnHTML(rec.id)+'</div>'+
+        '<div class="cardactions">'+viewBtnHTML(rec.id)+' '+hideBtnHTML(rec.id)+'</div>'+
         '</div><div style="padding:0 16px 16px">'+dmToolsBody(rec.id, rec.dm)+'</div></div>';
     }
     return cardHTML(rec, rec.dm);
@@ -2218,7 +2303,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     // caller of this function can reintroduce the same gap.
     renderCampAwardAp();
     if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; return; }
-    container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
+    // Hiding is a display-only DM preference (see hiddenCards above) — it never drops a character out
+    // of cloudRoster itself, so Award AP, the table view, and every total still see every character.
+    var visible = cloudRoster.filter(function(r){ return !hiddenCards.has(String(r.id)); });
+    var hidden = cloudRoster.filter(function(r){ return hiddenCards.has(String(r.id)); });
+    var strip = hiddenStripHTML(hidden.map(function(r){ return {id:r.id, name:_rosterDisplayName(r)}; }), 'cloud');
+    if(!visible.length){ container.innerHTML = strip + '<div class="camp-empty">Every character in this campaign is hidden. Use Show all above to bring them back.</div>'; return; }
+    container.innerHTML = strip + '<div class="cardgrid">' + visible.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>';
   }
   // feat/dm-custom-character-fields (D-GH-2026-08-10): the Customisable card view — a lean header plus
   // the DM's own box layout (see wireCustomize()/loadXLayout() above), with the same collapsible "DM
@@ -2230,7 +2321,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
         '<div class="cname">'+esc(nm)+'</div>'+
         '<div class="csub" style="color:var(--muted)">No character data yet — this player hasn’t saved from CharGen or the Live Sheet.</div>'+
-        '<div class="cardactions">'+viewBtnHTML(rec.id)+'</div>'+
+        '<div class="cardactions">'+viewBtnHTML(rec.id)+' '+hideBtnHTML(rec.id)+'</div>'+
         '</div><div style="padding:0 16px 16px">'+dmToolsBody(rec.id, rec.dm)+'</div></div>';
     }
     var a = rec.summary;
@@ -2243,14 +2334,18 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
       '<div class="cname">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div>'+
       '<div class="csub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div>'+
-      '<div class="cardactions">'+viewBtnHTML(rec.id)+'</div>'+
+      '<div class="cardactions">'+viewBtnHTML(rec.id)+' '+hideBtnHTML(rec.id)+'</div>'+
       '</div><div class="xgrid">'+boxesHtml+'</div>'+
       '<div style="padding:0 16px 16px">'+secBlock('DM tools (private)', dmToolsBody(rec.id, rec.dm, a.boons))+'</div></div>';
   }
   function renderCustomRoster(container){
     if(!container) return;
     if(!cloudRoster.length){ container.innerHTML = '<div class="camp-empty">No characters in this campaign yet. <button type="button" class="btn sm" id="campEmptyInvite" style="margin-left:6px">Invite a player</button><div style="margin-top:6px;font-size:11px;opacity:.85">Or share the campaign code above — a player who enters it in CharGen brings a character they have already built.</div></div>'; return; }
-    container.innerHTML = '<div class="cardgrid">' + cloudRoster.map(function(rec){ return customCardHTML(rec); }).join('') + '</div>';
+    var visible = cloudRoster.filter(function(r){ return !hiddenCards.has(String(r.id)); });
+    var hidden = cloudRoster.filter(function(r){ return hiddenCards.has(String(r.id)); });
+    var strip = hiddenStripHTML(hidden.map(function(r){ return {id:r.id, name:_rosterDisplayName(r)}; }), 'cloud');
+    if(!visible.length){ container.innerHTML = strip + '<div class="camp-empty">Every character in this campaign is hidden. Use Show all above to bring them back.</div>'; return; }
+    container.innerHTML = strip + '<div class="cardgrid">' + visible.map(function(rec){ return customCardHTML(rec); }).join('') + '</div>';
   }
   window._dmAnalyzeTest = cloudAnalyze;   // test seam: lets tool-pricing-ci.mjs assert on the analyzed summary directly, no DOM traversal needed
   // Test seam: lets economy-ui-e2e.mjs render the Award AP/gold/bonus-time form directly off a fake
@@ -2662,7 +2757,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // failed esm.sh import (js/supabase-client.js pulls @supabase/supabase-js from a CDN) aborted the whole
   // module: engine-ready never fired, boot never ran, and the console rendered as a bare shell. Now the
   // engine half cannot be taken down by the cloud half.
-  import { DATA, compute, baseBuild, packTraitsFor, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime } from '../js/engine.js';
+  import { DATA, compute, requiredHD, FEAT_ALIAS, baseBuild, packTraitsFor, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // exactly as the AP-ledger helpers above are.
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime };
@@ -2672,7 +2767,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // Engine module bridge (D-GH26, extended D-GH36/D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth. Boot waits on engine-ready.
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger Breath Dice":"Your breath weapon's damage die climbs the chain.","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (DM Console); never read by compute()
-  window.DATA = DATA; window.compute = compute; window.baseBuild = baseBuild; window.packTraitsFor = packTraitsFor; window.MUT = MUT;
+  window.DATA = DATA; window.requiredHD = requiredHD; window.FEAT_ALIAS = FEAT_ALIAS; window.compute = compute; window.baseBuild = baseBuild; window.packTraitsFor = packTraitsFor; window.MUT = MUT;
   document.dispatchEvent(new Event('engine-ready'));
 </script>
 <script type="module">

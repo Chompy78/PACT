@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.469.html**-->
+<!--**PACT-Live-Char-Sheet v1.477.html**-->
 
 <!doctype html>
 <!--
@@ -772,9 +772,50 @@ const _CTX_PRICERS={
   // also re-price already-owned Grit, whose surcharge rides vgcap = CON mod (js/engine.js:119,123).
   abil:function(cur,p){const from=(cur.stats&&cur.stats[p.ab])||10;
     return (DATA.ABIL[Math.min(20,(+p.to))]||0)-(DATA.ABIL[Math.min(20,from)]||0);},
-  // Level up: the Hit Dice cumulative step, alone.
+  // Level up: the Hit Dice cumulative step, PLUS anything that step makes legal.
+  //
+  // The ladder step alone is right for everything the character already owns — that independence is the
+  // whole reason this escape exists, and it is load-bearing: a whole-build delta re-prices an UNSTAMPED
+  // Vigor/Grit stack (one with no _vigorRankTier stamps, which is exactly what CharGen produces, since it
+  // writes `hardy` as a patch slot rather than a cat:'vigor' event). Measured: removing the escape turned
+  // a 2 AP level-up into 8 for such a character.
+  //
+  // But the ladder step alone was ALSO swallowing a real charge once the Hit-Dice gate landed
+  // (D-GH-2026-08-27-feature-hd-gate). A purchase held while HD-blocked is frozen at cost 0; levelling
+  // past its requirement makes it legal and owned, and charging only the ladder paid nothing for it —
+  // 32 AP of unearned spending power in the frozen ledger, with no warning. js/engine.js's repriceDraft()
+  // never had this bug, because it prices every event as the compute() delta.
+  //
+  // So: ladder step + the drop in "Blocked purchases". compute() already itemises each blocked purchase
+  // at the exact cost it WOULD have, so the fall in that line across the level-up is precisely what the
+  // step legalises — no more (already-owned things stay out of it) and no less.
   hd:function(cur,p){const to=Math.min(20,Math.max(1,Math.floor(+p.to)||1)),from=cur.hd||1;
-    return (((DATA.HD[to-1]||{}).cum)||0)-(((DATA.HD[from-1]||{}).cum)||0);},
+    const step=(((DATA.HD[to-1]||{}).cum)||0)-(((DATA.HD[from-1]||{}).cum)||0);
+    // Charging the fall in the "Blocked purchases" line alone was NOT enough: legalising a purchase also
+    // moves OTHER priced lines. A blocked subclass ability is skipped by the engine's subUsed[] marking,
+    // so unblocking it can add a 15 AP "Subclass unlocks" line; an unblocked invocation re-enters the
+    // breadth surcharge. Measured: real delta 32, blocked-line quote 17.
+    //
+    // So take the difference of two deltas: the real one, and the same one on a build with every
+    // currently-HD-blocked purchase stripped out. Whatever re-prices for reasons OTHER than unblocking
+    // — notably an unstamped Vigor/Grit stack, which is why this escape exists at all — appears in both
+    // and cancels. What survives is exactly the cost of what this level-up makes legal.
+    const alias=(typeof FEAT_ALIAS==='function')?FEAT_ALIAS:function(x){return x;};
+    const strip=function(b){const c=clone(b);const h=b.hd||1;
+      c.features=(c.features||[]).filter(function(l){const f=DATA.features[alias(l)];return !(f&&h<requiredHD(f));});
+      c.subAbilities=(c.subAbilities||[]).filter(function(k){const a=DATA.subAbilMap[k];return !(a&&h<requiredHD(a));});
+      // Arts & Boons are hard-blocked the same way as features/subAbilities (D-GH-2026-08-27-feature-hd-gate
+      // addendum) but were missing here: an HD-blocked Art or Boon passed through unstripped, so it appeared
+      // in BOTH deltaFull and deltaStripped below and canceled out -- the level-up that legalised it quoted
+      // only the ladder step and the purchase activated for free. Caught by /code-review ultra on PR #471.
+      c.arts=(c.arts||[]).filter(function(l){const a=DATA.arts[l];return !(a&&h<requiredHD(a));});
+      c.boons=(c.boons||[]).filter(function(l){const bo=((b.houseRules||{}).boons||{})[l]||DATA.boons[l];return !(bo&&h<(Number(bo.hd)||1));});
+      return c;};
+    const bump=function(b){const c=clone(b);(MUT.hd||function(){})(c,{to:to});return c;};
+    const curS=strip(cur);
+    const deltaFull=compute(bump(cur)).total-compute(cur).total;
+    const deltaStripped=compute(bump(curS)).total-compute(curS).total;
+    return step+(deltaFull-deltaStripped);},
   // Class unlock: the "Class unlocks" ladder component alone, evaluated before vs after. Mirrors the
   // engine's own cumulative window (js/engine.js:214-217) rather than re-deriving a rung, so a class
   // that is already an origin class costs 0 here exactly as it does there — which matters because the
@@ -1599,6 +1640,20 @@ function buildBuyPanel(b,r,eco,head){
   function db(name){ if(buyQuery && name.toLowerCase().indexOf(buyQuery)<0) return '';
     return '<button class="ib draw" onclick="takeDrawback(&quot;'+esc(name)+'&quot;)"><span class="ibhead">'+name+' <em>+'+DATA.drawbacks[name]+'</em></span><small class="why" style="color:var(--bad)">'+esc((DATA.drawbackFx&&DATA.drawbackFx[name])||'')+'</small></button>';}
   // Greyed-out "already purchased" tile — shows up in buy panel for items already owned
+  // A HELD purchase that the engine reports as blocked must not read as an ordinary holding: compute()
+  // says "not counted, not owned" and charges 0 for it, so "Already purchased" is actively wrong. Show it
+  // as held-but-inert, with the remedy. (D-GH-2026-08-27-feature-hd-gate addendum; /code-review ultra on
+  // PR #471 found all four pickers testing ownership BEFORE the Hit-Dice check, so a blocked feature
+  // rendered as owned with no way to act on it.)
+  // Covers BOTH reasons compute() blocks a purchase. The prereq arm checks direct prerequisites only;
+  // the engine resolves them to a fixed point, so a purchase blocked solely through a longer chain still
+  // shows as owned here. That is a narrower gap than the one this closes, not a claim of completeness.
+  function _inertNote(it,lab){ if(!it) return undefined;
+    const n=requiredHD(it);
+    if(b.hd<n) return 'Held but inert — needs '+n+' Hit Dice; buy Hit Dice to activate it';
+    const miss=(it.prereq||[]).filter(function(r){return (b.features||[]).indexOf(r)<0;});
+    if(miss.length) return 'Held but inert — needs '+(miss[0].split(': ')[1]||miss[0])+' first';
+    return undefined; }
   function ibOwned(label,note){
     if(buyQuery && label.toLowerCase().indexOf(buyQuery)<0) return '';
     const tt=note||'Already purchased';
@@ -1620,8 +1675,8 @@ function buildBuyPanel(b,r,eco,head){
    
    ['Lineage spell-likes'+(b.lineage?' ('+b.lineage+')':''),()=>{const _lo=(DATA.lineageOf&&(DATA.lineageOf[b.species]||DATA.lineageOf[b.species2]));if(!_lo)return '<span class="hint">Your species has no lineage spell-likes.</span>';if(!b.lineage)return '<span class="hint">Choose your lineage in the Species section first.</span>';const _spells=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[];if(!_spells.length)return '<span class="hint">Dragonborn ancestry sets your damage type — no spell-likes to buy.</span>';return _spells.map(function(sp){const _done=(b.racialSpells||[]).includes(sp[0]);const _L=sp[2];const _need=_L>0?(DATA.hdGate[_L-1]||1):1;const _warn=b.hd<_need?'needs '+_need+' HD':'';return _done?ibOwned(sp[0]+' ('+sp[1]+' AP)'):ib(sp[0]+' ('+sp[1]+' AP)','racialspell',{v:sp[0]},_warn);}).join('');}],
    ['Weapons & armour',()=>(wp.simple?ibOwned('Simple weapons'):ib('Simple weapons','wprof',{wp:{...wp,simple:true}}))+(wp.allMartial?ibOwned('All martial'):ib('All martial','wprof',{wp:{...wp,simple:true,allMartial:true}}))+(wp.improvised?ibOwned('Improvised weapons'):ib('Improvised weapons','wprof',{wp:{...wp,improvised:true}}))+DATA.masteries.filter(x=>b.masteries.includes(x)||!cloudRuleBarred('masteries',x)).map(x=>b.masteries.includes(x)?ibOwned('Mastery: '+x):ib('Mastery: '+x,'mastery',{v:x})).join('')+(b.armour.light?ibOwned('Light armour'):ib('Light armour','armour',{v:'light'}))+(b.armour.medium?ibOwned('Medium armour'):ib('Medium armour','armour',{v:'medium'},!b.armour.light?'needs Light first':((b.stats.STR||10)<10?'needs STR 10':'')))+(b.armour.heavy?ibOwned('Heavy armour'):ib('Heavy armour','armour',{v:'heavy'},!b.armour.medium?'needs Medium first':''))+(b.armour.shield?ibOwned('Shield'):ib('Shield','armour',{v:'shield'}))+'<div class="row" style="margin-top:6px;align-items:center"><label class="l" style="font-size:11px">Worn armour</label><select onchange="setWornArmour(this.value)" style="flex:1;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink);font:inherit"><option value="">— none / unarmoured (10 + Dex) —</option>'+Object.keys(DATA.armours).map(function(an){var aa=DATA.armours[an];return '<option value="'+an+'"'+(b.wornArmour===an?' selected':'')+'>'+an+' — AC '+aa.base+' ('+aa.cat+')'+(b.armour[aa.cat]?'':' ⚠ no prof')+'</option>';}).join('')+'</select></div>'],
-   [b.originClass+' features',()=>Object.keys(DATA.features).filter(l=>DATA.features[l].cls===b.originClass&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore)).sort((a,c)=>DATA.features[a].tier-DATA.features[c].tier).map(l=>{if(b.features.includes(l))return ibOwned((l.split(': ')[1]||l)+' · T'+DATA.features[l].tier);const f=DATA.features[l];const need=DATA.tierHD[f.tier]||1;var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('')],
-   ['Eldritch Invocations',()=>{var hasWL=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Warlock";});});if(!hasWL)return '<span class="hint">🔒 Eldritch Invocations require the <b>Warlock discipline</b> — open Arcane › Warlock in Spellcasting first.</span>';return Object.keys(DATA.features).filter(function(l){return DATA.features[l].inv;}).sort(function(a,c){return DATA.features[a].tier-DATA.features[c].tier;}).map(function(l){var f=DATA.features[l];var nm=(l.split(': ')[1]||l);if(b.features.includes(l))return ibOwned(nm+' · T'+f.tier);var need=Math.max(DATA.tierHD[f.tier]||1,f.lvl||0);var miss=(f.prereq||[]).filter(function(r){return !b.features.includes(r);}).map(function(r){return r.split(': ')[1]||r;});var why=b.hd<need?('needs Lv '+need):(miss.length?('needs '+miss.join(' + ')):'');return ib(nm+' · T'+f.tier,'feature',{v:l},why);}).join('');}],
+   [b.originClass+' features',()=>Object.keys(DATA.features).filter(l=>DATA.features[l].cls===b.originClass&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore)).sort((a,c)=>DATA.features[a].tier-DATA.features[c].tier).map(l=>{const f=DATA.features[l];const need=requiredHD(f);if(b.features.includes(l))return ibOwned((l.split(': ')[1]||l)+' · T'+f.tier,_inertNote(f,l));var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('')],
+   ['Eldritch Invocations',()=>{var hasWL=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Warlock";});});if(!hasWL)return '<span class="hint">🔒 Eldritch Invocations require the <b>Warlock discipline</b> — open Arcane › Warlock in Spellcasting first.</span>';return Object.keys(DATA.features).filter(function(l){return DATA.features[l].inv;}).sort(function(a,c){return DATA.features[a].tier-DATA.features[c].tier;}).map(function(l){var f=DATA.features[l];var nm=(l.split(': ')[1]||l);if(b.features.includes(l))return ibOwned(nm+' · T'+f.tier,_inertNote(f,l));var need=requiredHD(f);var miss=(f.prereq||[]).filter(function(r){return !b.features.includes(r);}).map(function(r){return r.split(': ')[1]||r;});var why=b.hd<need?('needs Lv '+need):(miss.length?('needs '+miss.join(' + ')):'');return ib(nm+' · T'+f.tier,'feature',{v:l},why);}).join('');}],
    ['DM house rules',()=>'<button class="ib" onclick="toggleTasha()" title="Allow or bar non-core (DM-gated) content — XGtE / TCoE items">🜂 Non-core content: <b>'+(_tashaOK?'Allowed':'Barred')+'</b> — click to '+(_tashaOK?'bar':'allow')+'</button>'],
    ['Arts \u0026 Techniques',()=>{
     const BAND_S={0:'Sit',1:'Per-Rest',2:'At-Will',3:'Passive',4:'Premium'};
@@ -1700,20 +1755,20 @@ function buildBuyPanel(b,r,eco,head){
      +ib('Ki / Focus point '+(b.ki+1),'ki',{to:b.ki+1})
      +ib('Sorcery point '+(b.sorcery+1),'sorcery',{to:b.sorcery+1},(!_hasDisc('Sorcerer')?'needs the Sorcerer discipline':((b.hd||1)<2?'needs 2 Hit Dice (T2)':'')))
      +((b.martiallyBound==='(none)')?ib('Martially Bound: '+b.originClass+' (+2 AP)','mbound',{v:b.originClass},'','−1 AP on '+b.originClass+' features from here on (floor 1) — permanent, no retroactive refund; reverse only by undo'):'')],
-   ['Cross-class features',()=>{var others=DATA.classes.filter(function(c){return c!==b.originClass&&c!==b.originClass2;});if(!others.length)return '<span class="hint">No other classes available.</span>';var sel=(buyCls&&others.indexOf(buyCls)>=0)?buyCls:'';var opts='<option value="">— pick a class to buy its features cross-class —</option>'+others.map(function(c){var u=(b.unlockedClasses||[]).indexOf(c)>=0;return '<option value="'+c+'"'+(c===sel?' selected':'')+'>'+c+(u?' (unlocked — discounted)':'')+'</option>';}).join('');var pick='<select onchange="setBuyCls(this.value)" style="width:100%;box-sizing:border-box;padding:5px 8px;margin-bottom:6px;border:1px solid var(--line);border-radius:6px;font:inherit;background:var(--inp);color:var(--ink)">'+opts+'</select>';if(!sel)return pick+'<span class="hint">Any class’s features can be bought here at the cross-class price (†). Unlock the class (below) to drop them to the discounted rate.</span>';return pick+Object.keys(DATA.features).filter(function(l){return DATA.features[l].cls===sel&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore);}).sort(function(a,c){return DATA.features[a].tier-DATA.features[c].tier;}).map(function(l){if(b.features.includes(l))return ibOwned((l.split(': ')[1]||l)+' · T'+DATA.features[l].tier);var f=DATA.features[l];var need=DATA.tierHD[f.tier]||1;var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('');}],
+   ['Cross-class features',()=>{var others=DATA.classes.filter(function(c){return c!==b.originClass&&c!==b.originClass2;});if(!others.length)return '<span class="hint">No other classes available.</span>';var sel=(buyCls&&others.indexOf(buyCls)>=0)?buyCls:'';var opts='<option value="">— pick a class to buy its features cross-class —</option>'+others.map(function(c){var u=(b.unlockedClasses||[]).indexOf(c)>=0;return '<option value="'+c+'"'+(c===sel?' selected':'')+'>'+c+(u?' (unlocked — discounted)':'')+'</option>';}).join('');var pick='<select onchange="setBuyCls(this.value)" style="width:100%;box-sizing:border-box;padding:5px 8px;margin-bottom:6px;border:1px solid var(--line);border-radius:6px;font:inherit;background:var(--inp);color:var(--ink)">'+opts+'</select>';if(!sel)return pick+'<span class="hint">Any class’s features can be bought here at the cross-class price (†). Unlock the class (below) to drop them to the discounted rate.</span>';return pick+Object.keys(DATA.features).filter(function(l){return DATA.features[l].cls===sel&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore);}).sort(function(a,c){return DATA.features[a].tier-DATA.features[c].tier;}).map(function(l){var f=DATA.features[l];var need=requiredHD(f);if(b.features.includes(l))return ibOwned((l.split(': ')[1]||l)+' · T'+f.tier,_inertNote(f,l));var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('');}],
    ['Unlock classes',()=>{return DATA.classes.filter(function(c){return c!==b.originClass;}).map(function(c){
        if((b.unlockedClasses||[]).indexOf(c)>=0)return ibOwned('✓ '+c+' unlocked','Its features now price at the origin (discounted) rate');
        return ib('Unlock '+c,'unlockclass',{v:c});}).join('');}],
    ['Unlocked-class features',()=>{var cls=(b.unlockedClasses||[]);if(!cls.length)return '<span class="hint">Unlock a class above, then its features become buyable here at the discounted rate.</span>';
-     return cls.map(function(c){return '<div style="font-weight:700;color:var(--navytx);margin:5px 0 1px">'+c+'</div>'+Object.keys(DATA.features).filter(function(l){return DATA.features[l].cls===c&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore);}).sort(function(a,d){return DATA.features[a].tier-DATA.features[d].tier;}).map(function(l){if(b.features.includes(l))return ibOwned((l.split(': ')[1]||l)+' · T'+DATA.features[l].tier);var f=DATA.features[l];var need=DATA.tierHD[f.tier]||1;var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):'';return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('');}).join('');}],
+     return cls.map(function(c){return '<div style="font-weight:700;color:var(--navytx);margin:5px 0 1px">'+c+'</div>'+Object.keys(DATA.features).filter(function(l){return DATA.features[l].cls===c&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore);}).sort(function(a,d){return DATA.features[a].tier-DATA.features[d].tier;}).map(function(l){var f=DATA.features[l];var need=requiredHD(f);if(b.features.includes(l))return ibOwned((l.split(': ')[1]||l)+' · T'+f.tier,_inertNote(f,l));var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):'';return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('');}).join('');}],
    ['Subclasses & abilities',()=>{var access=[b.originClass].concat(b.unlockedClasses||[]).filter(function(c){return DATA.subList&&DATA.subList[c];});
      if(!access.length)return '<span class="hint">None of your classes have subclasses.</span>';
      var s='';access.forEach(function(c){var subs=DATA.subList[c];var fsub=(b.freeSub||{})[c];
        s+='<div style="font-weight:700;color:var(--navytx);margin:6px 0 1px">'+c+(fsub?(' — free subclass: '+fsub):' — pick a free subclass:')+'</div>';
        if(!fsub)s+=subs.map(function(sub){return ib('Free subclass → '+sub,'freesub',{cls:c,sub:sub});}).join('');
        subs.forEach(function(sub){((DATA.subclasses[c][sub]||{}).abilities||[]).forEach(function(a){var key=c+'|'+sub+'|'+a.name;
-         if((b.subAbilities||[]).indexOf(key)>=0){s+=ibOwned(sub+': '+a.name+' · '+a.tb);return;}
-         var need=(DATA.tierHD&&DATA.tierHD[a.tier])||1;var why=b.hd<need?('needs '+need+' HD (T'+a.tier+')'):'';
+         if((b.subAbilities||[]).indexOf(key)>=0){s+=ibOwned(sub+': '+a.name+' · '+a.tb,_inertNote(a));return;}
+         var need=requiredHD(a);var why=b.hd<need?('needs '+need+' HD (T'+a.tier+')'):'';
          s+=ib(sub+': '+a.name+' · '+a.tb,'subabil',{v:key},why);});});});
      return s;}],
    ['Subclass spell lists',()=>{var pairs=[],seen={},s='';
@@ -2439,7 +2494,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   window._engineBridge = { validate };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
@@ -2450,7 +2505,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of
   // hand-copied inline duplicates. UI boot waits on engine-ready.
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (Live Sheet); never read by compute()
-  window.DATA = DATA; window.compute = compute; window.baseBuild = baseBuild; window.packTraitsFor = packTraitsFor; window.MUT = MUT; window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
+  window.DATA = DATA; window.compute = compute; window.baseBuild = baseBuild; window.requiredHD = requiredHD; window.FEAT_ALIAS = FEAT_ALIAS; window.packTraitsFor = packTraitsFor; window.MUT = MUT; window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs; window.recordAutosave = recordAutosave;
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)

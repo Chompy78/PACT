@@ -12,7 +12,7 @@
  *                       `DATA.version` is the rules version — bump ONLY on a mechanics/compute() change.
  * Pricing / derivation:
  *   compute(b, opts?) — price a build & derive the sheet. opts:{dmAp?, ignorePlayerAp?}. Returns
- *                       {total, spendable, remaining, budget(=spendable), playerAp, dmAp, warnings,
+ *                       {total, spendable, remaining, budget(=spendable), playerAp, dmAp, drawbackAp, warnings,
  *                        lines, itemize, hp, baseHP, prof, tier, mods, effScore, size, …}. Pure over
  *                       (b, opts). Reads b._lostPurchases (stamped by _replay/foldBuild — see below) to
  *                       itemize a "Lost purchases" ledger line for bought-off drawbacks/DM-removed
@@ -56,7 +56,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.469";
+export const BUILD = "v1.477";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -184,6 +184,33 @@ function _tierForHD(hd){
   return t;
 }
 
+// Hit-Dice requirement for one purchasable item (a DATA.features entry, a DATA.subAbilMap entry —
+// anything carrying a `tier`). THE single definition of this rule: compute() gates on it, and all three
+// tool with a class-ability picker imports it (CharGen and the Live Sheet) rather than re-deriving
+// `b.hd >= DATA.tierHD[tier]` locally. DM Console has no such picker and does not import it. Live Sheet carried FIVE
+// such copies across its four pickers and CharGen none, which is exactly how a rule the Players Guide states as absolute
+// ("You can never buy an ability before you own the Hit Dice ... it requires") ended up unenforced in the
+// one place that is meant to be authoritative. Do not re-inline it; import it.
+//
+// `hd` and `lvl` on an item are additional FLOORS, never overrides: max() means an item may raise its own
+// requirement above its tier's but can never drop below it. `lvl` is the pre-existing Warlock-invocation
+// level gate; it is folded in here so callers get one number instead of combining two rules themselves.
+export function requiredHD(item){
+  if(!item) return 1;
+  // TIER SETS PRICE, NOT AVAILABILITY (owner ruling, 2026-08-27). An ability's own `lvl`/`hd` is the
+  // authoritative requirement and OVERRIDES its tier — including downward, so an expensive-but-early
+  // ability is expressible. Tier is only the fallback for entries that do not yet state a level.
+  //
+  // That fallback is INTERIM, not the intent. The Guide names a real level for roughly 11 of the 720
+  // purchasable abilities; the other ~550 class features and subclass abilities have no stated level in
+  // this repo or the Guide, so they still resolve to their tier band's floor. Authoring the rest needs a
+  // source, not a guess — see the task board. Anything carrying an explicit value is already exact.
+  const explicit = Math.max(Number(item.hd) || 0, Number(item.lvl) || 0);
+  if (explicit > 0) return explicit;
+  return Number((DATA.tierHD || {})[item.tier || 1]) || 1;
+}
+
+
 // Grit runs on the STEEP ladder — the Nth purchase costs 2N (2/4/6/8/10/12…), the same shape
 // py/pricing.py's metamagic_ap() already names "Steep" in the pact-guide project, and the same
 // linear-per-purchase escalation every other track in DATA uses (attune 4/6/8/10…, expertise
@@ -225,8 +252,43 @@ export function compute(b, opts){
   let abilAP=0;for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){const _sc=Math.min(20,Math.max(2,st[a]||10));abilAP+=(DATA.ABIL[_sc]||0);} add("Ability scores",abilAP);
   for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){const sc=st[a]||10; if(sc<6) W.push(a+" "+sc+" is below the normal floor of 6 — needs DM approval"); if(sc>20) W.push(a+" "+sc+" is above the normal ceiling of 20 — priced as 20");}
   const effScore={}; const mod={};
-  const _flat={STR:0,DEX:0,CON:0,INT:0,WIS:0,CHA:0};if((b.features||[]).includes("Barbarian: Primal Champion")){_flat.STR+=4;_flat.CON+=4;}const _eb=b.epicBoonAbil||{};for(const _bl of (b.boons||[])){const _bo=DATA.boons[_bl];if(_bo&&_bo.epic){const _a=_eb[_bl];if(_a&&_flat[_a]!==undefined)_flat[_a]+=2;else W.push(_bl+": choose an ability to raise (+2)");}}for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){effScore[a]=Math.min(30,(st[a]||10)+_flat[a]);mod[a]=_mod(effScore[a]);}
-  const hd=b.hd||1; const row=DATA.HD[hd-1];
+  const hd=b.hd||1;
+  // Ownership must be resolved BEFORE anything reads b.features for a mechanical EFFECT. A blocked
+  // purchase is "not counted, not owned" — that has to mean it grants nothing, not merely that it costs
+  // nothing. This block used to sit ~180 lines lower, next to the pricing loop that consumes it, which
+  // left the Primal Champion +4 STR/+4 CON fold below reading raw b.features: a 1 HD Barbarian got the
+  // stats (and the HP/AC/save-DC knock-ons) for 0 AP while the engine reported the feature as not owned.
+  // Caught by /code-review ultra on PR #471. Keep this ABOVE the ability-score fold.
+  const _ownedFeatSet=new Set((b.features||[]).map(FEAT_ALIAS));
+  const _blockedFeat=new Set();
+  // Hit-Dice gate (D-GH-2026-08-27-feature-hd-gate). Seeded INTO the same set the prereq fixed point
+  // walks, deliberately: a hard block means the purchase is not owned, so anything naming an HD-blocked
+  // feature as its prerequisite must block transitively too. Running this as a later pass would leave
+  // those dependents reading their prerequisite as owned. Gates on the feature's own tier — NOT on a
+  // stepped `rep` escalation: only one entry in the whole dataset is rep (Sorcerer: Metamagic), its price
+  // is overridden to a flat 2N two lines below so the escalated tier is dead code for it, and the Guide
+  // lists Metamagic explicitly as having "no level gate". Gating it would be a rules CHANGE needing its
+  // own Guide edit, not the rules catch-up this is.
+  const _hdBlockedFeat=new Set();
+  // Arts and Boons carry their own `hd` rather than inheriting a tier gate, and were advisory-only until
+  // now: compute() warned and then charged and granted them anyway. Resolved HERE, with the features,
+  // because the epic-boon +2 ability fold below reads b.boons directly -- blocking a boon after that point
+  // would repeat exactly the Primal Champion regression (blocked meant "costs nothing" instead of
+  // "grants nothing"). blockedAP/_BLI are declared here too so the arts loop, which runs well before the
+  // feature loop, can feed the same single "Blocked purchases" ledger line.
+  let blockedAP=0; const _BLI=[];
+  const _blockedArt=new Set(), _blockedBoon=new Set();
+  for(const _l of (b.arts||[])){const _a=DATA.arts[_l]; if(_a && hd<requiredHD(_a)) _blockedArt.add(_l);}
+  for(const _l of (b.boons||[])){const _bo=((b.houseRules||{}).boons||{})[_l]||DATA.boons[_l];
+    if(_bo && hd<(Number(_bo.hd)||1)) _blockedBoon.add(_l);}
+  for(const _lab of _ownedFeatSet){const _f=DATA.features[_lab];
+    if(_f && hd < requiredHD(_f)){_blockedFeat.add(_lab);_hdBlockedFeat.add(_lab);}}
+  {let _changed=true;while(_changed){_changed=false;for(const _lab of _ownedFeatSet){if(_blockedFeat.has(_lab))continue;
+    const _f=DATA.features[_lab];if(!_f||!(_f.prereq&&_f.prereq.length))continue;
+    const _bad=_f.prereq.some(function(req){return !_ownedFeatSet.has(req)||_blockedFeat.has(req);});
+    if(_bad){_blockedFeat.add(_lab);_changed=true;}}}}
+  const _flat={STR:0,DEX:0,CON:0,INT:0,WIS:0,CHA:0};if(_ownedFeatSet.has("Barbarian: Primal Champion")&&!_blockedFeat.has("Barbarian: Primal Champion")){_flat.STR+=4;_flat.CON+=4;}const _eb=b.epicBoonAbil||{};for(const _bl of (b.boons||[])){if(_blockedBoon.has(_bl))continue;const _bo=DATA.boons[_bl];if(_bo&&_bo.epic){const _a=_eb[_bl];if(_a&&_flat[_a]!==undefined)_flat[_a]+=2;else W.push(_bl+": choose an ability to raise (+2)");}}for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){effScore[a]=Math.min(30,(st[a]||10)+_flat[a]);mod[a]=_mod(effScore[a]);}
+  const row=DATA.HD[hd-1];
   const tier=hd<=1?1:hd<=2?2:hd<=4?3:hd<=8?4:hd<=12?5:hd<=16?6:7;
   add("Hit Dice",row.cum);
   // proficiency bonus (v39 §6): everyone starts at +2; buy up to +6 on the Extreme ladder, each step HD-gated
@@ -281,8 +343,9 @@ export function compute(b, opts){
   // player") — every purchase past the table's end costs the same as the last rung, rather than nothing.
   const attune=b.attune||0; add("Attunement slots",DATA.attune[Math.min(attune,DATA.attune.length-1)]||0);
   // Arts & Techniques (flat AP per item like boons; has hd gate + minStats prereqs)
-  let artAP=0;const _AI=[];for(const lab of (b.arts||[])){const ar=DATA.arts[lab];if(!ar){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _ac=(+ar.ap||0);artAP+=_ac;_AI.push([lab,_ac]);
-    if(hd<(+ar.hd||1)) W.push(lab+': needs '+(+ar.hd||1)+'+ Hit Dice');
+  let artAP=0;const _AI=[];for(const lab of (b.arts||[])){const ar=DATA.arts[lab];if(!ar){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _ac=(+ar.ap||0);
+    if(_blockedArt.has(lab)){W.push('⛔ '+lab+' — blocked: needs '+requiredHD(ar)+' Hit Dice (not counted, not owned)');blockedAP+=_ac;_BLI.push([lab,_ac]);continue;}
+    artAP+=_ac;_AI.push([lab,_ac]);
     const _ams=ar.minStatsAny;if(_ams&&_ams.stats){const _anyMet=_ams.stats.some(function(_a){return (st[_a]||10)>=_ams.val;});if(!_anyMet)W.push(lab+': requires '+_ams.stats.join(' or ')+' '+_ams.val+'+');}
     const ms=ar.minStats||{};for(const [_ab,_mn] of Object.entries(ms)){if((st[_ab]||10)<_mn)W.push(lab+': requires '+_ab+' '+_mn+'+');}
     if(ar.prereqNote){
@@ -402,15 +465,10 @@ export function compute(b, opts){
   // ownership entirely below: it costs 0 and is itemized separately under "Blocked purchases" rather
   // than counted as a real purchase. Fixed-point over b.features so a chain of any depth resolves
   // correctly (owning steps 2 and 3 while skipping 1 blocks both, not just the one naming 1 directly).
-  const _ownedFeatSet=new Set((b.features||[]).map(FEAT_ALIAS));
-  const _blockedFeat=new Set();
-  {let _changed=true;while(_changed){_changed=false;for(const _lab of _ownedFeatSet){if(_blockedFeat.has(_lab))continue;
-    const _f=DATA.features[_lab];if(!_f||!(_f.prereq&&_f.prereq.length))continue;
-    const _bad=_f.prereq.some(function(req){return !_ownedFeatSet.has(req)||_blockedFeat.has(req);});
-    if(_bad){_blockedFeat.add(_lab);_changed=true;}}}}
+  // (ownership resolution — _ownedFeatSet / _blockedFeat / _hdBlockedFeat — is computed near the top of
+  // compute(), BEFORE any mechanical effect reads b.features. See the block above the ability-score fold.)
   // features — non-stepped: buy once. Stepped (rep): each re-buy is the next tier up.
   let featAP=0; const fcount={}; const _FI=[];
-  let blockedAP=0; const _BLI=[];
   for(const _lab0 of (b.features||[])){const lab=FEAT_ALIAS(_lab0);const f=DATA.features[lab];if(!f){W.push((lab.split(": ")[1]||lab)+" is no longer in the rules data — no cost/effect applied");continue;}
     fcount[lab]=(fcount[lab]||0)+1; const n=fcount[lab];
     if(!f.rep && n>1){W.push((lab.split(": ")[1]||lab)+": already bought — can only be taken once (not a stepped feature)");continue;}
@@ -420,21 +478,37 @@ export function compute(b, opts){
     const isO=(f.cls===b.originClass||f.cls===b.originClass2);const isUnlk=!isO&&_unlkSet.has(f.cls);let c=isO?origin:(isUnlk?stick:cross);
     if(mbClass && f.cls===mbClass) c=Math.max(1,c-1);if(lab==="Sorcerer: Metamagic")c=2*n;   // Martially Bound discount (floor 1); Metamagic Steep ladder (option N=2N) v0.314
     if(_blockedFeat.has(lab)){
+      // Report every DIRECT cause on the item itself, HD first, so a purchase failing both gates says so
+      // instead of hiding one behind the other. A pure-prereq block keeps its exact pre-existing wording
+      // — the four prereq regression fixtures assert that string, and it must stay the thing they prove.
       const _missing=(f.prereq||[]).filter(function(req){return !_ownedFeatSet.has(req)||_blockedFeat.has(req);});
       const _reqLab=_missing[0]?(_missing[0].split(": ")[1]||_missing[0]):"an earlier step";
-      W.push("⛔ "+(lab.split(": ")[1]||lab)+" — blocked: requires "+_reqLab+" first (not counted, not owned)");
+      const _why=[];
+      if(_hdBlockedFeat.has(lab)){const _n=requiredHD(f);
+        // Name the constraint that actually binds. When a per-item lvl/hd floor exceeds the tier's
+        // requirement, "(T5)" would tell the player a T5 ability needs 12 HD — false for every other
+        // T5 ability in the game, and it hides the real reason.
+        _why.push("needs "+_n+" Hit Dice "+(_n>((DATA.tierHD||{})[f.tier]||1)?"(level gate)":"(T"+f.tier+")"));}
+      if(_missing.length||!_why.length) _why.push("requires "+_reqLab+" first");
+      W.push("⛔ "+(lab.split(": ")[1]||lab)+" — blocked: "+_why.join(" & ")+" (not counted, not owned)");
       blockedAP+=c;_BLI.push([lab,c]);continue;
     }
     featAP+=c;_FI.push([lab+(f.rep&&n>1?" (step "+n+")":""),c]);}
   add("Class features",featAP);addItems("Class features",_FI);
-  addDisplay("Blocked purchases",blockedAP,_BLI.length>0);addItems("Blocked purchases",_BLI);
+  // "Blocked purchases" is emitted AFTER the subclass-ability loop below, not here: all 192 subclass
+  // abilities are mirrored into DATA.features and are buyable through either collection, so both loops
+  // feed one shared blockedAP/_BLI and one ledger line. Gating only this loop would guard one of two
+  // identical doors — the precise failure that got the v0.353 §11 access gate removed.
   {var _invN=(b.features||[]).filter(function(l){var f=DATA.features[FEAT_ALIAS(l)];return f&&f.inv&&!_blockedFeat.has(FEAT_ALIAS(l));}).length;var _bs=0;for(var _i=0;_i<_invN;_i++)_bs+=Math.min(20,Math.floor(_i/2));if(_bs>0)add("Invocation breadth surcharge",_bs);}{var _ea=(b.features||[]).filter(function(l){return /: Extra Attack$/.test(l);}).length+((b.features||[]).indexOf("Warlock: Thirsting Blade")>=0?1:0)+(b.subAbilities||[]).filter(function(k){return /\|Extra Attack$/.test(k);}).length;if(_ea>=2)W.push("Extra Attack / Thirsting Blade gained "+_ea+" times — a 2nd attack doesn't stack; the duplicates add no benefit (keep one).");}
   // v0.084: Eldritch Invocations are locked behind the Warlock discipline
   {const _hasWL=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Warlock";});});
    if(!_hasWL)(b.features||[]).forEach(function(lab){var f=DATA.features[lab];if(f&&f.inv)W.push("⛔ "+(lab.split(": ")[1]||lab)+": Eldritch Invocation requires the Warlock discipline (open Arcane › Warlock)");});}
-  // v0.203: elevated Warlock-level gates for invocations — unchanged, still advisory. The prerequisite
-  // check itself (f.prereq) was widened to a hard block above in v3; this is a separate mechanism
-  // (character level, not feature ownership) and was not part of that owner direction.
+  // v0.203: elevated Warlock-level gates for invocations. NO LONGER PURELY ADVISORY as of
+  // D-GH-2026-08-27-feature-hd-gate: requiredHD() folds `lvl` in as a floor, so an invocation above its
+  // level gate is now HARD-blocked by the loop above (0 AP, not owned) and this line is the second,
+  // explanatory half of the same verdict — it names the Warlock-level cause that the blocked warning
+  // reports only as a number. Kept deliberately rather than deduped: dropping it would leave the player
+  // told "needs 12 Hit Dice (level gate)" with nothing saying WHICH level gate. See CG-049.
   {(b.features||[]).forEach(function(lab){var f=DATA.features[lab];if(!f||!f.inv)return;
     if(f.lvl&&(b.hd||0)<f.lvl)W.push("⛔ "+(lab.split(": ")[1]||lab)+" requires Warlock level "+f.lvl);});}
   // v0.087: chassis gates — a feature with needsDisc requires that Discipline founded (e.g. Metamagic→Sorcerer)
@@ -468,8 +542,18 @@ export function compute(b, opts){
   // subclass abilities (à la carte) + unlocks: first subclass per class is free, others 15 AP
   const freeSub=b.freeSub||{}; const subUsed={}; let subAP=0;const _UI=[];
   for(const key of (b.subAbilities||[])){const a=DATA.subAbilMap[key];if(!a){W.push((String(key).split("|").pop()||key)+" is no longer in the rules data — no cost/effect applied");continue;}
+    const _sLab=(a.cls+" › "+a.sub+": "+a.name);
+    // Same Hit-Dice gate as the feature loop, via the same requiredHD(). Blocked means NOT OWNED, so the
+    // subUsed[] marking below is skipped too — a blocked ability must not drag its subclass into the
+    // paid-unlock accounting for a purchase that did not happen.
+    if(hd < requiredHD(a)){
+      {const _n=requiredHD(a);
+       W.push("⛔ "+a.name+" — blocked: needs "+_n+" Hit Dice "+(_n>((DATA.tierHD||{})[a.tier]||1)?"(level gate)":"(T"+a.tier+")")+" (not counted, not owned)");}
+      const _bc=(a.cls===b.originClass||a.cls===b.originClass2)?a.origin:(_unlkSet.has(a.cls)?Math.max(1,a.cross-a.tier):a.cross);
+      blockedAP+=_bc;_BLI.push([_sLab,_bc]);continue;
+    }
     (subUsed[a.cls]=subUsed[a.cls]||{})[a.sub]=1;
-    const isO=(a.cls===b.originClass||a.cls===b.originClass2);const isUS=!isO&&_unlkSet.has(a.cls);const _uc=isO?a.origin:(isUS?Math.max(1,a.cross-a.tier):a.cross);subAP+=_uc;_UI.push([(a.cls+" › "+a.sub+": "+a.name),_uc]);}
+    const isO=(a.cls===b.originClass||a.cls===b.originClass2);const isUS=!isO&&_unlkSet.has(a.cls);const _uc=isO?a.origin:(isUS?Math.max(1,a.cross-a.tier):a.cross);subAP+=_uc;_UI.push([_sLab,_uc]);}
   add("Subclass abilities",subAP);addItems("Subclass abilities",_UI);
   // v0.196: a bought expanded-list bundle also opens its subclass for unlock-accounting
   for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");if(_p[0]&&_p[1])(subUsed[_p[0]]=subUsed[_p[0]]||{})[_p[1]]=1;}
@@ -620,11 +704,13 @@ export function compute(b, opts){
   // boons (§14): flat AP priced like features, gated by Hit Dice. DM house-rules (b.houseRules) may
   // add custom boons/drawbacks or override their AP; those overrides win over the printed values.
   const HR=b.houseRules||{}; const HRb=HR.boons||{}; const HRd=HR.draws||{};
-  let boonAP=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _bc=(+bo.ap||0);boonAP+=_bc;_BI.push([lab,_bc]);
-    if(hd<(+bo.hd||1)) W.push(lab+": boon needs "+(+bo.hd||1)+"+ Hit Dice");
+  let boonAP=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _bc=(+bo.ap||0);
+    if(_blockedBoon.has(lab)){W.push('⛔ '+lab+' — blocked: needs '+(Number(bo.hd)||1)+' Hit Dice (not counted, not owned)');blockedAP+=_bc;_BLI.push([lab,_bc]);continue;}
+    boonAP+=_bc;_BI.push([lab,_bc]);
     const _bms=bo.minStats||{};for(const [_ba,_bm] of Object.entries(_bms)){if((st[_ba]||10)<_bm) W.push(lab+': boon requires '+_ba+' '+_bm+'+');}
     const _bbmsa=bo.minStatsAny;if(_bbmsa&&_bbmsa.stats){const _banyMet=_bbmsa.stats.some(function(_bba){return (st[_bba]||10)>=_bbmsa.val;});if(!_banyMet)W.push(lab+': boon requires '+_bbmsa.stats.join(' or ')+' '+_bbmsa.val+'+');} }
   add("Boons",boonAP);addItems("Boons",_BI);
+  addDisplay("Blocked purchases",blockedAP,_BLI.length>0);addItems("Blocked purchases",_BLI);
   // Extra Battle Master maneuvers: an escalating rung — base + step*n for the nth extra purchase, so
   // three cost 4+5+6. Priced HERE as of D-GH-2026-08-06-maneuver-afford-gate (which supersedes its own
   // first answer) so that the affordability gate, the ledger and repriceDraft() all agree on one number.
@@ -798,7 +884,7 @@ export function compute(b, opts){
     else size='Small';
   }
   else if(_races.indexOf('Tiefling')>=0){ sizeChoosable=true; size=(b.size==='Small')?'Small':'Medium'; }   // v0.194: Tiefling chooses Small or Medium
-  return {total,remaining,budget:spendable,playerAp,dmAp,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
+  return {total,remaining,budget:spendable,playerAp,dmAp,drawbackAp:_dGranted,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
     // Traits owned for free via a heritage pack — derived, never stored. See packTraitsFor().
     packTraits:packTraitsFor(b.species,b.species2),
     ac,init,speed,castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
