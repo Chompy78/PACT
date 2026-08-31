@@ -8,6 +8,14 @@ Supersedes the *mechanism* in `docs/plans/2026-08-02-creation-lock-switch.md`.
 Replace the automatic spend tripwire with a **per-character creation-AP ceiling** that purchases cannot
 exceed, and an explicit **"Finish creating"** action that is the only way past it.
 
+**Post-review decision (R3, owner, 2026-08-30):** the ceiling stays a **wall** — a purchase past it is
+refused — and **only the DM can raise it**, from the same per-card panel. The reviewers' "fork" (letting the
+player choose to keep building past the ceiling) was rejected on the owner's reasoning that it is wrong in
+the common case: if the ceiling really was the character's whole creation budget, "keep building" lets a
+player self-serve past it at creation prices, and the app still cannot tell that player apart from one who
+legitimately needs more. The person who knows is the DM, so the DM decides. See *Owner decision after
+review* below for what this resolves.
+
 Owner decisions folded in: the ceiling is **each character's DM-granted AP plus their drawback grant**,
 captured as a **one-off snapshot** — not a live figure that tracks later awards (P3); drawback AP **raises**
 the ceiling rather than being stranded behind it (G2); the DM sets and sees it **per character in DM
@@ -42,8 +50,14 @@ reversible.
 **Why the ceiling is a snapshot, and why that matters.** It is captured once from the character's funding at
 the time it is set, then frozen. A later DM award therefore does **not** raise it — so a player who is at
 their ceiling must press "Finish creating" before they can spend new chapter AP. That is the intended flow:
-the button is how a character stops being built and starts being advanced. Were the ceiling live, it could
-never be crossed and the lock would be unreachable.
+the button is how a character stops being built and starts being advanced.
+
+*(Corrected after review.* This plan previously justified the freeze as "were the ceiling live, the lock
+would be unreachable". That argument is wrong — under this design the lock is reachable *only* by the
+button, frozen or not. The honest justification is different and simpler: **the ceiling is a deliberate DM
+setting, not a moving target.** A DM sets it once at onboarding and would rarely revisit it; a ceiling that
+silently rose with every chapter award would stop being a budget at all. Its frozen-ness is the point, and
+the DM's raise control is the release valve.*)
 
 ## Assumptions vs. verified facts
 
@@ -111,7 +125,15 @@ ceiling display needs, and independently repairs a contradiction five live playe
 explicit-only. **Decision point below.**
 
 **Step 3 — both player tools: enforce the ceiling** at the existing purchase guard, refusing a buy that
-would push spend past it while unlocked, naming the ceiling and pointing at the finish action.
+would push spend past it while unlocked. The refusal must name the ceiling, its composition, and **both**
+exits — "if you've finished building, press Finish creating; if you need more build budget, ask your DM" —
+never the finish action alone, which is the wrong answer for a player who was topped up mid-build.
+
+**Step 3a — a character with no ceiling event has NO ceiling** (blocking item 1). Enforcement applies only
+where a ceiling has actually been set. This is deliberately fail-open: it cannot strand anyone, it leaves
+every local/solo character behaving exactly as it does today (they have no DM to set one, and the existing
+"can't afford it" guard already bounds them), and it means shipping this does not require migrating the
+whole database first.
 
 **Step 4 — both player tools: "Finish creating"**, emitting `creationLocked` behind a confirm that states
 what changes (own-species traits get pricier; purchases start costing gold and downtime). Cannot be
@@ -120,10 +142,23 @@ deferred past step 3 — it is the only escape from a ceiling.
 **Step 5 — display (hard requirement).** Show the ceiling *and its composition* wherever AP appears, plus
 an explicit state for "you have awarded AP you cannot spend until you finish creating."
 
-**Step 6 — DM Console: show and set the per-character ceiling in `dmToolsBody()`**, defaulting to that
-character's DM AP + drawback grant, plus the SQL migration widening `dm_edit_character_log` to accept a
-`creationLockConfig` carrying only `threshold` (never `auto`, never a lock/unlock event). Run the Supabase
-advisor and skim logs after the migration.
+**Step 6 — DM Console: show, set and raise the per-character ceiling in `dmToolsBody()`**, defaulting to
+that character's DM AP + drawback grant. Includes a **"reopen creation"** control clearing an unwanted lock
+via `creationUnlocked` — the missing undo for an accidental Finish (blocking item 3), which costs almost
+nothing once this panel exists and which step 8 already performs by hand.
+
+Via a **purpose-built RPC**, `dm_set_creation_ceiling(character_id, threshold int)` — *not* by widening
+`dm_edit_character_log`'s allowlist (both reviewers, independently). That function's header states it is
+"deliberately not a general editor", and a one-integer RPC keeps that property literally true rather than
+by promise: nothing to get wrong in JSON key-set validation, and a server-side range check on the single
+value. Run the Supabase advisor and skim logs after the migration.
+
+**Step 6a — warn the DM at award time when an award would strand AP.** When granting AP to a character
+that is still unlocked, if the award exceeds their remaining headroom, say so with the exact figure —
+*"Skylar has 0 AP of headroom; 18 of this 18 AP award will not be spendable until she finishes creating,
+or you raise her ceiling."* This is the mitigation for the reviewers' central finding: it catches the
+strand **at the moment the DM would cause it**, rather than leaving the player to discover it later.
+Computed exactly from ceiling − spent; no tuned threshold.
 
 **Step 7 — authority.** Tag threshold events with their source (`dm` / `player`). While campaign-bound, a
 player-authored threshold **never** overrides a DM-authored one regardless of timestamp; outside a campaign
@@ -294,7 +329,32 @@ signal in the set.
   campaign with any characters at all; the other three have zero. This closes the precondition Sonnet
   attached to its (a) recommendation, and the blast radius is smaller than the plan claimed.
 
-### The alternative both reviewers point at — owner decision
+### Owner decision after review (R3, 2026-08-30) — and what it resolves
+
+The owner rejected the fork and chose **a wall plus a DM-only raise control**, with a DM-side warning at
+award time. The reasoning, which the reviewers could not have had: *the DM normally sets the creation
+budget once and would almost never change it; on the rare occasion they do, they understand why.*
+
+The decisive objection to the fork came from the owner, not from either reviewer: **if the ceiling really
+was the character's whole creation budget, "keep building" is wrong too.** It lets a player spend past
+their real budget at creation prices, and the player facing that dialog is no better placed than the app to
+know which case they are in. The fork moves the guess from the app to the player; it does not remove it.
+R3 moves the decision to the only party who actually knows — the DM.
+
+Status of the four blocking items under R3:
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Undefined ceiling for a character with no ceiling event | **Resolved** — step 3a: no ceiling event means no ceiling. Fail-open, cannot strand anyone, no database migration needed before shipping |
+| 2 | Mid-creation awards strand the player, only exit is wrong | **Resolved** — step 6a warns the DM at the moment they would cause it, with the exact stranded figure; step 3's refusal now names both exits; step 6 lets the DM raise the ceiling |
+| 3 | No undo for Finish | **Resolved** — step 6's "reopen creation" control, which the DM panel makes nearly free |
+| 4 | Freeze rationale self-defeating | **Resolved** — rationale replaced. The freeze is not about lock reachability; the ceiling is a deliberate DM setting, and one that silently rose with every award would not be a budget |
+
+Still open, unchanged by R3: **campaign movement** (a character moving between or leaving campaigns may
+carry a stale ceiling — flagged by three reviewers across two revisions), the **rollback story**, and
+**step 5's unbounded scope**.
+
+### The alternative both reviewers pointed at — considered and rejected
 
 Opus proposes **a fork, not a wall**: crossing the ceiling opens a three-way choice — finish now and buy at
 in-play prices / keep building at creation prices (recording a `ceilingExceeded` marker) / cancel. It keeps
@@ -306,6 +366,9 @@ Both are materially different from the rejected "warn-only", which kept an invis
 behind the warning. Neither was considered in this plan. **Choosing between fork-not-wall, drop-the-freeze,
 and the plan as written is an owner call**, because it changes what the feature is — not something a
 reviewer or an implementer should settle.
+
+**Rejected 2026-08-30 in favour of R3** — see *Owner decision after review* above for why: option 2 of the
+fork ("keep building") is wrong precisely when the ceiling was correct, which is the common case.
 
 ### Deferred, with reasons
 
