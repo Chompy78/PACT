@@ -59,6 +59,23 @@ browser)". That file's header says the opposite in its opening paragraph — it 
 verifying an *absence* claim before writing it down as fact; this is the same rule needing to apply to a
 *presence* claim about test coverage, which is easier to assert casually and just as load-bearing.
 
+## The part that was tested least
+
+The generator got ~200 rolls per gate run; the panel got a functional open/close check and nothing else.
+Rendering it at 390px and in the tool's other colour themes afterwards turned up one real defect the
+functional tests could never have seen: the target-level `<select>` carried a fixed `width:190px` while
+its longest option read "Auto — level 10 (from your AP)", so it clipped mid-word — in every theme, at
+every width, including desktop. Sizing it to content and dropping the redundant parenthetical (the
+budget line directly above already says where the level comes from) fixed it.
+
+Worth generalising: an assertion that an element *exists and responds* says nothing about whether its
+text fits inside it. The screenshot pass now also measures rendered text width against the control's box,
+so that specific failure is mechanical rather than visual.
+
+Otherwise the panel checked out — no horizontal scroll on page or panel at any width, cards reflow 3-up
+to stacked, and all five colour themes pick up their own tokens (the panel uses only existing `--bg`,
+`--card`, `--line`, `--navytx`, `--blue` variables, no new colours).
+
 ## Left alone deliberately
 
 - **No `DATA.version` bump, no Players Guide edit** — the generator consumes `compute()` and defines no

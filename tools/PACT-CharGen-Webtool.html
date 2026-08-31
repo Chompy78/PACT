@@ -4789,7 +4789,7 @@ function openRollPanel(){
     });
     h+='</div>'+
       '<div class="row" style="margin-top:10px"><label class="l" for="rolllvl">Target level</label>'+
-      '<select id="rolllvl" style="width:190px"><option value="0">Auto — level '+info.lv+' (from your AP)</option>';
+      '<select id="rolllvl" style="min-width:132px;max-width:100%"><option value="0">Auto — level '+info.lv+'</option>';
     // Only levels the budget can actually pay for. Offering 1-20 regardless meant picking "Level 20" on a
     // level-3 budget poured every AP into Hit Dice and returned a character with no skills or powers.
     for(let L=1;L<=info.lv;L++) h+='<option value="'+L+'">Level '+L+'</option>';
