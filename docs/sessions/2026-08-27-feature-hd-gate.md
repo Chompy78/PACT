@@ -123,3 +123,14 @@ reads a value before changing its shape, not just what renders it.
 - **Before decorating a value for display, check whether the same value is consumed elsewhere as an
   exact-match key.** `s.boons` doubling as a dropdown's `value=` source is the concrete case; the general
   check is cheap and the failure mode (a silently broken control) is not.
+
+## Cold reviews
+
+Four reviewers judged the plan (`docs/plans/2026-08-27-feature-hd-gate-cold-review.md`); their findings
+are the "four reviewers agree" thread above. Filed 2026-08-30, having sat unrelocated in `z-cold/` since
+this session — see `D-GH-2026-08-30-archive-hd-gate-cold-reviews` for why the close-session step missed them:
+
+- `docs/sessions/cold-reviews/2026-08-27-gpt-5.6-luna-feature-hd-gate.md`
+- `docs/sessions/cold-reviews/2026-08-27-copilot-claude-opus-4.8-feature-hd-gate.md`
+- `docs/sessions/cold-reviews/2026-08-27-m365-copilot-gpt-5-feature-hd-gate.md`
+- `docs/sessions/cold-reviews/2026-08-27-deepseek-feature-hd-gate.md`
