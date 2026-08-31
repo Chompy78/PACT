@@ -10,6 +10,20 @@
 
 ## Index
 
+## D-GH-2026-08-31-random-char-generator-optimize — the random generator gets a theme, and a gate that can fail
+- The 🎲 Random roll was measured rather than guessed at: Hit Dice were capped at **9 for every budget**
+  (the clamp sat on the random draw, not the ceiling), so a level-20 budget rolled an HD-5 character and
+  dumped the surplus into 15 boons + 15 arts; at 600 AP **100%** of rolls owned light armour + shield +
+  simple weapons and ~96% heavy armour + all martial weapons regardless of class. Chose a **theme layer**
+  over the existing spender (A2) rather than tuning the flat pool (A1) or a concept-first rewrite (A3),
+  because the thematic axis already existed unused in `DATA.boons[k].cat`/`DATA.arts[k].cat` — so it
+  needed no new rules authoring and left `tryAct()`'s legality gate untouched. Eight themes; ~18% of picks
+  stay off-theme on purpose, because a theme obeyed absolutely just rotates the sameness. Exposed four
+  further defects, including a tradition Rank of 10 against a UI select offering 0–9 — which read back as
+  Rank **0** and stranded every spell slot the roll had bought. Also records that this task's own board
+  entry cited a test gate that, by that file's own header, never tested the generator at all.
+  Full record: `decisions/2026/D-GH-2026-08-31-random-char-generator-optimize.md`.
+
 ## D-GH-2026-08-30-archive-hd-gate-cold-reviews — cold reviews never left `z-cold/`, because the close-session check looks in the wrong place
 - Ten files sat in `z-cold/` on the auto-sync `zcold` branch. Sorted by content hash rather than
   filename: five were byte-identical duplicates of already-filed reviews, one a stale plan snapshot, and

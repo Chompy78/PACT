@@ -216,53 +216,6 @@ sweep-eligible.
 been applied to every affected saved character, over-budget outcomes have an owner decision recorded, and
 a gate asserts the invariant for corrected characters.
 
-## Tune CharGen's random character generator — TODO
-Branch `feat/randomize-tuning`. `randomizeRoll()` (`tools/PACT-CharGen-Webtool.html:3232`) rolls a
-character but nobody has written down what a *good* roll looks like.
-
-**⚠ Acceptance criteria are deliberately unset.** The owner asked for "tuning" without naming a
-complaint, so step 1 is to capture what is actually wrong — not to guess. Do not start implementing
-against invented criteria.
-
-**Effort:** medium · **Risk:** high — ambiguity is high (what counts as a good roll is a design/taste
-call only the owner can make); damage scale is low (single tool, no rules logic, `git revert` undoes it)
-and damage likelihood low (`random-manual-e2e.mjs` already gates it in a real browser). Not
-sweep-eligible until the owner has named concrete criteria — then re-rate.
-
-How it works today, verified 2026-08-05 rather than assumed:
-- `randomizeBuild()` confirms, then `randomizeRoll()` deep-clones `readBuild()` (= `foldBuild(LOG)`,
-  cloned because the fold's nested arrays ALIAS the LOG event payloads).
-- It **keeps anything already chosen** — species, class, name, budget — and fills only what is unset,
-  biased toward the chosen class and species.
-- The ceiling is `compute(b, _cgDmOpts()).spendable`, i.e. player AP **plus** DM-granted AP when a
-  campaign is active — not the raw player budget.
-- A spendable of 0 is treated as a real answer, not a missing one: it refuses with "ask your DM to
-  grant some" rather than building an unaffordable ~79 AP character.
-
-```text
-1. FIRST, and before any code: get the owner to name what a bad roll looks like. Concrete examples beat
-   adjectives — "rolled 3 Vigor and no skills", "spent 12 of 79 AP", "took cross-race traits it can't
-   use", "every roll looks the same". Without this the task cannot be judged done.
-2. Write those down IN THIS ENTRY as the acceptance criteria, then re-rate Risk (it is high only
-   because they are missing) and note whether it has become sweep-eligible.
-3. Only then implement. Keep the four behaviours listed above unless a criterion explicitly overrides
-   one — each is a deliberate fix for a real bug, not an accident, and the spendable-of-0 refusal in
-   particular has its own comment explaining what it replaced.
-4. Assert the agreed criteria in `testing/scripts/random-manual-e2e.mjs`, which already drives randomize
-   in a real browser against an independent oracle (D-GH-2026-07-13-random-e2e-real-oracle). Note it
-   needs Playwright and so cannot run in a CLI session — if the criteria are checkable without UI
-   interaction, prefer `testing/scripts/tool-pricing-ci.mjs`, which is dependency-free CDP.
-5. Budget-adherence checks must read the RECONCILED ledger. `fix/species-pack-not-charged` (2026-08-05)
-   changed what randomize's resulting log contains — a draft's frozen costs are now re-derived by
-   `repriceDraft()` to equal `compute().total` — so asserting against the old frozen figures would be
-   testing a state that no longer exists.
-6. Display/UX only — randomize writes a build, it does not change rules. Do NOT bump `DATA.version`.
-```
-
-**Done when:** the owner's concrete criteria are written into this entry, the generator satisfies each
-one, a test in `random-manual-e2e.mjs` (or `tool-pricing-ci.mjs`) asserts them, and engine-parity still
-reports 24/0.
-
 ## CharGen quotes a locked character's context changes as a whole-build delta — TODO
 Branch `fix/chargen-context-pricing`. D1 of `decisions/2026/D-GH-2026-08-05-pricing-model.md` — *a
 purchase that changes pricing context is quoted from its own rules table, never by whole-build diff* —
@@ -893,3 +846,30 @@ data; nothing in `compute()` reads this file.
 
 **Done when:** the JSONL carries one entry per named 2024 feature, none of the 4 bundles remain, and a
 fresh re-derivation from the file alone would reproduce the same split PACT's engine already has.
+
+## `tool-pricing-ci.mjs` flakes on tab readiness — TODO
+Branch `fix/tool-pricing-tab-flake`. The gate opens a fresh CDP tab per section — around ten across the
+three tools — and the later ones intermittently blow the 30-second `document.readyState==='complete'`
+poll, aborting the run with `CharGen never became ready for the version check` and skipping every
+remaining assertion. The script's own header already documents this shape (it raised the budget from 10s
+to 30s for the same reason in August) but treated it as a runner-speed problem rather than as tab
+contention it creates itself.
+
+**Measured 2026-08-31, not assumed:** on an unmodified tree it failed **3 of 3** runs; on the
+`feat/random-char-generator-optimize` branch it failed 2 of 5. So it is pre-existing, unrelated to what
+is being tested, and frequent enough that a red run currently carries almost no signal — which is the
+real cost: a gate that fails at random trains people to re-run rather than read it.
+
+**Effort:** small · **Risk:** low — test harness only, no app code, no rules logic; worst case the gate
+stays as flaky as it already is.
+
+```
+Reuse ONE tab per tool (CharGen, Live Sheet, DM Console) across all of that tool's sections instead of
+connect()-ing a new one per section, resetting state between sections with the tool's own resetBuild()
+rather than a fresh page load. Keep the existing readiness poll and its 30s budget — the point is to stop
+creating ten concurrent tabs, not to wait longer for them. Verify by running the gate 10 times in a row
+on an unmodified tree.
+```
+
+**Done when:** `node testing/scripts/tool-pricing-ci.mjs` passes 10 consecutive runs on an unmodified
+tree, and the tab count it opens is one per tool rather than one per section.
