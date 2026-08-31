@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-08-31 · feat(engine,tools): creation ends by choice, not by accident — ceiling + "Finish
+  creating", automatic spend tripwire retired · `DATA.version` v0.363 → v0.364** — creation used to end
+  by *inference*: the first time cumulative spend crossed a threshold, silently, with no user action and
+  no way back. Three live characters locked that way (Moss 84, Skylar 85, Caspian 87 AP) against a 79
+  default that was none of their real budgets. The tripwire is now **deleted** — in `_lockStates()` and
+  in CharGen's own `_cgEnsureLockFired()` mirror, which is where all three were actually locked. In its
+  place: `creationCeiling()` / `wouldExceedCeiling()`, a limit of **the DM's assigned figure + the
+  character's drawback grant** that a purchase is refused at, in both player tools, naming *both* exits
+  (finish creating, or ask your DM to raise it) — never the finish action alone, which is wrong for a
+  player topped up mid-build. Creation now ends only via an explicit **Finish creating** control.
+  Fail-open by design: a character with no stamped ceiling has none, so nothing changes for legacy or
+  solo characters. Five fixtures (EV-003/007/009/012/013) re-baselined — a racial trait that used to
+  re-price on auto-lock now stays at creation rate; verified this repriges **no** live character.
 - **2026-08-30 · feat(dm-console): show each character's creation-lock state on their card** — a DM had
   no way to see whether a character was still being built or had passed its creation limit, per
   character, anywhere. The card's PACT-build panel now carries a **Creation** row: "locked (past N AP)"
