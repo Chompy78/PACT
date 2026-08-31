@@ -1806,9 +1806,18 @@ export function foldBuild(events) {
 // creationLockConfig{auto:true} into all of them.
 export function isCreationDraft(events) {
   const log = (Array.isArray(events) ? events : []).filter(Boolean);
-  let anyLocked = false;
-  _replay(baseBuild(), log, (e, build, wasLocked) => { if (wasLocked) anyLocked = true; });
-  return !anyLocked;
+  // Read the state AFTER the last real event, via the same inert probe chargesGoldAndTime() uses.
+  //
+  // This used to walk _replay()'s per-event callback and ask whether any event was ENTERED already
+  // locked — which cannot see a lock that is the FINAL event, because no later event exists to enter.
+  // That was survivable while the automatic tripwire existed, since spend usually crossed the line
+  // partway through a log. It is NOT survivable now: with the tripwire retired (feat/creation-ceiling),
+  // the only way to lock is pressing "Finish creating", and that event is almost always the last one.
+  // A player would finish creation, save, reload — and be a draft again, with repriceDraft() free to
+  // rewrite the very prices the lock exists to freeze. Caught by CI's tool-pricing gate.
+  const { evs } = activeEvents(log);
+  const st = _lockStates(evs.concat([{ type: '_probe', noLock: true }]));
+  return !st[st.length - 1];
 }
 
 // creationLockState(events): the creation-lock picture for one character's log, in one call —
