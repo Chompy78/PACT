@@ -46,6 +46,21 @@ t('the LAST barrier sets the floor', undoFloor([{ type: 'award', amount: 1 }, { 
 t('a later discretionary award cannot lower an existing floor', undoFloor([{ type: 'award', amount: 5 }, { type: 'buy' }, { type: 'award', amount: 2, disc: true }]), 1);
 t("a DM boon grant's [buy, award] pair freezes both", undoFloor([{ type: 'buy', cat: 'boon', dmEdit: true }, { type: 'award', amount: 3, dmEdit: true }]), 2);
 
+// A budget award is `noLock` and CharGen RELOCATES it to the log tail on every budget edit. Treating
+// it as a barrier put the barrier at the end and killed undo outright, in both tools, permanently.
+// CharGen's own comment states the requirement; this is what keeps it true.
+t('a noLock budget award is NOT a barrier', undoFloor([{ type: 'buy' }, { type: 'buy' }, { type: 'award', amount: 79, noLock: true }]), 0);
+t('...even when it is the only event', undoFloor([{ type: 'award', amount: 79, noLock: true }]), 0);
+t('a real award beside a noLock one still sets the floor',
+  undoFloor([{ type: 'award', amount: 79, noLock: true }, { type: 'buy' }, { type: 'award', amount: 5 }]), 3);
+
+// creationLocked is a two-state toggle, not a ratchet — _replay() says so and _lockStates() honours it.
+t('a reopened creation is undoable again', undoFloor([{ type: 'buy' }, { type: 'creationLocked' }, { type: 'creationUnlocked' }]), 0);
+t('...but an unreopened one still locks', undoFloor([{ type: 'buy' }, { type: 'creationLocked' }]), 2);
+t('a re-lock after an unlock locks again',
+  undoFloor([{ type: 'creationLocked' }, { type: 'creationUnlocked' }, { type: 'buy' }, { type: 'creationLocked' }]), 4);
+t('an unlock does not weaken a seal', undoFloor([{ type: 'sessionSeal' }, { type: 'creationUnlocked' }]), 1);
+
 console.log('\nisUndoBarrier() — the predicate itself');
 t('a bare buy is not a barrier', isUndoBarrier({ type: 'buy' }), false);
 t('null is not a barrier', isUndoBarrier(null), false);

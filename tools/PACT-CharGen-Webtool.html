@@ -962,6 +962,19 @@ document.addEventListener('sync-ready', function () {
         if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
         return;
       }
+      // A seal rejection must NEVER fall through to the offline wording below: it promises the work
+      // "will sync when online", and it never will. Nor should it reach the catch, which prefixes the
+      // raw plpgsql text with "Save failed" — the same function's own comment calls that "the most
+      // damaging thing this path could say". Handled explicitly, before both.
+      if (res.sealed) {
+        alert('\uD83D\uDD12 Not saved \u2014 your DM sealed this character\'s history while you had it open.\n\n'
+          + 'Your work is still on screen and in this device\'s local copy; it has not been thrown away. '
+          + 'Save a copy to a file if you want to keep a record of it, then reload the page to pick the '
+          + 'character up from where your DM sealed it.');
+        if (btn) { btn.disabled = false; btn.textContent = '\u2601 Save to cloud'; }
+        if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
+        return;
+      }
       if (res.error) throw res.error;
       if (typeof flash === 'function') flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
     } catch (err) { alert('Save failed: ' + err.message); }
@@ -2977,17 +2990,22 @@ function _cgBlockedBySeal(what){
 
 function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
-  const i=LOG.findIndex(function(e){return e.type==='buy'&&e.cat===cat&&predicate(e);});
-  if(i===-1)return;
-  // SEALED HISTORY (feat/session-seal). THIS is the path the owner's requirement is really about:
-  // "anything already bought can't be unselected". Un-ticking a checkbox splices the purchase out of
-  // the LOG mid-array, with no undo involved — so guarding undo() alone left every checkbox live.
-  // Refused here rather than only disabled in render(), because render()'s disabling is cosmetic and
-  // several existing code paths set .checked directly without dispatching an event.
-  // Returns false so the caller knows to put the tick back.
-  if(i < _cgSealedFloor()){
-    flash('🔒 That purchase is sealed — your DM locked this part of your history and it can no longer be undone.');
-    return false;
+  // Search only the MUTABLE region. Skipping the sealed prefix outright, rather than finding a sealed
+  // match and refusing, matters for _cgSyncFlatCategory's `while(excess-->0)` loop: that always takes
+  // the FIRST match, so a sealed duplicate would otherwise block retraction of a legitimately
+  // removable later copy of the same item for ever.
+  const _floor=_cgSealedFloor();
+  const i=LOG.findIndex(function(e,idx){return idx>=_floor&&e.type==='buy'&&e.cat===cat&&predicate(e);});
+  if(i===-1){
+    // Distinguish "not there" from "there but sealed" — the caller must put the tick back only in the
+    // second case, and the reconcile callers (which ignore the return) must not silently diverge.
+    const _sealedMatch=LOG.some(function(e,idx){return idx<_floor&&e.type==='buy'&&e.cat===cat&&predicate(e);});
+    if(_sealedMatch){
+      flash('\uD83D\uDD12 That purchase is sealed — your DM locked this part of your history and it can no longer be undone.');
+      render();   // repaint so any DOM the caller already changed is put back from the LOG
+      return false;
+    }
+    return;
   }
   commitHistory();LOG.splice(i,1);_cgRepriceDraft();render();
   return true;
@@ -3050,6 +3068,23 @@ function replaceWholeLogFromBuild(b,opts){
 // creation-pricing lock (a no-op for awards, but matches the export burst's convention).
 function _cgSyncSingletonEvent(type,makeEvent){
   _cgEnsureLockArmed();   // bypasses emit() as well — see _cgEnsureLockArmed()
+  // SEALED HISTORY (feat/session-seal, review finding). This helper RELOCATES its singleton to the
+  // tail — filter-out-and-append — and `award` is inside the server's protected projection. On a
+  // sealed character, nudging the Budget field (or the Build-level picker, which drives _cgSyncAward
+  // for you) therefore moves a protected event and the next cloud save is rejected for ever. Guarded
+  // here rather than at each call site so a future caller cannot forget it.
+  //
+  // Only refuses when the singleton being moved actually sits inside the sealed prefix: a `name` or
+  // `award` event already past the floor moves freely, which is what keeps ordinary post-seal
+  // renaming working (owner decision K3).
+  const _floor=_cgSealedFloor();
+  if(_floor>0){
+    const _at=LOG.findIndex(function(e){return e.type===type;});
+    if(_at>-1 && _at<_floor){
+      flash('\uD83D\uDD12 That is part of your sealed history and can no longer be changed here.');
+      return;
+    }
+  }
   const without=LOG.filter(function(e){return e.type!==type;});
   const cur=LOG.find(function(e){return e.type===type;});
   const next=makeEvent();
@@ -5533,6 +5568,13 @@ function buildGuide(b,r){const tips=[];
 // entirely — an M365 Copilot review point on the plan, and correct.
 function _cgLockSealedControls(){
   var floor = _cgSealedFloor();
+  // Early-out. render() fires on every input event — _cgSyncName() calls it on every keystroke in the
+  // name field, the very path whose comment explains _cgRepriceDraft() is skipped there because a
+  // whole-log pass "is the difference between typing feeling instant and not". Sweeping 13
+  // querySelectorAll calls over several hundred controls on each keystroke for the 35 live characters
+  // that have no seal at all is exactly that cost, reintroduced. The .sealmark check keeps the
+  // clean-up path alive for a character that HAD marks and no longer should.
+  if(floor === 0 && !document.querySelector('.sealmark')) return;
   var sealed = {};   // "cat\u0000value" -> true, for every purchase inside the sealed prefix
   if(floor > 0){
     for(var i = 0; i < floor && i < LOG.length; i++){
@@ -5545,7 +5587,14 @@ function _cgLockSealedControls(){
     document.querySelectorAll('.' + cls).forEach(function(el){
       var v = (cls === 'classunlock') ? el.dataset.cls : el.value;
       var isSealed = !!sealed[cat + '\u0000' + v];
-      var lbl = el.parentElement, mark = lbl && lbl.querySelector('.sealmark');
+      var lbl = el.parentElement, mark = null;
+      // DIRECT CHILDREN ONLY. Skill/tool/instrument labels NEST the expertise checkbox inside their
+      // own label (`<label class="ck"><input class="skillck">…<label><input class="expck"></label></label>`),
+      // so a descendant query let the OUTER control match the INNER control's marker — and then the
+      // else-branch below removed that marker and cleared `disabled` on a box this function never
+      // disabled, breaking the very invariant its comment claims. Found in review.
+      if(lbl){ for(var _c = lbl.firstElementChild; _c; _c = _c.nextElementSibling){
+        if(_c.classList && _c.classList.contains('sealmark')){ mark = _c; break; } } }
       if(isSealed){
         el.disabled = true;
         if(lbl && !mark){

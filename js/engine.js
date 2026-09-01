@@ -1976,7 +1976,16 @@ export function wouldExceedCeiling(events, cost, opts) {
 export function isUndoBarrier(event) {
   if (!event) return false;
   if (event.dmEdit) return true;
-  if (event.type === 'award' && !event.disc) return true;
+  // `noLock` is exempt, and that exemption is load-bearing rather than cosmetic. CharGen's budget is a
+  // singleton `award` event which _cgSyncSingletonEvent() RELOCATES TO THE TAIL every time the field
+  // changes (filter-out-and-append). Without this clause, editing the budget put a barrier at the end
+  // of the log, undoFloor() returned LOG.length, and undo died permanently for that character — in
+  // both tools, since D-GH40 gives them one envelope. CharGen's own comment above _cgSyncAward() states
+  // the requirement outright ("a CharGen budget award must NOT lock undo history — budget is a freely-
+  // editable creation parameter"); it was true only because no such guard existed until this rule was
+  // centralised. The server's pact_enforce_locked_history() has always exempted noLock for the same
+  // reason, so this also removes a client/server disagreement rather than creating one.
+  if (event.type === 'award' && !event.disc && !event.noLock) return true;
   if (event.type === 'creationLocked') return true;
   if (event.type === 'sessionSeal') return true;
   return false;
@@ -1986,7 +1995,25 @@ export function isUndoBarrier(event) {
 // there is none. `undoFloor(LOG) >= LOG.length` therefore means "nothing left to undo".
 export function undoFloor(events) {
   const log = Array.isArray(events) ? events : [];
-  for (let i = log.length - 1; i >= 0; i--) if (isUndoBarrier(log[i])) return i + 1;
+  // `creationLocked` is a TWO-STATE TOGGLE, not a one-way ratchet — _replay()'s own precedence block
+  // says so, and _lockStates() honours `creationUnlocked`. Treating a stale creationLocked as a
+  // permanent barrier after a DM reopened creation would leave the player unable to undo while
+  // _undoBarrierMsg told them "only your DM can reopen it" — false in the opposite direction from the
+  // bug this rule was written to fix. Latent today (nothing emits creationUnlocked yet), fixed here so
+  // it cannot surface the moment something does.
+  let lastLocked = -1, lastUnlocked = -1;
+  for (let i = 0; i < log.length; i++) {
+    if (!log[i]) continue;
+    if (log[i].type === 'creationLocked') lastLocked = i;
+    else if (log[i].type === 'creationUnlocked') lastUnlocked = i;
+  }
+  const creationBarrierLive = lastLocked > lastUnlocked;
+  for (let i = log.length - 1; i >= 0; i--) {
+    const e = log[i];
+    if (!e) continue;
+    if (e.type === 'creationLocked' && !creationBarrierLive) continue;
+    if (isUndoBarrier(e)) return i + 1;
+  }
   return 0;
 }
 

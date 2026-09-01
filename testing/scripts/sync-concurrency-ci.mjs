@@ -194,13 +194,23 @@ console.log('\n  regressions — legitimate saves must keep working');
     A.isSealRejection({ message: 'locked character history' }) === true);
   ok('  and reads hint/details too, since PostgREST may put the text there',
     A.isSealRejection({ hint: 'reload — locked character history' }) === true);
+  // The regression that fixture alone could not catch: with `message` present, an OR chain would
+  // short-circuit and never look at hint/details, so the fallback silently died.
+  ok('  hint is still read when a message IS present (OR-chain regression)',
+    A.isSealRejection({ message: 'Bad Request', hint: 'locked character history cannot shrink' }) === true);
+  ok('  details is still read when a message IS present',
+    A.isSealRejection({ message: 'Bad Request', details: 'locked character history cannot be rewritten' }) === true);
+  ok('  a message-only unrelated error is still not a seal',
+    A.isSealRejection({ message: 'Bad Request', hint: 'check your input' }) === false);
   ok('an ordinary network failure is NOT treated as a seal',
     A.isSealRejection(new Error('Failed to fetch')) === false);
   ok('the AP-budget trigger is NOT treated as a seal (it is retryable after a DM award)',
     A.isSealRejection(new Error('PACT: over AP budget by 4 (spent 83 of 79 spendable)')) === false);
   ok('a null/undefined error does not throw',
     A.isSealRejection(null) === false && A.isSealRejection(undefined) === false);
-  ok('an untouched character is not seal-blocked', A.isSealBlocked('never-seen-id') === false); }
+  ok('an untouched character is not seal-blocked', A.isSealBlocked('never-seen-id') === false);
+  ok('clearSealBlocked is exported so loading a fresh copy can lift the block',
+    typeof A.clearSealBlocked === 'function'); }
 // NOT covered here: the end-to-end refusal. The server half is proven by testing/sql/session-seal-test.sql
 // against a real Postgres, and the client half by tool-pricing-ci.mjs in a real browser; this stub server
 // has no error-injection seam, so wiring one would be a larger change than the coverage justifies today.

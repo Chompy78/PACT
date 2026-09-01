@@ -1027,11 +1027,15 @@ function _lsSealedFloor(){ return sealedFloor(LOG,{campaignBound:!!window._lsCam
 // Guards the two paths that replace this tool's whole LOG. Both keep the character's id, so on a
 // sealed character the replacement is a write the database will reject outright — better to refuse
 // here, where we can say why, than to let the player do the work and lose it at save time.
-function _lsBlockedBySeal(what){
+// `what` is refused; `alternative` says what the player CAN do instead. The first version of this
+// pointed everyone at a "New character" control — which CharGen has and THIS TOOL DOES NOT. Combined
+// with Reset being the Live Sheet's only start-fresh path, that left a player with one sealed
+// character unable to start another at all, and told them to use a button that isn't there. Found in
+// review; the alternative is now passed in per call site rather than assumed.
+function _lsBlockedBySeal(what, alternative){
   if(_lsSealedFloor() === 0) return false;
   alert('\uD83D\uDD12 This character\'s history is sealed.\n\n' + what + ' would replace history your DM has locked, '
-      + 'and the server will refuse it.\n\nUse \u201cNew character\u201d if you want to start something fresh — '
-      + 'that leaves this one untouched.');
+      + 'and the server will refuse it.\n\n' + alternative);
   return true;
 }
 function undo(){
@@ -1341,7 +1345,12 @@ function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=
   // confirmation at all, unlike resetAll()'s matching confirm() below — a misclick or wrong file
   // silently and irrecoverably destroyed the in-progress character, including any cloud autosave
   // still in flight. Mirrors resetAll()'s pattern exactly.
-  if(d.LOG&&!_lsBlockedBySeal('Importing')&&confirm('Import will replace your current character and its history. Continue?')){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
+  // Only refuse an import that would land on THIS character. A file carrying a different id sets
+  // __charId to its own below, so it never writes over the sealed one — CharGen's guard already made
+  // that distinction and this copy had dropped it.
+  if(d.LOG&&((d.id&&String(d.id)!==String(currentCharId()))||!_lsBlockedBySeal('Importing over this character',
+      'Import a file that carries its own character id instead, or open the other character from \u2601 Cloud \u2192 Load.'))
+    &&confirm('Import will replace your current character and its history. Continue?')){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
   // Compose the load notice so a file that is BOTH tampered AND a different rules version shows both.
   var _msgs=[];
   if(_tampered){_msgs.push('⚠ This file was edited outside PACT — its signature no longer matches. It has still been loaded; double-check the numbers before playing.');}
@@ -1389,7 +1398,12 @@ function _lsConsumeHandoff(){
     return true;
   }catch(e){console.error('PACT Live Sheet: handoff consume failed',e);return false;}
 }
-function resetAll(){ if(!_lsBlockedBySeal('Wiping this character')&&confirm('Wipe this character and its whole history? This starts a clean '+RULES+' character.')){
+// Reset is this tool's ONLY start-fresh path, so it must not simply be refused on a sealed character
+// — that would strand the player. Detach instead: mint a fresh character id, so the wipe creates a new
+// character and leaves the sealed one untouched on the server. Same shape as CharGen's "New
+// Character", which is why that one needs no guard either.
+function resetAll(){ if(confirm('Wipe this character and its whole history? This starts a clean '+RULES+' character.')){
+  if(_lsSealedFloor()>0){ __charId=null; currentCharId(); flash('\uD83D\uDD12 That character\'s history was sealed, so this is a NEW character — the sealed one is untouched.'); }
   LOG=[];REDO=[];SEQ=1;viewAt=null;loadedRules=null;_lsResetCloudApState();   // a reset character is born under the current rules
   const _vb=$('versionBanner');if(_vb)_vb.remove();   // clear any stale version-mismatch banner
   window._apNudgeDismissedFor=null;   // a freshly wiped character should see the low-spend nudge again
@@ -3029,6 +3043,13 @@ document.addEventListener('sync-ready', function () {
           return;
         }
         if(res.error) throw res.error;
+        // See CharGen's copy: a seal rejection must not be reported as "will sync when online".
+        if(res.sealed){
+          alert('\uD83D\uDD12 Not saved \u2014 your DM sealed this character\'s history while you had it open.\n\n'
+          + 'Your work is still on screen and in this device\'s local copy; it has not been thrown away. '
+          + 'Save a copy to a file if you want to keep a record of it, then reload the page to pick the '
+          + 'character up from where your DM sealed it.');
+        } else
         if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
       } catch(err){ alert('Save failed: '+err.message); }
       btn.disabled = false; btn.textContent = '☁ Save to cloud';

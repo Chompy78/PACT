@@ -40,17 +40,25 @@
 -- ===========================================================================
 -- 1. Protected projection — `sessionSeal` added.
 --
--- Byte-identical to the 2026-08-10 version except for the added type in the WHERE clause. The seal
--- carries no economic fields, so the projected object is all nulls but its TYPE and POSITION, which
--- is exactly what needs protecting: remove or reorder the seal and the projection changes, and the
--- comparison below rejects the write.
+-- Two changes from the 2026-08-10 version: `sessionSeal` joins the WHERE clause, and the projection
+-- now carries `payload.v`. The seal carries no economic fields, so its projected object is all nulls
+-- but its TYPE and POSITION — which is exactly what needs protecting: remove or reorder the seal and
+-- the projection changes, and the comparison below rejects the write.
+--
+-- WHY `payload.v` WAS ADDED (code review, 2026-09-01). Without it the projection protects a sealed
+-- purchase's PRICE but not its IDENTITY: a sealed 6 AP boon could be swapped for any other 6 AP boon
+-- and both the length check and the element-wise comparison would pass. That was survivable while the
+-- award boundary was the only consumer AND — measured 2026-09-01 — had never actually fired on a live
+-- character. The seal makes a far stronger promise to the player ("everything bought up to now becomes
+-- permanent"), so it has to hold against substitution too. Added at the only moment it costs nothing:
+-- zero characters carry a seal and zero carry a locking award, so no existing protected set changes.
 -- ===========================================================================
 create or replace function public.pact_ap_ledger_protected(p_log jsonb)
 returns jsonb language sql immutable set search_path = public, pg_temp as $$
   select coalesce(jsonb_agg(jsonb_build_object(
            'type', ev->>'type', 'cat', ev->>'cat',
            'cost', ev->>'cost', 'amount', ev->>'amount', 'refVal', ev->>'refVal',
-           'disc', ev->>'disc'
+           'disc', ev->>'disc', 'v', ev#>>'{payload,v}'
          ) order by ord), '[]'::jsonb)
   from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
   where (ev->>'type') in ('buyoff','names','award','sessionSeal')
@@ -226,9 +234,27 @@ create or replace function public.award_ap_and_seal(
 ) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
-  v_ap   integer;
-  v_seal jsonb;
+  v_ap       integer;
+  v_seal     jsonb;
+  v_campaign uuid;
+  v_owner    uuid;
 begin
+  -- AUTHORISE FIRST. The idempotent-replay shortcut below reads the characters row (RLS is bypassed
+  -- here — this is SECURITY DEFINER) and returns the character's AP and the whole seal object. Placed
+  -- before these checks, as it first was, any authenticated caller who guessed a (character, idem)
+  -- pair could read both without ever reaching award_ap()/seal_character_history(), where the DM and
+  -- owner checks actually live. The key is a client-generated UUID so it was hard to hit blind;
+  -- relying on that is not an access-control model.
+  select campaign_id, owner_id into v_campaign, v_owner from characters where id = p_character;
+  if not found then raise exception 'Character not found'; end if;
+  if v_campaign is not null then
+    if not is_campaign_dm(v_campaign) then
+      raise exception 'Only a campaign DM can award AP and seal this character';
+    end if;
+  elsif v_owner is distinct from auth.uid() then
+    raise exception 'Only the owner can seal a character that is not in a campaign';
+  end if;
+
   -- The seal is written last, so finding this key means the whole operation already committed.
   if p_idem is not null then
     select ev into v_seal

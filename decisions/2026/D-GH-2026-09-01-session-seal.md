@@ -194,6 +194,60 @@ too loose and an ordinary network failure stops retrying and looks like data los
 tool spins on an impossible save. The AP-budget trigger's rejection is explicitly NOT a seal — it is
 retryable once a DM awards more AP.
 
+## Code review (`/code-review ultra`, 2026-09-01) — 14 findings, all fixed before the PR
+
+Run because the repo's PR template requires it for anything touching `js/engine.js` or `sql/`. It
+earned its place: the worst finding was introduced by step 1 of this very work.
+
+**Severe, and mine.** `isUndoBarrier()` treated `noLock` awards as barriers. CharGen's budget is a
+singleton `award` event that `_cgSyncSingletonEvent()` **relocates to the log tail** on every edit — so
+touching the Budget field put a barrier at the end, `undoFloor()` returned `LOG.length`, and undo died
+permanently for that character in **both** tools. CharGen's own comment states the requirement ("a
+CharGen budget award must NOT lock undo history"), true only because no such guard existed until step 1
+added one. The server had always exempted `noLock`; the client now does too, removing a real
+client/server disagreement rather than creating one.
+
+**Also fixed:** the budget edit bricking cloud save on a sealed character (`award` is inside the
+protected projection, so relocating it fails the comparison — `_cgSyncSingletonEvent` now refuses only
+when the singleton sits inside the sealed prefix, which is what keeps post-seal renaming working);
+`retractFlatEvent()`'s `false` return being ignored by three reconcile callers, leaving LOG and DOM
+diverged — it now searches only the mutable region, which also stops a sealed duplicate blocking
+retraction of a legitimate later copy; `_cgLockSealedControls()` matching a *descendant's* marker
+through nested skill/expertise labels and force-enabling controls it never disabled; that same function
+sweeping every control on every keystroke when nothing is sealed; the Live Sheet refusing an import of a
+*different* character's file, and refusing Reset — its only start-fresh path — while naming a "New
+character" control this tool does not have (Reset now detaches to a fresh id instead, like CharGen's);
+`isSealRejection()`'s `message || hint || details` short-circuit making the fallback dead code;
+`_sealBlocked` never being cleared by the in-app remedy (Cloud → Load), leaving the page mute for ever
+with the one-shot warning already spent; both manual-save paths reporting a seal rejection as "will sync
+when online"; `award_ap_and_seal()` returning AP and the seal object *before* any authorisation ran;
+the protected projection guarding a sealed purchase's price but not its **identity**, so a sealed 6 AP
+boon could be swapped for another 6 AP boon; `creationLocked` ignoring `creationUnlocked` against the
+engine's own two-state-toggle model; and an overclaiming comment on the `js/sync.js` legacy guard,
+which cannot detect the race it cited.
+
+The two SQL fixes were applied to production as `session_seal_review_fixes`, at the only moment they
+cost nothing: zero characters carry a seal and zero carry a locking award, so no protected set changed.
+
+**Process finding, also fixed:** the EXECUTE revoke had been applied live but recorded only in this
+file, so `sql/` alone would not reproduce the live grant state. Now
+`sql/migrations/2026-09-01-revoke-trigger-function-execute.sql`.
+
+**Caveat on the review itself:** it ran single-pass in one context — the `Agent` tool is unavailable in
+this session, so there was no independent verification pass. Every finding above was re-checked against
+the code by hand before being accepted, and the two most severe were reproduced directly.
+
+## The browser gate was flaky, and that is now fixed too
+
+Five spurious failures across this session. One was a genuine bug in the gate rather than timing: the
+drawback-cap check reads `window._campaignBridge` (set by the async CLOUD bridge) but its probe waited
+only for a classic-script symbol, so it ran early and read `undefined` — producing a **wrong answer**,
+not a timeout, which is precisely what a readiness poll exists to make impossible. Probe corrected and
+the poll ceiling raised 30s → 60s. Three consecutive clean runs at 189/0.
+
+A spurious failure is worse than a slow run in a way worth naming: it trains the reader to re-run and
+shrug, which is how a real failure gets waved through.
+
 ## Still open
 
 - **The end-to-end refusal has no single integration test.** The server half is proven by

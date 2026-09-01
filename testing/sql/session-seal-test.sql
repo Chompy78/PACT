@@ -182,6 +182,10 @@ select pg_temp.rejects('a sealed solo character cannot be emptied',
 select pg_temp.rejects('a sealed solo character''s earlier purchase cannot be rewritten',
   $$update characters set stats = jsonb_set(stats,'{LOG,1}','{"type":"buy","cat":"boon","cost":999}'::jsonb)
      where id = '00000000-0000-0000-0000-0000000000c2'$$);
+select pg_temp.rejects('a sealed purchase cannot be SUBSTITUTED for a different item of the same cost',
+  $$update characters set stats = jsonb_set(stats,'{LOG,1}',
+      '{"seq":2,"ts":2,"type":"buy","cat":"boon","payload":{"v":"Something Else"},"cost":6}'::jsonb)
+     where id = '00000000-0000-0000-0000-0000000000c2'$$);
 select pg_temp.rejects('the seal itself cannot be removed',
   $$update characters set stats = jsonb_set(stats,'{LOG}',
       (select jsonb_agg(e) from jsonb_array_elements(stats->'LOG') e where e->>'type' <> 'sessionSeal'))

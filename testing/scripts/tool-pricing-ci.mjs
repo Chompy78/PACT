@@ -96,12 +96,16 @@ async function connect(url) {
 }
 // The tools boot on an `engine-ready` event fired by a deferred module script, so the classic-script
 // globals (priceOf, LOG, economy…) are not present at DOMContentLoaded. Poll rather than sleep.
-// 30s, not 10. A readiness POLL returns the instant its probe passes, so a longer ceiling costs nothing
-// on a fast page and only decides how much contention it survives. This gate now opens ~10 tabs across
-// three tools, and CharGen alone is 376 KB plus a deferred module bridge — at 10s it failed roughly one
-// run in five with "CharGen never became ready", intermittently and only under that load. Same budget and
-// same fix as the CDP connect loop above; the two were written 10s apart for no reason but habit.
-const READY = (probe) => `(async()=>{for(let i=0;i<300;i++){if(${probe})return true;await new Promise(r=>setTimeout(r,100));}return false;})()`;
+// 60s, raised from 30 on 2026-09-01. A readiness POLL returns the instant its probe passes, so a longer
+// ceiling costs nothing on a fast page and only decides how much contention it survives. This gate now
+// opens ~10 tabs across three tools, and CharGen alone is 376 KB plus a deferred module bridge — at 10s
+// it failed roughly one run in five, and at 30s it still produced five spurious failures across one
+// working session (CharGen version check ×3, Live Sheet blocked-purchase-freeze ×1, plus the
+// drawback-cap check, which was a separate bug: an incomplete probe, fixed at its call site below).
+//
+// A spurious failure here is worse than a slow run in a way worth naming: it trains the reader to
+// re-run and shrug, which is exactly how a REAL failure gets waved through.
+const READY = (probe) => `(async()=>{for(let i=0;i<600;i++){if(${probe})return true;await new Promise(r=>setTimeout(r,100));}return false;})()`;
 
 // ---- assertions -------------------------------------------------------------------------------
 let pass = 0, fail = 0;
@@ -1838,10 +1842,15 @@ try {
   })()`);
 
   const cg2 = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
-  if (!(await cg2.evaluate(READY(`window.DATA&&typeof _cgDmOpts==='function'`))))
+  // The probe must include EVERY global the check reads. _cgDmOpts() calls _cgDrawbackCap(), which
+  // reads window._campaignBridge — set by the CLOUD module bridge, a separate async script from the
+  // engine bridge this probe used to wait on alone. Waiting only for _cgDmOpts let the check run
+  // before the bridge existed and silently read `undefined` for the cap: a WRONG ANSWER rather than a
+  // timeout, which is the failure mode a readiness poll is supposed to make impossible.
+  if (!(await cg2.evaluate(READY(`window.DATA&&typeof _cgDmOpts==='function'&&window._campaignBridge`))))
     throw new Error('CharGen never became ready for the drawback-cap check');
   const ls2 = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
-  if (!(await ls2.evaluate(READY(`window.DATA&&typeof _dmOpts==='function'`))))
+  if (!(await ls2.evaluate(READY(`window.DATA&&typeof _dmOpts==='function'&&window._campaignBridge`))))
     throw new Error('Live Sheet never became ready for the drawback-cap check');
 
   const cgCapped = await capIn(cg2, '_cgDmOpts',

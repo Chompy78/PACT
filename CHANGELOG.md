@@ -4,6 +4,31 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-01 · fix: 14 code-review findings on the session seal, incl. one that killed undo outright**
+  — `/code-review ultra` (required by the PR template for anything touching `js/engine.js` or `sql/`)
+  found that step 1's `isUndoBarrier()` treated `noLock` awards as barriers. CharGen's budget is a
+  singleton `award` **relocated to the log tail** on every edit, so touching the Budget field put a
+  barrier at the end, `undoFloor()` returned `LOG.length`, and undo died permanently — in both tools.
+  CharGen's own comment says a budget award must not lock undo; that was true only until step 1 added
+  the guard. The server had always exempted `noLock`. Also fixed: a budget edit bricking cloud save on
+  a sealed character; `retractFlatEvent()`'s refusal being ignored by three reconcile callers (LOG/DOM
+  divergence); `_cgLockSealedControls()` matching a descendant's marker through nested skill/expertise
+  labels and force-enabling controls it never disabled, plus sweeping every control on every keystroke;
+  the Live Sheet refusing another character's import and refusing Reset — its only start-fresh path —
+  while naming a control it doesn't have (Reset now detaches to a fresh id); `isSealRejection()`'s
+  OR-chain making its hint/details fallback dead code; `_sealBlocked` never cleared by the in-app remedy;
+  both manual-save paths reporting a seal rejection as "will sync when online";
+  `award_ap_and_seal()` returning data before authorising; the protected projection guarding a sealed
+  purchase's price but not its **identity**; `creationLocked` ignoring `creationUnlocked`; and an
+  overclaiming comment on the sync guard. SQL fixes applied to production as `session_seal_review_fixes`.
+  The EXECUTE revoke now has a migration file so `sql/` reproduces the live grant state.
+- **2026-09-01 · fix(testing): tool-pricing gate was flaky — one case was a wrong answer, not a timeout**
+  — the drawback-cap check reads `window._campaignBridge` (set by the async cloud bridge) but its
+  readiness probe waited only for a classic-script symbol, so it ran early and read `undefined`,
+  reporting a wrong result rather than failing to start — exactly what a readiness poll exists to
+  prevent. Probe corrected; poll ceiling 30s → 60s after five spurious failures in one session. Three
+  consecutive clean runs at 189/0. A flaky gate trains the reader to re-run and shrug, which is how a
+  real failure gets waved through.
 - **2026-09-01 · feat(tools): session seal Phase 2 — the seal reaches the UI** — CharGen's
   `retractFlatEvent()` now refuses to splice a purchase out of the sealed prefix and the checkbox
   re-ticks itself; that path, not `undo()`, is what the owner's "anything already bought can't be
