@@ -619,11 +619,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -2960,6 +2960,21 @@ function setCreationAp(){
 // campaign-bound character — see sealedFloor()'s own comment in js/engine.js.
 function _cgSealedFloor(){ return sealedFloor(LOG,{campaignBound:!!window._cgCampaignId}); }
 
+// Refuses a whole-build replacement that would drop a sealed prefix (feat/session-seal Phase 2).
+// These paths rebuild the LOG from the form, so they cannot preserve a seal by construction the way
+// an append can. On a sealed character they are writes the server rejects anyway — refused here,
+// where the reason can be given, rather than after the player has done the work.
+//
+// "New Character" is deliberately NOT guarded: applyBuild({}) mints a fresh character id, so it
+// detaches from the sealed character instead of overwriting it.
+function _cgBlockedBySeal(what){
+  if(_cgSealedFloor()===0) return false;
+  alert('\uD83D\uDD12 This character\'s history is sealed.\n\n' + what + ' rebuilds the whole history from the form, '
+      + 'which would drop what your DM locked \u2014 and the server will refuse it.\n\n'
+      + 'Use \u201cNew Character\u201d if you want to start something fresh; that leaves this one untouched.');
+  return true;
+}
+
 function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
   const i=LOG.findIndex(function(e){return e.type==='buy'&&e.cat===cat&&predicate(e);});
@@ -3701,6 +3716,10 @@ async function loadViaPicker(){
 }
 function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
     const d=JSON.parse(e.target.result);
+    // A load that KEEPS this character's id would rebuild a sealed history from the form; the server
+    // rejects that. A file carrying a DIFFERENT id is a different character and switches to it
+    // harmlessly, so only the same-id (or id-less) case is refused.
+    if((!d.id || String(d.id)===String(__charId)) && _cgBlockedBySeal('Loading a file over this character')) return;
     _cgResetCloudApState();   // clear any prior cloud load first; _cgAdoptEnvelopeBinding below re-resolves
                               // DM AP if THIS file carries a campaign binding (see that function).
     // Tamper-evidence (D-GH48): non-blocking flag if the incoming signed file's signature no longer matches.
@@ -4103,8 +4122,25 @@ var _cgPageHiding=false;
 // window._cgCampaignBound. The one thing that CAN still turn it off is the player's own toggle
 // (autosave_enabled, default true) -- see the toggle control near the sync chip. Shared by all three
 // call sites below so the condition can't drift between them the way three hand-copies would risk.
+// One-time explanation when the server refuses a save because the DM sealed this character's history
+// after this page loaded it (feat/session-seal Phase 2, owner decision L1). The player's work is NOT
+// discarded: it stays in this page and in the local save, so they can copy anything worth keeping out
+// before reloading. Reloading is the only real fix — this page is holding a history the server has
+// declared final — so the message says so plainly rather than offering a retry that cannot work.
+var __sealNoticeShown=false;
+function _cgSealNotice(){
+  if(__sealNoticeShown) return; __sealNoticeShown=true;
+  alert('\uD83D\uDD12 Your DM sealed this character\'s history while you had it open.\n\n'
+      + 'The changes on this screen have NOT been saved to the cloud, and they have not been thrown away '
+      + 'either \u2014 they are still here and in this device\'s local copy.\n\n'
+      + 'Anything you bought BEFORE the seal is now permanent. Save a copy to a file if you want to keep '
+      + 'a record of what is on screen, then reload the page to pick the character up from where your DM '
+      + 'sealed it. Automatic cloud saving is paused until you do.');
+}
 function _cgAutosaveGate(){
-  if(!window._cloudSignedIn||!window._syncBridge||!navigator.onLine) return false;   // offline edits stay in the local autosave; sync.js retries dirty records on reconnect
+  if(!window._cloudSignedIn||!window._syncBridge||!navigator.onLine) return false;
+  // A seal rejection can never succeed on retry, so stop pushing rather than spinning every 3s.
+  if(window._syncBridge.isSealBlocked && window._syncBridge.isSealBlocked(currentCharId())){ _cgSealNotice(); return false; }   // offline edits stay in the local autosave; sync.js retries dirty records on reconnect
   if(window._syncBridge.getAutosaveEnabled && !window._syncBridge.getAutosaveEnabled(currentCharId())) return false;
   return true;
 }
@@ -4538,11 +4574,12 @@ const RTHEME_FOR_CLASS={Barbarian:['bruiser','scout','zealot'],Bard:['face','tri
  Warlock:['battlecaster','zealot','trickster'],Wizard:['scholar','battlecaster']};
 const ARM_RANK={none:0,light:1,medium:2,heavy:3};
 
-function randomizeBuild(){ openRollPanel(); }
+function randomizeBuild(){ if(_cgBlockedBySeal('Rolling a random character')) return; openRollPanel(); }
 
 // theme: a RTHEMES entry, or null for "surprise me" (picked from the chosen class, or at random).
 // lvlWanted: a target character level, or 0/null to derive it from the AP budget (the normal case).
 function randomizeRoll(themeKey,lvlWanted){
+  if(_cgBlockedBySeal('Rolling a random character')) return;
   // Deep-clone the working build: readBuild()=foldBuild(LOG) returns nested arrays/objects that ALIAS the
   // LOG event payloads, so randomize's in-place mutations below (b.traditions.push, b.stats[a]=…) would
   // otherwise corrupt the live LOG. Harmless pre-Step-4 (applyBuild rebuilt LOG from the DOM afterward),

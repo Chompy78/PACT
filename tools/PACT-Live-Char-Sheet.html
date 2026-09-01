@@ -1088,8 +1088,25 @@ var _lsCloudSaveTimer=null, _lsCloudSaveBusy=false, _lsCloudSaveAgain=false, _ls
 // feat/keepalive-scope-narrowing (A2, Addendum on D-GH-2026-08-08-chargen-cloud-autosave-flush): mirrors
 // CharGen's identical _cgPageHiding exactly — see that copy's comment for the full reasoning.
 var _lsPageHiding=false;
+// One-time explanation when the server refuses a save because the DM sealed this character's history
+// after this page loaded it (feat/session-seal Phase 2, owner decision L1). The player's work is NOT
+// discarded: it stays in this page and in the local save, so they can copy anything worth keeping out
+// before reloading. Reloading is the only real fix — this page is holding a history the server has
+// declared final — so the message says so plainly rather than offering a retry that cannot work.
+var __sealNoticeShown=false;
+function _lsSealNotice(){
+  if(__sealNoticeShown) return; __sealNoticeShown=true;
+  alert('\uD83D\uDD12 Your DM sealed this character\'s history while you had it open.\n\n'
+      + 'The changes on this screen have NOT been saved to the cloud, and they have not been thrown away '
+      + 'either \u2014 they are still here and in this device\'s local copy.\n\n'
+      + 'Anything you bought BEFORE the seal is now permanent. Save a copy to a file if you want to keep '
+      + 'a record of what is on screen, then reload the page to pick the character up from where your DM '
+      + 'sealed it. Automatic cloud saving is paused until you do.');
+}
 function _lsAutosaveGate(){
-  if(VIEW_ONLY||!window._lsSignedIn||!window._syncBridge||!navigator.onLine) return false;   // offline edits stay in the local save; sync.js retries dirty records on reconnect
+  if(VIEW_ONLY||!window._lsSignedIn||!window._syncBridge||!navigator.onLine) return false;
+  // A seal rejection can never succeed on retry, so stop pushing rather than spinning every 3s.
+  if(window._syncBridge.isSealBlocked && window._syncBridge.isSealBlocked(currentCharId())){ _lsSealNotice(); return false; }   // offline edits stay in the local save; sync.js retries dirty records on reconnect
   if(window._syncBridge.getAutosaveEnabled && !window._syncBridge.getAutosaveEnabled(currentCharId())) return false;
   return true;
 }
@@ -2614,11 +2631,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). Nothing above depends on it, so a failure here
   // costs cloud save, campaigns and DM AP, not the tool. Listeners gate on sync-ready, which simply
   // never fires; window._syncBridge etc. stay undefined and every consumer already null-checks them.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, withKeepalive } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive } from '../js/sync.js';
   import { currentSession, onAuthChange } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { getAwardHistory, getVisibleCustomFields, getDowntimeWindow } from '../js/dm.js';
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, withKeepalive };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive };
   window._authBridge = { currentSession, onAuthChange };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign };
   window._dmBridge = { getAwardHistory, getVisibleCustomFields, getDowntimeWindow };

@@ -149,11 +149,35 @@ Verified in a real browser (`tool-pricing-ci.mjs`, 189/0): a sealed purchase can
 says why; one made after the seal still retracts freely; undo refuses to cross a seal; an unsealed
 character is wholly unaffected; and `sealedFloor <= undoFloor` holds across log shapes.
 
+### Phase 2, second pass — the two gaps closed
+
+- **CharGen's whole-build paths are guarded.** 🎲 Randomise refuses on a sealed character (at both the
+  panel and the roll, since the panel is reachable by more than one route), and a file load refuses
+  only when it would keep the current character's id — a file carrying a *different* id is a different
+  character and switches to it harmlessly. "New Character" is deliberately unguarded: `applyBuild({})`
+  mints a fresh id, so it detaches rather than overwrites.
+- **A seal rejection no longer retries for ever.** This was a real bug in the obvious implementation:
+  `saveCharacter()`'s catch-all leaves a failed push dirty "and will retry", but a seal rejection can
+  never succeed — the server is refusing this *history*, not this *attempt*. Left alone it would spin
+  on every 3-second autosave and pin the sync chip at "unsaved" permanently. `isSealRejection()` now
+  classifies it and `_sealBlocked` stops further pushes. That set is **in-memory and page-lifetime, never
+  persisted**, because reloading is the remedy — persisting it could strand a character whose seal was
+  later rolled back, the same failure the 2026-08-10 `base_updated_at` guard already learned.
+- **Both tools explain it once** and pause cloud autosave: the player's work is not discarded (it stays
+  on screen and in the local save), they are told to export a copy if they want the record, and that
+  reloading picks the character up from where the DM sealed it. Deliberately no retry button — nothing
+  the page can do will make that write land.
+
+Classifier coverage matters in both directions and is tested that way (`sync-concurrency-ci.mjs`, 20/0):
+too loose and an ordinary network failure stops retrying and looks like data loss; too tight and the
+tool spins on an impossible save. The AP-budget trigger's rejection is explicitly NOT a seal — it is
+retryable once a DM awards more AP.
+
 ## Still open
 
-- **CharGen's whole-build paths** (🎲 Randomise, loading a file into the open character) still rebuild
-  the LOG from the form and can drop a seal *locally*. This fails safe — the database rejects the save
-  — but the player meets a raw rejection rather than an explanation. "New Character" is already safe:
-  it mints a fresh id.
-- **The offline conflict UX (L1)** — keep the player's work, reload, offer explicit reapplication — is
-  not built. A rejected save currently surfaces as the existing sync-conflict path.
+- **The end-to-end refusal has no single integration test.** The server half is proven by
+  `testing/sql/session-seal-test.sql` against a real Postgres and the client half by
+  `tool-pricing-ci.mjs` in a real browser, but nothing exercises the whole round trip: the stub server in
+  `sync-concurrency-ci.mjs` has no error-injection seam, and adding one is a larger change than the
+  remaining coverage justifies today. Worth a task.
+- **No live end-to-end trial has been run** — no character has actually been sealed in production yet.

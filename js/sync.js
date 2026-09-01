@@ -231,10 +231,42 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
   if (migratedFrom) lsRemove(migratedFrom);
 
   if (!navigator.onLine) return { id, synced: false, migratedFrom };
+  // A seal rejection is PERMANENT for this copy of the character, unlike every other failure here.
+  // Retrying it cannot ever succeed — the server is refusing this history, not this attempt — so the
+  // ordinary "stays dirty, will retry" path would spin on every autosave and leave the sync chip
+  // showing unsaved for ever. Stop until the page reloads the authoritative copy, which is the only
+  // thing that can fix it (feat/session-seal Phase 2, owner decision L1).
+  if (_sealBlocked.has(id)) return { id, synced: false, sealed: true, migratedFrom };
   _pushInFlight.add(id);
   try { await pushCharacter(rec, capturedSeq); return { id, synced: true, migratedFrom }; }
-  catch (error) { return { id, synced: false, conflict: !!error.conflict, error, migratedFrom }; }   // stays dirty, will retry
+  catch (error) {
+    if (isSealRejection(error)) {
+      _sealBlocked.add(id);
+      return { id, synced: false, sealed: true, error, migratedFrom };
+    }
+    return { id, synced: false, conflict: !!error.conflict, error, migratedFrom };   // stays dirty, will retry
+  }
   finally { _pushInFlight.delete(id); }
+}
+
+// Characters this PAGE has been refused on because their history is sealed. Deliberately in-memory
+// and page-lifetime, never persisted: the remedy is to reload the authoritative copy, and a reload
+// clears this by construction. Persisting it could strand a character whose seal was later rolled
+// back, which is the failure mode the 2026-08-10 `base_updated_at` guard already learned the hard way.
+const _sealBlocked = new Set();
+
+/** True once this page has been refused a save on `id` because the server's history is sealed.
+ *  The tools' autosave gates check it so they stop hammering a write that can never land. */
+export function isSealBlocked(id) { return _sealBlocked.has(id); }
+
+/** Recognises the sealed/locked-history rejection raised by pact_enforce_locked_history(). Matched on
+ *  the message because PostgREST surfaces a plpgsql RAISE as a generic error, not a typed code — the
+ *  trigger's own text is the only signal that crosses the wire. Both wordings it can raise ("cannot
+ *  shrink", "cannot be rewritten") share the "locked character history" phrase, which is what this
+ *  keys on rather than either full sentence. */
+export function isSealRejection(error) {
+  const m = String((error && (error.message || error.hint || error.details)) || '');
+  return /locked character history/i.test(m);
 }
 
 /** The signed-in user's existing character id in this campaign, or null. Best-effort: any failure
