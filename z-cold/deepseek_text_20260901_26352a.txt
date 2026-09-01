@@ -1,0 +1,122 @@
+# Review: Plan for cold review — `feat/session-seal`
+
+**Reviewer:** GPT‑4 (no repository access)  
+**Date:** 2026-09-01
+
+---
+
+## 1. Does this plan actually achieve the stated goal?
+
+**Yes, in essence.** The goal is to let a DM “draw a line” under a character’s history, making everything bought before that line permanent and un‑editable in both player tools. The plan addresses the two core mechanisms that could violate that permanence:
+
+- **Undo** – already honours the floor via the shared engine; the new seal marker will extend that.
+- **Direct un‑ticking of checkboxes** – the plan explicitly calls out CharGen’s splices and whole‑build replacement paths, and commits to disabling controls and blocking deletions.
+
+The introduction of a dedicated 0‑AP seal event is a clean way to avoid double‑counting AP while still placing a barrier inside the event log, which is the single source of truth for history. This matches the existing floor mechanism and leverages the DM‑append function that already stamps authorship.
+
+**However**, the plan assumes that *all* purchase removal in CharGen goes through the checkbox un‑tick or the whole‑build replacement paths. If there are other removal mechanisms (e.g., a “clear all” button, or implicit removal when changing a choice), they are not mentioned. The goal would fail if such a path exists and is not blocked.
+
+---
+
+## 2. Which assumptions look shakiest, and what would you do about them?
+
+| Assumption | Shake level | What I would do |
+|------------|-------------|-----------------|
+| **The seal is DM‑only** | Medium | It follows from “me awarding AP”, but solo play is not ruled out. I would clarify with the owner whether a player should ever be able to seal their own history (e.g., for solo campaigns). If not, document it explicitly. |
+| **Seals are stackable, with the most recent setting the floor** | Low | This is natural for “each session”. The floor mechanism supports it. Still, I would add a clear definition: does a new seal *replace* the old floor or *raise* it? (They intend replace.) I would make that explicit and test it. |
+| **Existing characters are not retroactively sealed** | Low | The plan says so, but the DB migration must be additive and not set any floor. That’s a good assumption. |
+| **A sealed purchase must be visibly explained** | Low | They plan a tooltip – that is sufficient, but they do not specify the exact UI wording. I would design a small mock‑up to avoid ambiguity. |
+| **All purchase removal goes through checkbox un‑tick or whole‑build replacement** | **High** | This is the riskiest assumption. The plan does not inventory every way a choice can be removed. I would audit CharGen’s code for every action that modifies the event log (e.g., dragging, clearing, resetting) and ensure each is guarded. |
+
+---
+
+## 3. Is there a better alternative than the chosen approach — including among the three rejected?
+
+The chosen approach is **sound** and strikes the right balance:
+
+- **A1 (AP award as seal)** – rejected correctly; it would require moving the award into the LOG and risk double‑counting, or rewriting a DM‑only column – both are heavy and dangerous.
+- **A2 (undo only)** – rejected as insufficient, and rightly so.
+- **A3 (read‑only mode)** – rejected because the character must remain buildable forward.
+
+The chosen design (0‑AP marker, extended floor) is **the best alternative** because it keeps concerns separate and builds on an existing, proven mechanism (the DM‑append function).
+
+One possible enhancement: store the seal event with a `seal_id` or `session_id` to allow future un‑sealing or auditing of session boundaries. The current design treats seals as opaque barriers; if un‑sealing is ever needed, having an identifier would help. The plan explicitly leaves un‑sealing out of scope, but it could be added at low cost now.
+
+---
+
+## 4. What is missing? (Focus on risk 4 – offline/late‑arrival)
+
+The plan itself flags **risk 4** as a major open question:
+
+> *“A DM seals while a player is offline; the player has meanwhile undone purchases the seal was meant to cover. What happens on sync is undefined.”*
+
+This is **the most critical gap** and must be addressed before implementation. Without a clear sync/conflict strategy, the feature can produce inconsistent states that are not caught until the table meets, violating the “both sheets” requirement.
+
+### Possible resolutions to consider:
+
+- **Last‑write‑wins on the server side** – The DM’s seal is authoritative. When the player’s client syncs, any local edits that contradict the seal (e.g., undoing a sealed purchase) are discarded or reverted. This is simple but may frustrate players if they lose work.
+- **Merge with floor enforcement** – The client refuses to apply any local change that would violate the floor *when it is aware of the seal*. However, if the player does not know about the seal (because they are offline), they might make changes that later conflict. The sync could then either:
+  - Reject the player’s changes outright (and warn them), or
+  - Apply them temporarily until sync, then roll them back with a notification.
+- **Pessimistic locking** – The DM’s seal could lock the character for editing until the player’s client has acknowledged it. This is heavy and may not suit a tabletop RPG.
+
+**Recommendation:** Explicitly design a sync policy and document it. At minimum, the server should reject any write (via the append function) that would move the floor backwards. Since all writes go through the server (except local offline storage), the server can enforce the floor. For offline clients, they must re‑sync their local LOG with the server; any local events that conflict with the floor should be discarded or flagged. The plan should specify that the client, upon receiving a new seal, must re‑fetch the LOG and re‑apply the floor, disabling any UI that references removed events.
+
+### Other missing elements:
+
+- **Concurrent DM seals** – If two DMs (or the same DM) seal twice in quick succession, the floor updates correctly, but the plan does not mention race conditions. The append function should handle sequential writes atomically.
+- **CharGen’s whole‑build replacement** – The plan says these paths must “respect the floor”, but it does not detail how. If the form is rebuilt from the LOG, it must preserve sealed purchases and prevent un‑ticking them. A naïve rebuild could drop sealed events if the form state does not include them. I would require a clear algorithm: when rebuilding, the form must include all events up to the floor, and only later events can be modified.
+- **Tooltip wording and UX** – Not critical, but should be specified for consistency.
+- **Un‑sealing** – The plan says it is out of scope. While that is a valid decision, it should be communicated to the owner; otherwise they may expect it later. I would add a note in the plan’s “Out of scope” section that un‑sealing is not supported and why.
+
+---
+
+## 5. Is the verification section objectively checkable, or does it rely on judgement calls?
+
+**Mostly checkable, with some judgement calls.**
+
+- The three CI gates (engine‑parity, tool‑pricing, undo‑barrier) are automated and objective – good.
+- Extending the barrier gate with a test for the new marker, including a case that a seal grants no AP, is objective if the test asserts a specific condition (e.g., `undoFloor(events)` does not change when only a seal is added).
+- “Browser check that affected CharGen checkboxes are disabled” – this is manual unless they write an automated browser test (e.g., Playwright). The plan does not state that such a test exists, so as written it relies on a human verifying. I would recommend adding an automated UI test to make it objective.
+- “Database advisor run after the migration” – this is a command; the outcome (“permission drift”) is checkable if the advisor has a clear pass/fail criterion. That is acceptable.
+- The phrase “every purchase made before that moment is frozen” is a high‑level assertion; without specific test cases for edge cases (e.g., boon removal, drawback replacement, partial undo), it remains somewhat subjective. The plan should specify a set of concrete test scenarios (e.g., “Given a character with purchases A, B, C, seal at event 3, then attempt to undo event 2 → must fail; attempt to un‑tick B → must be disabled; attempt to add D after seal → must succeed”).
+
+I would advise adding a **test matrix** in the verification section to remove all ambiguity.
+
+---
+
+## 6. Should this be split into more than one plan?
+
+**No – but it could be executed as a phased rollout.**
+
+The plan is cohesive: it touches the engine, database, DM Console, and CharGen. Splitting it into separate plans (e.g., “backend seal” and “frontend UI”) would introduce coordination overhead without clear benefit. However, the risk profile suggests a **phased implementation**:
+
+- Phase 1: Engine + database + DM Console (seal writing) – verify that seals are appended and the floor works.
+- Phase 2: CharGen UI guarding (checkbox disabling, rebuild protection) – test after the backend is stable.
+
+This allows early verification of the seal mechanism before investing in the more complex CharGen changes. The plan already implies that CharGen is the bulk of the work; treating it as a separate sub‑project within the same plan is sufficient.
+
+---
+
+## Additional observations
+
+- **Double‑counting risk** – mitigated by the 0‑AP marker, but the plan should explicitly test that the numeric AP column and the sum of LOG awards remain consistent after a seal.
+- **Permission checking** – The DM‑append function is privilege‑checked; the plan should confirm that the new seal marker inherits that check, so a player cannot forge a seal.
+- **Changelog and decision log** – The “Done when” mentions recording the change. This is good for traceability.
+- **Migration safety** – The plan states the migration is additive and does not retroactively seal. That is crucial; I would add a rollback plan in case the migration fails.
+
+---
+
+## Summary
+
+This is a well‑structured plan that correctly identifies the root causes of the missing feature and proposes a feasible, low‑risk solution. The major gaps are:
+
+1. **Offline/late‑sync conflict resolution** – must be defined before implementation.
+2. **Exhaustive identification of all purchase‑removal paths** in CharGen.
+3. **Clear, automated verification tests** for the UI behaviours.
+
+If these are addressed, the plan will be robust and ready to execute.
+
+---
+
+**Review outcome:** Conditional approval – proceed after resolving the offline sync strategy and adding concrete test cases. Otherwise, the feature risks silent inconsistency.
