@@ -1546,7 +1546,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // {ap, player, playerLabel, dmNotes} — see cloudRoster in loadRoster(). `curBoons` (feat/dm-edit-events)
   // is the character's currently-held boon names, for the remove dropdown — omitted/empty for the
   // no-build-data-yet placeholder card, where there is nothing to remove.
-  function dmToolsBody(id, dm, curBoons){
+  function dmToolsBody(id, dm, curBoons, lock){
     var h = '<div class="kvs"><div class="kvrow"><span class="kk">Player (account)</span><span class="vv">'+esc(dm.player||'—')+'</span></div>' +
             '<div class="kvrow"><span class="kk" title="AP you have granted this character (the characters.ap column). This is PART OF their spendable total, not extra on top of it — the strip above shows what they can actually spend. Labelled &quot;Bonus DM AP&quot; until 2026-08-04, which read as a spendable figure and was mistaken for one.">DM-granted AP <span style="opacity:.6">&#9432;</span></span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     h += '<div class="ruleblock" style="margin-top:8px"><div class="lbl">Player-name label</div>' +
@@ -1559,6 +1559,36 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     h += customFieldValuesBody(id, dm);
     h += awardBody(id, dm);
     h += dmEditBody(id, curBoons);
+    // ---- Creation limit (feat/dm-creation-ceiling-controls) --------------------------------------
+    // The DM half of the creation ceiling. `lock` is creationLockState()'s answer for this character,
+    // passed in from the card so this never re-derives it (the engine owns that rule — see
+    // creationLockState()'s header for why there is no fourth hand-written copy of the scan).
+    //
+    // Both actions go through purpose-built RPCs, NOT dm_edit_character_log: that function's own header
+    // says it is "deliberately not a general editor", and widening its allowlist would have meant
+    // validating a JSON key-set in plpgsql with no bound on the value. Both cold reviewers of the plan
+    // independently recommended this route.
+    {
+      var _lk = lock || null;
+      var _cur = _lk && _lk.confirmed ? _lk.threshold : '';
+      var _state = !_lk ? '' :
+        (_lk.locked
+          ? '<span style="color:var(--warn)">Creation finished</span> \u2014 this character is past creation; own-species traits cost more and purchases are charged gold and downtime.'
+          : (_lk.confirmed
+              ? 'Still building, against a limit of <b>' + _lk.threshold + ' AP</b> plus whatever their drawbacks grant.'
+              : '<span style="color:var(--warn)">No limit set.</span> Nothing is enforced for this character until you set one \u2014 they can spend without a ceiling.'));
+      h += '<div class="ruleblock"><div class="lbl">Creation limit '
+        + '<button type="button" class="infobtn" title="The AP a character may spend while still being built. Their drawback grant is added on top automatically, so a player who takes a drawback gets the room it paid for. Set this to the AP you granted them for creation; later chapter awards do NOT raise it, which is what makes finishing creation a deliberate step.">&#9432;</button></div>'
+        + '<div style="font-size:11px;color:var(--light);margin-bottom:6px">' + _state + '</div>'
+        + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+        + '<label style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap">Limit'
+        + '<input class="field dm-ceiling-in" type="number" min="1" max="2000" step="1" data-cid="' + esc(id) + '" value="' + esc(String(_cur)) + '" placeholder="AP" style="width:90px"></label>'
+        + '<button type="button" class="btn sm dm-ceiling-btn" data-cid="' + esc(id) + '">Set limit</button>'
+        + (_lk && _lk.locked
+            ? '<button type="button" class="btn sm ghost dm-reopen-btn" data-cid="' + esc(id) + '" title="Put this character back into creation. Purchases already made keep the prices they were frozen at.">Reopen creation</button>'
+            : '')
+        + '</div><span class="dm-status" data-cid="' + esc(id) + '" data-kind="ceiling" style="font-size:11px;color:var(--muted)"></span></div>';
+    }
     h += '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'">📒 AP history</button>' +
          '<button type="button" class="btn sm danger unbind-btn" data-cid="'+esc(id)+'" style="margin-left:8px">Remove from campaign</button>';
     return h;
@@ -1697,7 +1727,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   }
   function buildSections(s, id, dm){
     var h = '';
-    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons));
+    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock));
     h += secBlock('Skills & Tools', chipGroup('Skills',s.skills)+chipGroup('Tools',s.tools)+chipGroup('Instruments',s.instruments));
     h += secBlock('Expertise & Saves', chipGroup('Expertise',s.expertise)+chipGroup('Saves',s.saves)+chipGroup('Masteries',s.masteries));
     h += secBlock('Saving Throws', saveBody(s));
@@ -2356,7 +2386,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       '<div class="csub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div>'+
       '<div class="cardactions">'+viewBtnHTML(rec.id)+' '+hideBtnHTML(rec.id)+'</div>'+
       '</div><div class="xgrid">'+boxesHtml+'</div>'+
-      '<div style="padding:0 16px 16px">'+secBlock('DM tools (private)', dmToolsBody(rec.id, rec.dm, a.boons))+'</div></div>';
+      '<div style="padding:0 16px 16px">'+secBlock('DM tools (private)', dmToolsBody(rec.id, rec.dm, a.boons, a.creationLock))+'</div></div>';
   }
   function renderCustomRoster(container){
     if(!container) return;
@@ -2439,6 +2469,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       if(window._dmPeekActive && t.closest &&
          (t.closest('.award-btn') || t.closest('.declare-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
           t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') ||
+          t.closest('.dm-ceiling-btn') || t.closest('.dm-reopen-btn') ||
           t.closest('.cf-val-save'))){
         if(window._dmPeekBlocks) window._dmPeekBlocks();
         return;
@@ -2563,6 +2594,44 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         }).catch(function(err){
           imposeDrawBtn.disabled = false; if(idStatus) idStatus.textContent = '';
           alert('Impose failed: '+err.message);
+        });
+        return;
+      }
+
+      // ---- Creation limit: set ------------------------------------------------------------------
+      var ceilBtn = t.closest ? t.closest('.dm-ceiling-btn') : null;
+      if(ceilBtn && card){
+        var ccid = ceilBtn.getAttribute('data-cid');
+        var ccIn = card.querySelector('.dm-ceiling-in[data-cid="'+ccid+'"]');
+        var ccSt = card.querySelector('.dm-status[data-cid="'+ccid+'"][data-kind="ceiling"]');
+        var ccVal = ccIn ? parseInt(ccIn.value, 10) : NaN;
+        // Validate here too, not only server-side: a clear message beats a raised exception, and the
+        // server check stays regardless (it is the one that actually binds).
+        if(!isFinite(ccVal) || ccVal < 1 || ccVal > 2000){
+          alert('Enter a creation limit between 1 and 2000 AP.\n\nThis is the AP you granted this character to BUILD with. Their drawback grant is added on top automatically.');
+          return;
+        }
+        ceilBtn.disabled = true; if(ccSt) ccSt.textContent = 'Setting\u2026';
+        B.setCreationCeiling(ccid, ccVal).then(function(){
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){
+          ceilBtn.disabled = false; if(ccSt) ccSt.textContent = '';
+          alert('Could not set the creation limit: '+err.message);
+        });
+        return;
+      }
+      // ---- Creation limit: reopen ---------------------------------------------------------------
+      var reopenBtn = t.closest ? t.closest('.dm-reopen-btn') : null;
+      if(reopenBtn && card){
+        var rcid = reopenBtn.getAttribute('data-cid');
+        var rcSt = card.querySelector('.dm-status[data-cid="'+rcid+'"][data-kind="ceiling"]');
+        if(!confirm('Reopen creation for this character?\n\nThey go back to building against their creation limit. Purchases they have already made keep the prices they were frozen at \u2014 nothing is re-charged.')) return;
+        reopenBtn.disabled = true; if(rcSt) rcSt.textContent = 'Reopening\u2026';
+        B.reopenCreation(rcid, null).then(function(){
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){
+          reopenBtn.disabled = false; if(rcSt) rcSt.textContent = '';
+          alert('Could not reopen creation: '+err.message);
         });
         return;
       }
@@ -2795,13 +2864,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm } from '../js/campaign.js';
-  import { getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields } from '../js/dm.js';
+  import { getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
+  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>

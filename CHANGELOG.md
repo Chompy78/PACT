@@ -31,6 +31,17 @@
   gates what the roll produces — nothing did before. Graduates `feat/randomize-tuning` off
   `docs/TASK_BOARD_NEXT.md`.
   Full record: `decisions/2026/D-GH-2026-08-31-random-char-generator-optimize.md`.
+- **2026-09-01 · feat(dm-console): a DM can set a character's creation limit and reopen creation** —
+  completes the creation-ceiling work: until now the ceiling could only be stamped by hand in SQL. Each
+  roster card's DM tools gains a **Creation limit** block showing the character's state (no limit set /
+  still building against N AP / creation finished), an input to set or raise the figure, and a **Reopen
+  creation** button on a locked character. Two purpose-built RPCs — `dm_set_creation_ceiling()` and
+  `dm_reopen_creation()` — rather than widening `dm_edit_character_log`'s allowlist, on both cold
+  reviewers' independent advice: that function's header calls it "deliberately not a general editor", and
+  a JSON key-set check in plpgsql silently accepts `{threshold, auto}` with no bound on the value. One
+  typed integer argument has neither problem. Both are append-only, DM-gated by `is_campaign_dm()`, and
+  range-checked 1–2000 server-side. The stored figure is the DM's number alone — the drawback grant is
+  added live by the engine, so a drawback taken mid-build still returns the room it paid for.
 - **2026-08-31 · feat(engine,tools): creation ends by choice, not by accident — ceiling + "Finish
   creating", automatic spend tripwire retired · `DATA.version` v0.363 → v0.364** — creation used to end
   by *inference*: the first time cumulative spend crossed a threshold, silently, with no user action and
