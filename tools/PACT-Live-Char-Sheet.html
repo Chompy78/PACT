@@ -3042,15 +3042,22 @@ document.addEventListener('sync-ready', function () {
           if(typeof _lsRenderSyncChip==='function') _lsRenderSyncChip();
           return;
         }
-        if(res.error) throw res.error;
+        // ORDER MATTERS — the seal check must come BEFORE `throw res.error`, matching CharGen's copy.
+        // saveCharacter() returns {sealed:true, error} on the FIRST rejection (only the cached
+        // _sealBlocked short-circuit omits `error`), so throwing first made this branch dead on the one
+        // attempt that matters and surfaced the raw plpgsql text through the catch below — the exact
+        // "Save failed: PACT: locked character history cannot shrink…" wording CharGen's comment calls
+        // the most damaging thing this path could say. Found by /code-review ultra 2026-09-02.
         // See CharGen's copy: a seal rejection must not be reported as "will sync when online".
         if(res.sealed){
           alert('\uD83D\uDD12 Not saved \u2014 your DM sealed this character\'s history while you had it open.\n\n'
           + 'Your work is still on screen and in this device\'s local copy; it has not been thrown away. '
           + 'Save a copy to a file if you want to keep a record of it, then reload the page to pick the '
           + 'character up from where your DM sealed it.');
-        } else
-        if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
+        } else {
+          if(res.error) throw res.error;
+          if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
+        }
       } catch(err){ alert('Save failed: '+err.message); }
       btn.disabled = false; btn.textContent = '☁ Save to cloud';
       if(typeof _lsRenderSyncChip==='function') _lsRenderSyncChip();

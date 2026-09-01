@@ -85,6 +85,15 @@ drop function if exists public.seal_character_history(uuid, text, text);
 
 -- 4. dm_edit_character_log()'s allow-list back to 2026-08-10 (no 'sessionSeal') is OPTIONAL and not
 --    done here: leaving the newer version in place is harmless, because a seal that nothing enforces
---    is an inert marker. Re-apply sql/migrations/2026-08-10-dm-edit-character-log.sql if you want it.
+--    is an inert marker.
+--    ⛔ CORRECTED 2026-09-02 — this line previously said "Re-apply
+--    sql/migrations/2026-08-10-dm-edit-character-log.sql if you want it." DO NOT. That file is a
+--    stale snapshot: it predates BOTH the archived-campaign write lockdown (2026-08-22) and the
+--    boon/award amount check (2026-08-10-dm-edit-boon-amount-check), so applying it re-opens two
+--    holes and leaves the database WEAKER than before the seal shipped. Reading it as current is
+--    exactly how the forward migration broke production in the first place; see
+--    sql/migrations/2026-09-02-restore-dm-edit-guards.sql. If you need to drop 'sessionSeal' from
+--    the allow-list, edit the definition in sql/rls-policies.sql — the maintained baseline — and
+--    apply that, or just leave it: an unused allow-list entry enforces nothing.
 
 commit;
