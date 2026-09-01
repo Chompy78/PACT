@@ -379,3 +379,74 @@ fork ("keep building") is wrong precisely when the ceiling was correct, which is
   revert it.
 - **Step 5's unbounded scope** ("wherever AP appears" across three tools) — enumerate the surfaces or it
   cannot be signed off.
+
+---
+
+## Close-out (2026-09-01) — what shipped, and the three carried questions answered
+
+The plan is **implemented**. This section records what the open items became, so a future reader is not
+left holding the same questions the plan was carrying.
+
+### The four blocking items
+
+| # | Item | Outcome |
+|---|---|---|
+| 1 | Undefined ceiling for a character with no ceiling event | **Fail-open.** No stamped ceiling means no ceiling. Nothing enforced for legacy or solo characters, and nothing had to be migrated before shipping. |
+| 2 | Mid-creation awards strand the player | **R3.** The refusal names *both* exits, and a DM can raise the ceiling from DM Console. |
+| 3 | No undo for Finish | **Built.** "Reopen creation" in DM Console, via `dm_reopen_creation()`. |
+| 4 | Freeze rationale self-defeating | **Rationale replaced.** The freeze is not about lock reachability; a ceiling that silently rose with every award would not be a budget. |
+
+### The three questions the plan carried as unresolved
+
+**Campaign movement — RESOLVED.** Owner, 2026-09-01: *"when a character leaves or joins a campaign, the
+locks go."* Both the lock and the ceiling are cleared, by a trigger on `characters.campaign_id`
+(`2026-09-01-campaign-move-clears-creation.sql`) rather than by patching the join/leave RPCs — one rule
+on the column cannot be bypassed by a future caller. A character with no campaign has no DM, so nothing
+is enforced for it, which is the same fail-open rule as item 1.
+
+**Step 5's scope — BOUNDED.** "Wherever AP appears" was never specifiable. The actual surfaces, all
+shipped:
+
+| Surface | Shows |
+|---|---|
+| CharGen AP chip (3 label variants) | the three pools, summing to the headline |
+| CharGen "Finish creating" | shown only while genuinely in creation; ceiling + spend in its tooltip |
+| CharGen purchase refusal | ceiling, its composition, and both exits |
+| Live Sheet AP chip | same three pools |
+| Live Sheet "Finish creating" | same rule and tooltip |
+| Live Sheet purchase refusal | same message |
+| DM Console card → Creation row | locked / still building, and whether the limit is the engine default |
+| DM Console DM tools → Creation limit | state in words, set/raise input, Reopen creation |
+
+Anything beyond these is a new request, not an unfinished step.
+
+**Rollback story — STATED, and it is not symmetrical.** Reverting the code does **not** revert the data,
+because every `creationLocked` / `creationLockConfig` / `creationUnlocked` is a permanent log event.
+
+- *Code* rolls back by reverting the commits and restoring `DATA.version` — but note the five re-baselined
+  fixtures (EV-003/007/009/012/013) would need reverting with it, or parity fails.
+- *Data* does not roll back by reverting code. Events already written stay written. They are harmless to
+  an older engine — the retired automatic lock ignored `threshold`, and an unknown event type replays
+  inert — so an older build reads such a character as it always did. **That asymmetry is the design
+  working, not a gap:** the log is the record, and a rollback that silently rewrote history would be the
+  worse outcome.
+- The genuine one-way door is `DATA.version` v0.363 → v0.364 and the fixture re-baseline, which is what
+  a rules-version bump is *for*.
+
+### What is deliberately still open
+
+- **A DM-applied lock a player cannot clear.** Out of scope from the start; `dm_reopen_creation()` gives a
+  DM the clear, but nothing distinguishes a DM-issued lock from a player-issued one.
+- **The two-writer precedence rule** (source-tagging DM vs player thresholds) from the judge's verdict.
+  Not built: with the DM-only RPC being the sole write path in practice, there is no second writer today.
+  It becomes real if a player-facing ceiling control is ever added.
+
+### One item closed by being wrong
+
+While reviewing PR #481 this session I noted `THEME_SLIP = 0.18` as "a tuned constant with no test
+pinning it". **That was wrong**, and worth recording so nobody acts on it. `testing/scripts/
+random-quality-ci.mjs` already guards the *property* rather than the number, which is the better test:
+line 249 asserts two rolls of one theme still differ (mean overlap < 0.70), catching a slip set too low
+and making themes rigid; line 241 asserts the favoured categories lead the picks, catching a slip set
+too high and making themes meaningless. Pinning `0.18` exactly would have been more brittle and tested
+less.
