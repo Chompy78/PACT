@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-01 · feat(sql): moving a character between campaigns clears its creation lock and ceiling** —
+  resolves the campaign-movement question three independent cold reviewers raised against the
+  creation-ceiling plan and which it carried as unresolved. Owner decision: *"when a character leaves or
+  joins a campaign, the locks go"* — both the finished-creation lock and the DM's ceiling figure. A
+  ceiling is one DM's ruling about one character at one table; carrying it elsewhere would let a number
+  nobody there chose silently govern that character, and a character with no campaign has no DM to
+  adjudicate for it, so nothing is enforced (the same fail-open rule every local character already
+  follows). Implemented as a trigger on `characters.campaign_id` changing rather than by patching
+  `bind_character_to_campaign` / `dm_unbind_character` / `redeem_player_invite` /
+  `redeem_character_claim` individually — one rule on the column cannot be bypassed by a future caller
+  added without it in mind. Append-only, and needs **no engine change**: `js/engine.js` already reads a
+  `threshold` of null as "no ceiling set".
 - **2026-09-01 · fix(chargen): a random roll destroyed the DM's creation limit and un-finished creation**
   — 🎲 Random re-derives the whole LOG from the DOM (`applyBuild` then the appearance resync), and the
   DOM has no control representing a creation ceiling or a finished-creation lock, so both were silently
