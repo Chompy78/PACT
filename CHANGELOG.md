@@ -4,6 +4,21 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-01 · feat(engine,dm-console): DMs can re-price any row of their campaign's economy band** —
+  the gold-and-downtime economy shipped with three settings and nothing to turn between them. A DM may
+  now customise any band row, independently for gold and for downtime, by a **multiplier** (×2, ×0.5) or
+  a **flat override**; the two are a radio per row per currency, so they cannot both be set. `js/engine.js`
+  gains `effectiveBandRows()`/`bandRowKey()` and `purchaseCost()` matches against effective rows, so every
+  existing call site picks it up unchanged. Stored at `campaigns.rules.economy.rowCosts[band][rowKey]` —
+  **no SQL migration** (`rules` is free-form JSON; the key is omitted when nothing is customised) and **no
+  `DATA.version` bump** (no default band moved, `compute()` untouched, and §17 already grants the DM this
+  licence in the guide's own words, so no guide edit either). Already-made purchases keep the price they
+  paid — frozen `gp`/`days` still win — and a customised row's downtime **phrase** is regenerated from its
+  new day count, so a re-priced row can't print "6 weeks" beside a 21-day cost. New gate:
+  `testing/scripts/cost-customization-ci.mjs` (81 checks) + `.github/workflows/cost-customization.yml`.
+  Found while testing, **pre-existing and not fixed here**: `economy-ui-e2e.mjs` fails 35 of 155 checks on
+  untouched `preview` — its fixtures still rely on the auto creation lock that PR #480 retired — and that
+  script exits 0 even when it crashes outright.
 - **2026-09-01 · feat(sql): moving a character between campaigns clears its creation lock and ceiling** —
   resolves the campaign-movement question three independent cold reviewers raised against the
   creation-ceiling plan and which it carried as unresolved. Owner decision: *"when a character leaves or

@@ -548,6 +548,18 @@ function _lsEconBand(uptoIdx){
   });
 }
 function _lsEconOn(uptoIdx){ var E=window._engineEcon; return !!(E&&E.economyOn(_lsEconBand(uptoIdx))); }
+// The band PLUS this campaign's per-row cost customisation, in the rules shape purchaseCost() and
+// wealthLedger() read (feat/cost-customization). Deliberately NOT folded into _lsEconBand(): other
+// callers index DATA.economyBands by that return value or compare it to 'off', and want the token.
+//
+// rowCosts is campaign-only — the DM owns the dial (§17). Gated on _rulesStatus==='active', the
+// same flag _lsEconBand() trusts, so unresolved campaign rules quote book prices rather than a
+// guess at the table's.
+function _lsEconRules(uptoIdx){
+  var band=_lsEconBand(uptoIdx), cr=window._cloudCampaignRules;
+  var rc=(window._rulesStatus==='active') && cr && cr.economy && cr.economy.rowCosts;
+  return rc ? { economy:{ band:band, rowCosts:rc } } : band;
+}
 // The downtime window in force right now — resolveDowntimeWindow()'s own precedence (an active
 // campaign's window always wins; otherwise the character's own self-declared window from its LOG),
 // asked rather than re-implemented. Mirrors _lsEconBand's shape exactly. window._dmWindow is fetched
@@ -667,14 +679,14 @@ function _lsWalletShort(q){
 // disagree about what a purchase costs.
 function _lsQuote(cost){
   var E=window._engineEcon; if(!E||!_lsCharges(null)) return null;
-  return E.purchaseCost(cost,_lsEconBand(null));
+  return E.purchaseCost(cost,_lsEconRules(null));
 }
 // The composed wallet: what this character's own LOG grants and spends, plus the DM-held pool.
 // The DM pool rides the SAME 'active' gate as DM AP — a campaign whose rules are unconfirmed must not
 // have its server-side gold silently counted as zero, so it simply isn't composed in until resolved.
 function _lsWallet(uptoIdx){
   var E=window._engineEcon; if(!E) return null;
-  var led=E.wealthLedger(eventsUpTo(uptoIdx),{band:_lsEconBand(uptoIdx)});
+  var led=E.wealthLedger(eventsUpTo(uptoIdx),{band:_lsEconRules(uptoIdx)});
   var a=window._rulesStatus==='active';
   // Gold and downtime compose differently now (see js/engine.js's wealthWithDm header): gold is
   // still a flat additive top-up (dmGold), but downtime is the resolved WINDOW — a solo player's

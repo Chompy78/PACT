@@ -1310,6 +1310,117 @@ export function economyOn(settingOrRules) {
   return !!(band && band.rows);
 }
 
+/* -------------------------------------------------------------------------
+ * PER-BAND-ROW COST CUSTOMISATION  (feat/cost-customization, D-GH-2026-09-01)
+ * -------------------------------------------------------------------------
+ * A DM may re-price any ROW of the band their campaign plays on, independently
+ * for gold and for downtime, by one of two methods (owner's choice A3/C3):
+ *
+ *   MULTIPLIER  {mode:'mult', value:2}    — 2x / 0.5x the row's list figure
+ *   FLAT        {mode:'flat', value:500}  — an outright replacement price
+ *
+ * The two are mutually exclusive BY UI (a radio per row per currency), so there
+ * is deliberately no precedence rule to remember here: whichever mode the stored
+ * entry names is the one applied, and an absent/unknown mode falls through to
+ * list price. Storing them as one {mode,value} pair rather than two nullable
+ * fields is what makes "both at once" unrepresentable rather than merely
+ * discouraged.
+ *
+ * WHERE IT LIVES.  campaigns.rules.economy.rowCosts[bandToken][rowKey], i.e.
+ *
+ *   economy: { band:'standard', rowCosts:{ standard:{ '15':{gp:{mode:'mult',value:2}} } } }
+ *
+ * Keyed by BAND TOKEN first on purpose. Standard and Fast have different
+ * thresholds and different row counts (9 vs 8) and economy-bands.js is explicit
+ * that one is not derivable from the other — so a DM who customises Standard and
+ * later switches to Fast must not silently inherit Standard's numbers against
+ * Fast's rows. No migration is needed for either: `rules` is a free-form JSON
+ * column, and the `economy` block was deliberately nested (rather than a bare
+ * `economyBand` key) with exactly this growth in mind.
+ *
+ * ROW KEY is the row's own `maxAp`, stringified, with the open-ended top row
+ * keyed 'top'. Not the array index: an index would silently re-target every
+ * customisation if a row were ever inserted into a band, whereas a threshold
+ * that no longer exists simply stops matching, which is the safe failure.
+ *
+ * ROUNDING — one rule per currency, applied to both modes so a DM never has to
+ * ask which mode they are in:
+ *   gold  -> Math.round  (nearest gp; a flat figure is already an integer)
+ *   days  -> Math.ceil   (a part-day of training still costs you the day, and
+ *                         ceil never makes a multiplier cheaper than asked)
+ *
+ * THIS DOES NOT RE-PRICE HISTORY. Customisation feeds purchaseCost(), which is
+ * the LIST price; _paidFor() still prefers the gp/days frozen onto each purchase
+ * event. Changing a multiplier therefore moves future purchases only — the same
+ * guarantee a band switch already carries (§16, "Don't switch mid-game, or a
+ * purchase's price will move under the players' feet").
+ */
+
+/** The key a band row's customisation is stored under — its `maxAp`, or 'top'
+ *  for the open-ended final row. */
+export function bandRowKey(row) {
+  return (row && row.maxAp != null) ? String(row.maxAp) : 'top';
+}
+
+/** The customisation map for one band token, pulled out of a rules/settings object.
+ *  A bare token string carries no rules and therefore no customisation — callers
+ *  that want customised prices must pass the rules object, not just the band. */
+function _rowCustom(settingOrRules, token) {
+  if (!settingOrRules || typeof settingOrRules === 'string') return null;
+  const eco = settingOrRules.economy;
+  const perBand = eco && eco.rowCosts;
+  const m = perBand && perBand[token];
+  return (m && typeof m === 'object') ? m : null;
+}
+
+/** Apply one currency's {mode,value} rule to a list figure. Unknown/absent mode,
+ *  or a non-finite value, falls through to list — a malformed stored entry shows
+ *  the book price rather than 0 gp, failing closed the same way economySetting()
+ *  does on a typo'd band. Negative results clamp to 0: a purchase can be free but
+ *  never pays the character. */
+function _applyCostRule(listVal, rule, round) {
+  if (!rule || typeof rule !== 'object') return listVal;
+  const v = Number(rule.value);
+  if (!Number.isFinite(v)) return listVal;
+  if (rule.mode === 'flat') return Math.max(0, round(v));
+  if (rule.mode === 'mult') return Math.max(0, round((Number(listVal) || 0) * v));
+  return listVal;
+}
+
+/**
+ * The band's rows AS THIS CAMPAIGN PLAYS THEM — list rows with any per-row
+ * customisation applied. null when the economy is off, matching economyBand().
+ *
+ * A customised row carries `listGp`/`listDays` (what the book says) and
+ * `customised:true` alongside the effective `gp`/`days`, so a UI can show
+ * "500 gp (list 350)" without re-deriving anything. Untouched rows are returned
+ * BY REFERENCE, so `===` against the band table still identifies them.
+ *
+ * `time` is regenerated from the new `days` whenever days actually changes.
+ * economy-bands.js stores the canonical integer and the guide's own phrase as two
+ * separate fields, so a customised row that kept its original phrase would print
+ * "6 weeks" next to a 21-day cost — the label would simply lie.
+ */
+export function effectiveBandRows(settingOrRules) {
+  const token = (typeof settingOrRules === 'string') ? settingOrRules : economySetting(settingOrRules);
+  const band = DATA.economyBands[token] || DATA.economyBands[DATA.defaultEconomy];
+  if (!band || !band.rows) return null;
+  const custom = _rowCustom(settingOrRules, token);
+  if (!custom) return band.rows;
+  return band.rows.map(row => {
+    const c = custom[bandRowKey(row)];
+    if (!c || typeof c !== 'object') return row;
+    const gp   = _applyCostRule(row.gp,   c.gp,   Math.round);
+    const days = _applyCostRule(row.days, c.days, Math.ceil);
+    if (gp === row.gp && days === row.days) return row;
+    return Object.assign({}, row, {
+      gp, days,
+      time: (days === row.days) ? row.time : formatDowntime(days),
+      listGp: row.gp, listDays: row.days, customised: true,
+    });
+  });
+}
+
 /**
  * purchaseCost(ap, setting) — the gold and downtime a purchase costing `ap` AP demands.
  * The single pricing function; every tool label and every ledger charge goes through it.
@@ -1330,11 +1441,19 @@ export function economyOn(settingOrRules) {
  */
 export function purchaseCost(ap, settingOrRules) {
   const t = (typeof settingOrRules === 'string') ? settingOrRules : economySetting(settingOrRules);
-  const band = economyBand(t);
-  if (!band || !band.rows) return null;
+  // Rows come from effectiveBandRows(), not the raw band table, so any per-row customisation the
+  // campaign has set is already folded in — see the block above. Passing a bare token yields the
+  // book prices, which is what every caller that has no rules object to hand should get.
+  const rows = effectiveBandRows(settingOrRules);
+  if (!rows) return null;
   const n = Math.max(0, Math.ceil(Number(ap) || 0));
-  const row = band.rows.find(r => r.maxAp === null || n <= r.maxAp) || band.rows[band.rows.length - 1];
-  return { gp: row.gp, days: row.days, time: row.time, row, band: t };
+  const row = rows.find(r => r.maxAp === null || n <= r.maxAp) || rows[rows.length - 1];
+  return {
+    gp: row.gp, days: row.days, time: row.time, row, band: t,
+    customised: !!row.customised,
+    listGp: row.customised ? row.listGp : row.gp,
+    listDays: row.customised ? row.listDays : row.days,
+  };
 }
 
 /**
@@ -1396,6 +1515,14 @@ function _paidFor(e, setting) {
 export function wealthLedger(events, opts) {
   const _opts = opts || {};
   const setting = (typeof _opts.band === 'string') ? _opts.band : economySetting(_opts.band || _opts.rules);
+  // PRICING CONTEXT (feat/cost-customization). `setting` is only a token, and a token carries no
+  // per-row customisation — so a ledger built from one would quote book prices for a campaign that
+  // has re-priced its band. Rebuild an explicit rules-shaped context instead of passing the caller's
+  // object straight through: that keeps `band` authoritative on WHICH band is in force (its existing
+  // precedence) while still picking up the rowCosts that came alongside it.
+  const _src = (_opts.band && typeof _opts.band === 'object') ? _opts.band : _opts.rules;
+  const _rc = _src && _src.economy && _src.economy.rowCosts;
+  const priceCtx = _rc ? { economy: { band: setting, rowCosts: _rc } } : setting;
   const { evs, boughtOff, boonRemoved } = activeEvents(events);
   const on = economyOn(setting);
   const out = { on, band: setting, gpSpent: 0, daysSpent: 0, gpGranted: 0, entries: [] };
@@ -1418,7 +1545,7 @@ export function wealthLedger(events, opts) {
     // were still really spent — the same reasoning _spendCost() applies to its AP. So these are
     // charged, not skipped; the guards exist only to label the entry as lost.
     const lost = (e.type === 'buy') && ((e.cat === 'boon' && boonRemoved.has(i)) || boughtOff.has(i));
-    const paid = _paidFor(e, setting);
+    const paid = _paidFor(e, priceCtx);
     if (!paid) return;
     out.gpSpent   += paid.gp;
     out.daysSpent += paid.days;

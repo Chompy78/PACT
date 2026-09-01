@@ -2462,6 +2462,21 @@ function _cgEconBand(){
     campaignActive: !!(window._cgCampaignBound && camp && camp.rules),
   });
 }
+// The band PLUS this campaign's per-row cost customisation, in the rules shape purchaseCost()
+// reads (feat/cost-customization). Kept separate from _cgEconBand() rather than folded into it:
+// several callers index DATA.economyBands by the return value or compare it to 'off', and those
+// want the plain token. Only the pricing call sites want this.
+//
+// rowCosts is campaign-only by design — the DM owns the dial (§17), so a solo character has no
+// customisation to apply and correctly falls through to book prices. Guarded on the same
+// "campaign bound AND its rules actually resolved" condition _cgEconBand() uses, so a network
+// hiccup quotes the book rather than a half-read campaign.
+function _cgEconRules(){
+  var band=_cgEconBand(), camp=window._cloudCampaign;
+  var active=!!(window._cgCampaignBound && camp && camp.rules);
+  var rc=active && camp.rules.economy && camp.rules.economy.rowCosts;
+  return rc ? { economy:{ band:band, rowCosts:rc } } : band;
+}
 // ' · 350 gp · 6 weeks in play' — the suffix appended to a row's AP price. '' when the economy is
 // off, and '' for a genuinely free purchase too: on a creation form, where nothing is being charged
 // anyway, "free of coin and time in play" on every Tier 1 row is noise rather than information (the
@@ -2498,7 +2513,7 @@ document.addEventListener('click',function(e){ if(e.target&&e.target.id==='econb
 
 function _cgGT(ap){
   var E=window._engineEcon; if(!E) return '';
-  var c=E.purchaseCost(ap,_cgEconBand());
+  var c=E.purchaseCost(ap,_cgEconRules());
   if(!c || (!c.gp && !c.days)) return '';
   return ' · ' + [c.gp?(c.gp.toLocaleString()+' gp'):'', c.days?c.time:''].filter(Boolean).join(' · ') + ' in play';
 }
