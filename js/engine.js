@@ -1999,8 +1999,13 @@ export function undoFloor(events) {
   // says so, and _lockStates() honours `creationUnlocked`. Treating a stale creationLocked as a
   // permanent barrier after a DM reopened creation would leave the player unable to undo while
   // _undoBarrierMsg told them "only your DM can reopen it" — false in the opposite direction from the
-  // bug this rule was written to fix. Latent today (nothing emits creationUnlocked yet), fixed here so
-  // it cannot surface the moment something does.
+  // bug this rule was written to fix.
+  //
+  // Written as latent ("nothing emits creationUnlocked yet") and NO LONGER latent as of the same day:
+  // dm_reopen_creation() (sql/migrations/2026-09-01-dm-creation-ceiling.sql) emits it from DM Console's
+  // "Reopen creation", and pact_campaign_move_clears_creation() emits it whenever a character joins,
+  // leaves or changes campaign. Handling it proactively was right — this path is live, and two live
+  // characters (Caspian, Moss) already carry a creationUnlocked.
   let lastLocked = -1, lastUnlocked = -1;
   for (let i = 0; i < log.length; i++) {
     if (!log[i]) continue;
