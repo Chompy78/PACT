@@ -1,7 +1,18 @@
 # D-GH-2026-09-01-session-seal — the session seal AMENDS the existing lock, it does not add a second one
 
-**Status:** Phase 1 implemented · branch `claude/everything-on-main-kx82ur` · **migration written and
-tested against a local Postgres, NOT applied to production** · Phase 2 (tool UI) not started.
+**Status:** Phase 1 **APPLIED TO PRODUCTION 2026-09-01** (Supabase `piuprrrnaotrtxucrtsb`, migration
+`session_seal_amend_locked_history`) · branch `claude/everything-on-main-kx82ur` · Phase 2 (tool UI)
+in progress.
+
+Post-apply verification: 35 characters / 461 log events / 49 awards all unchanged; both new functions
+present; the protected projection covers `sessionSeal`; **still 4 triggers on `characters`, none
+added**, and no stray trigger from the withdrawn design; 0 seals exist, so the amendment is inert
+until one is placed. Supabase advisor: no ERROR-level findings. The two new functions appear under the
+pre-existing `authenticated_security_definer_function_executable` warning class that ~35 existing
+functions in this schema already trigger by design — no new class of finding. Noted for a future task,
+not fixed here: `pact_enforce_locked_history` and `pact_enforce_ap_budget_consistency` are trigger
+functions that are nonetheless RPC-executable (harmless — calling one outside a trigger errors at
+once — and pre-existing, but worth revoking).
 Plan + three cold reviews: `docs/plans/2026-09-01-session-seal-cold-review.md`.
 Builds on `D-GH-2026-09-01-undo-barrier-shared` (step 1).
 Amends `D-GH-2026-08-10-campaign-ap-log-integrity`.
