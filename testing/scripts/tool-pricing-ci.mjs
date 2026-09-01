@@ -1482,6 +1482,73 @@ try {
       return [refused, /DM edit/i.test(window.__f[window.__f.length-1]||'')];})()`),
     [true, true]);
 
+
+  // ---- feat/session-seal Phase 2: the "can't be unselected" requirement -------------------------
+  // The owner's words were "anything already bought can't be unselected". Un-ticking a CharGen
+  // checkbox splices the purchase out of the LOG with no undo involved, so guarding undo() alone
+  // left every checkbox live. These assert the guard on the mutation itself, not just the styling.
+  console.log('\nCharGen — a sealed purchase cannot be un-ticked or undone');
+  check('a purchase inside the sealed prefix cannot be retracted, and says why',
+    await cg.evaluate(`(()=>{
+      const save=LOG.slice(), saveSeq=SEQ;
+      LOG.length=0;
+      LOG.push({seq:1,type:'buy',cat:'boon',payload:{v:'Alertness'},cost:6,label:'Boon — Alertness'});
+      LOG.push({seq:2,type:'sessionSeal',label:'Session sealed'});
+      window.__f=[]; const realFlash=window.flash; window.flash=m=>window.__f.push(String(m));
+      const n=LOG.length;
+      const rv=retractFlatEvent('boon',e=>e.payload&&e.payload.v==='Alertness');
+      const refused = (rv===false) && LOG.length===n;
+      const said = /sealed/i.test(window.__f[window.__f.length-1]||'');
+      window.flash=realFlash; LOG.length=0; save.forEach(e=>LOG.push(e)); SEQ=saveSeq;
+      return [refused, said];})()`),
+    [true, true]);
+
+  check('a purchase made AFTER the seal is still freely retractable',
+    await cg.evaluate(`(()=>{
+      const save=LOG.slice(), saveSeq=SEQ;
+      LOG.length=0;
+      LOG.push({seq:1,type:'sessionSeal',label:'Session sealed'});
+      LOG.push({seq:2,type:'buy',cat:'boon',payload:{v:'Alertness'},cost:6,label:'Boon — Alertness'});
+      const n=LOG.length;
+      const rv=retractFlatEvent('boon',e=>e.payload&&e.payload.v==='Alertness');
+      const ok = (rv!==false) && LOG.length===n-1;
+      LOG.length=0; save.forEach(e=>LOG.push(e)); SEQ=saveSeq;
+      return ok;})()`),
+    true);
+
+  check('undo refuses to cross a seal, and says why',
+    await cg.evaluate(`(()=>{
+      const save=LOG.slice(), saveSeq=SEQ;
+      LOG.length=0;
+      LOG.push({seq:1,type:'buy',cat:'boon',payload:{v:'Alertness'},cost:6});
+      LOG.push({seq:2,type:'sessionSeal',label:'Session sealed'});
+      window.__f=[]; const realFlash=window.flash; window.flash=m=>window.__f.push(String(m));
+      const n=LOG.length; undo();
+      const refused = LOG.length===n;
+      window.flash=realFlash; LOG.length=0; save.forEach(e=>LOG.push(e)); SEQ=saveSeq;
+      return refused;})()`),
+    true);
+
+  check('an unsealed character is completely unaffected by any of this',
+    await cg.evaluate(`(()=>{
+      const save=LOG.slice(), saveSeq=SEQ;
+      LOG.length=0;
+      LOG.push({seq:1,type:'buy',cat:'boon',payload:{v:'Alertness'},cost:6,label:'Boon — Alertness'});
+      const rv=retractFlatEvent('boon',e=>e.payload&&e.payload.v==='Alertness');
+      const ok = (rv!==false) && LOG.length===0;
+      LOG.length=0; save.forEach(e=>LOG.push(e)); SEQ=saveSeq;
+      return ok;})()`),
+    true);
+
+  check('the server floor never exceeds the client floor, whatever the log shape',
+    await cg.evaluate(`(()=>[
+      [{type:'award',amount:5},{type:'buy'},{type:'sessionSeal'}],
+      [{type:'sessionSeal'},{type:'buy'},{type:'award',amount:5}],
+      [{type:'award',amount:79,noLock:true}],
+      [{type:'creationLocked'},{type:'sessionSeal'}],
+    ].every(l => sealedFloor(l,{campaignBound:true}) <= undoFloor(l)))()`),
+    true);
+
   await cg.close();
 
   // ============================ DM Console ============================

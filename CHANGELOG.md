@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-01 · feat(tools): session seal Phase 2 — the seal reaches the UI** — CharGen's
+  `retractFlatEvent()` now refuses to splice a purchase out of the sealed prefix and the checkbox
+  re-ticks itself; that path, not `undo()`, is what the owner's "anything already bought can't be
+  unselected" was really about. Sealed controls are disabled with a **visible** `🔒 sealed` marker
+  rather than a title tooltip, because a disabled input fires no hover or focus event so a tooltip on
+  one is unreachable by keyboard and touch. The Live Sheet's Import and Reset refuse on a sealed
+  character (both keep the id, so the server would reject them anyway — better refused where the reason
+  can be given). The DM Console gains an "and lock history" tick on the award form, routed through the
+  atomic idempotent `award_ap_and_seal()`, plus a standalone "🔒 Lock history" button. Verified in a
+  real browser: `tool-pricing-ci.mjs` **189/0** including five new seal assertions. Still open: CharGen's
+  🎲 Randomise / file-load rebuild paths can drop a seal locally (fails safe — the server rejects — but
+  shows a raw error), and the offline conflict UX. See `D-GH-2026-09-01-session-seal`.
 - **2026-09-01 · feat(sql,engine): session seal — AMENDS the existing history lock (Phase 1)** — a DM,
   or the owner of a character in no campaign, can draw an explicit line under a character's history;
   everything before it is frozen, anything may still be appended after it. **Corrects a false premise

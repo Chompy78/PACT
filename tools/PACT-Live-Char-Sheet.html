@@ -1021,6 +1021,19 @@ function buyoffDrawback(v){
   }
   emit(Object.assign({type:'buyoff',refVal:v,cost,label:'Bought off — '+v}, _gt?{gp:_gt.gp,days:_gt.days}:{}));
 }
+// How many leading events the DATABASE will refuse to let us change (feat/session-seal). Mirrors
+// pact_enforce_locked_history(); the award half only applies to a campaign-bound character.
+function _lsSealedFloor(){ return sealedFloor(LOG,{campaignBound:!!window._lsCampaignId}); }
+// Guards the two paths that replace this tool's whole LOG. Both keep the character's id, so on a
+// sealed character the replacement is a write the database will reject outright — better to refuse
+// here, where we can say why, than to let the player do the work and lose it at save time.
+function _lsBlockedBySeal(what){
+  if(_lsSealedFloor() === 0) return false;
+  alert('\uD83D\uDD12 This character\'s history is sealed.\n\n' + what + ' would replace history your DM has locked, '
+      + 'and the server will refuse it.\n\nUse \u201cNew character\u201d if you want to start something fresh — '
+      + 'that leaves this one untouched.');
+  return true;
+}
 function undo(){
   if(_viewOnlyBlock())return;
   // rulesSnapshot events are sync-written metadata, not user actions — never the undo target (they
@@ -1311,7 +1324,7 @@ function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=
   // confirmation at all, unlike resetAll()'s matching confirm() below — a misclick or wrong file
   // silently and irrecoverably destroyed the in-progress character, including any cloud autosave
   // still in flight. Mirrors resetAll()'s pattern exactly.
-  if(d.LOG&&confirm('Import will replace your current character and its history. Continue?')){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
+  if(d.LOG&&!_lsBlockedBySeal('Importing')&&confirm('Import will replace your current character and its history. Continue?')){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
   // Compose the load notice so a file that is BOTH tampered AND a different rules version shows both.
   var _msgs=[];
   if(_tampered){_msgs.push('⚠ This file was edited outside PACT — its signature no longer matches. It has still been loaded; double-check the numbers before playing.');}
@@ -1359,7 +1372,7 @@ function _lsConsumeHandoff(){
     return true;
   }catch(e){console.error('PACT Live Sheet: handoff consume failed',e);return false;}
 }
-function resetAll(){ if(confirm('Wipe this character and its whole history? This starts a clean '+RULES+' character.')){
+function resetAll(){ if(!_lsBlockedBySeal('Wiping this character')&&confirm('Wipe this character and its whole history? This starts a clean '+RULES+' character.')){
   LOG=[];REDO=[];SEQ=1;viewAt=null;loadedRules=null;_lsResetCloudApState();   // a reset character is born under the current rules
   const _vb=$('versionBanner');if(_vb)_vb.remove();   // clear any stale version-mismatch banner
   window._apNudgeDismissedFor=null;   // a freshly wiped character should see the low-spend nudge again
@@ -2579,13 +2592,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, creationCeiling, wouldExceedCeiling, undoFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   window._engineBridge = { validate };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   // Gold-and-downtime economy (Players Guide §16). Bridged onto window exactly as the AP-ledger
   // functions above are, so the classic-script half of this tool reaches them the same way.
-  window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor;
+  window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of

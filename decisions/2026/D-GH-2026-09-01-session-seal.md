@@ -129,7 +129,31 @@ mean rejecting a save the UI had called legal.
 check` and aborts early. Seen three times today, once *before* any change was made; passes on re-run. A
 readiness race in the harness, not a product defect. Worth its own task.
 
+## Phase 2 — what shipped 2026-09-01
+
+- **CharGen `retractFlatEvent()` refuses a splice inside the sealed prefix**, returning false so
+  `onChecklistToggle()` puts the tick back. This — not `undo()` — is the path the owner's requirement
+  was really about: un-ticking a checkbox removes the purchase with no undo involved.
+- **`_cgLockSealedControls()`** disables sealed checkboxes and appends a **visible** `🔒 sealed` marker.
+  Visible rather than a `title` tooltip because a disabled input fires no hover or focus event in any
+  browser, making a tooltip unreachable by keyboard and touch (M365 Copilot review point). It only
+  re-enables boxes it disabled itself, so it cannot undo the stat-cap/caster-gate disabling.
+- **Live Sheet Import and Reset refuse on a sealed character**, explaining why and pointing at "New
+  character". Both keep the character's id, so on a sealed character they are writes the server would
+  reject anyway — better refused where the reason can be given.
+- **DM Console gains both controls**: an "and lock history" tick on the award form, and a standalone
+  "🔒 Lock history" button. The tick routes through `award_ap_and_seal()` — one atomic call, not two
+  jobs — with a fresh idempotency key per click.
+
+Verified in a real browser (`tool-pricing-ci.mjs`, 189/0): a sealed purchase cannot be retracted and
+says why; one made after the seal still retracts freely; undo refuses to cross a seal; an unsealed
+character is wholly unaffected; and `sealedFloor <= undoFloor` holds across log shapes.
+
 ## Still open
 
-Phase 2 (the tool UI), the DM Console control, and the offline conflict UX (L1). The data is safe
-without them; what is missing is a human-readable experience when a save is refused.
+- **CharGen's whole-build paths** (🎲 Randomise, loading a file into the open character) still rebuild
+  the LOG from the form and can drop a seal *locally*. This fails safe — the database rejects the save
+  — but the player meets a raw rejection rather than an explanation. "New Character" is already safe:
+  it mints a fresh id.
+- **The offline conflict UX (L1)** — keep the player's work, reload, offer explicit reapplication — is
+  not built. A rejected save currently surfaces as the existing sync-conflict path.
