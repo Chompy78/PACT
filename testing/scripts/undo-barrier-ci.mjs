@@ -24,7 +24,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const { isUndoBarrier, undoFloor } = await import(pathToFileURL(resolve(REPO, 'js/engine.js')).href);
+const { isUndoBarrier, undoFloor, sealedFloor } = await import(pathToFileURL(resolve(REPO, 'js/engine.js')).href);
 
 let pass = 0, fail = 0;
 const t = (name, got, want) => {
@@ -51,6 +51,22 @@ t('a bare buy is not a barrier', isUndoBarrier({ type: 'buy' }), false);
 t('null is not a barrier', isUndoBarrier(null), false);
 t('rulesSnapshot metadata is not a barrier', isUndoBarrier({ type: 'rulesSnapshot' }), false);
 t('dmEdit on any event type is a barrier', isUndoBarrier({ type: 'buyoff', dmEdit: true }), true);
+
+console.log('\nsessionSeal — the one barrier the DATABASE also enforces');
+t('a seal is an undo barrier', undoFloor([{ type: 'buy' }, { type: 'sessionSeal' }]), 2);
+t('a seal grants no AP, so it never appears as an award', isUndoBarrier({ type: 'sessionSeal' }), true);
+t('sealedFloor sees a seal', sealedFloor([{ type: 'buy' }, { type: 'sessionSeal' }, { type: 'buy' }]), 2);
+t('sealedFloor ignores an award', sealedFloor([{ type: 'buy' }, { type: 'award', amount: 5 }]), 0);
+t('sealedFloor ignores a dmEdit', sealedFloor([{ type: 'buy' }, { type: 'buy', dmEdit: true }]), 0);
+t('sealedFloor ignores creationLocked', sealedFloor([{ type: 'buy' }, { type: 'creationLocked' }]), 0);
+t('sealedFloor: the LAST seal wins', sealedFloor([{ type: 'sessionSeal' }, { type: 'buy' }, { type: 'sessionSeal' }]), 3);
+t('sealedFloor tolerates a non-array', sealedFloor(null), 0);
+// The two floors must never invert: the database enforces sealedFloor, the tools enforce undoFloor,
+// and a server floor ABOVE the client's would mean a save the UI believed legal being rejected.
+const mixed = [{ type: 'award', amount: 5 }, { type: 'sessionSeal' }, { type: 'buy' }, { type: 'creationLocked' }];
+t('sealedFloor never exceeds undoFloor', sealedFloor(mixed) <= undoFloor(mixed), true);
+t('...including when the seal is last', (() => { const l = [{ type: 'creationLocked' }, { type: 'sessionSeal' }];
+  return sealedFloor(l) <= undoFloor(l); })(), true);
 
 // CharGen restores whole snapshots, so its guard asks: does the frame I am about to restore still
 // carry a floor at least as high as the live log's? Mirrors the check in that tool's undo().

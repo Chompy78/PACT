@@ -10,6 +10,21 @@
 
 ## Index
 
+## D-GH-2026-09-01-session-seal — a session seal the database enforces, not the browser
+- Phase 1 of the per-session history lock. Chose a zero-AP `sessionSeal` event plus a `BEFORE UPDATE`
+  trigger (A5) over making the AP award itself the seal (A1), sealing only Undo (A2), a read-only
+  CharGen (A3), or a `sealed_through_event_id` column (A4). One invariant — *the sealed prefix may not
+  be altered, anything may be appended after it* — because the owner's three rulings (post-seal DM
+  corrections, editable descriptions, solo sealing) all satisfy it by appending rather than needing an
+  exception. A trigger rather than a check inside one function because naming UI paths is not durable:
+  it covers the two CharGen mid-log paths and the Live Sheet Import the plan had missed, plus paths not
+  yet written. Enforces **only** `sessionSeal`, which is what makes it non-retroactive by construction —
+  widening it to the other undo barriers would turn an ordinary rename into a save failure for every one
+  of the 25 live characters. Hence two floors in the engine: `undoFloor()` (client) and `sealedFloor()`
+  (server), with `sealedFloor <= undoFloor` asserted. No UI in Phase 1; migration tested against a real
+  Postgres but not yet applied to production.
+  Full record: `decisions/2026/D-GH-2026-09-01-session-seal.md`.
+
 ## D-GH-2026-09-01-undo-barrier-shared — one undo-barrier rule for both player tools
 - The rule "this history can no longer be taken back" was hand-written three times, once per tool, and
   two copies were wrong for the same character: CharGen's `undo()` checked only `dmEdit` while claiming

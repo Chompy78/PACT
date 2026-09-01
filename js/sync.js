@@ -270,14 +270,36 @@ async function pushCharacter(rec, capturedSeq) {
   // each other. characters.updated_at is maintained by a BEFORE UPDATE trigger, so matching on the last
   // value the server confirmed is enough; nothing needs writing client-side.
   //
-  // Only guard when we actually know that value. A record written before base_updated_at existed has
-  // none, and must keep saving exactly as it does today rather than being refused forever.
-  const guarded = rec.base_updated_at != null;
+  // A record written before base_updated_at existed has none. It used to save COMPLETELY UNGUARDED
+  // in that case — deliberately, so such a record was not refused forever — which left a permanent
+  // hole: an unguarded update replaces the whole log, so any legacy record could still silently
+  // destroy a concurrent writer's history. Three cold reviews of feat/session-seal flagged the same
+  // shape of gap, and it is not hypothetical: 2026-08-07, a character went 43 AP spent -> 47 -> back
+  // to 43 across two browser profiles (docs/HOW-TO-WORK.md).
+  //
+  // Adopt the server's CURRENT value instead of skipping the guard. That narrows the window from
+  // "forever, for every legacy record" to the milliseconds between this read and the update below,
+  // and only on that record's first save — after which base_updated_at is set and this branch never
+  // runs for it again. Refusing outright was the alternative and is worse: it strands records their
+  // owner cannot fix.
+  //
+  // This is defence in depth, not the load-bearing part. A sealed prefix is enforced unconditionally
+  // by a database trigger (sql/migrations/2026-09-01-session-seal.sql), which no client can opt out
+  // of — this predicate lives in the client's own query and therefore protects only what goes
+  // through it.
+  let base = rec.base_updated_at;
+  if (base == null) {
+    const { data: cur, error: curErr } = await supabase
+      .from('characters').select('updated_at').eq('id', rec.id).maybeSingle();
+    if (curErr) throw curErr;
+    if (cur) base = cur.updated_at;   // row absent => a genuine insert below, nothing to clobber
+  }
+  const guarded = base != null;
   let q = supabase
     .from('characters')
     .update({ name: rec.name, kind: rec.kind, stats: rec.stats })
     .eq('id', rec.id);
-  if (guarded) q = q.eq('updated_at', rec.base_updated_at);
+  if (guarded) q = q.eq('updated_at', base);
   const { data: upd, error: updErr } = await q.select('id, updated_at, ap, gold, autosave_enabled');
   if (updErr) throw updErr;
 

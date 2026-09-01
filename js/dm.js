@@ -135,6 +135,62 @@ export async function awardAp(characterId, amount, note) {
 }
 
 /**
+ * Seal a character's history at this moment (feat/session-seal, D-GH-2026-09-01-session-seal).
+ * Everything already in the log becomes immutable; anything may still be appended after it.
+ *
+ * WHO MAY CALL IT (owner decision I2): a DM of the character's campaign, or — for a character in
+ * no campaign at all — its own owner. Decided server-side in seal_character_history(); this is
+ * only the transport.
+ *
+ * The seal is enforced by a BEFORE UPDATE trigger on the characters table, not by the browser, so
+ * it holds against every write path including ones this codebase does not have yet. That is the
+ * whole point of it: the client-side undo barriers in js/engine.js are advisory, and three cold
+ * reviewers independently observed that a stale or offline client's ordinary save could otherwise
+ * erase what a seal was meant to freeze.
+ *
+ * `idem` is optional but STRONGLY recommended for any caller that might retry: pass a key generated
+ * once per user action (not per attempt) and a timed-out request replayed twice cannot stack seals.
+ *
+ * @returns {Promise<object>} the seal event as actually stored, with server-stamped fields.
+ */
+export async function sealHistory(characterId, note, idem) {
+  const { data, error } = await supabase.rpc('seal_character_history', {
+    p_character: characterId,
+    p_note: note ?? null,
+    p_idem: idem ?? null,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * DM-only: award AP and seal the character's history in ONE database transaction.
+ *
+ * WHY THIS EXISTS RATHER THAN awardAp() FOLLOWED BY sealHistory(). Two separate calls can leave a
+ * character AP-awarded but unsealed, or sealed but unawarded, and a DM who retries the half they
+ * saw fail duplicates the half that succeeded. Awarding twice is the one outcome here that
+ * materially damages a character, so the pair is atomic and idempotent rather than merely ordered.
+ *
+ * The AP does NOT go into the log. It stays in characters.ap exactly where award_ap() has always
+ * put it, because AP already reaches a character by two independent paths that both feed the same
+ * spendable total — writing one award to both would double it. The seal is a separate marker
+ * carrying no value at all, which is precisely what lets it be one.
+ *
+ * @param {string} idem key generated once per user action; a retry with the same key is a no-op.
+ * @returns {Promise<{ap:number, seal:object, repeated:boolean}>} `repeated` marks a replayed retry.
+ */
+export async function awardApAndSeal(characterId, amount, note, idem) {
+  const { data, error } = await supabase.rpc('award_ap_and_seal', {
+    p_character: characterId,
+    p_amount: amount,
+    p_note: note ?? null,
+    p_idem: idem ?? null,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
  * DM-only: grant (or, with a negative amount, deduct) gold for a character, with an optional
  * note. Returns the updated character row. Throws if the caller is not a DM of the
  * character's campaign, or if the character is not in a campaign at all.

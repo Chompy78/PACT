@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-01 · feat(sql,engine): session seal — a history lock the DATABASE enforces (Phase 1)** —
+  a DM (or, for a character in no campaign, its owner) can draw a line under a character's history;
+  everything before it becomes immutable, anything may still be appended after it. Enforced by a
+  `BEFORE UPDATE` trigger on `characters`, not by the browser: three cold reviewers independently
+  found that revision 1 of the plan let a stale or offline client's ordinary save erase a seal.
+  Verified against the code rather than taken on trust — optimistic concurrency *does* exist in
+  `js/sync.js`, but it was opt-in, client-issued and row-level rather than prefix-preserving, and it
+  had already failed in production on 2026-08-07. The owner's three rulings (a DM may still correct
+  after a seal; name/appearance/backstory stay editable; solo players may seal too) all collapse into
+  one invariant because corrections and description edits both *append* — so no exception list and no
+  author test is needed. The trigger deliberately enforces **only** the new `sessionSeal` type: widening
+  it to the other undo barriers would break every existing character's next rename. Adds
+  `sealedFloor()` beside `undoFloor()` in `js/engine.js`, `seal_character_history()` and an atomic,
+  idempotent `award_ap_and_seal()`, and `testing/sql/session-seal-test.sql` (38 assertions, run against
+  a real Postgres). No UI yet — that is Phase 2, and nothing can create a seal until it lands. Migration
+  written and locally tested but **not applied to production**. See `D-GH-2026-09-01-session-seal`.
 - **2026-09-01 · fix(engine,tools): one undo-barrier rule, shared by both player tools** — the rule
   "this part of the history can no longer be taken back" had been hand-written three times, once per
   tool, and two copies were wrong for the *same* character (D-GH40 gave both tools one save envelope).

@@ -1966,6 +1966,9 @@ export function wouldExceedCeiling(events, cost, opts) {
 //     is an in-play top-up the DM may well want to take straight back.
 //   * `type:'creationLocked'` — creation ended by a recorded act, and the dialog tells the player in
 //     advance that only their DM can reopen it. Making it a barrier is what makes that true.
+//   * `type:'sessionSeal'` — a session boundary drawn deliberately, by a DM on a campaign character
+//     or by the owner on a solo one (feat/session-seal, owner decision I2). Unlike the three above,
+//     this one is ALSO enforced in the database: see sealedFloor() below.
 //
 // Everything at or before the LAST barrier is frozen; anything after it undoes normally. Purely a
 // history rule — it reads no prices and never touches compute(), so it cannot move a character's AP.
@@ -1974,7 +1977,30 @@ export function isUndoBarrier(event) {
   if (event.dmEdit) return true;
   if (event.type === 'award' && !event.disc) return true;
   if (event.type === 'creationLocked') return true;
+  if (event.type === 'sessionSeal') return true;
   return false;
+}
+
+// sealedFloor(events): the SERVER-ENFORCED floor — how many leading events are immutable because a
+// `sessionSeal` sits at or after them. Always <= undoFloor(), which additionally counts the three
+// client-side-only barriers above.
+//
+// WHY IT IS SEPARATE FROM undoFloor(), and why the difference is load-bearing rather than an
+// inconsistency to tidy away. The database trigger added by feat/session-seal enforces THIS floor and
+// only this floor. Widening it to every barrier type would break every existing character on its next
+// save: editing a name or an appearance field currently filters the old event out of the log from
+// wherever it sits (see CharGen's _cgSyncSingletonEvent/replacePatchSlot), and on a character with an
+// `award` event — which is all 25 of them — that routinely rewrites history behind an award barrier.
+// Today that is harmless because the barrier is only ever consulted by undo. Enforcing it in the
+// database would turn an ordinary rename into a hard save failure.
+//
+// Restricting server enforcement to `sessionSeal` is therefore what makes the feature genuinely
+// non-retroactive: no character has one until somebody deliberately adds one, so nothing that works
+// today can start failing. The client-side barriers keep their existing, softer meaning.
+export function sealedFloor(events) {
+  const log = Array.isArray(events) ? events : [];
+  for (let i = log.length - 1; i >= 0; i--) if (log[i] && log[i].type === 'sessionSeal') return i + 1;
+  return 0;
 }
 
 // The number of leading events a log may never shrink below: index of the last barrier + 1, or 0 when
