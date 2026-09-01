@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-01 · fix(chargen): a finished character can no longer be re-rolled, and a stale "latent"
+  claim corrected** — found reviewing PR #492. That PR makes `creationLocked` an undo barrier (correctly
+  — it made true a promise my own "Finish creating" dialog was already making and breaking). But
+  `undoFloor()` returns the index of the *last* barrier + 1, and the roll's carried lock must be
+  re-appended AFTER the burst or every burst event replays as post-lock and re-prices own-species traits
+  expensive (D-GH34). On a locked character the barrier therefore lands last, `undoFloor === LOG.length`,
+  and the pre-roll frame can no longer be restored — breaking CharGen's own "randomize is ONE undoable
+  step". Measured: a lock mid-log leaves a 2-event undoable tail; the same lock at the end leaves 0.
+  Fixed by **refusing the roll** rather than reordering, which is also the conceptually right answer: a
+  roll builds a character from scratch, and one whose creation has been deliberately ended is being
+  advanced, not built. There is now a real control for the case where you mean it — a DM's "Reopen
+  creation". Also corrects `undoFloor()`'s note that `creationUnlocked` handling is "latent (nothing
+  emits it yet)": `dm_reopen_creation()` and the campaign-move trigger both emit it, and two live
+  characters already carry one.
 - **2026-09-01 · fix: 14 code-review findings on the session seal, incl. one that killed undo outright**
   — `/code-review ultra` (required by the PR template for anything touching `js/engine.js` or `sql/`)
   found that step 1's `isUndoBarrier()` treated `noLock` awards as barriers. CharGen's budget is a
