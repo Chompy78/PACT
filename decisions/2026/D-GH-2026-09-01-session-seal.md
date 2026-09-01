@@ -12,7 +12,11 @@ pre-existing `authenticated_security_definer_function_executable` warning class 
 functions in this schema already trigger by design — no new class of finding. Noted for a future task,
 not fixed here: `pact_enforce_locked_history` and `pact_enforce_ap_budget_consistency` are trigger
 functions that are nonetheless RPC-executable (harmless — calling one outside a trigger errors at
-once — and pre-existing, but worth revoking).
+once — and pre-existing, but worth revoking). **Done 2026-09-01** (migration
+`revoke_execute_on_trigger_functions`): EXECUTE revoked from `authenticated` and PUBLIC on both.
+Revoking EXECUTE does not stop a trigger firing — a trigger runs as part of the statement, not as a
+client call — verified on a throwaway Postgres 16 before applying, and the callable RPCs
+(`award_ap`, `seal_character_history`, `award_ap_and_seal`) still have EXECUTE.
 Plan + three cold reviews: `docs/plans/2026-09-01-session-seal-cold-review.md`.
 Builds on `D-GH-2026-09-01-undo-barrier-shared` (step 1).
 Amends `D-GH-2026-08-10-campaign-ap-log-integrity`.
@@ -58,6 +62,23 @@ The existing lock does not cover what the owner asked for:
    owner decision I2 requires.
 3. **The boundary moves and is implicit.** It is wherever the last qualifying award happens to sit; a
    seal is placed deliberately, at a moment the DM chooses, and stays there.
+
+### Measured 2026-09-01: the existing lock has never actually fired in production
+
+Checked while verifying the EXECUTE revoke, and worth recording because it corrects the emphasis of
+everything above. Of the 6 campaign-bound characters, **all 6 carry an `award` event and all 6 of those
+are `noLock:true`** — CharGen's creation-budget award. **Zero characters, campaign-bound or solo, carry
+a locking award.** Meanwhile **49 real DM awards** have gone through `award_ap()` into `characters.ap`,
+which never touches the LOG.
+
+So `pact_enforce_locked_history()` has been live since 2026-08-10 and has **never locked anything**. The
+mechanism is real and correct; it simply has no trigger in practice, because the only path that writes a
+locking `award` event is the Live Sheet's own in-sheet "+ Award AP" button, which nobody has used on a
+campaign character. The DM Console — the button a DM actually presses — writes only the column.
+
+This does not change the design, but it sharpens why the seal is the thing that makes it real, and it
+means the regression tests in the SQL harness protect a code path that has not yet run against live
+data. It also makes the first live seal genuinely the first exercise of this trigger.
 
 ## Options
 
