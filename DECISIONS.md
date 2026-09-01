@@ -10,6 +10,18 @@
 
 ## Index
 
+## D-GH-2026-09-01-campaign-move-clears-creation — a creation ceiling belongs to one table, and does not travel
+- A creation ceiling encodes what one DM granted one character at one table; it has no meaning
+  elsewhere, and carrying it would give it authority nobody conferred. On any change to
+  `characters.campaign_id` — join, leave or transfer — both the ceiling and the finished-creation lock
+  are cleared. A character with no campaign then has no ceiling, which is the same fail-open rule every
+  local character already follows. Implemented as a **trigger on the column**, not as edits to the four-
+  plus join/leave RPCs, so no future path can silently miss it. Needed **no engine change** (verified,
+  not assumed): the engine already reads a null `threshold` as "no ceiling set". Closes the question
+  three independent cold reviewers raised across two plan revisions. The advisor then caught the trigger
+  function being anon-callable via `/rest/v1/rpc` — a new finding class here — now revoked. Full record:
+  `decisions/2026/D-GH-2026-09-01-campaign-move-clears-creation.md`
+
 ## D-GH-2026-08-31-random-char-generator-optimize — the random generator gets a theme, and a gate that can fail
 - The 🎲 Random roll was measured rather than guessed at: Hit Dice were capped at **9 for every budget**
   (the clamp sat on the random draw, not the ceiling), so a level-20 budget rolled an HD-5 character and
