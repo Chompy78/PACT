@@ -26,7 +26,7 @@
 -- trigger covers every path that exists, including the ones nobody has written yet.
 --
 -- WHY IT ENFORCES `sessionSeal` ONLY, AND NOT EVERY UNDO BARRIER. This is the load-bearing safety
--- decision for a live database holding 25 real characters. `js/engine.js`'s undoFloor() also treats
+-- decision for a live database holding 35 real characters. `js/engine.js`'s undoFloor() also treats
 -- `dmEdit`, non-discretionary `award` and `creationLocked` as barriers. Enforcing those here would
 -- break every existing character on its next save: editing a name or an appearance field currently
 -- filters the old event out of the log from wherever it sits, and on any character carrying an

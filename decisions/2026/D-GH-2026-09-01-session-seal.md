@@ -42,7 +42,7 @@ a character went 43 AP spent → 47 → back to 43 across two browser profiles *
 - **A3 — CharGen read-only once sealed.** Blocks forward progress; wrong product.
 - **A4 — a `sealed_through_event_id` column** instead of a marker event. Raised by two reviewers, neither
   recommending it. Rejected: stores derived state beside an event-sourced log, creating a second
-  synchronisation obligation. With 25 characters, deriving the floor during validation is cheap.
+  synchronisation obligation. With 35 characters, deriving the floor during validation is cheap.
 - **A5 — a zero-AP `sessionSeal` event plus a database trigger.** *(chosen)*
 
 ## Decision
@@ -72,8 +72,8 @@ path nobody has written yet.
 
 ## Why the trigger enforces `sessionSeal` ONLY
 
-This is the load-bearing safety decision, and it is the reason the migration is safe against 25 live
-characters. `undoFloor()` also treats `dmEdit`, non-discretionary `award` and `creationLocked` as
+This is the load-bearing safety decision, and it is the reason the migration is safe against the 35
+live characters. `undoFloor()` also treats `dmEdit`, non-discretionary `award` and `creationLocked` as
 barriers. Enforcing *those* in the database would break every existing character on its next save:
 editing a name or appearance currently filters the old event out of the log from wherever it sits, and
 on any character carrying an `award` event — which is all of them — that legitimately rewrites history

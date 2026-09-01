@@ -7,7 +7,8 @@ same central gap. See **Review outcome** at the foot for what was accepted, corr
 **Project:** PACT — a static, vanilla-JS tabletop-RPG character toolset. No frameworks, no build step,
 no npm. Three browser tools share one rules engine (`js/engine.js`). Characters are an append-only event
 LOG; every derived number is recomputed from that LOG at runtime, never stored. Optional sign-in adds
-cloud save via Supabase (hosted Postgres + auth). Live data: 25 characters, 8 owners, 4 campaigns.
+cloud save via Supabase (hosted Postgres + auth). Live data measured 2026-09-01: 35 characters, 8
+owners, 4 campaigns, 461 log events.
 
 **Step 2 of 2.** Step 1 (`D-GH-2026-09-01-undo-barrier-shared`) landed 2026-09-01: the "this history can
 no longer be taken back" rule is now one shared engine function, `undoFloor(events)`, returning the number
@@ -137,11 +138,11 @@ creation — checked, working as designed.
 - **A3 — CharGen read-only once sealed.** Blocks forward progress; wrong product.
 - **A4 — a `sealed_through_event_id` column instead of a marker event.** Raised by two reviewers.
   Rejected: it stores derived state beside an event-sourced log, creating a second synchronisation
-  obligation. With 25 characters, deriving the floor during save validation is cheap and correct.
+  obligation. With 35 characters, deriving the floor during save validation is cheap and correct.
 
 ## Risks
 
-1. **A live migration** against 25 real characters. Additive only; retroactively seals nothing; verified
+1. **A live migration** against 35 real characters. Additive only; retroactively seals nothing; verified
    recovery point before deployment.
 2. **Deployment order and old clients.** A cached old page must not be able to erase a seal. The Phase 1
    trigger makes this safe by construction — which is a further argument for shipping Phase 1 first.

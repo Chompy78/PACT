@@ -20,6 +20,13 @@
   idempotent `award_ap_and_seal()`, and `testing/sql/session-seal-test.sql` (38 assertions, run against
   a real Postgres). No UI yet — that is Phase 2, and nothing can create a seal until it lands. Migration
   written and locally tested but **not applied to production**. See `D-GH-2026-09-01-session-seal`.
+- **2026-09-01 · docs(agents): the live character count was stale — 35, not 25** — `AGENTS.md` carried
+  "25 characters, 8 owners, 4 campaigns" measured 2026-08-27. A live check while preparing the
+  session-seal migration found **35 characters, 8 owners, 4 campaigns, 6 campaign-bound, 49 AP awards,
+  461 log events** — ten new characters in five days. Corrected here and in the session-seal plan,
+  decision record, migration and SQL harness, all of which had quoted the stale figure. `AGENTS.md`
+  now says explicitly that its number is a dated snapshot to re-measure, not a current fact — which is
+  what its own "measure the blast radius against the live table" rule already implied.
 - **2026-09-01 · fix(engine,tools): one undo-barrier rule, shared by both player tools** — the rule
   "this part of the history can no longer be taken back" had been hand-written three times, once per
   tool, and two copies were wrong for the *same* character (D-GH40 gave both tools one save envelope).

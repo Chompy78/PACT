@@ -4,7 +4,7 @@
 -- write paths nobody enumerated, so "I read the SQL and it looks right" is not evidence. This runs
 -- the real migration against a real Postgres and asserts the behaviour, including the cases three
 -- cold reviewers asked for: the stale-client truncation, the sealed-event rewrite, idempotent retry,
--- and — the one that protects the 25 live characters — that an UNSEALED character is completely
+-- and — the one that protects the 35 live characters — that an UNSEALED character is completely
 -- unaffected.
 --
 -- HOW TO RUN. Any Postgres 14+ will do; it needs no Supabase, because the four things it depends on
@@ -152,7 +152,7 @@ do $$ begin
 end $$;
 
 \echo ''
-\echo 'An UNSEALED character is completely unaffected (protects the 25 live characters)'
+\echo 'An UNSEALED character is completely unaffected (protects the 35 live characters)'
 do $$
 declare c uuid := '00000000-0000-0000-0000-0000000000c1';
 begin
