@@ -60,7 +60,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.491";
+export const BUILD = "v1.493";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -1932,6 +1932,122 @@ export function wouldExceedCeiling(events, cost, opts) {
   const st = creationCeiling(events, opts);
   if (!st.enforced || st.locked) return false;
   return (st.spent + c) > st.ceiling;
+}
+
+// ---- undo barriers (feat/undo-barrier-shared) --------------------------------------------------
+//
+// isUndoBarrier(event) / undoFloor(events): the ONE definition of "this part of the history can no
+// longer be taken back", asked by both player tools instead of each hand-writing its own copy.
+//
+// WHY IT LIVES HERE. Three hand-written copies of this rule already existed and two of them were
+// wrong, in different directions:
+//   * CharGen's undo() checked only `dmEdit` while its own comment claimed it "mirrors the Live
+//     Sheet's award-event undo barrier" — so a plain `award` event (a redeemed grant code, or the
+//     DM awards a clone migrates in as itemised entries) was an absolute barrier in the Live Sheet
+//     and freely undoable in CharGen. Since D-GH40 gave both tools one save envelope, the same
+//     character opens in either tool, so the two answers were reachable for one character.
+//   * Neither tool treated `creationLocked` as a barrier at all, so the confirm dialog's promise
+//     ("Only your DM can reopen creation afterwards") was false in both: one Undo click popped the
+//     event straight back off. See finishCreating()/cgFinishCreating().
+//
+// A FLOOR, NOT A PREDICATE, and that shape is load-bearing. The Live Sheet's undo pops one event at
+// a time off the tail, so a per-event "may I pop this?" test happens to behave like a floor there.
+// CharGen's does not: its undo restores whole earlier SNAPSHOTS of the log (see restoreFrame), so a
+// frame captured before a barrier arrived — e.g. a DM edit synced down mid-session — jumps straight
+// past it and takes the barrier and everything under it with it. A count of locked leading events is
+// the one form that answers both tools' question: the Live Sheet refuses to shrink LOG to below the
+// floor, and CharGen refuses to restore any frame whose log is shorter than it.
+//
+// WHAT COUNTS AS A BARRIER:
+//   * `dmEdit` — stamped SERVER-side by dm_edit_character_log (the client cannot forge it), so it
+//     marks another account's edit. A player must not be able to silently erase what their DM did.
+//   * `type:'award'` without `disc` — an AP award draws a line under what it was awarded against.
+//     A DISCRETIONARY award (`disc:true`, the Live Sheet's "+ Discount") is deliberately exempt: it
+//     is an in-play top-up the DM may well want to take straight back.
+//   * `type:'creationLocked'` — creation ended by a recorded act, and the dialog tells the player in
+//     advance that only their DM can reopen it. Making it a barrier is what makes that true.
+//   * `type:'sessionSeal'` — a session boundary drawn deliberately, by a DM on a campaign character
+//     or by the owner on a solo one (feat/session-seal, owner decision I2). Unlike the three above,
+//     this one is ALSO enforced in the database, for every character. See sealedFloor() below,
+//     and note that a non-disc `award` is enforced there too for a CAMPAIGN-bound character.
+//
+// Everything at or before the LAST barrier is frozen; anything after it undoes normally. Purely a
+// history rule — it reads no prices and never touches compute(), so it cannot move a character's AP.
+export function isUndoBarrier(event) {
+  if (!event) return false;
+  if (event.dmEdit) return true;
+  // `noLock` is exempt, and that exemption is load-bearing rather than cosmetic. CharGen's budget is a
+  // singleton `award` event which _cgSyncSingletonEvent() RELOCATES TO THE TAIL every time the field
+  // changes (filter-out-and-append). Without this clause, editing the budget put a barrier at the end
+  // of the log, undoFloor() returned LOG.length, and undo died permanently for that character — in
+  // both tools, since D-GH40 gives them one envelope. CharGen's own comment above _cgSyncAward() states
+  // the requirement outright ("a CharGen budget award must NOT lock undo history — budget is a freely-
+  // editable creation parameter"); it was true only because no such guard existed until this rule was
+  // centralised. The server's pact_enforce_locked_history() has always exempted noLock for the same
+  // reason, so this also removes a client/server disagreement rather than creating one.
+  if (event.type === 'award' && !event.disc && !event.noLock) return true;
+  if (event.type === 'creationLocked') return true;
+  if (event.type === 'sessionSeal') return true;
+  return false;
+}
+
+// The number of leading events a log may never shrink below: index of the last barrier + 1, or 0 when
+// there is none. `undoFloor(LOG) >= LOG.length` therefore means "nothing left to undo".
+export function undoFloor(events) {
+  const log = Array.isArray(events) ? events : [];
+  // `creationLocked` is a TWO-STATE TOGGLE, not a one-way ratchet — _replay()'s own precedence block
+  // says so, and _lockStates() honours `creationUnlocked`. Treating a stale creationLocked as a
+  // permanent barrier after a DM reopened creation would leave the player unable to undo while
+  // _undoBarrierMsg told them "only your DM can reopen it" — false in the opposite direction from the
+  // bug this rule was written to fix. Latent today (nothing emits creationUnlocked yet), fixed here so
+  // it cannot surface the moment something does.
+  let lastLocked = -1, lastUnlocked = -1;
+  for (let i = 0; i < log.length; i++) {
+    if (!log[i]) continue;
+    if (log[i].type === 'creationLocked') lastLocked = i;
+    else if (log[i].type === 'creationUnlocked') lastUnlocked = i;
+  }
+  const creationBarrierLive = lastLocked > lastUnlocked;
+  for (let i = log.length - 1; i >= 0; i--) {
+    const e = log[i];
+    if (!e) continue;
+    if (e.type === 'creationLocked' && !creationBarrierLive) continue;
+    if (isUndoBarrier(e)) return i + 1;
+  }
+  return 0;
+}
+
+// sealedFloor(events, opts): the floor the DATABASE will actually enforce, mirroring
+// pact_enforce_locked_history() (sql/migrations/2026-08-10-campaign-ap-log-integrity.sql, extended by
+// 2026-09-01-session-seal.sql). Phase 2's UI uses it to know which controls the server will refuse to
+// let the player change, so it must not over- or under-report.
+//
+// TWO HALVES, because the server has two:
+//   * the SEAL half — the last `sessionSeal` — applies to every character, campaign-bound or solo
+//     (owner decision I2). Always counted.
+//   * the AWARD half — the last `award` that is neither `disc` nor `noLock` — applies only to
+//     campaign-bound characters, and has done since 2026-08-10. Counted only when opts.campaignBound.
+//
+// WHY THIS IS NOT THE SAME AS undoFloor(). undoFloor() is the CLIENT's rule and is deliberately
+// broader: it also treats `dmEdit` and `creationLocked` as barriers, and (matching the Live Sheet's
+// original hand-written check) it does not exempt `noLock` awards. So the client always refuses at
+// least as much as the server does — the safe direction. A server floor ABOVE the client's would mean
+// rejecting a save the UI had told the player was fine, which is the failure this asymmetry avoids.
+// The gate asserts sealedFloor <= undoFloor.
+export function sealedFloor(events, opts) {
+  const log = Array.isArray(events) ? events : [];
+  const o = opts || {};
+  let floor = 0;
+  for (let i = log.length - 1; i >= 0; i--) {
+    if (log[i] && log[i].type === 'sessionSeal') { floor = i + 1; break; }
+  }
+  if (o.campaignBound) {
+    for (let i = log.length - 1; i >= 0; i--) {
+      const e = log[i];
+      if (e && e.type === 'award' && !e.disc && !e.noLock) { floor = Math.max(floor, i + 1); break; }
+    }
+  }
+  return floor;
 }
 
 // repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so

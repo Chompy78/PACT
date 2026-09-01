@@ -1215,7 +1215,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.491';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.493';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1648,6 +1648,16 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     }
     h += '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">' +
          '<button type="button" class="btn sm award-btn" data-cid="'+esc(id)+'">Award</button></div>';
+    // feat/session-seal. Sealing draws a line under this character's history: everything already in it
+    // becomes permanent, in BOTH player tools, and anything bought after stays editable as normal.
+    // Two controls deliberately, not one — sealing usually accompanies an award, but a session can end
+    // without one and a DM should not have to invent a 0 AP award to close it off.
+    h += '<div class="award-form" style="margin-top:4px;align-items:center">' +
+         '<label style="font-size:11px;display:flex;align-items:center;gap:4px" ' +
+           'title="Draw a line under this character\'s history as part of this award. Everything bought up to now becomes permanent — it can no longer be undone or un-ticked in CharGen or the Live Sheet. Anything bought afterwards stays editable.">' +
+           '<input type="checkbox" class="award-seal" data-cid="'+esc(id)+'"> and lock history</label>' +
+         '<button type="button" class="btn sm seal-btn" data-cid="'+esc(id)+'" ' +
+           'title="Lock this character\'s history now, without awarding anything.">\uD83D\uDD12 Lock history</button></div>';
     if(econOn) h += '<div style="font-size:11px;opacity:.75;margin-top:3px">Bonus time is extra days for THIS character only — declare the party\'s shared window above the roster instead.</div>';
     h += '<span class="award-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
     return h;
@@ -2467,7 +2477,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       // the lock was applied — or re-enabled by any means — still cannot write. Section toggles,
       // "View sheet" and "AP history" are reads and fall through untouched.
       if(window._dmPeekActive && t.closest &&
-         (t.closest('.award-btn') || t.closest('.declare-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
+         (t.closest('.award-btn') || t.closest('.seal-btn') || t.closest('.declare-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
           t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') ||
           t.closest('.dm-ceiling-btn') || t.closest('.dm-reopen-btn') ||
           t.closest('.cf-val-save'))){
@@ -2480,6 +2490,25 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       // one atomic transaction — award_ap/award_gold/declare_downtime each guard and ledger themselves
       // separately — so a partial failure (e.g. gold lands, AP doesn't) is reported rather than hidden,
       // and the card still refreshes to show whatever DID land.
+      // Standalone "Lock history" — no award involved.
+      var sealBtn = t.closest ? t.closest('.seal-btn') : null;
+      if(sealBtn && card){
+        var scid = sealBtn.getAttribute('data-cid');
+        var sName = (cloudRoster.filter(function(x){return String(x.id)===String(scid);})[0]||{}).name || 'this character';
+        if(!confirm('Lock ' + sName + '\u2019s history now?\n\n'
+          + 'Everything bought up to this moment becomes permanent — the player can no longer undo it or '
+          + 'un-tick it in CharGen or the Live Sheet.\n\nAnything they buy afterwards stays editable, and you '
+          + 'can still make corrections yourself.')) return;
+        sealBtn.disabled = true;
+        // One key per click, so a retry after a timeout cannot stack a second seal.
+        B.sealHistory(scid, (card.querySelector('.award-note[data-cid="'+scid+'"]')||{}).value || null,
+                      (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()))
+          .then(function(){ if(window._dmReloadRoster) window._dmReloadRoster(); else renderCloudRoster(el); })
+          .catch(function(e){ alert('Could not lock history: ' + ((e&&e.message)||e)); })
+          .then(function(){ sealBtn.disabled = false; });
+        return;
+      }
+
       var awardBtn = t.closest ? t.closest('.award-btn') : null;
       if(awardBtn && card){
         var acid = awardBtn.getAttribute('data-cid');
@@ -2501,10 +2530,24 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         // `window.*` a few lines up rather than as bare names.
         var campId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
         var jobs = [];
-        if(amt!==0) jobs.push(B.awardAp(acid, amt, note).then(function(newAp){
+        // "and lock history": award and seal must be ONE database call, not two jobs. Two can leave
+        // AP awarded but history unsealed (or the reverse), and a DM retrying the half they saw fail
+        // duplicates the half that succeeded — awarding twice is the one outcome here that materially
+        // damages a character. award_ap_and_seal() is atomic and idempotent for exactly that reason.
+        var sealEl = card.querySelector('.award-seal[data-cid="'+acid+'"]');
+        var alsoSeal = !!(sealEl && sealEl.checked);
+        if(amt!==0 && alsoSeal) jobs.push(B.awardApAndSeal(acid, amt, note,
+            (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()))
+          .then(function(res){
+            var entry = cloudRoster.filter(function(x){return String(x.id)===String(acid);})[0];
+            if(entry && res){ entry.dm.ap = res.ap; }
+          }));
+        else if(amt!==0) jobs.push(B.awardAp(acid, amt, note).then(function(newAp){
           var entry = cloudRoster.filter(function(x){return String(x.id)===String(acid);})[0];
           if(entry){ entry.dm.ap = newAp; }
         }));
+        else if(alsoSeal) jobs.push(B.sealHistory(acid, note,
+            (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())));
         if(gold!==0) jobs.push(B.awardGold(acid, gold, note).then(function(row){
           var entry = cloudRoster.filter(function(x){return String(x.id)===String(acid);})[0];
           if(entry && row){ entry.dm.gold = row.gold||0; }
@@ -2864,13 +2907,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm } from '../js/campaign.js';
-  import { getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation } from '../js/dm.js';
+  import { getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
+  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>

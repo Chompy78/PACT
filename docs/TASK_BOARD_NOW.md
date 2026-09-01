@@ -27,7 +27,46 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-*(empty — see `CHANGELOG.md` for the most recently graduated item)*
+## Find where `~/.claude/skills/` syncs from, and confirm the close-session patch survived — TODO
+Branch `docs/skills-sync-provenance`. `close-session-logging-core.md` — shared by `close-code-session-jc`
+and `close-chat-jc`, so it governs every session close in this project — was patched on 2026-08-30 to fix
+three faults that between them nearly lost four cold reviews: it checked `z-cold/processed/` but never
+`z-cold/` root, relocation ran as a copy rather than a move, and it could not see a `z-cold/` that lives
+on a branch instead of the working tree (see `D-GH-2026-08-30-archive-hd-gate-cold-reviews`).
+
+**That patch exists on this machine only.** `~/.claude/skills/` is not a git repo, and `ai-templates` — the
+upstream those skills come from — is not checked out here (only PACT is under `Documents/GitHub/`). So
+nothing in this repo can tell whether the next sync preserves the fix or silently reverts it, and a revert
+is invisible: the symptom is a close-session run reporting "clean" while sitting on unfiled reviews, which
+is exactly how the original loss went unnoticed for weeks.
+**Effort:** small · **Risk:** low — read-only investigation plus a written note; nothing here edits the
+engine, the tools, or another project. Ambiguity is the highest of the three factors (we genuinely do not
+know what writes that directory) but it is bounded by the task being to *find out and record*, not to
+change anything. Sweep-eligible.
+
+```text
+1. Identify what writes C:\Users\user\.claude\skills\. Candidates worth checking in order: a scheduled
+   task or script on this machine; the home-server MCP connector (the same route pact-guide uses); a
+   manual copy the owner performs. Do NOT edit ai-templates from a PACT session — see AGENTS.md's
+   "Technical Access ≠ Scope" and AI_templates' D-2026-07-28-technical-access-not-scope.
+2. Write the answer down where a future session will find it — a short "where skills come from" note in
+   AGENTS.md's Shell environment section is the natural home, since that is already where machine-specific
+   facts (the gh path) live. One or two sentences; this is provenance, not a procedure.
+3. Confirm the patch is still present in the local file: it is the "Cold-review processed-file relocation"
+   section, and it should contain all four of "z-cold/ ROOT as well as", "MOVE, not a copy", "may not be in
+   the working tree", and "content hash, not filename".
+4. If it has reverted, re-apply it AND note in the same AGENTS.md line that the sync is one-way downward,
+   so the next person knows a local edit there is temporary by nature.
+5. While in AGENTS.md: its "Shell environment notes" currently gives the gh CLI path as a WinGet directory
+   under a JohnChow user profile. That path does not resolve on this machine — gh is at
+   /c/Program Files/GitHub CLI/gh. Correct it in the same commit; it is the same class of stale
+   machine-fact and was hit repeatedly on 2026-09-01.
+```
+
+**Done when:** AGENTS.md records what writes `~/.claude/skills/` and whether that sync is one-way, the
+local `close-session-logging-core.md` is confirmed to carry all four patched clauses (or has been
+re-applied), and the stale `gh` path in AGENTS.md's Shell environment notes is corrected.
+
 
 ---
 
