@@ -1559,6 +1559,36 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     h += customFieldValuesBody(id, dm);
     h += awardBody(id, dm);
     h += dmEditBody(id, curBoons);
+    // ---- Creation limit (feat/dm-creation-ceiling-controls) --------------------------------------
+    // The DM half of the creation ceiling. `lock` is creationLockState()'s answer for this character,
+    // passed in from the card so this never re-derives it (the engine owns that rule — see
+    // creationLockState()'s header for why there is no fourth hand-written copy of the scan).
+    //
+    // Both actions go through purpose-built RPCs, NOT dm_edit_character_log: that function's own header
+    // says it is "deliberately not a general editor", and widening its allowlist would have meant
+    // validating a JSON key-set in plpgsql with no bound on the value. Both cold reviewers of the plan
+    // independently recommended this route.
+    {
+      var _lk = lock || null;
+      var _cur = _lk && _lk.confirmed ? _lk.threshold : '';
+      var _state = !_lk ? '' :
+        (_lk.locked
+          ? '<span style="color:var(--warn)">Creation finished</span> \u2014 this character is past creation; own-species traits cost more and purchases are charged gold and downtime.'
+          : (_lk.confirmed
+              ? 'Still building, against a limit of <b>' + _lk.threshold + ' AP</b> plus whatever their drawbacks grant.'
+              : '<span style="color:var(--warn)">No limit set.</span> Nothing is enforced for this character until you set one \u2014 they can spend without a ceiling.'));
+      h += '<div class="ruleblock"><div class="lbl">Creation limit '
+        + '<button type="button" class="infobtn" title="The AP a character may spend while still being built. Their drawback grant is added on top automatically, so a player who takes a drawback gets the room it paid for. Set this to the AP you granted them for creation; later chapter awards do NOT raise it, which is what makes finishing creation a deliberate step.">&#9432;</button></div>'
+        + '<div style="font-size:11px;color:var(--light);margin-bottom:6px">' + _state + '</div>'
+        + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+        + '<label style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap">Limit'
+        + '<input class="field dm-ceiling-in" type="number" min="1" max="2000" step="1" data-cid="' + esc(id) + '" value="' + esc(String(_cur)) + '" placeholder="AP" style="width:90px"></label>'
+        + '<button type="button" class="btn sm dm-ceiling-btn" data-cid="' + esc(id) + '">Set limit</button>'
+        + (_lk && _lk.locked
+            ? '<button type="button" class="btn sm ghost dm-reopen-btn" data-cid="' + esc(id) + '" title="Put this character back into creation. Purchases already made keep the prices they were frozen at.">Reopen creation</button>'
+            : '')
+        + '</div><span class="dm-status" data-cid="' + esc(id) + '" data-kind="ceiling" style="font-size:11px;color:var(--muted)"></span></div>';
+    }
     h += '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'">📒 AP history</button>' +
          '<button type="button" class="btn sm danger unbind-btn" data-cid="'+esc(id)+'" style="margin-left:8px">Remove from campaign</button>';
     return h;
@@ -1677,36 +1707,6 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       '<label style="display:flex;flex-direction:column;gap:2px;font-size:11px">Removal cost<select class="field dm-impose-draw-rate" data-cid="'+esc(id)+'"><option value="flat">Flat</option><option value="expensive">Expensive (3&times;)</option></select></label>' +
       '<button type="button" class="btn sm dm-impose-draw-btn" data-cid="'+esc(id)+'">Impose</button>' +
       '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="impose-draw" style="font-size:11px;color:var(--muted)"></span></div>';
-    // ---- Creation limit (feat/dm-creation-ceiling-controls) --------------------------------------
-    // The DM half of the creation ceiling. `lock` is creationLockState()'s answer for this character,
-    // passed in from the card so this never re-derives it (the engine owns that rule — see
-    // creationLockState()'s header for why there is no fourth hand-written copy of the scan).
-    //
-    // Both actions go through purpose-built RPCs, NOT dm_edit_character_log: that function's own header
-    // says it is "deliberately not a general editor", and widening its allowlist would have meant
-    // validating a JSON key-set in plpgsql with no bound on the value. Both cold reviewers of the plan
-    // independently recommended this route.
-    {
-      var _lk = lock || null;
-      var _cur = _lk && _lk.confirmed ? _lk.threshold : '';
-      var _state = !_lk ? '' :
-        (_lk.locked
-          ? '<span style="color:var(--warn)">Creation finished</span> \u2014 this character is past creation; own-species traits cost more and purchases are charged gold and downtime.'
-          : (_lk.confirmed
-              ? 'Still building, against a limit of <b>' + _lk.threshold + ' AP</b> plus whatever their drawbacks grant.'
-              : '<span style="color:var(--warn)">No limit set.</span> Nothing is enforced for this character until you set one \u2014 they can spend without a ceiling.'));
-      h += '<div class="ruleblock"><div class="lbl">Creation limit '
-        + '<button type="button" class="infobtn" title="The AP a character may spend while still being built. Their drawback grant is added on top automatically, so a player who takes a drawback gets the room it paid for. Set this to the AP you granted them for creation; later chapter awards do NOT raise it, which is what makes finishing creation a deliberate step.">&#9432;</button></div>'
-        + '<div style="font-size:11px;color:var(--light);margin-bottom:6px">' + _state + '</div>'
-        + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
-        + '<label style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap">Limit'
-        + '<input class="field dm-ceiling-in" type="number" min="1" max="2000" step="1" data-cid="' + esc(id) + '" value="' + esc(String(_cur)) + '" placeholder="AP" style="width:90px"></label>'
-        + '<button type="button" class="btn sm dm-ceiling-btn" data-cid="' + esc(id) + '">Set limit</button>'
-        + (_lk && _lk.locked
-            ? '<button type="button" class="btn sm ghost dm-reopen-btn" data-cid="' + esc(id) + '" title="Put this character back into creation. Purchases already made keep the prices they were frozen at.">Reopen creation</button>'
-            : '')
-        + '</div><span class="dm-status" data-cid="' + esc(id) + '" data-kind="ceiling" style="font-size:11px;color:var(--muted)"></span></div>';
-    }
     return h;
   }
   // Heritage-pack traits are owned by virtue of species and are NOT in s.racialTraits (they are derived,
