@@ -80,6 +80,28 @@
   `testing/scripts/undo-barrier-ci.mjs` (0 failed / 19). No mechanics change, so `DATA.version` is
   unchanged. Step 1 of 2 toward a DM-triggered per-session seal — see
   `D-GH-2026-09-01-undo-barrier-shared` for what it deliberately does *not* yet close.
+- **2026-09-01 · feat(sql): moving a character between campaigns clears its creation lock and ceiling** —
+  resolves the campaign-movement question three independent cold reviewers raised against the
+  creation-ceiling plan and which it carried as unresolved. Owner decision: *"when a character leaves or
+  joins a campaign, the locks go"* — both the finished-creation lock and the DM's ceiling figure. A
+  ceiling is one DM's ruling about one character at one table; carrying it elsewhere would let a number
+  nobody there chose silently govern that character, and a character with no campaign has no DM to
+  adjudicate for it, so nothing is enforced (the same fail-open rule every local character already
+  follows). Implemented as a trigger on `characters.campaign_id` changing rather than by patching
+  `bind_character_to_campaign` / `dm_unbind_character` / `redeem_player_invite` /
+  `redeem_character_claim` individually — one rule on the column cannot be bypassed by a future caller
+  added without it in mind. Append-only, and needs **no engine change**: `js/engine.js` already reads a
+  `threshold` of null as "no ceiling set".
+- **2026-09-01 · fix(chargen): a random roll destroyed the DM's creation limit and un-finished creation**
+  — 🎲 Random re-derives the whole LOG from the DOM (`applyBuild` then the appearance resync), and the
+  DOM has no control representing a creation ceiling or a finished-creation lock, so both were silently
+  dropped. Measured on the live tool: a character with a DM-set ceiling of 78 and creation finished came
+  back with **no ceiling at all** (reverted to the 79 default, unenforced) and as a **draft again** — the
+  DM's limit gone and the player quietly back on creation pricing. `randomizeRoll()` now captures those
+  events before the rebuild and re-appends them after, skipping any that survived so a re-roll cannot
+  stack duplicates. Carried in the roll rather than in `replaceWholeLogFromBuild()` deliberately: that
+  function is also on the path that LOADS a different character, where preserving creation state would
+  let one character inherit another's ceiling and lock — verified both directions.
 - **2026-08-31 · feat(chargen): themed random character generator** — the 🎲 Random roll produced
   incoherent characters, and three defects were measured rather than guessed (harness now committed as
   `testing/scripts/random-quality-ci.mjs`): Hit Dice were capped at **9 for every budget** because
@@ -107,6 +129,17 @@
   gates what the roll produces — nothing did before. Graduates `feat/randomize-tuning` off
   `docs/TASK_BOARD_NEXT.md`.
   Full record: `decisions/2026/D-GH-2026-08-31-random-char-generator-optimize.md`.
+- **2026-09-01 · feat(dm-console): a DM can set a character's creation limit and reopen creation** —
+  completes the creation-ceiling work: until now the ceiling could only be stamped by hand in SQL. Each
+  roster card's DM tools gains a **Creation limit** block showing the character's state (no limit set /
+  still building against N AP / creation finished), an input to set or raise the figure, and a **Reopen
+  creation** button on a locked character. Two purpose-built RPCs — `dm_set_creation_ceiling()` and
+  `dm_reopen_creation()` — rather than widening `dm_edit_character_log`'s allowlist, on both cold
+  reviewers' independent advice: that function's header calls it "deliberately not a general editor", and
+  a JSON key-set check in plpgsql silently accepts `{threshold, auto}` with no bound on the value. One
+  typed integer argument has neither problem. Both are append-only, DM-gated by `is_campaign_dm()`, and
+  range-checked 1–2000 server-side. The stored figure is the DM's number alone — the drawback grant is
+  added live by the engine, so a drawback taken mid-build still returns the room it paid for.
 - **2026-08-31 · feat(engine,tools): creation ends by choice, not by accident — ceiling + "Finish
   creating", automatic spend tripwire retired · `DATA.version` v0.363 → v0.364** — creation used to end
   by *inference*: the first time cumulative spend crossed a threshold, silently, with no user action and
