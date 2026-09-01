@@ -10,6 +10,32 @@
 
 ## Index
 
+## D-GH-2026-09-01-session-seal — the session seal AMENDS the existing lock, not a second one
+- Phase 1 of the per-session history lock, and a correction: the plan and all three cold reviews assumed
+  no server-side history protection existed. `pact_enforce_locked_history()` has done exactly that for
+  campaign characters since 2026-08-10; a pre-flight listing of live triggers found it just before the
+  migration would have been applied. The drafted second trigger (A5) was withdrawn — parallel mirrors of
+  one rule are this project's recurring drift, and it compared raw JSONB where the original compares a
+  projection it earned through three review-found bugs. Chose A6: amend the existing trigger — add
+  `sessionSeal` to the protected projection, make the boundary the later of award and seal, extend the
+  seal half to solo characters (I2). Keeps what genuinely had no equivalent: an explicit stable boundary,
+  solo coverage, and an atomic idempotent award-and-seal (the DM Console's award writes no LOG event, so
+  it locks nothing today). Safe because zero of the 35 live characters carry a seal; regression tests
+  assert the 2026-08-10 behaviour is byte-for-byte unchanged, and the rollback was verified not to strip
+  the older protection. Full record: `decisions/2026/D-GH-2026-09-01-session-seal.md`.
+
+## D-GH-2026-09-01-undo-barrier-shared — one undo-barrier rule for both player tools
+- The rule "this history can no longer be taken back" was hand-written three times, once per tool, and
+  two copies were wrong for the same character: CharGen's `undo()` checked only `dmEdit` while claiming
+  in comment to mirror the Live Sheet's award barrier, and neither tool treated `creationLocked` as a
+  barrier — so "Finish creating"'s promise that only a DM can reopen creation was false in both. Chose
+  one shared rule in `js/engine.js` (A1) over patching the two spots in place (A2) or fixing only the
+  `creationLocked` half (A3). Exported as a **floor** (`undoFloor`), not a per-event predicate, because
+  CharGen's undo restores whole snapshots and a frame from before a barrier would otherwise jump past
+  it. History-only — no `compute()` involvement, so `DATA.version` is unchanged. Confirmed *not* a bug
+  on the way past: drawbacks stay purchasable after the creation lock in both tools, by design.
+  Step 1 of 2; the DM-triggered session seal is `feat/session-seal` on the NEXT board.
+  Full record: `decisions/2026/D-GH-2026-09-01-undo-barrier-shared.md`.
 ## D-GH-2026-09-01-campaign-move-clears-creation — a creation ceiling belongs to one table, and does not travel
 - A creation ceiling encodes what one DM granted one character at one table; it has no meaning
   elsewhere, and carrying it would give it authority nobody conferred. On any change to

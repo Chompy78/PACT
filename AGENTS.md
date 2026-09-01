@@ -24,10 +24,13 @@ is staging and promotes into `main`).
   `feat/ap-model-reconcile`, in `docs/TASK_BOARD_NEXT.md`.)
 - **The app is NO LONGER pre-launch — do not inherit that premise.** It was true when D-GH37 lifted its
   pause, and several later decisions leaned on it (`D-GH-2026-07-25-cloud-load-empty-characters` last
-  confirmed 0 rows on 2026-07-25). Re-checked against live Supabase on **2026-08-27**: **25 characters,
-  8 distinct owners, 4 campaigns**, one updated the day before. A change that invalidates existing
-  characters now has real people behind it — measure the blast radius against the live `characters` table
-  rather than assuming it is empty, as `D-GH-2026-08-27-feature-hd-gate` did.
+  confirmed 0 rows on 2026-07-25). Re-checked against live Supabase on **2026-09-01**: **35 characters,
+  8 distinct owners, 4 campaigns** (6 characters campaign-bound, 49 AP awards, 461 log events). A change
+  that invalidates existing characters now has real people behind it — measure the blast radius against
+  the live `characters` table rather than assuming it is empty, as `D-GH-2026-08-27-feature-hd-gate` did.
+  **And re-measure rather than quoting this line:** it read "25 characters … 2026-08-27" until
+  2026-09-01, when a live check for `feat/session-seal` found 35 — ten new characters in five days. A
+  figure in this file is a snapshot with a date on it, never a current fact.
 - **High-risk files:** `js/engine.js` (rules source of truth — API must stay stable); Live Sheet's
   `compute()`-vs-frozen-`economy()` divergence (see D-GH30 and `feat/ap-model-reconcile`) — any UI that
   displays "AP left" for an event-sourced character must use the frozen ledger, not a retroactive
