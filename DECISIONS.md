@@ -10,20 +10,19 @@
 
 ## Index
 
-## D-GH-2026-09-01-session-seal — a session seal the database enforces, not the browser
-- Phase 1 of the per-session history lock. Chose a zero-AP `sessionSeal` event plus a `BEFORE UPDATE`
-  trigger (A5) over making the AP award itself the seal (A1), sealing only Undo (A2), a read-only
-  CharGen (A3), or a `sealed_through_event_id` column (A4). One invariant — *the sealed prefix may not
-  be altered, anything may be appended after it* — because the owner's three rulings (post-seal DM
-  corrections, editable descriptions, solo sealing) all satisfy it by appending rather than needing an
-  exception. A trigger rather than a check inside one function because naming UI paths is not durable:
-  it covers the two CharGen mid-log paths and the Live Sheet Import the plan had missed, plus paths not
-  yet written. Enforces **only** `sessionSeal`, which is what makes it non-retroactive by construction —
-  widening it to the other undo barriers would turn an ordinary rename into a save failure for every one
-  of the 25 live characters. Hence two floors in the engine: `undoFloor()` (client) and `sealedFloor()`
-  (server), with `sealedFloor <= undoFloor` asserted. No UI in Phase 1; migration tested against a real
-  Postgres but not yet applied to production.
-  Full record: `decisions/2026/D-GH-2026-09-01-session-seal.md`.
+## D-GH-2026-09-01-session-seal — the session seal AMENDS the existing lock, not a second one
+- Phase 1 of the per-session history lock, and a correction: the plan and all three cold reviews assumed
+  no server-side history protection existed. `pact_enforce_locked_history()` has done exactly that for
+  campaign characters since 2026-08-10; a pre-flight listing of live triggers found it just before the
+  migration would have been applied. The drafted second trigger (A5) was withdrawn — parallel mirrors of
+  one rule are this project's recurring drift, and it compared raw JSONB where the original compares a
+  projection it earned through three review-found bugs. Chose A6: amend the existing trigger — add
+  `sessionSeal` to the protected projection, make the boundary the later of award and seal, extend the
+  seal half to solo characters (I2). Keeps what genuinely had no equivalent: an explicit stable boundary,
+  solo coverage, and an atomic idempotent award-and-seal (the DM Console's award writes no LOG event, so
+  it locks nothing today). Safe because zero of the 35 live characters carry a seal; regression tests
+  assert the 2026-08-10 behaviour is byte-for-byte unchanged, and the rollback was verified not to strip
+  the older protection. Full record: `decisions/2026/D-GH-2026-09-01-session-seal.md`.
 
 ## D-GH-2026-09-01-undo-barrier-shared — one undo-barrier rule for both player tools
 - The rule "this history can no longer be taken back" was hand-written three times, once per tool, and

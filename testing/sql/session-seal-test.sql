@@ -1,27 +1,21 @@
 -- PACT — verification harness for sql/migrations/2026-09-01-session-seal.sql (feat/session-seal).
 --
--- WHY THIS EXISTS AS A FILE RATHER THAN A ONE-OFF. The seal's whole value is that it holds against
--- write paths nobody enumerated, so "I read the SQL and it looks right" is not evidence. This runs
--- the real migration against a real Postgres and asserts the behaviour, including the cases three
--- cold reviewers asked for: the stale-client truncation, the sealed-event rewrite, idempotent retry,
--- and — the one that protects the 35 live characters — that an UNSEALED character is completely
--- unaffected.
+-- WHAT IS UNDER TEST. That migration does not add a new trigger; it AMENDS the one that has existed
+-- since 2026-08-10 (pact_enforce_locked_history). So this harness has two jobs, and the second
+-- matters more than the first:
+--   1. the seal works — solo characters included, the seal itself cannot be removed;
+--   2. THE EXISTING AWARD BOUNDARY STILL BEHAVES EXACTLY AS BEFORE. Amending a live rule that
+--      already protects 35 real characters is the risk here, not the new feature.
 --
--- HOW TO RUN. Any Postgres 14+ will do; it needs no Supabase, because the four things it depends on
--- (auth.uid, is_campaign_dm, assert_campaign_active, award_ap) are stubbed below to the same
--- signatures and semantics the real schema gives them. The identity of the "current user" is a GUC,
--- so a test can switch between DM, owner and stranger without an auth server.
+-- HOW TO RUN. Any Postgres 14+; no Supabase needed. auth.uid, is_campaign_dm,
+-- assert_campaign_active and award_ap are stubbed to the real signatures, and "who is logged in" is
+-- a session GUC so a test can switch between DM, owner and stranger.
 --
 --   initdb -D /tmp/pgseal/data -U postgres --auth=trust
 --   pg_ctl -D /tmp/pgseal/data -o "-p 55432 -k /tmp/pgseal" -l /tmp/pgseal/log start
 --   psql -h /tmp/pgseal -p 55432 -U postgres -v ON_ERROR_STOP=1 -f testing/sql/session-seal-test.sql
 --
--- This file applies the migration ITSELF (via \ir below) after installing the stubs, because the
--- migration's functions reference is_campaign_dm()/assert_campaign_active()/award_ap() and so cannot
--- be loaded first. One invocation, in the right order, no ceremony to remember.
---
--- Prints one line per assertion and raises on the first failure, so a non-zero psql exit is the
--- pass/fail signal. Run it against a Supabase BRANCH before the production migration.
+-- One assertion per line; the first failure raises, so psql's exit code is the pass/fail signal.
 
 \set ON_ERROR_STOP on
 -- NOTICE level is deliberate: every assertion reports through raise notice, so lowering this to
@@ -38,7 +32,6 @@ create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('pact.test_uid', true), '')::uuid;
 $$;
 
--- Supabase provides this role; a bare Postgres does not, and the migration's GRANTs name it.
 do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'authenticated') then
     create role authenticated nologin;
@@ -46,18 +39,12 @@ do $$ begin
 end $$;
 
 create table if not exists public.characters (
-  id          uuid primary key default gen_random_uuid(),
-  owner_id    uuid not null,
-  campaign_id uuid,
-  name        text not null default 'New Character',
-  stats       jsonb not null default '{}'::jsonb,
-  ap          integer not null default 0,
-  updated_at  timestamptz not null default now()
-);
+  id uuid primary key default gen_random_uuid(), owner_id uuid not null, campaign_id uuid,
+  name text not null default 'New Character', stats jsonb not null default '{}'::jsonb,
+  ap integer not null default 0, updated_at timestamptz not null default now());
 create table if not exists public.ap_awards (
   id uuid primary key default gen_random_uuid(),
-  character_id uuid, dm_id uuid, campaign_id uuid, amount integer, note text
-);
+  character_id uuid, dm_id uuid, campaign_id uuid, amount integer, note text);
 create table if not exists public.campaign_dms (campaign_id uuid, dm_id uuid);
 
 create or replace function public.is_campaign_dm(p_campaign uuid) returns boolean
@@ -80,9 +67,15 @@ begin
 end; $$;
 
 -- ---------------------------------------------------------------------------
--- The migration under test. Applied here, after the stubs it depends on.
+-- The migration under test, then the trigger it AMENDS (which already exists in production, so the
+-- migration does not re-create it — this harness must).
 -- ---------------------------------------------------------------------------
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
+
+drop trigger if exists trg_pact_locked_history on public.characters;
+create trigger trg_pact_locked_history
+  before update on public.characters
+  for each row execute function public.pact_enforce_locked_history();
 
 -- ---------------------------------------------------------------------------
 -- Assertion helpers.
@@ -94,214 +87,170 @@ begin
   else raise exception 'FAIL %', p_name; end if;
 end; $$;
 
--- Asserts that a statement fails. Used for every "must be rejected" case — the point of the whole
--- migration is what it REFUSES, so these matter more than the happy paths.
+-- The point of this migration is what it REFUSES, so these matter more than the happy paths.
 create or replace function pg_temp.rejects(p_name text, p_sql text) returns void
 language plpgsql as $$
 begin
-  begin
-    execute p_sql;
+  begin execute p_sql;
   exception when others then
-    raise notice '  PASS % (rejected: %)', p_name, left(sqlerrm, 60);
-    return;
+    raise notice '  PASS % (rejected: %)', p_name, left(sqlerrm, 60); return;
   end;
   raise exception 'FAIL % — the statement was ACCEPTED and should not have been', p_name;
 end; $$;
 
--- ---------------------------------------------------------------------------
--- Fixtures.
--- ---------------------------------------------------------------------------
-\set dm    '''11111111-1111-1111-1111-111111111111'''
-\set owner '''22222222-2222-2222-2222-222222222222'''
-\set other '''33333333-3333-3333-3333-333333333333'''
-\set camp  '''44444444-4444-4444-4444-444444444444'''
-
-truncate characters, ap_awards, campaign_dms;
-insert into campaign_dms values (:camp, :dm);
-
--- A campaign character with three ordinary events and no seal.
-insert into characters (id, owner_id, campaign_id, stats) values (
-  '00000000-0000-0000-0000-0000000000c1', :owner, :camp,
-  jsonb_build_object('schema','pact-character/1','SEQ',4,'LOG', jsonb_build_array(
-    jsonb_build_object('seq',1,'ts',1,'type','award','amount',79),
-    jsonb_build_object('seq',2,'ts',2,'type','buy','cat','boon','payload',jsonb_build_object('v','Alertness'),'cost',6),
-    jsonb_build_object('seq',3,'ts',3,'type','name','name','Anders')
-  )));
-
--- A solo character (no campaign), same shape.
-insert into characters (id, owner_id, campaign_id, stats) values (
-  '00000000-0000-0000-0000-0000000000c2', :owner, null,
-  jsonb_build_object('schema','pact-character/1','SEQ',3,'LOG', jsonb_build_array(
-    jsonb_build_object('seq',1,'ts',1,'type','award','amount',79),
-    jsonb_build_object('seq',2,'ts',2,'type','buy','cat','boon','payload',jsonb_build_object('v','Alertness'),'cost',6)
-  )));
-
-\echo ''
-\echo 'pact_sealed_floor() — where the immutable prefix ends'
-do $$ begin
-  perform pg_temp.ok('empty log has no floor',        pact_sealed_floor('[]'::jsonb) = 0);
-  perform pg_temp.ok('null log tolerated',            pact_sealed_floor(null) = 0);
-  perform pg_temp.ok('a non-array log tolerated',     pact_sealed_floor('"nonsense"'::jsonb) = 0);
-  perform pg_temp.ok('no seal means no floor',        pact_sealed_floor('[{"type":"buy"},{"type":"award"}]'::jsonb) = 0);
-  perform pg_temp.ok('one seal sets the floor after it',
-    pact_sealed_floor('[{"type":"buy"},{"type":"sessionSeal"},{"type":"buy"}]'::jsonb) = 2);
-  perform pg_temp.ok('the LAST seal wins',
-    pact_sealed_floor('[{"type":"sessionSeal"},{"type":"buy"},{"type":"sessionSeal"},{"type":"buy"}]'::jsonb) = 3);
-  perform pg_temp.ok('a seal at the very end freezes everything',
-    pact_sealed_floor('[{"type":"buy"},{"type":"buy"},{"type":"sessionSeal"}]'::jsonb) = 3);
-end $$;
-
-\echo ''
-\echo 'An UNSEALED character is completely unaffected (protects the 35 live characters)'
-do $$
-declare c uuid := '00000000-0000-0000-0000-0000000000c1';
+-- Rebuilds both fixtures from scratch so each section starts from a known state.
+create or replace function pg_temp.reset_fixtures() returns void language plpgsql as $$
 begin
-  -- The exact shape CharGen uses today: rewrite the whole log, dropping a mid-log event.
-  update characters set stats = jsonb_set(stats, '{LOG}',
-    jsonb_build_array(jsonb_build_object('seq',1,'ts',1,'type','award','amount',79))) where id = c;
-  perform pg_temp.ok('a whole-log replacement still succeeds with no seal',
-    jsonb_array_length(stats->'LOG') = 1) from characters where id = c;
-  perform pg_temp.ok('...and truncating to empty is fine too', true);
-end $$;
+  delete from characters; delete from ap_awards;
+  -- c1: campaign-bound, carries a real (non-disc, non-noLock) award at ordinal 1.
+  insert into characters (id, owner_id, campaign_id, stats) values (
+    '00000000-0000-0000-0000-0000000000c1',
+    '22222222-2222-2222-2222-222222222222', '44444444-4444-4444-4444-444444444444',
+    jsonb_build_object('schema','pact-character/1','SEQ',5,'LOG', jsonb_build_array(
+      jsonb_build_object('seq',1,'ts',1,'type','award','amount',79),
+      jsonb_build_object('seq',2,'ts',2,'type','buy','cat','boon','payload',jsonb_build_object('v','Alertness'),'cost',6),
+      jsonb_build_object('seq',3,'ts',3,'type','buy','cat','patch','_slot','identity','cost',0),
+      jsonb_build_object('seq',4,'ts',4,'type','name','name','Anders'))));
+  -- c2: solo (no campaign), one award — which the award boundary must IGNORE.
+  insert into characters (id, owner_id, campaign_id, stats) values (
+    '00000000-0000-0000-0000-0000000000c2',
+    '22222222-2222-2222-2222-222222222222', null,
+    jsonb_build_object('schema','pact-character/1','SEQ',3,'LOG', jsonb_build_array(
+      jsonb_build_object('seq',1,'ts',1,'type','award','amount',79),
+      jsonb_build_object('seq',2,'ts',2,'type','buy','cat','boon','payload',jsonb_build_object('v','Alertness'),'cost',6))));
+end; $$;
 
--- Put the fixture back.
-update characters set stats = jsonb_set(stats, '{LOG}', jsonb_build_array(
-    jsonb_build_object('seq',1,'ts',1,'type','award','amount',79),
-    jsonb_build_object('seq',2,'ts',2,'type','buy','cat','boon','payload',jsonb_build_object('v','Alertness'),'cost',6),
-    jsonb_build_object('seq',3,'ts',3,'type','name','name','Anders')))
-  where id = '00000000-0000-0000-0000-0000000000c1';
+insert into campaign_dms values ('44444444-4444-4444-4444-444444444444',
+                                 '11111111-1111-1111-1111-111111111111');
+select pg_temp.reset_fixtures();
 
 \echo ''
-\echo 'Writing a seal — authorisation (owner decision I2: DM or solo owner)'
--- Identity is set with a SESSION-level SET, never set_config(..., true). The transaction-local form
--- was used here first and produced a FALSE PASS: each `select pg_temp.rejects(...)` is its own
--- transaction, so the identity had already reverted to NULL and the "owner cannot seal a campaign
--- character" case was actually being refused for having no identity at all. It reported PASS while
--- testing nothing. Every uid below is therefore set outside the block that uses it.
+\echo 'REGRESSION — the 2026-08-10 award boundary must behave exactly as before'
+select pg_temp.rejects('a campaign character''s pre-award history still cannot be rewritten',
+  $$update characters set stats = jsonb_set(stats,'{LOG,0}','{"type":"award","amount":999}'::jsonb)
+     where id = '00000000-0000-0000-0000-0000000000c1'$$);
+select pg_temp.rejects('...nor shrink below the award',
+  $$update characters set stats = jsonb_set(stats,'{LOG}','[]'::jsonb)
+     where id = '00000000-0000-0000-0000-0000000000c1'$$);
+do $$ begin
+  -- cat:'patch' stays exempt — CharGen and the Live Sheet rewrite these slots in place by design.
+  update characters set stats = jsonb_set(stats,'{LOG,2}',
+    jsonb_build_object('seq',3,'ts',3,'type','buy','cat','patch','_slot','identity','cost',0,'changed',true))
+    where id = '00000000-0000-0000-0000-0000000000c1';
+  perform pg_temp.ok('a cat:patch event is still freely rewritable', true);
+  -- Appending after the boundary is still fine.
+  update characters set stats = jsonb_set(stats,'{LOG}', (stats->'LOG') ||
+    jsonb_build_array(jsonb_build_object('seq',5,'ts',5,'type','buy','cat','boon','cost',4)))
+    where id = '00000000-0000-0000-0000-0000000000c1';
+  perform pg_temp.ok('appending after the award boundary is still allowed', true);
+end $$;
+
+\echo ''
+\echo 'A SOLO character is still untouched by the award boundary (unchanged scope)'
+do $$ begin
+  update characters set stats = jsonb_set(stats,'{LOG}','[]'::jsonb)
+    where id = '00000000-0000-0000-0000-0000000000c2';
+  perform pg_temp.ok('a solo character with an award can still be emptied', jsonb_array_length(stats->'LOG') = 0)
+    from characters where id = '00000000-0000-0000-0000-0000000000c2';
+end $$;
+select pg_temp.reset_fixtures();
+
+\echo ''
+\echo 'Placing a seal — authorisation (owner decision I2)'
 set pact.test_uid = '33333333-3333-3333-3333-333333333333';   -- a stranger
 select pg_temp.rejects('a stranger cannot seal a campaign character',
-  $$select seal_character_history('00000000-0000-0000-0000-0000000000c1'::uuid, 'nope')$$);
+  $$select seal_character_history('00000000-0000-0000-0000-0000000000c1'::uuid,'nope')$$);
+select pg_temp.rejects('a stranger cannot seal someone else''s solo character',
+  $$select seal_character_history('00000000-0000-0000-0000-0000000000c2'::uuid,'nope')$$);
 
-set pact.test_uid = '22222222-2222-2222-2222-222222222222';   -- the character's OWNER
+set pact.test_uid = '22222222-2222-2222-2222-222222222222';   -- the OWNER
 select pg_temp.rejects('the owner cannot seal their own CAMPAIGN character (only the DM can)',
-  $$select seal_character_history('00000000-0000-0000-0000-0000000000c1'::uuid, 'nope')$$);
-
-do $$
-declare s jsonb;
-begin
-  s := seal_character_history('00000000-0000-0000-0000-0000000000c2'::uuid, 'Solo session 1');
-  perform pg_temp.ok('the owner CAN seal a solo character (I2)', s->>'type' = 'sessionSeal');
-  perform pg_temp.ok('a solo seal records the owner role',       s->>'sealedRole' = 'owner');
-  perform pg_temp.ok('a solo seal is NOT marked as a DM edit',   not (s ? 'dmEdit'));
-  perform pg_temp.ok('a seal carries no AP amount',              not (s ? 'amount') and not (s ? 'cost'));
-end $$;
-
-set pact.test_uid = '11111111-1111-1111-1111-111111111111';   -- the campaign DM
-do $$
-declare s jsonb;
-begin
-  s := seal_character_history('00000000-0000-0000-0000-0000000000c1'::uuid, 'Session 4');
-  perform pg_temp.ok('the DM can seal a campaign character',  s->>'type' = 'sessionSeal');
-  perform pg_temp.ok('a DM seal records the dm role',         s->>'sealedRole' = 'dm');
-  perform pg_temp.ok('a DM seal IS marked as a DM edit',      (s->>'dmEdit')::boolean);
-  perform pg_temp.ok('the seal landed in the log',
-    pact_sealed_floor((select stats->'LOG' from characters where id = '00000000-0000-0000-0000-0000000000c1')) = 4);
+  $$select seal_character_history('00000000-0000-0000-0000-0000000000c1'::uuid,'nope')$$);
+do $$ declare s jsonb; begin
+  s := seal_character_history('00000000-0000-0000-0000-0000000000c2'::uuid,'Solo session 1');
+  perform pg_temp.ok('the owner CAN seal their own solo character (I2)', s->>'type' = 'sessionSeal');
+  perform pg_temp.ok('a solo seal records the owner role',   s->>'sealedRole' = 'owner');
+  perform pg_temp.ok('a solo seal is not marked a DM edit',  not (s ? 'dmEdit'));
+  perform pg_temp.ok('a seal carries no AP value',           not (s ? 'amount') and not (s ? 'cost'));
 end $$;
 
 \echo ''
-\echo 'The trigger — what a sealed character refuses'
-select pg_temp.rejects('truncating below the floor is rejected (the stale-client case)',
-  $$update characters set stats = jsonb_set(stats,'{LOG}', jsonb_build_array(stats->'LOG'->0))
-     where id = '00000000-0000-0000-0000-0000000000c1'$$);
-
-select pg_temp.rejects('altering a sealed event is rejected',
-  $$update characters set stats = jsonb_set(stats,'{LOG,1}', '{"seq":2,"ts":2,"type":"buy","cat":"boon","payload":{"v":"TAMPERED"},"cost":6}'::jsonb)
-     where id = '00000000-0000-0000-0000-0000000000c1'$$);
-
-select pg_temp.rejects('removing the seal itself is rejected',
+\echo 'The seal now protects a SOLO character, which the award boundary never did'
+select pg_temp.rejects('a sealed solo character cannot be emptied',
+  $$update characters set stats = jsonb_set(stats,'{LOG}','[]'::jsonb)
+     where id = '00000000-0000-0000-0000-0000000000c2'$$);
+select pg_temp.rejects('a sealed solo character''s earlier purchase cannot be rewritten',
+  $$update characters set stats = jsonb_set(stats,'{LOG,1}','{"type":"buy","cat":"boon","cost":999}'::jsonb)
+     where id = '00000000-0000-0000-0000-0000000000c2'$$);
+select pg_temp.rejects('the seal itself cannot be removed',
   $$update characters set stats = jsonb_set(stats,'{LOG}',
       (select jsonb_agg(e) from jsonb_array_elements(stats->'LOG') e where e->>'type' <> 'sessionSeal'))
-     where id = '00000000-0000-0000-0000-0000000000c1'$$);
-
-select pg_temp.rejects('replacing the log with a non-array is rejected',
-  $$update characters set stats = jsonb_set(stats,'{LOG}','"gone"'::jsonb)
-     where id = '00000000-0000-0000-0000-0000000000c1'$$);
-
-\echo ''
-\echo 'The trigger — what a sealed character still ALLOWS'
-do $$
-declare c uuid := '00000000-0000-0000-0000-0000000000c1'; n integer;
-begin
-  -- J1: a DM correction appends, so it passes without needing an exception.
-  update characters set stats = jsonb_set(stats, '{LOG}',
-    (stats->'LOG') || jsonb_build_array(jsonb_build_object('seq',5,'ts',5,'type','dmRemoveBoon','dmEdit',true)))
-    where id = c;
-  perform pg_temp.ok('a DM correction AFTER the seal is allowed (J1)',
-    jsonb_array_length(stats->'LOG') = 5) from characters where id = c;
-
-  -- K3: a description edit appends a superseding name event rather than replacing the sealed one.
-  update characters set stats = jsonb_set(stats, '{LOG}',
-    (stats->'LOG') || jsonb_build_array(jsonb_build_object('seq',6,'ts',6,'type','name','name','Anders Tealeaf')))
-    where id = c;
-  perform pg_temp.ok('an append-only description edit is allowed (K3)',
-    (stats->'LOG'->-1->>'name') = 'Anders Tealeaf') from characters where id = c;
-
-  -- Events after the floor stay mutable.
-  update characters set stats = jsonb_set(stats, '{LOG,4}',
-    jsonb_build_object('seq',5,'ts',5,'type','dmRemoveBoon','dmEdit',true,'edited',true)) where id = c;
-  perform pg_temp.ok('an event AFTER the seal can still be altered',
-    (stats->'LOG'->4->>'edited') = 'true') from characters where id = c;
-
-  -- Fields outside LOG are untouched by the trigger.
-  update characters set name = 'Renamed' where id = c;
-  perform pg_temp.ok('non-LOG columns are unaffected', name = 'Renamed') from characters where id = c;
+     where id = '00000000-0000-0000-0000-0000000000c2'$$);
+do $$ begin
+  update characters set stats = jsonb_set(stats,'{LOG}', (stats->'LOG') ||
+    jsonb_build_array(jsonb_build_object('seq',9,'ts',9,'type','name','name','Renamed After Seal')))
+    where id = '00000000-0000-0000-0000-0000000000c2';
+  perform pg_temp.ok('an append-only description edit after a seal is allowed (K3)', true);
+  update characters set stats = jsonb_set(stats,'{LOG}', (stats->'LOG') ||
+    jsonb_build_array(jsonb_build_object('seq',10,'ts',10,'type','dmRemoveBoon','dmEdit',true)))
+    where id = '00000000-0000-0000-0000-0000000000c2';
+  perform pg_temp.ok('a correction appended after a seal is allowed (J1)', true);
 end $$;
 
 \echo ''
-\echo 'Idempotency — a retried request must not stack seals or double AP'
-do $$
-declare s1 jsonb; s2 jsonb; before integer; after1 integer; after2 integer; r1 jsonb; r2 jsonb;
-begin
-  s1 := seal_character_history('00000000-0000-0000-0000-0000000000c1'::uuid, 'Session 5', 'idem-abc');
-  s2 := seal_character_history('00000000-0000-0000-0000-0000000000c1'::uuid, 'Session 5', 'idem-abc');
+\echo 'On a campaign character the boundary is the LATER of award and seal'
+set pact.test_uid = '11111111-1111-1111-1111-111111111111';   -- the DM
+do $$ declare s jsonb; begin
+  -- Append a buy AFTER the award, then seal: the seal must move the boundary past that buy.
+  update characters set stats = jsonb_set(stats,'{LOG}', (stats->'LOG') ||
+    jsonb_build_array(jsonb_build_object('seq',5,'ts',5,'type','buy','cat','boon','cost',4)))
+    where id = '00000000-0000-0000-0000-0000000000c1';
+  s := seal_character_history('00000000-0000-0000-0000-0000000000c1'::uuid,'Session 4');
+  perform pg_temp.ok('the DM can seal a campaign character',  s->>'type' = 'sessionSeal');
+  perform pg_temp.ok('a DM seal records the dm role',         s->>'sealedRole' = 'dm');
+  perform pg_temp.ok('a DM seal is marked a DM edit',         (s->>'dmEdit')::boolean);
+end $$;
+select pg_temp.rejects('a purchase made AFTER the award but BEFORE the seal is now frozen too',
+  $$update characters set stats = jsonb_set(stats,'{LOG,4}','{"type":"buy","cat":"boon","cost":1}'::jsonb)
+     where id = '00000000-0000-0000-0000-0000000000c1'$$);
+
+\echo ''
+\echo 'Idempotency — a retry must not stack seals or double AP'
+do $$ declare s1 jsonb; s2 jsonb; before integer; after1 integer; after2 integer; r2 jsonb; begin
+  s1 := seal_character_history('00000000-0000-0000-0000-0000000000c1'::uuid,'Session 5','idem-abc');
+  s2 := seal_character_history('00000000-0000-0000-0000-0000000000c1'::uuid,'Session 5','idem-abc');
   perform pg_temp.ok('a repeated seal with the same key returns the SAME seal', s1->>'seq' = s2->>'seq');
-  perform pg_temp.ok('...and does not append a second one',
+  perform pg_temp.ok('...and appends only one',
     (select count(*) from jsonb_array_elements(stats->'LOG') e where e->>'idem' = 'idem-abc') = 1)
     from characters where id = '00000000-0000-0000-0000-0000000000c1';
 
   select ap into before from characters where id = '00000000-0000-0000-0000-0000000000c1';
-  r1 := award_ap_and_seal('00000000-0000-0000-0000-0000000000c1'::uuid, 7, 'Session 6', 'idem-xyz');
+  perform award_ap_and_seal('00000000-0000-0000-0000-0000000000c1'::uuid, 7, 'Session 6', 'idem-xyz');
   select ap into after1 from characters where id = '00000000-0000-0000-0000-0000000000c1';
   r2 := award_ap_and_seal('00000000-0000-0000-0000-0000000000c1'::uuid, 7, 'Session 6', 'idem-xyz');
   select ap into after2 from characters where id = '00000000-0000-0000-0000-0000000000c1';
 
-  perform pg_temp.ok('award_ap_and_seal awards exactly once',      after1 = before + 7);
-  perform pg_temp.ok('a retry with the same key awards NOTHING',   after2 = after1);
-  perform pg_temp.ok('the retry reports itself as repeated',       (r2->>'repeated')::boolean);
-  perform pg_temp.ok('the retry did not append a second seal',
-    (select count(*) from jsonb_array_elements(stats->'LOG') e where e->>'idem' = 'idem-xyz') = 1)
-    from characters where id = '00000000-0000-0000-0000-0000000000c1';
-  perform pg_temp.ok('exactly one ledger row for the awarded amount',
+  perform pg_temp.ok('award_ap_and_seal awards exactly once',    after1 = before + 7);
+  perform pg_temp.ok('a retry with the same key awards NOTHING', after2 = after1);
+  perform pg_temp.ok('the retry reports itself as repeated',     (r2->>'repeated')::boolean);
+  perform pg_temp.ok('exactly one ledger row for the award',
     (select count(*) from ap_awards where note = 'Session 6') = 1);
 end $$;
 
 \echo ''
-\echo 'dm_edit_character_log — the seal may also arrive through the existing DM edit path'
-do $$
-declare r jsonb;
-begin
+\echo 'dm_edit_character_log — a seal may also arrive through the DM edit path'
+do $$ declare r jsonb; begin
   r := dm_edit_character_log('00000000-0000-0000-0000-0000000000c1'::uuid,
         jsonb_build_array(jsonb_build_object('type','sessionSeal','label','via edit','amount',999,'cost',5)));
-  perform pg_temp.ok('a sessionSeal is accepted by the allowlist', r->0->>'type' = 'sessionSeal');
+  perform pg_temp.ok('a sessionSeal is accepted by the allow-list', r->0->>'type' = 'sessionSeal');
   perform pg_temp.ok('an AP amount smuggled onto a seal is STRIPPED',
     not (r->0 ? 'amount') and not (r->0 ? 'cost'));
   perform pg_temp.ok('it is stamped as a DM edit', (r->0->>'dmEdit')::boolean);
 end $$;
-
--- Must run AS THE DM. Run as anyone else it is refused by the authorisation check and proves
--- nothing about the allowlist at all — which is exactly what it did before this was fixed.
+-- Must run AS THE DM, or it is refused by the authorisation check and proves nothing about the
+-- allow-list. (An earlier version of this harness got exactly that wrong and reported a false PASS.)
 set pact.test_uid = '11111111-1111-1111-1111-111111111111';
-select pg_temp.rejects('an unrelated event type is still refused by the allowlist',
+select pg_temp.rejects('an unrelated event type is still refused by the allow-list',
   $$select dm_edit_character_log('00000000-0000-0000-0000-0000000000c1'::uuid,
       jsonb_build_array(jsonb_build_object('type','creationLocked')))$$);
 

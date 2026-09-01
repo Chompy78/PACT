@@ -1,132 +1,124 @@
-# D-GH-2026-09-01-session-seal — a session seal the database enforces, not the browser
+# D-GH-2026-09-01-session-seal — the session seal AMENDS the existing lock, it does not add a second one
 
 **Status:** Phase 1 implemented · branch `claude/everything-on-main-kx82ur` · **migration written and
-tested locally, NOT yet applied to production** · Phase 2 (tool UI) not started.
+tested against a local Postgres, NOT applied to production** · Phase 2 (tool UI) not started.
 Plan + three cold reviews: `docs/plans/2026-09-01-session-seal-cold-review.md`.
 Builds on `D-GH-2026-09-01-undo-barrier-shared` (step 1).
+Amends `D-GH-2026-08-10-campaign-ap-log-integrity`.
 
 ## Context
 
 The owner wanted a per-session lock: *"each session, there is an undo lock put in place… it must apply
 to both sheets so anything already bought can't be unselected."*
 
-Step 1 centralised the undo-barrier rule into `undoFloor()`. That was groundwork. Four things still
-blocked the feature, all verified in code rather than assumed:
+### The correction this record exists to make
 
-1. **"Award AP" never touches the LOG** — it writes `characters.ap` plus a ledger row, so there was
-   nothing in the history for a seal to attach to.
-2. **AP arrives by two independent paths** that both feed the same spendable total, so an award written
-   to both would double it.
-3. **Un-ticking a checkbox in CharGen splices the purchase out of the LOG** — no undo involved, no
-   barrier check on that path at all.
-4. **Whole-build paths rebuild the LOG from the form** and can drop events outright.
+**The first draft of this work was built on a false premise, and the premise survived three cold
+reviews because none of the reviewers had repo access.** That draft — and the plan, changelog and
+migration comments written alongside it — asserted that no server-side protection of character history
+existed, and that the browser was therefore the integrity boundary.
 
-Three cold reviewers (GPT-5.6 Luna, M365 Copilot/GPT-5, one self-identifying as GPT-4) then converged
-on a fifth that revision 1 of the plan had underweighted: the plan treated the browser as the integrity
-boundary, so a stale or offline client's ordinary save could erase a seal.
+That was wrong. `pact_enforce_locked_history()` has existed since 2026-08-10
+(`sql/migrations/2026-08-10-campaign-ap-log-integrity.sql`, also in `sql/rls-policies.sql`). For a
+campaign-bound character it already freezes everything at or before the last non-discretionary,
+non-`noLock` `award` event, comparing a projection of the protected events and rejecting any write
+that shortens or rewrites them.
 
-**That finding was accepted, but its stated basis was wrong and was corrected before acceptance.** All
-three implied no concurrency control existed. One does: `pushCharacter()` in `js/sync.js` compare-and-
-swaps on a server-maintained `updated_at`. It is nonetheless insufficient, in three specific ways — it
-was **opt-in** (an entirely unguarded branch when the client had no base value), the predicate lives in
-the **client's own query** rather than a server policy, and it is **row-level last-write-wins** with no
-check that the new LOG preserves the old prefix. It has already failed in production once: 2026-08-07,
-a character went 43 AP spent → 47 → back to 43 across two browser profiles *with the guard active*
-(`docs/HOW-TO-WORK.md`).
+It was found by a read-only pre-flight against the live schema immediately before applying the
+migration — listing existing triggers on `characters` — which is the one check that would have caught
+it at any point. The research gap was mine: greps targeted `award_ap` and `dm_edit_character_log`, and
+never asked "what triggers already exist on this table".
+
+**Two consequences beyond the embarrassment.** First, the original design would have added a *second*
+prefix-protection trigger beside the first — precisely the hand-written-mirror drift `AGENTS.md` names
+as this project's recurring failure. Second, and worse, that second trigger compared **raw JSONB
+events** where the existing one deliberately compares a **six-field projection**; the original earned
+that projection through three review-found bugs (see its revision note). A raw comparison rejects a
+save merely because an event gained a cosmetic field. It would have shipped to production and started
+refusing legitimate saves.
+
+### What was still genuinely missing
+
+The existing lock does not cover what the owner asked for:
+
+1. **The DM Console's "Award AP" writes only `characters.ap`** plus a ledger row — never a LOG event.
+   So the actual award button locks nothing at all, then or now.
+2. **The award boundary skips solo characters** (`if NEW.campaign_id is null then return NEW`), which
+   owner decision I2 requires.
+3. **The boundary moves and is implicit.** It is wherever the last qualifying award happens to sit; a
+   seal is placed deliberately, at a moment the DM chooses, and stays there.
 
 ## Options
 
-- **A1 — the AP award itself is the seal.** Rejected: doubles AP, or forces a rewrite of a deliberately
-  DM-only authoritative field. All three reviewers agreed with the rejection.
+- **A1 — the AP award itself is the seal.** Rejected: AP already reaches a character by two paths
+  feeding the same spendable total, so an award in the log too would double it.
 - **A2 — seal the Undo button only.** Fails the un-select requirement outright.
 - **A3 — CharGen read-only once sealed.** Blocks forward progress; wrong product.
-- **A4 — a `sealed_through_event_id` column** instead of a marker event. Raised by two reviewers, neither
-  recommending it. Rejected: stores derived state beside an event-sourced log, creating a second
-  synchronisation obligation. With 35 characters, deriving the floor during validation is cheap.
-- **A5 — a zero-AP `sessionSeal` event plus a database trigger.** *(chosen)*
+- **A4 — a `sealed_through_event_id` column.** Raised by two reviewers, recommended by neither. Stores
+  derived state beside an event-sourced log.
+- **A5 — a new `sessionSeal` event with its own new trigger.** *(drafted, then withdrawn)* — a second
+  overlapping trigger, with a stricter comparison than the one it sat beside.
+- **A6 — a `sessionSeal` event that AMENDS the existing trigger.** *(chosen)*
 
 ## Decision
 
-**One invariant, enforced by a `BEFORE UPDATE` trigger on `characters`:**
+Three surgical changes to what already exists, rather than anything new:
 
-> Once a `sessionSeal` event is in the authoritative LOG, no write may alter the events at or before it.
-> Anything may still be appended after it.
+1. **`sessionSeal` joins the protected projection** (`pact_ap_ledger_protected`), so a seal cannot
+   itself be deleted or reordered.
+2. **The boundary becomes the later of** the existing award boundary and the last seal.
+3. **The seal half applies to solo characters too.** The award half keeps its campaign-only scope
+   exactly as before.
 
-**The owner's three rulings collapse into that one sentence, which is the whole reason this is
-affordable.** Each looked like it needed its own exception and none does:
+Plus the entry points that had no equivalent: `seal_character_history()` (DM for a campaign character,
+owner for a solo one), atomic and idempotent `award_ap_and_seal()`, and `sessionSeal` on
+`dm_edit_character_log()`'s allow-list with any smuggled AP value stripped.
 
-- **J1** (a DM may still correct a mistake after a seal) — corrections *append*.
-- **K3** (name / appearance / backstory stay editable) — under a seal those edits append instead of
-  replacing, and the engine replays both as last-wins assignment (`name` is a plain assignment;
-  appearance patches are an `Object.assign`), so a later event supersedes an earlier one with the sealed
-  prefix untouched.
-- **I2** (a solo player may seal their own character, as well as a DM sealing a campaign one) — the
-  invariant says nothing about *who* sealed, so one rule covers both tiers.
+**The owner's three rulings still collapse into one invariant** — *the protected prefix may not be
+altered; anything may be appended after it* — because J1 corrections append, K3 description edits can
+be made to append (the engine replays `name` and appearance patches as last-wins assignment), and the
+rule names no author, so it covers both tiers. That is what makes an amendment sufficient where an
+exception list would not be.
 
-No per-event-type exception list, no author test. That is what makes a single trigger sufficient.
+## Why this is safe against the 35 live characters
 
-**A trigger, not a check inside one function**, because the reviewers' procedural point was the right
-one: naming a few UI paths is not durable. A trigger covers every path that exists — including the two
-CharGen mid-log paths and the Live Sheet Import that revision 1 of the plan had *missed* — and every
-path nobody has written yet.
+Measured 2026-09-01: **zero** characters carry a `sessionSeal`. So change (1) alters no existing
+protected set, and (2) and (3) are no-ops until somebody deliberately places the first seal. The award
+boundary's behaviour is byte-for-byte unchanged — asserted directly by regression tests, not argued.
 
-## Why the trigger enforces `sessionSeal` ONLY
-
-This is the load-bearing safety decision, and it is the reason the migration is safe against the 35
-live characters. `undoFloor()` also treats `dmEdit`, non-discretionary `award` and `creationLocked` as
-barriers. Enforcing *those* in the database would break every existing character on its next save:
-editing a name or appearance currently filters the old event out of the log from wherever it sits, and
-on any character carrying an `award` event — which is all of them — that legitimately rewrites history
-sitting behind a barrier. Harmless today, because those barriers are only consulted by undo. Enforced
-in the database, an ordinary rename becomes a hard save failure.
-
-So `js/engine.js` now has **two** floors, deliberately: `undoFloor()` (client, all four barrier types)
-and `sealedFloor()` (server-enforced, seals only). `sealedFloor <= undoFloor` always — asserted in the
-gate, because a server floor *above* the client's would mean rejecting a save the UI believed legal.
-
-Restricting enforcement to a brand-new event type makes the migration non-retroactive **by
-construction**: no character has a seal until somebody deliberately adds one, so nothing that works
-today can begin to fail. That is stronger than "the migration writes no seals", which is also true but
-would not by itself stop existing saves breaking.
-
-## What shipped in Phase 1
-
-- `js/engine.js` — `sessionSeal` recognised by `isUndoBarrier()`; new `sealedFloor()`.
-- `sql/migrations/2026-09-01-session-seal.sql` — `pact_sealed_floor()`, the enforcing trigger,
-  `seal_character_history()` (DM or solo owner), atomic and idempotent `award_ap_and_seal()`, and
-  `sessionSeal` added to `dm_edit_character_log()`'s allow-list with any smuggled AP amount stripped.
-- `js/dm.js` — `sealHistory()`, `awardApAndSeal()`.
-- `js/sync.js` — the permanently-unguarded save branch closed by adopting the server's current
-  `updated_at` rather than skipping the guard (refusing outright would strand legacy records forever).
-- `testing/sql/session-seal-test.sql`, `testing/scripts/undo-barrier-ci.mjs` extended.
-
-**Deliberately NOT in Phase 1: any UI.** Nothing can create a seal through the tools yet, which is
-exactly what makes Phase 1 safe to deploy alone. Between the phases, a sealed character opened in
-CharGen and saved would be *rejected* by the trigger — correct, but a hard error with no explanatory
-UI. Do not surface a seal control until Phase 2 lands.
+`js/engine.js` carries two floors, deliberately. `undoFloor()` is the client's, and is broader: it also
+treats `dmEdit` and `creationLocked` as barriers and (matching the Live Sheet's original hand-written
+check) does not exempt `noLock` awards. `sealedFloor(events, opts)` mirrors the server exactly,
+including the campaign-only scope of the award half. `sealedFloor <= undoFloor` for every shape — the
+client always refuses at least as much as the server, which is the safe direction; the reverse would
+mean rejecting a save the UI had called legal.
 
 ## Verification
 
-- `engine-parity-ci.mjs` **73/0**; `undo-barrier-ci.mjs` **29/0** (was 19, extended for the seal);
-  `tool-pricing-ci.mjs` **184/0**.
-- `testing/sql/session-seal-test.sql` — **38 assertions, exit 0**, run against a real Postgres 16, not
-  reasoned about. Covers: the floor function; that an unsealed character is completely unaffected;
-  authorisation for both tiers; the stale-client truncation; altering a sealed event; removing the seal;
-  J1 and K3 appends being allowed; idempotent retry of both seal and award-and-seal; and that a seal
-  carries no AP however it arrives.
-- **A false PASS in that harness was found and fixed rather than left standing.** Identity was being set
-  with `set_config(..., true)`, which is transaction-local, so each `rejects()` case ran with a NULL
-  user — "the owner cannot seal their own campaign character" was actually being refused for having no
-  identity at all, and the allow-list case was refused by the authorisation check rather than the
-  allow-list. Both reported PASS while testing nothing. Identity is now set at session level.
+- `engine-parity-ci.mjs` **73/0** · `undo-barrier-ci.mjs` **37/0** · `tool-pricing-ci.mjs` **184/0**.
+- `testing/sql/session-seal-test.sql` — **32 assertions, exit 0**, against a real Postgres 16. Its
+  first section is the one that matters: **regression tests proving the 2026-08-10 award boundary is
+  unchanged** — pre-award history still unrewritable, still unable to shrink, `cat:'patch'` still
+  exempt, appends still allowed, solo characters still outside the award half. Then the new behaviour:
+  both authorisation tiers, a sealed solo character protected, the seal itself unremovable, J1 and K3
+  appends allowed, the later-of-award-and-seal boundary, idempotent retries.
+- The **rollback** was applied to a live test database and verified to restore the 2026-08-10 bodies
+  **without removing the pre-existing award protection** — the failure mode that matters most, since a
+  naive rollback that dropped `trg_pact_locked_history` would strip protection older than this work.
+
+### Two harness defects found and fixed rather than left standing
+
+- Identity was set with `set_config(..., true)` — transaction-local — so two authorisation cases ran
+  with a NULL user and reported PASS while testing nothing.
+- The allow-list rejection case was being refused by the authorisation check, not the allow-list.
 
 ## Known-unstable, unrelated
 
 `tool-pricing-ci.mjs` intermittently reports `harness — CharGen never became ready for the version
-check` and aborts early. Seen twice this session, once *before* any change was made, and it passes on
-re-run. A harness readiness race, not a product defect — worth its own task.
+check` and aborts early. Seen three times today, once *before* any change was made; passes on re-run. A
+readiness race in the harness, not a product defect. Worth its own task.
 
 ## Still open
 
-Phase 2 (the tool UI), the DM Console control, and the offline conflict UX (L1). The trigger already
-makes the data safe without them; what is missing is a human-readable experience when a save is refused.
+Phase 2 (the tool UI), the DM Console control, and the offline conflict UX (L1). The data is safe
+without them; what is missing is a human-readable experience when a save is refused.

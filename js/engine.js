@@ -1968,7 +1968,8 @@ export function wouldExceedCeiling(events, cost, opts) {
 //     advance that only their DM can reopen it. Making it a barrier is what makes that true.
 //   * `type:'sessionSeal'` — a session boundary drawn deliberately, by a DM on a campaign character
 //     or by the owner on a solo one (feat/session-seal, owner decision I2). Unlike the three above,
-//     this one is ALSO enforced in the database: see sealedFloor() below.
+//     this one is ALSO enforced in the database, for every character. See sealedFloor() below,
+//     and note that a non-disc `award` is enforced there too for a CAMPAIGN-bound character.
 //
 // Everything at or before the LAST barrier is frozen; anything after it undoes normally. Purely a
 // history rule — it reads no prices and never touches compute(), so it cannot move a character's AP.
@@ -1981,34 +1982,45 @@ export function isUndoBarrier(event) {
   return false;
 }
 
-// sealedFloor(events): the SERVER-ENFORCED floor — how many leading events are immutable because a
-// `sessionSeal` sits at or after them. Always <= undoFloor(), which additionally counts the three
-// client-side-only barriers above.
-//
-// WHY IT IS SEPARATE FROM undoFloor(), and why the difference is load-bearing rather than an
-// inconsistency to tidy away. The database trigger added by feat/session-seal enforces THIS floor and
-// only this floor. Widening it to every barrier type would break every existing character on its next
-// save: editing a name or an appearance field currently filters the old event out of the log from
-// wherever it sits (see CharGen's _cgSyncSingletonEvent/replacePatchSlot), and on a character with an
-// `award` event — which is all 25 of them — that routinely rewrites history behind an award barrier.
-// Today that is harmless because the barrier is only ever consulted by undo. Enforcing it in the
-// database would turn an ordinary rename into a hard save failure.
-//
-// Restricting server enforcement to `sessionSeal` is therefore what makes the feature genuinely
-// non-retroactive: no character has one until somebody deliberately adds one, so nothing that works
-// today can start failing. The client-side barriers keep their existing, softer meaning.
-export function sealedFloor(events) {
-  const log = Array.isArray(events) ? events : [];
-  for (let i = log.length - 1; i >= 0; i--) if (log[i] && log[i].type === 'sessionSeal') return i + 1;
-  return 0;
-}
-
 // The number of leading events a log may never shrink below: index of the last barrier + 1, or 0 when
 // there is none. `undoFloor(LOG) >= LOG.length` therefore means "nothing left to undo".
 export function undoFloor(events) {
   const log = Array.isArray(events) ? events : [];
   for (let i = log.length - 1; i >= 0; i--) if (isUndoBarrier(log[i])) return i + 1;
   return 0;
+}
+
+// sealedFloor(events, opts): the floor the DATABASE will actually enforce, mirroring
+// pact_enforce_locked_history() (sql/migrations/2026-08-10-campaign-ap-log-integrity.sql, extended by
+// 2026-09-01-session-seal.sql). Phase 2's UI uses it to know which controls the server will refuse to
+// let the player change, so it must not over- or under-report.
+//
+// TWO HALVES, because the server has two:
+//   * the SEAL half — the last `sessionSeal` — applies to every character, campaign-bound or solo
+//     (owner decision I2). Always counted.
+//   * the AWARD half — the last `award` that is neither `disc` nor `noLock` — applies only to
+//     campaign-bound characters, and has done since 2026-08-10. Counted only when opts.campaignBound.
+//
+// WHY THIS IS NOT THE SAME AS undoFloor(). undoFloor() is the CLIENT's rule and is deliberately
+// broader: it also treats `dmEdit` and `creationLocked` as barriers, and (matching the Live Sheet's
+// original hand-written check) it does not exempt `noLock` awards. So the client always refuses at
+// least as much as the server does — the safe direction. A server floor ABOVE the client's would mean
+// rejecting a save the UI had told the player was fine, which is the failure this asymmetry avoids.
+// The gate asserts sealedFloor <= undoFloor.
+export function sealedFloor(events, opts) {
+  const log = Array.isArray(events) ? events : [];
+  const o = opts || {};
+  let floor = 0;
+  for (let i = log.length - 1; i >= 0; i--) {
+    if (log[i] && log[i].type === 'sessionSeal') { floor = i + 1; break; }
+  }
+  if (o.campaignBound) {
+    for (let i = log.length - 1; i >= 0; i--) {
+      const e = log[i];
+      if (e && e.type === 'award' && !e.disc && !e.noLock) { floor = Math.max(floor, i + 1); break; }
+    }
+  }
+  return floor;
 }
 
 // repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so

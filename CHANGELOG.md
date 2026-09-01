@@ -4,22 +4,24 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
-- **2026-09-01 · feat(sql,engine): session seal — a history lock the DATABASE enforces (Phase 1)** —
-  a DM (or, for a character in no campaign, its owner) can draw a line under a character's history;
-  everything before it becomes immutable, anything may still be appended after it. Enforced by a
-  `BEFORE UPDATE` trigger on `characters`, not by the browser: three cold reviewers independently
-  found that revision 1 of the plan let a stale or offline client's ordinary save erase a seal.
-  Verified against the code rather than taken on trust — optimistic concurrency *does* exist in
-  `js/sync.js`, but it was opt-in, client-issued and row-level rather than prefix-preserving, and it
-  had already failed in production on 2026-08-07. The owner's three rulings (a DM may still correct
-  after a seal; name/appearance/backstory stay editable; solo players may seal too) all collapse into
-  one invariant because corrections and description edits both *append* — so no exception list and no
-  author test is needed. The trigger deliberately enforces **only** the new `sessionSeal` type: widening
-  it to the other undo barriers would break every existing character's next rename. Adds
-  `sealedFloor()` beside `undoFloor()` in `js/engine.js`, `seal_character_history()` and an atomic,
-  idempotent `award_ap_and_seal()`, and `testing/sql/session-seal-test.sql` (38 assertions, run against
-  a real Postgres). No UI yet — that is Phase 2, and nothing can create a seal until it lands. Migration
-  written and locally tested but **not applied to production**. See `D-GH-2026-09-01-session-seal`.
+- **2026-09-01 · feat(sql,engine): session seal — AMENDS the existing history lock (Phase 1)** — a DM,
+  or the owner of a character in no campaign, can draw an explicit line under a character's history;
+  everything before it is frozen, anything may still be appended after it. **Corrects a false premise
+  this work was built on:** the plan and its three cold reviews all assumed no server-side history
+  protection existed. It has since 2026-08-10 — `pact_enforce_locked_history()` already freezes
+  everything up to the last non-discretionary award for campaign-bound characters. Found by listing
+  the live triggers on `characters` in a pre-flight check, immediately before applying. A second,
+  parallel trigger was therefore withdrawn: it would have been the hand-written-mirror drift
+  `AGENTS.md` warns about, and it compared raw JSONB where the original deliberately compares a
+  projection — it would have started rejecting legitimate saves. Phase 1 now makes three surgical
+  changes instead: `sessionSeal` joins the protected projection so a seal cannot be removed; the
+  boundary becomes the later of award and seal; and the seal half covers solo characters, which the
+  award half skips. Adds `seal_character_history()`, atomic idempotent `award_ap_and_seal()` (the DM
+  Console's Award AP writes no LOG event, so today it locks nothing), `sealedFloor()` beside
+  `undoFloor()` in `js/engine.js`, and a 32-assertion SQL harness whose first section is regression
+  tests proving the 2026-08-10 behaviour is unchanged. Zero of the 35 live characters carry a seal, so
+  the change is inert until one is placed. No UI yet — Phase 2. Migration tested locally, **not applied
+  to production**. See `D-GH-2026-09-01-session-seal`.
 - **2026-09-01 · docs(agents): the live character count was stale — 35, not 25** — `AGENTS.md` carried
   "25 characters, 8 owners, 4 campaigns" measured 2026-08-27. A live check while preparing the
   session-seal migration found **35 characters, 8 owners, 4 campaigns, 6 campaign-bound, 49 AP awards,

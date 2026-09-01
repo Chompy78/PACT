@@ -52,21 +52,40 @@ t('null is not a barrier', isUndoBarrier(null), false);
 t('rulesSnapshot metadata is not a barrier', isUndoBarrier({ type: 'rulesSnapshot' }), false);
 t('dmEdit on any event type is a barrier', isUndoBarrier({ type: 'buyoff', dmEdit: true }), true);
 
-console.log('\nsessionSeal — the one barrier the DATABASE also enforces');
+console.log('\nsessionSeal — the boundary the DATABASE also enforces');
 t('a seal is an undo barrier', undoFloor([{ type: 'buy' }, { type: 'sessionSeal' }]), 2);
-t('a seal grants no AP, so it never appears as an award', isUndoBarrier({ type: 'sessionSeal' }), true);
-t('sealedFloor sees a seal', sealedFloor([{ type: 'buy' }, { type: 'sessionSeal' }, { type: 'buy' }]), 2);
-t('sealedFloor ignores an award', sealedFloor([{ type: 'buy' }, { type: 'award', amount: 5 }]), 0);
-t('sealedFloor ignores a dmEdit', sealedFloor([{ type: 'buy' }, { type: 'buy', dmEdit: true }]), 0);
-t('sealedFloor ignores creationLocked', sealedFloor([{ type: 'buy' }, { type: 'creationLocked' }]), 0);
-t('sealedFloor: the LAST seal wins', sealedFloor([{ type: 'sessionSeal' }, { type: 'buy' }, { type: 'sessionSeal' }]), 3);
+t('a seal is a barrier by type, not by carrying AP', isUndoBarrier({ type: 'sessionSeal' }), true);
+
+// sealedFloor mirrors pact_enforce_locked_history() exactly: the seal half applies to every
+// character, the award half only to campaign-bound ones.
+console.log('\nsealedFloor() — what the server will actually refuse');
+t('a seal counts for a solo character', sealedFloor([{ type: 'buy' }, { type: 'sessionSeal' }, { type: 'buy' }]), 2);
+t('an award does NOT count for a solo character', sealedFloor([{ type: 'buy' }, { type: 'award', amount: 5 }]), 0);
+t('an award DOES count for a campaign character', sealedFloor([{ type: 'buy' }, { type: 'award', amount: 5 }], { campaignBound: true }), 2);
+t('a noLock award is exempt, as the server exempts it', sealedFloor([{ type: 'award', amount: 79, noLock: true }], { campaignBound: true }), 0);
+t('a disc award is exempt too', sealedFloor([{ type: 'award', amount: 2, disc: true }], { campaignBound: true }), 0);
+t('dmEdit alone is not a server boundary', sealedFloor([{ type: 'buy', dmEdit: true }], { campaignBound: true }), 0);
+t('creationLocked is not a server boundary', sealedFloor([{ type: 'creationLocked' }], { campaignBound: true }), 0);
+t('the LATER of award and seal wins',
+  sealedFloor([{ type: 'award', amount: 5 }, { type: 'buy' }, { type: 'sessionSeal' }, { type: 'buy' }], { campaignBound: true }), 3);
+t('...and the seal wins even when the award is later in the log',
+  sealedFloor([{ type: 'sessionSeal' }, { type: 'buy' }, { type: 'award', amount: 5 }], { campaignBound: true }), 3);
 t('sealedFloor tolerates a non-array', sealedFloor(null), 0);
-// The two floors must never invert: the database enforces sealedFloor, the tools enforce undoFloor,
-// and a server floor ABOVE the client's would mean a save the UI believed legal being rejected.
-const mixed = [{ type: 'award', amount: 5 }, { type: 'sessionSeal' }, { type: 'buy' }, { type: 'creationLocked' }];
-t('sealedFloor never exceeds undoFloor', sealedFloor(mixed) <= undoFloor(mixed), true);
-t('...including when the seal is last', (() => { const l = [{ type: 'creationLocked' }, { type: 'sessionSeal' }];
-  return sealedFloor(l) <= undoFloor(l); })(), true);
+
+// The client must never permit LESS than the server refuses, or a save the UI called legal gets
+// rejected. undoFloor is deliberately the broader rule, so this must hold for every shape.
+console.log('\nsealedFloor <= undoFloor — the client never under-refuses');
+[
+  ['award then seal', [{ type: 'award', amount: 5 }, { type: 'buy' }, { type: 'sessionSeal' }, { type: 'buy' }]],
+  ['seal then award', [{ type: 'sessionSeal' }, { type: 'buy' }, { type: 'award', amount: 5 }]],
+  ['creationLocked last', [{ type: 'creationLocked' }, { type: 'sessionSeal' }]],
+  ['noLock award only', [{ type: 'award', amount: 79, noLock: true }, { type: 'buy' }]],
+  ['disc award only', [{ type: 'award', amount: 2, disc: true }, { type: 'buy' }]],
+  ['nothing at all', [{ type: 'buy' }, { type: 'buy' }]],
+].forEach(([name, log]) => {
+  t(`${name}: server floor never exceeds client floor`,
+    sealedFloor(log, { campaignBound: true }) <= undoFloor(log), true);
+});
 
 // CharGen restores whole snapshots, so its guard asks: does the frame I am about to restore still
 // carry a floor at least as high as the live log's? Mirrors the check in that tool's undo().

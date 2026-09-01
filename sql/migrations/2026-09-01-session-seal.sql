@@ -1,141 +1,141 @@
--- PACT — session seal: a deliberately-drawn line under a character's history.
+-- PACT — session seal: an explicit, DM- or owner-drawn line under a character's history.
 -- feat/session-seal Phase 1 (D-GH-2026-09-01-session-seal). Plan + three cold reviews:
 -- docs/plans/2026-09-01-session-seal-cold-review.md
 --
--- THE INVARIANT, in one sentence:
---   Once a `sessionSeal` event is in a character's LOG, no write may alter the events at or before
---   it. Anything may still be appended after it.
+-- THIS IS AN AMENDMENT, NOT A NEW MECHANISM. Read this first.
 --
--- WHY THAT ONE SENTENCE IS THE WHOLE DESIGN. The owner's three rulings each looked like they needed
--- their own exception, and none of them does:
---   * A DM may still correct a mistake after a seal (owner J1) — corrections APPEND.
---   * Name/appearance/backstory stay editable after a seal (owner K3) — under a seal those edits
---     append instead of replacing, and the engine replays both as last-wins assignment, so a later
---     event supersedes an earlier one with the sealed prefix untouched.
---   * A solo player may seal their own character as well as a DM sealing a campaign one (owner I2) —
---     the invariant says nothing about WHO sealed, so the same rule covers both.
--- No per-event-type exception list, no author test. That is what makes a single trigger sufficient.
+-- The first draft of this migration added a SECOND trigger doing prefix protection, because its
+-- author (and all three cold reviewers, who had no repo access) believed no server-side history
+-- protection existed. It does, and has since 2026-08-10:
+-- sql/migrations/2026-08-10-campaign-ap-log-integrity.sql's pact_enforce_locked_history() already
+-- freezes everything at or before the last non-discretionary, non-seed `award` event, for
+-- campaign-bound characters. Adding a parallel trigger would have been the exact "hand-written
+-- mirror of a canonical rule" drift AGENTS.md names as this project's recurring failure — and the
+-- second copy compared raw JSONB where the original deliberately compares a PROJECTION, a
+-- distinction the original earned through three review-found bugs (see that file's revision note).
 --
--- WHY A TRIGGER AND NOT A CHECK INSIDE ONE FUNCTION. Three cold reviewers independently made the
--- same point: `js/sync.js` already carries optimistic concurrency (a compare-and-swap on
--- `updated_at`), but the predicate lives in the CLIENT'S query, so any write path that omits it is
--- unprotected — and there are more such paths than anyone had enumerated (CharGen's mid-log splice
--- and two filter-and-append paths, the Live Sheet's Import, every whole-build rebuild). That guard
--- has already failed once in production: 2026-08-07, a character went 43 AP spent -> 47 -> back to
--- 43 across two browser profiles WITH the guard active (docs/HOW-TO-WORK.md). A BEFORE UPDATE
--- trigger covers every path that exists, including the ones nobody has written yet.
+-- So this file EXTENDS the existing trigger instead. Three surgical changes:
 --
--- WHY IT ENFORCES `sessionSeal` ONLY, AND NOT EVERY UNDO BARRIER. This is the load-bearing safety
--- decision for a live database holding 35 real characters. `js/engine.js`'s undoFloor() also treats
--- `dmEdit`, non-discretionary `award` and `creationLocked` as barriers. Enforcing those here would
--- break every existing character on its next save: editing a name or an appearance field currently
--- filters the old event out of the log from wherever it sits, and on any character carrying an
--- `award` event — which is all of them — that legitimately rewrites history sitting behind a
--- barrier. Harmless today, because those barriers are only ever consulted by undo. Enforced here, an
--- ordinary rename would become a hard save failure.
+--   1. `sessionSeal` joins the protected projection, so a seal cannot itself be deleted or altered.
+--   2. The boundary becomes the LATER of the existing award boundary and the last seal.
+--   3. The seal half applies to SOLO characters too, not just campaign-bound ones (owner decision
+--      I2). The award half keeps its campaign-only scope exactly as before.
 --
--- Restricting enforcement to `sessionSeal` makes this migration non-retroactive BY CONSTRUCTION: no
--- character has a seal until somebody deliberately adds one, so nothing that works today can begin
--- to fail. That is a stronger guarantee than "the migration does not write any seals", which is also
--- true but would not by itself stop existing saves breaking.
+-- WHAT A SEAL ADDS OVER THE AWARD BOUNDARY THAT ALREADY EXISTS:
+--   * It is EXPLICIT and STABLE. The award boundary moves as awards land and is invisible until it
+--     does; a seal is placed deliberately, when the DM chooses, and stays put.
+--   * It works for SOLO characters, which the award boundary skips entirely.
+--   * It is reachable from the DM Console's "Award AP", which writes only characters.ap and no LOG
+--     event at all — so today that button locks nothing whatsoever. award_ap_and_seal() below fixes
+--     that without moving AP into the log (which would double-count it).
 --
--- DEPLOYMENT ORDER MATTERS. Apply this migration BEFORE the Phase 2 tool changes ship, but do not
--- surface any seal control to users until Phase 2 is live. Between the two, a sealed character
--- opened in CharGen and saved would be REJECTED by the trigger rather than silently corrupted —
--- correct, but a hard error with no explanatory UI. Phase 1 alone is safe to deploy precisely
--- because nothing can create a seal through the UI yet.
+-- NON-RETROACTIVE BY CONSTRUCTION: measured 2026-09-01, zero of the 35 live characters carry a
+-- `sessionSeal`, so change (1) alters no existing protected set, and (2) and (3) are no-ops until
+-- somebody deliberately places the first seal. The award boundary's behaviour is untouched.
+--
+-- DEPLOYMENT ORDER: safe to apply before the Phase 2 tool work, precisely because no UI can create a
+-- seal yet. Do not surface a seal control until Phase 2 ships, or a sealed character saved from
+-- CharGen would hit a hard rejection with no explanatory UI.
 
--- ---------------------------------------------------------------------------
--- 1. The floor: how many leading events are immutable.
--- Index of the last sessionSeal + 1, or 0 when there is none. Mirrors sealedFloor() in
--- js/engine.js exactly; the two must stay in step.
--- ---------------------------------------------------------------------------
-create or replace function public.pact_sealed_floor(p_log jsonb)
-returns integer language sql immutable set search_path = public, pg_temp as $$
-  -- WITH ORDINALITY counts from 1, so the ordinality of the last seal IS its 0-based index plus
-  -- one — i.e. the floor itself, with no arithmetic. Guarded against a non-array `p_log`, which a
-  -- malformed or hand-edited stats blob can genuinely produce.
-  select coalesce(
-    (select max(ord)::integer
-       from jsonb_array_elements(
-              case when jsonb_typeof(p_log) = 'array' then p_log else '[]'::jsonb end
-            ) with ordinality as t(ev, ord)
-      where t.ev->>'type' = 'sessionSeal'),
-    0);
+-- ===========================================================================
+-- 1. Protected projection — `sessionSeal` added.
+--
+-- Byte-identical to the 2026-08-10 version except for the added type in the WHERE clause. The seal
+-- carries no economic fields, so the projected object is all nulls but its TYPE and POSITION, which
+-- is exactly what needs protecting: remove or reorder the seal and the projection changes, and the
+-- comparison below rejects the write.
+-- ===========================================================================
+create or replace function public.pact_ap_ledger_protected(p_log jsonb)
+returns jsonb language sql immutable set search_path = public, pg_temp as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'type', ev->>'type', 'cat', ev->>'cat',
+           'cost', ev->>'cost', 'amount', ev->>'amount', 'refVal', ev->>'refVal',
+           'disc', ev->>'disc'
+         ) order by ord), '[]'::jsonb)
+  from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
+  where (ev->>'type') in ('buyoff','names','award','sessionSeal')
+     or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch');
 $$;
 
--- ---------------------------------------------------------------------------
--- 2. The guard itself.
---
--- Reads the floor from the OLD (authoritative) row, never the NEW one — otherwise a client could
--- lower its own floor by submitting a log with the seal removed, which is precisely the attack.
---
--- A shorter NEW log is rejected outright; so is any change to an element at or before the floor.
--- Comparison is on the JSONB values, so key ORDER does not matter (jsonb normalises it) but any
--- semantic change does. `stats` may legitimately change in other ways (name, SEQ, rules) — only the
--- sealed slice of LOG is frozen.
--- ---------------------------------------------------------------------------
-create or replace function public.pact_enforce_sealed_prefix()
-returns trigger language plpgsql set search_path = public, pg_temp as $$
+-- ===========================================================================
+-- 2. The boundary — later of (award, seal); seal applies to solo characters too.
+-- ===========================================================================
+create or replace function public.pact_enforce_locked_history()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 declare
-  v_old_log jsonb := coalesce(old.stats->'LOG', '[]'::jsonb);
-  v_new_log jsonb := coalesce(new.stats->'LOG', '[]'::jsonb);
-  v_floor   integer;
-  i         integer;
+  v_old_log jsonb;
+  v_award_idx int;
+  v_seal_idx int;
+  v_idx int;
+  v_protected_old jsonb;
+  v_protected_new jsonb;
+  i int;
 begin
-  -- Fast path: nothing sealed, nothing to check. This is every character today, so the ordinary
-  -- save path pays one function call and no array walk.
-  v_floor := public.pact_sealed_floor(v_old_log);
-  if v_floor = 0 then
-    return new;
+  -- Unchanged: an untouched log is nothing to police (autosave/archive/ap-only updates land here).
+  if NEW.stats is not distinct from OLD.stats then
+    return NEW;
   end if;
 
-  if jsonb_typeof(v_new_log) is distinct from 'array' then
-    raise exception 'pact: sealed history cannot be replaced with a non-array log'
-      using errcode = 'check_violation';
+  v_old_log := coalesce(OLD.stats->'LOG', '[]'::jsonb);
+
+  -- SEAL BOUNDARY — every character, campaign-bound or solo (owner decision I2). A solo player has
+  -- no DM to seal for them, so seal_character_history() lets the owner do it; the enforcement here
+  -- deliberately does not care who placed it, only that it is there.
+  select max(ord) into v_seal_idx
+  from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
+  where (ev->>'type') = 'sessionSeal';
+
+  -- AWARD BOUNDARY — campaign-bound only, exactly as before this amendment. The noLock exclusion is
+  -- load-bearing: CharGen's creation-budget award is re-synced by delete-then-append on every budget
+  -- change, so treating it as a boundary would drag the lock forward and freeze ordinary drafting
+  -- (2026-08-10 revision note, fix #3).
+  if NEW.campaign_id is not null then
+    select max(ord) into v_award_idx
+    from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
+    where (ev->>'type') = 'award'
+      and not coalesce((ev->>'disc')::boolean, false)
+      and not coalesce((ev->>'noLock')::boolean, false);
   end if;
 
-  if jsonb_array_length(v_new_log) < v_floor then
-    raise exception 'pact: % event(s) of this character''s history are sealed and cannot be removed', v_floor
-      using errcode = 'check_violation',
-            hint = 'Reload the character — its history was sealed after this copy was loaded.';
+  v_idx := greatest(coalesce(v_seal_idx, 0), coalesce(v_award_idx, 0));
+  if v_idx = 0 then
+    return NEW;
   end if;
 
-  for i in 0 .. v_floor - 1 loop
-    if (v_new_log->i) is distinct from (v_old_log->i) then
-      raise exception 'pact: event % is sealed and cannot be altered', i
-        using errcode = 'check_violation',
-              hint = 'Reload the character — its history was sealed after this copy was loaded.';
+  v_protected_old := public.pact_ap_ledger_protected(
+    (select jsonb_agg(ev order by ord)
+       from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
+       where ord <= v_idx)
+  );
+  v_protected_new := public.pact_ap_ledger_protected(coalesce(NEW.stats->'LOG', '[]'::jsonb));
+
+  if jsonb_array_length(v_protected_new) < jsonb_array_length(v_protected_old) then
+    raise exception 'PACT: locked character history cannot shrink (% events are sealed or locked by an AP award)', v_idx
+      using hint = 'Reload the character — its history was locked after this copy was loaded.';
+  end if;
+
+  for i in 0 .. jsonb_array_length(v_protected_old) - 1 loop
+    if (v_protected_old -> i) is distinct from (v_protected_new -> i) then
+      raise exception 'PACT: locked character history cannot be rewritten (protected event % changed)', i
+        using hint = 'Reload the character — its history was locked after this copy was loaded.';
     end if;
   end loop;
 
-  return new;
+  return NEW;
 end;
 $$;
 
-drop trigger if exists trg_characters_sealed_prefix on public.characters;
-create trigger trg_characters_sealed_prefix
-  before update on public.characters
-  for each row execute function public.pact_enforce_sealed_prefix();
-
--- ---------------------------------------------------------------------------
--- 3. Writing a seal.
+-- ===========================================================================
+-- 3. Placing a seal. One entry point, both tiers (owner decision I2):
+--    campaign character -> any DM of that campaign; solo character -> its owner.
 --
--- One entry point for both tiers (owner decision I2):
---   * campaign character -> any DM of that campaign, exactly like award_ap();
---   * solo character (campaign_id is null) -> its owner.
--- A player may NOT seal someone else's character in either case.
+-- The event carries no AP field at all, rather than a zero by convention (M365 Copilot review point:
+-- a type that cannot express a value cannot later acquire one by accident). seq/ts and the sealer's
+-- identity are stamped here; client-supplied values for them are discarded, the same rule
+-- dm_edit_character_log() already applies.
 --
--- The event carries no AP field at all, rather than an amount of zero by convention — an M365
--- Copilot review point, and a good one: a type that cannot express a value cannot later acquire one
--- by accident. seq/ts and the sealer's identity are stamped here and any client-supplied values for
--- them are discarded, the same rule dm_edit_character_log() already applies.
---
--- IDEMPOTENCY. p_idem is an optional caller-generated key. A retry after a network timeout carrying
--- the same key is a no-op returning the existing seal, so a DM double-tap or an offline retry cannot
--- stack two seals. Without this, a retried award_ap_and_seal() could award AP twice — the one
--- failure mode here that would materially damage a character.
--- ---------------------------------------------------------------------------
+-- p_idem makes a retry after a network timeout a no-op returning the existing seal.
+-- ===========================================================================
 create or replace function public.seal_character_history(
   p_character uuid,
   p_note      text default null,
@@ -172,7 +172,6 @@ begin
   end if;
   v_log := coalesce(v_stats->'LOG', '[]'::jsonb);
 
-  -- Idempotent retry: the same key already sealed this character, so return that seal unchanged.
   if p_idem is not null then
     select ev into v_ev
       from jsonb_array_elements(v_log) as t(ev)
@@ -185,19 +184,19 @@ begin
 
   v_seq := coalesce((v_stats->>'SEQ')::integer, jsonb_array_length(v_log) + 1);
   v_ev := jsonb_build_object(
-    'seq',      v_seq,
-    'ts',       v_ts,
-    'type',     'sessionSeal',
-    'label',    coalesce(nullif(btrim(coalesce(p_note, '')), ''), 'Session sealed'),
-    'note',     coalesce(p_note, ''),
-    'sealedBy', auth.uid(),
+    'seq',        v_seq,
+    'ts',         v_ts,
+    'type',       'sessionSeal',
+    'label',      coalesce(nullif(btrim(coalesce(p_note, '')), ''), 'Session sealed'),
+    'note',       coalesce(p_note, ''),
+    'sealedBy',   auth.uid(),
     'sealedRole', case when v_campaign is null then 'owner' else 'dm' end
   );
   if p_idem is not null then
     v_ev := v_ev || jsonb_build_object('idem', p_idem);
   end if;
-  -- dmEdit marks another account's edit, so it belongs on a DM seal and NOT on a self-seal. The
-  -- barrier does not depend on it either way — `sessionSeal` is a barrier by type.
+  -- dmEdit marks ANOTHER account's edit, so it belongs on a DM seal and not on a self-seal. The
+  -- protection does not depend on it either way — `sessionSeal` is a boundary by type.
   if v_campaign is not null then
     v_ev := v_ev || jsonb_build_object('dmEdit', true, 'dmId', auth.uid());
   end if;
@@ -209,18 +208,16 @@ begin
 end;
 $$;
 
--- ---------------------------------------------------------------------------
--- 4. Award AP and seal, atomically.
+-- ===========================================================================
+-- 4. Award AP and seal, atomically. A plpgsql body is one transaction, so either the ledger row, the
+-- AP increment and the seal all commit or none do. Without this you can get AP awarded but history
+-- unsealed (or the reverse), and a DM retrying the half they saw fail duplicates the half that
+-- succeeded — and awarding twice is the one outcome here that materially damages a character.
 --
--- A plpgsql function body is a single transaction, so either the ledger row, the AP increment and
--- the seal all commit, or none do. Raised by two reviewers: without this you can get AP awarded but
--- history not sealed, or the reverse, and a DM retrying the visibly-failed half duplicates the other.
---
--- The AP itself is NOT written into the LOG. It stays in characters.ap exactly as award_ap() has
--- always put it, because AP already reaches a character by two independent paths that both feed the
--- same spendable total — writing one award to both would double it. The seal is a separate marker
--- carrying no value, which is the whole reason it can be one.
--- ---------------------------------------------------------------------------
+-- The AP itself stays in characters.ap. It is NOT written into the log, because AP already reaches a
+-- character by two independent paths feeding the same spendable total; one award in both would
+-- double it. The seal is a separate valueless marker, which is exactly what lets it be one.
+-- ===========================================================================
 create or replace function public.award_ap_and_seal(
   p_character uuid,
   p_amount    integer,
@@ -232,8 +229,7 @@ declare
   v_ap   integer;
   v_seal jsonb;
 begin
-  -- Idempotent retry: if this key already sealed, the whole operation already committed (the seal is
-  -- written last), so return the existing result rather than awarding a second time.
+  -- The seal is written last, so finding this key means the whole operation already committed.
   if p_idem is not null then
     select ev into v_seal
       from characters c, jsonb_array_elements(coalesce(c.stats->'LOG', '[]'::jsonb)) as t(ev)
@@ -252,12 +248,11 @@ begin
 end;
 $$;
 
--- ---------------------------------------------------------------------------
--- 5. Let a DM append a seal through the existing edit path too (owner J1's sibling case).
--- dm_edit_character_log()'s allowlist is replaced wholesale below with `sessionSeal` added; every
--- other line is unchanged from sql/migrations/2026-08-10-dm-edit-character-log.sql. Kept in step
--- deliberately rather than patched, so the allowlist reads as one list in one place.
--- ---------------------------------------------------------------------------
+-- ===========================================================================
+-- 5. dm_edit_character_log()'s allow-list gains `sessionSeal`, so a DM can seal alongside an edit in
+-- one write. Every other line is unchanged from 2026-08-10; replaced wholesale rather than patched so
+-- the allow-list reads as one list in one place.
+-- ===========================================================================
 create or replace function public.dm_edit_character_log(p_character uuid, p_events jsonb)
 returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -296,12 +291,9 @@ begin
   for v_ev in select * from jsonb_array_elements(p_events) loop
     v_type := v_ev->>'type';
     v_cat  := v_ev->>'cat';
-    -- Scope allowlist: boons and drawbacks only (owner, 2026-08-05 — "not a general editor"). A
-    -- 'buy' must be cat:'boon' or cat:'drawback'; 'award' only ever accompanies a boon buy in the
-    -- same call (enforced client-side by always sending the pair together, not re-checked here since
-    -- an award alone is exactly what award_ap() already permits a DM to do through its own path).
-    -- 'sessionSeal' added by feat/session-seal: a seal appended alongside a DM edit in one write.
-    -- It carries no value, so it cannot move AP however it arrives.
+    -- Scope allow-list: boons and drawbacks only (owner, 2026-08-05 — "not a general editor"), plus
+    -- `award` (which award_ap() already permits a DM through its own path) and, since
+    -- feat/session-seal, `sessionSeal` — valueless, so it cannot move AP however it arrives.
     if v_type = 'buy' then
       if v_cat is distinct from 'boon' and v_cat is distinct from 'drawback' then
         raise exception 'dm_edit_character_log: unsupported buy category %', v_cat;
@@ -310,9 +302,8 @@ begin
       raise exception 'dm_edit_character_log: unsupported event type %', v_type;
     end if;
 
-    -- A seal must never carry a value, whichever door it comes through.
     if v_type = 'sessionSeal' then
-      v_ev := v_ev - 'amount' - 'cost';
+      v_ev := v_ev - 'amount' - 'cost';   -- a seal never carries a value, whichever door it comes through
     end if;
 
     v_ev := (v_ev - 'seq' - 'ts' - 'dmEdit' - 'dmId')
@@ -329,13 +320,14 @@ begin
 end;
 $$;
 
--- ---------------------------------------------------------------------------
+-- ===========================================================================
 -- 6. Grants. Authorisation is decided inside each function, as everywhere else in this schema.
--- ---------------------------------------------------------------------------
-revoke execute on function public.pact_enforce_sealed_prefix()                     from public;
-grant  execute on function public.seal_character_history(uuid, text, text)         to authenticated;
-revoke execute on function public.seal_character_history(uuid, text, text)         from public;
-grant  execute on function public.award_ap_and_seal(uuid, integer, text, text)     to authenticated;
-revoke execute on function public.award_ap_and_seal(uuid, integer, text, text)     from public;
-grant  execute on function public.dm_edit_character_log(uuid, jsonb)               to authenticated;
-revoke execute on function public.dm_edit_character_log(uuid, jsonb)               from public;
+-- ===========================================================================
+grant  execute on function public.seal_character_history(uuid, text, text)     to authenticated;
+revoke execute on function public.seal_character_history(uuid, text, text)     from public;
+grant  execute on function public.award_ap_and_seal(uuid, integer, text, text) to authenticated;
+revoke execute on function public.award_ap_and_seal(uuid, integer, text, text) from public;
+grant  execute on function public.dm_edit_character_log(uuid, jsonb)           to authenticated;
+revoke execute on function public.dm_edit_character_log(uuid, jsonb)           from public;
+grant  execute on function public.pact_ap_ledger_protected(jsonb)              to authenticated;
+revoke execute on function public.pact_ap_ledger_protected(jsonb)              from public;

@@ -52,7 +52,17 @@ Read in the code and SQL; a reviewer should treat these as premises, not indepen
 - **A DM-append database function already exists**, privilege-checked, which strips and re-stamps
   authorship on every event so a browser cannot forge a DM-authored entry. Its allow-list currently
   accepts only a boon/drawback purchase, an AP award, and a boon removal.
-- **Optimistic concurrency already exists, and is weaker than it looks.** `pushCharacter()` in
+- **⚠ CORRECTED 2026-09-01 — SERVER-SIDE HISTORY PROTECTION ALREADY EXISTS.** Revision 2 asserted the
+  opposite, and all three reviewers reasoned from that premise (none had repo access to check it).
+  `pact_enforce_locked_history()`, a BEFORE UPDATE trigger live since 2026-08-10, already freezes
+  everything at or before the last non-discretionary, non-`noLock` `award` event **for campaign-bound
+  characters**, comparing a six-field projection of the protected events. Found by listing the live
+  triggers on `characters` immediately before applying the migration. What it does NOT do, and what
+  this work therefore still adds: the DM Console's Award AP writes no LOG event so it locks nothing;
+  solo characters are skipped entirely; and the boundary is implicit and moves with the last award
+  rather than being placed deliberately. Phase 1 now AMENDS that trigger instead of adding a second
+  one — see `D-GH-2026-09-01-session-seal`.
+- **Optimistic concurrency also exists, and is weaker than it looks.** `pushCharacter()` in
   `js/sync.js` issues its update with a compare-and-swap on a server-maintained `updated_at`, so a stale
   save matches zero rows and raises a conflict. But: (a) it is **opt-in** — when the client has no base
   value it sends an *unguarded* update that replaces the whole LOG; (b) the predicate lives in the
@@ -96,10 +106,14 @@ corrupts real characters belonging to real people.
 1. **Seal event schema.** A distinct type that *cannot carry an AP amount at all*, rather than carrying
    zero by convention. Server-authored actor, timestamp and stable id. Optional link to the award ledger
    row when sealed as part of an award.
-2. **Database enforcement at a single choke point.** A `BEFORE UPDATE` trigger on the characters table
-   that rejects any write whose sealed prefix differs from the stored one. A trigger, not a check inside
-   one function, because it covers *every* path in the table above by construction — including paths that
-   do not exist yet. This is the direct answer to "the predicate lives in the client's query".
+2. **Database enforcement at a single choke point — by AMENDING the existing trigger, not adding one.**
+   `pact_enforce_locked_history()` already covers every write path by construction. Three surgical
+   changes: `sessionSeal` joins the protected projection so a seal cannot be removed; the boundary
+   becomes the later of the award boundary and the last seal; and the seal half applies to solo
+   characters, which the award half skips. A second parallel trigger was drafted and withdrawn — it
+   would have been a hand-written mirror of a canonical rule, and it compared raw JSONB where the
+   original deliberately compares a projection (a distinction the original earned through three
+   review-found bugs).
 3. **Make the existing concurrency guard mandatory**, closing the unguarded branch, so a client with no
    base value can no longer replace a LOG wholesale.
 4. **Atomic, idempotent award-and-seal.** One transaction covering the AP column, the ledger row and the
