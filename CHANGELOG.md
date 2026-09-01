@@ -18,6 +18,27 @@
   creation". Also corrects `undoFloor()`'s note that `creationUnlocked` handling is "latent (nothing
   emits it yet)": `dm_reopen_creation()` and the campaign-move trigger both emit it, and two live
   characters already carry one.
+- **2026-09-02 · fix(sql): the session-seal migration silently deleted two live guards — restored**
+  — `/code-review ultra` on the merged seal work found that `2026-09-01-session-seal.sql` rebuilt
+  `dm_edit_character_log()` from the **stale** `2026-08-10-dm-edit-character-log.sql` rather than editing
+  the live definition, and that this reached **production**. Its header said "every other line is unchanged
+  from 2026-08-10" — true, and precisely the defect: that file had not been the live definition for three
+  weeks. Gone with it: `assert_campaign_active()` (so an **archived, read-only campaign was writable by its
+  DM again** — reverting D-GH-2026-08-22) and the whole boon/award FIFO amount-matching block (so **a boon
+  grant no longer had to be paid for** — reverting D-GH-2026-08-10-dm-edit-boon-amount-check, itself a
+  `/code-review ultra` find on PR #403). Both confirmed absent against the live database before the fix and
+  present after, `sessionSeal` support retained. Also fixed `award_ap_and_seal()`'s idempotency race — its
+  authorisation SELECT took no row lock, so two concurrent calls sharing one `p_idem` could both pass the
+  replay probe and both award AP, the one outcome its own header calls materially damaging; rebuilt from
+  the **live body read back from `pg_proc`**, not from the migration file. The rollback file, which told an
+  operator to re-apply that same stale file (leaving the database *weaker* than before the seal shipped),
+  is corrected. Client half: the Live Sheet's manual cloud-save threw `res.error` **before** its new
+  `res.sealed` branch, so on the first rejection — the only one carrying `error` — the branch was dead and
+  the player saw raw plpgsql text; all five review angles found this independently. Advisor clean, live data
+  unchanged (35 characters / 461 log events / 0 seals), parity 73/0, undo-barrier 44/0, sync-concurrency 24/0.
+  **The lesson, since this is the second time in two days:** a dated migration file is a historical record,
+  not the current definition. Rebuild a function from `sql/rls-policies.sql` or from `pg_proc`, never from
+  the migration that first created it.
 - **2026-09-01 · fix: 14 code-review findings on the session seal, incl. one that killed undo outright**
   — `/code-review ultra` (required by the PR template for anything touching `js/engine.js` or `sql/`)
   found that step 1's `isUndoBarrier()` treated `noLock` awards as barriers. CharGen's budget is a
