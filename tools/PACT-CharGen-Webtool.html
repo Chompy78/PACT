@@ -4757,6 +4757,27 @@ function randomizeRoll(themeKey,lvlWanted){
   }
   // Mop-up: spend whatever the shaped loop left on identity picks, which are the ones worth having.
   for(let q=0;q<8;q++){tryAct(actBoon,'powers');tryAct(actArt,'powers');tryAct(actRacial,'powers');}
+  // A random roll re-derives this character's whole LOG from the DOM (applyBuild below, then the
+  // appearance resync). The DOM has no control representing the creation ceiling or the finished-
+  // creation lock, so both are DESTROYED by that rebuild unless carried across explicitly.
+  //
+  // Measured on the live tool before this fix: a character with a DM-set ceiling of 78 and creation
+  // finished came back with NO ceiling at all (enforced:false, reverted to the 79 default) and as a
+  // draft again. For a campaign character that is silent data loss — the DM's limit gone and the player
+  // quietly back on creation pricing.
+  //
+  // Carried HERE rather than inside replaceWholeLogFromBuild(), deliberately: that function is also on
+  // the path that LOADS a different character, and preserving creation state there would let one
+  // character inherit another's ceiling and lock. A roll is the same character by definition (the
+  // button keeps species, class and name), so carrying is only correct in this scope.
+  //
+  // Both config and lock/unlock events are taken, in log order, so last-write-wins still resolves the
+  // way it did before the roll.
+  const _rollCarry = (LOG||[]).filter(function(e){
+    return e && (e.type === 'creationLocked' || e.type === 'creationUnlocked' ||
+      (e.type === 'creationLockConfig' && e.payload &&
+       Object.prototype.hasOwnProperty.call(e.payload, 'threshold')));
+  }).map(function(e){ return JSON.parse(JSON.stringify(e)); });
   // Chunk B: randomize is ONE undoable step — push a single pre-roll frame, then suspend across applyBuild
   // AND the appearance/name resync so the tail's second LOG rebuild records no extra frame.
   _commitWholeBuildFrame();
@@ -4774,6 +4795,22 @@ function randomizeRoll(themeKey,lvlWanted){
     // to the LOG on its own — but it skips that commit while _histSuspended, exactly because THIS
     // resync already covers it a few lines later; see that fix's comment on _rollField's `set`.)
     if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
+    // Restore the creation state the rebuild above dropped. Appended AFTER the burst and after
+    // _cgRepriceDraft() has priced it as a draft — the same ordering D-GH34 established for the lock,
+    // and it means a locked character's carried lock does not suppress the fresh burst's pricing.
+    // Skipped when an equivalent event survived, so a re-roll cannot stack duplicates.
+    if(_rollCarry.length){
+      const _have = function(pred){ return (LOG||[]).some(pred); };
+      _rollCarry.forEach(function(e){
+        const dupe = (e.type === 'creationLockConfig')
+          ? _have(function(x){ return x && x.type === 'creationLockConfig' && x.payload &&
+              x.payload.threshold === e.payload.threshold; })
+          : _have(function(x){ return x && x.type === e.type; });
+        if(dupe) return;
+        e.seq = SEQ++; e.ts = Date.now();
+        LOG.push(e);
+      });
+    }
   }finally{_histSuspended=_prevSusp;window._rollThemeActive=null;}
   const spent=_cur.total;
   const _changed=JSON.stringify(b)!==_snap0;

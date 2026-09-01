@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-01 · fix(chargen): a random roll destroyed the DM's creation limit and un-finished creation**
+  — 🎲 Random re-derives the whole LOG from the DOM (`applyBuild` then the appearance resync), and the
+  DOM has no control representing a creation ceiling or a finished-creation lock, so both were silently
+  dropped. Measured on the live tool: a character with a DM-set ceiling of 78 and creation finished came
+  back with **no ceiling at all** (reverted to the 79 default, unenforced) and as a **draft again** — the
+  DM's limit gone and the player quietly back on creation pricing. `randomizeRoll()` now captures those
+  events before the rebuild and re-appends them after, skipping any that survived so a re-roll cannot
+  stack duplicates. Carried in the roll rather than in `replaceWholeLogFromBuild()` deliberately: that
+  function is also on the path that LOADS a different character, where preserving creation state would
+  let one character inherit another's ceiling and lock — verified both directions.
 - **2026-08-31 · feat(chargen): themed random character generator** — the 🎲 Random roll produced
   incoherent characters, and three defects were measured rather than guessed (harness now committed as
   `testing/scripts/random-quality-ci.mjs`): Hit Dice were capped at **9 for every budget** because
