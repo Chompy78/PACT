@@ -873,3 +873,43 @@ on an unmodified tree.
 
 **Done when:** `node testing/scripts/tool-pricing-ci.mjs` passes 10 consecutive runs on an unmodified
 tree, and the tab count it opens is one per tool rather than one per section.
+
+## No end-to-end test covers a real seal rejection — the two halves are only tested apart — TODO
+Branch `test/seal-roundtrip`. The session seal (PR #492, 2026-09-01) ships with both halves covered and
+neither joined. `testing/sql/session-seal-test.sql` drives the real trigger against a real Postgres 16
+(33/0); the browser gate drives the tools' client-side refusals. Nothing exercises the two **together**,
+because the test stub server has no error-injection seam — so `isSealRejection()`, the `_sealBlocked`
+set, and the manual-save "will sync when online" path are only ever fed a **hand-written** error object,
+never a real PostgREST rejection produced by the live trigger.
+
+That gap is exactly the shape of two of the fourteen findings `/code-review ultra` caught on this branch:
+`isSealRejection()`'s OR-chain made its `hint`/`details` fallback dead code, and `_sealBlocked` was never
+cleared by the in-app remedy. Both are client code reacting to a server error shape, and both survived
+because no test ever produced that shape for real. A stub that can be told to answer one PUT with a
+genuine `P0001` from `pact_enforce_locked_history()` would have failed on each.
+**Effort:** small–medium · **Risk:** low — test harness only; no app code, no rules logic, no SQL change.
+Ambiguity is the driving factor (where the seam belongs in the stub is a design call), and its worst case
+is a test that has to be rewritten, not a defect shipped. Sweep-eligible.
+
+```text
+1. Give the test stub server an error-injection seam — the smallest thing that lets a test say "answer
+   the next PATCH/PUT for character X with this status and this JSON body". Do NOT hand-roll the error
+   body from memory: capture a REAL one first by driving the live trigger (the SQL harness already
+   provokes it) and record the actual status, code, message, hint and details PostgREST returns.
+2. Assert the whole round trip, not the classifier in isolation:
+   - a save whose payload would alter the sealed prefix is refused, `isSealRejection()` returns true for
+     the REAL body, and the character lands in `_sealBlocked`;
+   - the refusal is NOT reported to the user as "will sync when online" — that was a real bug here;
+   - `loadCharacter()` clears `_sealBlocked` for that id, and a subsequent legal save (appending AFTER
+     the seal) succeeds.
+3. Cover the `hint`/`details` fallback specifically. It is dead code today by construction; the test
+   should fail if someone reverts the concatenation to an OR-chain.
+4. Keep it in the dependency-free gate family — no live Supabase, no credentials. The point is that CI
+   can exercise the shape, which is precisely what the SQL harness cannot do and the browser gate does
+   not attempt.
+```
+
+**Done when:** one test drives a save refused by a REAL trigger-shaped PostgREST error through
+`saveCharacter()` and asserts the refusal, the `_sealBlocked` entry, the absence of the "will sync when
+online" message, and the clear-on-load; the recorded error body is checked in with a note saying it was
+captured from the live trigger rather than written by hand; and the suite runs in CI without credentials.
