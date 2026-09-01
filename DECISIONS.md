@@ -10,6 +10,19 @@
 
 ## Index
 
+## D-GH-2026-09-01-undo-barrier-shared — one undo-barrier rule for both player tools
+- The rule "this history can no longer be taken back" was hand-written three times, once per tool, and
+  two copies were wrong for the same character: CharGen's `undo()` checked only `dmEdit` while claiming
+  in comment to mirror the Live Sheet's award barrier, and neither tool treated `creationLocked` as a
+  barrier — so "Finish creating"'s promise that only a DM can reopen creation was false in both. Chose
+  one shared rule in `js/engine.js` (A1) over patching the two spots in place (A2) or fixing only the
+  `creationLocked` half (A3). Exported as a **floor** (`undoFloor`), not a per-event predicate, because
+  CharGen's undo restores whole snapshots and a frame from before a barrier would otherwise jump past
+  it. History-only — no `compute()` involvement, so `DATA.version` is unchanged. Confirmed *not* a bug
+  on the way past: drawbacks stay purchasable after the creation lock in both tools, by design.
+  Step 1 of 2; the DM-triggered session seal is `feat/session-seal` on the NEXT board.
+  Full record: `decisions/2026/D-GH-2026-09-01-undo-barrier-shared.md`.
+
 ## D-GH-2026-08-31-random-char-generator-optimize — the random generator gets a theme, and a gate that can fail
 - The 🎲 Random roll was measured rather than guessed at: Hit Dice were capped at **9 for every budget**
   (the clamp sat on the random draw, not the ceiling), so a level-20 budget rolled an HD-5 character and

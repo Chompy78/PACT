@@ -570,7 +570,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, economyOn, wealthLedger, chargesGoldAndTime } from '../js/engine.js';
+  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, undoFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, economyOn, wealthLedger, chargesGoldAndTime } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, economyOn, wealthLedger, chargesGoldAndTime };
@@ -583,7 +583,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   window._engineBridge = { validate, creationLockThreshold };
-  window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling;
+  window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor;
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   document.dispatchEvent(new Event('engine-ready'));
 </script>
@@ -2615,17 +2615,36 @@ function restoreFrame(f){
 
 function undo(){
   if(_histSuspended)return;
-  // feat/dm-edit-events: mirrors the Live Sheet's award-event undo barrier, but checked against LOG
-  // directly rather than a HIST frame — CharGen's undo is snapshot-based, not LIFO-over-events, so the
-  // "last thing that happened" is the tail of the live LOG, not the top of HIST.
-  if(LOG.length&&LOG[LOG.length-1]&&LOG[LOG.length-1].dmEdit){
-    flash('DM edits lock your history — buys made before one can\'t be undone.');
-    return;
-  }
   _sealOpenGroup();                        // seal-before-undo: never land mid-word
   if(!HIST.length)return;
+  // UNDO BARRIER (feat/undo-barrier-shared). The rule is js/engine.js's isUndoBarrier/undoFloor, shared
+  // with the Live Sheet. The check that USED to be here tested only `dmEdit`, and only against the tail
+  // of the live LOG, while its comment claimed it mirrored the Live Sheet's award barrier — it did not,
+  // so a plain `award` event (a redeemed grant code, or the DM awards a clone migrates in) blocked undo
+  // there and not here, for one character that opens in either tool since D-GH40.
+  //
+  // WHY THE TARGET FRAME, NOT THE TAIL. This tool's undo restores whole earlier SNAPSHOTS of the log,
+  // so a tail test is not enough: a frame captured before a barrier arrived — a DM edit synced down
+  // mid-session is the live case — jumps straight past the barrier and takes it, and everything under
+  // it, with it. Comparing the target frame's own floor against the current one refuses exactly that,
+  // and still allows undoing purchases made after the barrier (their frames keep the same floor).
+  // _sealOpenGroup() now runs BEFORE the check rather than after, because the thing being judged is
+  // the frame that would be restored, and an open coalescing group has to be settled first for that
+  // frame to exist. A refused undo therefore still closes an open group — harmless: sealing only ends
+  // a coalescing window, it never touches LOG.
+  var _floor=undoFloor(LOG), _tgt=((HIST[HIST.length-1]||{}).log)||[];
+  if(_tgt.length<_floor||undoFloor(_tgt)<_floor){ flash(_undoBarrierMsg(LOG[_floor-1])); return; }
   REDO.push(_snapshotFrame());
   restoreFrame(HIST.pop());
+}
+// Why the undo stopped, in the player's terms — byte-equivalent to the Live Sheet's copy of the same
+// helper; keep them in step. (Message text only: the RULE is shared in js/engine.js, which is the part
+// that actually mattered.) Checked in isUndoBarrier()'s own precedence order so an event that is
+// several kinds of barrier at once names the most specific one.
+function _undoBarrierMsg(ev){
+  if(ev&&ev.dmEdit)return 'DM edits lock your history — buys made before one can\'t be undone.';
+  if(ev&&ev.type==='creationLocked')return '🔒 Creation is finished — what you bought during creation can\'t be undone. Only your DM can reopen it.';
+  return 'AP awards lock your history — buys made before an award can\'t be undone.';
 }
 function redo(){
   if(_histSuspended)return;

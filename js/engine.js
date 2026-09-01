@@ -1934,6 +1934,57 @@ export function wouldExceedCeiling(events, cost, opts) {
   return (st.spent + c) > st.ceiling;
 }
 
+// ---- undo barriers (feat/undo-barrier-shared) --------------------------------------------------
+//
+// isUndoBarrier(event) / undoFloor(events): the ONE definition of "this part of the history can no
+// longer be taken back", asked by both player tools instead of each hand-writing its own copy.
+//
+// WHY IT LIVES HERE. Three hand-written copies of this rule already existed and two of them were
+// wrong, in different directions:
+//   * CharGen's undo() checked only `dmEdit` while its own comment claimed it "mirrors the Live
+//     Sheet's award-event undo barrier" — so a plain `award` event (a redeemed grant code, or the
+//     DM awards a clone migrates in as itemised entries) was an absolute barrier in the Live Sheet
+//     and freely undoable in CharGen. Since D-GH40 gave both tools one save envelope, the same
+//     character opens in either tool, so the two answers were reachable for one character.
+//   * Neither tool treated `creationLocked` as a barrier at all, so the confirm dialog's promise
+//     ("Only your DM can reopen creation afterwards") was false in both: one Undo click popped the
+//     event straight back off. See finishCreating()/cgFinishCreating().
+//
+// A FLOOR, NOT A PREDICATE, and that shape is load-bearing. The Live Sheet's undo pops one event at
+// a time off the tail, so a per-event "may I pop this?" test happens to behave like a floor there.
+// CharGen's does not: its undo restores whole earlier SNAPSHOTS of the log (see restoreFrame), so a
+// frame captured before a barrier arrived — e.g. a DM edit synced down mid-session — jumps straight
+// past it and takes the barrier and everything under it with it. A count of locked leading events is
+// the one form that answers both tools' question: the Live Sheet refuses to shrink LOG to below the
+// floor, and CharGen refuses to restore any frame whose log is shorter than it.
+//
+// WHAT COUNTS AS A BARRIER:
+//   * `dmEdit` — stamped SERVER-side by dm_edit_character_log (the client cannot forge it), so it
+//     marks another account's edit. A player must not be able to silently erase what their DM did.
+//   * `type:'award'` without `disc` — an AP award draws a line under what it was awarded against.
+//     A DISCRETIONARY award (`disc:true`, the Live Sheet's "+ Discount") is deliberately exempt: it
+//     is an in-play top-up the DM may well want to take straight back.
+//   * `type:'creationLocked'` — creation ended by a recorded act, and the dialog tells the player in
+//     advance that only their DM can reopen it. Making it a barrier is what makes that true.
+//
+// Everything at or before the LAST barrier is frozen; anything after it undoes normally. Purely a
+// history rule — it reads no prices and never touches compute(), so it cannot move a character's AP.
+export function isUndoBarrier(event) {
+  if (!event) return false;
+  if (event.dmEdit) return true;
+  if (event.type === 'award' && !event.disc) return true;
+  if (event.type === 'creationLocked') return true;
+  return false;
+}
+
+// The number of leading events a log may never shrink below: index of the last barrier + 1, or 0 when
+// there is none. `undoFloor(LOG) >= LOG.length` therefore means "nothing left to undo".
+export function undoFloor(events) {
+  const log = Array.isArray(events) ? events : [];
+  for (let i = log.length - 1; i >= 0; i--) if (isUndoBarrier(log[i])) return i + 1;
+  return 0;
+}
+
 // repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so
 // its ledger telescopes back to compute().total.
 //

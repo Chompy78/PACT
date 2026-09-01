@@ -1027,11 +1027,23 @@ function undo(){
   // re-materialize on the next online sync). Drop any trailing ones so undo hits the real last action.
   var _dropped=false; while(LOG.length && LOG[LOG.length-1] && LOG[LOG.length-1].type==='rulesSnapshot'){ LOG.pop(); _dropped=true; }
   if(!LOG.length){ if(_dropped){save();render();} return; }
-  if(LOG[LOG.length-1].type==='award'&&!LOG[LOG.length-1].disc){ if(_dropped){save();render();} flash('AP awards lock your history — buys made before an award can\'t be undone.');return; }
-  // feat/dm-edit-events: a DM edit is the same kind of undo barrier as an AP award — the player must
-  // not be able to silently erase what their DM changed. Mirrors the award check above exactly.
-  if(LOG[LOG.length-1].dmEdit){ if(_dropped){save();render();} flash('DM edits lock your history — buys made before one can\'t be undone.');return; }
+  // UNDO BARRIER (feat/undo-barrier-shared). The rule itself is js/engine.js's isUndoBarrier/undoFloor
+  // — shared with CharGen so the two tools can no longer disagree about one character (they did: this
+  // tool blocked on a plain `award` event and CharGen didn't). This tool's undo pops one event off the
+  // tail, so refusing to shrink LOG below the floor freezes everything at or before the last barrier
+  // while anything bought after it still undoes normally. Called unguarded, like compute()/foldBuild()
+  // beside it — UI boot is gated on engine-ready, and a fail-open guard here would silently unlock
+  // history the moment the engine were slow, which is the one failure this must not have.
+  var _floor=undoFloor(LOG);
+  if(LOG.length<=_floor){ if(_dropped){save();render();} flash(_undoBarrierMsg(LOG[_floor-1])); return; }
   REDO.push(LOG.pop()); viewAt=null; save(); render(); }
+// Why the undo stopped, in the player's terms. Checked in isUndoBarrier()'s own precedence order so
+// an event that is several kinds of barrier at once names the most specific one.
+function _undoBarrierMsg(ev){
+  if(ev&&ev.dmEdit)return 'DM edits lock your history — buys made before one can\'t be undone.';
+  if(ev&&ev.type==='creationLocked')return '🔒 Creation is finished — what you bought during creation can\'t be undone. Only your DM can reopen it.';
+  return 'AP awards lock your history — buys made before an award can\'t be undone.';
+}
 function redo(){ if(_viewOnlyBlock())return; if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save(); render(); }
 
 // ---------------- persistence ----------------
@@ -2567,13 +2579,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, creationCeiling, wouldExceedCeiling, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, creationCeiling, wouldExceedCeiling, undoFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   window._engineBridge = { validate };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   // Gold-and-downtime economy (Players Guide §16). Bridged onto window exactly as the AP-ledger
   // functions above are, so the classic-script half of this tool reaches them the same way.
-  window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling;
+  window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor;
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of

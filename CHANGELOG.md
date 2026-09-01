@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-01 · fix(engine,tools): one undo-barrier rule, shared by both player tools** — the rule
+  "this part of the history can no longer be taken back" had been hand-written three times, once per
+  tool, and two copies were wrong for the *same* character (D-GH40 gave both tools one save envelope).
+  CharGen's `undo()` checked only `dmEdit` while its own comment claimed to mirror the Live Sheet's
+  award barrier, so a plain `award` event — a redeemed grant code, or the DM awards a clone migrates in
+  — blocked undo in one tool and not the other; and **neither** tool treated `creationLocked` as a
+  barrier, so the "Finish creating" dialog's promise that *"only your DM can reopen creation"* was false
+  in both (one Undo click reopened it). Adds `isUndoBarrier()`/`undoFloor()` to `js/engine.js`, bridged
+  into both tools. Exported as a **floor** rather than a per-event predicate because CharGen's undo
+  restores whole earlier snapshots, so a frame captured before a barrier arrived would otherwise jump
+  straight past it — that tool now compares the target frame's floor against the live log's. New gate
+  `testing/scripts/undo-barrier-ci.mjs` (0 failed / 19). No mechanics change, so `DATA.version` is
+  unchanged. Step 1 of 2 toward a DM-triggered per-session seal — see
+  `D-GH-2026-09-01-undo-barrier-shared` for what it deliberately does *not* yet close.
 - **2026-08-31 · feat(chargen): themed random character generator** — the 🎲 Random roll produced
   incoherent characters, and three defects were measured rather than guessed (harness now committed as
   `testing/scripts/random-quality-ci.mjs`): Hit Dice were capped at **9 for every budget** because
