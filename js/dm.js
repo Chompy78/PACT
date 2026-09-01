@@ -314,3 +314,44 @@ export async function getCharacterStats(characterId) {
   if (error) throw error;
   return data;
 }
+
+/**
+ * feat/dm-creation-ceiling-controls: set a character's creation-AP ceiling.
+ *
+ * Goes through the purpose-built `dm_set_creation_ceiling` RPC rather than the general
+ * `dm_edit_character_log`, on both cold reviewers' advice — that function's header states it is
+ * "deliberately not a general editor", and widening its allowlist would have meant validating a JSON
+ * key-set in plpgsql (a permissive check silently accepts `{threshold, auto}`) with no bound on the
+ * value. One typed integer argument has neither problem.
+ *
+ * The stored figure is the DM's number ALONE. The character's drawback grant is added live by the
+ * engine's creationCeiling(), never baked in, so a drawback taken mid-build still hands back the room
+ * it paid for.
+ *
+ * @returns {Promise<object>} the appended event, as stored (server-stamped seq/ts/dmEdit/dmId)
+ */
+export async function setCreationCeiling(characterId, threshold) {
+  const { data, error } = await supabase.rpc('dm_set_creation_ceiling', {
+    p_character: characterId,
+    p_threshold: threshold,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Reopen creation for a character whose lock should not have stood.
+ *
+ * Appends `creationUnlocked`, which the engine resolves last-write-wins against `creationLocked` in
+ * log order. Future-only: purchases already made keep the prices they were frozen at.
+ *
+ * @returns {Promise<object>} the appended event, as stored
+ */
+export async function reopenCreation(characterId, note) {
+  const { data, error } = await supabase.rpc('dm_reopen_creation', {
+    p_character: characterId,
+    p_note: note || null,
+  });
+  if (error) throw error;
+  return data;
+}
