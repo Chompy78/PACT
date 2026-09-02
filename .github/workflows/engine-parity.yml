@@ -20,8 +20,11 @@ on:
       - "testing/scripts/engine-parity-ci.mjs"
       - "testing/scripts/log-fuzz.mjs"
       - "testing/scripts/undo-barrier-ci.mjs"
+      - "testing/scripts/version-label-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
+      - "tools/DM-Console.html"
+      - "index.html"
       - ".github/workflows/engine-parity.yml"
   workflow_dispatch:
 
@@ -81,3 +84,24 @@ jobs:
 
       - name: Run the shared undo-barrier / sealed-floor gate
         run: node testing/scripts/undo-barrier-ci.mjs
+
+  version-labels:
+    # Every rules/build version a player can READ must agree with DATA.version / BUILD. The tools all
+    # read DATA.version live at engine-ready, so the live labels are right — but the hardcoded FALLBACK
+    # literals behind those live writes have rotted twice before (the Live Sheet's footer sat 30 versions
+    # behind until 2026-08-06; CharGen's Info popup showed v0.339 beside a header reading v0.356,
+    # reported from real use 2026-08-19). Both times the live path was fixed and the literal left. This
+    # gate is what stops a third time, and it also makes "is the label stale?" answerable in one second —
+    # a task was filed on 2026-09-02 claiming it was, written from a grep without loading the tool, and
+    # it was wrong.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Displayed version labels agree with DATA.version and BUILD
+        run: node testing/scripts/version-label-ci.mjs

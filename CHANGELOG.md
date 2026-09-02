@@ -89,6 +89,26 @@
   creation". Also corrects `undoFloor()`'s note that `creationUnlocked` handling is "latent (nothing
   emits it yet)": `dm_reopen_creation()` and the campaign-move trigger both emit it, and two live
   characters already carry one.
+- **2026-09-02 · fix(tools): version labels now have a gate — and the task that prompted it was wrong**
+  — the board carried a task claiming CharGen displayed a rules version 25 releases stale (`v0.339`
+  against a live `v0.364`). **It was wrong, and I wrote it** — from a grep, without loading the tool. All
+  three tools read `DATA.version` live at `engine-ready` and display **v0.364** correctly over http, which
+  is how the app is served; `fix/chargen-rules-label-live` fixed the last hardcoded copy on 2026-08-10.
+  Verified by loading each tool in headless Chromium and reading what is on screen. What IS real: the
+  hardcoded **fallback** literals behind those live writes were stale, and nothing has ever checked them —
+  they have rotted twice before (the Live Sheet's footer sat 30 versions behind until 2026-08-06;
+  CharGen's Info popup showed `v0.339` beside a header reading `v0.356`, reported from real use
+  2026-08-19), and both times the live path was fixed and the literal left. New
+  `testing/scripts/version-label-ci.mjs` (10 assertions, pure Node, no browser) asserts every user-visible
+  rules label equals `DATA.version` and every build mirror equals `BUILD`, enumerating the targets rather
+  than grepping so the dozens of legitimately-pinned historical comments ("v0.314 fix") are not touched;
+  it also asserts `index.html` hardcodes nothing, since `docs/VERSION-SYNC.md` says it reads `BUILD` live.
+  Proven to fail on both a drifted value **and** a renamed anchor, so it cannot quietly stop checking.
+  Now a job in `engine-parity.yml`. The three stale literals are corrected to `v0.364` — safe to do only
+  because the gate now keeps them honest. **Separately, and bigger:** measuring this turned up that
+  `file://` no longer works in ANY tool — ES modules are blocked there, so the `engine-ready` bridge never
+  runs and `window.DATA` never exists, yet all three still list *"Must run by opening the file directly"*
+  under HARD CONSTRAINTS. Filed as a NOW task; it needs an owner decision, not a patch.
 - **2026-09-02 · fix(sql): the maintained baseline had fallen three migrations behind — and now cannot again**
   — `sql/rls-policies.sql` calls itself the fresh-install path and says "safe to re-run". Neither claim held.
   A database built from `schema.sql` + `rls-policies.sql` had **no seal functions at all**, so the shipped

@@ -67,44 +67,45 @@ change anything. Sweep-eligible.
 local `close-session-logging-core.md` is confirmed to carry all four patched clauses (or has been
 re-applied), and the stale `gh` path in AGENTS.md's Shell environment notes is corrected.
 
-## CharGen displays a rules version 25 releases stale — `v0.339` against a live `v0.364` — TODO
-Branch `fix/chargen-stale-rules-label`. Noticed during the v1.499 promotion, while confirming the build
-sync had touched no rules string. CharGen hardcodes the rules version in **two places a player actually
-sees**:
-- `<title>PACT Character Generator — Web Tool v1.499 · Rules v0.339</title>`
-- the header chip: `<span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span>`
+## `file://` no longer works in any tool — and all three still claim it must — TODO
+Branch `fix/file-protocol-support-or-drop-the-claim`. **Found on 2026-09-02 while disproving a wrong task**
+(see the correction note below). Measured in headless Chromium, opening each tool directly off disk:
 
-`DATA.version` has been `v0.364` since D-GH-2026-08-31 (the creation-ceiling mechanics change). So the tool
-has been telling players it runs a rules set it has not run for twenty-five versions. `index.html` already
-solves exactly this problem for the BUILD number by reading `BUILD` live and never being hand-edited —
-`docs/VERSION-SYNC.md` calls that out as the reason it "can never drift". The rules label should work the
-same way.
+| tool | engine loaded | `DATA.version` |
+|---|---|---|
+| CharGen | **no** | `null` |
+| Live Sheet | **no** | `null` |
+| DM Console | **no** | `null` |
 
-**Deliberately NOT fixed during the promotion that found it:** `docs/VERSION-SYNC.md` step 3 says a
-promotion touches the BUILD labels and nothing else, and the rules axis is bumped only when mechanics
-change. Widening a release commit to carry a display fix is how the two axes get conflated, which that
-document exists to prevent.
-**Effort:** small · **Risk:** low — display-only, no rules logic, no `DATA.version` bump (editing a display
-label is a docs-class change per AGENTS.md). Ambiguity is the only real factor: decide once whether the
-other stale `v0.3xx` strings in all three tools are displayed or merely historical comments.
+Browsers block ES modules over `file://`, so the `engine-ready` bridge introduced by D-GH26 never runs,
+`window.DATA` never exists, and the tool is not merely degraded — it is non-functional. Every version
+label falls back to its hardcoded literal, which is the visible symptom that led here.
+
+Each tool's own header still lists this under **HARD CONSTRAINTS (do not break)**: *"Must run by opening
+the file directly (file://)"*. That constraint has silently not held since the safe-subset migration.
+`AGENTS.md`'s working discipline says the shipped artifact wins over the written guide — so either the
+claim goes, or the capability comes back.
+**Effort:** medium · **Risk:** medium — ambiguity is the whole of it: this is a product decision before
+it is a code one, and the two answers lead to completely different work. **NOT sweep-eligible.**
 
 ```text
-1. Make CharGen read the rules version LIVE from the engine, the way index.html reads BUILD — the engine
-   is already bridged into the tool (DATA is on window after engine-ready), so this is a render-time
-   assignment, not new plumbing. The <title> needs setting in JS since it cannot template itself.
-2. Audit the other hardcoded v0.3xx strings before assuming they are all bugs:
-     Live Sheet  — v0.303, v0.309, v0.314, v0.322, v0.339
-     DM Console  — v0.351, v0.356
-   Most are probably historical notes in comments/changelog blocks, which SHOULD stay pinned. Only the
-   ones rendered to a user are in scope; say in the PR which were which.
-3. Add a check to an existing gate asserting no DISPLAYED rules string disagrees with DATA.version, so
-   this cannot silently rot again. That guard is the durable half of the task — the label fix alone just
-   resets the clock.
+0. OWNER DECISION FIRST — is opening a tool straight off disk still a supported use?
+   It is a real scenario for this project: a player handed a .html file, no server, no network. But it
+   has been broken since D-GH26 and nobody reported it, which is itself evidence about how much it is
+   used. Record the answer as a decision either way.
+1a. IF IT MUST WORK: the engine has to reach the tools without ES modules. An inline/classic-script
+    build step is the obvious route and is BARRED by AGENTS.md ("no build step"), so this needs its own
+    decision, not an implementation. Do not start here without one.
+1b. IF IT MAY GO: delete the claim from all three tools' HARD CONSTRAINTS blocks and say plainly what
+    replaces it (served over http, i.e. GitHub Pages or the local dev server) — leaving a false
+    "do not break" line is worse than having no line, because the next agent will defend it.
+2. Either way, note it in docs/HOW-TO-WORK.md next to the dev-server instructions, since that is where
+   someone looks when the file they double-clicked does nothing.
 ```
 
-**Done when:** CharGen's title and header chip show `DATA.version`'s live value, every other hardcoded
-`v0.3xx` in the three tools is either fixed or documented as a deliberate historical reference, and a gate
-fails if a displayed rules version drifts from `DATA.version` again.
+**Done when:** the owner's answer is recorded as a decision, and either `file://` genuinely works in all
+three tools (verified by loading each off disk and confirming `window.DATA` is present), or the HARD
+CONSTRAINTS line is gone from all three with its replacement stated.
 
 ---
 
