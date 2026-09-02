@@ -871,8 +871,30 @@ creating ten concurrent tabs, not to wait longer for them. Verify by running the
 on an unmodified tree.
 ```
 
+**Two observations from 2026-09-02** (a long session that hit this gate repeatedly on unrelated work),
+added because they narrow the fix — neither changes the diagnosis above, and the second may widen it:
+
+*The tab-contention reading is confirmed, not just plausible.* During a failure window the page was
+probed directly over CDP: `window.DATA`, `render`, `#apSourceLine` and `window._engineEcon` were **all
+present**. CharGen does boot — it simply does not finish inside the poll's budget under load. So this is
+contention, not a boot failure or a broken bridge, and nobody need go looking for one.
+
+*A possible SECOND factor — accumulated temp directories — worth ruling in or out before fixing only
+half the cause.* Every run spawns Chromium with a fresh `--user-data-dir` under `/tmp` and never removes
+it, so they pile up across runs. On one tree the gate failed twice consecutively (166/1 each); after
+deleting the accumulated `/tmp/pact-cdp-*` dirs it passed **three consecutive runs (189/0)**. **Treat
+this as a hypothesis, not a result:** it is a single uncontrolled before/after, a stray git worktree was
+removed in the same step, and load on the machine was not held constant. It is cheap to test properly —
+run the gate 10× with cleanup between runs, then 10× without — and it matters because a cloud/web Claude
+Code session runs with a **fixed writable-disk allowance** (a property of that execution environment, not
+something this repo documents), so disk pressure is a credible way to slow browser startup there. On a
+local machine with room to spare the effect may not exist at all, which is itself worth knowing: it would
+explain why this gate misbehaves more in some environments than others. If it holds, reusing one tab per
+tool is a *partial* fix and the script should also clean up its own `--user-data-dir` on exit.
+
 **Done when:** `node testing/scripts/tool-pricing-ci.mjs` passes 10 consecutive runs on an unmodified
-tree, and the tab count it opens is one per tool rather than one per section.
+tree, and the tab count it opens is one per tool rather than one per section. If the temp-directory
+hypothesis above is confirmed, the 10 runs must pass **without** cleanup between them.
 
 ## No end-to-end test covers a real seal rejection — the two halves are only tested apart — TODO
 Branch `test/seal-roundtrip`. The session seal (PR #492, 2026-09-01) ships with both halves covered and
