@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-02 · docs: record that the 2026-08-25 warnings-race fix was incomplete** — added an
+  Addendum to `D-GH-2026-08-25-dm-console-warnings-race-flake` (plus a ⚠ pointer on its `DECISIONS.md`
+  index entry) so that record no longer reads as "solved". Names the precise analytical gap: it examined
+  the two `P.select('live-1')` calls above the warnings block and cleared them as *victims* — correctly,
+  their own assertions read only synchronous state — but never considered them as *sources*, and those
+  are the selects whose in-flight fetches poison the later block. A race has two ends; only one was
+  audited. Also records the measurement (3 issued / 2 unsettled pre-fix, 0 / 0 after) and one
+  consequence: a `[]`-returning warnings-banner failure is now a known defect class with two instances
+  and must not be closed by a re-run again. Notes explicitly that no *product* change is implied —
+  `loadInvites()`'s same-campaign late response is correct behaviour in production and only bites a test
+  that seeds synthetic state.
 - **2026-09-02 · fix(testing): close the dm-console-ui warnings race properly (2nd attempt)** — the
   invite-warnings block failed **5 of 96** on PR #499's promotion, every assertion returning `[]`, and
   went green on a re-run — the second time this exact failure has been papered over. `selectCampaign()`
