@@ -25,7 +25,9 @@ on:
   pull_request:
     paths:
       - "js/engine.js"
+      - "js/engine-data.js"
       - "js/economy-bands.js"
+      - "js/ui-helpers.js"
       - "tools/DM-Console.html"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"

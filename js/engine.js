@@ -1295,6 +1295,32 @@ export function resolveEconomySetting(opts) {
   return logEconomySetting(o.events) || DATA.defaultEconomy;
 }
 
+/**
+ * resolveEconomyRules(opts) — the PRICING CONTEXT in force for a character: the resolved band, plus
+ * this campaign's per-row cost customisation when (and only when) that campaign's rules are actually
+ * in force. Pass the result anywhere a `settingOrRules` is taken — purchaseCost, priceLabel,
+ * wealthLedger's `band`/`rules` — and customised prices follow automatically.
+ *
+ * THIS EXISTS FOR THE SAME REASON resolveEconomySetting() DOES, and was added after review found the
+ * reason proving itself. That function's header calls band precedence "the one precedence rule the
+ * three tools must not each invent for themselves". Per-row customisation has a second, parallel rule
+ * — rowCosts apply only from a campaign that is both bound AND resolved — and this feature's first
+ * revision hand-copied it into two tools instead of naming it here. The third site that needed it
+ * (the DM Console's own roster ledger) was simply missed, with no error anywhere: it kept passing a
+ * bare token, so a DM's roster showed a different downtime balance than the player's own sheet. One
+ * owner makes that omission unrepresentable rather than merely unlikely.
+ *
+ * Returns a bare TOKEN when there is no customisation to apply — which is what makes "a solo player
+ * cannot inherit a table's pricing" a property of the data shape rather than a check to remember.
+ */
+export function resolveEconomyRules(opts) {
+  const o = opts || {};
+  const band = resolveEconomySetting(o);
+  const rc = o.campaignActive && o.campaignRules && o.campaignRules.economy
+             && o.campaignRules.economy.rowCosts;
+  return rc ? { economy: { band, rowCosts: rc } } : band;
+}
+
 /** The band descriptor for a setting token — {label, rows, blurb}. `rows` is null for
  *  'off'. Accepts a token OR an already-resolved rules object, so callers can pass
  *  whichever they have without each writing its own normalizing branch. */
@@ -1356,6 +1382,30 @@ export function economyOn(settingOrRules) {
  * purchase's price will move under the players' feet").
  */
 
+/**
+ * The downtime phrase for a CUSTOMISED band row, in the Players Guide's own vocabulary.
+ *
+ * Not formatDowntime(). That function deliberately renders anything under 60 days in weeks and days,
+ * because it formats a summed BALANCE and its own comment explains why ("the same quantity in two
+ * vocabularies, on the same screen"). Applied to a band row it causes precisely the clash it was
+ * written to prevent: a row flat-set to 30 days would print "4 weeks 2 days" directly above Fast's
+ * own 30-day row reading "1 month".
+ *
+ * So prefer the largest unit that divides EXACTLY, which is how every row in economy-bands.js is
+ * already worded — 7→"1 week", 21→"3 weeks", 30→"1 month", 42→"6 weeks", 90→"3 months", 365→"1 year",
+ * 730→"2 years" all reproduce their band's existing phrase verbatim. Anything that divides no unit
+ * cleanly (a 10-day override, say) falls through to formatDowntime, which is the right voice for a
+ * quantity the book has no word for.
+ */
+function _bandTimePhrase(days) {
+  const d = Math.max(0, Math.round(Number(days) || 0));
+  if (!d) return 'None';
+  for (const [unit, size] of [['year', 365], ['month', 30], ['week', 7], ['day', 1]]) {
+    if (d % size === 0) { const n = d / size; return n + ' ' + unit + (n === 1 ? '' : 's'); }
+  }
+  return formatDowntime(d);
+}
+
 /** The key a band row's customisation is stored under — its `maxAp`, or 'top'
  *  for the open-ended final row. */
 export function bandRowKey(row) {
@@ -1380,8 +1430,14 @@ function _rowCustom(settingOrRules, token) {
  *  never pays the character. */
 function _applyCostRule(listVal, rule, round) {
   if (!rule || typeof rule !== 'object') return listVal;
-  const v = Number(rule.value);
-  if (!Number.isFinite(v)) return listVal;
+  // `typeof === 'number'` BEFORE any coercion, deliberately. Number(null), Number('') and Number([])
+  // are all a perfectly finite 0, so a `Number.isFinite(Number(x))` guard fails OPEN on exactly the
+  // malformed values a free-form JSON column is most likely to grow — a hand-edited row, or a future
+  // writer using null to mean "unset" — and silently makes a whole band row free for every character
+  // at that table. That is the opposite of this function's contract, and it shipped that way in this
+  // feature's first revision; caught in review before merge.
+  const v = rule.value;
+  if (typeof v !== 'number' || !Number.isFinite(v)) return listVal;
   if (rule.mode === 'flat') return Math.max(0, round(v));
   if (rule.mode === 'mult') return Math.max(0, round((Number(listVal) || 0) * v));
   return listVal;
@@ -1403,7 +1459,7 @@ function _applyCostRule(listVal, rule, round) {
  */
 export function effectiveBandRows(settingOrRules) {
   const token = (typeof settingOrRules === 'string') ? settingOrRules : economySetting(settingOrRules);
-  const band = DATA.economyBands[token] || DATA.economyBands[DATA.defaultEconomy];
+  const band = economyBand(token);   // one owner for the band lookup and its default fallback
   if (!band || !band.rows) return null;
   const custom = _rowCustom(settingOrRules, token);
   if (!custom) return band.rows;
@@ -1415,7 +1471,7 @@ export function effectiveBandRows(settingOrRules) {
     if (gp === row.gp && days === row.days) return row;
     return Object.assign({}, row, {
       gp, days,
-      time: (days === row.days) ? row.time : formatDowntime(days),
+      time: (days === row.days) ? row.time : _bandTimePhrase(days),
       listGp: row.gp, listDays: row.days, customised: true,
     });
   });

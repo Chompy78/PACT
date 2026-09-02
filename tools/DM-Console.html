@@ -1629,6 +1629,14 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     var rules = (window._dmCampaignApRules && window._dmCampaignApRules.rules) || {};
     var band = window._engineEcon ? window._engineEcon.economySetting(rules) : 'off';
     var econOn = band !== 'off';
+    // The PRICING context, not just the band token (feat/cost-customization). A token carries no
+    // per-row customisation, so pricing this roster ledger from one showed the DM a different
+    // downtime balance than the player's own sheet for any campaign that had re-priced a row —
+    // found in review, and exactly the omission resolveEconomyRules() now exists to prevent. The
+    // campaign is by definition active here: this body only renders for a selected campaign.
+    var econCtx = (window._engineEcon && window._engineEcon.resolveEconomyRules)
+      ? window._engineEcon.resolveEconomyRules({ events: (dm && dm.log) || [], campaignRules: rules, campaignActive: true })
+      : band;
     var fmt = (window._engineEcon && window._engineEcon.formatDowntime) ? window._engineEcon.formatDowntime : function(n){ return n+' days'; };
     var h = '';
     if(econOn){
@@ -1644,7 +1652,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         var daysLeft = win.days;
         try {
           if(dm.log && window._engineEcon){
-            var _led = window._engineEcon.wealthLedger(dm.log, {band:band});
+            var _led = window._engineEcon.wealthLedger(dm.log, {band:econCtx});
             daysLeft = window._engineEcon.wealthWithDm(_led, {window:{days:win.days, startTs:new Date(win.declaredAt).getTime()}}).daysLeft;
           }
         } catch(e){ daysLeft = win.days; }
@@ -2864,10 +2872,10 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // failed esm.sh import (js/supabase-client.js pulls @supabase/supabase-js from a CDN) aborted the whole
   // module: engine-ready never fired, boot never ran, and the console rendered as a bare shell. Now the
   // engine half cannot be taken down by the cloud half.
-  import { DATA, compute, requiredHD, FEAT_ALIAS, baseBuild, packTraitsFor, MUT, creationLockState, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey } from '../js/engine.js';
+  import { DATA, compute, requiredHD, FEAT_ALIAS, baseBuild, packTraitsFor, MUT, creationLockState, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // exactly as the AP-ledger helpers above are.
-  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey };
+  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules };
   import { verifyCharacterEnvelope } from '../js/character-store.js';   // tamper-evidence read-side (D-GH48)
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
@@ -3320,14 +3328,26 @@ document.addEventListener('campaign-ready', function () {
   function _econRowsCollect(){
     var out = {}, any = false;
     Object.keys(_econRowState).forEach(function(band){
-      if(!_econRowsFor(band)) return;
+      // A band token this build does not know is carried through UNTOUCHED rather than dropped.
+      // Filtering it out would mean that renaming or retiring a band in economy-bands.js silently
+      // destroys a DM's tuning for it on their next save — triggered by editing anything at all,
+      // since one button saves the whole rules object. The engine already takes this posture for a
+      // row key that matches no row ("simply stops matching, which is the safe failure"); data the
+      // UI cannot currently display is still the DM's.
+      if(!_econRowsFor(band)){
+        if(_econRowState[band] && Object.keys(_econRowState[band]).length){ out[band] = _econRowState[band]; any = true; }
+        return;
+      }
       var per = _econRowState[band], keep = {}, kept = false;
       Object.keys(per||{}).forEach(function(k){
         var e = per[k] || {}, one = {};
         ['gp','days'].forEach(function(cur){
           var r = e[cur];
-          if(r && (r.mode === 'mult' || r.mode === 'flat') && Number.isFinite(Number(r.value))){
-            one[cur] = { mode: r.mode, value: Number(r.value) };
+          // `typeof === 'number'` before any coercion, matching _applyCostRule() in the engine and
+          // for the same reason: Number(null) is a finite 0, so coercing here would PERSIST a free
+          // row to the database for a value that only ever meant "nothing typed yet".
+          if(r && (r.mode === 'mult' || r.mode === 'flat') && typeof r.value === 'number' && Number.isFinite(r.value)){
+            one[cur] = { mode: r.mode, value: r.value };
           }
         });
         if(Object.keys(one).length){ keep[k] = one; kept = true; }
@@ -3370,7 +3390,7 @@ document.addEventListener('campaign-ready', function () {
         +   '<b style="font-size:12px">' + esc(row.ap) + '</b>'
         +   '<span style="font-size:11px;opacity:.85" data-econ-preview="' + esc(k) + '">'
         +     (changed
-                ? '<b>' + Number(e.gp).toLocaleString() + ' gp &middot; ' + esc(_econFmtDays(e.days)) + '</b>'
+                ? '<b>' + Number(e.gp).toLocaleString() + ' gp &middot; ' + esc(e.time) + '</b>'
                   + ' <span style="opacity:.7">(list ' + Number(row.gp).toLocaleString() + ' gp &middot; ' + esc(row.time) + ')</span>'
                 : Number(row.gp).toLocaleString() + ' gp &middot; ' + esc(row.time))
         +   '</span>'
@@ -3386,7 +3406,7 @@ document.addEventListener('campaign-ready', function () {
    * browser enforces C3 rather than a change handler having to. */
   function _econCurrencyRow(band, k, cur, label, rule){
     var mode = (rule && (rule.mode === 'mult' || rule.mode === 'flat')) ? rule.mode : 'list';
-    var val  = (rule && Number.isFinite(Number(rule.value))) ? Number(rule.value) : '';
+    var val  = (rule && typeof rule.value === 'number' && Number.isFinite(rule.value)) ? rule.value : '';
     var nm = 'econ-' + band + '-' + k + '-' + cur;
     function radio(m, text){
       return '<label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer">'
@@ -3407,6 +3427,26 @@ document.addEventListener('campaign-ready', function () {
       +   ' style="width:72px;padding:1px 4px"' + (mode === 'list' ? ' disabled' : '') + '>'
       + '<span style="opacity:.7">' + (mode === 'mult' ? '&times; list' : (mode === 'flat' ? (cur === 'gp' ? 'gp' : 'days') : '')) + '</span>'
       + '</div>';
+  }
+  /* Repaint one row's price preview in place, leaving every input node (and the focus inside it)
+   * exactly where it was. Asks the engine for the effective figures, same as the full render. */
+  function _econUpdatePreview(band, k){
+    var sel = document.getElementById('ruleEconomyBand');
+    if(!sel || sel.value !== band) return;
+    var rows = _econRowsFor(band), eff = _econPreviewRows(band);
+    if(!rows || !eff) return;
+    var el = document.querySelector('[data-econ-preview="' + (window.CSS && CSS.escape ? CSS.escape(k) : k) + '"]');
+    if(!el) return;
+    for(var i = 0; i < rows.length; i++){
+      if(_econRowKey(rows[i]) !== k) continue;
+      var row = rows[i], e = eff[i] || row;
+      var changed = (e.gp !== row.gp) || (e.days !== row.days);
+      el.innerHTML = changed
+        ? '<b>' + Number(e.gp).toLocaleString() + ' gp &middot; ' + esc(e.time) + '</b>'
+          + ' <span style="opacity:.7">(list ' + Number(row.gp).toLocaleString() + ' gp &middot; ' + esc(row.time) + ')</span>'
+        : Number(row.gp).toLocaleString() + ' gp &middot; ' + esc(row.time);
+      return;
+    }
   }
   function _econSet(band, k, cur, patch){
     var per = _econRowState[band] || (_econRowState[band] = {});
@@ -3434,11 +3474,18 @@ document.addEventListener('campaign-ready', function () {
       var ent = (_econRowState[b2] || {})[k2] || {}, r2 = ent[c2];
       if(!r2) return;
       var n = Number(t.value);
-      // An emptied or non-numeric box is not a price — drop back to list rather than storing NaN
-      // (which the engine would ignore anyway, but then the radio and the behaviour would disagree).
-      if(t.value === '' || !Number.isFinite(n) || n < 0){ _econSet(b2, k2, c2, null); }
-      else { _econSet(b2, k2, c2, { mode: r2.mode, value: n }); }
-      _renderEconomyRowGrid();
+      // An emptied or invalid box KEEPS THE CHOSEN MODE and simply carries no value yet. It used to
+      // reset the row to List, which meant clearing a figure to retype it silently un-picked the
+      // DM's mode and disabled the box under them. A null value prices as list (the engine's
+      // fail-closed guard rejects a non-number) and is dropped by _econRowsCollect, so "mode chosen,
+      // nothing typed" saves nothing — which is the honest reading of a half-filled form.
+      var ok = t.value !== '' && Number.isFinite(n) && n >= 0;
+      _econSet(b2, k2, c2, { mode: r2.mode, value: ok ? n : null });
+      // Update ONLY this row's preview. Re-rendering the whole grid here destroyed the very input
+      // being edited: tabbing out landed focus on <body>, and a second spinner click missed because
+      // the node under the pointer had been replaced. A mode change still rebuilds (it changes which
+      // controls exist); a value change must not.
+      _econUpdatePreview(b2, k2);
     }
   });
   document.addEventListener('click', function(ev){
@@ -3460,8 +3507,8 @@ document.addEventListener('campaign-ready', function () {
         var e = per[k] || {}, one = {};
         ['gp','days'].forEach(function(cur){
           var x = e[cur];
-          if(x && (x.mode === 'mult' || x.mode === 'flat') && Number.isFinite(Number(x.value))){
-            one[cur] = { mode: x.mode, value: Number(x.value) };
+          if(x && (x.mode === 'mult' || x.mode === 'flat') && typeof x.value === 'number' && Number.isFinite(x.value)){
+            one[cur] = { mode: x.mode, value: x.value };
           }
         });
         if(Object.keys(one).length) keep[k] = one;

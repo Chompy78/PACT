@@ -30,7 +30,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { purchaseCost, effectiveBandRows, bandRowKey, wealthLedger, priceLabel, formatDowntime, DATA }
+import { purchaseCost, effectiveBandRows, bandRowKey, wealthLedger, priceLabel, formatDowntime, resolveEconomyRules, DATA }
   from '../../js/engine.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -113,6 +113,15 @@ console.log('\n[cost-customization] engine — malformed input fails closed to l
 // A typo in stored JSON must show the book price, never 0 gp — the same fail-closed posture
 // economySetting() takes on an unknown band token.
 check('unknown mode', cost(12, R({ standard: { '15': { gp: { mode: 'wat', value: 5 } } } })), [350, 42]);
+// These four are the review finding this gate MISSED on its first pass. Number(null), Number('') and
+// Number([]) are all a finite 0, so a `Number.isFinite(Number(x))` guard fails OPEN and prices the row
+// free — the precise opposite of the contract. A free-form JSON column with no server-side validation
+// is exactly where such values appear (a hand edit, or a future writer using null for "unset").
+check('null value falls to list, NOT free', cost(12, R({ standard: { '15': { gp: { mode: 'flat', value: null } } } })), [350, 42]);
+check('empty-string value falls to list, NOT free', cost(12, R({ standard: { '15': { gp: { mode: 'flat', value: '' } } } })), [350, 42]);
+check('array value falls to list, NOT free', cost(12, R({ standard: { '15': { gp: { mode: 'flat', value: [] } } } })), [350, 42]);
+check('a numeric STRING is not accepted either (no coercion)', cost(12, R({ standard: { '15': { gp: { mode: 'flat', value: '500' } } } })), [350, 42]);
+check('...while a real 0 still means free, not "unset"', cost(12, R({ standard: { '15': { gp: { mode: 'flat', value: 0 } } } })), [0, 42]);
 check('non-numeric value', cost(12, R({ standard: { '15': { gp: { mode: 'mult', value: 'lots' } } } })), [350, 42]);
 check('null rule', cost(12, R({ standard: { '15': { gp: null } } })), [350, 42]);
 check('rowCosts not an object', cost(12, R('nonsense')), [350, 42]);
@@ -130,6 +139,15 @@ check('42 d -> 21 d relabels "6 weeks" as "3 weeks"', [halfTime.days, halfTime.t
 check('the phrase agrees with formatDowntime()', halfTime.time, formatDowntime(halfTime.days));
 const zeroTime = purchaseCost(12, R({ standard: { '15': { days: { mode: 'flat', value: 0 } } } }));
 check('a zeroed row reads "None", like a genuinely free band row', zeroTime.time, 'None');
+// A customised row must speak the BOOK's vocabulary, not formatDowntime's balance vocabulary. 30 days
+// rendered "4 weeks 2 days" in the first revision, which would sit directly above Fast's own 30-day
+// row reading "1 month" — the two-vocabularies clash formatDowntime's rem<60 branch exists to avoid.
+const phrase = (d) => purchaseCost(12, R({ standard: { '15': { days: { mode: 'flat', value: d } } } })).time;
+check('30 days reads "1 month", as Fast\'s own 30-day row does', phrase(30), '1 month');
+check('every band-row duration reproduces its book phrase',
+  [7, 21, 42, 90, 180, 270, 365, 730].map(phrase),
+  ['1 week', '3 weeks', '6 weeks', '3 months', '6 months', '9 months', '1 year', '2 years']);
+check('a duration the book has no word for falls back to plain days', [phrase(10), phrase(3)], ['10 days', '3 days']);
 check('a row whose days did NOT change keeps its original wording',
   purchaseCost(12, R({ standard: { '15': { gp: { mode: 'mult', value: 2 } } } })).time, '6 weeks');
 check('priceLabel() prints the customised figures', priceLabel(12, R({ standard: { '15': { gp: { mode: 'flat', value: 500 }, days: { mode: 'flat', value: 21 } } } })), '12 AP · 500 gp · 3 weeks');
@@ -141,6 +159,22 @@ check('listGp / listDays carry the book figures', [cust.listGp, cust.listDays], 
 const plain = purchaseCost(12, 'standard');
 check('an uncustomised row is not flagged', plain.customised, false);
 check('...and reports itself as its own list price', [plain.listGp, plain.listDays], [350, 42]);
+
+console.log('\n[cost-customization] engine — resolveEconomyRules is the single owner of "which rowCosts apply"');
+// Added after review found the third call site (the DM Console's roster ledger) had been missed while
+// two tools hand-copied this rule. One owner makes that omission unrepresentable.
+const RC = { standard: { '15': { gp: { mode: 'mult', value: 2 } } } };
+const campRules = { economy: { band: 'standard', rowCosts: RC } };
+check('an active campaign yields a rules context carrying rowCosts',
+  typeof resolveEconomyRules({ events: [], campaignRules: campRules, campaignActive: true }), 'object');
+check('...and it prices with the customisation',
+  cost(12, resolveEconomyRules({ events: [], campaignRules: campRules, campaignActive: true })), [700, 42]);
+check('an INACTIVE campaign yields a bare token — a solo player cannot inherit a table\'s pricing',
+  typeof resolveEconomyRules({ events: [], campaignRules: campRules, campaignActive: false }), 'string');
+check('a campaign with no rowCosts yields a bare token, not an empty wrapper',
+  typeof resolveEconomyRules({ events: [], campaignRules: { economy: { band: 'standard' } }, campaignActive: true }), 'string');
+check('the resolved band still wins from the campaign',
+  resolveEconomyRules({ events: [], campaignRules: campRules, campaignActive: true }).economy.band, 'standard');
 
 console.log('\n[cost-customization] engine — history is NOT re-priced');
 // The guarantee that makes this safe to change mid-campaign. _paidFor() prefers the gp/days frozen
@@ -339,6 +373,28 @@ try {
   // preview text carries a row's `ap`/`time` strings straight from the dataset.
   check('the rendered grid opens no unescaped attribute or tag',
     await dm.evaluate(`(()=>{const h=document.getElementById('ruleEconomyRowGrid').innerHTML;return /<script|onerror=|onload=/i.test(h);})()`), false);
+  console.log('\n[cost-customization] DM Console — review regressions');
+  // Finding: the roster's own "Downtime available" priced from a bare band token, so a DM saw a
+  // different balance than the player's own sheet on any campaign that had re-priced a row.
+  check('the roster ledger prices through resolveEconomyRules, not a bare token',
+    await dm.evaluate(`(()=>{const rules={economy:{band:'standard',rowCosts:{standard:{'15':{days:{mode:'mult',value:2}}}}}};
+      const ctx=_engineEcon.resolveEconomyRules({events:[],campaignRules:rules,campaignActive:true});
+      const log=[{seq:1,type:'creationLocked'},{seq:2,type:'buy',cat:'feature',cost:12}];
+      return [_engineEcon.wealthLedger(log,{band:ctx}).daysSpent, _engineEcon.wealthLedger(log,{band:'standard'}).daysSpent];})()`),
+    [84, 42]);
+  // Finding: clearing a value box reset the row to List, silently un-picking the DM's mode.
+  check('clearing a value box keeps the chosen mode and simply saves nothing',
+    await dm.evaluate(`(()=>{document.getElementById('ruleEconomyBand').value='standard';
+      _dmEconRows.load({});_dmEconRows.set('standard','15','gp',{mode:'mult',value:null});
+      const st=_dmEconRows.state();
+      return [st.standard['15'].gp.mode, _dmEconRows.collect()];})()`),
+    ['mult', null]);
+  // Finding: a band token this build does not know was silently dropped on the next save, destroying
+  // a DM's tuning for it. The engine never destroys data it cannot match; nor should the editor.
+  check('an unknown band\'s customisation is carried through a save, not destroyed',
+    await dm.evaluate(`(()=>{_dmEconRows.load({economy:{band:'standard',rowCosts:{retiredband:{'15':{gp:{mode:'flat',value:9}}}}}});
+      return JSON.stringify(_dmEconRows.collect());})()`),
+    JSON.stringify({ retiredband: { '15': { gp: { mode: 'flat', value: 9 } } } }));
   await dm.close();
 
   // ---------------------------- CharGen: prices follow the campaign ----------------------------

@@ -23,9 +23,9 @@
   nothing is customised) and **no `DATA.version` bump** (no default band moved; `compute()` untouched).
   History is not re-priced — frozen `gp`/`days` still win, so the dial is safe to touch mid-campaign.
   No guide edit: §17 already grants the DM this licence in the book's own words, so this surfaces an
-  existing rule rather than adding one. Also records a **pre-existing** 35/155 failure in
+  existing rule rather than adding one. Also **repaired** a pre-existing 35/155 failure in
   `economy-ui-e2e.mjs` (stale fixtures since PR #480 retired the auto creation lock), found while
-  testing and deliberately not fixed here.
+  testing and fixed in the same branch at the owner's direction — now 155/155.
   Full record: `decisions/2026/D-GH-2026-09-01-feature-cost-customization.md`.
 
 ## D-GH-2026-09-01-campaign-move-clears-creation — a creation ceiling belongs to one table, and does not travel
