@@ -4,6 +4,21 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-02 · fix(testing): close the dm-console-ui warnings race properly (2nd attempt)** — the
+  invite-warnings block failed **5 of 96** on PR #499's promotion, every assertion returning `[]`, and
+  went green on a re-run — the second time this exact failure has been papered over. `selectCampaign()`
+  fire-and-forgets `loadInvites()`, which calls `renderCampWarnings()` on **both** its success and error
+  path, so a late response sets `_invites = []` and wipes the banner a later block just seeded.
+  `loadInvites()`'s stale-response guard does not help: it pins `forCampId` and bails only when the
+  campaign **changed**, and every select in the suite picks the same `live-1`.
+  `D-GH-2026-08-25-dm-console-warnings-race-flake` diagnosed this correctly but stubbed
+  `listCampaignInvites` only for the warnings block's own duration — which cannot cancel the fetches the
+  two selects **above** it had already issued, and those are the actual clobberers. The stub now goes in
+  once, right after page-ready, before any block runs. **Measured rather than reasoned:** instrumenting
+  the pre-fix suite with a slow-failing stub showed **3 real calls issued, 2 still unsettled** when the
+  warnings block ran; after the fix it is **0 and 0**. CI is where it bites because the real call there
+  makes a genuine round-trip that 401/400s slowly — locally it fails instantly and lands harmlessly,
+  which is why the failing commit passed 3/3 on a dev machine.
 - **2026-09-02 · docs: a cloud session cannot delete ANY remote ref, not just tags** —
   `docs/sessions/2026-07-19-github-release-tag-cloud-session-restriction.md` was written about tags and
   releases and closed by listing "deleting a remote branch" as an **open question**. It has since been

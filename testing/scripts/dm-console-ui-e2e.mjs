@@ -48,6 +48,34 @@ page.on('console', m => { if (m.type()==='error') errors.push('console: '+m.text
 await page.goto(`http://localhost:${PORT}/PACT/tools/DM-Console.html`, { waitUntil:'load' });
 await page.waitForTimeout(2500);
 
+// NO REAL listCampaignInvites ANYWHERE IN THIS SUITE. Installed here, before any block runs, and
+// deliberately never restored.
+//
+// THE RACE THIS CLOSES. selectCampaign() fire-and-forgets loadInvites(), which calls
+// renderCampWarnings() on BOTH its success and its error path (DM-Console.html) — so a late
+// resolve/reject sets `_invites = []` and wipes whatever a later block seeded. loadInvites() does
+// carry a stale-response guard, but it pins `forCampId` and bails only when the campaign CHANGED;
+// every select in this file picks the same 'live-1', so the guard never fires and a response issued
+// by one block lands squarely inside another.
+//
+// WHY SUITE-WIDE AND NOT PER-BLOCK. This was diagnosed once before
+// (D-GH-2026-08-25-dm-console-warnings-race-flake, PR #469's promotion) and stubbed for the warnings
+// block's own duration. That closed that block's window but not the selects ABOVE it, whose in-flight
+// fetches are the actual clobberers — a stub cannot cancel a request already issued. It recurred on
+// 2026-09-02 (PR #499's promotion): 5 of 96 failed, every warnings assertion returning [], while the
+// same commit passed 3/3 locally.
+//
+// MEASURED, not reasoned. Instrumenting the pre-fix suite with a slow-failing stub showed 3 real
+// calls issued and 2 STILL UNSETTLED at the moment the warnings block ran — CI only needs one of
+// those to land in the ~40ms gap between seedInvites() and the assertion. With this stub the count of
+// unsettled real calls is 0, because Promise.resolve() settles within the same await that issues it.
+// That is why this removes the race rather than out-waiting it — the rule this file states elsewhere
+// ("waiting on a condition beats sleeping on a guess").
+//
+// Safe to leave installed for the whole run: nothing here asserts on real invite-loading behaviour,
+// and every block needing invite data seeds it directly via P.seedInvites().
+await page.evaluate(()=>{ window._campBridge.listCampaignInvites = () => Promise.resolve([]); });
+
 // 1. no JS errors that would kill the panel wiring
 const fatal = errors.filter(e => !/Failed to load resource|net::|supabase|fetch|NetworkError|Load failed/i.test(e));
 check('no fatal page errors', fatal.length===0, fatal.slice(0,3).join(' | '));
@@ -320,6 +348,7 @@ const peek = await page.evaluate(async ()=>{
   window.confirm = () => true;
   window.alert = () => {};
 
+
   const called = [];
   const spied = {};
   ['awardAp','setCharacterDmNotes','unbindCharacter'].forEach(fn=>{
@@ -432,24 +461,20 @@ check('re-selecting the campaign re-locks it', peek.reselectRelocks === true);
 //     and a 0-AP player invite without the DM having to open the collapsed invite panels. seedInvites()
 //     drives the real renderCampWarnings() (mirrors seedInvites' existing use for renderInvites() above).
 //
-// CI-only failure investigated 2026-08-25 (PR #469's promotion): this block re-selects 'live-1', which
-// (via selectCampaign()) fire-and-forgets a REAL, unstubbed loadInvites() -> B.listCampaignInvites() —
-// this file's own header explains why that's normally harmless ("only network calls fail, which is
-// irrelevant to wiring and arithmetic"), but THIS block is the one place that's false: loadInvites()
-// unconditionally calls renderCampWarnings() on both its success AND error path (DM-Console.html), so a
-// slow-to-settle real network round-trip landing AFTER this block's own seedInvites() calls silently
-// clobbers _invites back to [] and wipes the banner this block just asserted — reproduced by tracing the
-// exact code path, not just re-running until green (see D-GH-2026-08-25-dm-console-warnings-race-flake).
-// Fixed by stubbing B.listCampaignInvites for this block's duration so there is no real network call
-// left to race against — removes the non-determinism instead of trying to out-wait it, matching this
-// file's own established rule ("waiting on a condition beats sleeping on a guess") elsewhere.
+// THE RACE THIS BLOCK USED TO LOSE is now closed upstream — B.listCampaignInvites is stubbed in the
+// archived-peek block above, before the first P.select() in the file. See the comment there for the
+// full mechanism.
+//
+// History, because the first fix looked right and was not: 2026-08-25 (PR #469's promotion) diagnosed
+// this correctly — a fire-and-forget loadInvites() clobbering _invites mid-block — and stubbed the call
+// for THIS BLOCK's duration. That cannot help: the fetches that land here were issued by the two
+// P.select() calls ABOVE this block, before any local stub existed, and a stub cannot cancel a request
+// already in flight. It recurred on 2026-09-02 (PR #499's promotion), same signature, 5 of 96 failing
+// with every assertion returning []. Moving the stub above the first P.select() is what actually
+// removes the race; the local save/restore that used to sit here is gone as redundant.
 const warn = await page.evaluate(async ()=>{
   const P = window._dmArchivedPeek;
-  const B = window._campBridge;
   const out = {};
-  const realListCampaignInvites = B.listCampaignInvites;
-  B.listCampaignInvites = () => Promise.resolve([]);
-  try {
   await P.select('live-1');
   await new Promise(r=>setTimeout(r,60));
   const bannerDisplay = () => getComputedStyle(document.getElementById('campWarnBanner')).display;
@@ -488,9 +513,6 @@ const warn = await page.evaluate(async ()=>{
   await new Promise(r=>setTimeout(r,40));
   out.deselectHidesBanner = bannerDisplay() === 'none';
   return out;
-  } finally {
-    B.listCampaignInvites = realListCampaignInvites;   // no later check relies on the stub; restore anyway
-  }
 });
 check('no invites -> warnings banner hidden', warn.emptyHidesBanner === true);
 check('a stale + zero-AP + settled + fresh + stale-dm + settled-dm + exhausted-reusable-dm mix shows the banner',
