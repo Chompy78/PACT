@@ -3070,8 +3070,52 @@ function retractFlatEvent(cat,predicate){
   return true;
 }
 
+// Owner ruling 2026-09-02 (D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats): once a character's
+// history is locked, SPECIES is frozen and ABILITY SCORES may only go UP. Patch events are outside the
+// server's positional protection — replacePatchSlot() rewrites them in place, which is legitimate — so
+// the server compares DERIVED VALUES instead. This mirrors that comparison client-side so the player gets
+// a sentence instead of a raw database error, and gets it before doing the work.
+//
+// Compared against foldBuild(LOG), the engine's own derivation, rather than against the raw slot event:
+// species and stats can arrive in the boot burst (which carries no _slot at all — 164 of 218 patch events
+// in live data), so a slot-keyed comparison would miss most characters entirely.
+// Returns a refusal string, or null if the change is allowed.
+function _cgSealPatchRefusal(patch){
+  if(!patch || _cgSealedFloor() === 0) return null;
+  var cur; try{ cur = foldBuild(LOG); }catch(e){ return null; }   // can't derive => don't block
+  if(Object.prototype.hasOwnProperty.call(patch,'species') && cur && cur.species != null
+     && patch.species !== cur.species){
+    return '\uD83D\uDD12 Species is locked.\n\nThis character\'s history has been locked, so its species stays '
+         + cur.species + '. Ask your DM if it needs to change.';
+  }
+  // species2 as well, and this is not belt-and-braces: own-species traits are the cheap ones, and a
+  // SECOND origin species makes another whole species' traits count as own-species (js/engine.js's
+  // `isO = r.race===b.species || r.race===b.species2`). Freezing only `species` would leave the rule
+  // trivially bypassable — add a second origin species after the lock and the cross-species restriction
+  // the owner's ruling is built on stops applying.
+  if(Object.prototype.hasOwnProperty.call(patch,'species2') && cur
+     && cur.species2 != null && cur.species2 !== '(none)'
+     && patch.species2 !== cur.species2){
+    return '\uD83D\uDD12 Second origin species is locked.\n\nThis character\'s history has been locked, so its '
+         + 'second origin species stays ' + cur.species2 + '. Ask your DM if it needs to change.';
+  }
+  if(Object.prototype.hasOwnProperty.call(patch,'stats') && patch.stats && cur && cur.stats){
+    for(var k in cur.stats){
+      if(!Object.prototype.hasOwnProperty.call(cur.stats,k)) continue;
+      var was = cur.stats[k], now = patch.stats[k];
+      if(typeof was === 'number' && typeof now === 'number' && now < was){
+        return '\uD83D\uDD12 ' + k + ' can\'t go down.\n\nThis character\'s history has been locked. You can still '
+             + 'RAISE an ability score by spending AP, but you can\'t lower one or move points between them. '
+             + k + ' is locked at ' + was + '.';
+      }
+    }
+  }
+  return null;
+}
 function replacePatchSlot(slot,patch,label){
   if(!Object.values(PATCH_SLOTS).includes(slot))throw new Error("replacePatchSlot: '"+slot+"' is not a canonical PATCH_SLOTS value");
+  var _refusal=_cgSealPatchRefusal(patch);
+  if(_refusal){ alert(_refusal); render(); return; }   // render() puts the control back from the LOG
   _cgEnsureLockArmed();   // this path bypasses emit(), so arm here too — see _cgEnsureLockArmed()
   // price against the build with this slot's OWN PRIOR event removed, not the current full LOG (which
   // still holds the old contribution and would double-count it) — see the plan's "Coalescing patch cost delta"

@@ -598,6 +598,11 @@
   `testing/expected/` change). `DATA.version` v0.343 → v0.344.
   Full record: `decisions/2026/D-GH-2026-08-16-heritage-pack-pricing.md`.
 
+- **D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats** — a locked character's species (and an
+  already-set second origin species) is frozen; ability scores may only go UP. Owner ruling. Compared by
+  DERIVED value, not event position, because replacePatchSlot() legitimately rewrites patch events in
+  place; keyed on the payload key, not `_slot`, because 164 of 218 live patch events carry no `_slot`.
+  Fails open where no species is recorded. Full record: `decisions/2026/D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats.md`
 - **D-GH-2026-08-12-guide-engine-version-pointer** — Players Guide (separate `pact-guide` project) now
   declares a machine-generated `documents-rules:` pointer (version/branch/commit, sourced from
   `pact-guide`'s existing vendoring pipeline, stamped only on deliberate reconciliation — never
