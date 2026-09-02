@@ -1,0 +1,75 @@
+name: Cost customization gate
+
+# Headless gate for per-band-row cost customisation (feat/cost-customization) — a DM re-pricing any
+# row of their campaign's economy band, separately for gold and for downtime, by a multiplier or a
+# flat override. See testing/scripts/cost-customization-ci.mjs and
+# decisions/2026/D-GH-2026-09-01-feature-cost-customization.md.
+#
+# WHY IT IS ITS OWN GATE. engine-parity.yml asserts compute()'s output, and this feature deliberately
+# never touches compute() — gold and downtime are a spending ledger beside the AP one. tool-pricing.yml
+# covers priceOf() in the Live Sheet, a different function. Neither would notice if a customised price
+# stopped reaching players.
+#
+# The failure this exists to catch is quiet: the engine can price perfectly while a TOOL hands
+# purchaseCost() a bare band token instead of the campaign's rules object. A token carries no
+# customisation, so every DM setting is silently dropped — no error, no exception, just book prices.
+# That is why the gate's second half drives all three tools in a real browser rather than testing the
+# engine alone.
+#
+# Same zero-npm-dependency shape as tool-pricing.yml: the script drives Chromium over the DevTools
+# protocol using Node built-ins only, and serves the repo itself on a loopback port. It still needs A
+# browser, so Chromium is installed and CHROME_BIN's search path pinned, for the reason recorded in
+# tool-pricing.yml — a gate whose result depends on the runner image is not a gate.
+
+on:
+  pull_request:
+    paths:
+      - "js/engine.js"
+      - "js/engine-data.js"
+      - "js/economy-bands.js"
+      - "js/ui-helpers.js"
+      - "tools/DM-Console.html"
+      - "tools/PACT-CharGen-Webtool.html"
+      - "tools/PACT-Live-Char-Sheet.html"
+      - "testing/scripts/cost-customization-ci.mjs"
+      - ".github/workflows/cost-customization.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: cost-customization-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cost-customization:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: /opt/pw-browsers
+          key: ${{ runner.os }}-playwright-${{ hashFiles('testing/package-lock.json') }}-pw-browsers
+
+      - name: Install Chromium
+        working-directory: testing
+        timeout-minutes: 5
+        run: npx playwright install --with-deps chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
+
+      - name: Run the cost-customization gate
+        run: node testing/scripts/cost-customization-ci.mjs
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers

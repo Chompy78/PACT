@@ -913,3 +913,45 @@ is a test that has to be rewritten, not a defect shipped. Sweep-eligible.
 `saveCharacter()` and asserts the refusal, the `_sealBlocked` entry, the absence of the "will sync when
 online" message, and the clear-on-load; the recorded error body is checked in with a note saying it was
 captured from the live trigger rather than written by hand; and the suite runs in CI without credentials.
+
+## A sealed character's species, ability scores and DM-removed boons are still editable — TODO
+Branch `fix/seal-protect-patch-and-removals`. `pact_ap_ledger_protected()` was widened on 2026-09-02 to
+project the whole event (closing the payload-key substitution hole), but its **scope** was left alone, and
+two exclusions are real gaps against what the seal promises the DM ("Everything bought up to this moment
+becomes permanent"):
+
+- **`buy` with `cat:'patch'`** — species, origin class, ability scores, Hit Dice, proficiencies. Excluded
+  from the projection entirely, so a player can change a sealed STR 14 to DEX 14: the projection is
+  byte-identical and `pact_ap_ledger_spend`'s sum is unchanged, so BOTH triggers accept. This is the
+  largest part of a build.
+- **`dmRemoveBoon`** — also outside the projection *and* outside the spend sums, so deleting one restores
+  a boon the DM took away, inside a supposedly sealed prefix.
+
+**This was deliberately NOT fixed with the projection widening, and the reason is the task.** Tightening
+the server alone would break ordinary editing: `replacePatchSlot()` (CharGen) rewrites a patch event **in
+place** on every species/class/ability change and has no seal guard at all, so every such edit on a sealed
+character would start failing with a raw server error and no client explanation. The client guard has to
+be designed with it.
+**Effort:** medium · **Risk:** medium — ambiguity is the driver: it needs an owner ruling (below) before
+any code. Damage scale is moderate and one-directional (an over-tight server refuses edits rather than
+accepting bad ones). **NOT sweep-eligible.**
+
+```text
+0. GET THE OWNER'S ANSWER FIRST — this is a rules question, not an implementation detail:
+   does sealing freeze a character's SPECIES and ABILITY SCORES? Decision K3 was "everything except
+   character descriptions", and a species is arguably mechanical rather than descriptive — but a player
+   who mis-set an ability score during creation and gets sealed has no route back except the DM. Record
+   the answer as D-GH-<date>-seal-protects-patch before touching code.
+1. If yes: add 'patch' buys and 'dmRemoveBoon' to pact_ap_ledger_protected()'s WHERE clause, AND guard
+   replacePatchSlot() in CharGen the way retractFlatEvent() is guarded — refuse inside the sealed prefix
+   with the reason, do not let the server be the first thing that says no.
+2. Check the OTHER writers of patch events before assuming replacePatchSlot is the only one:
+   applyBuild()/randomizeRoll()/loadFile() all rebuild the whole LOG (already guarded via
+   _cgBlockedBySeal), and _cgReconcileIdentitySlot fires on every identity change.
+3. Measure blast radius against live data BEFORE applying, the way the 2026-09-02 widening did
+   (it was 0 of 35 characters). A seal placed between writing this and applying it changes that number.
+```
+
+**Done when:** the owner's ruling is recorded as a decision; if it is "freeze them", the projection covers
+both types, CharGen refuses the edit client-side with a stated reason before the server sees it, a live
+blast-radius measurement is in the PR, and `testing/sql/session-seal-test.sql` gains a case for each.

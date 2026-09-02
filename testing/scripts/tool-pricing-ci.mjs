@@ -1502,7 +1502,12 @@ try {
       const n=LOG.length;
       const rv=retractFlatEvent('boon',e=>e.payload&&e.payload.v==='Alertness');
       const refused = (rv===false) && LOG.length===n;
-      const said = /sealed/i.test(window.__f[window.__f.length-1]||'');
+      // Asserts a REASON was given, not one specific word. The message deliberately says "locked", not
+      // "sealed": the same client refusal (and the same server rejection) also covers the pre-existing
+      // AP-award boundary, which is not a seal — telling a player their DM sealed the character when all
+      // that happened was an award is a false statement about someone else's action. See
+      // isSealRejection() in js/sync.js.
+      const said = /locked history|can no longer be undone/i.test(window.__f[window.__f.length-1]||'');
       window.flash=realFlash; LOG.length=0; save.forEach(e=>LOG.push(e)); SEQ=saveSeq;
       return [refused, said];})()`),
     [true, true]);

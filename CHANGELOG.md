@@ -4,6 +4,37 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-01 · fix(testing): repair economy-ui-e2e fixtures stranded by the creation-ceiling change** —
+  the gate failed **35 of 155** checks on untouched `preview` and now passes **155/155**. Cause: PR #480
+  (`5a752b7`, *"creation ends by choice, not by accident"*) retired the automatic threshold tripwire that
+  used to end creation, but these fixtures still built characters with `creationLockConfig{threshold:N}`
+  and spent past it, expecting the lock to trip. It no longer does, so every character stayed
+  mid-creation, nothing was ever billable, and each of the 35 assertions about charging measured an
+  economy that never charges. Fixed at all 8 fixture sites by ending creation the way the app now does —
+  an explicit `creationLocked` event placed exactly where the old threshold tripped, so the same
+  purchases are creation and the same ones are in play. The now-meaningless `threshold` values were
+  dropped too: a threshold is a *ceiling* since #480, and figures like 1 or 20 would have left every
+  fixture absurdly over it (omitted, it falls back to the realistic 79 default, which none exceed).
+  Also added an **abort-visibility guard**: a crash partway now prints an explicit
+  `[economy] ABORTED — N checks ran` line instead of dying silently between the last PASS and the
+  summary. **Correction to the entry below:** that script was reported as "exits 0 even when it
+  crashes". It does not — it exits 1, correctly. The 0 came from measuring it as
+  `node … | tail -25`, where the pipeline reports `tail`'s status, not node's.
+- **2026-09-01 · feat(engine,dm-console): DMs can re-price any row of their campaign's economy band** —
+  the gold-and-downtime economy shipped with three settings and nothing to turn between them. A DM may
+  now customise any band row, independently for gold and for downtime, by a **multiplier** (×2, ×0.5) or
+  a **flat override**; the two are a radio per row per currency, so they cannot both be set. `js/engine.js`
+  gains `effectiveBandRows()`/`bandRowKey()` and `purchaseCost()` matches against effective rows, so every
+  existing call site picks it up unchanged. Stored at `campaigns.rules.economy.rowCosts[band][rowKey]` —
+  **no SQL migration** (`rules` is free-form JSON; the key is omitted when nothing is customised) and **no
+  `DATA.version` bump** (no default band moved, `compute()` untouched, and §17 already grants the DM this
+  licence in the guide's own words, so no guide edit either). Already-made purchases keep the price they
+  paid — frozen `gp`/`days` still win — and a customised row's downtime **phrase** is regenerated from its
+  new day count, so a re-priced row can't print "6 weeks" beside a 21-day cost. New gate:
+  `testing/scripts/cost-customization-ci.mjs` (82 checks) + `.github/workflows/cost-customization.yml`.
+  Found while testing, **pre-existing**: `economy-ui-e2e.mjs` failed 35 of 155 checks on untouched
+  `preview` — its fixtures still relied on the auto creation lock that PR #480 retired. Repaired in the
+  follow-up entry above.
 - **2026-09-01 · fix(chargen): a finished character can no longer be re-rolled, and a stale "latent"
   claim corrected** — found reviewing PR #492. That PR makes `creationLocked` an undo barrier (correctly
   — it made true a promise my own "Finish creating" dialog was already making and breaking). But
@@ -18,6 +49,60 @@
   creation". Also corrects `undoFloor()`'s note that `creationUnlocked` handling is "latent (nothing
   emits it yet)": `dm_reopen_creation()` and the campaign-move trigger both emit it, and two live
   characters already carry one.
+- **2026-09-02 · fix: the remaining 20 session-seal review findings, across engine, sync, all three tools and CI**
+  — second `/code-review ultra` pass on the merged seal, five independent angles. The worst were silent
+  rather than loud. **CharGen mispriced every purchase in a sealed class**: `_cgLockSealedControls()`
+  disabled sealed `.classunlock` boxes and `_domReadBuild()` drops disabled ones, so the class vanished
+  from the priced base and each later buy in it was stamped with the **cross-class surcharge**, frozen
+  into the LOG. Now distinguished by a `dataset.sealLocked` flag, which also fixes the else-branch
+  clearing `disabled` on controls it never disabled after an in-app character switch. **`repriceDraft()`
+  ignored `sessionSeal`** — a character sealed while still in creation kept having its frozen `cost`
+  rewritten, and `cost` is in the server's protected projection, so every save would have been refused
+  for ever with no client path back. **`redo()` had no barrier guard** and `cgFinishCreating()` bypasses
+  `commitHistory()`, so buy/buy/undo/Finish/redo deleted the `creationLocked` event outright. **`reconcile()`
+  bypassed `_sealBlocked`**, re-issuing an impossible write on every load and reconnect and making the
+  documented Cloud → Load remedy a no-op; routed through the existing `onBehind` channel so owner
+  decision L1 (keep the client's work, ask first) still holds. **The `name` guard blocked renames the
+  server allows** — the projection covers `'names'` (spell/language), not `'name'` — and sat above the
+  no-op check, so opening a locked character flashed twice. `retractFlatEvent()`'s tri-state return is
+  now honoured by all three reconcile callers (they re-tick the box instead of diverging) and its refusal
+  is coalesced to one notice per pass. Autosave now surfaces a refusal at all, the one-shot notice is
+  per-character rather than per-page and is never burned from `pagehide` where `alert()` is suppressed,
+  DM Console's zero-amount guard no longer rejects "and lock history" on its own, and its seal button
+  reuses one idempotency key so a retry cannot stack a second seal. **Wording corrected throughout**: the
+  same rejection fires for the pre-existing AP-award boundary, so nothing claims "your DM sealed this".
+  Server-side, `pact_ap_ledger_protected()` now projects the **whole event** rather than six enumerated
+  fields — the `'v'` key only covered `{v:…}` payloads, leaving `abil`/`hd`/`wprof`/`names` substitutable
+  and a seal's own `idem` strippable (which defeats the double-award guard); blast radius measured at 0 of
+  35 characters before applying. `undo-barrier-ci.mjs` was wired into **no workflow at all** and now runs
+  in `engine-parity.yml`; two vacuous assertions in `sync-concurrency-ci.mjs` are replaced with real
+  lifecycle coverage via a test seam; the snapshot section that tested a local re-implementation now says
+  so. `_undoBarrierMsg()` moved to `js/ui-helpers.js` — it had been duplicated into both tools at the
+  moment the rule it explains was centralised. Gates: parity 73/0, undo-barrier 44/0, sync-concurrency
+  26/0, sync-state-machine 24/0, autosave-flush 14/0, log-fuzz 2000/2000, esc-gap 9/0; tool-pricing's one
+  remaining failure is the known harness flake, **verified pre-existing by stashing every change and
+  reproducing it identically on a clean tree**.
+- **2026-09-02 · fix(sql): the session-seal migration silently deleted two live guards — restored**
+  — `/code-review ultra` on the merged seal work found that `2026-09-01-session-seal.sql` rebuilt
+  `dm_edit_character_log()` from the **stale** `2026-08-10-dm-edit-character-log.sql` rather than editing
+  the live definition, and that this reached **production**. Its header said "every other line is unchanged
+  from 2026-08-10" — true, and precisely the defect: that file had not been the live definition for three
+  weeks. Gone with it: `assert_campaign_active()` (so an **archived, read-only campaign was writable by its
+  DM again** — reverting D-GH-2026-08-22) and the whole boon/award FIFO amount-matching block (so **a boon
+  grant no longer had to be paid for** — reverting D-GH-2026-08-10-dm-edit-boon-amount-check, itself a
+  `/code-review ultra` find on PR #403). Both confirmed absent against the live database before the fix and
+  present after, `sessionSeal` support retained. Also fixed `award_ap_and_seal()`'s idempotency race — its
+  authorisation SELECT took no row lock, so two concurrent calls sharing one `p_idem` could both pass the
+  replay probe and both award AP, the one outcome its own header calls materially damaging; rebuilt from
+  the **live body read back from `pg_proc`**, not from the migration file. The rollback file, which told an
+  operator to re-apply that same stale file (leaving the database *weaker* than before the seal shipped),
+  is corrected. Client half: the Live Sheet's manual cloud-save threw `res.error` **before** its new
+  `res.sealed` branch, so on the first rejection — the only one carrying `error` — the branch was dead and
+  the player saw raw plpgsql text; all five review angles found this independently. Advisor clean, live data
+  unchanged (35 characters / 461 log events / 0 seals), parity 73/0, undo-barrier 44/0, sync-concurrency 24/0.
+  **The lesson, since this is the second time in two days:** a dated migration file is a historical record,
+  not the current definition. Rebuild a function from `sql/rls-policies.sql` or from `pg_proc`, never from
+  the migration that first created it.
 - **2026-09-01 · fix: 14 code-review findings on the session seal, incl. one that killed undo outright**
   — `/code-review ultra` (required by the PR template for anything touching `js/engine.js` or `sql/`)
   found that step 1's `isUndoBarrier()` treated `noLock` awards as barriers. CharGen's budget is a
