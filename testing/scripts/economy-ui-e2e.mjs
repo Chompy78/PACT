@@ -50,6 +50,32 @@ const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../.
 const PORT = 7974;   // not cloud-e2e's 7970, the seed stack's 7971, or dm-console-ui's 7973
 
 let pass = 0, fail = 0;
+
+/* A CRASH MUST NOT LOOK LIKE A QUIET PASS.
+ *
+ * The exit CODE was never the problem — node exits 1 on an uncaught error, and the final line below
+ * exits 1 on any failed check. What was missing is the human-readable half: if this script dies
+ * partway (a page error, a browser that never boots), it prints a stack trace and simply never
+ * reaches its "[economy] all N checks passed" line. Someone skimming the output, or grepping it for
+ * FAILED, sees neither a pass nor a fail and can reasonably conclude the gate was fine.
+ *
+ * (Measuring this is its own trap, and it caught the author of this comment: running the script as
+ * `node economy-ui-e2e.mjs | tail -25` reports the exit status of `tail`, not of node, so a crashing
+ * gate looks like a clean 0. Check `${PIPESTATUS[0]}`, or don't pipe.)
+ *
+ * This prints an explicit ABORTED summary on any exit that did not reach the real one, so the output
+ * always says which of the three happened: passed, failed, or never finished. tool-pricing-ci.mjs
+ * makes the same guarantee via its `FAIL harness —` catch; this is the same idea for a script whose
+ * 400 lines of sequential top-level await would need restructuring to wrap in one try/catch.
+ *
+ * It cannot cover a failure to IMPORT this module (the handler is not registered yet) — node's own
+ * exit 1 is the only signal there. */
+let _summaryPrinted = false;
+process.on('exit', (code) => {
+  if (_summaryPrinted) return;
+  console.log(`\n[economy] ABORTED before finishing — ${pass} checks ran, ${fail} failed, then the `
+    + `script stopped. This is NOT a pass; treat it as a failure (exit ${code}).`);
+});
 const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${n}${d ? ' — ' + d : ''}`); };
 
 /* ======================================================================
@@ -92,13 +118,21 @@ check('priceLabel carries all three currencies when on',
       priceLabel(12, 'standard') === '12 AP · 350 gp · 6 weeks', priceLabel(12, 'standard'));
 
 console.log('\n[economy] engine — creation is exempt (§2)');
-// Threshold 20: the first three buys total 23 AP, so the lock trips DURING them; everything after is
-// in play. This is the whole rule the feature rests on.
-const base = [{ type: 'create' }, { type: 'creationLockConfig', payload: { auto: true, threshold: 20 } }];
+// Creation ends on an EXPLICIT `creationLocked` event — a person pressing "Finish creating". It used
+// to end automatically the first time cumulative spend crossed a threshold, and these fixtures were
+// built around that tripwire; PR #480 (5a752b7, "creation ends by choice, not by accident") retired it
+// because a player experimenting in the builder could permanently lock a character that had never been
+// played, and three live characters did exactly that. The `creationLocked` events below therefore mark
+// the same boundary the old threshold produced, but declared rather than inferred.
+//
+// The first three buys are creation (Stealth, Rage, Danger Sense); everything after the lock is in
+// play. This is the whole rule the feature rests on.
+const base = [{ type: 'create' }, { type: 'creationLockConfig', payload: { auto: true } }];
 const LOG = base.concat([
   { type: 'buy', cat: 'skill',   cost: 1,  payload: { v: 'Stealth' },      label: 'Stealth' },
   { type: 'buy', cat: 'feature', cost: 12, payload: { v: 'Rage' },         label: 'Rage' },
   { type: 'buy', cat: 'feature', cost: 10, payload: { v: 'Danger Sense' }, label: 'Danger Sense' },
+  { type: 'creationLocked', label: 'Creation finished' },
   { type: 'buy', cat: 'mastery', cost: 2,  payload: { v: 'Graze' },        label: 'Graze' },
   { type: 'buy', cat: 'feature', cost: 14, payload: { v: 'Extra Attack' }, label: 'Extra Attack' },
 ]);
@@ -110,7 +144,7 @@ check('the charged pair is Graze + Extra Attack (not the creation three)',
 check('total charged is 350 gp (0 for the 2 AP mastery + 350 for the 14 AP feature)', led.gpSpent === 350, String(led.gpSpent));
 check('total downtime charged is 42 days = 6 weeks', led.daysSpent === 42, String(led.daysSpent));
 check('a fresh character is NOT yet charging', chargesGoldAndTime(base) === false);
-check('...and IS once the lock has tripped', chargesGoldAndTime(LOG) === true);
+check('...and IS once creation has been finished', chargesGoldAndTime(LOG) === true);
 check('an explicit creationLocked event charges immediately', chargesGoldAndTime([{ type: 'creationLocked' }]) === true);
 check('a never-locked solo log never charges', chargesGoldAndTime([{ type: 'buy', cat: 'feature', cost: 500, payload: {} }]) === false);
 check('with the economy off nothing is charged at all',
@@ -188,10 +222,11 @@ console.log('\n[economy] engine — a new window wipes the old one, end to end')
 // crossing the lock first), redeclare 30 (the old spend must NOT carry over), spend 42 again (now
 // overdrawn against the SMALLER window).
 {
-  const b2 = [{ type: 'create' }, { type: 'creationLockConfig', payload: { auto: true, threshold: 5 } }];
+  const b2 = [{ type: 'create' }, { type: 'creationLockConfig', payload: { auto: true } }];
   let wlog = b2.concat([
     { type: 'wealth', payload: { days: 90 }, ts: 500 },
-    { type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', ts: 900 },   // crosses the lock, still creation
+    { type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', ts: 900 },   // last creation purchase
+    { type: 'creationLocked', label: 'Creation finished', ts: 950 },
     { type: 'buy', cat: 'feature', cost: 12, payload: { v: 'X' }, label: 'X', ts: 2000 },          // in play: 350gp/42d
   ]);
   let led2 = wealthLedger(wlog, { band: 'standard' });
@@ -268,18 +303,18 @@ const ui = await page.evaluate(() => {
   const out = {};
   LOG.length = 0; SEQ = 0;
   LOG.push({ type: 'create', seq: SEQ++ });
-  LOG.push({ type: 'creationLockConfig', payload: { auto: true, threshold: 20 }, seq: SEQ++ });
+  LOG.push({ type: 'creationLockConfig', payload: { auto: true }, seq: SEQ++ });
   LOG.push({ type: 'econSetting', payload: { band: 'standard' }, seq: SEQ++ });
   render();
   out.bandWhileCreating = _lsEconBand(null);
   out.creatingLine = (document.querySelector('.ecoline.gtline') || {}).textContent || '';
   out.chargingDuringCreation = _lsCharges(null);
 
-  // Spend past the threshold — the lock trips ENTERING the next event, so this buy is still a
-  // creation purchase and a SECOND one is needed before anything is actually charged. That ordering
-  // is the engine's own `_wasLocked` semantics (a purchase made at the moment the threshold trips is
-  // still creation), and asserting it here is the point, not an inconvenience to work around.
+  // X is bought during creation and is therefore free of coin and time; creation is then finished
+  // explicitly, and only Y is charged. The boundary is the `creationLocked` event's POSITION in the
+  // log, not any threshold — which is exactly what makes it a decision rather than an accident.
   LOG.push({ type: 'buy', cat: 'feature', cost: 25, payload: { v: 'X' }, label: 'X', seq: SEQ++ });
+  LOG.push({ type: 'creationLocked', label: 'Creation finished', seq: SEQ++ });
   LOG.push({ type: 'buy', cat: 'feature', cost: 14, payload: { v: 'Y' }, label: 'Y', seq: SEQ++ });
   render();
   out.chargingAfterLock = _lsCharges(null);
@@ -332,10 +367,11 @@ const trade = await page.evaluate(() => {
   const setWallet = (gp, days) => {
     LOG.length = 0; SEQ = 0;
     LOG.push({ type: 'create', seq: SEQ++ });
-    LOG.push({ type: 'creationLockConfig', payload: { auto: true, threshold: 0 }, seq: SEQ++ });
+    LOG.push({ type: 'creationLockConfig', payload: { auto: true }, seq: SEQ++ });
     LOG.push({ type: 'econSetting', payload: { band: 'standard' }, seq: SEQ++ });
     LOG.push({ type: 'wealth', payload: { gp, days }, seq: SEQ++ });
     LOG.push({ type: 'buy', cat: 'skill', cost: 1, payload: { v: 'Stealth' }, label: 'S', seq: SEQ++ });
+    LOG.push({ type: 'creationLocked', label: 'Creation finished', seq: SEQ++ });   // now in play: trades are live
     render();
   };
   const q = { gp: 350, days: 42, time: '6 weeks' };
@@ -378,10 +414,11 @@ check('a trade that would still not close is never offered', trade.wontClose ===
 const tiles = await page.evaluate(() => {
   LOG.length = 0; SEQ = 0;
   LOG.push({ type: 'create', seq: SEQ++ });
-  LOG.push({ type: 'creationLockConfig', payload: { auto: true, threshold: 1 }, seq: SEQ++ });
+  LOG.push({ type: 'creationLockConfig', payload: { auto: true }, seq: SEQ++ });
   LOG.push({ type: 'econSetting', payload: { band: 'standard' }, seq: SEQ++ });
   LOG.push({ type: 'award', amount: 400, seq: SEQ++ });
   LOG.push({ type: 'buy', cat: 'skill', cost: 2, payload: { v: 'Stealth' }, label: 'Stealth', seq: SEQ++ });
+  LOG.push({ type: 'creationLocked', label: 'Creation finished', seq: SEQ++ });   // tiles must now price
   render();
   const withPrice = [...document.querySelectorAll('#buy .ib .why.gt')].map(n => n.textContent);
   return { count: withPrice.length, sample: withPrice.slice(0, 6) };
@@ -400,10 +437,11 @@ const solo = await page.evaluate(() => {
   const out = {};
   LOG.length = 0; SEQ = 0;
   LOG.push({ type: 'create', seq: SEQ++, ts: 100 });
-  LOG.push({ type: 'creationLockConfig', payload: { auto: true, threshold: 5 }, seq: SEQ++, ts: 100 });
+  LOG.push({ type: 'creationLockConfig', payload: { auto: true }, seq: SEQ++, ts: 100 });
   LOG.push({ type: 'econSetting', payload: { band: 'standard' }, seq: SEQ++, ts: 100 });
   LOG.push({ type: 'wealth', payload: { days: 90 }, seq: SEQ++, ts: 500 });                          // declare a 90-day window
-  LOG.push({ type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', seq: SEQ++, ts: 900 });  // crosses the lock
+  LOG.push({ type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', seq: SEQ++, ts: 900 });  // last creation buy
+  LOG.push({ type: 'creationLocked', label: 'Creation finished', seq: SEQ++, ts: 950 });
   LOG.push({ type: 'buy', cat: 'feature', cost: 12, payload: { v: 'X' }, label: 'X', seq: SEQ++, ts: 2000 });        // in play: 350gp/42d
   render();
   out.afterFirstSpend = _lsWallet(null).daysLeft;    // 90 - 42 = 48
@@ -439,10 +477,11 @@ const buyoff = await page.evaluate(() => {
   LOG.length = 0; SEQ = 0;
   const dv = Object.keys(DATA.drawbacks)[0];
   LOG.push({ type: 'create', seq: SEQ++, ts: 100 });
-  LOG.push({ type: 'creationLockConfig', payload: { auto: true, threshold: 1 }, seq: SEQ++, ts: 100 });
+  LOG.push({ type: 'creationLockConfig', payload: { auto: true }, seq: SEQ++, ts: 100 });
   LOG.push({ type: 'econSetting', payload: { band: 'standard' }, seq: SEQ++, ts: 100 });
   LOG.push({ type: 'award', amount: 30, seq: SEQ++, ts: 150 });   // headroom for the cross-buy + the buyoff itself
-  LOG.push({ type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', seq: SEQ++, ts: 200 }); // crosses the lock
+  LOG.push({ type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', seq: SEQ++, ts: 200 }); // last creation buy
+  LOG.push({ type: 'creationLocked', label: 'Creation finished', seq: SEQ++, ts: 250 });
   LOG.push({ type: 'buy', cat: 'drawback', cost: -(DATA.drawbacks[dv] || 0), payload: { v: dv }, label: 'Drawback — ' + dv, seq: SEQ++, ts: 300 });
   render();
   const origConfirm = window.confirm; window.confirm = () => true;
@@ -553,15 +592,16 @@ const dmNet = await dmPage.evaluate(() => {
   // A log with one in-play purchase (42 days) spent AFTER the window opened (ts 1000).
   const spendLog = [
     { type: 'create', seq: 0, ts: 100 },
-    { type: 'creationLockConfig', payload: { auto: true, threshold: 1 }, seq: 1, ts: 100 },
+    { type: 'creationLockConfig', payload: { auto: true }, seq: 1, ts: 100 },
     { type: 'econSetting', payload: { band: 'standard' }, seq: 2, ts: 100 },
     { type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', seq: 3, ts: 200 },
-    { type: 'buy', cat: 'feature', cost: 12, payload: { v: 'X' }, label: 'X', seq: 4, ts: 2000 },   // 350gp/42d, in play
+    { type: 'creationLocked', label: 'Creation finished', seq: 4, ts: 250 },
+    { type: 'buy', cat: 'feature', cost: 12, payload: { v: 'X' }, label: 'X', seq: 5, ts: 2000 },   // 350gp/42d, in play
   ];
   out.netHtml = window._dmAwardBodyTest('char1', { ap: 10, gold: 0, log: spendLog });
 
   // Same window, but this character has already overspent it (two 42-day purchases against a 48-day window).
-  const overLog = spendLog.concat([{ type: 'buy', cat: 'feature', cost: 12, payload: { v: 'Y' }, label: 'Y', seq: 5, ts: 3000 }]);
+  const overLog = spendLog.concat([{ type: 'buy', cat: 'feature', cost: 12, payload: { v: 'Y' }, label: 'Y', seq: 6, ts: 3000 }]);
   out.overHtml = window._dmAwardBodyTest('char1', { ap: 10, gold: 0, log: overLog });
   return out;
 });
@@ -644,6 +684,7 @@ check('the top band reads 10,000 gp / 2 years', cg.suffix60 === ' · 10,000 gp �
 check('the status row names the band', /Standard/.test(cg.statusText || ''), cg.statusText);
 check('...and says creation stays free', /creation stays free/.test(cg.hint), cg.hint);
 
+_summaryPrinted = true;
 console.log(`\n[economy] ${fail ? fail + ' of ' + (pass + fail) + ' checks FAILED' : 'all ' + pass + ' checks passed'}`);
 if (errors.length) console.log('\n(non-fatal errors seen: ' + errors.length + ')\n' + errors.slice(0, 5).join('\n'));
 await browser.close(); server.close();

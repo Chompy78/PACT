@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-01 · fix(testing): repair economy-ui-e2e fixtures stranded by the creation-ceiling change** —
+  the gate failed **35 of 155** checks on untouched `preview` and now passes **155/155**. Cause: PR #480
+  (`5a752b7`, *"creation ends by choice, not by accident"*) retired the automatic threshold tripwire that
+  used to end creation, but these fixtures still built characters with `creationLockConfig{threshold:N}`
+  and spent past it, expecting the lock to trip. It no longer does, so every character stayed
+  mid-creation, nothing was ever billable, and each of the 35 assertions about charging measured an
+  economy that never charges. Fixed at all 8 fixture sites by ending creation the way the app now does —
+  an explicit `creationLocked` event placed exactly where the old threshold tripped, so the same
+  purchases are creation and the same ones are in play. The now-meaningless `threshold` values were
+  dropped too: a threshold is a *ceiling* since #480, and figures like 1 or 20 would have left every
+  fixture absurdly over it (omitted, it falls back to the realistic 79 default, which none exceed).
+  Also added an **abort-visibility guard**: a crash partway now prints an explicit
+  `[economy] ABORTED — N checks ran` line instead of dying silently between the last PASS and the
+  summary. **Correction to the entry below:** that script was reported as "exits 0 even when it
+  crashes". It does not — it exits 1, correctly. The 0 came from measuring it as
+  `node … | tail -25`, where the pipeline reports `tail`'s status, not node's.
 - **2026-09-01 · feat(engine,dm-console): DMs can re-price any row of their campaign's economy band** —
   the gold-and-downtime economy shipped with three settings and nothing to turn between them. A DM may
   now customise any band row, independently for gold and for downtime, by a **multiplier** (×2, ×0.5) or
@@ -15,10 +31,10 @@
   licence in the guide's own words, so no guide edit either). Already-made purchases keep the price they
   paid — frozen `gp`/`days` still win — and a customised row's downtime **phrase** is regenerated from its
   new day count, so a re-priced row can't print "6 weeks" beside a 21-day cost. New gate:
-  `testing/scripts/cost-customization-ci.mjs` (81 checks) + `.github/workflows/cost-customization.yml`.
-  Found while testing, **pre-existing and not fixed here**: `economy-ui-e2e.mjs` fails 35 of 155 checks on
-  untouched `preview` — its fixtures still rely on the auto creation lock that PR #480 retired — and that
-  script exits 0 even when it crashes outright.
+  `testing/scripts/cost-customization-ci.mjs` (82 checks) + `.github/workflows/cost-customization.yml`.
+  Found while testing, **pre-existing**: `economy-ui-e2e.mjs` failed 35 of 155 checks on untouched
+  `preview` — its fixtures still relied on the auto creation lock that PR #480 retired. Repaired in the
+  follow-up entry above.
 - **2026-09-01 · feat(sql): moving a character between campaigns clears its creation lock and ceiling** —
   resolves the campaign-movement question three independent cold reviewers raised against the
   creation-ceiling plan and which it carried as unresolved. Owner decision: *"when a character leaves or

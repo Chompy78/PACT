@@ -46,7 +46,7 @@ Status: Active
     byte-identical to before.
   * `tools/DM-Console.html` gains the editor, with a live preview of each row's effective price beside
     its list price.
-  * Gate: `testing/scripts/cost-customization-ci.mjs` (81 checks) + `.github/workflows/cost-customization.yml`.
+  * Gate: `testing/scripts/cost-customization-ci.mjs` (82 checks) + `.github/workflows/cost-customization.yml`.
 
 - **Why:**
 
@@ -110,15 +110,26 @@ Status: Active
   — this prices a whole row for a whole campaign, not one character's one purchase, and neither
   substitutes for the other.
 
-  **Pre-existing failure found while testing, NOT caused by this change.**
-  `testing/scripts/economy-ui-e2e.mjs` fails **35 of 155** checks on an untouched `preview` (verified
+  **Pre-existing failure found while testing, NOT caused by this change — since repaired.**
+  `testing/scripts/economy-ui-e2e.mjs` failed **35 of 155** checks on an untouched `preview` (verified
   by stashing this work and re-running). Cause: `5a752b7` (*"creation ends by choice, not by accident"*,
   PR #480) retired the automatic threshold lock, so creation now ends only on an explicit
-  `creationLocked` event — but that gate's fixtures still rely on the retired tripwire, never reach
-  the in-play state, and so assert against an economy that never charges. Filed rather than fixed
-  here: it is a separate task, and folding a 35-check fixture repair into this diff would bury the
-  feature it is meant to review. Two further environmental notes from the same session: that script
-  **exits 0 even when it crashes outright** (a missing `playwright` module printed a stack trace and
-  still returned success — a gate that cannot fail is not a gate), and `tool-pricing-ci.mjs` is
-  intermittently flaky on a contended machine with "never became ready" harness failures, observed on
-  untouched code at 166/1, 179/1 and 184/0 across three consecutive runs.
+  `creationLocked` event — but that gate's fixtures still relied on the retired tripwire, never reached
+  the in-play state, and so asserted against an economy that never charges. Repaired at the owner's
+  direction in the same branch: all 8 fixture sites now end creation explicitly, at the exact point the
+  old threshold tripped, and the gate passes **155/155**. The obsolete `threshold` figures were dropped
+  with them — a threshold is a *ceiling* since #480, and values like 1 or 20 would have left every
+  fixture far over it.
+
+  **A correction, recorded because it was written into this file as fact.** An earlier revision of this
+  record claimed that script **"exits 0 even when it crashes outright"**. That is wrong. It exits **1**,
+  correctly, both on an uncaught error and on any failed check. The 0 came from how it was measured —
+  `node economy-ui-e2e.mjs | tail -25` reports the exit status of `tail`, not of node. This is exactly
+  the failure `AGENTS.md`'s "verify before writing an absence claim" rule exists to prevent, and it got
+  as far as `CHANGELOG.md` before being caught. What WAS genuinely missing is narrower and has been
+  added: a crash partway printed a stack trace and never reached the summary line, so the output said
+  neither "passed" nor "FAILED" — an explicit `ABORTED before finishing` line now covers that.
+
+  One environmental note stands unchanged: `tool-pricing-ci.mjs` is intermittently flaky on a contended
+  machine with "never became ready" harness failures, observed on untouched code at 166/1, 179/1 and
+  184/0 across three consecutive runs.
