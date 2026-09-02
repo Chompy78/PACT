@@ -103,8 +103,20 @@ console.log('\nsealedFloor <= undoFloor — the client never under-refuses');
 });
 
 // CharGen restores whole snapshots, so its guard asks: does the frame I am about to restore still
-// carry a floor at least as high as the live log's? Mirrors the check in that tool's undo().
-console.log('\nCharGen snapshot guard — a frame may never lower the floor');
+// carry a floor at least as high as the live log's?
+//
+// READ THIS BEFORE TRUSTING THE FOUR CHECKS BELOW. `guard` is a LOCAL RE-IMPLEMENTATION of the
+// expression in the tool, not the tool's own code — so this section is a SPEC for the property, not a
+// gate on CharGen. If someone later simplifies the tool's undo()/redo() to a tail test (the shape this
+// file's header argues is wrong), these four still print PASS. That is the same hand-written-mirror
+// pattern the whole shared-rule refactor existed to delete, reproduced inside its own test; it is
+// called out here rather than quietly left for the next reader to discover.
+//
+// WHAT ACTUALLY BINDS THE TOOL: tool-pricing-ci.mjs's 'undo refuses to cross a seal' check, which drives
+// the real undo() in a real browser. Keep that one alive; this section only pins the property it asserts.
+// The tool now applies the same guard in redo() as well (a barrier can reach LOG without going through
+// commitHistory(), so REDO can hold a pre-barrier frame) — the property below covers both directions.
+console.log('\nCharGen snapshot guard — a frame may never lower the floor (SPEC, not a gate: see above)');
 const guard = (log, frame) => !(frame.length < undoFloor(log) || undoFloor(frame) < undoFloor(log));
 const sealed = [{ type: 'buy' }, { type: 'award', amount: 5 }, { type: 'buy' }];
 t('a frame that keeps the barrier is allowed', guard(sealed, [{ type: 'buy' }, { type: 'award', amount: 5 }]), true);

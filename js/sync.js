@@ -265,11 +265,27 @@ export function isSealBlocked(id) { return _sealBlocked.has(id); }
  *  saving for the rest of the page's life, with the one-shot warning already spent. */
 export function clearSealBlocked(id) { _sealBlocked.delete(id); }
 
-/** Recognises the sealed/locked-history rejection raised by pact_enforce_locked_history(). Matched on
+/** TEST SEAM ONLY. The block is normally set inside saveCharacter()'s catch, which needs a real refusal
+ *  from a real server; the dependency-free gates have no such seam, so before this the lifecycle
+ *  (set -> read -> clear, and clearing one id not lifting another's) was asserted only by two checks that
+ *  could not fail. Named with a `_test` prefix so its purpose is unmistakable at every call site, and
+ *  deliberately NOT wired into any app path — nothing in the tools imports it. */
+export function _testMarkSealBlocked(id) { _sealBlocked.add(id); }
+
+/** Recognises the locked-history rejection raised by pact_enforce_locked_history(). Matched on
  *  the message because PostgREST surfaces a plpgsql RAISE as a generic error, not a typed code — the
  *  trigger's own text is the only signal that crosses the wire. Both wordings it can raise ("cannot
  *  shrink", "cannot be rewritten") share the "locked character history" phrase, which is what this
- *  keys on rather than either full sentence. */
+ *  keys on rather than either full sentence.
+ *
+ *  NAMING CAVEAT, and it reaches the user. This does NOT mean "a DM placed a seal". The same trigger
+ *  raises the same phrase for the PRE-EXISTING 2026-08-10 campaign boundary — the last non-disc,
+ *  non-noLock AP award — which has nothing to do with seals and long predates them. The two are
+ *  indistinguishable on the wire: the message text is identical either way. So every user-facing string
+ *  downstream of this must say "sealed OR locked by an AP award", never "your DM sealed this" — telling
+ *  a player their DM sealed a character when all that happened was an ordinary award is a false
+ *  statement about another person's action. Renaming this predicate would be cosmetic; the wording of
+ *  what it drives is the part that matters. */
 export function isSealRejection(error) {
   if (!error) return false;
   // CONCATENATED, not `message || hint || details`. PostgREST always populates `message`, so an OR
@@ -547,9 +563,27 @@ async function reconcile(id) {
     // getSyncState() has no way to see this recovery push as SAVING and falls through to a stale
     // dirty/conflict/idle read for its whole duration (found by /code-review ultra on the B3 branch;
     // pre-existing since this branch was written, freshly noticed once B3 leaned on getSyncState() more).
+    // A character this page has already been refused on cannot be pushed by ANY route, so don't try.
+    // This guard lived only in saveCharacter(), and reconcile() runs from syncAll() on every load and
+    // every 'online' event — so the impossible write was re-issued for the life of the page, which is
+    // precisely the spin saveCharacter()'s comment claims to prevent. Reported as `behind` so the
+    // recovery offer below still reaches the user.
+    if (_sealBlocked.has(id)) return { behind: true, sealed: true };
     _pushInFlight.add(id);
     try { await pushCharacter(local, local.editSeq || 0); }
-    catch (err) { if (err && err.conflict) return { behind: true }; /* transient: retry later */ }
+    catch (err) {
+      if (err && err.conflict) return { behind: true };
+      // A seal rejection is permanent for this copy, exactly like a conflict — and swallowing it as
+      // "transient" is what made the documented remedy fail: loadCharacter() cleared the block, called
+      // reconcile(), which re-pushed the same sealed log, was refused, ignored it, and returned the
+      // unchanged local copy. Cloud -> Load reported success and changed nothing.
+      //
+      // Routed through the SAME `behind` channel as a conflict rather than adopting the server row
+      // here, because owner decision L1 says a rejected save keeps the client's work: loadCharacter()
+      // asks opts.onBehind() first and replaces the local copy only on an explicit yes.
+      if (isSealRejection(err)) { _sealBlocked.add(id); return { behind: true, sealed: true }; }
+      /* transient: retry later */
+    }
     finally { _pushInFlight.delete(id); }
   } else {
     // Server wins: take its stats AND its ap. Same markInSyncWithServer() reasoning as the !local

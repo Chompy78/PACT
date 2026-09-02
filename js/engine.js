@@ -2132,7 +2132,19 @@ export function repriceDraft(events) {
   // second test below, the very next edit would re-price every purchase the lock exists to freeze.
   // Caught by CI's tool-pricing gate ("a locked log is returned untouched, even after a species edit").
   if (anyLocked || !isCreationDraft(log)) return log;
-  for (const [e, cost] of priced) e.cost = cost;
+  // A sessionSeal is neither a creation lock nor a "not a draft" marker, so neither test above sees it —
+  // yet `cost` IS one of the six fields the server's protected projection compares. A DM who seals at the
+  // end of session 1, before the player has pressed "Finish creating" (the natural gesture), would
+  // otherwise leave this function free to rewrite the frozen costs inside the sealed prefix on the next
+  // rules-version bump or context edit; every save from then on would be refused by
+  // pact_enforce_locked_history with no client path able to repair it. Sealed events keep the cost they
+  // were sold at; anything after the seal is still an ordinary draft and still reprices.
+  //
+  // Seal-only floor deliberately: sealedFloor()'s award half is campaign-scoped and this function has no
+  // campaign context. The client floor sitting at or below the server's is the safe direction — it can
+  // refuse a write the server would allow, never the reverse.
+  const _sealed = new Set(log.slice(0, sealedFloor(log)));
+  for (const [e, cost] of priced) { if (!_sealed.has(e)) e.cost = cost; }
   return log;
 }
 

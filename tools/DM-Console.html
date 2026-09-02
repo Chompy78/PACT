@@ -2500,11 +2500,22 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
           + 'un-tick it in CharGen or the Live Sheet.\n\nAnything they buy afterwards stays editable, and you '
           + 'can still make corrections yourself.')) return;
         sealBtn.disabled = true;
-        // One key per click, so a retry after a timeout cannot stack a second seal.
+        // ONE KEY PER CHARACTER, cached on the button — not one per click. The old code generated a fresh
+        // randomUUID() inside the handler, so seal_character_history()'s p_idem replay guard only ever
+        // protected transport-level retries INSIDE supabase-js; the user-visible retry it was written for
+        // (DM presses the button again after seeing an error) always presented a NEW key and appended a
+        // SECOND sessionSeal. Reusing the key makes the retry a genuine no-op server-side.
+        if(!sealBtn.dataset.idem) sealBtn.dataset.idem =
+          (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (String(Date.now())+'-'+String(Math.random()).slice(2));
         B.sealHistory(scid, (card.querySelector('.award-note[data-cid="'+scid+'"]')||{}).value || null,
-                      (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()))
-          .then(function(){ if(window._dmReloadRoster) window._dmReloadRoster(); else renderCloudRoster(el); })
-          .catch(function(e){ alert('Could not lock history: ' + ((e&&e.message)||e)); })
+                      sealBtn.dataset.idem)
+          // .catch BEFORE the reload, so a throw from _dmReloadRoster()/renderCloudRoster() is not
+          // reported as "Could not lock history". It was: the seal had succeeded, the re-render failed,
+          // and the DM — told the lock had not happened — pressed the button again. Reload errors are the
+          // roster's problem, not the seal's, and must not masquerade as one.
+          .catch(function(e){ alert('Could not lock history: ' + ((e&&e.message)||e)); throw e; })
+          .then(function(){ if(window._dmReloadRoster) window._dmReloadRoster(); else renderCloudRoster(el); },
+                function(){ /* already reported above; fall through to re-enable */ })
           .then(function(){ sealBtn.disabled = false; });
         return;
       }
@@ -2521,7 +2532,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         var gold = Math.round(parseFloat(goldEl&&goldEl.value)||0);
         var bonus = Math.round(parseFloat(bonusEl&&bonusEl.value)||0);
         var note = (noteEl&&noteEl.value||'').trim();
-        if(amt===0 && gold===0 && bonus===0){ alert('Enter a non-zero AP, gold, or bonus time amount.'); return; }
+        // alsoSeal is read BEFORE the zero-amount guard, deliberately. Ticking "and lock history" IS a
+        // requested action, so a DM who ticks it and presses Award with the AP/gold/bonus fields left at
+        // their default 0 must not be told to "enter an amount" — and the standalone `else if(alsoSeal)`
+        // branch below was unreachable for that gesture, which is the natural way to seal from this form.
+        var sealEl = card.querySelector('.award-seal[data-cid="'+acid+'"]');
+        var alsoSeal = !!(sealEl && sealEl.checked);
+        if(amt===0 && gold===0 && bonus===0 && !alsoSeal){ alert('Enter a non-zero AP, gold, or bonus time amount, or tick \u201cand lock history\u201d.'); return; }
         awardBtn.disabled = true;
         // campaignId comes off window._dmCampaignApRules, not a bare `currentCampId` — that variable
         // belongs to a LATER script block's closure (the campaign-ready one, where loadRoster/
@@ -2534,8 +2551,6 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         // AP awarded but history unsealed (or the reverse), and a DM retrying the half they saw fail
         // duplicates the half that succeeded — awarding twice is the one outcome here that materially
         // damages a character. award_ap_and_seal() is atomic and idempotent for exactly that reason.
-        var sealEl = card.querySelector('.award-seal[data-cid="'+acid+'"]');
-        var alsoSeal = !!(sealEl && sealEl.checked);
         if(amt!==0 && alsoSeal) jobs.push(B.awardApAndSeal(acid, amt, note,
             (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()))
           .then(function(res){

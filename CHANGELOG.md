@@ -18,6 +18,39 @@
   creation". Also corrects `undoFloor()`'s note that `creationUnlocked` handling is "latent (nothing
   emits it yet)": `dm_reopen_creation()` and the campaign-move trigger both emit it, and two live
   characters already carry one.
+- **2026-09-02 · fix: the remaining 20 session-seal review findings, across engine, sync, all three tools and CI**
+  — second `/code-review ultra` pass on the merged seal, five independent angles. The worst were silent
+  rather than loud. **CharGen mispriced every purchase in a sealed class**: `_cgLockSealedControls()`
+  disabled sealed `.classunlock` boxes and `_domReadBuild()` drops disabled ones, so the class vanished
+  from the priced base and each later buy in it was stamped with the **cross-class surcharge**, frozen
+  into the LOG. Now distinguished by a `dataset.sealLocked` flag, which also fixes the else-branch
+  clearing `disabled` on controls it never disabled after an in-app character switch. **`repriceDraft()`
+  ignored `sessionSeal`** — a character sealed while still in creation kept having its frozen `cost`
+  rewritten, and `cost` is in the server's protected projection, so every save would have been refused
+  for ever with no client path back. **`redo()` had no barrier guard** and `cgFinishCreating()` bypasses
+  `commitHistory()`, so buy/buy/undo/Finish/redo deleted the `creationLocked` event outright. **`reconcile()`
+  bypassed `_sealBlocked`**, re-issuing an impossible write on every load and reconnect and making the
+  documented Cloud → Load remedy a no-op; routed through the existing `onBehind` channel so owner
+  decision L1 (keep the client's work, ask first) still holds. **The `name` guard blocked renames the
+  server allows** — the projection covers `'names'` (spell/language), not `'name'` — and sat above the
+  no-op check, so opening a locked character flashed twice. `retractFlatEvent()`'s tri-state return is
+  now honoured by all three reconcile callers (they re-tick the box instead of diverging) and its refusal
+  is coalesced to one notice per pass. Autosave now surfaces a refusal at all, the one-shot notice is
+  per-character rather than per-page and is never burned from `pagehide` where `alert()` is suppressed,
+  DM Console's zero-amount guard no longer rejects "and lock history" on its own, and its seal button
+  reuses one idempotency key so a retry cannot stack a second seal. **Wording corrected throughout**: the
+  same rejection fires for the pre-existing AP-award boundary, so nothing claims "your DM sealed this".
+  Server-side, `pact_ap_ledger_protected()` now projects the **whole event** rather than six enumerated
+  fields — the `'v'` key only covered `{v:…}` payloads, leaving `abil`/`hd`/`wprof`/`names` substitutable
+  and a seal's own `idem` strippable (which defeats the double-award guard); blast radius measured at 0 of
+  35 characters before applying. `undo-barrier-ci.mjs` was wired into **no workflow at all** and now runs
+  in `engine-parity.yml`; two vacuous assertions in `sync-concurrency-ci.mjs` are replaced with real
+  lifecycle coverage via a test seam; the snapshot section that tested a local re-implementation now says
+  so. `_undoBarrierMsg()` moved to `js/ui-helpers.js` — it had been duplicated into both tools at the
+  moment the rule it explains was centralised. Gates: parity 73/0, undo-barrier 44/0, sync-concurrency
+  26/0, sync-state-machine 24/0, autosave-flush 14/0, log-fuzz 2000/2000, esc-gap 9/0; tool-pricing's one
+  remaining failure is the known harness flake, **verified pre-existing by stashing every change and
+  reproducing it identically on a clean tree**.
 - **2026-09-02 · fix(sql): the session-seal migration silently deleted two live guards — restored**
   — `/code-review ultra` on the merged seal work found that `2026-09-01-session-seal.sql` rebuilt
   `dm_edit_character_log()` from the **stale** `2026-08-10-dm-edit-character-log.sql` rather than editing

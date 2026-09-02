@@ -1032,10 +1032,15 @@ function _lsSealedFloor(){ return sealedFloor(LOG,{campaignBound:!!window._lsCam
 // with Reset being the Live Sheet's only start-fresh path, that left a player with one sealed
 // character unable to start another at all, and told them to use a button that isn't there. Found in
 // review; the alternative is now passed in per call site rather than assumed.
+// WORDING: "locked", never "your DM sealed it". _lsSealedFloor() is non-zero for a seal AND for the
+// pre-existing 2026-08-10 campaign boundary (the last non-disc, non-noLock AP award), which is not a seal
+// and long predates it -- so for most campaign characters this fires with no seal anywhere in the log.
+// Claiming the DM sealed it would be a false statement about another person's action. See
+// isSealRejection() in js/sync.js, where the same conflation is unavoidable on the wire.
 function _lsBlockedBySeal(what, alternative){
   if(_lsSealedFloor() === 0) return false;
-  alert('\uD83D\uDD12 This character\'s history is sealed.\n\n' + what + ' would replace history your DM has locked, '
-      + 'and the server will refuse it.\n\n' + alternative);
+  alert('\uD83D\uDD12 Part of this character\'s history is locked.\n\n' + what + ' would replace history the server '
+      + 'has locked (by a session seal, or by an AP award), and it will be refused.\n\n' + alternative);
   return true;
 }
 function undo(){
@@ -1054,13 +1059,9 @@ function undo(){
   var _floor=undoFloor(LOG);
   if(LOG.length<=_floor){ if(_dropped){save();render();} flash(_undoBarrierMsg(LOG[_floor-1])); return; }
   REDO.push(LOG.pop()); viewAt=null; save(); render(); }
-// Why the undo stopped, in the player's terms. Checked in isUndoBarrier()'s own precedence order so
-// an event that is several kinds of barrier at once names the most specific one.
-function _undoBarrierMsg(ev){
-  if(ev&&ev.dmEdit)return 'DM edits lock your history — buys made before one can\'t be undone.';
-  if(ev&&ev.type==='creationLocked')return '🔒 Creation is finished — what you bought during creation can\'t be undone. Only your DM can reopen it.';
-  return 'AP awards lock your history — buys made before an award can\'t be undone.';
-}
+// _undoBarrierMsg() now lives in js/ui-helpers.js — one copy, loaded by both tools. See it there.
+// redo() below needs no barrier guard, unlike CharGen's: this tool's redo APPENDS (LOG.push) rather than
+// restoring a whole snapshot, so it cannot shrink the log past a barrier by construction.
 function redo(){ if(_viewOnlyBlock())return; if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save(); render(); }
 
 // ---------------- persistence ----------------
@@ -1092,20 +1093,31 @@ var _lsCloudSaveTimer=null, _lsCloudSaveBusy=false, _lsCloudSaveAgain=false, _ls
 // feat/keepalive-scope-narrowing (A2, Addendum on D-GH-2026-08-08-chargen-cloud-autosave-flush): mirrors
 // CharGen's identical _cgPageHiding exactly — see that copy's comment for the full reasoning.
 var _lsPageHiding=false;
-// One-time explanation when the server refuses a save because the DM sealed this character's history
+// One-time explanation when the server refuses a save because part of this character's history is
+// locked. NOT necessarily a DM seal: the same trigger and the same message also cover the older AP-award
+// boundary, so this must not name a cause it cannot distinguish. See isSealRejection() in js/sync.js.
 // after this page loaded it (feat/session-seal Phase 2, owner decision L1). The player's work is NOT
 // discarded: it stays in this page and in the local save, so they can copy anything worth keeping out
 // before reloading. Reloading is the only real fix — this page is holding a history the server has
 // declared final — so the message says so plainly rather than offering a retry that cannot work.
-var __sealNoticeShown=false;
+// PER CHARACTER ID, not per page. _sealBlocked in js/sync.js is keyed by id and cleared per id by
+// clearSealBlocked(), and the in-app Cloud -> Load never reloads the page — so a page-lifetime boolean
+// meant character A's notice silenced character B's entirely, and B's autosave then stopped with no
+// explanation at all.
+var __sealNoticed=new Set();
 function _lsSealNotice(){
-  if(__sealNoticeShown) return; __sealNoticeShown=true;
-  alert('\uD83D\uDD12 Your DM sealed this character\'s history while you had it open.\n\n'
+  // NEVER burn the notice from a pagehide/unload path: browsers suppress alert() there, so the player
+  // sees nothing while the one-shot is consumed — spending the only explanation they were ever going to
+  // get. _lsAutosaveGate() is called from the pagehide handler and from _lsFlushCloudSaveNow().
+  if(_lsPageHiding) return;
+  var _id=currentCharId();
+  if(__sealNoticed.has(_id)) return; __sealNoticed.add(_id);
+  alert('\uD83D\uDD12 Part of this character\'s history is locked on the server.\n\n'
       + 'The changes on this screen have NOT been saved to the cloud, and they have not been thrown away '
       + 'either \u2014 they are still here and in this device\'s local copy.\n\n'
-      + 'Anything you bought BEFORE the seal is now permanent. Save a copy to a file if you want to keep '
-      + 'a record of what is on screen, then reload the page to pick the character up from where your DM '
-      + 'sealed it. Automatic cloud saving is paused until you do.');
+      + 'Anything you bought BEFORE the lock is now permanent. Save a copy to a file if you want to keep '
+      + 'a record of what is on screen, then reload the page to pick the character up from the server\'s '
+      + 'copy. Automatic cloud saving is paused until you do.');
 }
 function _lsAutosaveGate(){
   if(VIEW_ONLY||!window._lsSignedIn||!window._syncBridge||!navigator.onLine) return false;
@@ -1184,6 +1196,12 @@ async function _lsCloudPushOnce(){
       _lsConflictWarned=true;
       if(typeof flash==='function')flash('⚠ Not saved to cloud — this character was changed on another device. Use ☁ Cloud → Load to get that version.');
     }
+    // AUTOSAVE IS WHERE THE FIRST REFUSAL LANDS. A seal rejection is a RETURN VALUE, not a throw, so the
+    // deliberately-silent catch below never sees it, and the one-shot notice used to be reachable only
+    // from the gate on the NEXT scheduled push. A player who bought the thing they wanted and then
+    // stopped editing scheduled no next push, so nothing was ever said and they closed the tab believing
+    // the purchase had reached the cloud.
+    if(res&&res.sealed) _lsSealNotice();
     if(typeof _lsRenderSyncChip==='function') _lsRenderSyncChip();
   }catch(e){ /* deliberately silent: the local save already holds the work and sync.js leaves the
                 record dirty for the next retry — a toast on every failed keystroke would be noise */ }
@@ -1403,7 +1421,7 @@ function _lsConsumeHandoff(){
 // character and leaves the sealed one untouched on the server. Same shape as CharGen's "New
 // Character", which is why that one needs no guard either.
 function resetAll(){ if(confirm('Wipe this character and its whole history? This starts a clean '+RULES+' character.')){
-  if(_lsSealedFloor()>0){ __charId=null; currentCharId(); flash('\uD83D\uDD12 That character\'s history was sealed, so this is a NEW character — the sealed one is untouched.'); }
+  if(_lsSealedFloor()>0){ __charId=null; currentCharId(); flash('\uD83D\uDD12 Part of that character\'s history was locked, so this is a NEW character — the locked one is untouched.'); }
   LOG=[];REDO=[];SEQ=1;viewAt=null;loadedRules=null;_lsResetCloudApState();   // a reset character is born under the current rules
   const _vb=$('versionBanner');if(_vb)_vb.remove();   // clear any stale version-mismatch banner
   window._apNudgeDismissedFor=null;   // a freshly wiped character should see the low-spend nudge again
@@ -3050,10 +3068,10 @@ document.addEventListener('sync-ready', function () {
         // the most damaging thing this path could say. Found by /code-review ultra 2026-09-02.
         // See CharGen's copy: a seal rejection must not be reported as "will sync when online".
         if(res.sealed){
-          alert('\uD83D\uDD12 Not saved \u2014 your DM sealed this character\'s history while you had it open.\n\n'
+          alert('\uD83D\uDD12 Not saved \u2014 part of this character\'s history is locked on the server.\n\n'
           + 'Your work is still on screen and in this device\'s local copy; it has not been thrown away. '
           + 'Save a copy to a file if you want to keep a record of it, then reload the page to pick the '
-          + 'character up from where your DM sealed it.');
+          + 'character up from the server\'s copy.\n\n(This happens when your DM seals a session, and also when an AP award locks everything before it.)');
         } else {
           if(res.error) throw res.error;
           if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');

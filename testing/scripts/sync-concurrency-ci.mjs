@@ -208,9 +208,25 @@ console.log('\n  regressions — legitimate saves must keep working');
     A.isSealRejection(new Error('PACT: over AP budget by 4 (spent 83 of 79 spendable)')) === false);
   ok('a null/undefined error does not throw',
     A.isSealRejection(null) === false && A.isSealRejection(undefined) === false);
+  // These two now exercise the LIFECYCLE rather than restating the imports. The previous pair could not
+  // fail: isSealBlocked('never-seen-id') queried a module-fresh Set nothing in this file ever added to,
+  // and `typeof A.clearSealBlocked === 'function'` asserted an `export function` the import statement
+  // already guarantees. Two green lines that tested nothing, in the exact area a real bug was hiding.
   ok('an untouched character is not seal-blocked', A.isSealBlocked('never-seen-id') === false);
-  ok('clearSealBlocked is exported so loading a fresh copy can lift the block',
-    typeof A.clearSealBlocked === 'function'); }
+  if (typeof A._testMarkSealBlocked === 'function') {
+    A._testMarkSealBlocked('seal-lifecycle-id');
+    ok('a character marked seal-blocked reads back as blocked',
+      A.isSealBlocked('seal-lifecycle-id') === true);
+    A.clearSealBlocked('seal-lifecycle-id');
+    ok('clearSealBlocked lifts the block, which is what makes Cloud -> Load a real remedy',
+      A.isSealBlocked('seal-lifecycle-id') === false);
+    ok('clearing one character does not lift another\'s block',
+      (A._testMarkSealBlocked('a'), A._testMarkSealBlocked('b'), A.clearSealBlocked('a'),
+       A.isSealBlocked('a') === false && A.isSealBlocked('b') === true));
+    A.clearSealBlocked('b');
+  } else {
+    ok('js/sync.js exposes a seam for the seal-block lifecycle (see _testMarkSealBlocked)', false);
+  } }
 // NOT covered here: the end-to-end refusal. The server half is proven by testing/sql/session-seal-test.sql
 // against a real Postgres, and the client half by tool-pricing-ci.mjs in a real browser; this stub server
 // has no error-injection seam, so wiring one would be a larger change than the coverage justifies today.
