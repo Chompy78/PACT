@@ -10,6 +10,24 @@
 
 ## Index
 
+## D-GH-2026-09-01-feature-cost-customization — a DM may re-price any row of their campaign's band
+- The economy shipped with three settings and no dial between them. A DM may now re-price any ROW of
+  the band their campaign plays on, separately for gold and for downtime, by a **multiplier** or a
+  **flat override** — offered as a radio per row per currency, so the two cannot both be set and the
+  engine needs no precedence rule. Per band row (not per named feature) because every purchase in PACT
+  is *already* priced by its AP cost: a row is the unit the economy actually prices in, not an
+  approximation of one. Stored at `campaigns.rules.economy.rowCosts[band][rowKey]` — keyed by band
+  first, since Standard and Fast have different thresholds and row counts and one must never re-target
+  the other; keyed by the row's `maxAp` rather than its index, so a row insertion cannot silently
+  re-target every setting. **No SQL migration** (`rules` is free-form JSON, and the key is omitted when
+  nothing is customised) and **no `DATA.version` bump** (no default band moved; `compute()` untouched).
+  History is not re-priced — frozen `gp`/`days` still win, so the dial is safe to touch mid-campaign.
+  No guide edit: §17 already grants the DM this licence in the book's own words, so this surfaces an
+  existing rule rather than adding one. Also **repaired** a pre-existing 35/155 failure in
+  `economy-ui-e2e.mjs` (stale fixtures since PR #480 retired the auto creation lock), found while
+  testing and fixed in the same branch at the owner's direction — now 155/155.
+  Full record: `decisions/2026/D-GH-2026-09-01-feature-cost-customization.md`.
+
 ## D-GH-2026-09-01-session-seal — the session seal AMENDS the existing lock, not a second one
 - Phase 1 of the per-session history lock, and a correction: the plan and all three cold reviews assumed
   no server-side history protection existed. `pact_enforce_locked_history()` has done exactly that for

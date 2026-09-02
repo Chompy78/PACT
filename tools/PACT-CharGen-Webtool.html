@@ -570,10 +570,10 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, economyOn, wealthLedger, chargesGoldAndTime } from '../js/engine.js';
+  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
-  window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, economyOn, wealthLedger, chargesGoldAndTime };
+  window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime };
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (CharGen); never read by compute()
   window.DATA = DATA; window.compute = compute; window.requiredHD = requiredHD; window.MUT = MUT; window.foldBuild = foldBuild;
@@ -2485,6 +2485,24 @@ function _cgEconBand(){
     campaignActive: !!(window._cgCampaignBound && camp && camp.rules),
   });
 }
+// The band PLUS this campaign's per-row cost customisation, in the rules shape purchaseCost()
+// reads (feat/cost-customization). Kept separate from _cgEconBand() rather than folded into it:
+// several callers index DATA.economyBands by the return value or compare it to 'off', and those
+// want the plain token. Only the pricing call sites want this.
+//
+// rowCosts is campaign-only by design — the DM owns the dial (§17), so a solo character has no
+// customisation to apply and correctly falls through to book prices. Guarded on the same
+// "campaign bound AND its rules actually resolved" condition _cgEconBand() uses, so a network
+// hiccup quotes the book rather than a half-read campaign.
+function _cgEconRules(){
+  var E=window._engineEcon; if(!E||!E.resolveEconomyRules) return _cgEconBand();
+  var camp=window._cloudCampaign;
+  return E.resolveEconomyRules({
+    events: LOG,
+    campaignRules: camp && camp.rules,
+    campaignActive: !!(window._cgCampaignBound && camp && camp.rules),
+  });
+}
 // ' · 350 gp · 6 weeks in play' — the suffix appended to a row's AP price. '' when the economy is
 // off, and '' for a genuinely free purchase too: on a creation form, where nothing is being charged
 // anyway, "free of coin and time in play" on every Tier 1 row is noise rather than information (the
@@ -2521,7 +2539,7 @@ document.addEventListener('click',function(e){ if(e.target&&e.target.id==='econb
 
 function _cgGT(ap){
   var E=window._engineEcon; if(!E) return '';
-  var c=E.purchaseCost(ap,_cgEconBand());
+  var c=E.purchaseCost(ap,_cgEconRules());
   if(!c || (!c.gp && !c.days)) return '';
   return ' · ' + [c.gp?(c.gp.toLocaleString()+' gp'):'', c.days?c.time:''].filter(Boolean).join(' · ') + ' in play';
 }

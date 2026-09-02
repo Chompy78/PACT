@@ -548,6 +548,21 @@ function _lsEconBand(uptoIdx){
   });
 }
 function _lsEconOn(uptoIdx){ var E=window._engineEcon; return !!(E&&E.economyOn(_lsEconBand(uptoIdx))); }
+// The band PLUS this campaign's per-row cost customisation, in the rules shape purchaseCost() and
+// wealthLedger() read (feat/cost-customization). Deliberately NOT folded into _lsEconBand(): other
+// callers index DATA.economyBands by that return value or compare it to 'off', and want the token.
+//
+// rowCosts is campaign-only — the DM owns the dial (§17). Gated on _rulesStatus==='active', the
+// same flag _lsEconBand() trusts, so unresolved campaign rules quote book prices rather than a
+// guess at the table's.
+function _lsEconRules(uptoIdx){
+  var E=window._engineEcon; if(!E||!E.resolveEconomyRules) return _lsEconBand(uptoIdx);
+  return E.resolveEconomyRules({
+    events: eventsUpTo(uptoIdx),
+    campaignRules: window._cloudCampaignRules,
+    campaignActive: window._rulesStatus==='active',
+  });
+}
 // The downtime window in force right now — resolveDowntimeWindow()'s own precedence (an active
 // campaign's window always wins; otherwise the character's own self-declared window from its LOG),
 // asked rather than re-implemented. Mirrors _lsEconBand's shape exactly. window._dmWindow is fetched
@@ -667,14 +682,14 @@ function _lsWalletShort(q){
 // disagree about what a purchase costs.
 function _lsQuote(cost){
   var E=window._engineEcon; if(!E||!_lsCharges(null)) return null;
-  return E.purchaseCost(cost,_lsEconBand(null));
+  return E.purchaseCost(cost,_lsEconRules(null));
 }
 // The composed wallet: what this character's own LOG grants and spends, plus the DM-held pool.
 // The DM pool rides the SAME 'active' gate as DM AP — a campaign whose rules are unconfirmed must not
 // have its server-side gold silently counted as zero, so it simply isn't composed in until resolved.
 function _lsWallet(uptoIdx){
   var E=window._engineEcon; if(!E) return null;
-  var led=E.wealthLedger(eventsUpTo(uptoIdx),{band:_lsEconBand(uptoIdx)});
+  var led=E.wealthLedger(eventsUpTo(uptoIdx),{band:_lsEconRules(uptoIdx)});
   var a=window._rulesStatus==='active';
   // Gold and downtime compose differently now (see js/engine.js's wealthWithDm header): gold is
   // still a flat additive top-up (dmGold), but downtime is the resolved WINDOW — a solo player's
@@ -2641,14 +2656,14 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   window._engineBridge = { validate };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   // Gold-and-downtime economy (Players Guide §16). Bridged onto window exactly as the AP-ledger
   // functions above are, so the classic-script half of this tool reaches them the same way.
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
-  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };
+  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of
   // hand-copied inline duplicates. UI boot waits on engine-ready.

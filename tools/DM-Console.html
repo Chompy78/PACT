@@ -839,6 +839,24 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                     mid-campaign moves a purchase's price under the players' feet.
                   </div>
                   <div id="ruleEconomyBlurb" style="font-size:11px;opacity:.8;margin-bottom:6px"></div>
+                  <!-- Per-row cost customisation (feat/cost-customization). Hidden entirely when the
+                       band is Off: there are no prices to re-price, and an empty grid there would
+                       imply the economy was running. Rendered from the live band table, so a band
+                       gaining or losing a row reaches this editor with no change here. -->
+                  <div id="ruleEconomyRows" hidden>
+                    <div class="lbl" style="margin-top:10px">Customise this band&rsquo;s costs</div>
+                    <div style="font-size:11px;opacity:.8;margin:2px 0 6px">
+                      Re-price any row of the band, separately for gold and for time. Leave a row on
+                      <b>List</b> to use the Players Guide figure. Each customisation is stored against
+                      the band it was made on &mdash; switching bands shows that band&rsquo;s own settings,
+                      it never carries these numbers across. Changing a price here moves
+                      <b>future</b> purchases only; what a character has already bought keeps the price it paid.
+                    </div>
+                    <div id="ruleEconomyRowGrid"></div>
+                    <div style="display:flex;gap:6px;margin-top:6px">
+                      <button type="button" class="btn sm ghost" id="ruleEconomyRowsReset">Reset all rows to list</button>
+                    </div>
+                  </div>
                 </div>
                 <div class="ruleblock">
                   <div class="lbl">House-rule toggles</div>
@@ -1611,6 +1629,14 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     var rules = (window._dmCampaignApRules && window._dmCampaignApRules.rules) || {};
     var band = window._engineEcon ? window._engineEcon.economySetting(rules) : 'off';
     var econOn = band !== 'off';
+    // The PRICING context, not just the band token (feat/cost-customization). A token carries no
+    // per-row customisation, so pricing this roster ledger from one showed the DM a different
+    // downtime balance than the player's own sheet for any campaign that had re-priced a row —
+    // found in review, and exactly the omission resolveEconomyRules() now exists to prevent. The
+    // campaign is by definition active here: this body only renders for a selected campaign.
+    var econCtx = (window._engineEcon && window._engineEcon.resolveEconomyRules)
+      ? window._engineEcon.resolveEconomyRules({ events: (dm && dm.log) || [], campaignRules: rules, campaignActive: true })
+      : band;
     var fmt = (window._engineEcon && window._engineEcon.formatDowntime) ? window._engineEcon.formatDowntime : function(n){ return n+' days'; };
     var h = '';
     if(econOn){
@@ -1626,7 +1652,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         var daysLeft = win.days;
         try {
           if(dm.log && window._engineEcon){
-            var _led = window._engineEcon.wealthLedger(dm.log, {band:band});
+            var _led = window._engineEcon.wealthLedger(dm.log, {band:econCtx});
             daysLeft = window._engineEcon.wealthWithDm(_led, {window:{days:win.days, startTs:new Date(win.declaredAt).getTime()}}).daysLeft;
           }
         } catch(e){ daysLeft = win.days; }
@@ -2904,10 +2930,10 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // failed esm.sh import (js/supabase-client.js pulls @supabase/supabase-js from a CDN) aborted the whole
   // module: engine-ready never fired, boot never ran, and the console rendered as a bare shell. Now the
   // engine half cannot be taken down by the cloud half.
-  import { DATA, compute, requiredHD, FEAT_ALIAS, baseBuild, packTraitsFor, MUT, creationLockState, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime } from '../js/engine.js';
+  import { DATA, compute, requiredHD, FEAT_ALIAS, baseBuild, packTraitsFor, MUT, creationLockState, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // exactly as the AP-ledger helpers above are.
-  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime };
+  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules };
   import { verifyCharacterEnvelope } from '../js/character-store.js';   // tamper-evidence read-side (D-GH48)
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
@@ -3267,6 +3293,8 @@ document.addEventListener('campaign-ready', function () {
                           ? window._engineEcon.economySetting(r)
                           : ((r.economy && r.economy.band) || 'off');
     _updateEconomyBlurb();
+    _econRowStateLoad(r);        // per-row cost customisation (feat/cost-customization)
+    _renderEconomyRowGrid();
     currentHouseRules = Object.assign({}, r.houseRules || {});
     renderHouseRules();
     loadCustomFieldDefsIntoPanel(r.customFields);
@@ -3327,8 +3355,233 @@ document.addEventListener('campaign-ready', function () {
     el.textContent = b ? b.blurb : '';
   }
   document.addEventListener('change', function(e){
-    if(e.target && e.target.id === 'ruleEconomyBand') _updateEconomyBlurb();
+    if(e.target && e.target.id === 'ruleEconomyBand'){ _updateEconomyBlurb(); _renderEconomyRowGrid(); }
   });
+
+  /* ---- Per-row cost customisation (feat/cost-customization, D-GH-2026-09-01) ------------------
+   * The DM re-prices individual rows of the band their campaign plays on. Two methods per row per
+   * currency — a multiplier or a flat override — offered as a RADIO so the two cannot both be set
+   * at once (owner's choice C3). That is why the stored shape is one {mode,value} pair rather than
+   * two nullable fields: "both at once" is unrepresentable rather than merely discouraged, and the
+   * engine needs no precedence rule.
+   *
+   * State lives here, keyed by band token, so a DM can tune Standard, flip to Fast to compare, and
+   * flip back without losing either set. Only what is actually customised is written on save.
+   */
+  var _econRowState = {};   // { standard: { '15': {gp:{mode,value}, days:{mode,value}} }, fast: {...} }
+
+  function _econRowsFor(band){
+    if(!window.DATA || !DATA.economyBands) return null;
+    var b = DATA.economyBands[band];
+    return (b && b.rows) ? b.rows : null;
+  }
+  function _econRowKey(row){
+    var E = window._engineEcon;
+    return (E && E.bandRowKey) ? E.bandRowKey(row) : (row && row.maxAp != null ? String(row.maxAp) : 'top');
+  }
+  /* Prune to only the rows that actually differ from list, and only for bands that still exist.
+   * A row left on List stores nothing at all, so a campaign that customises nothing writes no
+   * rowCosts key — the rules JSON of an untouched campaign is byte-identical to before this
+   * feature, which is what keeps this a pure addition rather than a shape migration. */
+  function _econRowsCollect(){
+    var out = {}, any = false;
+    Object.keys(_econRowState).forEach(function(band){
+      // A band token this build does not know is carried through UNTOUCHED rather than dropped.
+      // Filtering it out would mean that renaming or retiring a band in economy-bands.js silently
+      // destroys a DM's tuning for it on their next save — triggered by editing anything at all,
+      // since one button saves the whole rules object. The engine already takes this posture for a
+      // row key that matches no row ("simply stops matching, which is the safe failure"); data the
+      // UI cannot currently display is still the DM's.
+      if(!_econRowsFor(band)){
+        if(_econRowState[band] && Object.keys(_econRowState[band]).length){ out[band] = _econRowState[band]; any = true; }
+        return;
+      }
+      var per = _econRowState[band], keep = {}, kept = false;
+      Object.keys(per||{}).forEach(function(k){
+        var e = per[k] || {}, one = {};
+        ['gp','days'].forEach(function(cur){
+          var r = e[cur];
+          // `typeof === 'number'` before any coercion, matching _applyCostRule() in the engine and
+          // for the same reason: Number(null) is a finite 0, so coercing here would PERSIST a free
+          // row to the database for a value that only ever meant "nothing typed yet".
+          if(r && (r.mode === 'mult' || r.mode === 'flat') && typeof r.value === 'number' && Number.isFinite(r.value)){
+            one[cur] = { mode: r.mode, value: r.value };
+          }
+        });
+        if(Object.keys(one).length){ keep[k] = one; kept = true; }
+      });
+      if(kept){ out[band] = keep; any = true; }
+    });
+    return any ? out : null;
+  }
+  /* The effective figures for the band currently selected in the form — asked of the engine rather
+   * than recomputed here, so the preview a DM reads is produced by the same code that will charge
+   * their players. (AGENTS.md: never re-implement rules logic outside the engine.) */
+  function _econPreviewRows(band){
+    var E = window._engineEcon, rows = _econRowsFor(band);
+    if(!rows) return null;
+    if(!E || !E.effectiveBandRows) return rows;
+    var rc = _econRowsCollect();
+    return E.effectiveBandRows(rc ? { economy:{ band:band, rowCosts:rc } } : band) || rows;
+  }
+  function _econFmtDays(d){
+    var E = window._engineEcon;
+    return (E && E.formatDowntime) ? E.formatDowntime(d) : (d + ' days');
+  }
+  function _renderEconomyRowGrid(){
+    var wrap = document.getElementById('ruleEconomyRows'),
+        grid = document.getElementById('ruleEconomyRowGrid'),
+        sel  = document.getElementById('ruleEconomyBand');
+    if(!wrap || !grid || !sel) return;
+    var band = sel.value, rows = _econRowsFor(band);
+    // Off (or an unknown band) has no rows to price — hide the whole block rather than show an
+    // empty grid, matching how every other economy control treats 'off' as a distinct UI state.
+    if(!rows){ wrap.hidden = true; grid.innerHTML = ''; return; }
+    wrap.hidden = false;
+    var eff = _econPreviewRows(band) || rows;
+    var per = _econRowState[band] || {};
+    var html = rows.map(function(row, i){
+      var k = _econRowKey(row), cur = per[k] || {}, e = eff[i] || row;
+      var changed = (e.gp !== row.gp) || (e.days !== row.days);
+      return '<div style="border:1px solid var(--line,#ccc);border-radius:6px;padding:6px 8px;margin-bottom:5px">'
+        + '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline">'
+        +   '<b style="font-size:12px">' + esc(row.ap) + '</b>'
+        +   '<span style="font-size:11px;opacity:.85" data-econ-preview="' + esc(k) + '">'
+        +     (changed
+                ? '<b>' + Number(e.gp).toLocaleString() + ' gp &middot; ' + esc(e.time) + '</b>'
+                  + ' <span style="opacity:.7">(list ' + Number(row.gp).toLocaleString() + ' gp &middot; ' + esc(row.time) + ')</span>'
+                : Number(row.gp).toLocaleString() + ' gp &middot; ' + esc(row.time))
+        +   '</span>'
+        + '</div>'
+        + _econCurrencyRow(band, k, 'gp',   'Gold', cur.gp)
+        + _econCurrencyRow(band, k, 'days', 'Time', cur.days)
+        + '</div>';
+    }).join('');
+    grid.innerHTML = html;
+  }
+  /* One currency's three-way radio + its value box. `name` scopes the radio group to this band,
+   * row and currency, so the three options are genuinely mutually exclusive in the DOM — the
+   * browser enforces C3 rather than a change handler having to. */
+  function _econCurrencyRow(band, k, cur, label, rule){
+    var mode = (rule && (rule.mode === 'mult' || rule.mode === 'flat')) ? rule.mode : 'list';
+    var val  = (rule && typeof rule.value === 'number' && Number.isFinite(rule.value)) ? rule.value : '';
+    var nm = 'econ-' + band + '-' + k + '-' + cur;
+    function radio(m, text){
+      return '<label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer">'
+        + '<input type="radio" name="' + esc(nm) + '" value="' + m + '"'
+        +   ' data-econ-mode="1" data-band="' + esc(band) + '" data-row="' + esc(k) + '" data-cur="' + cur + '"'
+        +   (mode === m ? ' checked' : '') + '>' + text + '</label>';
+    }
+    return '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:11px;margin-top:3px">'
+      + '<span style="width:34px;opacity:.8">' + label + '</span>'
+      + radio('list', 'List') + radio('mult', '&times;') + radio('flat', 'Flat')
+      // step follows the MODE, not the currency: a multiplier must accept 0.5 (the owner's own
+      // example), which step="1" would mark invalid and the spinner would refuse to reach. A flat
+      // override is a whole gp/day figure, so it keeps step="1".
+      + '<input type="number" step="' + (mode === 'mult' ? 'any' : '1') + '" min="0"'
+      +   ' data-econ-val="1" data-band="' + esc(band) + '" data-row="' + esc(k) + '" data-cur="' + cur + '"'
+      +   ' value="' + esc(String(val)) + '"'
+      +   ' placeholder="' + (mode === 'mult' ? '2' : (cur === 'gp' ? 'gp' : 'days')) + '"'
+      +   ' style="width:72px;padding:1px 4px"' + (mode === 'list' ? ' disabled' : '') + '>'
+      + '<span style="opacity:.7">' + (mode === 'mult' ? '&times; list' : (mode === 'flat' ? (cur === 'gp' ? 'gp' : 'days') : '')) + '</span>'
+      + '</div>';
+  }
+  /* Repaint one row's price preview in place, leaving every input node (and the focus inside it)
+   * exactly where it was. Asks the engine for the effective figures, same as the full render. */
+  function _econUpdatePreview(band, k){
+    var sel = document.getElementById('ruleEconomyBand');
+    if(!sel || sel.value !== band) return;
+    var rows = _econRowsFor(band), eff = _econPreviewRows(band);
+    if(!rows || !eff) return;
+    var el = document.querySelector('[data-econ-preview="' + (window.CSS && CSS.escape ? CSS.escape(k) : k) + '"]');
+    if(!el) return;
+    for(var i = 0; i < rows.length; i++){
+      if(_econRowKey(rows[i]) !== k) continue;
+      var row = rows[i], e = eff[i] || row;
+      var changed = (e.gp !== row.gp) || (e.days !== row.days);
+      el.innerHTML = changed
+        ? '<b>' + Number(e.gp).toLocaleString() + ' gp &middot; ' + esc(e.time) + '</b>'
+          + ' <span style="opacity:.7">(list ' + Number(row.gp).toLocaleString() + ' gp &middot; ' + esc(row.time) + ')</span>'
+        : Number(row.gp).toLocaleString() + ' gp &middot; ' + esc(row.time);
+      return;
+    }
+  }
+  function _econSet(band, k, cur, patch){
+    var per = _econRowState[band] || (_econRowState[band] = {});
+    var ent = per[k] || (per[k] = {});
+    if(patch === null) delete ent[cur]; else ent[cur] = patch;
+    if(!Object.keys(ent).length) delete per[k];
+  }
+  document.addEventListener('change', function(ev){
+    var t = ev.target; if(!t) return;
+    if(t.getAttribute && t.getAttribute('data-econ-mode')){
+      var band = t.getAttribute('data-band'), k = t.getAttribute('data-row'), cur = t.getAttribute('data-cur');
+      if(t.value === 'list'){ _econSet(band, k, cur, null); }
+      else {
+        // Seed a sensible starting figure so choosing a mode never leaves an empty box that reads
+        // as "no change" while the radio says otherwise: x1 is a no-op multiplier, and a flat
+        // override starts at the row's own list figure.
+        var rows = _econRowsFor(band) || [], row = null;
+        rows.forEach(function(r){ if(_econRowKey(r) === k) row = r; });
+        var seed = (t.value === 'mult') ? 1 : (row ? (cur === 'gp' ? row.gp : row.days) : 0);
+        _econSet(band, k, cur, { mode: t.value, value: seed });
+      }
+      _renderEconomyRowGrid();
+    } else if(t.getAttribute && t.getAttribute('data-econ-val')){
+      var b2 = t.getAttribute('data-band'), k2 = t.getAttribute('data-row'), c2 = t.getAttribute('data-cur');
+      var ent = (_econRowState[b2] || {})[k2] || {}, r2 = ent[c2];
+      if(!r2) return;
+      var n = Number(t.value);
+      // An emptied or invalid box KEEPS THE CHOSEN MODE and simply carries no value yet. It used to
+      // reset the row to List, which meant clearing a figure to retype it silently un-picked the
+      // DM's mode and disabled the box under them. A null value prices as list (the engine's
+      // fail-closed guard rejects a non-number) and is dropped by _econRowsCollect, so "mode chosen,
+      // nothing typed" saves nothing — which is the honest reading of a half-filled form.
+      var ok = t.value !== '' && Number.isFinite(n) && n >= 0;
+      _econSet(b2, k2, c2, { mode: r2.mode, value: ok ? n : null });
+      // Update ONLY this row's preview. Re-rendering the whole grid here destroyed the very input
+      // being edited: tabbing out landed focus on <body>, and a second spinner click missed because
+      // the node under the pointer had been replaced. A mode change still rebuilds (it changes which
+      // controls exist); a value change must not.
+      _econUpdatePreview(b2, k2);
+    }
+  });
+  document.addEventListener('click', function(ev){
+    if(!ev.target || ev.target.id !== 'ruleEconomyRowsReset') return;
+    var sel = document.getElementById('ruleEconomyBand'); if(!sel) return;
+    delete _econRowState[sel.value];       // this band only — the other band's tuning is untouched
+    _renderEconomyRowGrid();
+  });
+  /* Load stored customisation into the editor on campaign select. Cloned, so editing the form never
+   * mutates the cached campaign rules object before the DM presses Save. */
+  function _econRowStateLoad(r){
+    _econRowState = {};
+    var rc = r && r.economy && r.economy.rowCosts;
+    if(!rc || typeof rc !== 'object') return;
+    Object.keys(rc).forEach(function(band){
+      var per = rc[band]; if(!per || typeof per !== 'object') return;
+      var keep = {};
+      Object.keys(per).forEach(function(k){
+        var e = per[k] || {}, one = {};
+        ['gp','days'].forEach(function(cur){
+          var x = e[cur];
+          if(x && (x.mode === 'mult' || x.mode === 'flat') && typeof x.value === 'number' && Number.isFinite(x.value)){
+            one[cur] = { mode: x.mode, value: x.value };
+          }
+        });
+        if(Object.keys(one).length) keep[k] = one;
+      });
+      _econRowState[band] = keep;
+    });
+  }
+  // Test seam: lets economy-ui-e2e.mjs drive and inspect the row editor without a live campaign.
+  window._dmEconRows = {
+    load: _econRowStateLoad,
+    render: _renderEconomyRowGrid,
+    collect: _econRowsCollect,
+    state: function(){ return _econRowState; },
+    set: function(band, k, cur, rule){ _econSet(band, k, cur, rule); _renderEconomyRowGrid(); },
+  };
 
   function renderRulesSummary(r){
     var el = document.getElementById('campRulesSummary'); if(!el) return;
@@ -3527,7 +3780,16 @@ document.addEventListener('campaign-ready', function () {
       // {band:'off'|'standard'|'fast'} — the three settings of Players Guide §16/§17's checklist.
       // Nested under `economy` rather than sitting as a bare `economyBand` key so the block has room
       // to grow (a per-campaign gold multiplier, a custom band) without a second migration of shape.
-      economy: { band: (document.getElementById('ruleEconomyBand') || {}).value || 'off' },
+      // {band, rowCosts?} — rowCosts is the per-row gold/time customisation
+      // (feat/cost-customization, D-GH-2026-09-01), keyed by band token then by row. Omitted
+      // entirely when nothing is customised, so an untouched campaign's rules JSON is unchanged
+      // by this feature. This is the growth the `economy` block was nested for.
+      economy: (function(){
+        var eco = { band: (document.getElementById('ruleEconomyBand') || {}).value || 'off' };
+        var rc = _econRowsCollect();
+        if(rc) eco.rowCosts = rc;
+        return eco;
+      })(),
       drawbackCap: { enabled: ruleDrawCapOn.checked,
                      ap: parseInt(ruleDrawCapAp.value, 10) || (window.DATA ? DATA.drawbackCap : 12) },
       houseRules: currentHouseRules,
