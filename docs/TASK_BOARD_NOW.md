@@ -106,44 +106,6 @@ other stale `v0.3xx` strings in all three tools are displayed or merely historic
 `v0.3xx` in the three tools is either fixed or documented as a deliberate historical reference, and a gate
 fails if a displayed rules version drifts from `DATA.version` again.
 
-## `sql/rls-policies.sql` never received any of the session-seal work — a fresh install has no seal, and re-running it reverts one — TODO
-Branch `fix/rls-policies-seal-backport`. `sql/rls-policies.sql` is this repo's maintained, declared-
-re-runnable baseline ("Apply AFTER schema.sql. Safe to re-run"). Every prior migration in this family was
-back-ported into it — 2026-08-10 and 2026-08-22 both were. The session-seal work (2026-09-01, PR #492) was
-**not**, and neither was the 2026-09-02 restore. So the baseline currently:
-- still defines the **pre-seal** `pact_ap_ledger_protected` (no `sessionSeal`, no `payload.v`) and
-  `pact_enforce_locked_history` (campaign-only, award-only);
-- defines **neither** `seal_character_history` nor `award_ap_and_seal` at all;
-- **re-grants** the EXECUTE on both trigger functions that
-  `sql/migrations/2026-09-01-revoke-trigger-function-execute.sql` revokes — while that migration's own
-  header claims it exists so the live grant state "would be reproducible from `sql/` alone."
-
-**Effort:** small–medium · **Risk:** medium — ambiguity is low (the live definitions are readable from
-`pg_proc`), but damage scale is high: this file is what a rebuild applies, and the failure is silent in both
-directions. **NOT sweep-eligible** — it touches the security boundary.
-
-```text
-1. Read the LIVE definitions back from the database, not from the migration files:
-     select proname, pg_get_functiondef(oid) from pg_proc
-      where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_history',
-                        'pact_ap_ledger_protected','pact_enforce_locked_history');
-   This is the whole point of the task. Rebuilding from a dated migration is what caused
-   D-GH-2026-09-02-session-seal-stale-base in the first place.
-2. Update rls-policies.sql to match live, exactly: the amended trigger pair, both seal RPCs, and the
-   REVOKE (not the GRANT) on pact_enforce_locked_history / pact_ap_ledger_protected.
-3. Then prove it: apply schema.sql + rls-policies.sql to a scratch database and diff the resulting
-   pg_proc bodies and pg_proc.proacl against production. A visual read of the file is NOT the check —
-   the bug this task fixes was invisible to exactly that.
-4. While there: add a note at the top of the migrations directory saying dated migration files are
-   historical records and the baseline is rls-policies.sql. Two production regressions in two days came
-   from reading a dated file as current.
-```
-
-**Done when:** a database built from `schema.sql` + `rls-policies.sql` alone has function bodies and
-EXECUTE grants matching production for all five functions above (verified by diff, not by eye), placing a
-seal works on that fresh database, and re-running `rls-policies.sql` against production leaves
-`pact_enforce_locked_history` amended and the trigger-function EXECUTE still revoked.
-
 ---
 
 # Conventions

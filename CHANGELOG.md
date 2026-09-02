@@ -78,6 +78,24 @@
   creation". Also corrects `undoFloor()`'s note that `creationUnlocked` handling is "latent (nothing
   emits it yet)": `dm_reopen_creation()` and the campaign-move trigger both emit it, and two live
   characters already carry one.
+- **2026-09-02 · fix(sql): the maintained baseline had fallen three migrations behind — and now cannot again**
+  — `sql/rls-policies.sql` calls itself the fresh-install path and says "safe to re-run". Neither claim held.
+  A database built from `schema.sql` + `rls-policies.sql` had **no seal functions at all**, so the shipped
+  tools' `supabase.rpc('seal_character_history')` would have failed on every press; and **re-running it
+  against production** would have reverted `pact_enforce_locked_history` to the award-only 2026-08-10
+  version and re-GRANTed the EXECUTE that `2026-09-01-revoke-trigger-function-execute.sql` removed —
+  silently undoing a security fix, while that migration's header claimed the grant state was "reproducible
+  from `sql/` alone". The baseline now carries the live `dm_edit_character_log`, the widened projection, the
+  amended locked-history trigger, **both seal RPCs** (previously absent entirely), and grants matching live.
+  **Verified by diff, not by eye:** a database built from the baseline alone is now logic-identical to
+  production for all **seven** functions (normalised body hashes compared both ways). Two new guards make it
+  stay that way — `testing/sql/rls-baseline-test.sql` (30 assertions) builds the fresh-install path, loads
+  the migrations over the top and asserts **both sources define the same logic**, and
+  `.github/workflows/sql-guards.yml` finally runs it *and* `session-seal-test.sql` (43 assertions) in CI —
+  the latter had **never** run there despite covering the entire security boundary. The drift guard was
+  proven to fail by deliberately reverting one line and confirming a non-zero exit. `sql/migrations/README.md`
+  records the rule the whole day turned on: a dated migration is a historical record, never the current
+  definition.
 - **2026-09-02 · fix(seal): a DM-removed boon can no longer be un-removed from a locked history**
   — `dmRemoveBoon` sat outside **both** `pact_ap_ledger_protected()`'s projection and
   `pact_ap_ledger_spend()`'s sums, so deleting one moved neither trigger's view of the log: the projection

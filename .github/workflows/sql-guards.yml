@@ -1,0 +1,79 @@
+name: SQL guards
+
+# The two Postgres harnesses. NEITHER of these ran in CI before 2026-09-02 — session-seal-test.sql had
+# 43 assertions covering the whole locked-history trigger family and was executed only when somebody
+# remembered to run psql by hand. That is the same "wired into nothing" gap the undo-barrier gate had, and
+# it is worth more here: these are the only tests that exercise the actual security boundary, since the
+# browser gates all run against a stub server.
+#
+#   session-seal-test.sql   loads the MIGRATIONS   — what a database that has been upgraded looks like
+#   rls-baseline-test.sql   loads schema.sql + rls-policies.sql — the documented FRESH-INSTALL path,
+#                           and it also asserts those two sources define the SAME logic
+#
+# Running both is the anti-drift guard: on 2026-09-02 the baseline was three migrations behind, so a fresh
+# install had no seal functions at all and re-running rls-policies.sql against production would have
+# reverted the locked-history trigger and re-granted an EXECUTE a security migration had removed.
+#
+# Uses a real Postgres service container, not a stub — the whole point is to exercise plpgsql triggers,
+# jsonb operators and the grant system as they actually behave.
+
+on:
+  pull_request:
+    paths:
+      - "sql/**"
+      - "testing/sql/**"
+      - ".github/workflows/sql-guards.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: sql-guards-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sql-guards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        # Without a health check the first psql can land before the server accepts connections, which
+        # would fail as a "harness error" and read exactly like a real assertion failure.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the psql client
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+
+      # Each harness gets a virgin schema. They both create roles and functions in `public`, so sharing
+      # one would let the first silently satisfy the second's setup — and the second's entire purpose is
+      # to prove the fresh-install path stands up ON ITS OWN.
+      - name: Migration path — testing/sql/session-seal-test.sql
+        run: |
+          psql -v ON_ERROR_STOP=1 -c "drop schema if exists public cascade; create schema public;"
+          psql -v ON_ERROR_STOP=1 -f testing/sql/session-seal-test.sql
+
+      - name: Fresh-install path — testing/sql/rls-baseline-test.sql
+        run: |
+          psql -v ON_ERROR_STOP=1 -c "drop schema if exists public cascade; create schema public;"
+          psql -v ON_ERROR_STOP=1 -c "drop schema if exists auth cascade;"
+          psql -v ON_ERROR_STOP=1 -f testing/sql/rls-baseline-test.sql
