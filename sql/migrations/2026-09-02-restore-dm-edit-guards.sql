@@ -154,7 +154,12 @@ $$;
 -- select. Signature is the live 4-argument form; do not add arguments here.
 -- ---------------------------------------------------------------------------
 create or replace function public.award_ap_and_seal(
-  p_character uuid, p_amount integer, p_note text, p_idem text
+  -- DEFAULTS MUST BE REPEATED. `create or replace` cannot drop parameter defaults from an existing
+  -- function (Postgres: "cannot remove parameter defaults from existing function"), and the
+  -- 2026-09-01 migration created this with defaults on both text arguments. Omitting them here made
+  -- this file fail outright on a database that already had the function — caught by running
+  -- testing/sql/session-seal-test.sql against a real Postgres 16, not by reading it.
+  p_character uuid, p_amount integer, p_note text default null::text, p_idem text default null::text
 ) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_ap integer; v_seal jsonb; v_campaign uuid; v_owner uuid;

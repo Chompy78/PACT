@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-02 · docs: a cloud session cannot delete ANY remote ref, not just tags** —
+  `docs/sessions/2026-07-19-github-release-tag-cloud-session-restriction.md` was written about tags and
+  releases and closed by listing "deleting a remote branch" as an **open question**. It has since been
+  answered four separate times — 2026-07-11, 2026-07-14, 2026-08-09 and again on 2026-09-02 (PR #496's
+  branch) — each independently finding remote-branch deletion blocked, but the answer stayed scattered
+  across session notes while the canonical note still said "unknown". Corrected there, with all four
+  citations. The note's own quoted mechanism already predicted it: the proxy "restricts git push
+  operations to the current working branch", and a branch you don't have checked out is no more that
+  than a tag ref is. Recorded one non-obvious detail: a branch delete can surface as a **transport**
+  error (`send-pack: unexpected disconnect`) rather than a clean `403`, which reads like a network blip
+  and invites a pointless retry — `git ls-remote --heads origin <branch>` distinguishes them.
+  `AGENTS.md` gains a one-line pointer under Shell environment notes, since an agent planning branch
+  cleanup reads that and not a July session note. Genuinely still untested, and left marked so: repo
+  settings and webhooks.
 - **2026-09-01 · fix(testing): repair economy-ui-e2e fixtures stranded by the creation-ceiling change** —
   the gate failed **35 of 155** checks on untouched `preview` and now passes **155/155**. Cause: PR #480
   (`5a752b7`, *"creation ends by choice, not by accident"*) retired the automatic threshold tripwire that
@@ -49,6 +63,26 @@
   creation". Also corrects `undoFloor()`'s note that `creationUnlocked` handling is "latent (nothing
   emits it yet)": `dm_reopen_creation()` and the campaign-move trigger both emit it, and two live
   characters already carry one.
+- **2026-09-02 · feat(seal): a locked character's species is frozen and its ability scores only go up**
+  — owner ruling (`D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats`), closing the largest gap the
+  second review found: species, origin class and ability scores live in `cat:'patch'` events, which are
+  deliberately outside the seal's positional protection because `replacePatchSlot()` legitimately rewrites
+  them in place — so a locked character could change Human to Dwarf, or move a locked STR 14 to DEX 14. The
+  equal-cost swap was the nastier one: the AP total is unchanged, so the budget trigger could not see it
+  either. Now compared by **derived value** (immune to how the event moved) and keyed on the **payload key,
+  not `_slot`** — measured first: 164 of 218 live patch events carry no `_slot` at all, so a slot-based rule
+  would have missed almost every character. **Second origin species is frozen too**, and that is not
+  belt-and-braces: the engine prices a trait as own-species when `r.race === b.species || r.race ===
+  b.species2`, so freezing one without the other leaves the rule bypassable. Asymmetric by design — ADDING a
+  second origin species after a lock stays allowed (it is a new purchase), changing or removing one that was
+  already locked in is refused. **Ability scores ratchet**: raising with new AP is fine, lowering or moving
+  points is not. Fails open where no species is recorded — two live characters have none. CharGen's
+  `_cgSealPatchRefusal()` mirrors the rule against `foldBuild(LOG)` so the player gets a sentence, not a raw
+  database error. The third clause of the ruling (own-species traits only, unless a second origin species)
+  needed **no code** — `js/engine.js` already enforces it; freezing species is what makes it stick after a
+  lock. Nine behaviours verified against the live trigger in rolled-back transactions, and the repo migration
+  now hashes **identically** to the live `pg_proc` body — checked, not assumed, because a file drifting from
+  the live definition is what caused this same day's production regression.
 - **2026-09-02 · fix: the remaining 20 session-seal review findings, across engine, sync, all three tools and CI**
   — second `/code-review ultra` pass on the merged seal, five independent angles. The worst were silent
   rather than loud. **CharGen mispriced every purchase in a sealed class**: `_cgLockSealedControls()`

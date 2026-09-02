@@ -36,6 +36,12 @@ do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'authenticated') then
     create role authenticated nologin;
   end if;
+  -- `anon` too: the 2026-09-01 revoke migration and the 2026-09-02 projection widening both REVOKE from
+  -- it, and a missing role makes the whole file abort rather than fail an assertion. Supabase always has
+  -- both roles; the stub set simply had not caught up.
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
 end $$;
 
 create table if not exists public.characters (
@@ -71,6 +77,12 @@ end; $$;
 -- migration does not re-create it — this harness must).
 -- ---------------------------------------------------------------------------
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
+-- The 2026-09-02 corrections, in the order they were applied to production. Without these the harness
+-- silently tests a definition three migrations behind live — the same stale-base trap that put two
+-- security regressions into production on 2026-09-02 (see 2026-09-02-restore-dm-edit-guards.sql).
+\ir ../../sql/migrations/2026-09-02-restore-dm-edit-guards.sql
+\ir ../../sql/migrations/2026-09-02-widen-protected-projection.sql
+\ir ../../sql/migrations/2026-09-02-seal-freezes-species-and-ratchets-stats.sql
 
 drop trigger if exists trg_pact_locked_history on public.characters;
 create trigger trg_pact_locked_history
@@ -133,11 +145,14 @@ select pg_temp.rejects('...nor shrink below the award',
   $$update characters set stats = jsonb_set(stats,'{LOG}','[]'::jsonb)
      where id = '00000000-0000-0000-0000-0000000000c1'$$);
 do $$ begin
-  -- cat:'patch' stays exempt — CharGen and the Live Sheet rewrite these slots in place by design.
+  -- cat:'patch' stays exempt from the POSITIONAL comparison — CharGen and the Live Sheet rewrite these
+  -- slots in place by design. Note the event below carries neither `species` nor `stats`: since
+  -- D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats those two keys ARE constrained, by derived
+  -- value rather than by position. A patch event carrying neither is still freely rewritable.
   update characters set stats = jsonb_set(stats,'{LOG,2}',
     jsonb_build_object('seq',3,'ts',3,'type','buy','cat','patch','_slot','identity','cost',0,'changed',true))
     where id = '00000000-0000-0000-0000-0000000000c1';
-  perform pg_temp.ok('a cat:patch event is still freely rewritable', true);
+  perform pg_temp.ok('a cat:patch event carrying no species/stats is still freely rewritable', true);
   -- Appending after the boundary is still fine.
   update characters set stats = jsonb_set(stats,'{LOG}', (stats->'LOG') ||
     jsonb_build_array(jsonb_build_object('seq',5,'ts',5,'type','buy','cat','boon','cost',4)))
@@ -257,6 +272,72 @@ set pact.test_uid = '11111111-1111-1111-1111-111111111111';
 select pg_temp.rejects('an unrelated event type is still refused by the allow-list',
   $$select dm_edit_character_log('00000000-0000-0000-0000-0000000000c1'::uuid,
       jsonb_build_array(jsonb_build_object('type','creationLocked')))$$);
+
+
+\echo ''
+\echo 'Species frozen + ability scores ratchet (D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats)'
+-- Self-contained: builds its own sealed character carrying a species, a second origin species and stats,
+-- because the shared fixtures deliberately carry a patch event with none of those keys.
+do $$
+declare v_base jsonb;
+begin
+  v_base := jsonb_build_object('schema','pact-character/1','rules','v0.364','SEQ',5,
+    'LOG', jsonb_build_array(
+      jsonb_build_object('seq',1,'ts',1,'type','buy','cat','patch','payload',
+        jsonb_build_object('patch', jsonb_build_object('species','Human','species2','Elf','stats',
+          jsonb_build_object('STR',14,'DEX',10,'CON',12,'INT',10,'WIS',10,'CHA',8)))),
+      jsonb_build_object('seq',2,'ts',2,'type','sessionSeal','label','seal')));
+  insert into characters (id, owner_id, name, stats)
+    values ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-00000000000a',
+            'Patch probe', v_base)
+    on conflict (id) do update set stats = excluded.stats;
+end $$;
+
+select pg_temp.rejects('a locked character''s species is frozen',
+  $$update characters set stats = jsonb_set(stats,'{LOG,0,payload,patch,species}','"Dwarf"')
+     where id = '00000000-0000-0000-0000-0000000000d1'$$);
+select pg_temp.rejects('...and an already-set second origin species is frozen too',
+  $$update characters set stats = jsonb_set(stats,'{LOG,0,payload,patch,species2}','"Tiefling"')
+     where id = '00000000-0000-0000-0000-0000000000d1'$$);
+select pg_temp.rejects('...and removing the second origin species is refused (it would refund AP)',
+  $$update characters set stats = jsonb_set(stats,'{LOG,0,payload,patch,species2}','"(none)"')
+     where id = '00000000-0000-0000-0000-0000000000d1'$$);
+select pg_temp.rejects('an ability score cannot be LOWERED',
+  $$update characters set stats = jsonb_set(stats,'{LOG,0,payload,patch,stats,STR}','12')
+     where id = '00000000-0000-0000-0000-0000000000d1'$$);
+-- The one the AP-budget trigger cannot see: totals are identical, so only this rule catches it.
+select pg_temp.rejects('points cannot be MOVED between stats at equal cost',
+  $$update characters set stats = jsonb_set(jsonb_set(stats,'{LOG,0,payload,patch,stats,STR}','10'),
+                                            '{LOG,0,payload,patch,stats,DEX}','14')
+     where id = '00000000-0000-0000-0000-0000000000d1'$$);
+
+do $$ begin
+  update characters set stats = jsonb_set(stats,'{LOG,0,payload,patch,stats,WIS}','12')
+    where id = '00000000-0000-0000-0000-0000000000d1';
+  perform pg_temp.ok('an ability score CAN still be raised', true);
+end $$;
+
+-- Fails open: a character recording no species anywhere must not be constrained into one. Two live
+-- characters are in exactly this state, so this is a real shape, not a hypothetical.
+do $$
+begin
+  insert into characters (id, owner_id, name, stats)
+    values ('00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-00000000000a',
+            'No-species probe',
+            jsonb_build_object('schema','pact-character/1','rules','v0.364','SEQ',3,
+              'LOG', jsonb_build_array(
+                jsonb_build_object('seq',1,'ts',1,'type','buy','cat','boon','cost',4),
+                jsonb_build_object('seq',2,'ts',2,'type','sessionSeal','label','seal'))))
+    on conflict (id) do nothing;
+  update characters set stats = jsonb_set(stats,'{LOG}', (stats->'LOG') ||
+    jsonb_build_array(jsonb_build_object('seq',3,'ts',3,'type','buy','cat','patch','payload',
+      jsonb_build_object('patch', jsonb_build_object('species','Elf')))))
+    where id = '00000000-0000-0000-0000-0000000000d2';
+  perform pg_temp.ok('a locked character with NO recorded species can still be given one', true);
+end $$;
+
+delete from characters where id in ('00000000-0000-0000-0000-0000000000d1',
+                                    '00000000-0000-0000-0000-0000000000d2');
 
 \echo ''
 \echo 'ALL SESSION-SEAL SQL ASSERTIONS PASSED'

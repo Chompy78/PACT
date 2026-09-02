@@ -914,44 +914,66 @@ is a test that has to be rewritten, not a defect shipped. Sweep-eligible.
 online" message, and the clear-on-load; the recorded error body is checked in with a note saying it was
 captured from the live trigger rather than written by hand; and the suite runs in CI without credentials.
 
-## A sealed character's species, ability scores and DM-removed boons are still editable — TODO
-Branch `fix/seal-protect-patch-and-removals`. `pact_ap_ledger_protected()` was widened on 2026-09-02 to
-project the whole event (closing the payload-key substitution hole), but its **scope** was left alone, and
-two exclusions are real gaps against what the seal promises the DM ("Everything bought up to this moment
-becomes permanent"):
+## A sealed character's DM-removed boons can still be restored — TODO
+Branch `fix/seal-protect-dm-removals`. Successor to the patch half, which SHIPPED on 2026-09-02 as
+`D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats` (species frozen, ability scores ratchet upward).
+What remains is the smaller sibling: **`dmRemoveBoon`** is outside `pact_ap_ledger_protected()`'s WHERE
+clause *and* outside `pact_ap_ledger_spend()`'s sums, so deleting one moves neither trigger's view of the
+log. A player can delete a `dmRemoveBoon` from a locked prefix and `activeEvents()` stops suppressing the
+boon — the DM's removal is undone, inside a supposedly locked history.
 
-- **`buy` with `cat:'patch'`** — species, origin class, ability scores, Hit Dice, proficiencies. Excluded
-  from the projection entirely, so a player can change a sealed STR 14 to DEX 14: the projection is
-  byte-identical and `pact_ap_ledger_spend`'s sum is unchanged, so BOTH triggers accept. This is the
-  largest part of a build.
-- **`dmRemoveBoon`** — also outside the projection *and* outside the spend sums, so deleting one restores
-  a boon the DM took away, inside a supposedly sealed prefix.
-
-**This was deliberately NOT fixed with the projection widening, and the reason is the task.** Tightening
-the server alone would break ordinary editing: `replacePatchSlot()` (CharGen) rewrites a patch event **in
-place** on every species/class/ability change and has no seal guard at all, so every such edit on a sealed
-character would start failing with a raw server error and no client explanation. The client guard has to
-be designed with it.
-**Effort:** medium · **Risk:** medium — ambiguity is the driver: it needs an owner ruling (below) before
-any code. Damage scale is moderate and one-directional (an over-tight server refuses edits rather than
-accepting bad ones). **NOT sweep-eligible.**
+**Effort:** small · **Risk:** low-medium — the pattern is now established (the species/stats rule shows how
+to compare without breaking legitimate rewrites), and `dmRemoveBoon` is append-only in practice, so unlike
+patch events there is no in-place-rewrite path to accommodate. Damage scale is moderate: it silently
+reverses a DM decision. **NOT sweep-eligible** — it touches the security boundary.
 
 ```text
-0. GET THE OWNER'S ANSWER FIRST — this is a rules question, not an implementation detail:
-   does sealing freeze a character's SPECIES and ABILITY SCORES? Decision K3 was "everything except
-   character descriptions", and a species is arguably mechanical rather than descriptive — but a player
-   who mis-set an ability score during creation and gets sealed has no route back except the DM. Record
-   the answer as D-GH-<date>-seal-protects-patch before touching code.
-1. If yes: add 'patch' buys and 'dmRemoveBoon' to pact_ap_ledger_protected()'s WHERE clause, AND guard
-   replacePatchSlot() in CharGen the way retractFlatEvent() is guarded — refuse inside the sealed prefix
-   with the reason, do not let the server be the first thing that says no.
-2. Check the OTHER writers of patch events before assuming replacePatchSlot is the only one:
-   applyBuild()/randomizeRoll()/loadFile() all rebuild the whole LOG (already guarded via
-   _cgBlockedBySeal), and _cgReconcileIdentitySlot fires on every identity change.
-3. Measure blast radius against live data BEFORE applying, the way the 2026-09-02 widening did
-   (it was 0 of 35 characters). A seal placed between writing this and applying it changes that number.
+1. Simplest correct fix is probably positional: add 'dmRemoveBoon' to pact_ap_ledger_protected()'s WHERE
+   clause. Confirm FIRST that nothing rewrites or relocates these events — grep both tools and js/dm.js —
+   because that assumption is exactly what made patch events need the harder derived-value treatment.
+2. Measure blast radius against live data before applying, as 2026-09-02 did (it was 0 of 35 characters
+   then; a seal placed since changes that).
+3. Add a case to testing/sql/session-seal-test.sql.
 ```
 
-**Done when:** the owner's ruling is recorded as a decision; if it is "freeze them", the projection covers
-both types, CharGen refuses the edit client-side with a stated reason before the server sees it, a live
-blast-radius measurement is in the PR, and `testing/sql/session-seal-test.sql` gains a case for each.
+**Done when:** deleting a `dmRemoveBoon` from a locked prefix is refused by the server, a live blast-radius
+measurement is in the PR, and the SQL harness covers it.
+
+## CharGen displays a rules version 25 releases stale — `v0.339` against a live `v0.364` — TODO
+Branch `fix/chargen-stale-rules-label`. Noticed during the v1.499 promotion, while confirming the build
+sync had touched no rules string. CharGen hardcodes the rules version in **two places a player actually
+sees**:
+- `<title>PACT Character Generator — Web Tool v1.499 · Rules v0.339</title>`
+- the header chip: `<span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span>`
+
+`DATA.version` has been `v0.364` since D-GH-2026-08-31 (the creation-ceiling mechanics change). So the tool
+has been telling players it runs a rules set it has not run for twenty-five versions. `index.html` already
+solves exactly this problem for the BUILD number by reading `BUILD` live and never being hand-edited —
+`docs/VERSION-SYNC.md` calls that out as the reason it "can never drift". The rules label should work the
+same way.
+
+**Deliberately NOT fixed during the promotion that found it:** `docs/VERSION-SYNC.md` step 3 says a
+promotion touches the BUILD labels and nothing else, and the rules axis is bumped only when mechanics
+change. Widening a release commit to carry a display fix is how the two axes get conflated, which that
+document exists to prevent.
+**Effort:** small · **Risk:** low — display-only, no rules logic, no `DATA.version` bump (editing a display
+label is a docs-class change per AGENTS.md). Ambiguity is the only real factor: decide once whether the
+other stale `v0.3xx` strings in all three tools are displayed or merely historical comments.
+
+```text
+1. Make CharGen read the rules version LIVE from the engine, the way index.html reads BUILD — the engine
+   is already bridged into the tool (DATA is on window after engine-ready), so this is a render-time
+   assignment, not new plumbing. The <title> needs setting in JS since it cannot template itself.
+2. Audit the other hardcoded v0.3xx strings before assuming they are all bugs:
+     Live Sheet  — v0.303, v0.309, v0.314, v0.322, v0.339
+     DM Console  — v0.351, v0.356
+   Most are probably historical notes in comments/changelog blocks, which SHOULD stay pinned. Only the
+   ones rendered to a user are in scope; say in the PR which were which.
+3. Add a check to an existing gate asserting no DISPLAYED rules string disagrees with DATA.version, so
+   this cannot silently rot again. That guard is the durable half of the task — the label fix alone just
+   resets the clock.
+```
+
+**Done when:** CharGen's title and header chip show `DATA.version`'s live value, every other hardcoded
+`v0.3xx` in the three tools is either fixed or documented as a deliberate historical reference, and a gate
+fails if a displayed rules version drifts from `DATA.version` again.
