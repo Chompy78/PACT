@@ -32,12 +32,22 @@
 --   rules     stamped per event, not identity
 --   label     display text, may legitimately be regenerated
 --
--- SCOPE DELIBERATELY UNCHANGED. 'patch' buys and 'dmRemoveBoon' remain OUTSIDE the protected set. Both
--- are real gaps — a sealed species/class/ability score is still editable, and deleting a dmRemoveBoon
--- restores a boon the DM took away — but closing them changes what the TOOLS may do:
--- replacePatchSlot() rewrites a patch event IN PLACE on every species/class/ability edit and has no
--- client-side seal guard, so tightening the server alone would refuse ordinary editing with no
--- explanation. They need a client change designed alongside; see the task board.
+-- SCOPE, AS FIRST SHIPPED AND THEN EXTENDED. This file originally left BOTH 'patch' buys and
+-- 'dmRemoveBoon' outside the protected set. Both have since been closed, by DIFFERENT means, and the
+-- difference is the part worth keeping:
+--
+--   * 'patch' buys  -> NOT added here. replacePatchSlot() rewrites a patch event IN PLACE on every
+--     species/class/ability edit, so a positional rule would refuse ordinary editing. Species and ability
+--     scores are compared by DERIVED VALUE inside pact_enforce_locked_history() instead — see
+--     D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats.
+--   * 'dmRemoveBoon' -> ADDED to the IN list below (applied as `seal_protects_dm_removals`). Positional
+--     protection is correct for this one: it is created in exactly one place (tools/DM-Console.html, via
+--     dm_edit_character_log's append-only `v_log := v_log || v_new`), and every other reference merely
+--     READS it (js/engine.js activeEvents, the Live Sheet's history renderer). Nothing rewrites or
+--     relocates one, so the property that defeats patch events does not apply here.
+--
+-- The lesson: "just add it to the projection" is right or wrong depending on whether anything
+-- legitimately REWRITES that event type. It has to be checked per type, never assumed from the shape.
 --
 -- BLAST RADIUS: zero. Measured before applying — 0 of 35 live characters have a non-empty protected
 -- prefix (no seals exist, and all 6 campaign characters' awards are noLock), so this cannot refuse any
@@ -49,7 +59,7 @@ returns jsonb
 language sql immutable as $$
   select coalesce(jsonb_agg((ev - 'seq' - 'ts' - 'rules' - 'label') order by ord), '[]'::jsonb)
   from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
-  where (ev->>'type') in ('buyoff','names','award','sessionSeal')
+  where (ev->>'type') in ('buyoff','names','award','sessionSeal','dmRemoveBoon')
      or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch');
 $$;
 

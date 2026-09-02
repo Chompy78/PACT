@@ -340,4 +340,44 @@ delete from characters where id in ('00000000-0000-0000-0000-0000000000d1',
                                     '00000000-0000-0000-0000-0000000000d2');
 
 \echo ''
+\echo 'A DM-removed boon cannot be un-removed from a locked history (seal_protects_dm_removals)'
+-- dmRemoveBoon carries cost 0 and was outside BOTH the protected projection and the spend sums, so
+-- deleting one used to move neither trigger's view of the log: activeEvents() simply stopped suppressing
+-- the boon and the DM's decision was silently reversed. Positional protection is correct for this event
+-- type (unlike patch buys) because it is only ever APPENDED, by dm_edit_character_log, and never rewritten.
+do $$
+declare v_base jsonb;
+begin
+  v_base := jsonb_build_object('schema','pact-character/1','rules','v0.364','SEQ',6,
+    'LOG', jsonb_build_array(
+      jsonb_build_object('seq',1,'ts',1,'type','buy','cat','boon','cost',6,
+        'payload', jsonb_build_object('v','Boon of Combat Prowess')),
+      jsonb_build_object('seq',2,'ts',2,'type','dmRemoveBoon','refVal','Boon of Combat Prowess',
+        'cost',0,'dmEdit',true,'label','DM removed boon'),
+      jsonb_build_object('seq',3,'ts',3,'type','sessionSeal','label','seal')));
+  insert into characters (id, owner_id, name, stats)
+    values ('00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-00000000000a',
+            'DM-removal probe', v_base)
+    on conflict (id) do update set stats = excluded.stats;
+end $$;
+
+select pg_temp.rejects('deleting a DM-removed-boon event from a locked prefix is refused',
+  $$update characters set stats = jsonb_set(stats,'{LOG}',
+      jsonb_build_array(stats->'LOG'->0, stats->'LOG'->2))
+     where id = '00000000-0000-0000-0000-0000000000d3'$$);
+select pg_temp.rejects('...and re-pointing its refVal at a different boon is refused too',
+  $$update characters set stats = jsonb_set(stats,'{LOG,1,refVal}','"Some Other Boon"')
+     where id = '00000000-0000-0000-0000-0000000000d3'$$);
+
+do $$ begin
+  update characters set stats = jsonb_set(stats,'{LOG}', (stats->'LOG') ||
+    jsonb_build_array(jsonb_build_object('seq',4,'ts',4,'type','buy','cat','boon','cost',4,
+      'payload', jsonb_build_object('v','Alertness'))))
+    where id = '00000000-0000-0000-0000-0000000000d3';
+  perform pg_temp.ok('a new purchase after the seal is still allowed', true);
+end $$;
+
+delete from characters where id = '00000000-0000-0000-0000-0000000000d3';
+
+\echo ''
 \echo 'ALL SESSION-SEAL SQL ASSERTIONS PASSED'

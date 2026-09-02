@@ -63,6 +63,22 @@
   creation". Also corrects `undoFloor()`'s note that `creationUnlocked` handling is "latent (nothing
   emits it yet)": `dm_reopen_creation()` and the campaign-move trigger both emit it, and two live
   characters already carry one.
+- **2026-09-02 · fix(seal): a DM-removed boon can no longer be un-removed from a locked history**
+  — `dmRemoveBoon` sat outside **both** `pact_ap_ledger_protected()`'s projection and
+  `pact_ap_ledger_spend()`'s sums, so deleting one moved neither trigger's view of the log: the projection
+  never mentioned it, and its cost is 0 so no sum changed. A player could delete it from a locked prefix,
+  `activeEvents()` would stop suppressing the boon, and the DM's decision was silently reversed inside a
+  history the seal calls permanent. Added to the projection — and **positional protection is the right tool
+  here, unlike for patch buys**: checked rather than assumed, `dmRemoveBoon` is created in exactly one place
+  (DM Console, through `dm_edit_character_log`'s append-only write) and every other reference merely reads
+  it, so nothing rewrites or relocates one. That is precisely the property `replacePatchSlot()` breaks for
+  patch events, which is why species and ability scores needed comparing by derived value instead. The
+  general lesson, now recorded in the migration: *"add it to the projection" is right or wrong depending on
+  whether anything legitimately rewrites that event type, and it has to be checked per type.* Blast radius
+  zero twice over — measured before applying, 0 `dmRemoveBoon` events exist across all 35 live characters
+  and 0 seals exist. Verified: delete refused, `refVal` swap refused, a post-seal purchase still allowed;
+  SQL harness **43/0** against a real Postgres 16 (up from 40), and the repo migration hashes identically to
+  the live `pg_proc` body.
 - **2026-09-02 · feat(seal): a locked character's species is frozen and its ability scores only go up**
   — owner ruling (`D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats`), closing the largest gap the
   second review found: species, origin class and ability scores live in `cat:'patch'` events, which are

@@ -67,31 +67,6 @@ change anything. Sweep-eligible.
 local `close-session-logging-core.md` is confirmed to carry all four patched clauses (or has been
 re-applied), and the stale `gh` path in AGENTS.md's Shell environment notes is corrected.
 
-## A sealed character's DM-removed boons can still be restored — TODO
-Branch `fix/seal-protect-dm-removals`. Successor to the patch half, which SHIPPED on 2026-09-02 as
-`D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats` (species frozen, ability scores ratchet upward).
-What remains is the smaller sibling: **`dmRemoveBoon`** is outside `pact_ap_ledger_protected()`'s WHERE
-clause *and* outside `pact_ap_ledger_spend()`'s sums, so deleting one moves neither trigger's view of the
-log. A player can delete a `dmRemoveBoon` from a locked prefix and `activeEvents()` stops suppressing the
-boon — the DM's removal is undone, inside a supposedly locked history.
-
-**Effort:** small · **Risk:** low-medium — the pattern is now established (the species/stats rule shows how
-to compare without breaking legitimate rewrites), and `dmRemoveBoon` is append-only in practice, so unlike
-patch events there is no in-place-rewrite path to accommodate. Damage scale is moderate: it silently
-reverses a DM decision. **NOT sweep-eligible** — it touches the security boundary.
-
-```text
-1. Simplest correct fix is probably positional: add 'dmRemoveBoon' to pact_ap_ledger_protected()'s WHERE
-   clause. Confirm FIRST that nothing rewrites or relocates these events — grep both tools and js/dm.js —
-   because that assumption is exactly what made patch events need the harder derived-value treatment.
-2. Measure blast radius against live data before applying, as 2026-09-02 did (it was 0 of 35 characters
-   then; a seal placed since changes that).
-3. Add a case to testing/sql/session-seal-test.sql.
-```
-
-**Done when:** deleting a `dmRemoveBoon` from a locked prefix is refused by the server, a live blast-radius
-measurement is in the PR, and the SQL harness covers it.
-
 ## CharGen displays a rules version 25 releases stale — `v0.339` against a live `v0.364` — TODO
 Branch `fix/chargen-stale-rules-label`. Noticed during the v1.499 promotion, while confirming the build
 sync had touched no rules string. CharGen hardcodes the rules version in **two places a player actually
