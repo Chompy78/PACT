@@ -1,5 +1,13 @@
 # Session: Why Claude can't tag/release from a cloud session (and what actually works)
 
+> **Scope corrected 2026-09-02.** This note was written about tags and releases and closed by asking,
+> as an open question, whether *other* ref writes (deleting a remote branch) hit the same wall. They
+> do — confirmed four separate times since, listed under "What's still open" below. The underlying
+> rule quoted in step 2 (**git push is restricted to the current working branch**) already predicted
+> it: a branch that is not the one checked out is no more "the current working branch" than a tag ref
+> is. Read this note as covering **remote ref writes generally**, with releases as a separate,
+> API-level block on top.
+
 **Date:** 2026-07-19 · **Decision:** none logged in `DECISIONS.md` (this is an environment/platform
 constraint, not a PACT architectural choice — nothing in this repo to reverse or reconsider)
 
@@ -55,6 +63,11 @@ this as confirmed policy reasoning if it comes up again, only as a plausible rea
 
 ## What actually works (recommended path forward)
 
+- **No GitHub MCP tool routes around any of this.** Checked again on 2026-09-02: the tool surface has
+  `create_branch` but no branch/ref delete, and `get_tag`/`list_tags`/`get_release_by_tag` are all
+  read-only. Confirmed independently in the 2026-07-11, 2026-07-14 and 2026-08-20 sessions. Do not
+  spend time looking for one.
+
 - **Local Claude Code (terminal-installed, not web/cloud)** authenticates with the user's own real
   GitHub credentials directly (`gh auth login`, or a locally-configured token) — it does not route
   through this session-scoped, operation-restricted proxy. Tag/release creation from a local session
@@ -72,6 +85,31 @@ this as confirmed policy reasoning if it comes up again, only as a plausible rea
   confirmed it fails. Worth a cheap, low-stakes test *if* a future session has a disposable/scoped PAT
   handy anyway — not worth generating one solely for this test given the security trade-off (no secrets
   store yet; an env var is visible to anyone who can edit the environment).
-- Whether *other* write operations this session hasn't tried (e.g. deleting a remote branch, editing repo
-  settings, managing webhooks) hit the same "not permitted for this session type" wall is unknown; this
-  note covers tags/releases only.
+- ~~Whether *other* write operations this session hasn't tried (e.g. deleting a remote branch, editing
+  repo settings, managing webhooks) hit the same "not permitted for this session type" wall is unknown;
+  this note covers tags/releases only.~~ **Answered for remote-branch deletion: it is blocked too.**
+  Confirmed independently four times, so this is settled rather than anecdotal:
+  - **2026-07-11** — five merged branches left on GitHub; "remote branch deletion 403'd from this
+    session's credentials (no GitHub MCP tool covers it either)", matching `ai-lessons-learned` H-020
+    (*push access ≠ delete access* for remote-session creds).
+  - **2026-07-14** — `fix/shared-ui-helpers-esc`: "the remote branch delete failed with an HTTP 403
+    from the git remote."
+  - **2026-08-09** — a stray `release/promote-v1391`: 403, logged there as "same class as the
+    tag-push restriction".
+  - **2026-09-02** — `claude/feature-cost-customization-s8bnk3` after PR #496 merged: the delete died
+    with `send-pack: unexpected disconnect while reading sideband packet` / `fatal: the remote end hung
+    up unexpectedly`. **Worth knowing the shape**: a branch delete does not always surface a clean
+    `403` the way a tag push does — it can present as a transport error, which reads like a network
+    blip and invites a pointless retry. Check `git ls-remote --heads origin <branch>` to tell the two
+    apart; the ref still being there means blocked, not flaky.
+
+  **Tag deletion is likewise blocked** (`D-GH-2026-08-20-tag-only-meaningful-promotions`, step 2),
+  which `docs/VERSION-SYNC.md` step 6 already records as "creation **and deletion**".
+
+  So the practical rule for a cloud session is: **it can push its own working branch, and nothing
+  else.** Creating a branch is fine (it is a push); deleting any ref — a tag, or a branch other than
+  the one checked out — is not. Plan branch and tag cleanup as a human step; do not budget a cloud
+  session's time for it.
+
+- Still genuinely untested: **editing repo settings** and **managing webhooks**. Nobody has tried
+  either, so do not assume from the above that they fail — or that they work.

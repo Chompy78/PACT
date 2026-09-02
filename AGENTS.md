@@ -52,6 +52,13 @@ is staging and promotes into `main`).
 - **`gh` CLI** is installed but not on the system PATH — my shell tools can't resolve it by name.
   Always call it via its full path:
   `C:\Users\JohnChow\AppData\Local\Microsoft\WinGet\Packages\GitHub.cli_Microsoft.Winget.Source_8wekyb3d8bbwe\bin\gh.exe`
+- **A cloud/web session can push its own working branch and nothing else.** Deleting ANY remote ref —
+  a tag, or a branch other than the one checked out — is blocked by the GitHub proxy, and no MCP tool
+  routes around it. So don't plan post-merge branch cleanup or tag pushes into a cloud session's work;
+  hand them to a local terminal or the web UI. A branch delete may present as a *transport* error
+  (`send-pack: unexpected disconnect`) rather than a clean `403`, which reads like a network blip and
+  invites a pointless retry — `git ls-remote --heads origin <branch>` tells the two apart. Full
+  evidence: `docs/sessions/2026-07-19-github-release-tag-cloud-session-restriction.md`.
 
 ## Working with Microsoft 365 Copilot
 Microsoft 365 Copilot (Word/Excel/Teams/SharePoint) **cannot reliably read `.md` files** — plain-text
