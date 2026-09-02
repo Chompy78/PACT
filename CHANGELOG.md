@@ -35,6 +35,150 @@
   Found while testing, **pre-existing**: `economy-ui-e2e.mjs` failed 35 of 155 checks on untouched
   `preview` — its fixtures still relied on the auto creation lock that PR #480 retired. Repaired in the
   follow-up entry above.
+- **2026-09-01 · fix(chargen): a finished character can no longer be re-rolled, and a stale "latent"
+  claim corrected** — found reviewing PR #492. That PR makes `creationLocked` an undo barrier (correctly
+  — it made true a promise my own "Finish creating" dialog was already making and breaking). But
+  `undoFloor()` returns the index of the *last* barrier + 1, and the roll's carried lock must be
+  re-appended AFTER the burst or every burst event replays as post-lock and re-prices own-species traits
+  expensive (D-GH34). On a locked character the barrier therefore lands last, `undoFloor === LOG.length`,
+  and the pre-roll frame can no longer be restored — breaking CharGen's own "randomize is ONE undoable
+  step". Measured: a lock mid-log leaves a 2-event undoable tail; the same lock at the end leaves 0.
+  Fixed by **refusing the roll** rather than reordering, which is also the conceptually right answer: a
+  roll builds a character from scratch, and one whose creation has been deliberately ended is being
+  advanced, not built. There is now a real control for the case where you mean it — a DM's "Reopen
+  creation". Also corrects `undoFloor()`'s note that `creationUnlocked` handling is "latent (nothing
+  emits it yet)": `dm_reopen_creation()` and the campaign-move trigger both emit it, and two live
+  characters already carry one.
+- **2026-09-02 · fix: the remaining 20 session-seal review findings, across engine, sync, all three tools and CI**
+  — second `/code-review ultra` pass on the merged seal, five independent angles. The worst were silent
+  rather than loud. **CharGen mispriced every purchase in a sealed class**: `_cgLockSealedControls()`
+  disabled sealed `.classunlock` boxes and `_domReadBuild()` drops disabled ones, so the class vanished
+  from the priced base and each later buy in it was stamped with the **cross-class surcharge**, frozen
+  into the LOG. Now distinguished by a `dataset.sealLocked` flag, which also fixes the else-branch
+  clearing `disabled` on controls it never disabled after an in-app character switch. **`repriceDraft()`
+  ignored `sessionSeal`** — a character sealed while still in creation kept having its frozen `cost`
+  rewritten, and `cost` is in the server's protected projection, so every save would have been refused
+  for ever with no client path back. **`redo()` had no barrier guard** and `cgFinishCreating()` bypasses
+  `commitHistory()`, so buy/buy/undo/Finish/redo deleted the `creationLocked` event outright. **`reconcile()`
+  bypassed `_sealBlocked`**, re-issuing an impossible write on every load and reconnect and making the
+  documented Cloud → Load remedy a no-op; routed through the existing `onBehind` channel so owner
+  decision L1 (keep the client's work, ask first) still holds. **The `name` guard blocked renames the
+  server allows** — the projection covers `'names'` (spell/language), not `'name'` — and sat above the
+  no-op check, so opening a locked character flashed twice. `retractFlatEvent()`'s tri-state return is
+  now honoured by all three reconcile callers (they re-tick the box instead of diverging) and its refusal
+  is coalesced to one notice per pass. Autosave now surfaces a refusal at all, the one-shot notice is
+  per-character rather than per-page and is never burned from `pagehide` where `alert()` is suppressed,
+  DM Console's zero-amount guard no longer rejects "and lock history" on its own, and its seal button
+  reuses one idempotency key so a retry cannot stack a second seal. **Wording corrected throughout**: the
+  same rejection fires for the pre-existing AP-award boundary, so nothing claims "your DM sealed this".
+  Server-side, `pact_ap_ledger_protected()` now projects the **whole event** rather than six enumerated
+  fields — the `'v'` key only covered `{v:…}` payloads, leaving `abil`/`hd`/`wprof`/`names` substitutable
+  and a seal's own `idem` strippable (which defeats the double-award guard); blast radius measured at 0 of
+  35 characters before applying. `undo-barrier-ci.mjs` was wired into **no workflow at all** and now runs
+  in `engine-parity.yml`; two vacuous assertions in `sync-concurrency-ci.mjs` are replaced with real
+  lifecycle coverage via a test seam; the snapshot section that tested a local re-implementation now says
+  so. `_undoBarrierMsg()` moved to `js/ui-helpers.js` — it had been duplicated into both tools at the
+  moment the rule it explains was centralised. Gates: parity 73/0, undo-barrier 44/0, sync-concurrency
+  26/0, sync-state-machine 24/0, autosave-flush 14/0, log-fuzz 2000/2000, esc-gap 9/0; tool-pricing's one
+  remaining failure is the known harness flake, **verified pre-existing by stashing every change and
+  reproducing it identically on a clean tree**.
+- **2026-09-02 · fix(sql): the session-seal migration silently deleted two live guards — restored**
+  — `/code-review ultra` on the merged seal work found that `2026-09-01-session-seal.sql` rebuilt
+  `dm_edit_character_log()` from the **stale** `2026-08-10-dm-edit-character-log.sql` rather than editing
+  the live definition, and that this reached **production**. Its header said "every other line is unchanged
+  from 2026-08-10" — true, and precisely the defect: that file had not been the live definition for three
+  weeks. Gone with it: `assert_campaign_active()` (so an **archived, read-only campaign was writable by its
+  DM again** — reverting D-GH-2026-08-22) and the whole boon/award FIFO amount-matching block (so **a boon
+  grant no longer had to be paid for** — reverting D-GH-2026-08-10-dm-edit-boon-amount-check, itself a
+  `/code-review ultra` find on PR #403). Both confirmed absent against the live database before the fix and
+  present after, `sessionSeal` support retained. Also fixed `award_ap_and_seal()`'s idempotency race — its
+  authorisation SELECT took no row lock, so two concurrent calls sharing one `p_idem` could both pass the
+  replay probe and both award AP, the one outcome its own header calls materially damaging; rebuilt from
+  the **live body read back from `pg_proc`**, not from the migration file. The rollback file, which told an
+  operator to re-apply that same stale file (leaving the database *weaker* than before the seal shipped),
+  is corrected. Client half: the Live Sheet's manual cloud-save threw `res.error` **before** its new
+  `res.sealed` branch, so on the first rejection — the only one carrying `error` — the branch was dead and
+  the player saw raw plpgsql text; all five review angles found this independently. Advisor clean, live data
+  unchanged (35 characters / 461 log events / 0 seals), parity 73/0, undo-barrier 44/0, sync-concurrency 24/0.
+  **The lesson, since this is the second time in two days:** a dated migration file is a historical record,
+  not the current definition. Rebuild a function from `sql/rls-policies.sql` or from `pg_proc`, never from
+  the migration that first created it.
+- **2026-09-01 · fix: 14 code-review findings on the session seal, incl. one that killed undo outright**
+  — `/code-review ultra` (required by the PR template for anything touching `js/engine.js` or `sql/`)
+  found that step 1's `isUndoBarrier()` treated `noLock` awards as barriers. CharGen's budget is a
+  singleton `award` **relocated to the log tail** on every edit, so touching the Budget field put a
+  barrier at the end, `undoFloor()` returned `LOG.length`, and undo died permanently — in both tools.
+  CharGen's own comment says a budget award must not lock undo; that was true only until step 1 added
+  the guard. The server had always exempted `noLock`. Also fixed: a budget edit bricking cloud save on
+  a sealed character; `retractFlatEvent()`'s refusal being ignored by three reconcile callers (LOG/DOM
+  divergence); `_cgLockSealedControls()` matching a descendant's marker through nested skill/expertise
+  labels and force-enabling controls it never disabled, plus sweeping every control on every keystroke;
+  the Live Sheet refusing another character's import and refusing Reset — its only start-fresh path —
+  while naming a control it doesn't have (Reset now detaches to a fresh id); `isSealRejection()`'s
+  OR-chain making its hint/details fallback dead code; `_sealBlocked` never cleared by the in-app remedy;
+  both manual-save paths reporting a seal rejection as "will sync when online";
+  `award_ap_and_seal()` returning data before authorising; the protected projection guarding a sealed
+  purchase's price but not its **identity**; `creationLocked` ignoring `creationUnlocked`; and an
+  overclaiming comment on the sync guard. SQL fixes applied to production as `session_seal_review_fixes`.
+  The EXECUTE revoke now has a migration file so `sql/` reproduces the live grant state.
+- **2026-09-01 · fix(testing): tool-pricing gate was flaky — one case was a wrong answer, not a timeout**
+  — the drawback-cap check reads `window._campaignBridge` (set by the async cloud bridge) but its
+  readiness probe waited only for a classic-script symbol, so it ran early and read `undefined`,
+  reporting a wrong result rather than failing to start — exactly what a readiness poll exists to
+  prevent. Probe corrected; poll ceiling 30s → 60s after five spurious failures in one session. Three
+  consecutive clean runs at 189/0. A flaky gate trains the reader to re-run and shrug, which is how a
+  real failure gets waved through.
+- **2026-09-01 · feat(tools): session seal Phase 2 — the seal reaches the UI** — CharGen's
+  `retractFlatEvent()` now refuses to splice a purchase out of the sealed prefix and the checkbox
+  re-ticks itself; that path, not `undo()`, is what the owner's "anything already bought can't be
+  unselected" was really about. Sealed controls are disabled with a **visible** `🔒 sealed` marker
+  rather than a title tooltip, because a disabled input fires no hover or focus event so a tooltip on
+  one is unreachable by keyboard and touch. The Live Sheet's Import and Reset refuse on a sealed
+  character (both keep the id, so the server would reject them anyway — better refused where the reason
+  can be given). The DM Console gains an "and lock history" tick on the award form, routed through the
+  atomic idempotent `award_ap_and_seal()`, plus a standalone "🔒 Lock history" button. Verified in a
+  real browser: `tool-pricing-ci.mjs` **189/0** including five new seal assertions. Still open: CharGen's
+  🎲 Randomise / file-load rebuild paths can drop a seal locally (fails safe — the server rejects — but
+  shows a raw error), and the offline conflict UX. See `D-GH-2026-09-01-session-seal`.
+- **2026-09-01 · feat(sql,engine): session seal — AMENDS the existing history lock (Phase 1)** — a DM,
+  or the owner of a character in no campaign, can draw an explicit line under a character's history;
+  everything before it is frozen, anything may still be appended after it. **Corrects a false premise
+  this work was built on:** the plan and its three cold reviews all assumed no server-side history
+  protection existed. It has since 2026-08-10 — `pact_enforce_locked_history()` already freezes
+  everything up to the last non-discretionary award for campaign-bound characters. Found by listing
+  the live triggers on `characters` in a pre-flight check, immediately before applying. A second,
+  parallel trigger was therefore withdrawn: it would have been the hand-written-mirror drift
+  `AGENTS.md` warns about, and it compared raw JSONB where the original deliberately compares a
+  projection — it would have started rejecting legitimate saves. Phase 1 now makes three surgical
+  changes instead: `sessionSeal` joins the protected projection so a seal cannot be removed; the
+  boundary becomes the later of award and seal; and the seal half covers solo characters, which the
+  award half skips. Adds `seal_character_history()`, atomic idempotent `award_ap_and_seal()` (the DM
+  Console's Award AP writes no LOG event, so today it locks nothing), `sealedFloor()` beside
+  `undoFloor()` in `js/engine.js`, and a 32-assertion SQL harness whose first section is regression
+  tests proving the 2026-08-10 behaviour is unchanged. Zero of the 35 live characters carry a seal, so
+  the change is inert until one is placed. No UI yet — Phase 2. Migration tested locally, **not applied
+  to production**. See `D-GH-2026-09-01-session-seal`.
+- **2026-09-01 · docs(agents): the live character count was stale — 35, not 25** — `AGENTS.md` carried
+  "25 characters, 8 owners, 4 campaigns" measured 2026-08-27. A live check while preparing the
+  session-seal migration found **35 characters, 8 owners, 4 campaigns, 6 campaign-bound, 49 AP awards,
+  461 log events** — ten new characters in five days. Corrected here and in the session-seal plan,
+  decision record, migration and SQL harness, all of which had quoted the stale figure. `AGENTS.md`
+  now says explicitly that its number is a dated snapshot to re-measure, not a current fact — which is
+  what its own "measure the blast radius against the live table" rule already implied.
+- **2026-09-01 · fix(engine,tools): one undo-barrier rule, shared by both player tools** — the rule
+  "this part of the history can no longer be taken back" had been hand-written three times, once per
+  tool, and two copies were wrong for the *same* character (D-GH40 gave both tools one save envelope).
+  CharGen's `undo()` checked only `dmEdit` while its own comment claimed to mirror the Live Sheet's
+  award barrier, so a plain `award` event — a redeemed grant code, or the DM awards a clone migrates in
+  — blocked undo in one tool and not the other; and **neither** tool treated `creationLocked` as a
+  barrier, so the "Finish creating" dialog's promise that *"only your DM can reopen creation"* was false
+  in both (one Undo click reopened it). Adds `isUndoBarrier()`/`undoFloor()` to `js/engine.js`, bridged
+  into both tools. Exported as a **floor** rather than a per-event predicate because CharGen's undo
+  restores whole earlier snapshots, so a frame captured before a barrier arrived would otherwise jump
+  straight past it — that tool now compares the target frame's floor against the live log's. New gate
+  `testing/scripts/undo-barrier-ci.mjs` (0 failed / 19). No mechanics change, so `DATA.version` is
+  unchanged. Step 1 of 2 toward a DM-triggered per-session seal — see
+  `D-GH-2026-09-01-undo-barrier-shared` for what it deliberately does *not* yet close.
 - **2026-09-01 · feat(sql): moving a character between campaigns clears its creation lock and ceiling** —
   resolves the campaign-movement question three independent cold reviewers raised against the
   creation-ceiling plan and which it carried as unresolved. Owner decision: *"when a character leaves or

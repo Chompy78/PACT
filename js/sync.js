@@ -231,10 +231,71 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
   if (migratedFrom) lsRemove(migratedFrom);
 
   if (!navigator.onLine) return { id, synced: false, migratedFrom };
+  // A seal rejection is PERMANENT for this copy of the character, unlike every other failure here.
+  // Retrying it cannot ever succeed — the server is refusing this history, not this attempt — so the
+  // ordinary "stays dirty, will retry" path would spin on every autosave and leave the sync chip
+  // showing unsaved for ever. Stop until the page reloads the authoritative copy, which is the only
+  // thing that can fix it (feat/session-seal Phase 2, owner decision L1).
+  if (_sealBlocked.has(id)) return { id, synced: false, sealed: true, migratedFrom };
   _pushInFlight.add(id);
   try { await pushCharacter(rec, capturedSeq); return { id, synced: true, migratedFrom }; }
-  catch (error) { return { id, synced: false, conflict: !!error.conflict, error, migratedFrom }; }   // stays dirty, will retry
+  catch (error) {
+    if (isSealRejection(error)) {
+      _sealBlocked.add(id);
+      return { id, synced: false, sealed: true, error, migratedFrom };
+    }
+    return { id, synced: false, conflict: !!error.conflict, error, migratedFrom };   // stays dirty, will retry
+  }
   finally { _pushInFlight.delete(id); }
+}
+
+// Characters this PAGE has been refused on because their history is sealed. Deliberately in-memory
+// and page-lifetime, never persisted: the remedy is to reload the authoritative copy, and a reload
+// clears this by construction. Persisting it could strand a character whose seal was later rolled
+// back, which is the failure mode the 2026-08-10 `base_updated_at` guard already learned the hard way.
+const _sealBlocked = new Set();
+
+/** True once this page has been refused a save on `id` because the server's history is sealed.
+ *  The tools' autosave gates check it so they stop hammering a write that can never land. */
+export function isSealBlocked(id) { return _sealBlocked.has(id); }
+
+/** Clears the block for `id`. Called by loadCharacter() below, because taking a fresh copy of the
+ *  server's version is precisely the remedy — and the in-app route to it (Cloud → Load) does NOT
+ *  reload the page, so without this the block outlived the fix and the character silently stopped
+ *  saving for the rest of the page's life, with the one-shot warning already spent. */
+export function clearSealBlocked(id) { _sealBlocked.delete(id); }
+
+/** TEST SEAM ONLY. The block is normally set inside saveCharacter()'s catch, which needs a real refusal
+ *  from a real server; the dependency-free gates have no such seam, so before this the lifecycle
+ *  (set -> read -> clear, and clearing one id not lifting another's) was asserted only by two checks that
+ *  could not fail. Named with a `_test` prefix so its purpose is unmistakable at every call site, and
+ *  deliberately NOT wired into any app path — nothing in the tools imports it. */
+export function _testMarkSealBlocked(id) { _sealBlocked.add(id); }
+
+/** Recognises the locked-history rejection raised by pact_enforce_locked_history(). Matched on
+ *  the message because PostgREST surfaces a plpgsql RAISE as a generic error, not a typed code — the
+ *  trigger's own text is the only signal that crosses the wire. Both wordings it can raise ("cannot
+ *  shrink", "cannot be rewritten") share the "locked character history" phrase, which is what this
+ *  keys on rather than either full sentence.
+ *
+ *  NAMING CAVEAT, and it reaches the user. This does NOT mean "a DM placed a seal". The same trigger
+ *  raises the same phrase for the PRE-EXISTING 2026-08-10 campaign boundary — the last non-disc,
+ *  non-noLock AP award — which has nothing to do with seals and long predates them. The two are
+ *  indistinguishable on the wire: the message text is identical either way. So every user-facing string
+ *  downstream of this must say "sealed OR locked by an AP award", never "your DM sealed this" — telling
+ *  a player their DM sealed a character when all that happened was an ordinary award is a false
+ *  statement about another person's action. Renaming this predicate would be cosmetic; the wording of
+ *  what it drives is the part that matters. */
+export function isSealRejection(error) {
+  if (!error) return false;
+  // CONCATENATED, not `message || hint || details`. PostgREST always populates `message`, so an OR
+  // chain short-circuits there and the hint/details fallback is dead code — it only appeared to work
+  // in the gate because the fixture object had no `message` at all. If a Supabase layer ever surfaces
+  // the RAISE text only in `details`, an OR chain would return false, saveCharacter would take the
+  // ordinary retry path, and the autosave would spin for ever on an impossible write: exactly the
+  // failure this function exists to prevent.
+  const m = [error.message, error.hint, error.details].filter(Boolean).join(' | ');
+  return /locked character history/i.test(m);
 }
 
 /** The signed-in user's existing character id in this campaign, or null. Best-effort: any failure
@@ -270,14 +331,40 @@ async function pushCharacter(rec, capturedSeq) {
   // each other. characters.updated_at is maintained by a BEFORE UPDATE trigger, so matching on the last
   // value the server confirmed is enough; nothing needs writing client-side.
   //
-  // Only guard when we actually know that value. A record written before base_updated_at existed has
-  // none, and must keep saving exactly as it does today rather than being refused forever.
-  const guarded = rec.base_updated_at != null;
+  // A record written before base_updated_at existed has none. It used to save COMPLETELY UNGUARDED
+  // in that case — deliberately, so such a record was not refused forever — which left a permanent
+  // hole: an unguarded update replaces the whole log, so any legacy record could still silently
+  // destroy a concurrent writer's history. Three cold reviews of feat/session-seal flagged the same
+  // shape of gap, and it is not hypothetical: 2026-08-07, a character went 43 AP spent -> 47 -> back
+  // to 43 across two browser profiles (docs/HOW-TO-WORK.md).
+  //
+  // Adopt the server's CURRENT value instead of skipping the guard. BE PRECISE ABOUT WHAT THIS BUYS,
+  // because an earlier version of this comment overclaimed it (caught in review): a base read HERE, at
+  // save time, cannot detect the 2026-08-07 two-profile race, since a base is only meaningful when
+  // captured at LOAD time and this one is self-satisfying by construction. What it does do is close the
+  // window from "unbounded, for every legacy record for ever" to the milliseconds between this read and
+  // the update below, and only until that record's first successful save stamps a real
+  // base_updated_at. Refusing outright was the alternative and is worse: it strands records their owner
+  // cannot fix. The real protection for sealed history is the database trigger, which no client can
+  // opt out of.
+  //
+  // This is defence in depth, not the load-bearing part. A sealed prefix is enforced unconditionally
+  // by a database trigger (sql/migrations/2026-09-01-session-seal.sql), which no client can opt out
+  // of — this predicate lives in the client's own query and therefore protects only what goes
+  // through it.
+  let base = rec.base_updated_at;
+  if (base == null) {
+    const { data: cur, error: curErr } = await supabase
+      .from('characters').select('updated_at').eq('id', rec.id).maybeSingle();
+    if (curErr) throw curErr;
+    if (cur) base = cur.updated_at;   // row absent => a genuine insert below, nothing to clobber
+  }
+  const guarded = base != null;
   let q = supabase
     .from('characters')
     .update({ name: rec.name, kind: rec.kind, stats: rec.stats })
     .eq('id', rec.id);
-  if (guarded) q = q.eq('updated_at', rec.base_updated_at);
+  if (guarded) q = q.eq('updated_at', base);
   const { data: upd, error: updErr } = await q.select('id, updated_at, ap, gold, autosave_enabled');
   if (updErr) throw updErr;
 
@@ -355,6 +442,9 @@ function applyServerMeta(rec, server, capturedSeq) {
  *  server has moved on, so it can never be pushed. Return true to discard the local copy and take the
  *  server's — the only route out of that state. Omit it and behaviour is unchanged. */
 export async function loadCharacter(id, opts = {}) {
+  // Taking a fresh copy of the server's version is the remedy for a seal rejection, so clear the block
+  // here rather than relying on a page reload — the in-app route (Cloud → Load) never reloads.
+  clearSealBlocked(id);
   let behind = false;
   if (navigator.onLine && await currentUser()) {
     const r = await reconcile(id);
@@ -473,9 +563,27 @@ async function reconcile(id) {
     // getSyncState() has no way to see this recovery push as SAVING and falls through to a stale
     // dirty/conflict/idle read for its whole duration (found by /code-review ultra on the B3 branch;
     // pre-existing since this branch was written, freshly noticed once B3 leaned on getSyncState() more).
+    // A character this page has already been refused on cannot be pushed by ANY route, so don't try.
+    // This guard lived only in saveCharacter(), and reconcile() runs from syncAll() on every load and
+    // every 'online' event — so the impossible write was re-issued for the life of the page, which is
+    // precisely the spin saveCharacter()'s comment claims to prevent. Reported as `behind` so the
+    // recovery offer below still reaches the user.
+    if (_sealBlocked.has(id)) return { behind: true, sealed: true };
     _pushInFlight.add(id);
     try { await pushCharacter(local, local.editSeq || 0); }
-    catch (err) { if (err && err.conflict) return { behind: true }; /* transient: retry later */ }
+    catch (err) {
+      if (err && err.conflict) return { behind: true };
+      // A seal rejection is permanent for this copy, exactly like a conflict — and swallowing it as
+      // "transient" is what made the documented remedy fail: loadCharacter() cleared the block, called
+      // reconcile(), which re-pushed the same sealed log, was refused, ignored it, and returned the
+      // unchanged local copy. Cloud -> Load reported success and changed nothing.
+      //
+      // Routed through the SAME `behind` channel as a conflict rather than adopting the server row
+      // here, because owner decision L1 says a rejected save keeps the client's work: loadCharacter()
+      // asks opts.onBehind() first and replaces the local copy only on an explicit yes.
+      if (isSealRejection(err)) { _sealBlocked.add(id); return { behind: true, sealed: true }; }
+      /* transient: retry later */
+    }
     finally { _pushInFlight.delete(id); }
   } else {
     // Server wins: take its stats AND its ap. Same markInSyncWithServer() reasoning as the !local

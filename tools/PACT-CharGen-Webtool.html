@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.491.html**-->
+<!--**PACT-CharGen-Webtool v1.495.html**-->
 
 <!doctype html>
 <!--
@@ -55,7 +55,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.491 · Rules v0.339</title><style>
+<title>PACT Character Generator — Web Tool v1.495 · Rules v0.339</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -512,7 +512,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.491</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.495</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -570,7 +570,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime } from '../js/engine.js';
+  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime };
@@ -583,7 +583,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   window._engineBridge = { validate, creationLockThreshold };
-  window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling;
+  window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   document.dispatchEvent(new Event('engine-ready'));
 </script>
@@ -619,11 +619,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -959,6 +959,19 @@ document.addEventListener('sync-ready', function () {
             + 'To pick up the other device’s version, use ☁ Cloud → Load. That will replace what is '
             + 'on screen, so copy across anything you want to keep first.');
         if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
+        if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
+        return;
+      }
+      // A seal rejection must NEVER fall through to the offline wording below: it promises the work
+      // "will sync when online", and it never will. Nor should it reach the catch, which prefixes the
+      // raw plpgsql text with "Save failed" — the same function's own comment calls that "the most
+      // damaging thing this path could say". Handled explicitly, before both.
+      if (res.sealed) {
+        alert('\uD83D\uDD12 Not saved \u2014 part of this character\'s history is locked on the server.\n\n'
+          + 'Your work is still on screen and in this device\'s local copy; it has not been thrown away. '
+          + 'Save a copy to a file if you want to keep a record of it, then reload the page to pick the '
+          + 'character up from the server\'s copy.\n\n(This happens when your DM seals a session, and also when an AP award locks everything before it.)');
+        if (btn) { btn.disabled = false; btn.textContent = '\u2601 Save to cloud'; }
         if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
         return;
       }
@@ -1526,7 +1539,11 @@ function _cgOverApBudget(){
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';}
+function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';
+  // Cleared with the rest of the cloud state so a pending binding cannot outlive its character. Guarded
+  // because this function is also called from _cgBoot() paths that run before the declaration is reached.
+  try{ _cgPendingCampaignId=null; }catch(e){}
+}
 // A file/handoff that carries a campaign binding is NOT a plain local character. Resetting DM AP to a
 // silent 0 (what every local-load path used to do) was harmless when DM AP was a bonus on top of a LOG
 // award, but since the grant became the character's ENTIRE budget it made an exported campaign character
@@ -1534,9 +1551,15 @@ function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;wind
 // engine's ANTI-DOUBLE-COUNT INVARIANT forbids that — so resolve it properly instead:
 //   signed in  -> read the authoritative `ap` from the server and resolve to 'active'
 //   otherwise  -> 'unavailable', which the AP-source badge already explains as "NOT the same as none"
+// Set SYNCHRONOUSLY, the moment we know this envelope names a campaign — before the awaits below.
+// _cgSealedFloor() reads it so the client's locked-history floor cannot sit below the server's during the
+// window where the binding is resolving. Cleared by _cgResetCloudApState() along with the rest of the
+// cloud state (see just below), so it can never outlive the character it came from.
+var _cgPendingCampaignId=null;
 async function _cgAdoptEnvelopeBinding(d){
   _cgResetCloudApState();
   var campId = d && d.campaignId; if(!campId) return;
+  _cgPendingCampaignId = campId;
   // fix/campaign-binding-survives-reload: this runs from _cgBoot(), which fires synchronously off
   // 'engine-ready' — dispatched by the FIRST of two <script type="module"> blocks, strictly before the
   // SECOND (the auth/campaign/sync bridge, kept separate deliberately — see the comment above its own
@@ -2633,22 +2656,43 @@ function restoreFrame(f){
 
 function undo(){
   if(_histSuspended)return;
-  // feat/dm-edit-events: mirrors the Live Sheet's award-event undo barrier, but checked against LOG
-  // directly rather than a HIST frame — CharGen's undo is snapshot-based, not LIFO-over-events, so the
-  // "last thing that happened" is the tail of the live LOG, not the top of HIST.
-  if(LOG.length&&LOG[LOG.length-1]&&LOG[LOG.length-1].dmEdit){
-    flash('DM edits lock your history — buys made before one can\'t be undone.');
-    return;
-  }
   _sealOpenGroup();                        // seal-before-undo: never land mid-word
   if(!HIST.length)return;
+  // UNDO BARRIER (feat/undo-barrier-shared). The rule is js/engine.js's isUndoBarrier/undoFloor, shared
+  // with the Live Sheet. The check that USED to be here tested only `dmEdit`, and only against the tail
+  // of the live LOG, while its comment claimed it mirrored the Live Sheet's award barrier — it did not,
+  // so a plain `award` event (a redeemed grant code, or the DM awards a clone migrates in) blocked undo
+  // there and not here, for one character that opens in either tool since D-GH40.
+  //
+  // WHY THE TARGET FRAME, NOT THE TAIL. This tool's undo restores whole earlier SNAPSHOTS of the log,
+  // so a tail test is not enough: a frame captured before a barrier arrived — a DM edit synced down
+  // mid-session is the live case — jumps straight past the barrier and takes it, and everything under
+  // it, with it. Comparing the target frame's own floor against the current one refuses exactly that,
+  // and still allows undoing purchases made after the barrier (their frames keep the same floor).
+  // _sealOpenGroup() now runs BEFORE the check rather than after, because the thing being judged is
+  // the frame that would be restored, and an open coalescing group has to be settled first for that
+  // frame to exist. A refused undo therefore still closes an open group — harmless: sealing only ends
+  // a coalescing window, it never touches LOG.
+  var _floor=undoFloor(LOG), _tgt=((HIST[HIST.length-1]||{}).log)||[];
+  if(_tgt.length<_floor||undoFloor(_tgt)<_floor){ flash(_undoBarrierMsg(LOG[_floor-1])); return; }
   REDO.push(_snapshotFrame());
   restoreFrame(HIST.pop());
 }
+// _undoBarrierMsg() now lives in js/ui-helpers.js — one copy, loaded by both tools. See it there.
 function redo(){
   if(_histSuspended)return;
   _sealOpenGroup();
   if(!REDO.length)return;
+  // The SAME barrier check undo() makes, and for a sharper reason. Only commitHistory() clears REDO, but
+  // a barrier can reach LOG without going through it: cgFinishCreating() pushes `creationLocked` onto LOG
+  // directly, and a DM edit or seal can arrive by sync. So REDO can still hold a frame captured BEFORE the
+  // barrier, and restoreFrame() replaces LOG wholesale — buy, buy, Undo, "Finish creating", Redo would
+  // restore the pre-lock snapshot and DELETE the creationLocked event, dropping undoFloor() back to 0 and
+  // making the confirm dialog's promise ("only your DM can reopen it") false again. That is the exact bug
+  // making creationLocked a barrier was meant to fix. On a campaign character it also shrinks the
+  // protected projection, so the next cloud push is refused by the server with no local way back.
+  var _rfloor = undoFloor(LOG), _rtgt = ((REDO[REDO.length-1]||{}).log)||[];
+  if(_rtgt.length < _rfloor || undoFloor(_rtgt) < _rfloor){ flash(_undoBarrierMsg(LOG[_rfloor-1])); return; }
   HIST.push(_snapshotFrame());
   restoreFrame(REDO.pop());
 }
@@ -2829,6 +2873,12 @@ function cgFinishCreating(){
   if(!confirm(msg)) return;
   LOG.push({ seq:SEQ++, ts:Date.now(), type:'creationLocked', rules:DATA.version,
              label:'Creation finished' + (st ? (' \u2014 ' + st.spent + ' of ' + st.ceiling + ' AP spent') : '') });
+  // This is a bare LOG.push, deliberately (it must not be undoable), which means it does NOT go through
+  // commitHistory() \u2014 the only thing that clears REDO. Any redo frame still queued was captured before
+  // this barrier existed, so restoring it would delete the lock. redo() now refuses such a frame on its
+  // own; dropping them here as well means the stale frame never exists to be judged. Belt and braces on
+  // a promise this dialog just made to the player.
+  REDO.length = 0;
   render();
   flash('\u2714 Creation finished \u2014 you now build at in-play prices.');
 }
@@ -2954,11 +3004,70 @@ function setCreationAp(){
   emit({type:'creationLockConfig',payload:{threshold:v},label:'Creation AP confirmed ('+v+' AP)'});
 }
 
+// How many leading events the DATABASE will refuse to let us change (feat/session-seal). Mirrors
+// pact_enforce_locked_history() exactly, including that the award half only applies to a
+// campaign-bound character — see sealedFloor()'s own comment in js/engine.js.
+// campaignBound is TRUE if we know of a campaign by ANY route, including one carried on the envelope we
+// are still adopting. window._cgCampaignId is set by _cgAdoptEnvelopeBinding(), which resolves
+// ASYNCHRONOUSLY and therefore runs AFTER _cgApplyEnvelope() -- so during a load the flag was still false
+// while the LOG already held a campaign character's award boundary, putting the client floor BELOW the
+// server's. sealedFloor()'s own comment says that is the one direction the design must never take: a
+// client floor under the server's lets the tool offer an edit the database will refuse. The envelope's
+// own campaignId closes the window without waiting for the async resolve.
+function _cgSealedFloor(){
+  var _bound = !!(window._cgCampaignId || (typeof _cgPendingCampaignId!=='undefined' && _cgPendingCampaignId));
+  return sealedFloor(LOG,{campaignBound:_bound});
+}
+
+// Refuses a whole-build replacement that would drop a sealed prefix (feat/session-seal Phase 2).
+// These paths rebuild the LOG from the form, so they cannot preserve a seal by construction the way
+// an append can. On a sealed character they are writes the server rejects anyway — refused here,
+// where the reason can be given, rather than after the player has done the work.
+//
+// "New Character" is deliberately NOT guarded: applyBuild({}) mints a fresh character id, so it
+// detaches from the sealed character instead of overwriting it.
+// WORDING: "locked", never "your DM sealed it" -- _cgSealedFloor() is non-zero for the pre-existing
+// AP-award boundary as well as for a real seal, and the two are indistinguishable here. See
+// _lsBlockedBySeal() in the Live Sheet and isSealRejection() in js/sync.js.
+function _cgBlockedBySeal(what){
+  if(_cgSealedFloor()===0) return false;
+  alert('\uD83D\uDD12 Part of this character\'s history is locked.\n\n' + what + ' rebuilds the whole history from the form, '
+      + 'which would drop what the server has locked (by a session seal, or by an AP award) \u2014 and it will be refused.\n\n'
+      + 'Use \u201cNew Character\u201d if you want to start something fresh; that leaves this one untouched.');
+  return true;
+}
+
+// One-per-pass latch for the locked-history refusal below. See the COALESCED note inside.
+var _cgSealRefusedPass=false;
 function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
-  const i=LOG.findIndex(function(e){return e.type==='buy'&&e.cat===cat&&predicate(e);});
-  if(i===-1)return;
+  // Search only the MUTABLE region. Skipping the sealed prefix outright, rather than finding a sealed
+  // match and refusing, matters for _cgSyncFlatCategory's `while(excess-->0)` loop: that always takes
+  // the FIRST match, so a sealed duplicate would otherwise block retraction of a legitimately
+  // removable later copy of the same item for ever.
+  const _floor=_cgSealedFloor();
+  const i=LOG.findIndex(function(e,idx){return idx>=_floor&&e.type==='buy'&&e.cat===cat&&predicate(e);});
+  if(i===-1){
+    // Distinguish "not there" from "there but sealed" — the caller must put the tick back only in the
+    // second case, and the reconcile callers (which ignore the return) must not silently diverge.
+    const _sealedMatch=LOG.some(function(e,idx){return idx<_floor&&e.type==='buy'&&e.cat===cat&&predicate(e);});
+    if(_sealedMatch){
+      // COALESCED. The reconcile callers below can hit this many times in one pass (a species change
+      // auto-unchecks several locked racial traits; _cgSyncFlatCategory's excess loop can call with the
+      // same value repeatedly). Flashing and re-rendering per call produced a burst of toasts and rebuilt
+      // the form DOM underneath loops that were still walking a querySelectorAll snapshot of it. One
+      // notice and one repaint per pass is the whole intent; the microtask resets the latch.
+      if(!_cgSealRefusedPass){
+        _cgSealRefusedPass=true;
+        flash('\uD83D\uDD12 That purchase is part of this character\'s locked history and can no longer be undone.');
+        Promise.resolve().then(function(){ _cgSealRefusedPass=false; try{render();}catch(e){} });
+      }
+      return false;
+    }
+    return;
+  }
   commitHistory();LOG.splice(i,1);_cgRepriceDraft();render();
+  return true;
 }
 
 function replacePatchSlot(slot,patch,label){
@@ -3018,11 +3127,45 @@ function replaceWholeLogFromBuild(b,opts){
 // creation-pricing lock (a no-op for awards, but matches the export burst's convention).
 function _cgSyncSingletonEvent(type,makeEvent){
   _cgEnsureLockArmed();   // bypasses emit() as well — see _cgEnsureLockArmed()
+  // SEALED HISTORY (feat/session-seal, review finding). This helper RELOCATES its singleton to the
+  // tail — filter-out-and-append — and `award` is inside the server's protected projection. On a
+  // sealed character, nudging the Budget field (or the Build-level picker, which drives _cgSyncAward
+  // for you) therefore moves a protected event and the next cloud save is rejected for ever. Guarded
+  // here rather than at each call site so a future caller cannot forget it.
+  //
+  // Only refuses when the singleton being moved actually sits inside the locked prefix.
+  //
+  // TWO CORRECTIONS, both found in review (2026-09-02):
+  //
+  // 1. `name` IS EXEMPT. The server's protected projection covers 'buyoff', 'names', 'award' and
+  //    'sessionSeal' -- note 'names' (PLURAL: the spell/language/feat choice event), NOT 'name' (the
+  //    character's name). A `name` event is not projected at all, so relocating one changes nothing the
+  //    trigger compares and the database would accept the rename. The old guard blocked it anyway, and
+  //    because a name is written at index ~0 the condition `_at < _floor` was permanently true: renaming
+  //    a locked character was refused for the life of that character, on every keystroke. The comment
+  //    here claimed the opposite ("ordinary post-seal renaming working, owner decision K3") -- so the
+  //    guard both over-blocked AND mis-documented itself. K3 was "everything except character
+  //    descriptions"; a name is the description case, and it is what the server already implements.
+  //
+  // 2. The NO-OP CHECK now runs FIRST. The guard used to sit above it, so it fired on calls that would
+  //    have written nothing: _cgApplyEnvelope()'s back-compat reconcile calls _cgSyncName() and
+  //    _cgSyncAward() on every load with history suspended, which meant simply OPENING a locked
+  //    character produced two spurious warning flashes before anything was even edited.
   const without=LOG.filter(function(e){return e.type!==type;});
   const cur=LOG.find(function(e){return e.type===type;});
   const next=makeEvent();
   const norm=function(e){return JSON.stringify(Object.assign({},e,{seq:0,ts:0,rules:0}));};
   if(cur&&norm(cur)===norm(next))return;   // no-op: same value → no event churn, no undo step
+  if(type!=='name'){
+    const _floor=_cgSealedFloor();
+    if(_floor>0){
+      const _at=LOG.findIndex(function(e){return e.type===type;});
+      if(_at>-1 && _at<_floor){
+        flash('\uD83D\uDD12 That is part of this character\'s locked history and can no longer be changed here.');
+        return;
+      }
+    }
+  }
   commitHistory();
   LOG=without.concat([Object.assign({},next,{seq:SEQ++,ts:Date.now(),rules:DATA.version})]);
   // Deliberately NOT calling _cgRepriceDraft() here, unlike every other LOG-mutating path. This helper
@@ -3151,7 +3294,9 @@ function onChecklistToggle(el){
     const cost=compute(cand).total-before;
     emit({type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v});
   }else{
-    retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;});
+    // The DOM already un-ticked itself; if the LOG refuses (sealed), put the tick back so the form
+    // never shows a purchase the character still owns as absent.
+    if(retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;})===false){ el.checked=true; return; }
   }
   _cgReconcileChecklistDependents();
 }
@@ -3180,7 +3325,15 @@ function _cgReconcileChecklistDependents(){
     const rendered=new Set(nodes.map(function(e){return e.value;}));
     const checked=new Set(nodes.filter(function(e){return e.checked;}).map(function(e){return e.value;}));
     LOG.filter(function(e){return e.type==='buy'&&e.cat===cat;}).map(function(e){return e.payload.v;}).forEach(function(v){
-      if(rendered.has(v)&&!checked.has(v))retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;});
+      if(rendered.has(v)&&!checked.has(v)){
+        // Honour the refusal: the LOG keeps a locked purchase, so the DOM must show it too. Ignoring the
+        // return left the box unchecked while LOG still counted the buy, and every later purchase was
+        // then priced against a build permanently out of step with the sheet.
+        if(retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;})===false){
+          var _n=nodes.filter(function(el){return el.value===v;})[0];
+          if(_n) _n.checked=true;
+        }
+      }
     });
   });
 }
@@ -3254,7 +3407,10 @@ function _cgSyncFlatCategory(cat){
   const logCounts={};LOG.forEach(function(e){if(e.type==='buy'&&e.cat===cat){const v=e.payload.v;logCounts[v]=(logCounts[v]||0)+1;}});
   Object.keys(logCounts).forEach(function(v){
     let excess=logCounts[v]-(currentCounts[v]||0);
-    while(excess-->0)retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;});
+    // BREAK on a refusal. retractFlatEvent() returns false when the only match is inside the locked
+    // prefix, and that cannot change by looping — the old `while` kept calling with identical arguments,
+    // making no progress and re-entering render() from inside an input handler on each turn.
+    while(excess-->0){ if(retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;})===false) break; }
   });
   Object.keys(currentCounts).forEach(function(v){
     let missing=currentCounts[v]-(logCounts[v]||0);
@@ -3402,7 +3558,15 @@ function _cgReconcileUnlockClass(){
   const domSet=new Set(domVals);
   const logVals=LOG.filter(function(e){return e.type==='buy'&&e.cat==='unlockclass';}).map(function(e){return e.payload.v;});
   const logSet=new Set(logVals);
-  logVals.forEach(function(v){if(!domSet.has(v))retractFlatEvent('unlockclass',function(e){return e.payload&&e.payload.v===v;});});
+  logVals.forEach(function(v){if(!domSet.has(v)){
+    // A locked class unlock stays in the LOG, so put its checkbox back rather than leaving the two
+    // disagreeing — _domReadBuild() reads unlockedClasses from the DOM, and a missing one silently
+    // reprices every later purchase in that class at the cross-class surcharge.
+    if(retractFlatEvent('unlockclass',function(e){return e.payload&&e.payload.v===v;})===false){
+      var _cb=[...document.querySelectorAll('.classunlock')].filter(function(el){return el.dataset.cls===v;})[0];
+      if(_cb) _cb.checked=true;
+    }
+  }});
   domVals.forEach(function(v){
     if(logSet.has(v))return;
     const cur=_domReadBuild();const before=compute(cur).total;
@@ -3548,7 +3712,11 @@ function _domReadBuild(){
     arts:ckVals('artck'),
     weaponProf:wp,masteries:ckVals('mastck'),
     armour:{light:chk('a_light'),medium:chk('a_med'),heavy:chk('a_heavy'),shield:chk('a_shield')},
-    extraClasses:0,unlockedClasses:[...document.querySelectorAll('.classunlock:checked')].filter(e=>!e.disabled).map(e=>e.dataset.cls).filter(c=>c!==val('oclass')&&c!==val('oclass2')),features:rowsVals('feat2row'),traditions:trads,
+    // `!e.disabled || sealLocked` — annotate() disables class unlocks that are not legally available, and
+    // those must not count; but _cgLockSealedControls() also disables SEALED ones, and dropping those
+    // priced every later purchase in that class at the cross-class surcharge and froze it into the LOG.
+    // The dataset flag is what tells the two kinds of `disabled` apart. See _cgLockSealedControls().
+    extraClasses:0,unlockedClasses:[...document.querySelectorAll('.classunlock:checked')].filter(e=>!e.disabled||e.dataset.sealLocked==='1').map(e=>e.dataset.cls).filter(c=>c!==val('oclass')&&c!==val('oclass2')),features:rowsVals('feat2row'),traditions:trads,
     subAbilities:[...document.querySelectorAll('.subabilrow')].map(e=>e.value).filter(Boolean),
     subSpellBundles:[...document.querySelectorAll('.subbundlerow')].map(e=>e.value).filter(Boolean),
     freeSub:(()=>{const o={};document.querySelectorAll('.freesub').forEach(s=>{if(s.value)o[s.dataset.cls]=s.value;});return o;})(),
@@ -3682,6 +3850,10 @@ async function loadViaPicker(){
 }
 function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
     const d=JSON.parse(e.target.result);
+    // A load that KEEPS this character's id would rebuild a sealed history from the form; the server
+    // rejects that. A file carrying a DIFFERENT id is a different character and switches to it
+    // harmlessly, so only the same-id (or id-less) case is refused.
+    if((!d.id || String(d.id)===String(__charId)) && _cgBlockedBySeal('Loading a file over this character')) return;
     _cgResetCloudApState();   // clear any prior cloud load first; _cgAdoptEnvelopeBinding below re-resolves
                               // DM AP if THIS file carries a campaign binding (see that function).
     // Tamper-evidence (D-GH48): non-blocking flag if the incoming signed file's signature no longer matches.
@@ -4084,8 +4256,34 @@ var _cgPageHiding=false;
 // window._cgCampaignBound. The one thing that CAN still turn it off is the player's own toggle
 // (autosave_enabled, default true) -- see the toggle control near the sync chip. Shared by all three
 // call sites below so the condition can't drift between them the way three hand-copies would risk.
+// One-time explanation when the server refuses a save because part of this character's history is
+// locked. NOT necessarily a DM seal: the same trigger and the same message also cover the older AP-award
+// boundary, so this must not name a cause it cannot distinguish. See isSealRejection() in js/sync.js.
+// after this page loaded it (feat/session-seal Phase 2, owner decision L1). The player's work is NOT
+// discarded: it stays in this page and in the local save, so they can copy anything worth keeping out
+// before reloading. Reloading is the only real fix — this page is holding a history the server has
+// declared final — so the message says so plainly rather than offering a retry that cannot work.
+// PER CHARACTER ID, not per page — mirrors the Live Sheet's copy; see that one for the full reasoning.
+// js/sync.js keys _sealBlocked by id and clears it per id, and Cloud -> Load never reloads the page, so a
+// page-lifetime boolean let character A's notice silence character B's completely.
+var __sealNoticed=new Set();
+function _cgSealNotice(){
+  // Never burn the notice from a pagehide/unload path — alert() is suppressed there, so the one-shot
+  // would be spent invisibly. _cgAutosaveGate() is reachable from the pagehide handler.
+  if(_cgPageHiding) return;
+  var _id=currentCharId();
+  if(__sealNoticed.has(_id)) return; __sealNoticed.add(_id);
+  alert('\uD83D\uDD12 Part of this character\'s history is locked on the server.\n\n'
+      + 'The changes on this screen have NOT been saved to the cloud, and they have not been thrown away '
+      + 'either \u2014 they are still here and in this device\'s local copy.\n\n'
+      + 'Anything you bought BEFORE the lock is now permanent. Save a copy to a file if you want to keep '
+      + 'a record of what is on screen, then reload the page to pick the character up from the server\'s '
+      + 'copy. Automatic cloud saving is paused until you do.');
+}
 function _cgAutosaveGate(){
-  if(!window._cloudSignedIn||!window._syncBridge||!navigator.onLine) return false;   // offline edits stay in the local autosave; sync.js retries dirty records on reconnect
+  if(!window._cloudSignedIn||!window._syncBridge||!navigator.onLine) return false;
+  // A seal rejection can never succeed on retry, so stop pushing rather than spinning every 3s.
+  if(window._syncBridge.isSealBlocked && window._syncBridge.isSealBlocked(currentCharId())){ _cgSealNotice(); return false; }   // offline edits stay in the local autosave; sync.js retries dirty records on reconnect
   if(window._syncBridge.getAutosaveEnabled && !window._syncBridge.getAutosaveEnabled(currentCharId())) return false;
   return true;
 }
@@ -4189,6 +4387,11 @@ async function _cgCloudPushOnce(){
       _cgConflictWarned=true;
       if(typeof flash==='function')flash('⚠ Not saved to cloud — this character was changed on another device. Reload to get that version.');
     }
+    // Mirrors the Live Sheet: autosave is where the first locked-history refusal lands, and it is a
+    // return value rather than a throw, so the silent catch below cannot see it. Without this the one
+    // notice was reachable only from the gate on the NEXT push — which a player who stopped editing
+    // never schedules.
+    if(res&&res.sealed) _cgSealNotice();
   }catch(e){ /* deliberately silent: the local autosave already holds the work and sync.js leaves the
                 record dirty for the next retry — a toast on every failed keystroke would be noise */ }
 }
@@ -4519,11 +4722,40 @@ const RTHEME_FOR_CLASS={Barbarian:['bruiser','scout','zealot'],Bard:['face','tri
  Warlock:['battlecaster','zealot','trickster'],Wizard:['scholar','battlecaster']};
 const ARM_RANK={none:0,light:1,medium:2,heavy:3};
 
-function randomizeBuild(){ openRollPanel(); }
+function randomizeBuild(){ if(_cgBlockedBySeal('Rolling a random character')) return; openRollPanel(); }
 
 // theme: a RTHEMES entry, or null for "surprise me" (picked from the chosen class, or at random).
 // lvlWanted: a target character level, or 0/null to derive it from the AP budget (the normal case).
 function randomizeRoll(themeKey,lvlWanted){
+  // A character that has FINISHED creation must not be re-rolled (fix/roll-carry-preserves-undo).
+  //
+  // Two reasons, and the second is why this is a refusal rather than a reordering:
+  //
+  // 1. It is conceptually wrong. A roll re-creates a character from scratch; one whose creation has
+  //    been deliberately ended is being ADVANCED, not built. Since D-GH-2026-09-01 there is a real
+  //    control for the case where you genuinely mean it — a DM's "Reopen creation" in DM Console.
+  //
+  // 2. It breaks "randomize is ONE undoable step", and could not be fixed by moving the carried lock.
+  //    feat/undo-barrier-shared (#492) makes `creationLocked` an undo barrier, and undoFloor() returns
+  //    the index of the LAST barrier + 1. The carried lock has to be re-appended AFTER the burst — put
+  //    it earlier and every burst event replays as post-lock, re-pricing own-species traits at the
+  //    expensive rate (D-GH34). So on a locked character the barrier necessarily lands last, making
+  //    undoFloor === LOG.length and refusing the restore of the pre-roll frame. Measured: a lock in
+  //    the middle of a log leaves a 2-event undoable tail; the same lock at the end leaves 0.
+  //
+  // Checked BEFORE any state is touched — before the history frame, before applyBuild — so a refused
+  // roll leaves the character exactly as it was.
+  try{
+    if(typeof creationCeiling === 'function' && creationCeiling(LOG, _cgCeilOpts()).locked){
+      alert('\u26D4 This character has finished creation, so it cannot be re-rolled.\n\n'
+        + 'A roll builds a character from scratch; this one is being advanced rather than built.\n\n'
+        + 'If you do want to roll it again, ask your DM to use "Reopen creation" first \u2014 that puts it '
+        + 'back into creation, and the roll will work normally.');
+      return;
+    }
+  }catch(e){ /* never let the guard itself block a roll */ }
+
+  if(_cgBlockedBySeal('Rolling a random character')) return;
   // Deep-clone the working build: readBuild()=foldBuild(LOG) returns nested arrays/objects that ALIAS the
   // LOG event payloads, so randomize's in-place mutations below (b.traditions.push, b.stats[a]=…) would
   // otherwise corrupt the live LOG. Harmless pre-Step-4 (applyBuild rebuilt LOG from the DOM afterward),
@@ -5504,7 +5736,93 @@ function buildGuide(b,r){const tips=[];
 // inside _cgRenderInner). _cgRenderInner's armour/cross-race DOM corrections are LOG_SYNC_GUARD writers:
 // they only make the controls reflect already-determined LOG legality; they emit no events and mutate no
 // LOG. b here is readBuild()=foldBuild(LOG)+name/budget shim.
+// Lock the CONTROLS for purchases the database will refuse to let go (feat/session-seal). This is
+// presentation; retractFlatEvent() is the real refusal. Both are needed: without this a player can
+// click a sealed box and only learn it is frozen from a flash message, and without that this is
+// cosmetic — several existing paths set .checked directly without dispatching an event.
+//
+// The explanation is a VISIBLE marker on the label, not a title tooltip. A disabled input fires no
+// hover or focus events in any browser, so a tooltip on one is unreachable by keyboard and by touch
+// entirely — an M365 Copilot review point on the plan, and correct.
+function _cgLockSealedControls(){
+  // Early-out FIRST, before any whole-log work. render() fires on every input event — _cgSyncName()
+  // calls it on every keystroke in the name field, the very path whose comment explains
+  // _cgRepriceDraft() is skipped there because a whole-log pass "is the difference between typing
+  // feeling instant and not". The previous version computed _cgSealedFloor() (up to two full reverse
+  // scans, which only break early on a MATCH, so the no-seal case always scanned everything twice)
+  // ABOVE this line, i.e. it paid the cost it exists to avoid. Cheapest discriminators first: a DOM
+  // query for existing marks, then one linear scan for a seal event. The .sealmark check keeps the
+  // clean-up path alive for a character that HAD marks and no longer should.
+  var _hasMarks = !!document.querySelector('.sealmark');
+  if(!_hasMarks){
+    var _any = false;
+    for(var _k = LOG.length - 1; _k >= 0; _k--){
+      var _e0 = LOG[_k];
+      if(!_e0) continue;
+      if(_e0.type === 'sessionSeal' || (window._cgCampaignId && _e0.type === 'award' && !_e0.disc && !_e0.noLock)){ _any = true; break; }
+    }
+    if(!_any) return;
+  }
+  var floor = _cgSealedFloor();
+  if(floor === 0 && !_hasMarks) return;
+  var sealed = {};   // "cat\u0000value" -> true, for every purchase inside the sealed prefix
+  if(floor > 0){
+    for(var i = 0; i < floor && i < LOG.length; i++){
+      var e = LOG[i];
+      if(e && e.type === 'buy' && e.cat && e.payload && e.payload.v != null) sealed[e.cat + '\u0000' + e.payload.v] = true;
+    }
+  }
+  Object.keys(CHECKLIST_CAT).forEach(function(cls){
+    var cat = CHECKLIST_CAT[cls];
+    document.querySelectorAll('.' + cls).forEach(function(el){
+      var v = (cls === 'classunlock') ? el.dataset.cls : el.value;
+      var isSealed = !!sealed[cat + '\u0000' + v];
+      var lbl = el.parentElement, mark = null;
+      // DIRECT CHILDREN ONLY. Skill/tool/instrument labels NEST the expertise checkbox inside their
+      // own label (`<label class="ck"><input class="skillck">…<label><input class="expck"></label></label>`),
+      // so a descendant query let the OUTER control match the INNER control's marker — and then the
+      // else-branch below removed that marker and cleared `disabled` on a box this function never
+      // disabled, breaking the very invariant its comment claims. Found in review.
+      if(lbl){ for(var _c = lbl.firstElementChild; _c; _c = _c.nextElementSibling){
+        if(_c.classList && _c.classList.contains('sealmark')){ mark = _c; break; } } }
+      if(isSealed){
+        el.disabled = true;
+        // Mark WHY it is disabled. Two callers need to tell a seal-lock apart from a legality-lock:
+        //   * _domReadBuild() drops `.classunlock:checked` boxes that are `disabled`, because annotate()
+        //     disables the ones that are not legally unlockable. Without this flag a SEALED class unlock
+        //     vanished from unlockedClasses, so every later purchase in that class was priced against a
+        //     build that thought the class was locked — the cross-class SURCHARGE — and that inflated
+        //     figure was stamped permanently into the LOG. Silent, frozen overcharge; found in review.
+        //   * the else-branch below, which must only ever re-enable a box THIS function disabled.
+        el.dataset.sealLocked = '1';
+        if(lbl && !mark){
+          mark = document.createElement('span');
+          mark.className = 'sealmark';
+          mark.style.cssText = 'margin-left:5px;font-size:10px;font-weight:700;color:var(--grey)';
+          mark.textContent = '\uD83D\uDD12 sealed';
+          lbl.appendChild(mark);
+        }
+      } else {
+        // Only ever re-enable a box THIS function disabled. Other code disables checkboxes for its own
+        // reasons (a drawback whose stat cap the current score breaks, a DM-disabled boon, a class the
+        // rules gate holds shut); clearing `disabled` unconditionally here would silently undo those.
+        //
+        // Keyed on our own dataset flag, NOT on the presence of a mark. A mark can outlive the character
+        // that earned it: the checkbox grids are built once and are not regenerated by render(), so after
+        // an in-app Cloud -> Load from a sealed character to an unsealed one (no page reload), stale marks
+        // were still present while `floor` was 0 — and the old `else if(mark)` branch then cleared
+        // `disabled` on every marked control, including ones annotate() had just legitimately disabled for
+        // the NEW character. That handed the player a tickable box the rules gate was holding shut, and
+        // the capture-phase onChecklistToggle would have emitted a real purchase from the click.
+        if(mark) mark.remove();
+        if(el.dataset.sealLocked === '1'){ el.disabled = false; delete el.dataset.sealLocked; }
+      }
+    });
+  });
+}
+
 function render(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){}
+  try{_cgLockSealedControls();}catch(e){}
   // Creation state: reveal "Finish creating" only while this character is genuinely still in creation
   // AND a ceiling has been stamped for it — otherwise there is nothing to finish against and the
   // button would be noise on every legacy character. Tooltip carries the numbers so a player meets the

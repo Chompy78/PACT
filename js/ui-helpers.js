@@ -92,3 +92,22 @@ function _csCopy(text) {
   try { window.prompt('Copy this prompt (Ctrl/Cmd-C):', text); } catch (e) {}
   return false;
 }
+
+// Why an undo (or redo) stopped, in the player's terms.
+//
+// Lived as a byte-equivalent copy in BOTH tools, each carrying a "keep them in step" comment — the exact
+// hand-written-mirror shape the feat/undo-barrier-shared refactor existed to delete, re-created one layer
+// down at the moment the RULE was centralised into js/engine.js. A fourth barrier type would have needed
+// the wording changed in two files with nothing asserting they matched, and a drifted copy is silent:
+// the player just gets the wrong reason for a refusal. Moved here (a classic script both tools already
+// load, alongside esc/flash/levelForThreshold) rather than into engine.js, because engine.js is the rules
+// source of truth and this is presentation.
+//
+// Checked in isUndoBarrier()'s own precedence order, so an event that is several kinds of barrier at once
+// names the most specific one.
+function _undoBarrierMsg(ev){
+  if(ev&&ev.dmEdit)return 'DM edits lock your history — buys made before one can\'t be undone.';
+  if(ev&&ev.type==='creationLocked')return '🔒 Creation is finished — what you bought during creation can\'t be undone. Only your DM can reopen it.';
+  if(ev&&ev.type==='sessionSeal')return '🔒 Your DM locked this character\'s history up to here — buys made before the lock can\'t be undone.';
+  return 'AP awards lock your history — buys made before an award can\'t be undone.';
+}

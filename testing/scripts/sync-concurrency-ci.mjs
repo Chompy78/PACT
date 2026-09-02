@@ -181,6 +181,56 @@ console.log('\n  regressions — legitimate saves must keep working');
   const r = await A.saveCharacter({id:ID,name:'X',kind:'chargen',stats:{spent:8}});
   ok('an up-to-date page still saves after a background syncAll', r.synced === true && world.serverSpent(ID) === 8); }
 
+// --- feat/session-seal: a seal rejection is permanent, unlike every other failure here -----------
+// The classifier is what stops saveCharacter() retrying a write the server will refuse for ever.
+// Getting it WRONG IN EITHER DIRECTION is bad: too loose and an ordinary transient failure stops
+// retrying and looks like data loss; too tight and the tool spins on an impossible save.
+{ const A = await openPage(makePage(liveSrc,'seal.js'));
+  ok('a "cannot shrink" rejection is recognised',
+    A.isSealRejection(new Error('PACT: locked character history cannot shrink (3 events are sealed or locked by an AP award)')) === true);
+  ok('a "cannot be rewritten" rejection is recognised',
+    A.isSealRejection(new Error('PACT: locked character history cannot be rewritten (protected event 1 changed)')) === true);
+  ok('  it matches on the shared phrase, not either full sentence',
+    A.isSealRejection({ message: 'locked character history' }) === true);
+  ok('  and reads hint/details too, since PostgREST may put the text there',
+    A.isSealRejection({ hint: 'reload — locked character history' }) === true);
+  // The regression that fixture alone could not catch: with `message` present, an OR chain would
+  // short-circuit and never look at hint/details, so the fallback silently died.
+  ok('  hint is still read when a message IS present (OR-chain regression)',
+    A.isSealRejection({ message: 'Bad Request', hint: 'locked character history cannot shrink' }) === true);
+  ok('  details is still read when a message IS present',
+    A.isSealRejection({ message: 'Bad Request', details: 'locked character history cannot be rewritten' }) === true);
+  ok('  a message-only unrelated error is still not a seal',
+    A.isSealRejection({ message: 'Bad Request', hint: 'check your input' }) === false);
+  ok('an ordinary network failure is NOT treated as a seal',
+    A.isSealRejection(new Error('Failed to fetch')) === false);
+  ok('the AP-budget trigger is NOT treated as a seal (it is retryable after a DM award)',
+    A.isSealRejection(new Error('PACT: over AP budget by 4 (spent 83 of 79 spendable)')) === false);
+  ok('a null/undefined error does not throw',
+    A.isSealRejection(null) === false && A.isSealRejection(undefined) === false);
+  // These two now exercise the LIFECYCLE rather than restating the imports. The previous pair could not
+  // fail: isSealBlocked('never-seen-id') queried a module-fresh Set nothing in this file ever added to,
+  // and `typeof A.clearSealBlocked === 'function'` asserted an `export function` the import statement
+  // already guarantees. Two green lines that tested nothing, in the exact area a real bug was hiding.
+  ok('an untouched character is not seal-blocked', A.isSealBlocked('never-seen-id') === false);
+  if (typeof A._testMarkSealBlocked === 'function') {
+    A._testMarkSealBlocked('seal-lifecycle-id');
+    ok('a character marked seal-blocked reads back as blocked',
+      A.isSealBlocked('seal-lifecycle-id') === true);
+    A.clearSealBlocked('seal-lifecycle-id');
+    ok('clearSealBlocked lifts the block, which is what makes Cloud -> Load a real remedy',
+      A.isSealBlocked('seal-lifecycle-id') === false);
+    ok('clearing one character does not lift another\'s block',
+      (A._testMarkSealBlocked('a'), A._testMarkSealBlocked('b'), A.clearSealBlocked('a'),
+       A.isSealBlocked('a') === false && A.isSealBlocked('b') === true));
+    A.clearSealBlocked('b');
+  } else {
+    ok('js/sync.js exposes a seam for the seal-block lifecycle (see _testMarkSealBlocked)', false);
+  } }
+// NOT covered here: the end-to-end refusal. The server half is proven by testing/sql/session-seal-test.sql
+// against a real Postgres, and the client half by tool-pricing-ci.mjs in a real browser; this stub server
+// has no error-injection seam, so wiring one would be a larger change than the coverage justifies today.
+
 rmSync(dir, { recursive: true, force: true });
 console.log(`\n✓ ${pass} passed / ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

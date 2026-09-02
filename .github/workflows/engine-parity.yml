@@ -19,6 +19,9 @@ on:
       - "testing/expected/**"
       - "testing/scripts/engine-parity-ci.mjs"
       - "testing/scripts/log-fuzz.mjs"
+      - "testing/scripts/undo-barrier-ci.mjs"
+      - "tools/PACT-CharGen-Webtool.html"
+      - "tools/PACT-Live-Char-Sheet.html"
       - ".github/workflows/engine-parity.yml"
   workflow_dispatch:
 
@@ -58,3 +61,23 @@ jobs:
 
       - name: Run the LOG-direct engine fuzzer
         run: node testing/scripts/log-fuzz.mjs --iterations 3000 --events 60 --seed ${{ github.run_id }}
+
+  undo-barrier:
+    # feat/undo-barrier-shared + feat/session-seal. isUndoBarrier/undoFloor/sealedFloor are ONE rule
+    # relied on by two tools and, in sealedFloor()'s case, mirrored by a database trigger — exactly the
+    # shape whose three hand-written copies this project spent D-GH26/36/37/40 collapsing. The gate that
+    # guards it shipped in PR #492 wired into nothing: no workflow, no README entry, so its 44 assertions
+    # would never have run again. Added here rather than in a new file because it shares this workflow's
+    # fast pure-Node trigger scope; a separate job so a barrier regression reads distinctly from a
+    # fixed-fixture one. The tools/ paths are in scope because both consume the rule.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the shared undo-barrier / sealed-floor gate
+        run: node testing/scripts/undo-barrier-ci.mjs
