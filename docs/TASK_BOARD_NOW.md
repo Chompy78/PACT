@@ -67,13 +67,69 @@ change anything. Sweep-eligible.
 local `close-session-logging-core.md` is confirmed to carry all four patched clauses (or has been
 re-applied), and the stale `gh` path in AGENTS.md's Shell environment notes is corrected.
 
+## A sealed character's DM-removed boons can still be restored — TODO
+Branch `fix/seal-protect-dm-removals`. Successor to the patch half, which SHIPPED on 2026-09-02 as
+`D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats` (species frozen, ability scores ratchet upward).
+What remains is the smaller sibling: **`dmRemoveBoon`** is outside `pact_ap_ledger_protected()`'s WHERE
+clause *and* outside `pact_ap_ledger_spend()`'s sums, so deleting one moves neither trigger's view of the
+log. A player can delete a `dmRemoveBoon` from a locked prefix and `activeEvents()` stops suppressing the
+boon — the DM's removal is undone, inside a supposedly locked history.
 
----
+**Effort:** small · **Risk:** low-medium — the pattern is now established (the species/stats rule shows how
+to compare without breaking legitimate rewrites), and `dmRemoveBoon` is append-only in practice, so unlike
+patch events there is no in-place-rewrite path to accommodate. Damage scale is moderate: it silently
+reverses a DM decision. **NOT sweep-eligible** — it touches the security boundary.
 
-# Conventions
-- One task per branch/commit; re-open `engine-parity.html` after each.
-- Keep `js/engine.js` off-limits unless a task targets it.
-- When a task here is done, move it to `CHANGELOG.md` — don't leave DONE items here.
+```text
+1. Simplest correct fix is probably positional: add 'dmRemoveBoon' to pact_ap_ledger_protected()'s WHERE
+   clause. Confirm FIRST that nothing rewrites or relocates these events — grep both tools and js/dm.js —
+   because that assumption is exactly what made patch events need the harder derived-value treatment.
+2. Measure blast radius against live data before applying, as 2026-09-02 did (it was 0 of 35 characters
+   then; a seal placed since changes that).
+3. Add a case to testing/sql/session-seal-test.sql.
+```
+
+**Done when:** deleting a `dmRemoveBoon` from a locked prefix is refused by the server, a live blast-radius
+measurement is in the PR, and the SQL harness covers it.
+
+## CharGen displays a rules version 25 releases stale — `v0.339` against a live `v0.364` — TODO
+Branch `fix/chargen-stale-rules-label`. Noticed during the v1.499 promotion, while confirming the build
+sync had touched no rules string. CharGen hardcodes the rules version in **two places a player actually
+sees**:
+- `<title>PACT Character Generator — Web Tool v1.499 · Rules v0.339</title>`
+- the header chip: `<span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span>`
+
+`DATA.version` has been `v0.364` since D-GH-2026-08-31 (the creation-ceiling mechanics change). So the tool
+has been telling players it runs a rules set it has not run for twenty-five versions. `index.html` already
+solves exactly this problem for the BUILD number by reading `BUILD` live and never being hand-edited —
+`docs/VERSION-SYNC.md` calls that out as the reason it "can never drift". The rules label should work the
+same way.
+
+**Deliberately NOT fixed during the promotion that found it:** `docs/VERSION-SYNC.md` step 3 says a
+promotion touches the BUILD labels and nothing else, and the rules axis is bumped only when mechanics
+change. Widening a release commit to carry a display fix is how the two axes get conflated, which that
+document exists to prevent.
+**Effort:** small · **Risk:** low — display-only, no rules logic, no `DATA.version` bump (editing a display
+label is a docs-class change per AGENTS.md). Ambiguity is the only real factor: decide once whether the
+other stale `v0.3xx` strings in all three tools are displayed or merely historical comments.
+
+```text
+1. Make CharGen read the rules version LIVE from the engine, the way index.html reads BUILD — the engine
+   is already bridged into the tool (DATA is on window after engine-ready), so this is a render-time
+   assignment, not new plumbing. The <title> needs setting in JS since it cannot template itself.
+2. Audit the other hardcoded v0.3xx strings before assuming they are all bugs:
+     Live Sheet  — v0.303, v0.309, v0.314, v0.322, v0.339
+     DM Console  — v0.351, v0.356
+   Most are probably historical notes in comments/changelog blocks, which SHOULD stay pinned. Only the
+   ones rendered to a user are in scope; say in the PR which were which.
+3. Add a check to an existing gate asserting no DISPLAYED rules string disagrees with DATA.version, so
+   this cannot silently rot again. That guard is the durable half of the task — the label fix alone just
+   resets the clock.
+```
+
+**Done when:** CharGen's title and header chip show `DATA.version`'s live value, every other hardcoded
+`v0.3xx` in the three tools is either fixed or documented as a deliberate historical reference, and a gate
+fails if a displayed rules version drifts from `DATA.version` again.
 
 ## `sql/rls-policies.sql` never received any of the session-seal work — a fresh install has no seal, and re-running it reverts one — TODO
 Branch `fix/rls-policies-seal-backport`. `sql/rls-policies.sql` is this repo's maintained, declared-
@@ -112,3 +168,11 @@ directions. **NOT sweep-eligible** — it touches the security boundary.
 EXECUTE grants matching production for all five functions above (verified by diff, not by eye), placing a
 seal works on that fresh database, and re-running `rls-policies.sql` against production leaves
 `pact_enforce_locked_history` amended and the trigger-function EXECUTE still revoked.
+
+---
+
+# Conventions
+- One task per branch/commit; re-open `engine-parity.html` after each.
+- Keep `js/engine.js` off-limits unless a task targets it.
+- When a task here is done, move it to `CHANGELOG.md` — don't leave DONE items here.
+
