@@ -114,6 +114,29 @@ and are read *first*, which is the worst possible combination. `testing/scripts/
 gates the version numbers a user sees; nothing gates prose, so the only defence is fixing the whole block
 when you are already in it.
 
+### Addendum 2 — the prose tripped the guard it described (2026-09-03)
+
+Shipping the de-rot turned CI red. The new comment asserted that neither tool declares a local
+`compute()` and proved it by quoting the command — writing the literal `function compute(` into both
+files. `testing/scripts/audit.py`'s engine-symbol drift guard matches
+`\bfunction\s+(compute)\s*\(` against **raw file text, comments included**, so the sentence claiming
+the guard finds nothing became the thing it found. audit: 27 passed / 2 failed.
+
+Two ways out, and the choice matters more than the bug:
+
+| | |
+|---|---|
+| **Loosen the guard** to strip comments before matching | Rejected. A commented-out engine symbol is a paste waiting to happen — the guard's whole job is to stop `compute()` reappearing inside a tool, and a commented one is one keystroke from live. Weakening the check that protects the single source of truth, to accommodate a sentence, inverts the priority. |
+| **Reword the prose** | Taken. The comment makes the same point without spelling out a declaration, and now warns the next editor that the guard reads comments. audit 29/0. |
+
+**The process failure is the more useful record.** Before pushing, four gates were run locally
+(engine-parity, version-label, undo-barrier, tool-pricing) and `audit.py` was not — so a check that
+exists, runs in CI, and catches exactly this class of change was skipped by the person editing the file
+it guards. Afterwards every gate CI runs was enumerated from `.github/workflows/*.yml` rather than
+recalled: twelve, of which nine execute in a cloud container and three (`chargen-flows-e2e`,
+`cloud-e2e`, `guide-theme-e2e`) need Playwright, which is not installed there. The lesson is not "run
+more tests" but "derive the gate list from the workflow files, don't remember it".
+
 ## Status (original)
 
 Not covered here, deliberately: whether the `v0.339` fallback literals should exist at all. They are now
