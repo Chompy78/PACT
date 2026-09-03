@@ -42,7 +42,11 @@
 
  HARD CONSTRAINTS (do not break)
    • Single self-contained .html: inline CSS+JS, NO external deps, NO network/CDN, no build step.
-     Must run by opening the file directly (file://).
+     Served over http — GitHub Pages, or any local static server. NOT file://: since D-GH26 the
+     shared rules engine arrives as an ES module (js/engine.js), and browsers refuse module loads
+     from a file:// origin, so opening this file off disk leaves window.DATA undefined and the tool
+     non-functional — not merely degraded. This line used to claim file:// worked; it had not since
+     D-GH26. Restoring it is a LATER consideration (docs/TASK_BOARD_LATER.md), not a live constraint.
    • Prices freeze at purchase; rules-version changes never retro-change paid costs (grandfathered).
    • Persistence is localStorage only. Keep saved-JSON schema backward-compatible.
    • compute() must match the Players-Guide ladders (HD ladder; Ability Increase = 4 + |mod before|;

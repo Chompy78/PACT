@@ -67,46 +67,6 @@ change anything. Sweep-eligible.
 local `close-session-logging-core.md` is confirmed to carry all four patched clauses (or has been
 re-applied), and the stale `gh` path in AGENTS.md's Shell environment notes is corrected.
 
-## `file://` no longer works in any tool — and all three still claim it must — TODO
-Branch `fix/file-protocol-support-or-drop-the-claim`. **Found on 2026-09-02 while disproving a wrong task**
-(see the correction note below). Measured in headless Chromium, opening each tool directly off disk:
-
-| tool | engine loaded | `DATA.version` |
-|---|---|---|
-| CharGen | **no** | `null` |
-| Live Sheet | **no** | `null` |
-| DM Console | **no** | `null` |
-
-Browsers block ES modules over `file://`, so the `engine-ready` bridge introduced by D-GH26 never runs,
-`window.DATA` never exists, and the tool is not merely degraded — it is non-functional. Every version
-label falls back to its hardcoded literal, which is the visible symptom that led here.
-
-Each tool's own header still lists this under **HARD CONSTRAINTS (do not break)**: *"Must run by opening
-the file directly (file://)"*. That constraint has silently not held since the safe-subset migration.
-`AGENTS.md`'s working discipline says the shipped artifact wins over the written guide — so either the
-claim goes, or the capability comes back.
-**Effort:** medium · **Risk:** medium — ambiguity is the whole of it: this is a product decision before
-it is a code one, and the two answers lead to completely different work. **NOT sweep-eligible.**
-
-```text
-0. OWNER DECISION FIRST — is opening a tool straight off disk still a supported use?
-   It is a real scenario for this project: a player handed a .html file, no server, no network. But it
-   has been broken since D-GH26 and nobody reported it, which is itself evidence about how much it is
-   used. Record the answer as a decision either way.
-1a. IF IT MUST WORK: the engine has to reach the tools without ES modules. An inline/classic-script
-    build step is the obvious route and is BARRED by AGENTS.md ("no build step"), so this needs its own
-    decision, not an implementation. Do not start here without one.
-1b. IF IT MAY GO: delete the claim from all three tools' HARD CONSTRAINTS blocks and say plainly what
-    replaces it (served over http, i.e. GitHub Pages or the local dev server) — leaving a false
-    "do not break" line is worse than having no line, because the next agent will defend it.
-2. Either way, note it in docs/HOW-TO-WORK.md next to the dev-server instructions, since that is where
-   someone looks when the file they double-clicked does nothing.
-```
-
-**Done when:** the owner's answer is recorded as a decision, and either `file://` genuinely works in all
-three tools (verified by loading each off disk and confirming `window.DATA` is present), or the HARD
-CONSTRAINTS line is gone from all three with its replacement stated.
-
 ---
 
 # Conventions

@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-02 · fix(tools): drop the false `file://` claim from CharGen and Live Sheet** — both headers
+  listed *"Must run by opening the file directly (file://)"* under **HARD CONSTRAINTS (do not break)**.
+  It had been untrue since D-GH26: the rules engine is an ES module and browsers refuse module loads from
+  a `file://` origin, so opening either tool off disk leaves `window.DATA` undefined and the tool
+  non-functional (measured in headless Chromium — all three tools, engine not loaded, `DATA.version`
+  `null`). Replaced with what is actually true, stating why in place so it is not restored.
+  `docs/HOW-TO-WORK.md` already said `file://` would not work and gained the failure *symptom* so it is
+  recognisable without re-measuring. Restoring `file://` is filed as a LATER consideration
+  (`feat/file-protocol-support`), gated behind relaxing the no-build-step rule. Also de-rotted the Live
+  Sheet's `DATA.version (currently "v0.339")` header comment, stale by 25 releases, into a pointer to the
+  live value. No behaviour change; `DATA.version` untouched. See
+  `D-GH-2026-09-02-file-protocol-support-or-drop-the-claim` — including two corrections: the task that led
+  here was itself wrong, and only two of the three tools carried the claim.
+
 - **2026-09-02 · docs: record that the 2026-08-25 warnings-race fix was incomplete** — added an
   Addendum to `D-GH-2026-08-25-dm-console-warnings-race-flake` (plus a ⚠ pointer on its `DECISIONS.md`
   index entry) so that record no longer reads as "solved". Names the precise analytical gap: it examined

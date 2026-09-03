@@ -47,6 +47,12 @@ chore is gone.
 It's a PWA with ES modules and a service worker, so **`file://` will not work** — you need a local HTTP
 server, and the paths assume the **`/PACT/` base** (that's how GitHub Pages serves it).
 
+**What it looks like when you get this wrong**, because it does not announce itself: the page renders, but
+nothing works. Browsers refuse ES-module loads from a `file://` origin, so `js/engine.js` never runs, the
+`engine-ready` bridge never fires, `window.DATA` stays `undefined`, and every version label sits on its
+hardcoded fallback. Measured in headless Chromium on 2026-09-02: all three tools, engine not loaded,
+`DATA.version` `null`. If a tool looks inert, check the address bar before checking the code.
+
 **The easiest way (Windows, no terminal at all):** double-click **`run-pact.cmd`** in the repo root. It
 shows which branch you're on, lets you paste another branch name to switch to it, then starts the server
 and opens your browser. It also checks Git and Node are installed and explains what to do if not. The

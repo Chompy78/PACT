@@ -342,6 +342,61 @@ Ambiguity is medium (which vocabulary wins is a real design call) and likelihood
 **Done when:** both tools record HD changes in one vocabulary that preserves prior values; folding any
 existing saved LOG (old or new shape) yields an identical build; a fixture covers each shape.
 
+---
+
+## Restore `file://` support — a deliberate consideration, not a bug to fix — TODO
+Branch `feat/file-protocol-support`. **Filed 2026-09-02 as the deferred half of a decision the owner
+already made.** The other half shipped: the three tools' HARD CONSTRAINTS blocks claimed *"Must run by
+opening the file directly (file://)"*, that claim had been false since D-GH26, and it was deleted rather
+than defended. This entry exists so the *capability* is not silently forgotten along with the false claim.
+Nothing is broken today — the app is served over http and works. This is a question about whether a
+use case the project once had should come back.
+
+**What was measured** (headless Chromium, each tool opened directly off disk, 2026-09-02):
+
+| tool | engine loaded | `DATA.version` |
+|---|---|---|
+| CharGen | **no** | `null` |
+| Live Sheet | **no** | `null` |
+| DM Console | **no** | `null` |
+
+Browsers refuse ES-module loads from a `file://` origin, so the `engine-ready` bridge never fires and
+`window.DATA` never exists. The tools are non-functional off disk, not degraded. That has been true since
+the D-GH26 safe-subset migration moved the rules engine into `js/engine.js`, and **nobody reported it in
+that whole window** — which is the single most useful datum here, and argues for leaving this closed.
+
+**The case for reopening it:** the scenario is real for a tabletop tool — hand a player one `.html` file,
+no server, no network, no install. That is what "single self-contained .html" was originally protecting.
+
+**The case against, and why this is LATER and not NEXT:** the only realistic route is inlining the engine
+into each tool at build time, and `AGENTS.md` bars a build step outright ("Vanilla JS only — no
+frameworks, bundlers, TypeScript, or npm"). So this cannot be picked up as an implementation task. It
+needs a decision to relax a hard rule first, and that decision has a real cost: a build step means the
+committed `tools/*.html` stop being the thing you edit, which is a bigger change to how this repo works
+than the feature is worth unless someone actually wants `file://` back.
+
+**Effort:** high · **Risk:** high — not technically, but architecturally: it reopens a settled constraint.
+
+```text
+0. DO NOT START THIS AS CODE. The first deliverable is a decision record answering: is a distributable
+   single-file build worth introducing a build step for? If the answer is no, close this task by moving
+   it to CHANGELOG.md as declined — a recorded "no" is the useful outcome, not a failure.
+1. If yes: scope the build step before writing it. Which artifacts are generated vs authored, where they
+   live, what stops an agent editing the generated copy, and how docs/VERSION-SYNC.md's mirroring rules
+   interact with a generated file. AGENTS.md's "no build step" line must be amended in the same change,
+   not worked around.
+2. Only then implement. An inline-the-module transform is the small part; keeping the served /PACT/ path
+   and the file:// path from diverging is the part that will actually cost time.
+3. Whatever is decided, do not re-add a "must run via file://" line to any tool header unless it has been
+   verified by opening each tool off disk and confirming window.DATA is present. That unverified line is
+   what created this task.
+```
+
+**Done when:** a decision record states whether `file://` is a supported use case — and if the answer is
+no, this task is closed as declined rather than left open; if yes, all three tools load off disk with
+`window.DATA` present, verified by loading each one, and `AGENTS.md`'s no-build-step rule has been
+amended rather than contradicted.
+
 
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
