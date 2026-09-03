@@ -4,6 +4,50 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-03 · fix(testing): the anti-drift guard could not see the drift it was built for**
+  — `/code-review ultra` on PR #503 returned 13 findings; this lands the test/doc half of them.
+  `testing/sql/rls-baseline-test.sql` hashed only `prosrc`, so the `search_path` regression that shipped
+  in the SAME promotion (`pact_ap_ledger_protected` lost `set search_path = public, pg_temp` when the
+  migration was folded into the baseline) was **invisible to it** — proven by injecting the divergence
+  deliberately and watching it print PASS. The hash now covers `proconfig`, `prosecdef` and
+  `provolatile` too. Two further holes in the same file: the comparison is an inner join with no count
+  assertion, so a typo'd or renamed function silently shrank coverage while still reporting SAME-logic
+  (now asserted both sides, 5 and 5); and `pg_temp.rejects()` caught `when others`, so a missing column
+  or a syntax error counted as a passing rejection — rename `characters.stats` and all four probes went
+  green having never fired the trigger (now requires the `PACT: ` prefix). 30 → **32 assertions**, each
+  new one proven to bite by a deliberate break. `testing/scripts/version-label-ci.mjs`: the
+  `check(BUILD, BUILD)` tautology became a real well-formedness assertion, and the `index.html` guard
+  now derives its pattern from any major instead of hardcoding `v1` (a hand-pasted `v2.512` used to sail
+  past the one check on the one file that must never be hand-edited). `testing/scripts/dm-console-ui-e2e.mjs`:
+  the suite-wide stub waits on `window._campBridge` instead of a 2500 ms guess — a slow boot made it
+  throw and abort the suite before assertion 1 — and the sleep moved after the stub install.
+  `docs/VERSION-SYNC.md` said a rules bump "needs **no** rules-label edit in any tool"; three literals
+  say otherwise and CI now asserts them, so the next bump would have gone red against the documented
+  procedure — corrected, with the three sites named. Verified against a real PostgreSQL 16:
+  `rls-baseline-test.sql` 32/32, `session-seal-test.sql` 43/43, `dm-console-ui-e2e` 96/96,
+  `version-label-ci` 10/10. **No production SQL and no app code touched** — the `search_path` fix itself
+  is handed to the session that owns those commits. `DATA.version` and `BUILD` untouched. See
+  `D-GH-2026-09-03-code-review-503-followups`.
+- **2026-09-03 · release: promote `preview` → `main` as build `v1.504` (PR #504)** — carries the two
+  header-truth commits below. Regular merge commit, never squash, per `docs/VERSION-SYNC.md` step 5;
+  verified after the fact that `main`'s head really has two parents. `BUILD` bumped in `js/engine.js` and
+  mirrored to the four tool labels, `index.html` untouched (it reads `BUILD` live), `DATA.version`
+  untouched — confirmed by diffing `js/engine.js` and seeing the `BUILD` constant as its only changed
+  line. All 14 CI checks green. **No tag**, per `D-GH-2026-08-20-tag-only-meaningful-promotions`: this
+  promotion carries comment and documentation corrections only. Verified live by fetching
+  `js/engine.js` off GitHub Pages (`v1.504`) and spot-checking the shipped header prose, rather than
+  stopping at "merged".
+
+- **2026-09-03 · fix(tools): stop the header comment tripping the engine-symbol drift guard** — the
+  de-rot commit below asserted that neither tool declares a local `compute()` and demonstrated it by
+  quoting the grep, writing the literal `function compute(` into both files. `testing/scripts/audit.py`'s
+  drift guard matches that pattern against **raw file text, comments included**, so the sentence claiming
+  the guard finds nothing was itself the thing it found: CI went red at 27 passed / 2 failed. Reworded to
+  make the same point without spelling out a declaration, and the comment now warns the next editor that
+  the guard reads comments too. Deliberately did **not** loosen the guard to ignore comments — a
+  commented-out engine symbol is a paste waiting to happen, and weakening a drift check that protects the
+  single source of truth to accommodate prose is the wrong trade. audit 29/0 (was 27/2).
+
 - **2026-09-02 · fix(tools): drop the false `file://` claim from CharGen and Live Sheet** — both headers
   listed *"Must run by opening the file directly (file://)"* under **HARD CONSTRAINTS (do not break)**.
   It had been untrue since D-GH26: the rules engine is an ES module and browsers refuse module loads from
