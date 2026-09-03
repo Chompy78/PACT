@@ -63,9 +63,32 @@ change anything. Sweep-eligible.
    machine-fact and was hit repeatedly on 2026-09-01.
 ```
 
+> **Measured 2026-09-03 from a cloud session — partial answer, and it reframes step 3.** In this
+> container the skills live at `~/.claude/skills/synced/<uuid>/`, and **`close-session-logging-core.md` is
+> not there at all.** Every `-jc` skill folder holds only `SKILL.md`. That is not the sync dropping
+> siblings: Anthropic-authored skills in the *same* tree do carry theirs — `pdf/` has `FORMS.md` +
+> `REFERENCE.md`, `skill-creator/` has `references/`, `docx`/`pptx`/`xlsx` have `scripts/`. So the
+> mechanism transports sibling files fine, and this one is absent from whatever source feeds that tree.
+>
+> **Consequence, which is worse than the provenance question:** `close-code-session-jc` and
+> `close-chat-jc` both delegate four documented procedures to that file — DECISIONS format detection,
+> task-board graduation, cold-review relocation, and the session-name suggestion. For any session running
+> off the synced skills, those four procedures point at nothing. Hit live while running
+> `/close-code-session-jc` on 2026-09-03; the close was completed by judgement instead.
+>
+> **What this does NOT answer.** `~/.claude/skills/synced/<uuid>/` (cloud) and
+> `C:\Users\user\.claude\skills\` (Windows) may be different distribution channels — nothing here
+> shows they share a source. Step 1 still needs a local session, and step 3's "confirm the patch is still
+> present in the local file" is untouched by this: the Windows copy was not inspected. Steps 2, 4 and 5
+> stand as written.
+>
+> Worth folding into step 2's AGENTS.md note either way: a `-jc` skill's sibling files do not reach a
+> cloud session, so any procedure a skill delegates to one is unavailable there by construction.
+
 **Done when:** AGENTS.md records what writes `~/.claude/skills/` and whether that sync is one-way, the
 local `close-session-logging-core.md` is confirmed to carry all four patched clauses (or has been
-re-applied), and the stale `gh` path in AGENTS.md's Shell environment notes is corrected.
+re-applied), the stale `gh` path in AGENTS.md's Shell environment notes is corrected, and the
+sibling-file gap above is either fixed at the source or recorded as a known limitation of cloud sessions.
 
 ---
 
