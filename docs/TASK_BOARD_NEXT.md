@@ -936,3 +936,154 @@ is a test that has to be rewritten, not a defect shipped. Sweep-eligible.
 online" message, and the clear-on-load; the recorded error body is checked in with a note saying it was
 captured from the live trigger rather than written by hand; and the suite runs in CI without credentials.
 
+
+## `pact_ap_ledger_protected` lost its pinned `search_path` in the fresh-install baseline — TODO
+Branch `fix/protected-projection-search-path`. Confirmed live on `main` (`89dc513`) by
+`/code-review ultra` on PR #503 and verified independently against the repo. Every earlier definition of
+this function — `2026-08-10-campaign-ap-log-integrity.sql`, `2026-09-01-session-seal.sql`,
+`2026-09-01-session-seal-rollback.sql` — declares
+`returns jsonb language sql immutable set search_path = public, pg_temp`.
+`sql/migrations/2026-09-02-widen-protected-projection.sql:57` wrote it as `language sql immutable as $$`
+with no `SET` clause, and `cb323ca` copied that weaker form into `sql/rls-policies.sql:745` — the
+maintained fresh-install path. So every database built the documented way now ships a function whose name
+resolution follows the session `search_path`, undoing what
+`sql/migrations/2026-07-16-harden-search-path-pg-temp.sql` exists to enforce. The Supabase advisor's
+`function_search_path_mutable` WARN on this exact function is the live symptom; PR #503's body dismissed
+it as pre-existing, which is what cements it into the fresh-install path.
+
+`sql/rls-policies.sql:724`'s sibling `pact_ap_ledger_spend` still carries the pin, so this is one
+function, not a family. `testing/sql/rls-baseline-test.sql` did not catch it because it hashed only
+`prosrc`; that hole was closed on 2026-09-03 (`D-GH-2026-09-03-code-review-503-followups`) and the guard
+now compares `proconfig`, so the fix must land in **both** files or the guard goes red.
+**Effort:** small · **Risk:** low-moderate — production SQL, but a `SET` clause only; no logic change.
+
+```text
+1. Add `sql/migrations/2026-09-03-restore-protected-search-path.sql`: `create or replace`
+   pact_ap_ledger_protected with the body EXACTLY as it stands today plus
+   `set search_path = public, pg_temp`, followed by the same
+   `revoke execute ... from public, anon, authenticated` the current migration carries. Do not change
+   the projection. Do not edit the already-applied 2026-09-02 migration.
+2. Make the same one-line change at sql/rls-policies.sql:747 so the baseline and the migrations agree.
+3. Add the check that would have caught this directly, not just its divergence: in
+   testing/sql/rls-baseline-test.sql, assert every function in the checked set has a pinned search_path
+   (`proconfig` contains a `search_path=` entry). It is deliberately absent today only because adding it
+   before this fix would have put CI red on preview.
+4. Apply to production and re-run the Supabase advisor; the function_search_path_mutable WARN for this
+   function must be gone.
+```
+
+**Done when:** `node`-free `psql -f testing/sql/rls-baseline-test.sql` passes (33+ assertions, including
+the new positive search_path check), the same file's drift guard still reports SAME logic, the Supabase
+advisor no longer reports `function_search_path_mutable` for `pact_ap_ledger_protected`, and
+`CHANGELOG.md` + a `DECISIONS.md` pointer record the regression and its window.
+
+## CharGen regenerates the whole LOG, so it cannot reproduce two protected event types — TODO
+Branch `fix/chargen-regenerates-protected-events`. `sql/migrations/2026-09-02-widen-protected-projection.sql:43`
+justifies protecting `dmRemoveBoon` positionally on the grounds that it "is created in exactly one place
+… and every other reference merely READS it. Nothing rewrites or relocates one." That is not true of
+CharGen. `tools/PACT-CharGen-Webtool.html`'s `applyBuild` ends with
+`replaceWholeLogFromBuild(_domReadBuild())`, and `buildToEventLog(b,opts)` is
+`return _buildEventBurst(b)` — the whole LOG is re-synthesised from the DOM. `grep -c dmRemoveBoon
+tools/PACT-CharGen-Webtool.html` returns **0**; `sessionSeal` appears twice but not on that path. Both
+types are inside `pact_ap_ledger_protected()`'s projection.
+
+Predicted symptom, **not yet reproduced against a live character**: open a sealed or DM-edited cloud
+character in CharGen, press Cloud → Save, and the protected array shrinks, so
+`trg_pact_locked_history` raises `PACT: locked character history cannot shrink`. There is no client-side
+guard on this path — `_cgSealPatchRefusal` is wired only into `replacePatchSlot` — so the player would
+see a raw Postgres error, which is the "refuse ordinary editing with no explanation" outcome the
+migration header said it was avoiding. Blast radius today is plausibly zero (0 of 35 live characters had
+a non-empty protected prefix on 2026-09-02) — **re-measure, do not quote that.**
+**Effort:** medium · **Risk:** moderate — the fix is a design call, not a patch.
+
+```text
+1. REPRODUCE FIRST. Build a character with a sessionSeal and a dmRemoveBoon in its LOG, open it in
+   CharGen, save, and record the actual error. If it does not reproduce, say so and stop — the
+   migration header's claim would then be right for a reason worth writing down.
+2. Then decide between: (a) CharGen preserves unreproducible protected events verbatim when it
+   regenerates (carry them across _buildEventBurst rather than dropping them); (b) CharGen refuses to
+   open a character with a non-empty protected prefix, with an explanation, and points at the Live
+   Sheet; (c) the two types leave the positional projection and are protected by derived value the way
+   'patch' buys already are. Present the options with tradeoffs before implementing.
+3. Whichever is chosen, the failure must never surface as a raw Postgres string.
+```
+
+**Done when:** the scenario is reproduced (or proven impossible, with evidence), the chosen fix is
+implemented, a test covers it, and the migration header's "Nothing rewrites or relocates one" claim is
+corrected in place.
+
+## The SQL drift guard's migration list is hardcoded, so it falls behind by design — TODO
+Branch `test/sql-drift-guard-auto-discovery`. `testing/sql/rls-baseline-test.sql` loads exactly four
+migrations by name (the `2026-09-01`/`2026-09-02` set) and checks exactly five function names.
+`sql/migrations/README.md` tells an author to apply a migration, fold it into `sql/rls-policies.sql` and
+run both harnesses — implying CI catches a forgotten fold. It does not: add
+`sql/migrations/2026-09-10-foo.sql` redefining `dm_edit_character_log`, fold it correctly, and the guard
+still loads only the four 2026-09-0x files, so the "migration side" is a stale 2026-09-02 state and the
+comparison is testing the wrong thing. Forget the fold entirely and it passes for the same reason. The
+function-list half of this hole was closed on 2026-09-03 by a count assertion (a typo now fails); the
+migration-list half needs a design decision, which is why it is filed rather than improvised.
+**Effort:** medium · **Risk:** low — test harness only.
+
+```text
+1. Decide how migrations are discovered and ordered: every file in sql/migrations/ in filename order is
+   the obvious rule, but some are one-way/destructive and some (session-seal vs session-seal-rollback)
+   are deliberately paired. Write the rule down before coding it.
+2. If some files must be excluded, make the exclusion list explicit and commented per entry — an
+   unexplained skip is how this class of gap starts.
+3. Derive the function list the same way: every function the loaded migrations define, rather than five
+   hand-typed names.
+4. Prove it: add a throwaway migration that diverges from the baseline and confirm the guard goes red
+   WITHOUT anyone editing the test file.
+```
+
+**Done when:** adding a new migration to `sql/migrations/` requires no edit to
+`testing/sql/rls-baseline-test.sql` for the drift guard to cover it, and step 4's proof is recorded.
+
+## `2026-09-02-widen-protected-projection.sql` was edited after it was applied — TODO
+Branch `docs/migration-record-dm-remove-boon`. The file's header records "BLAST RADIUS: zero. Measured
+before applying" and was applied on 2026-09-02; commit `f2418a9` then rewrote the applied file's `in
+(...)` list to add `dmRemoveBoon` and amended its scope comment. `sql/migrations/README.md`, added in the
+same promotion, states: "A dated migration file is a historical record of one change. It is NOT the
+current definition of anything." To its credit the header documents the extension honestly ("AS FIRST
+SHIPPED AND THEN EXTENDED") — but it says the second change was "applied as `seal_protects_dm_removals`",
+and **no migration file by that name exists** (the only other occurrence in the repo is an `\echo` label
+in `testing/sql/session-seal-test.sql:343`). So replaying `sql/migrations/` in filename order produces in
+one file a state production reached in two, and there is no dated record of when `dmRemoveBoon` was
+actually added.
+**Effort:** small · **Risk:** low — repo history hygiene, no behaviour change.
+
+```text
+1. Confirm with the author which change production actually received and when.
+2. Restore 2026-09-02-widen-protected-projection.sql to what was applied on 2026-09-02, and add a
+   separate dated file for the dmRemoveBoon extension named to match what it was applied as.
+3. If restoring is judged worse than leaving it (a defensible call — the current file IS the end state),
+   then at minimum fix the header so it does not name a file that does not exist, and say plainly that
+   this file represents two applications.
+```
+
+**Done when:** `grep -rn seal_protects_dm_removals sql/` either resolves to a real migration file or the
+reference is gone, and `sql/migrations/` replayed in filename order reproduces production's sequence.
+
+## No `DECISIONS.md` record for either behaviour-changing SQL commit in PR #503 — TODO
+Branch `docs/decisions-for-2026-09-02-sql-commits`. `cb323ca` changed the security posture of the
+documented fresh-install path (which EXECUTE grants exist on trigger functions; that the baseline, not
+the migrations, is the authority) and `f2418a9` changed what the server refuses. `AGENTS.md` per-change
+checklist step 5 requires a `DECISIONS.md` entry when a change involves a non-obvious *why* —
+"security model, trust boundary" is named explicitly — and step 7 says "A merged PR with missing docs is
+treated as incomplete." The `DECISIONS.md` diff in that promotion contains only the
+`D-GH-2026-08-25` warnings-race addendum. The reasoning currently lives only in
+`sql/migrations/README.md` and a workflow comment, neither of which the decisions index points at.
+**Effort:** small · **Risk:** none — docs only. **For the author of those commits**, not a third party:
+writing it from the outside would be reconstruction, which is what this rule exists to prevent.
+
+```text
+1. Add decisions/2026/D-GH-2026-09-02-<slug>.md for the baseline fold: why the baseline and not the
+   migrations is the authority, what the grant changes were, and why re-running rls-policies.sql is now
+   safe when it was not.
+2. Add one for the dmRemoveBoon projection widening — or fold it into the same record if they were one
+   decision.
+3. Add the one-line pointers to DECISIONS.md.
+```
+
+**Done when:** both commits are reachable from `DECISIONS.md`, and each record answers "would a future
+agent wonder why this was done this way?"

@@ -622,6 +622,12 @@
   `testing/expected/` change). `DATA.version` v0.343 → v0.344.
   Full record: `decisions/2026/D-GH-2026-08-16-heritage-pack-pricing.md`.
 
+- **D-GH-2026-09-03-code-review-503-followups** — the anti-drift guard shipped in PR #503 hashed only
+  `prosrc`, so it was structurally blind to the `search_path` regression that shipped in the same
+  promotion; proven by injecting the divergence and watching it pass. Guard now compares `proconfig`,
+  `prosecdef` and `provolatile`, asserts its own coverage count, and stops counting harness errors as
+  rejections. Plus two test-script fixes and a `VERSION-SYNC.md` correction. Production SQL deliberately
+  untouched. Full record: `decisions/2026/D-GH-2026-09-03-code-review-503-followups.md`
 - **D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats** — a locked character's species (and an
   already-set second origin species) is frozen; ability scores may only go UP. Owner ruling. Compared by
   DERIVED value, not event position, because replacePatchSlot() legitimately rewrites patch events in
