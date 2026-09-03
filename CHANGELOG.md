@@ -4,6 +4,26 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-03 · release: promote `preview` → `main` as build `v1.504` (PR #504)** — carries the two
+  header-truth commits below. Regular merge commit, never squash, per `docs/VERSION-SYNC.md` step 5;
+  verified after the fact that `main`'s head really has two parents. `BUILD` bumped in `js/engine.js` and
+  mirrored to the four tool labels, `index.html` untouched (it reads `BUILD` live), `DATA.version`
+  untouched — confirmed by diffing `js/engine.js` and seeing the `BUILD` constant as its only changed
+  line. All 14 CI checks green. **No tag**, per `D-GH-2026-08-20-tag-only-meaningful-promotions`: this
+  promotion carries comment and documentation corrections only. Verified live by fetching
+  `js/engine.js` off GitHub Pages (`v1.504`) and spot-checking the shipped header prose, rather than
+  stopping at "merged".
+
+- **2026-09-03 · fix(tools): stop the header comment tripping the engine-symbol drift guard** — the
+  de-rot commit below asserted that neither tool declares a local `compute()` and demonstrated it by
+  quoting the grep, writing the literal `function compute(` into both files. `testing/scripts/audit.py`'s
+  drift guard matches that pattern against **raw file text, comments included**, so the sentence claiming
+  the guard finds nothing was itself the thing it found: CI went red at 27 passed / 2 failed. Reworded to
+  make the same point without spelling out a declaration, and the comment now warns the next editor that
+  the guard reads comments too. Deliberately did **not** loosen the guard to ignore comments — a
+  commented-out engine symbol is a paste waiting to happen, and weakening a drift check that protects the
+  single source of truth to accommodate prose is the wrong trade. audit 29/0 (was 27/2).
+
 - **2026-09-02 · fix(tools): drop the false `file://` claim from CharGen and Live Sheet** — both headers
   listed *"Must run by opening the file directly (file://)"* under **HARD CONSTRAINTS (do not break)**.
   It had been untrue since D-GH26: the rules engine is an ES module and browsers refuse module loads from
