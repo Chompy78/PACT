@@ -46,7 +46,9 @@
    RULE: rules logic changes go in js/engine.js and nowhere else. This block used to end with
    "any change to the engine or DATA must be mirrored in the other file" — obeying that today
    means re-implementing the rules engine inside a tool, which is the one thing AGENTS.md
-   forbids outright. `grep -c 'function compute(' tools/*.html` returns 0 in both, and should.
+   forbids outright. Neither tool declares a local compute() any more, and neither should — the
+   audit's engine-symbol drift guard (testing/scripts/audit.py) fails the build if one reappears.
+   That guard scans raw file text, comments included, so do not spell a declaration out here.
 
  VERSIONING
    DATA.version is CANONICAL — read it live from js/engine.js; do NOT restate the number here,
