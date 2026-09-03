@@ -25,8 +25,11 @@
  *
  * The literals are not cosmetic. They are what shows before `engine-ready` fires, and they are ALL a
  * user ever sees if the module bridge fails to run at all — which is exactly what happens when the file
- * is opened over file:// (ES modules are blocked there, so window.DATA never exists). See
- * docs/TASK_BOARD_NEXT.md for that separate, larger finding.
+ * is opened over file:// (ES modules are blocked there, so window.DATA never exists). That was settled
+ * on 2026-09-02: file:// is NOT a supported way to run the tools, the false "must run via file://" claim
+ * was removed from both tool headers, and restoring the capability is parked as a LATER consideration.
+ * See decisions/2026/D-GH-2026-09-02-file-protocol-support-or-drop-the-claim.md, and
+ * docs/TASK_BOARD_LATER.md for the open question.
  *
  * TARGETS ARE ENUMERATED, NOT GREPPED. A blanket search for /v0\.3\d\d/ matches dozens of historical
  * code comments ("v0.314 fix", "since v0.355 foldBuild…") which are SUPPOSED to stay pinned to the

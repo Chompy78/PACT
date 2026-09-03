@@ -3,10 +3,16 @@
 <!doctype html>
 <!--
 ═══════════════════════════════════════════════════════════════════════════════
- AI SESSION CONTEXT — READ FIRST  (PACT tools · v0.339)
+ AI SESSION CONTEXT — READ FIRST  (PACT tools)
  Purpose: a fresh AI session can orient from this block alone, no re-briefing.
- Full detail: see  PACT-CONTEXT.md  (authoritative — archive/ is history, do not act on it)
- Rules source of truth:  PACT-Players-Guide-v0.303.docx
+ NO RULES VERSION IS STAMPED HERE ON PURPOSE. This banner read "v0.339" until 2026-09-02,
+ by which time the rules were v0.364 — 25 releases of rot in the one block that calls itself
+ READ FIRST. Read DATA.version from js/engine.js; never restate it here.
+ Full detail: see  AGENTS.md  (repo root — the single source of truth for agent instructions;
+ CLAUDE.md imports it, .github/copilot-instructions.md points at it)
+ Rules source of truth:  js/engine.js  (+ js/engine-data.js). The Players Guide
+ (docs/PACT-Players-Guide.html) is the PROSE, and where the two disagree the engine wins —
+ see AGENTS.md, "Which artefact wins when they disagree".
 ═══════════════════════════════════════════════════════════════════════════════
  PROJECT
    PACT (Points · Aptitudes · Coin · Time) — a points-buy advancement system for
@@ -18,20 +24,29 @@
    Event-sourced: an append-only LOG of AP awards + purchases (prices freeze at the
    moment of purchase). Has undo/redo, a time-travel slider, import/export JSON, a
    buy panel with affordability + rules-legality checks, a printable sheet overlay,
-   an A4 sheet, and an AI portrait-prompt builder. Imports the generator's -livesheet.json.
+   an A4 sheet, and an AI portrait-prompt builder. Opens the same pact-character/1 envelope the
+   generator saves — there is no separate import format.
 
  SIBLING FILE = PACT-CharGen-Webtool*.html (the builder)
    Spend a DM-set AP budget against the price list to assemble a hero, then export
-   a "-livesheet.json" that this tool imports to begin in-play tracking.
+   the shared pact-character/1 envelope this tool imports (⬆ Import), or hands it over in-browser
+   with no file at all via "⇆ Open in Live Sheet" (switchToLiveSheet(), D-GH38). The dedicated
+   "-livesheet.json" export was DELETED by D-GH40 — do not look for it or rebuild one.
 
  ⚠ SHARED, DUPLICATED CODE — THE #1 THING TO GET RIGHT
-   These are copy-pasted into BOTH html files and must stay byte-for-byte in sync:
-     • compute(build)            — the pure AP cost engine (returns total/lines/warnings/hp/ac…)
-     • the DATA {...} blob        — every ladder, table, class, feature, boon, drawback, spell rule
+   Still genuinely copy-pasted into BOTH html files, and must stay in sync:
      • renderCharSheet(b,r,ctx)   — the shared fillable character sheet
      • buildPortraitPrompts(b)    — AI portrait-prompt builder
      • the manual-field layer     — hydrateSheet / csSave / SHEET_TOOL  (this file sets SHEET_TOOL='livesheet')
-   RULE: any change to the engine or DATA must be mirrored in the other file.
+
+   NO LONGER DUPLICATED — do NOT re-add these to this file:
+     • compute(build) and the DATA blob now live ONLY in js/engine.js, imported through the
+       module bridge that fires `engine-ready` (D-GH26); MUT / activeEvents / economy /
+       foldBuild / baseBuild followed (D-GH33/36/37/40).
+   RULE: rules logic changes go in js/engine.js and nowhere else. This block used to end with
+   "any change to the engine or DATA must be mirrored in the other file" — obeying that today
+   means re-implementing the rules engine inside a tool, which is the one thing AGENTS.md
+   forbids outright. `grep -c 'function compute(' tools/*.html` returns 0 in both, and should.
 
  VERSIONING
    DATA.version is CANONICAL — read it live from js/engine.js; do NOT restate the number here,
@@ -41,7 +56,10 @@
    ones are gated by testing/scripts/version-label-ci.mjs.
 
  HARD CONSTRAINTS (do not break)
-   • Single self-contained .html: inline CSS+JS, NO external deps, NO network/CDN, no build step.
+   • One .html per tool with its CSS and UI JS inline, NO third-party deps, NO CDN, no build step.
+     NOT self-contained: it loads sibling modules from js/ (engine.js and, per tool, character-store /
+     auth / campaign / sync / dm / feedback, plus ui-helpers.js as a classic script). That is the
+     intended architecture, not a violation to revert — `tools/` and `js/` must stay siblings.
      Served over http — GitHub Pages, or any local static server. NOT file://: since D-GH26 the
      shared rules engine arrives as an ES module (js/engine.js), and browsers refuse module loads
      from a file:// origin, so opening this file off disk leaves window.DATA undefined and the tool
@@ -2618,8 +2636,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <p>This is the <strong>player tool</strong>. It tracks your character through actual play using an <em>event-sourced</em> log &mdash; every AP award and purchase is recorded in order, so you have a full history and can undo/redo any step. Prices are frozen at the moment of purchase: rules updates never change what you already paid.</p>
   <h3>Getting a character in</h3>
   <ul>
-    <li>Build your character in the <strong>PACT Character Generator</strong>, then click <strong>&#x21C6; Live Sheet</strong> to download a <code>-livesheet.json</code> file.</li>
-    <li>Click <span class="tag">&#x2B06; Import</span> here to load that file. Your full purchase history is reconstructed from it.</li>
+    <li>Build your character in the <strong>PACT Character Generator</strong>, then click <span class="tag">&#x21C6; Open in Live Sheet</span> there. It opens straight here &mdash; nothing is downloaded and there is nothing to import.</li>
+    <li>Prefer a file? In the generator use <span class="tag">&#x1F4C1; Local</span> &rarr; <span class="tag">&#x1F4BE; Save to file</span>, then <span class="tag">&#x2B06; Import</span> it here. Either way your full purchase history is reconstructed.</li>
     <li>Alternatively, start fresh &mdash; the sheet seeds a blank level-1 character automatically.</li>
   </ul>
   <h3>During play</h3>

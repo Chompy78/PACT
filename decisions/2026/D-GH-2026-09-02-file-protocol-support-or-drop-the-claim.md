@@ -77,6 +77,45 @@ Accepted and shipped. Both headers corrected; `docs/HOW-TO-WORK.md` gained the f
 renders, `window.DATA` undefined, version labels on their fallbacks) so the next person recognises it
 without re-measuring. `docs/TASK_BOARD_NOW.md` entry removed; `docs/TASK_BOARD_LATER.md` entry added.
 
+### Addendum — the block was rotten, not just that one line (same day)
+
+A `/code-review ultra` pass over the first commit found that fixing one sentence had left the rest of the
+same "READ FIRST" comment block false, and it applied this decision's own reasoning — *a false line under
+a "do not break" heading is worse than no line* — to what remained. All verified against the files before
+acting; the whole block was then de-rotted in one pass:
+
+| what it said | what is true |
+|---|---|
+| `AI SESSION CONTEXT — READ FIRST (PACT tools · v0.339)` | rules were v0.364; **no** version is stamped there now, by design |
+| `see PACT-CONTEXT.md (authoritative)` | that file does not exist anywhere in the repo → `AGENTS.md` |
+| `Rules source of truth: PACT-Players-Guide-v0.303.docx` | no `.docx` exists; the source of truth is `js/engine.js` |
+| `compute()` and `DATA` are "copy-pasted into BOTH html files" | both live **only** in `js/engine.js` since D-GH26; `grep -c 'function compute(' tools/*.html` → 0, 0 |
+| `RULE: any change to the engine or DATA must be mirrored in the other file` | obeying this means re-implementing the engine in a tool — the one thing `AGENTS.md` forbids outright |
+| `Single self-contained .html … NO external deps` | both tools import 6-7 modules from `js/` plus `ui-helpers.js`; that is the intended architecture |
+| `Exports a "-livesheet.json" that hands the character to the sibling` | deleted by D-GH40; the handoff is the shared envelope, or `switchToLiveSheet()` |
+
+**One of these was player-facing, not just a comment.** The Live Sheet's in-app Tool Guide told players to
+click `⇆ Live Sheet` "to download a `-livesheet.json` file". That button is `⇆ Open in Live Sheet`, it calls
+`switchToLiveSheet()`, and it downloads nothing — so a player following the guide went looking in their
+Downloads folder for a file that was never produced. Rewritten to describe the two routes that exist.
+
+**Not fixed, deliberately:** four items in that block (`renderCharSheet`, `buildPortraitPrompts`,
+`hydrateSheet`/`csSave`) really *are* still copy-pasted into both tools, so the ⚠ heading stays and only the
+migrated rows were removed. The review's write-up implied the whole block was obsolete; it is not, and
+deleting it would have created a new false statement in place of the old one.
+
+The stale claim also survived in `docs/AI_review_prompt.md`, the brief handed to a **cold external
+reviewer** — who by design has no repo access and therefore cannot disprove anything in it. That file
+listed both `file://` support and `DATA.version = "v0.337"` as ground truth. Both corrected.
+
+**The pattern worth naming:** every one of these was written true and left behind by a later change, and all
+of them sat in the block whose stated job is to orient a fresh agent. Orientation comments rot *silently*
+and are read *first*, which is the worst possible combination. `testing/scripts/version-label-ci.mjs` now
+gates the version numbers a user sees; nothing gates prose, so the only defence is fixing the whole block
+when you are already in it.
+
+## Status (original)
+
 Not covered here, deliberately: whether the `v0.339` fallback literals should exist at all. They are now
 gated against drift by `testing/scripts/version-label-ci.mjs`, which is a different question from whether
 a fallback that is only visible in a non-functional state is worth carrying.

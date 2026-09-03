@@ -346,9 +346,12 @@ existing saved LOG (old or new shape) yields an identical build; a fixture cover
 
 ## Restore `file://` support — a deliberate consideration, not a bug to fix — TODO
 Branch `feat/file-protocol-support`. **Filed 2026-09-02 as the deferred half of a decision the owner
-already made.** The other half shipped: the three tools' HARD CONSTRAINTS blocks claimed *"Must run by
-opening the file directly (file://)"*, that claim had been false since D-GH26, and it was deleted rather
-than defended. This entry exists so the *capability* is not silently forgotten along with the false claim.
+already made.** The other half shipped: **two** of the three tools — CharGen and Live Sheet — carried
+*"Must run by opening the file directly (file://)"* in their HARD CONSTRAINTS blocks. That claim had been
+false since D-GH26 and was deleted rather than defended. (DM Console has no such block; its only `file://`
+mention is an incidental storage-fallback comment. An earlier write-up of this said all three carried the
+claim — it did not, and the error is corrected here rather than only in the decision record, because this
+is the file whoever picks the task up will actually read.) This entry exists so the *capability* is not silently forgotten along with the false claim.
 Nothing is broken today — the app is served over http and works. This is a question about whether a
 use case the project once had should come back.
 
