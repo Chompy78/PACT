@@ -10,6 +10,18 @@
 
 ## Index
 
+## D-GH-2026-09-03-dm-zero-player-ap — a DM can zero Player AP, and once ignored it can't creep back up
+- Live audit found three Amble characters (Archer 127, Anders Pipeleaf 79, Caspian 27) carrying non-zero
+  **Player AP** — CharGen's own self-editable "Budget" field, structurally separate from DM-granted
+  `characters.ap` — despite Amble already having `ignore_player_ap` on: that flag only ever gated what
+  got *read*, never what could be *written* (and "Copy to CharGen" doesn't even apply it on read, by
+  documented design). Fixed with a purpose-built `dm_zero_player_ap` RPC (append a computed compensating
+  award, same pattern as `dm_set_creation_ceiling`) exposed as a DM Console button, plus a new
+  `pact_enforce_player_ap_ceiling` trigger that refuses any further rise in a character's own award
+  total once its campaign ignores it — a genuine database-level guarantee, not just a display filter.
+  All three live characters zeroed and verified; the new block was proven live against a simulated
+  self-increase, not just reasoned about. Full record: `decisions/2026/D-GH-2026-09-03-dm-zero-player-ap.md`
+
 ## D-GH-2026-09-02-file-protocol-support-or-drop-the-claim — `file://` is not a supported way to run the tools
 - CharGen and Live Sheet both carried `Must run by opening the file directly (file://).` inside a block
   headed **HARD CONSTRAINTS (do not break)**. It had been false since **D-GH26**: the rules engine moved

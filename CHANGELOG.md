@@ -4,6 +4,21 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-03 · feat(dm): a DM can zero a character's self-declared Player AP, and once a campaign
+  ignores it, it can no longer creep back up** — live-data audit for the Amble campaign found three
+  characters (Archer, Anders Pipeleaf, Caspian) carrying a non-zero "Player AP" (CharGen's own
+  self-editable "Budget" field, an `award`-type LOG total structurally separate from DM-awarded
+  `characters.ap`) — 127/79/27 AP respectively — despite Amble already having `ignore_player_ap` on.
+  Root cause: that campaign flag only ever gated what compute()/the UI *read*, never what could be
+  *written* — "Copy to CharGen" (feat/chargen-dm-view) is a documented, deliberate exception that never
+  re-fetches it, so a DM inspecting a copy saw the raw, uncapped figure. Fixed at both ends: a new
+  `dm_zero_player_ap` RPC (purpose-built, same reasoning as `dm_set_creation_ceiling` — not a
+  `dm_edit_character_log` allowlist widening) appends a dmEdit-stamped compensating award computed from
+  the log itself, exposed in DM Console's "DM tools" panel as a one-click **Zero Player AP** button; and
+  a new trigger, `pact_enforce_player_ap_ceiling`, makes the DB itself refuse any further rise in a
+  character's own (non-dmEdit) award total once its campaign has `ignore_player_ap` on — so the number
+  cannot grow back regardless of which tool or path writes it. All three live characters zeroed via the
+  new RPC. See `D-GH-2026-09-03-dm-zero-player-ap`.
 - **2026-09-03 · fix(testing): the anti-drift guard could not see the drift it was built for**
   — `/code-review ultra` on PR #503 returned 13 findings; this lands the test/doc half of them.
   `testing/sql/rls-baseline-test.sql` hashed only `prosrc`, so the `search_path` regression that shipped

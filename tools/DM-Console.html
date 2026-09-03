@@ -1564,7 +1564,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // {ap, player, playerLabel, dmNotes} — see cloudRoster in loadRoster(). `curBoons` (feat/dm-edit-events)
   // is the character's currently-held boon names, for the remove dropdown — omitted/empty for the
   // no-build-data-yet placeholder card, where there is nothing to remove.
-  function dmToolsBody(id, dm, curBoons, lock){
+  function dmToolsBody(id, dm, curBoons, lock, playerAp, ignoredPlayerAp){
     var h = '<div class="kvs"><div class="kvrow"><span class="kk">Player (account)</span><span class="vv">'+esc(dm.player||'—')+'</span></div>' +
             '<div class="kvrow"><span class="kk" title="AP you have granted this character (the characters.ap column). This is PART OF their spendable total, not extra on top of it — the strip above shows what they can actually spend. Labelled &quot;Bonus DM AP&quot; until 2026-08-04, which read as a spendable figure and was mistaken for one.">DM-granted AP <span style="opacity:.6">&#9432;</span></span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     h += '<div class="ruleblock" style="margin-top:8px"><div class="lbl">Player-name label</div>' +
@@ -1606,6 +1606,25 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
             ? '<button type="button" class="btn sm ghost dm-reopen-btn" data-cid="' + esc(id) + '" title="Put this character back into creation. Purchases already made keep the prices they were frozen at.">Reopen creation</button>'
             : '')
         + '</div><span class="dm-status" data-cid="' + esc(id) + '" data-kind="ceiling" style="font-size:11px;color:var(--muted)"></span></div>';
+    }
+    // ---- Player AP (feat/dm-zero-player-ap) ---------------------------------------------------
+    // "Player AP" is the character's OWN self-declared budget — CharGen's "Budget" field, stored as
+    // award-type LOG events — a pool entirely separate from the DM-granted AP row at the top of this
+    // panel. Shown only when non-zero: most characters never carry one. Goes through the purpose-built
+    // dm_zero_player_ap RPC (same reasoning as the creation-limit controls above — not
+    // dm_edit_character_log, which is deliberately not a general editor).
+    if((playerAp||0) !== 0){
+      h += '<div class="ruleblock"><div class="lbl">Player AP '
+        + '<button type="button" class="infobtn" title="This character\'s own self-declared AP budget (CharGen\'s &quot;Budget&quot; field) — separate from the DM-granted AP above, and not something you awarded. '
+        + (ignoredPlayerAp
+            ? 'This campaign already excludes it from spending, but the stored number could still grow until now — zeroing it here also stops it counting again if that setting is ever read incorrectly.'
+            : 'This campaign is not currently set to ignore player AP, so this number is still part of their spendable total.')
+        + '">&#9432;</button></div>'
+        + '<div style="font-size:11px;color:var(--light);margin-bottom:6px">Currently <b>' + esc(String(playerAp)) + ' AP</b>'
+        + (ignoredPlayerAp ? ' (already excluded from spending by this campaign’s settings)' : '') + '.</div>'
+        + '<button type="button" class="btn sm danger zero-ap-btn" data-cid="' + esc(id) + '" '
+        + 'title="Append a correcting AP award that brings this character\'s Player AP to exactly 0. Never touches DM-granted AP, and nothing already bought is removed.">Zero Player AP</button>'
+        + '<span class="dm-status" data-cid="' + esc(id) + '" data-kind="zeroap" style="font-size:11px;color:var(--muted);margin-left:8px"></span></div>';
     }
     h += '<button type="button" class="btn sm ghost hist-btn" data-cid="'+esc(id)+'">📒 AP history</button>' +
          '<button type="button" class="btn sm danger unbind-btn" data-cid="'+esc(id)+'" style="margin-left:8px">Remove from campaign</button>';
@@ -1763,7 +1782,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   }
   function buildSections(s, id, dm){
     var h = '';
-    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock));
+    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock, s.playerAp, s.ignoredPlayerAp));
     h += secBlock('Skills & Tools', chipGroup('Skills',s.skills)+chipGroup('Tools',s.tools)+chipGroup('Instruments',s.instruments));
     h += secBlock('Expertise & Saves', chipGroup('Expertise',s.expertise)+chipGroup('Saves',s.saves)+chipGroup('Masteries',s.masteries));
     h += secBlock('Saving Throws', saveBody(s));
@@ -2505,7 +2524,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
       if(window._dmPeekActive && t.closest &&
          (t.closest('.award-btn') || t.closest('.seal-btn') || t.closest('.declare-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
           t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') ||
-          t.closest('.dm-ceiling-btn') || t.closest('.dm-reopen-btn') ||
+          t.closest('.dm-ceiling-btn') || t.closest('.dm-reopen-btn') || t.closest('.zero-ap-btn') ||
           t.closest('.cf-val-save'))){
         if(window._dmPeekBlocks) window._dmPeekBlocks();
         return;
@@ -2716,6 +2735,24 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         }).catch(function(err){
           reopenBtn.disabled = false; if(rcSt) rcSt.textContent = '';
           alert('Could not reopen creation: '+err.message);
+        });
+        return;
+      }
+      // ---- Player AP: zero it (feat/dm-zero-player-ap) ------------------------------------------
+      var zeroApBtn = t.closest ? t.closest('.zero-ap-btn') : null;
+      if(zeroApBtn && card){
+        var zcid = zeroApBtn.getAttribute('data-cid');
+        var zSt = card.querySelector('.dm-status[data-cid="'+zcid+'"][data-kind="zeroap"]');
+        var zName = (cloudRoster.filter(function(x){return String(x.id)===String(zcid);})[0]||{}).name || 'this character';
+        if(!confirm('Zero ' + zName + '’s Player AP now?\n\n'
+          + 'This appends a correcting AP award that brings their own self-declared AP budget to exactly '
+          + '0. It never touches DM-granted AP, and nothing they have already bought is removed.')) return;
+        zeroApBtn.disabled = true; if(zSt) zSt.textContent = 'Zeroing…';
+        B.zeroPlayerAp(zcid).then(function(){
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){
+          zeroApBtn.disabled = false; if(zSt) zSt.textContent = '';
+          alert('Could not zero Player AP: '+err.message);
         });
         return;
       }
@@ -2948,13 +2985,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm } from '../js/campaign.js';
-  import { getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation } from '../js/dm.js';
+  import { getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
+  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
