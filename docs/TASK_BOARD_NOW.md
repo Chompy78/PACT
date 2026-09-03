@@ -67,6 +67,45 @@ change anything. Sweep-eligible.
 local `close-session-logging-core.md` is confirmed to carry all four patched clauses (or has been
 re-applied), and the stale `gh` path in AGENTS.md's Shell environment notes is corrected.
 
+## `file://` no longer works in any tool — and all three still claim it must — TODO
+Branch `fix/file-protocol-support-or-drop-the-claim`. **Found on 2026-09-02 while disproving a wrong task**
+(see the correction note below). Measured in headless Chromium, opening each tool directly off disk:
+
+| tool | engine loaded | `DATA.version` |
+|---|---|---|
+| CharGen | **no** | `null` |
+| Live Sheet | **no** | `null` |
+| DM Console | **no** | `null` |
+
+Browsers block ES modules over `file://`, so the `engine-ready` bridge introduced by D-GH26 never runs,
+`window.DATA` never exists, and the tool is not merely degraded — it is non-functional. Every version
+label falls back to its hardcoded literal, which is the visible symptom that led here.
+
+Each tool's own header still lists this under **HARD CONSTRAINTS (do not break)**: *"Must run by opening
+the file directly (file://)"*. That constraint has silently not held since the safe-subset migration.
+`AGENTS.md`'s working discipline says the shipped artifact wins over the written guide — so either the
+claim goes, or the capability comes back.
+**Effort:** medium · **Risk:** medium — ambiguity is the whole of it: this is a product decision before
+it is a code one, and the two answers lead to completely different work. **NOT sweep-eligible.**
+
+```text
+0. OWNER DECISION FIRST — is opening a tool straight off disk still a supported use?
+   It is a real scenario for this project: a player handed a .html file, no server, no network. But it
+   has been broken since D-GH26 and nobody reported it, which is itself evidence about how much it is
+   used. Record the answer as a decision either way.
+1a. IF IT MUST WORK: the engine has to reach the tools without ES modules. An inline/classic-script
+    build step is the obvious route and is BARRED by AGENTS.md ("no build step"), so this needs its own
+    decision, not an implementation. Do not start here without one.
+1b. IF IT MAY GO: delete the claim from all three tools' HARD CONSTRAINTS blocks and say plainly what
+    replaces it (served over http, i.e. GitHub Pages or the local dev server) — leaving a false
+    "do not break" line is worse than having no line, because the next agent will defend it.
+2. Either way, note it in docs/HOW-TO-WORK.md next to the dev-server instructions, since that is where
+   someone looks when the file they double-clicked does nothing.
+```
+
+**Done when:** the owner's answer is recorded as a decision, and either `file://` genuinely works in all
+three tools (verified by loading each off disk and confirming `window.DATA` is present), or the HARD
+CONSTRAINTS line is gone from all three with its replacement stated.
 
 ---
 
@@ -75,40 +114,3 @@ re-applied), and the stale `gh` path in AGENTS.md's Shell environment notes is c
 - Keep `js/engine.js` off-limits unless a task targets it.
 - When a task here is done, move it to `CHANGELOG.md` — don't leave DONE items here.
 
-## `sql/rls-policies.sql` never received any of the session-seal work — a fresh install has no seal, and re-running it reverts one — TODO
-Branch `fix/rls-policies-seal-backport`. `sql/rls-policies.sql` is this repo's maintained, declared-
-re-runnable baseline ("Apply AFTER schema.sql. Safe to re-run"). Every prior migration in this family was
-back-ported into it — 2026-08-10 and 2026-08-22 both were. The session-seal work (2026-09-01, PR #492) was
-**not**, and neither was the 2026-09-02 restore. So the baseline currently:
-- still defines the **pre-seal** `pact_ap_ledger_protected` (no `sessionSeal`, no `payload.v`) and
-  `pact_enforce_locked_history` (campaign-only, award-only);
-- defines **neither** `seal_character_history` nor `award_ap_and_seal` at all;
-- **re-grants** the EXECUTE on both trigger functions that
-  `sql/migrations/2026-09-01-revoke-trigger-function-execute.sql` revokes — while that migration's own
-  header claims it exists so the live grant state "would be reproducible from `sql/` alone."
-
-**Effort:** small–medium · **Risk:** medium — ambiguity is low (the live definitions are readable from
-`pg_proc`), but damage scale is high: this file is what a rebuild applies, and the failure is silent in both
-directions. **NOT sweep-eligible** — it touches the security boundary.
-
-```text
-1. Read the LIVE definitions back from the database, not from the migration files:
-     select proname, pg_get_functiondef(oid) from pg_proc
-      where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_history',
-                        'pact_ap_ledger_protected','pact_enforce_locked_history');
-   This is the whole point of the task. Rebuilding from a dated migration is what caused
-   D-GH-2026-09-02-session-seal-stale-base in the first place.
-2. Update rls-policies.sql to match live, exactly: the amended trigger pair, both seal RPCs, and the
-   REVOKE (not the GRANT) on pact_enforce_locked_history / pact_ap_ledger_protected.
-3. Then prove it: apply schema.sql + rls-policies.sql to a scratch database and diff the resulting
-   pg_proc bodies and pg_proc.proacl against production. A visual read of the file is NOT the check —
-   the bug this task fixes was invisible to exactly that.
-4. While there: add a note at the top of the migrations directory saying dated migration files are
-   historical records and the baseline is rls-policies.sql. Two production regressions in two days came
-   from reading a dated file as current.
-```
-
-**Done when:** a database built from `schema.sql` + `rls-policies.sql` alone has function bodies and
-EXECUTE grants matching production for all five functions above (verified by diff, not by eye), placing a
-seal works on that fresh database, and re-running `rls-policies.sql` against production leaves
-`pact_enforce_locked_history` amended and the trigger-function EXECUTE still revoked.

@@ -126,7 +126,17 @@
   calls silently clobbers the test's data. Fixed by stubbing `listCampaignInvites` for that one check
   block instead of guessing a longer timeout — removes the non-determinism rather than out-waiting it.
   96/96 on 3 consecutive local runs. Test-only change (no `tools/`/`js/`/`sql/` touched), so `main` isn't
-  carrying a live defect — rides the next normal promotion. Full record:
+  carrying a live defect — rides the next normal promotion.
+  **⚠ Addendum 2026-09-02 — that fix was INCOMPLETE and the identical failure recurred** (PR #499's
+  promotion, same 5-of-96 `[]` signature, re-run to green and merged — the second time a re-run has
+  concealed it). The diagnosis above was right; the remedy was scoped wrong. Stubbing
+  `listCampaignInvites` for the warnings block's own duration cannot cancel the fetches the two
+  `P.select('live-1')` calls **above** it had already issued — and this record had cleared those two
+  selects as *victims* ("never exposed to this race") without considering them as *sources*. A race has
+  two ends; only one was audited. Corrected in PR #500 by installing the stub once, before any block
+  runs. Measured rather than re-run: 3 calls issued / **2 unsettled** pre-fix, **0 / 0** after.
+  Consequence recorded for future readers: a `[]`-returning warnings-banner failure is now a known
+  defect class with two instances and must never again be closed by a re-run. Full record:
   `decisions/2026/D-GH-2026-08-25-dm-console-warnings-race-flake.md`.
 
 ## D-GH-2026-08-25-password-reset-flow — password reset was broken end-to-end; fixed the redirect target and built the missing recovery page

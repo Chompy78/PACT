@@ -871,8 +871,30 @@ creating ten concurrent tabs, not to wait longer for them. Verify by running the
 on an unmodified tree.
 ```
 
+**Two observations from 2026-09-02** (a long session that hit this gate repeatedly on unrelated work),
+added because they narrow the fix — neither changes the diagnosis above, and the second may widen it:
+
+*The tab-contention reading is confirmed, not just plausible.* During a failure window the page was
+probed directly over CDP: `window.DATA`, `render`, `#apSourceLine` and `window._engineEcon` were **all
+present**. CharGen does boot — it simply does not finish inside the poll's budget under load. So this is
+contention, not a boot failure or a broken bridge, and nobody need go looking for one.
+
+*A possible SECOND factor — accumulated temp directories — worth ruling in or out before fixing only
+half the cause.* Every run spawns Chromium with a fresh `--user-data-dir` under `/tmp` and never removes
+it, so they pile up across runs. On one tree the gate failed twice consecutively (166/1 each); after
+deleting the accumulated `/tmp/pact-cdp-*` dirs it passed **three consecutive runs (189/0)**. **Treat
+this as a hypothesis, not a result:** it is a single uncontrolled before/after, a stray git worktree was
+removed in the same step, and load on the machine was not held constant. It is cheap to test properly —
+run the gate 10× with cleanup between runs, then 10× without — and it matters because a cloud/web Claude
+Code session runs with a **fixed writable-disk allowance** (a property of that execution environment, not
+something this repo documents), so disk pressure is a credible way to slow browser startup there. On a
+local machine with room to spare the effect may not exist at all, which is itself worth knowing: it would
+explain why this gate misbehaves more in some environments than others. If it holds, reusing one tab per
+tool is a *partial* fix and the script should also clean up its own `--user-data-dir` on exit.
+
 **Done when:** `node testing/scripts/tool-pricing-ci.mjs` passes 10 consecutive runs on an unmodified
-tree, and the tab count it opens is one per tool rather than one per section.
+tree, and the tab count it opens is one per tool rather than one per section. If the temp-directory
+hypothesis above is confirmed, the 10 runs must pass **without** cleanup between them.
 
 ## No end-to-end test covers a real seal rejection — the two halves are only tested apart — TODO
 Branch `test/seal-roundtrip`. The session seal (PR #492, 2026-09-01) ships with both halves covered and
@@ -914,66 +936,3 @@ is a test that has to be rewritten, not a defect shipped. Sweep-eligible.
 online" message, and the clear-on-load; the recorded error body is checked in with a note saying it was
 captured from the live trigger rather than written by hand; and the suite runs in CI without credentials.
 
-## A sealed character's DM-removed boons can still be restored — TODO
-Branch `fix/seal-protect-dm-removals`. Successor to the patch half, which SHIPPED on 2026-09-02 as
-`D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats` (species frozen, ability scores ratchet upward).
-What remains is the smaller sibling: **`dmRemoveBoon`** is outside `pact_ap_ledger_protected()`'s WHERE
-clause *and* outside `pact_ap_ledger_spend()`'s sums, so deleting one moves neither trigger's view of the
-log. A player can delete a `dmRemoveBoon` from a locked prefix and `activeEvents()` stops suppressing the
-boon — the DM's removal is undone, inside a supposedly locked history.
-
-**Effort:** small · **Risk:** low-medium — the pattern is now established (the species/stats rule shows how
-to compare without breaking legitimate rewrites), and `dmRemoveBoon` is append-only in practice, so unlike
-patch events there is no in-place-rewrite path to accommodate. Damage scale is moderate: it silently
-reverses a DM decision. **NOT sweep-eligible** — it touches the security boundary.
-
-```text
-1. Simplest correct fix is probably positional: add 'dmRemoveBoon' to pact_ap_ledger_protected()'s WHERE
-   clause. Confirm FIRST that nothing rewrites or relocates these events — grep both tools and js/dm.js —
-   because that assumption is exactly what made patch events need the harder derived-value treatment.
-2. Measure blast radius against live data before applying, as 2026-09-02 did (it was 0 of 35 characters
-   then; a seal placed since changes that).
-3. Add a case to testing/sql/session-seal-test.sql.
-```
-
-**Done when:** deleting a `dmRemoveBoon` from a locked prefix is refused by the server, a live blast-radius
-measurement is in the PR, and the SQL harness covers it.
-
-## CharGen displays a rules version 25 releases stale — `v0.339` against a live `v0.364` — TODO
-Branch `fix/chargen-stale-rules-label`. Noticed during the v1.499 promotion, while confirming the build
-sync had touched no rules string. CharGen hardcodes the rules version in **two places a player actually
-sees**:
-- `<title>PACT Character Generator — Web Tool v1.499 · Rules v0.339</title>`
-- the header chip: `<span id="cgPactver" class="hd-pactver">PACT rules · v0.339</span>`
-
-`DATA.version` has been `v0.364` since D-GH-2026-08-31 (the creation-ceiling mechanics change). So the tool
-has been telling players it runs a rules set it has not run for twenty-five versions. `index.html` already
-solves exactly this problem for the BUILD number by reading `BUILD` live and never being hand-edited —
-`docs/VERSION-SYNC.md` calls that out as the reason it "can never drift". The rules label should work the
-same way.
-
-**Deliberately NOT fixed during the promotion that found it:** `docs/VERSION-SYNC.md` step 3 says a
-promotion touches the BUILD labels and nothing else, and the rules axis is bumped only when mechanics
-change. Widening a release commit to carry a display fix is how the two axes get conflated, which that
-document exists to prevent.
-**Effort:** small · **Risk:** low — display-only, no rules logic, no `DATA.version` bump (editing a display
-label is a docs-class change per AGENTS.md). Ambiguity is the only real factor: decide once whether the
-other stale `v0.3xx` strings in all three tools are displayed or merely historical comments.
-
-```text
-1. Make CharGen read the rules version LIVE from the engine, the way index.html reads BUILD — the engine
-   is already bridged into the tool (DATA is on window after engine-ready), so this is a render-time
-   assignment, not new plumbing. The <title> needs setting in JS since it cannot template itself.
-2. Audit the other hardcoded v0.3xx strings before assuming they are all bugs:
-     Live Sheet  — v0.303, v0.309, v0.314, v0.322, v0.339
-     DM Console  — v0.351, v0.356
-   Most are probably historical notes in comments/changelog blocks, which SHOULD stay pinned. Only the
-   ones rendered to a user are in scope; say in the PR which were which.
-3. Add a check to an existing gate asserting no DISPLAYED rules string disagrees with DATA.version, so
-   this cannot silently rot again. That guard is the durable half of the task — the label fix alone just
-   resets the clock.
-```
-
-**Done when:** CharGen's title and header chip show `DATA.version`'s live value, every other hardcoded
-`v0.3xx` in the three tools is either fixed or documented as a deliberate historical reference, and a gate
-fails if a displayed rules version drifts from `DATA.version` again.

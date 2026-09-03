@@ -602,11 +602,9 @@ declare
   v_ts         bigint := (extract(epoch from now()) * 1000)::bigint;
   -- fix/dm-edit-boon-amount-check (D-GH-2026-08-10-dm-edit-boon-amount-check): cross-validate that
   -- every boon grant's buy/award pair actually moves the same amount, so the "net 0 to spendable AP"
-  -- promise this migration's own header comment makes is enforced server-side, not just by DM Console's
-  -- client always sending the pair together. FIFO-by-VALUE, not by-name: an award event carries only an
-  -- amount, no reference to which buy it pays for (unlike buyoff/dmRemoveBoon, which carry refVal) — see
-  -- js/engine.js's activeEvents() boughtOff/boonRemoved comment for why value-keyed FIFO (not a single
-  -- shared flag) is required the moment a batch could ever hold more than one boon grant.
+  -- promise this function makes is enforced server-side, not just by DM Console's client always
+  -- sending the pair together. FIFO-by-VALUE, not by-name: an award event carries only an amount, no
+  -- reference to which buy it pays for (unlike buyoff/dmRemoveBoon, which carry refVal).
   v_boon_costs numeric[] := '{}';
   v_award_amts numeric[] := '{}';
   v_award_used boolean[];
@@ -646,11 +644,19 @@ begin
       if v_cat = 'boon' then
         v_boon_costs := v_boon_costs || coalesce((v_ev->>'cost')::numeric, 0);
       end if;
-    elsif v_type not in ('award', 'dmRemoveBoon') then
+    -- [SEAL] 'sessionSeal' added by 2026-09-01-session-seal.sql so a DM can draw the line
+    -- through the same audited, dm-stamped path as every other DM-authored event.
+    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal') then
       raise exception 'dm_edit_character_log: unsupported event type %', v_type;
     end if;
     if v_type = 'award' then
       v_award_amts := v_award_amts || coalesce((v_ev->>'amount')::numeric, 0);
+    end if;
+
+    -- [SEAL] A seal is a marker, not a transaction. Stripping amount/cost keeps it out of
+    -- pact_ap_ledger_spend's sums and out of the boon/award matching arrays above.
+    if v_type = 'sessionSeal' then
+      v_ev := v_ev - 'amount' - 'cost';
     end if;
 
     v_ev := (v_ev - 'seq' - 'ts' - 'dmEdit' - 'dmId')
@@ -737,14 +743,11 @@ end;
 $$;
 
 create or replace function public.pact_ap_ledger_protected(p_log jsonb)
-returns jsonb language sql immutable set search_path = public, pg_temp as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-           'type', ev->>'type', 'cat', ev->>'cat',
-           'cost', ev->>'cost', 'amount', ev->>'amount', 'refVal', ev->>'refVal',
-           'disc', ev->>'disc'
-         ) order by ord), '[]'::jsonb)
+returns jsonb
+language sql immutable as $$
+  select coalesce(jsonb_agg((ev - 'seq' - 'ts' - 'rules' - 'label') order by ord), '[]'::jsonb)
   from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
-  where (ev->>'type') in ('buyoff','names','award')
+  where (ev->>'type') in ('buyoff','names','award','sessionSeal','dmRemoveBoon')
      or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch');
 $$;
 
@@ -796,53 +799,102 @@ create trigger trg_pact_ap_budget_consistency
   for each row execute function public.pact_enforce_ap_budget_consistency();
 
 create or replace function public.pact_enforce_locked_history()
-returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare
-  v_old_log jsonb;
-  v_award_idx int;
-  v_protected_old jsonb;
-  v_protected_new jsonb;
-  i int;
+  v_old_log jsonb; v_award_idx int; v_seal_idx int; v_idx int;
+  v_protected_old jsonb; v_protected_new jsonb; i int;
+  v_old_species text; v_new_species text;
+  v_old_species2 text; v_new_species2 text;
+  v_old_stats jsonb; v_new_stats jsonb; v_key text;
 begin
-  if NEW.campaign_id is null then
-    return NEW;
-  end if;
-  if NEW.stats is not distinct from OLD.stats then
-    return NEW;
-  end if;
-
+  if NEW.stats is not distinct from OLD.stats then return NEW; end if;
   v_old_log := coalesce(OLD.stats->'LOG', '[]'::jsonb);
 
-  -- The same boundary undo() already enforces client-side: the LAST non-discretionary, non-seed
-  -- award event. noLock:true excludes CharGen's creation-budget seed (which churns to the end of
-  -- the log on every resync -- see the migration file's revision note); disc:true excludes a
-  -- player's own explicitly-discretionary Live Sheet award entry, same as undo()'s own check.
-  select max(ord) into v_award_idx
+  select max(ord) into v_seal_idx
   from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
-  where (ev->>'type') = 'award'
-    and not coalesce((ev->>'disc')::boolean, false)
-    and not coalesce((ev->>'noLock')::boolean, false);
+  where (ev->>'type') = 'sessionSeal';
 
-  if v_award_idx is null then
-    return NEW;
+  if NEW.campaign_id is not null then
+    select max(ord) into v_award_idx
+    from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
+    where (ev->>'type') = 'award'
+      and not coalesce((ev->>'disc')::boolean, false)
+      and not coalesce((ev->>'noLock')::boolean, false);
   end if;
+
+  v_idx := greatest(coalesce(v_seal_idx, 0), coalesce(v_award_idx, 0));
+  if v_idx = 0 then return NEW; end if;
 
   v_protected_old := public.pact_ap_ledger_protected(
     (select jsonb_agg(ev order by ord)
        from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
-       where ord <= v_award_idx)
-  );
+       where ord <= v_idx));
   v_protected_new := public.pact_ap_ledger_protected(coalesce(NEW.stats->'LOG', '[]'::jsonb));
 
   if jsonb_array_length(v_protected_new) < jsonb_array_length(v_protected_old) then
-    raise exception 'PACT: locked character history cannot shrink (an AP award already locked it)';
+    raise exception 'PACT: locked character history cannot shrink (% events are sealed or locked by an AP award)', v_idx
+      using hint = 'Reload the character — its history was locked after this copy was loaded.';
   end if;
 
   for i in 0 .. jsonb_array_length(v_protected_old) - 1 loop
     if (v_protected_old -> i) is distinct from (v_protected_new -> i) then
-      raise exception 'PACT: locked character history cannot be rewritten (protected event % changed)', i;
+      raise exception 'PACT: locked character history cannot be rewritten (protected event % changed)', i
+        using hint = 'Reload the character — its history was locked after this copy was loaded.';
     end if;
   end loop;
+
+  select ev->'payload'->'patch'->>'species' into v_old_species
+    from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
+   where ev->>'type'='buy' and ev->>'cat'='patch' and ev->'payload'->'patch' ? 'species'
+   order by ord desc limit 1;
+  select ev->'payload'->'patch'->>'species' into v_new_species
+    from jsonb_array_elements(coalesce(NEW.stats->'LOG','[]'::jsonb)) with ordinality as t(ev, ord)
+   where ev->>'type'='buy' and ev->>'cat'='patch' and ev->'payload'->'patch' ? 'species'
+   order by ord desc limit 1;
+  if v_old_species is not null and v_new_species is distinct from v_old_species then
+    raise exception 'PACT: locked character history — species is frozen (was %, tried to set %)',
+                    v_old_species, coalesce(v_new_species, '(none)')
+      using hint = 'Your DM locked this character. Ask them to change its species for you.';
+  end if;
+
+  select ev->'payload'->'patch'->>'species2' into v_old_species2
+    from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
+   where ev->>'type'='buy' and ev->>'cat'='patch' and ev->'payload'->'patch' ? 'species2'
+   order by ord desc limit 1;
+  select ev->'payload'->'patch'->>'species2' into v_new_species2
+    from jsonb_array_elements(coalesce(NEW.stats->'LOG','[]'::jsonb)) with ordinality as t(ev, ord)
+   where ev->>'type'='buy' and ev->>'cat'='patch' and ev->'payload'->'patch' ? 'species2'
+   order by ord desc limit 1;
+  if v_old_species2 is not null and v_old_species2 <> '(none)'
+     and v_new_species2 is distinct from v_old_species2 then
+    raise exception 'PACT: locked character history — second origin species is frozen (was %, tried to set %)',
+                    v_old_species2, coalesce(v_new_species2, '(none)')
+      using hint = 'Your DM locked this character. Ask them to change it for you.';
+  end if;
+
+  select ev->'payload'->'patch'->'stats' into v_old_stats
+    from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
+   where ev->>'type'='buy' and ev->>'cat'='patch' and ev->'payload'->'patch' ? 'stats'
+   order by ord desc limit 1;
+  select ev->'payload'->'patch'->'stats' into v_new_stats
+    from jsonb_array_elements(coalesce(NEW.stats->'LOG','[]'::jsonb)) with ordinality as t(ev, ord)
+   where ev->>'type'='buy' and ev->>'cat'='patch' and ev->'payload'->'patch' ? 'stats'
+   order by ord desc limit 1;
+
+  if v_old_stats is not null and jsonb_typeof(v_old_stats) = 'object' then
+    for v_key in select jsonb_object_keys(v_old_stats) loop
+      if jsonb_typeof(v_old_stats->v_key) = 'number' then
+        if v_new_stats is null or (v_new_stats->v_key) is null
+           or jsonb_typeof(v_new_stats->v_key) <> 'number'
+           or (v_new_stats->>v_key)::numeric < (v_old_stats->>v_key)::numeric then
+          raise exception 'PACT: locked character history — % cannot go below % (tried %)',
+                          v_key, v_old_stats->>v_key, coalesce(v_new_stats->>v_key, '(removed)')
+            using hint = 'Your DM locked this character. Ability scores can still be raised, but not lowered or moved.';
+        end if;
+      end if;
+    end loop;
+  end if;
 
   return NEW;
 end;
@@ -853,14 +905,143 @@ create trigger trg_pact_locked_history
   before update on public.characters
   for each row execute function public.pact_enforce_locked_history();
 
-grant execute on function public.pact_ap_ledger_spend(jsonb)     to authenticated;
-grant execute on function public.pact_ap_ledger_protected(jsonb) to authenticated;
-grant execute on function public.pact_enforce_ap_budget_consistency() to authenticated;
-grant execute on function public.pact_enforce_locked_history()        to authenticated;
-revoke execute on function public.pact_ap_ledger_spend(jsonb)     from public;
-revoke execute on function public.pact_ap_ledger_protected(jsonb) from public;
-revoke execute on function public.pact_enforce_ap_budget_consistency() from public;
-revoke execute on function public.pact_enforce_locked_history()        from public;
+-- ---------------------------------------------------------------------------
+-- Session-seal RPCs (feat/session-seal, 2026-09-01; award_ap_and_seal's `for update` added 2026-09-02
+-- by D-GH-2026-09-02 restore-dm-edit-guards). These were MISSING from this baseline entirely until
+-- 2026-09-02: a database built the documented fresh-install way (schema.sql + this file) shipped the
+-- tools' Phase-2 UI calling supabase.rpc('seal_character_history') against a database where no such
+-- function existed. Every seal failed, and nothing enforced a seal that did somehow land.
+-- ---------------------------------------------------------------------------
+create or replace function public.seal_character_history(
+  p_character uuid,
+  p_note      text default null,
+  p_idem      text default null
+) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_campaign uuid;
+  v_owner    uuid;
+  v_stats    jsonb;
+  v_log      jsonb;
+  v_seq      integer;
+  v_ev       jsonb;
+  v_ts       bigint := (extract(epoch from now()) * 1000)::bigint;
+begin
+  select campaign_id, owner_id, stats
+    into v_campaign, v_owner, v_stats
+    from characters where id = p_character for update;
+  if not found then
+    raise exception 'Character not found';
+  end if;
+
+  if v_campaign is not null then
+    if not is_campaign_dm(v_campaign) then
+      raise exception 'Only a campaign DM can seal this character''s history';
+    end if;
+    perform assert_campaign_active(v_campaign);
+  elsif v_owner is distinct from auth.uid() then
+    raise exception 'Only the owner can seal a character that is not in a campaign';
+  end if;
+
+  if v_stats is null or not (v_stats ? 'LOG') then
+    raise exception 'Character has no log to seal';
+  end if;
+  v_log := coalesce(v_stats->'LOG', '[]'::jsonb);
+
+  if p_idem is not null then
+    select ev into v_ev
+      from jsonb_array_elements(v_log) as t(ev)
+     where t.ev->>'type' = 'sessionSeal' and t.ev->>'idem' = p_idem
+     limit 1;
+    if v_ev is not null then
+      return v_ev;
+    end if;
+  end if;
+
+  v_seq := coalesce((v_stats->>'SEQ')::integer, jsonb_array_length(v_log) + 1);
+  v_ev := jsonb_build_object(
+    'seq',        v_seq,
+    'ts',         v_ts,
+    'type',       'sessionSeal',
+    'label',      coalesce(nullif(btrim(coalesce(p_note, '')), ''), 'Session sealed'),
+    'note',       coalesce(p_note, ''),
+    'sealedBy',   auth.uid(),
+    'sealedRole', case when v_campaign is null then 'owner' else 'dm' end
+  );
+  if p_idem is not null then
+    v_ev := v_ev || jsonb_build_object('idem', p_idem);
+  end if;
+  -- dmEdit marks ANOTHER account's edit, so it belongs on a DM seal and not on a self-seal. The
+  -- protection does not depend on it either way — `sessionSeal` is a boundary by type.
+  if v_campaign is not null then
+    v_ev := v_ev || jsonb_build_object('dmEdit', true, 'dmId', auth.uid());
+  end if;
+
+  v_stats := jsonb_set(jsonb_set(v_stats, '{LOG}', v_log || jsonb_build_array(v_ev)),
+                       '{SEQ}', to_jsonb(v_seq + 1));
+  update characters set stats = v_stats where id = p_character;
+  return v_ev;
+end;
+$$;
+
+create or replace function public.award_ap_and_seal(
+  -- DEFAULTS MUST BE REPEATED. `create or replace` cannot drop parameter defaults from an existing
+  -- function (Postgres: "cannot remove parameter defaults from existing function"), and the
+  -- 2026-09-01 migration created this with defaults on both text arguments. Omitting them here made
+  -- this file fail outright on a database that already had the function — caught by running
+  -- testing/sql/session-seal-test.sql against a real Postgres 16, not by reading it.
+  p_character uuid, p_amount integer, p_note text default null::text, p_idem text default null::text
+) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_ap integer; v_seal jsonb; v_campaign uuid; v_owner uuid;
+begin
+  -- AUTHORISE FIRST, before the replay shortcut can return anything.
+  -- `for update` added 2026-09-02: serialises concurrent calls sharing one p_idem so the replay
+  -- probe below cannot be passed twice and award_ap() run twice.
+  select campaign_id, owner_id into v_campaign, v_owner from characters where id = p_character for update;
+  if not found then raise exception 'Character not found'; end if;
+  if v_campaign is not null then
+    if not is_campaign_dm(v_campaign) then
+      raise exception 'Only a campaign DM can award AP and seal this character';
+    end if;
+  elsif v_owner is distinct from auth.uid() then
+    raise exception 'Only the owner can seal a character that is not in a campaign';
+  end if;
+
+  if p_idem is not null then
+    select ev into v_seal
+      from characters c, jsonb_array_elements(coalesce(c.stats->'LOG', '[]'::jsonb)) as t(ev)
+     where c.id = p_character and t.ev->>'type' = 'sessionSeal' and t.ev->>'idem' = p_idem limit 1;
+    if v_seal is not null then
+      select ap into v_ap from characters where id = p_character;
+      return jsonb_build_object('ap', v_ap, 'seal', v_seal, 'repeated', true);
+    end if;
+  end if;
+  v_ap   := public.award_ap(p_character, p_amount, p_note);
+  v_seal := public.seal_character_history(p_character, p_note, p_idem);
+  return jsonb_build_object('ap', v_ap, 'seal', v_seal, 'repeated', false);
+end;
+$$;
+
+-- EXECUTE grants — these mirror LIVE state, verified against pg_proc's has_function_privilege on
+-- 2026-09-02. Three of the four lines below used to GRANT to `authenticated`, which silently reverted
+-- sql/migrations/2026-09-01-revoke-trigger-function-execute.sql every time this file was re-run — while
+-- that migration's own header claimed it existed so the grant state "would be reproducible from sql/
+-- alone". A trigger function is not an RPC: triggers execute as the table owner, so nothing needs
+-- EXECUTE on them, and leaving them callable at /rest/v1/rpc is API surface nobody designed.
+-- pact_ap_ledger_spend KEEPS its grant — it is deliberately callable, and live confirms authenticated
+-- can execute it.
+grant  execute on function public.pact_ap_ledger_spend(jsonb)            to authenticated;
+revoke execute on function public.pact_ap_ledger_spend(jsonb)            from public, anon;
+revoke execute on function public.pact_ap_ledger_protected(jsonb)        from public, anon, authenticated;
+revoke execute on function public.pact_enforce_ap_budget_consistency()   from public, anon, authenticated;
+revoke execute on function public.pact_enforce_locked_history()          from public, anon, authenticated;
+
+-- The seal RPCs ARE meant to be called by a signed-in user; both gate authorisation internally.
+revoke execute on function public.seal_character_history(uuid, text, text) from public, anon;
+grant  execute on function public.seal_character_history(uuid, text, text) to authenticated;
+revoke execute on function public.award_ap_and_seal(uuid, integer, text, text) from public, anon;
+grant  execute on function public.award_ap_and_seal(uuid, integer, text, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- campaign_invites — unified player+dm invite tokens (extended from player-only by
