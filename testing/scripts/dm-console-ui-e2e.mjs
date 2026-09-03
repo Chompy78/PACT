@@ -46,7 +46,13 @@ page.on('pageerror', e => errors.push(String(e)));
 page.on('console', m => { if (m.type()==='error') errors.push('console: '+m.text()); });
 
 await page.goto(`http://localhost:${PORT}/PACT/tools/DM-Console.html`, { waitUntil:'load' });
-await page.waitForTimeout(2500);
+
+// WAIT ON THE BRIDGE, DON'T SLEEP TOWARDS IT. `_campBridge` lands on `campaign-ready`, after the
+// deferred module runs; the stub below dereferences it. Behind a bare `waitForTimeout` a slow boot on
+// a loaded runner made `page.evaluate` throw "Cannot set properties of undefined" and abort the whole
+// suite BEFORE assertion 1 — turning a flake into a hard failure with no diagnosis. This is the same
+// rule the stub's own comment cites two paragraphs down, applied to the stub itself.
+await page.waitForFunction(() => !!window._campBridge, { timeout: 15000 });
 
 // NO REAL listCampaignInvites ANYWHERE IN THIS SUITE. Installed here, before any block runs, and
 // deliberately never restored.
@@ -75,6 +81,11 @@ await page.waitForTimeout(2500);
 // Safe to leave installed for the whole run: nothing here asserts on real invite-loading behaviour,
 // and every block needing invite data seeds it directly via P.seedInvites().
 await page.evaluate(()=>{ window._campBridge.listCampaignInvites = () => Promise.resolve([]); });
+
+// Settle the rest of the boot (grids, rosters, the campaign list) only AFTER the stub is installed —
+// a stub cannot cancel a request already issued, so every millisecond it is late is a window in which
+// a real call can still be in flight.
+await page.waitForTimeout(2500);
 
 // 1. no JS errors that would kill the panel wiring
 const fatal = errors.filter(e => !/Failed to load resource|net::|supabase|fetch|NetworkError|Load failed/i.test(e));

@@ -81,21 +81,42 @@ Everything else must **match** that value:
 Bump only when the rules data actually changes (ladders, prices, gates, `compute()` output), as part
 of whichever feature PR makes that change — same as before this document's build-version change.
 
-### Rules version display sites — all three are LIVE, none need hand-editing
+### Rules version display sites — live at runtime, but THREE fallback literals must be hand-edited
 
-Unlike `BUILD` above, every on-screen "PACT rules · vX" label reads `DATA.version` live at
-`engine-ready` — there is no rules-version literal anywhere in `tools/` that a rules bump must touch
-(fixed for CharGen's chip by `fix/chargen-rules-label-live`; Live Sheet and DM Console were already
-live before that task, per `RULES=(window.DATA&&window.DATA.version)||RULES` in both).
+Every on-screen "PACT rules · vX" label reads `DATA.version` live at `engine-ready`, so at runtime no
+label can drift (fixed for CharGen's chip by `fix/chargen-rules-label-live`; Live Sheet and DM Console
+were already live before that task, per `RULES=(window.DATA&&window.DATA.version)||RULES` in both).
 
-| Tool | Live source |
-|------|-------------|
-| `tools/PACT-CharGen-Webtool.html` | `#cgPactver` chip + `<title>`'s "Rules" half, both set from `window.DATA.version` on `engine-ready` |
-| `tools/PACT-Live-Char-Sheet.html` | `RULES` var + `#lsRulesVer`, set from `window.DATA.version` in `_lsBoot()` |
-| `tools/DM-Console.html` | `RULES` var + `#rulesVer`, set from `window.DATA.version` on `engine-ready` |
+> **⚠ Corrected 2026-09-03. This section previously said "there is no rules-version literal anywhere in
+> `tools/` that a rules bump must touch" and "a `DATA.version` bump needs **no** rules-label edit in any
+> tool." Both were wrong**, and following them would now fail CI. Three of the sites below carry a
+> hardcoded literal in the markup as the pre-`engine-ready` fallback, and since `99b024a`
+> `testing/scripts/version-label-ci.mjs` asserts each equals `DATA.version`. Because `version:"v0.364"`
+> lives in `js/engine-data.js`, which is inside `engine-parity.yml`'s path filter, the very next rules
+> bump triggers that gate and it goes red on three stale literals — while this document told the author
+> no tool edit was required. Found by `/code-review ultra` on PR #503. Per `AGENTS.md`: when a shipped
+> artifact disagrees with a written doc, the artifact is what was really built — fix the doc.
 
-A `DATA.version` bump therefore needs **no** rules-label edit in any tool — only `js/engine.js`'s own
-`DATA.version` string, plus `testing/expected/` if `compute()` output moved.
+The literals are not cosmetic. They are what shows before `engine-ready` fires, and they are **all** a
+user ever sees if the module bridge never runs at all.
+
+| Tool | Live source | Hand-edit on a rules bump? |
+|------|-------------|----------------------------|
+| `tools/PACT-CharGen-Webtool.html` | `#cgPactver` chip + `<title>`'s "Rules" half, both set from `window.DATA.version` on `engine-ready` | **Yes — both.** `<title>…Rules v0.NNN</title>` and `id="cgPactver">PACT rules · v0.NNN<` |
+| `tools/PACT-Live-Char-Sheet.html` | `RULES` var + `#lsRulesVer`, set from `window.DATA.version` in `_lsBoot()` | **Yes — one.** `id="lsRulesVer">v0.NNN<` |
+| `tools/DM-Console.html` | `RULES` var + `#rulesVer`, set from `window.DATA.version` on `engine-ready` | No — genuinely has no literal |
+
+A `DATA.version` bump therefore needs: `js/engine-data.js`'s own `version` string, **the three literals
+above**, plus `testing/expected/` if `compute()` output moved. Run
+`node testing/scripts/version-label-ci.mjs` to confirm — it is the authority on this list, and it goes
+red rather than skipping if an element is renamed.
+
+#### One-line prompt (rules bump)
+
+> Bump PACT's rules version to `v0.NNN`: update `version` in `js/engine-data.js`, the `<title>` "Rules"
+> half and the `#cgPactver` chip literal in `PACT-CharGen-Webtool.html`, and the `#lsRulesVer` literal
+> in `PACT-Live-Char-Sheet.html`. Do **not** touch `DM-Console.html` (no literal) or any `BUILD` string.
+> Then run `node testing/scripts/version-label-ci.mjs` — expect 10 passed / 0 failed.
 
 ## Cross-project: the Players Guide (`pact-guide`)
 

@@ -78,7 +78,11 @@ check('Live Sheet #lsRulesVer fallback literal',
 
 console.log(`\nBuild version — every mirror must equal BUILD (${BUILD}); see docs/VERSION-SYNC.md`);
 
-check('js/engine.js is the source of truth', BUILD, BUILD);   // trivially true; anchors the section
+// Anchors the section AND earns its place: `BUILD` is the value every mirror below is compared
+// against, so a malformed sync commit (v1.5O3, "v1.503 ", 1.503) would otherwise make nine checks
+// agree on a wrong string. `check(BUILD, BUILD)` stood here and could not fail by construction.
+check('js/engine.js BUILD is well-formed (vMAJOR.PR)',
+  /^v\d+\.\d{3,}$/.test(BUILD) ? BUILD : `malformed: ${JSON.stringify(BUILD)}`, BUILD);
 check('CharGen line-1 comment',
   grab(CG, /PACT-CharGen-Webtool (v[\d.]+)\.html/), BUILD);
 check('CharGen <title> build half',
@@ -90,12 +94,17 @@ check('Live Sheet line-1 comment',
 check('DM Console TOOL_VERSION',
   grab(DM, /var TOOL_VERSION = '(v[\d.]+)'/), BUILD);
 
-// index.html is deliberately NOT checked: docs/VERSION-SYNC.md says it reads BUILD live and must never
-// be hand-edited, so a literal appearing there would be the bug, not a value to verify. Assert its
-// absence instead.
+// index.html is deliberately NOT checked for a value: docs/VERSION-SYNC.md says it reads BUILD live and
+// must never be hand-edited, so a literal appearing there would be the bug, not a value to verify.
+// Assert its absence instead.
+//
+// The pattern is DERIVED FROM BUILD, not written as /v1\.\d{3}/. VERSION-SYNC.md:46 documents the major
+// as manual and carried forward "unless a human explicitly decides this release deserves a new one" —
+// a literal `1` here would stop matching the day that happens, so a hand-pasted `v2.512` would sail
+// past the one check guarding the one file that must never be hand-edited. `v\d+` covers any major.
 const idx = read('index.html');
 check('index.html hardcodes no build version (it reads BUILD live)',
-  /v1\.\d{3}/.test(idx) ? 'a hardcoded build version' : 'none', 'none');
+  /v\d+\.\d{3,}/.test(idx) ? 'a hardcoded build version' : 'none', 'none');
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} ${pass} passed / ${fail} failed`);
 process.exit(fail ? 1 : 0);

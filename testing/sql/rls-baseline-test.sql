@@ -77,14 +77,24 @@ begin
   else raise exception 'FAIL %', p_name; end if;
 end $$;
 
-create or replace function pg_temp.rejects(p_name text, p_sql text) returns void
-language plpgsql as $$
+-- The rejection must come from OUR trigger, not from any error at all. `when others` with a bare
+-- notice counted a syntax error, a missing column or a bad cast as a passing rejection: rename
+-- characters.stats and all four rejects() calls would report PASS on 'column "stats" does not exist'
+-- while never once firing trg_pact_locked_history — the suite green with zero seal coverage. Every
+-- protection this file exercises raises with a distinctive 'PACT: ' prefix, so require it, and treat
+-- anything else as a harness failure that goes red.
+create or replace function pg_temp.rejects(p_name text, p_sql text, p_expect text default 'PACT: %')
+returns void language plpgsql as $$
 begin
   execute p_sql;
   raise exception 'FAIL % (the write was ALLOWED)', p_name;
 exception
   when others then
     if sqlerrm like 'FAIL %' then raise; end if;
+    if sqlerrm not like p_expect then
+      raise exception 'FAIL % (HARNESS ERROR, not a rejection — expected % but got: %)',
+        p_name, p_expect, left(sqlerrm, 120);
+    end if;
     raise notice '  PASS % (rejected: %)', p_name, left(sqlerrm, 60);
 end $$;
 
@@ -222,14 +232,39 @@ select pg_temp.rejects('...and the protections still fire after a re-run',
 -- removed. The last of those is not fussiness — production and the repo genuinely differ by a single
 -- space in seal_character_history's `end)` and nothing else, and a comparison that called that a
 -- mismatch would cry wolf until someone silenced it.
+--
+-- COMPARED ON MORE THAN THE BODY. `prosrc` alone leaves a function's SECURITY posture out of the
+-- comparison entirely — and that is not hypothetical: on 2026-09-02 the fold into the baseline dropped
+-- `set search_path = public, pg_temp` from pact_ap_ledger_protected, which lives in `proconfig`, and
+-- this guard passed. Proven by injecting the divergence deliberately and watching it print PASS
+-- (2026-09-03, /code-review ultra on PR #503). So the hash now covers, per function:
+--     prosrc      the logic
+--     proconfig   the SET clauses — search_path above all
+--     prosecdef   security definer vs invoker
+--     provolatile immutable / stable / volatile
+-- Drop `security definer` from a trigger function in one source only and this now goes red instead of
+-- reporting SAME logic.
 create table pg_temp.baseline_bodies as
 select proname,
   md5(regexp_replace(regexp_replace(regexp_replace(
        regexp_replace(prosrc, '--[^\n]*', '', 'g'), '\s+', ' ', 'g'),
-       ' *([(),;]) *', '\1', 'g'), '^ | $', '', 'g')) as norm
+       ' *([(),;]) *', '\1', 'g'), '^ | $', '', 'g')
+      || ' cfg=' || coalesce(array_to_string(proconfig, ','), '')
+      || ' secdef=' || prosecdef
+      || ' vol=' || provolatile::text) as norm
 from pg_proc
 where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_history',
                   'pact_ap_ledger_protected','pact_enforce_locked_history');
+
+-- THE GUARD NEEDS ITS OWN GUARD. The comparison below is an INNER JOIN with no count assertion, so a
+-- function missing from one side simply produces no row, v_bad stays empty, and the whole thing prints
+-- PASS having checked nothing. A typo in the five names above, or a future migration renaming one, and
+-- this file silently stops covering it. version-label-ci.mjs states the rule one directory over: "A
+-- missing match is a FAILURE, not a skip." Assert the count on both sides.
+do $$ begin
+  perform pg_temp.ok('all 5 baseline function bodies were snapshotted',
+    (select count(*) from pg_temp.baseline_bodies) = 5);
+end $$;
 
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
 \ir ../../sql/migrations/2026-09-02-restore-dm-edit-guards.sql
@@ -237,19 +272,25 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
 \ir ../../sql/migrations/2026-09-02-seal-freezes-species-and-ratchets-stats.sql
 
 do $$
-declare r record; v_bad text := '';
+declare r record; v_bad text := ''; v_n int := 0;
 begin
   for r in
     select b.proname, b.norm as baseline_norm,
       md5(regexp_replace(regexp_replace(regexp_replace(
            regexp_replace(p.prosrc, '--[^\n]*', '', 'g'), '\s+', ' ', 'g'),
-           ' *([(),;]) *', '\1', 'g'), '^ | $', '', 'g')) as migration_norm
+           ' *([(),;]) *', '\1', 'g'), '^ | $', '', 'g')
+          || ' cfg=' || coalesce(array_to_string(p.proconfig, ','), '')
+          || ' secdef=' || p.prosecdef
+          || ' vol=' || p.provolatile::text) as migration_norm
     from pg_temp.baseline_bodies b join pg_proc p on p.proname = b.proname
   loop
+    v_n := v_n + 1;
     if r.baseline_norm is distinct from r.migration_norm then
       v_bad := v_bad || r.proname || ' ';
     end if;
   end loop;
+  perform pg_temp.ok('the drift comparison actually covered all 5 functions (saw ' || v_n || ')',
+    v_n = 5);
   perform pg_temp.ok('rls-policies.sql and the migrations define the SAME logic'
     || case when v_bad = '' then '' else ' — DIVERGED: ' || v_bad end, v_bad = '');
 end $$;
