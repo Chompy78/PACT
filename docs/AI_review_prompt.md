@@ -22,7 +22,7 @@ The engine is a browser-native ES module:
 - No Node APIs
 - No bundler
 - No build step
-- Tools open directly via `file://`
+- Tools are served over **http** (GitHub Pages, or a local static server). `file://` does **not** work and is not supported — ES modules are blocked on that origin, so the engine never loads. Do not treat `file://` compatibility as a constraint; a prior version of this brief wrongly listed it as one.
 
 Exports include:
 
@@ -39,7 +39,7 @@ Exports include:
 Current version:
 
 ```js
-DATA.version = "v0.337"
+DATA.version = read it live from `js/engine.js` (this brief said "v0.337"; the rules were at v0.364 by 2026-09-02 — do not reason from a version number pinned in a briefing document)
 ```
 
 File size:

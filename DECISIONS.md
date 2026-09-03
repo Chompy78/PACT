@@ -10,6 +10,20 @@
 
 ## Index
 
+## D-GH-2026-09-02-file-protocol-support-or-drop-the-claim — `file://` is not a supported way to run the tools
+- CharGen and Live Sheet both carried `Must run by opening the file directly (file://).` inside a block
+  headed **HARD CONSTRAINTS (do not break)**. It had been false since **D-GH26**: the rules engine moved
+  into `js/engine.js` as an ES module, and browsers refuse module loads from a `file://` origin, so the
+  `engine-ready` bridge never fires. Measured off disk in headless Chromium — all three tools, engine not
+  loaded, `DATA.version` `null`: non-functional, not degraded. The claim was **removed** and replaced with
+  what is true (served over http), rather than the capability being rebuilt: the only route back is
+  inlining the engine at build time, and `AGENTS.md` bars a build step, so that is a request to relax a
+  hard rule and not an implementation task. It is filed as a LATER consideration
+  (`feat/file-protocol-support`) with "declined" named as a legitimate outcome. Decisive fact: this broke
+  at D-GH26 and **nobody reported it since**. Two corrections are recorded in the full record — the task
+  that led here (a stale-version claim written from a grep) was itself wrong, and only **two** of three
+  tools carried the line, not all three. Full record: `decisions/2026/D-GH-2026-09-02-file-protocol-support-or-drop-the-claim.md`
+
 ## D-GH-2026-09-01-feature-cost-customization — a DM may re-price any row of their campaign's band
 - The economy shipped with three settings and no dial between them. A DM may now re-price any ROW of
   the band their campaign plays on, separately for gold and for downtime, by a **multiplier** or a

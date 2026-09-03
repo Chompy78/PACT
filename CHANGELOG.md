@@ -4,6 +4,38 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-02 · fix(tools): drop the false `file://` claim from CharGen and Live Sheet** — both headers
+  listed *"Must run by opening the file directly (file://)"* under **HARD CONSTRAINTS (do not break)**.
+  It had been untrue since D-GH26: the rules engine is an ES module and browsers refuse module loads from
+  a `file://` origin, so opening either tool off disk leaves `window.DATA` undefined and the tool
+  non-functional (measured in headless Chromium — all three tools, engine not loaded, `DATA.version`
+  `null`). Replaced with what is actually true, stating why in place so it is not restored.
+  `docs/HOW-TO-WORK.md` already said `file://` would not work and gained the failure *symptom* so it is
+  recognisable without re-measuring. Restoring `file://` is filed as a LATER consideration
+  (`feat/file-protocol-support`), gated behind relaxing the no-build-step rule. Also de-rotted the Live
+  Sheet's `DATA.version (currently "v0.339")` header comment, stale by 25 releases, into a pointer to the
+  live value. No behaviour change; `DATA.version` untouched. See
+  `D-GH-2026-09-02-file-protocol-support-or-drop-the-claim` — including two corrections: the task that led
+  here was itself wrong, and only two of the three tools carried the claim.
+
+- **2026-09-02 · fix(tools): de-rot the whole "READ FIRST" header block, not just the one false line** —
+  a `/code-review ultra` pass over the change above found that the same comment block still told a fresh
+  agent to read two files that do not exist (`PACT-CONTEXT.md`, `PACT-Players-Guide-v0.303.docx`), stamped
+  itself `v0.339` against a live v0.364, claimed `compute()` and `DATA` were "copy-pasted into BOTH html
+  files" with a RULE to keep mirroring them — which today means re-implementing the rules engine inside a
+  tool, the one thing `AGENTS.md` forbids — described the tools as having "NO external deps" when both
+  import 6-7 modules from `js/`, and described the deleted D-GH40 `-livesheet.json` export as the
+  CharGen→Live Sheet handoff. All corrected against the files. **One was player-facing:** the Live Sheet's
+  in-app Tool Guide told players to click `⇆ Live Sheet` "to download a `-livesheet.json` file" — that
+  button is `⇆ Open in Live Sheet`, downloads nothing, and hands the character over in-browser, so players
+  were sent hunting for a file that was never produced; rewritten to describe the two routes that exist.
+  The four items in that block which genuinely ARE still duplicated (`renderCharSheet`,
+  `buildPortraitPrompts`, `hydrateSheet`/`csSave`) were kept. Also corrected the same `file://` claim in
+  `docs/AI_review_prompt.md` — the brief for a cold reviewer who cannot check it — along with its pinned
+  `DATA.version = "v0.337"`, and repointed `version-label-ci.mjs`'s dead `TASK_BOARD_NEXT.md` reference.
+  Comments and docs only; no behaviour change. See the Addendum to
+  `D-GH-2026-09-02-file-protocol-support-or-drop-the-claim`.
+
 - **2026-09-02 · docs: record that the 2026-08-25 warnings-race fix was incomplete** — added an
   Addendum to `D-GH-2026-08-25-dm-console-warnings-race-flake` (plus a ⚠ pointer on its `DECISIONS.md`
   index entry) so that record no longer reads as "solved". Names the precise analytical gap: it examined
