@@ -19,6 +19,13 @@
   character's own (non-dmEdit) award total once its campaign has `ignore_player_ap` on — so the number
   cannot grow back regardless of which tool or path writes it. All three live characters zeroed via the
   new RPC. See `D-GH-2026-09-03-dm-zero-player-ap`.
+- **2026-09-03 · fix(chargen): "Copy to CharGen" now shows the same Player AP figure as every live
+  view** — same-day follow-up to the entry above. The sandbox's `_cgDmOpts()` hardcoded
+  `ignorePlayerAp:false`, so a DM's copy of a character in a campaign that ignores player-entered AP
+  still counted it in full, disagreeing with Live Sheet/DM Console/a live CharGen session. Fixed by
+  freezing the source campaign's `ignore_player_ap` at copy-open time, the same way DM AP is already
+  frozen. Display-only — the new DB trigger already meant the stored figure could never really have
+  grown, only been shown wrong.
 - **2026-09-03 · fix(testing): the anti-drift guard could not see the drift it was built for**
   — `/code-review ultra` on PR #503 returned 13 findings; this lands the test/doc half of them.
   `testing/sql/rls-baseline-test.sql` hashed only `prosrc`, so the `search_path` regression that shipped

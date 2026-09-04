@@ -119,6 +119,9 @@ Pipeleaf and Caspian all confirmed at Player AP 0. `js/engine.js` untouched — 
   itself).
 - `sql/migrations/2026-09-01-dm-creation-ceiling.sql` — the purpose-built-RPC pattern this follows.
 - `feat/chargen-dm-view` (D-GH-2026-08-10-chargen-dm-view) — the "Copy to CharGen" sandbox whose
-  documented non-live `ignorePlayerAp` is what first surfaced the gap this closes; still not itself
-  patched to re-fetch the live flag (a smaller, separate display fix, left as a NEXT candidate rather
-  than folded in here).
+  documented non-live `ignorePlayerAp` is what first surfaced the gap this closes. **Patched same day**
+  (follow-up, still this decision): `_cgConsumeViewChar()` now freezes the source campaign's
+  `ignore_player_ap` at copy-open time, the same way it already freezes DM AP, and `_cgDmOpts()` reads
+  that instead of a hardcoded `false`. Display-only — the database-level ceiling above already meant
+  the stored figure could never really have grown, only been shown wrong. `drawbackCap` has the
+  identical shape of gap in the same function and is NOT yet frozen the same way — left open.
