@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-05 · release: promote `preview` → `main` as build `v1.520` (PR #520)** — carries six commits:
+  the protected-event reproduction and its new gate, two documentation corrections, and three session
+  records. Regular merge commit, never squash, per `docs/VERSION-SYNC.md` step 5; **verified after the
+  fact that `main`'s head really has two parents**, and that `main` and `preview` share an identical tree
+  hash (`e062f841…`) rather than merely "no commits ahead". `BUILD` bumped in `js/engine.js` and mirrored
+  to the four tool labels, `index.html` untouched (it reads `BUILD` live), `DATA.version` untouched at
+  `v0.365`. All **16 CI checks green**. **No tag**, per
+  `D-GH-2026-08-20-tag-only-meaningful-promotions`: test infrastructure and documentation only, no shipped
+  behaviour change. **A procedural note worth carrying:** step 3 says to push the `BUILD` commit onto the
+  promotion PR's own branch, which for a `preview`→`main` promotion means pushing to `preview` — and a
+  cloud session can push only its own working branch. It went as PR #521 into `preview` first instead;
+  same result, one extra hop. `docs/VERSION-SYNC.md` now says so rather than leaving the next cloud
+  session to rediscover it.
 - **2026-09-05 · release: promote `preview` → `main` as build `v1.513` (PR #513)** — carries the Guide
   half of the proficiency-bonus re-price (#510, `docs(guide)`) plus a security-hardening SQL fix and its
   production-verification note (#512, #515) that landed on `preview` from a concurrent session while this
