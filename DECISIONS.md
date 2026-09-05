@@ -10,6 +10,18 @@
 
 ## Index
 
+## D-GH-2026-09-05-roller-headless-access — a real-browser headless roller, not source-extraction
+- `cm-pact-campaign` was getting roller output for party-spread analysis by regex-extracting
+  `randomizeRoll()`'s source and `eval`-ing it in a bare vm — the same technique that caused fault #3 of
+  `D-GH-2026-09-05-roller-build-shapes` (lifting the function out of its file put `apLevel` out of scope).
+  Added `testing/scripts/roll-headless.mjs`: the same zero-dependency CDP technique the CI gates already
+  use, driving the real tool in real headless Chromium so every global the roller expects is present.
+  Self-contained and copy-portable (no shared `lib/` import) so a sibling project can vendor the one file.
+  CLI: `--theme`, `--budget` (comma-listable), `--count`, `--class`, `--out`, `--list-themes`. Returns the
+  tool's actual `readBuild()` + `compute()` output, not a summary. A full extraction into a DOM-free
+  `js/randomizer.js` module was considered and deferred — real refactor, matches this project's own
+  cold-plan-review trigger. Full record: `decisions/2026/D-GH-2026-09-05-roller-headless-access.md`
+
 ## D-GH-2026-09-05-roller-build-shapes — the roller's Hit Dice ceiling was a label, not a rule
 - The 🎲 roller pinned every rolled character to exactly 1 Hit Die at any budget (min == max at every
   rung) because the level cap treated `js/ap-by-level.js`'s ladder — documented as an *expectation* of
