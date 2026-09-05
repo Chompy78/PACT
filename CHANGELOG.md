@@ -42,6 +42,12 @@
   (an ordinary case, not an edge case) lost both fixes — and the AP-source label had the identical
   conflation, telling the DM a bound character "isn't bound to a cloud campaign at all". Both fixed with
   a genuine `_cgCopySourceIsCopy` flag. See the Addendum on `D-GH-2026-09-03-dm-zero-player-ap`.
+- **2026-09-03 · fix(chargen): the `_cgCopySourceIsCopy` fix replaced a condition instead of adding to
+  it, breaking two existing tests** — caught by CI on PR #508 (`tool-pricing-ci.mjs`, 187/2 failed).
+  Two pre-existing tests simulate a "Copy to CharGen" copy by setting `window._cgCopySourceAp` directly,
+  without the newer flag. Fixed by OR-ing the two conditions (`_cgCopySourceIsCopy ||
+  _cgCopySourceAp>0`) instead of swapping one for the other — both signals stay valid for what each
+  actually covers. Verified locally with the real CDP test harness: 189 passed / 0 failed.
 - **2026-09-03 · feat(engine): re-price the proficiency bonus ladder (`DATA.version` v0.364 → v0.365)**
   — `DATA.profCum` (+2→+6) was `4/7/10/13` per step (cumulative 34), priced as if it were a narrow
   purchase; `prof` actually feeds every proficient skill (doubled again under Expertise), every

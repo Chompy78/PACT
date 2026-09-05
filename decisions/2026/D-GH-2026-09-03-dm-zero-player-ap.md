@@ -139,12 +139,28 @@ against the actual file and found to already match its established convention (b
    path (the read-only skill-overlay handlers). The suggested change would have made this handler the
    inconsistent one, not fixed an inconsistency.
 
+## Addendum 2 — CI caught what the review pass missed: OR, don't replace
+
+Opening PR #508 triggered `tool-pricing-ci.mjs`, which failed 2 of 189 checks: the `_cgCopySourceIsCopy`
+fix above *replaced* the `_cgCopySourceAp>0` condition in both `_cgDmOpts()` and `_apSourceHTML()`,
+rather than adding to it. Two existing tests (`DM-granted AP must be visible in both player tools`)
+simulate a copy by setting `window._cgCopySourceAp` directly, without the newer flag — a perfectly valid
+way to test the function in isolation, predating this PR. Replacing the condition broke them.
+
+Fixed by OR-ing the two conditions instead of swapping one for the other: `_cgCopySourceIsCopy ||
+_cgCopySourceAp>0`. Both signals stay valid — `_cgCopySourceAp>0` alone was always sufficient whenever
+non-zero (it's zeroed by `_cgResetCloudApState()` on every non-copy load, so a stale positive value
+can't leak in), and `_cgCopySourceIsCopy` covers exactly the zero-AP case that signal alone could never
+distinguish. Verified locally with the actual CDP-driven test harness (not just re-reading the diff):
+`node testing/scripts/tool-pricing-ci.mjs` → 189 passed / 0 failed, up from 187/2 failed.
+
 ## Status
 
 IN FORCE. `sql/migrations/2026-09-03-dm-zero-player-ap.sql` applied to the live project (twice — the
 second time carrying the dmEdit-exclusion fix above). Archer, Anders Pipeleaf and Caspian all confirmed
 at Player AP 0, using the corrected function's own logic. `js/engine.js` untouched — parity re-run
-anyway (73 passed / 0 failed) since the CharGen changes reran after the review pass.
+anyway (73 passed / 0 failed) after each round of CharGen changes; `tool-pricing-ci.mjs` also green
+(189/0) after Addendum 2.
 
 ## Related
 

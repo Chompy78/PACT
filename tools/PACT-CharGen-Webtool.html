@@ -1587,14 +1587,18 @@ function _cgDrawbackCap(rulesOverride){
 // with every live view the same way ignorePlayerAp did. _cgDrawbackCap() takes the frozen
 // window._cgCopySourceRules instead of reading the (unset, for a copy) window._cloudCampaign.
 //
-// Gated on window._cgCopySourceIsCopy, NOT window._cgCopySourceAp>0 (found in the same review pass):
-// the AP amount and "is this actually a copy" are two different questions, and a character freshly
-// bound to a campaign with no DM AP award yet (_cgCopySourceAp===0) is a completely ordinary case, not
-// an edge case — conflating the two meant such a copy fell through to the bare local-character branch
-// below and lost both fixes above right along with it.
+// Gated on window._cgCopySourceIsCopy OR window._cgCopySourceAp>0 (fix, caught by tool-pricing-ci.mjs:
+// an earlier version of this replaced the >0 check outright, breaking existing tests that simulate a
+// copy by setting _cgCopySourceAp directly without the newer flag). The AP amount and "is this actually
+// a copy" are two different questions — a character freshly bound to a campaign with no DM AP award yet
+// (_cgCopySourceAp===0) is a completely ordinary case, not an edge case, and used to fall through to
+// the bare local-character branch below, losing both fixes above right along with it. The OR keeps both
+// signals valid: _cgCopySourceAp>0 alone is sufficient (and always was) whenever it's non-zero — it is
+// reset to 0 by _cgResetCloudApState() on every non-copy load, so a stale positive value can't leak in —
+// and _cgCopySourceIsCopy covers exactly the zero-AP case that signal alone could never distinguish.
 function _cgDmOpts(){
   if(window._dmApStatus==='active') return {dmAp:(window._dmAp||0),ignorePlayerAp:!!window._ignorePlayerAp,drawbackCap:_cgDrawbackCap()};
-  if(window._cgCopySourceIsCopy) return {dmAp:(window._cgCopySourceAp||0),ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,drawbackCap:_cgDrawbackCap(window._cgCopySourceRules)};
+  if(window._cgCopySourceIsCopy || window._cgCopySourceAp>0) return {dmAp:(window._cgCopySourceAp||0),ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,drawbackCap:_cgDrawbackCap(window._cgCopySourceRules)};
   return {dmAp:0,ignorePlayerAp:false,drawbackCap:undefined};
 }
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on,
@@ -1698,11 +1702,12 @@ function _apSourceHTML(r){
   } else if(st==='active'){
     label='☁ '+r.spendable+' AP — '+r.playerAp+' player'+_apDrawPart(r)+' + '+dmAp+' DM';
     tip='Your spendable budget combines the Player AP field ('+r.playerAp+')'+(r.drawbackAp?(', '+r.drawbackAp+' AP granted by your drawbacks,'):'')+' with '+dmAp+' AP your DM has granted this character. Combined live at display time — never saved as one number.';
-  } else if(window._cgCopySourceIsCopy){
-    // Gated on _cgCopySourceIsCopy, not _cgCopySourceAp>0 (same fix as _cgDmOpts(), same review
-    // pass): a copy of a character with 0 DM AP still IS a copy, and used to fall all the way
-    // through to the plain "not bound to a cloud campaign" label below -- actively wrong (it is
-    // bound; it just hasn't been awarded anything yet) -- and it hid the frozen-snapshot warning entirely.
+  } else if(window._cgCopySourceIsCopy || window._cgCopySourceAp>0){
+    // Gated on _cgCopySourceIsCopy OR _cgCopySourceAp>0 (same fix as _cgDmOpts(), same review pass,
+    // same OR-not-replace correction — the >0 check alone still fell through for a copy of a character
+    // with 0 DM AP, actively wrong (it IS bound; it just hasn't been awarded anything yet) and it hid
+    // the frozen-snapshot warning entirely; dropping the >0 check instead broke existing tests that
+    // simulate a copy by setting _cgCopySourceAp directly).
     var _cpDm = window._cgCopySourceAp||0;
     label='👁 '+r.spendable+' AP — DM copy ('+r.playerAp+' player'+_apDrawPart(r)+' + '+_cpDm+' DM, frozen)';
     tip='This is a snapshot of \u201c'+(window._cgCopySourceName||'a character')+'\u201d, deliberately NOT bound to its campaign \u2014 nothing you do here can spend the original\u2019s real AP or touch its real data. Its '
