@@ -937,46 +937,6 @@ online" message, and the clear-on-load; the recorded error body is checked in wi
 captured from the live trigger rather than written by hand; and the suite runs in CI without credentials.
 
 
-## `pact_ap_ledger_protected` lost its pinned `search_path` in the fresh-install baseline — TODO
-Branch `fix/protected-projection-search-path`. Confirmed live on `main` (`89dc513`) by
-`/code-review ultra` on PR #503 and verified independently against the repo. Every earlier definition of
-this function — `2026-08-10-campaign-ap-log-integrity.sql`, `2026-09-01-session-seal.sql`,
-`2026-09-01-session-seal-rollback.sql` — declares
-`returns jsonb language sql immutable set search_path = public, pg_temp`.
-`sql/migrations/2026-09-02-widen-protected-projection.sql:57` wrote it as `language sql immutable as $$`
-with no `SET` clause, and `cb323ca` copied that weaker form into `sql/rls-policies.sql:745` — the
-maintained fresh-install path. So every database built the documented way now ships a function whose name
-resolution follows the session `search_path`, undoing what
-`sql/migrations/2026-07-16-harden-search-path-pg-temp.sql` exists to enforce. The Supabase advisor's
-`function_search_path_mutable` WARN on this exact function is the live symptom; PR #503's body dismissed
-it as pre-existing, which is what cements it into the fresh-install path.
-
-`sql/rls-policies.sql:724`'s sibling `pact_ap_ledger_spend` still carries the pin, so this is one
-function, not a family. `testing/sql/rls-baseline-test.sql` did not catch it because it hashed only
-`prosrc`; that hole was closed on 2026-09-03 (`D-GH-2026-09-03-code-review-503-followups`) and the guard
-now compares `proconfig`, so the fix must land in **both** files or the guard goes red.
-**Effort:** small · **Risk:** low-moderate — production SQL, but a `SET` clause only; no logic change.
-
-```text
-1. Add `sql/migrations/2026-09-03-restore-protected-search-path.sql`: `create or replace`
-   pact_ap_ledger_protected with the body EXACTLY as it stands today plus
-   `set search_path = public, pg_temp`, followed by the same
-   `revoke execute ... from public, anon, authenticated` the current migration carries. Do not change
-   the projection. Do not edit the already-applied 2026-09-02 migration.
-2. Make the same one-line change at sql/rls-policies.sql:747 so the baseline and the migrations agree.
-3. Add the check that would have caught this directly, not just its divergence: in
-   testing/sql/rls-baseline-test.sql, assert every function in the checked set has a pinned search_path
-   (`proconfig` contains a `search_path=` entry). It is deliberately absent today only because adding it
-   before this fix would have put CI red on preview.
-4. Apply to production and re-run the Supabase advisor; the function_search_path_mutable WARN for this
-   function must be gone.
-```
-
-**Done when:** `node`-free `psql -f testing/sql/rls-baseline-test.sql` passes (33+ assertions, including
-the new positive search_path check), the same file's drift guard still reports SAME logic, the Supabase
-advisor no longer reports `function_search_path_mutable` for `pact_ap_ledger_protected`, and
-`CHANGELOG.md` + a `DECISIONS.md` pointer record the regression and its window.
-
 ## CharGen regenerates the whole LOG, so it cannot reproduce two protected event types — TODO
 Branch `fix/chargen-regenerates-protected-events`. `sql/migrations/2026-09-02-widen-protected-projection.sql:43`
 justifies protecting `dmRemoveBoon` positionally on the grounds that it "is created in exactly one place

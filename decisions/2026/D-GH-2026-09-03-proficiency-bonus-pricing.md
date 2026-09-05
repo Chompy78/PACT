@@ -69,14 +69,26 @@ when it isn't one.
 
 ## Status
 
-**Active.** Landed in `js/engine-data.js` only (`profCum` + `version`) — engine-only change, no other
-`DATA` table or `compute()` logic touched. The Players Guide's "Proficiency Bonus" section (both this
-repo's served copy `docs/PACT-Players-Guide.html` and the `pact-guide` master) still carries the old
-`4/7/10/13` numbers and prose ("the dearest climb in the game" needs re-checking against the new numbers
-too) — tracked as an open task rather than done in this same change, at the owner's explicit direction;
-see `docs/TASK_BOARD_NOW.md` (once added — this session could not add it directly, see the task's own
-note). Per `AGENTS.md`'s "engine AND guide" rule this change is **not** considered fully landed until
-that follow-up closes.
+**Active — engine and Guide both landed; one stamp still outstanding.** `js/engine-data.js` (`profCum` +
+`version`) landed via PR #507. The Players Guide's "Proficiency Bonus" section is now synced in **both**
+copies: this repo's served `docs/PACT-Players-Guide.html` (table → `18/20/24/28` per step / cumulative
+`90`; the "dearest climb... 3 AP more than the last" prose reworded to describe the Premium-band anchor
+instead, since the new deltas aren't a clean arithmetic step) and the `pact-guide` master (same table/
+prose, patched directly via the home-server connector — not a full-file regenerate). Verified with
+`node testing/scripts/guide-price-check.mjs` and `node testing/scripts/verify-guide.mjs`: both ran clean
+against this change specifically — the one pre-existing `verify-guide.mjs` FAIL (`feature prices`:
+`Empowered Strikes / Self-Restoration` price-mismatch plus several unrelated ambiguous/unparsed rows) was
+confirmed present on the file *before* this edit too (via `git stash`), so it is not something this
+change introduced or is responsible for fixing.
+
+**Not done:** the `documents-rules:` reconciliation marker in the Guide's head comment. Per
+`docs/VERSION-SYNC.md` and `pact-guide`'s own `AGENTS.md`/`CURRENT-WORK.md`, that marker is
+machine-stamped by `pact-guide/py/tools/stamp_guide_rules.mjs` and is **not yet stamped at all in either
+copy** (a pre-existing gap, not one this change created) — this session had file read/write access to
+`pact-guide` via the home-server connector but no ability to execute that project's own scripts, so the
+stamp still needs a session with shell access to that project. Per `AGENTS.md`'s "engine AND guide" rule,
+the substantive half (matching prose/numbers) is done; the provenance-stamping half is a distinct,
+mechanical follow-up.
 
 Open follow-up worth a task of its own: no fixture exercises `profBonus > 2`, so this ladder (and any
 future edit to it) is invisible to the parity gate. A fixture at, say, `profBonus: 4` on a Tier-5+ build
