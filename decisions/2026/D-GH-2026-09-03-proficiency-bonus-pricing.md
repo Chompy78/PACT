@@ -69,8 +69,12 @@ when it isn't one.
 
 ## Status
 
-**Active — engine and Guide both landed; one stamp still outstanding.** `js/engine-data.js` (`profCum` +
-`version`) landed via PR #507. The Players Guide's "Proficiency Bonus" section is now synced in **both**
+**Active — engine and Guide both landed and live on `main`; one stamp still outstanding.**
+`js/engine-data.js` (`profCum` + `version`) landed via PR #507, promoted to `main` in PR #511
+(`BUILD v1.511`). The Guide sync (PR #510) promoted to `main` in PR #513 (`BUILD v1.513`) — both
+promotions carried additional, unrelated concurrent-session work; see
+`docs/sessions/2026-09-05-proficiency-bonus-pricing-and-concurrent-promotions.md` for the full sequence.
+The Players Guide's "Proficiency Bonus" section is now synced in **both**
 copies: this repo's served `docs/PACT-Players-Guide.html` (table → `18/20/24/28` per step / cumulative
 `90`; the "dearest climb... 3 AP more than the last" prose reworded to describe the Premium-band anchor
 instead, since the new deltas aren't a clean arithmetic step) and the `pact-guide` master (same table/

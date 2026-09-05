@@ -937,41 +937,6 @@ online" message, and the clear-on-load; the recorded error body is checked in wi
 captured from the live trigger rather than written by hand; and the suite runs in CI without credentials.
 
 
-## CharGen regenerates the whole LOG, so it cannot reproduce two protected event types — TODO
-Branch `fix/chargen-regenerates-protected-events`. `sql/migrations/2026-09-02-widen-protected-projection.sql:43`
-justifies protecting `dmRemoveBoon` positionally on the grounds that it "is created in exactly one place
-… and every other reference merely READS it. Nothing rewrites or relocates one." That is not true of
-CharGen. `tools/PACT-CharGen-Webtool.html`'s `applyBuild` ends with
-`replaceWholeLogFromBuild(_domReadBuild())`, and `buildToEventLog(b,opts)` is
-`return _buildEventBurst(b)` — the whole LOG is re-synthesised from the DOM. `grep -c dmRemoveBoon
-tools/PACT-CharGen-Webtool.html` returns **0**; `sessionSeal` appears twice but not on that path. Both
-types are inside `pact_ap_ledger_protected()`'s projection.
-
-Predicted symptom, **not yet reproduced against a live character**: open a sealed or DM-edited cloud
-character in CharGen, press Cloud → Save, and the protected array shrinks, so
-`trg_pact_locked_history` raises `PACT: locked character history cannot shrink`. There is no client-side
-guard on this path — `_cgSealPatchRefusal` is wired only into `replacePatchSlot` — so the player would
-see a raw Postgres error, which is the "refuse ordinary editing with no explanation" outcome the
-migration header said it was avoiding. Blast radius today is plausibly zero (0 of 35 live characters had
-a non-empty protected prefix on 2026-09-02) — **re-measure, do not quote that.**
-**Effort:** medium · **Risk:** moderate — the fix is a design call, not a patch.
-
-```text
-1. REPRODUCE FIRST. Build a character with a sessionSeal and a dmRemoveBoon in its LOG, open it in
-   CharGen, save, and record the actual error. If it does not reproduce, say so and stop — the
-   migration header's claim would then be right for a reason worth writing down.
-2. Then decide between: (a) CharGen preserves unreproducible protected events verbatim when it
-   regenerates (carry them across _buildEventBurst rather than dropping them); (b) CharGen refuses to
-   open a character with a non-empty protected prefix, with an explanation, and points at the Live
-   Sheet; (c) the two types leave the positional projection and are protected by derived value the way
-   'patch' buys already are. Present the options with tradeoffs before implementing.
-3. Whichever is chosen, the failure must never surface as a raw Postgres string.
-```
-
-**Done when:** the scenario is reproduced (or proven impossible, with evidence), the chosen fix is
-implemented, a test covers it, and the migration header's "Nothing rewrites or relocates one" claim is
-corrected in place.
-
 ## The SQL drift guard's migration list is hardcoded, so it falls behind by design — TODO
 Branch `test/sql-drift-guard-auto-discovery`. `testing/sql/rls-baseline-test.sql` loads exactly four
 migrations by name (the `2026-09-01`/`2026-09-02` set) and checks exactly five function names.
