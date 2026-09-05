@@ -1012,3 +1012,38 @@ writing it from the outside would be reconstruction, which is what this rule exi
 
 **Done when:** both commits are reachable from `DECISIONS.md`, and each record answers "would a future
 agent wonder why this was done this way?"
+
+## Account-level "basic mode" — restrict a player to one character, no self-service creation — TODO
+Branch `feat/player-basic-mode`. A player got confused managing 3 cloud characters and couldn't tell
+which one to use in his campaign — two characters both named "Archer," one correctly built, one whose
+build AP had been zeroed by a DM, and the *wrong* one was bound to the campaign. Fixed by hand for this
+one player (archived the two extras, moved the campaign AP, rebound the right character to Amble) as an
+immediate cleanup — this task is the proper feature so it doesn't need a manual DB intervention every
+time it recurs.
+
+**Effort:** large · **Risk:** high — schema + RLS + UI across all three tools, and it touches live
+production data for real users (re-measure the `characters` table before implementing; it was 35+ rows
+across 8+ owners as of 2026-09-01, per `AGENTS.md`'s Active Priorities). Same effort/risk class as the
+existing per-player-character-limit-on-a-campaign item above (`maxCharactersPerPlayer`) — **get a cold
+plan review (`/make-code-cold-plan-review`) before implementing.** Not sweep-eligible.
+
+```text
+1. Add an account-level flag — e.g. `profiles.character_limit` (integer, default null = unlimited) or a
+   boolean `basic_mode` — that a DM/admin can set on a specific player.
+2. Enforce it server-side: an RLS INSERT policy or trigger on `characters` that refuses a new row for an
+   owner whose flag is set and who already has an active (non-archived) character. Must not be
+   bypassable by calling the insert directly — client-side hiding of "New Character" is not enough.
+3. UI: CharGen's and Live Sheet's "New Character" flow (and any other cloud-create path) should surface
+   the limit with a clear message when refused, not a raw RLS error.
+4. Existing multi-character players must be unaffected unless explicitly flagged — this is opt-in per
+   player, not a retroactive limit.
+5. Migration under `sql/migrations/`, then run the Supabase advisor and skim `get_logs` per the
+   per-change checklist.
+6. Update `CHANGELOG.md` / `DECISIONS.md` per the per-change checklist (this is exactly the kind of
+   non-obvious trust-boundary change that rule asks for).
+```
+
+**Done when:** a DM/admin can set "basic mode" on a specific player, that player is blocked server-side
+from creating a second active character in any tool, existing multi-character players are unaffected
+unless explicitly flagged, the advisor reports no new findings, and `CHANGELOG.md`/`DECISIONS.md` are
+updated.
