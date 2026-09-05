@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.506.html**-->
+<!--**PACT-CharGen-Webtool v1.511.html**-->
 
 <!doctype html>
 <!--
@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.506 · Rules v0.364</title><style>
+<title>PACT Character Generator — Web Tool v1.511 · Rules v0.365</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -537,7 +537,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.506</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.364</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.511</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.365</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -762,7 +762,8 @@ async function _cgResolveDmApStatus(ap, campaignId){
   // exempt caller ("sets its own values right after"), and before this line that exemption didn't cover
   // this field, so a copy opened earlier in the same tab silently outlived its own load into a totally
   // unrelated cloud/local character loaded afterward, inflating that character's budget.
-  window._cgCopySourceAp = 0; window._cgCopySourceName = '';
+  window._cgCopySourceAp = 0; window._cgCopySourceName = ''; window._cgCopySourceIgnorePlayerAp = false;
+  window._cgCopySourceRules = null; window._cgCopySourceIsCopy = false;
   window._dmAp = ap || 0;
   window._ignorePlayerAp = false;
   // feat/campaign-ap-budget-enforce: cached alongside _ignorePlayerAp, same lifecycle (resolved here
@@ -1450,6 +1451,30 @@ document.addEventListener('sync-ready', function () {
       // copy still cannot spend AP that belongs to the campaign roster it is not part of.
       window._cgCopySourceAp = Number(rec.ap) || 0;
       window._cgCopySourceName = srcName;
+      // fix/chargen-dm-view-zero-dm-ap (found alongside the two fixes below, same review pass): a
+      // genuine "this IS a copy" flag, independent of the AP amount. _cgDmOpts() used to key its whole
+      // copy branch off `_cgCopySourceAp>0`, so a copy of a character with 0 DM AP (freshly bound to a
+      // campaign, no award yet) fell through to the bare local-character branch and lost BOTH the
+      // ignorePlayerAp and drawbackCap fixes below along with it — the exact bug they claim to close,
+      // just gated behind "and only if this character has ever been awarded DM AP".
+      window._cgCopySourceIsCopy = true;
+      // fix/chargen-dm-view-ignore-player-ap (D-GH-2026-09-03-dm-zero-player-ap follow-up): the copy
+      // used to always show Player AP counted in full, even when the SOURCE campaign has
+      // ignore_player_ap on — _cgDmOpts() hardcoded false here rather than reading it. One extra fetch
+      // of the source campaign, at copy-open time only (same one-shot freeze as _cgCopySourceAp itself),
+      // so the copy's math agrees with what the DM's live views already show. Best-effort: if this fails
+      // (offline, campaign deleted), fall back to the prior behaviour (player AP counted, no drawback
+      // cap) rather than blocking the copy from opening at all — a DM can always cross-check with
+      // "👁 View" instead. `rules` is frozen the same way and in the same call, for _cgDrawbackCap()
+      // below — drawbackCapFromRules() is a pure function of the campaign's rules blob, so no second
+      // fetch is needed to close that gap too.
+      if(rec.campaign_id && window._campaignBridge && window._campaignBridge.getCampaign){
+        try{
+          var srcCamp = await window._campaignBridge.getCampaign(rec.campaign_id);
+          window._cgCopySourceIgnorePlayerAp = !!(srcCamp && srcCamp.ignore_player_ap);
+          window._cgCopySourceRules = (srcCamp && srcCamp.rules) || null;
+        }catch(e){ window._cgCopySourceIgnorePlayerAp = false; window._cgCopySourceRules = null; }
+      }
       _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:rec.stats.rules||DATA.version,name:copyName,
         LOG:rec.stats.LOG,SEQ:rec.stats.SEQ||(rec.stats.LOG.length+1),id:copyId},{clearHistory:true});
       var stats = _cgEnvelope(false);
@@ -1527,9 +1552,16 @@ window._dmApStatus = window._dmApStatus || 'none';
 // drawback grant here while their DM saw the capped figure — two people reading one character and
 // getting different AP, with nothing on screen saying which was right. undefined (no campaign, or the
 // cap switched off) keeps compute() on its advisory path, which is the correct local-character rule.
-function _cgDrawbackCap(){
+// `rulesOverride` (fix/chargen-dm-view-drawback-cap, same follow-up as ignorePlayerAp above): omit it
+// for the live, cloud-connected path (reads window._cloudCampaign.rules, unchanged behaviour); pass
+// window._cgCopySourceRules explicitly for the "Copy to CharGen" sandbox, which has no live
+// _cloudCampaign of its own. drawbackCapFromRules() is a pure function of a rules object, so freezing
+// that object at copy-open time (done alongside _cgCopySourceIgnorePlayerAp, in the same fetch) is
+// enough — no separate network call needed here.
+function _cgDrawbackCap(rulesOverride){
   var b=window._campaignBridge, c=window._cloudCampaign;
-  return (b&&b.drawbackCapFromRules) ? b.drawbackCapFromRules(c&&c.rules) : undefined;
+  var rules = (rulesOverride!==undefined) ? rulesOverride : (c&&c.rules);
+  return (b&&b.drawbackCapFromRules) ? b.drawbackCapFromRules(rules) : undefined;
 }
 // A disconnected "Copy to CharGen" sandbox (feat/chargen-dm-view, D-GH-2026-08-10-chargen-dm-view)
 // leaves _dmApStatus at 'none' by design (_cgResetCloudApState()) so nothing here can bind back to the
@@ -1537,13 +1569,36 @@ function _cgDrawbackCap(){
 // copy's budget math saw 0 DM AP entirely, reading as falsely over budget for any character that had
 // spent DM-granted AP (reported 2026-08-22). Fix: when the copy carries a frozen snapshot
 // (window._cgCopySourceAp, captured once at copy-open time by _cgConsumeViewChar()), feed THAT into the
-// budget instead of 0. Combines with player AP unconditionally (the common case) -- this frozen number
-// deliberately does not re-fetch the source campaign's ignore-player-AP rule or drawback cap, so it can
-// drift from a campaign that changes those after the copy was made; "👁 View" (genuinely live,
-// read-only) is the route for an always-accurate total.
+// budget instead of 0.
+//
+// ignorePlayerAp was ALSO frozen at copy-open time (D-GH-2026-09-03-dm-zero-player-ap follow-up) — it
+// used to be hardcoded false here regardless of the source campaign's real setting, so a DM's copy of a
+// character in a campaign that ignores player-entered AP still counted it in full, disagreeing with
+// every LIVE view of that same character (Live Sheet, DM Console, a properly cloud-connected CharGen
+// session). That was always a DISPLAY gap only — since D-GH-2026-09-03-dm-zero-player-ap the database
+// itself refuses to let a character's real Player AP total rise once its campaign ignores it, so the
+// stored figure could never actually have been bigger than the DM intended, only shown that way — but
+// still worth closing so a DM inspecting a copy sees the same number their other views already agree
+// on. Both frozen numbers share the same staleness trade-off: neither re-fetches if the campaign's
+// settings change after the copy was made; "👁 View" (genuinely live, read-only) is the route for an
+// always-accurate total. drawbackCap is frozen the identical way (fix/chargen-dm-view-drawback-cap,
+// same follow-up): a copy of a character whose campaign caps drawback AP used to show the FULL,
+// uncapped grant (drawbackCap:undefined put compute() on its "no campaign" advisory path), disagreeing
+// with every live view the same way ignorePlayerAp did. _cgDrawbackCap() takes the frozen
+// window._cgCopySourceRules instead of reading the (unset, for a copy) window._cloudCampaign.
+//
+// Gated on window._cgCopySourceIsCopy OR window._cgCopySourceAp>0 (fix, caught by tool-pricing-ci.mjs:
+// an earlier version of this replaced the >0 check outright, breaking existing tests that simulate a
+// copy by setting _cgCopySourceAp directly without the newer flag). The AP amount and "is this actually
+// a copy" are two different questions — a character freshly bound to a campaign with no DM AP award yet
+// (_cgCopySourceAp===0) is a completely ordinary case, not an edge case, and used to fall through to
+// the bare local-character branch below, losing both fixes above right along with it. The OR keeps both
+// signals valid: _cgCopySourceAp>0 alone is sufficient (and always was) whenever it's non-zero — it is
+// reset to 0 by _cgResetCloudApState() on every non-copy load, so a stale positive value can't leak in —
+// and _cgCopySourceIsCopy covers exactly the zero-AP case that signal alone could never distinguish.
 function _cgDmOpts(){
   if(window._dmApStatus==='active') return {dmAp:(window._dmAp||0),ignorePlayerAp:!!window._ignorePlayerAp,drawbackCap:_cgDrawbackCap()};
-  if(window._cgCopySourceAp>0) return {dmAp:window._cgCopySourceAp,ignorePlayerAp:false,drawbackCap:undefined};
+  if(window._cgCopySourceIsCopy || window._cgCopySourceAp>0) return {dmAp:(window._cgCopySourceAp||0),ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,drawbackCap:_cgDrawbackCap(window._cgCopySourceRules)};
   return {dmAp:0,ignorePlayerAp:false,drawbackCap:undefined};
 }
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on,
@@ -1564,7 +1619,7 @@ function _cgOverApBudget(){
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';
+function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;
   // Cleared with the rest of the cloud state so a pending binding cannot outlive its character. Guarded
   // because this function is also called from _cgBoot() paths that run before the declaration is reached.
   try{ _cgPendingCampaignId=null; }catch(e){}
@@ -1647,10 +1702,16 @@ function _apSourceHTML(r){
   } else if(st==='active'){
     label='☁ '+r.spendable+' AP — '+r.playerAp+' player'+_apDrawPart(r)+' + '+dmAp+' DM';
     tip='Your spendable budget combines the Player AP field ('+r.playerAp+')'+(r.drawbackAp?(', '+r.drawbackAp+' AP granted by your drawbacks,'):'')+' with '+dmAp+' AP your DM has granted this character. Combined live at display time — never saved as one number.';
-  } else if(window._cgCopySourceAp>0){
-    label='👁 '+r.spendable+' AP — DM copy ('+r.playerAp+' player'+_apDrawPart(r)+' + '+window._cgCopySourceAp+' DM, frozen)';
+  } else if(window._cgCopySourceIsCopy || window._cgCopySourceAp>0){
+    // Gated on _cgCopySourceIsCopy OR _cgCopySourceAp>0 (same fix as _cgDmOpts(), same review pass,
+    // same OR-not-replace correction — the >0 check alone still fell through for a copy of a character
+    // with 0 DM AP, actively wrong (it IS bound; it just hasn't been awarded anything yet) and it hid
+    // the frozen-snapshot warning entirely; dropping the >0 check instead broke existing tests that
+    // simulate a copy by setting _cgCopySourceAp directly).
+    var _cpDm = window._cgCopySourceAp||0;
+    label='👁 '+r.spendable+' AP — DM copy ('+r.playerAp+' player'+_apDrawPart(r)+' + '+_cpDm+' DM, frozen)';
     tip='This is a snapshot of \u201c'+(window._cgCopySourceName||'a character')+'\u201d, deliberately NOT bound to its campaign \u2014 nothing you do here can spend the original\u2019s real AP or touch its real data. Its '
-      +window._cgCopySourceAp+' DM-granted AP is counted above as a frozen snapshot from when this copy was opened, so the budget reads correctly, but it will NOT update if the DM awards more AP later. '
+      +_cpDm+' DM-granted AP is counted above as a frozen snapshot from when this copy was opened, so the budget reads correctly, but it will NOT update if the DM awards more AP later. '
       +'Re-open \ud83d\udccb Copy to CharGen for a fresh snapshot, or use \ud83d\udc41 View for the always-live real total.';
   } else {
     label='🔒 '+r.playerAp+' AP — player only';
