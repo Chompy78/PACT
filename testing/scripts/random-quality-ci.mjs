@@ -162,6 +162,7 @@ window._qaRoll=function(themeKey,budget,forceClass){
     wpn:{simple:!!b.weaponProf.simple,martial:!!b.weaponProf.allMartial},
     nSkills:(b.skills||[]).length, nBoons:(b.boons||[]).length, nArts:(b.arts||[]).length,
     stats:b.stats, rank:((b.traditions||[])[0]||{}).rank||0,
+    hardy:+b.hardy||0, tough:+b.tough||0,
     slots:(((((b.traditions||[])[0]||{}).disciplines||[])[0])||{}).slots||[],
     pactSlots:(((((b.traditions||[])[0]||{}).disciplines||[])[0])||{}).pactSlots||0,
     nRacial:(b.racialTraits||[]).length, nDraw:(b.drawbacks||[]).length,
@@ -249,6 +250,29 @@ try {
     check(`${th.label} — two rolls still differ (mean overlap ${mean.toFixed(2)} < 0.70)`, mean < 0.70,
       `mean Jaccard ${mean.toFixed(2)}`);
   }
+
+  // ---- Hit Dice must actually VARY at a given budget, not just reach the floor ----
+  // feat/roller-build-shapes: before this fix every rolled character had exactly one Hit Die at every
+  // budget (min == max at every rung) because the level cap pinned HD to apLevel(budget) — a LABEL, not
+  // a ceiling — while real player sheets at the same AP carry one to five. Aggregated across all themes
+  // (ROLLS x themes samples per budget) rather than per-theme, so this doesn't flake on a theme whose own
+  // sample is small; the affordable band this checks is a property of the budget, not the theme.
+  // A pin AT the engine's hard ceiling (HD 20, DATA's own ` Math.min(20, …)`) is not this bug — it's the
+  // top budget genuinely being able to afford the maximum on every roll — so only a pin BELOW 20 fails.
+  for (const B of BUDGETS) {
+    const hds = all.flatMap(({ rows }) => rows.filter(r => r.B === B).map(r => r.hd));
+    const lo = Math.min(...hds), hi = Math.max(...hds);
+    check(`HD varies at ${B} AP (Lv ${lvlOf[B]}) — not pinned to one value`, lo < hi || lo === 20,
+      `every one of ${hds.length} rolls came back HD ${lo}`);
+  }
+
+  // ---- Grit must be reachable — the kit bucket bought Vigor but never Grit ----
+  // feat/roller-build-shapes: a rolled character could not come out durable at all, because Grit (tough)
+  // was simply absent from the spend pool. Checked at the top budget, where the kit bucket gets enough
+  // iterations that "never happened in N rolls" means "can't happen", not "got unlucky".
+  const kitRows = all.flatMap(({ rows }) => rows.filter(r => r.B === BUDGETS[BUDGETS.length - 1]));
+  check('Grit (tough) is reachable in the kit bucket', kitRows.some(r => r.tough > 0),
+    `0/${kitRows.length} rolls at ${BUDGETS[BUDGETS.length - 1]} AP took any Grit`);
 
   // ---- cross-theme: themes must be distinguishable from EACH OTHER, not just internally varied ----
   // The pre-change generator would have sailed through every per-theme check above and still produced
