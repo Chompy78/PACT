@@ -5031,6 +5031,16 @@ function randomizeRoll(themeKey,lvlWanted){
   const _lvlClamped=_lvlAsked>_lvlCap;
   const hdTarget=Math.min(20,Math.max(b.hd,Math.min(_lvlAsked,_lvlCap)));
   while(b.hd<hdTarget){ if(!tryAct(x=>{x.hd++;},'powers')) break; }
+  // Extra Hit Dice beyond the AP-level cap, added 2026-09-07. Real characters do this heavily —
+  // six actual sheets at 75-98 AP carry HD 1,3,3,3,4,5 where _lvlCap allows only 1 — so pinning
+  // HD to the cap gave every rolled character identical hit points and made the roller unable to
+  // reproduce a real party. tryAct still enforces budget and the engine still enforces legality;
+  // this only stops the roller from refusing to ask. Roughly half of rolls take some, and the
+  // amount is skewed early, which is what real players do.
+  if(typeof rnd==='function'?rnd()<0.5:Math.random()<0.5){
+    const _hdExtra=1+Math.floor((typeof rnd==='function'?rnd():Math.random())*3);
+    for(let i=0;i<_hdExtra;i++){ if(b.hd>=20) break; if(!tryAct(x=>{x.hd++;},'powers')) break; }
+  }
   // Rank follows HD: raise the tradition as far as the (now correct) HD gate allows.
   if(trad){
     // Rank is expensive (Rank 9 is 72 AP) and buys nothing on its own — it only RAISES THE CEILING on
@@ -5118,6 +5128,10 @@ function randomizeRoll(themeKey,lvlWanted){
       [x=>{if(!TH.shield||x.armour.shield)return false; x.armour.shield=true;},2],
       [x=>{ if((+x.profBonus||2)>=6)return false; x.profBonus=(+x.profBonus||2)+1; },2],
       [x=>{ x.hardy=(+x.hardy||0)+1; },2],      // Vigor (engine caps it to CON mod → tryAct rejects over-cap)
+      // Grit, added 2026-09-07. The pool bought Vigor but never Grit, so the roller could not
+      // build a durable character at all: hit points had no variance at a given budget, and a
+      // rolled party sat 60-90 HP below a real one. Weighted level with Vigor.
+      [x=>{ x.tough=(+x.tough||0)+1; },2],
       [x=>{ x.attune=(+x.attune||0)+1; },1],
     ],
   };
