@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-05 · fix: the 🎲 roller's Hit Dice ceiling was a label, not a rule** — every rolled character
+  got exactly 1 Hit Die at any AP budget (real player sheets at 75-98 AP carry 1-5), because the level cap
+  treated `ap-by-level.js`'s documented *expectation* as a hard rule `compute()` never actually enforces.
+  Re-defined as an affordability ceiling (18% of budget, floored at the level) drawn uniformly rather than
+  pinned to its floor, added Grit to the kit spend pool (it offered Vigor but never Grit), and replaced a
+  silent level-9 fallback with a loud throw. `random-quality-ci.mjs` gained two regression gates (HD
+  variance at a budget; Grit reachability) that would have caught both original bugs and now guard against
+  their return — **74/0**. No `DATA.version` bump, no engine change. Full record:
+  `D-GH-2026-09-05-roller-build-shapes`.
 - **2026-09-05 · release: promote `preview` → `main` as build `v1.520` (PR #520)** — carries six commits:
   the protected-event reproduction and its new gate, two documentation corrections, and three session
   records. Regular merge commit, never squash, per `docs/VERSION-SYNC.md` step 5; **verified after the
