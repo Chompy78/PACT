@@ -216,3 +216,12 @@ seeing each other's review — treated as high-confidence, not a single reviewer
 
 **Next step:** write the authority/reversibility decision record, then revise this plan's "Proposed
 approach" to the uniqueness-constraint design before any implementation branch is opened.
+
+**Update 2026-09-05 — decision recorded.** See `decisions/2026/D-GH-2026-09-05-player-basic-mode.md`:
+a DM sharing a campaign may set the flag; the flagged player can always unset it themselves regardless
+of any DM's current standing (a DM sharing a campaign may also unset it, as a convenience, but that path
+is never required); setter identity and timestamp are recorded and visible to the player. This plan's
+"Proposed approach" step 3 (the DM-authorization function) and its "Assumed/open" authority bullet are
+now superseded by that decision and still need rewriting to match it, alongside the still-open
+enforcement-mechanism revision (uniqueness constraint, not a counting trigger) — neither has been
+implemented yet.
