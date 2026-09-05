@@ -44,6 +44,12 @@ turning that one-off fix into a real feature so a human doesn't have to interven
 - As measured this session: the live character table holds on the order of a few dozen rows across
   under a dozen distinct owners and a handful of campaigns. Small, but real, live user data — treat as a
   snapshot to re-check at implementation time, not a permanent fact.
+- `owner_id` cannot currently be changed on an existing character row by any path in the app: it is
+  absent from the column-level UPDATE grant entirely (Postgres rejects naming it before the row policy
+  even runs), and the row policy's own check additionally requires the new row's owner to still equal
+  the caller — so even a hypothetical future grant couldn't reassign a row to someone else. No
+  ownership-transfer RPC exists either. Checked specifically because a Gemini cold review (below) raised
+  ownership transfer as a way to bypass an archived_at-keyed trigger; confirmed not currently possible.
 
 **Resolved by decision record** (`decisions/2026/D-GH-2026-09-05-player-basic-mode.md`, written after the
 first review round below): a DM sharing a campaign with the player may turn the flag ON. The flagged
@@ -177,7 +183,13 @@ permanently strand a flagged player once the qualifying DM relationship ended.
   advisory lock taken inside a trigger needs a consistent lock-ordering discipline (always lock by
   `owner_id`, always released at transaction end) to avoid a deadlock between two concurrent writers for
   the same owner — low likelihood at this table's current size, but worth a specific test rather than
-  assumed away given it's new to this codebase's trigger patterns.
+  assumed away given it's new to this codebase's trigger patterns. A concrete pattern, suggested by a
+  Gemini cold review: `pg_advisory_xact_lock(hashtext(NEW.owner_id::text))` — an advisory lock scoped to
+  the transaction, keyed on the owner, with no risk of colliding with a real row lock elsewhere.
+- **Future feature risk, not a current bug:** if this app ever grows a character-ownership-transfer
+  feature, whatever trigger enforces this limit must also fire on that path (not just `archived_at`) —
+  confirmed above that no such transfer path exists today, so this isn't a gap to close now, just a trap
+  for whoever adds that feature later to not reopen this exact class of bypass.
 
 ## Verification
 - This project's own automated rules-parity test suite must still show zero failures after the change
@@ -199,6 +211,10 @@ permanently strand a flagged player once the qualifying DM relationship ended.
   manual testing cannot exercise.
 - Confirm a DM who no longer shares a campaign with the player can neither set nor unset the flag, and
   confirm the player retains their own unset control regardless.
+- **New, added after a Gemini cold review:** confirm what happens if a DM flips the flag on while the
+  player is actively mid-session in a character editor — specifically, that the client clears/updates
+  its local cached "can I save" state on hitting the refusal rather than retrying a background autosave
+  in a loop against a write that can never succeed.
 
 ## Done when
 A DM sharing a campaign with a player can flag that player's account; the flagged player can always
@@ -285,3 +301,35 @@ is never required); setter identity and timestamp are recorded and visible to th
 now superseded by that decision and still need rewriting to match it, alongside the still-open
 enforcement-mechanism revision (uniqueness constraint, not a counting trigger) — neither has been
 implemented yet.
+
+**Update 2026-09-05 — plan body revised** to match the decision and both prior findings (authority
+model, broadened trigger + lock instead of a bare counting trigger). See the "Proposed approach",
+"Files/areas", "Alternatives", "Risks", "Verification", and "Done when" sections above — all rewritten,
+not just noted.
+
+**Update 2026-09-05 — third review round, Gemini API (`gemini-3.6-flash`, free tier).** See
+`docs/plans/cold-reviews/2026-09-05-gemini-player-basic-mode.md`. Reviewing the *already-revised* plan
+(not the original), so this round's job was to catch what the two Claude sub agents missed, not
+re-litigate what they already found. It did:
+- **Genuinely new finding, verified and accepted as a forward-looking note (not a current bug):**
+  raised character-ownership transfer (`owner_id` changing) as a path the archived_at-keyed trigger
+  wouldn't cover. Checked directly against the schema: no such transfer path exists today (`owner_id`
+  is excluded from the UPDATE column grant, and the row policy's own check requires the new row's owner
+  to still equal the caller) — so not a live bug, but recorded above as a trap for whoever might add a
+  transfer feature later.
+- **Accepted, folded in above:** a concrete advisory-lock pattern
+  (`pg_advisory_xact_lock(hashtext(owner_id))`) for the lock-guarded trigger option, and a new
+  verification case for what the client should do if the flag flips on mid-session for an actively-open
+  editor (clear cached save-state rather than retry-loop a write that can never succeed).
+- **Noted, minor, not yet folded in:** the plan's "Verified" section doesn't document the
+  campaigns/campaign-membership schema despite the authorization model depending on it — a
+  self-containment gap worth closing next time this document is touched, not urgent enough to interrupt
+  for.
+- **One reviewer-reliability finding, logged for the record rather than acted on:** the model's own
+  self-identification line claimed "Gemini 2.5 Pro," which is simply false — the API call was made
+  against `gemini-3.6-flash`. Its actual findings were still independently verified and judged on their
+  merits regardless (the ownership-transfer point checked out as accurate even though the self-ID
+  didn't) — but the mismatch is worth tracking if this reviewer is used again.
+- **Not adopted:** re-litigating the SECURITY-DEFINER-RPC-vs-error-string-matching alternative — already
+  considered and deliberately deferred in "Alternatives considered" above; this round's restatement of
+  it didn't add a new reason to revisit that call.
