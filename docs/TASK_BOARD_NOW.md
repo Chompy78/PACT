@@ -27,6 +27,38 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
+## Optimise the random character roller — it cannot build the shapes real players build — TODO
+Branch `feat/roller-build-shapes`. Raised by John 2026-09-07 after the PACT campaign's combat model was
+rebuilt and needed a spread of realistic parties to test against. Rolling several hundred characters and
+comparing them with **six real player sheets at 75-98 AP** exposed three faults, one already fixed.
+
+**1. Grit was missing from the spend pool — FIXED 2026-09-07.** The weighted `kit` bucket in
+`randomizeRoll` offered Vigor but never Grit, so the roller could not make a durable character at all.
+Grit now sits beside Vigor at equal weight and about a third of rolls take it.
+
+**2. Hit Dice are pinned to the AP-level cap, and real characters are not.** Every rolled character gets
+**exactly 1 Hit Die at every budget**. The six real sheets carry **1, 3, 3, 3, 4 and 5**. That single
+number is most of the gap: rolled characters land at 6-13 hit points where the real party runs 9-35.
+An attempt to buy past the cap had no effect and the cause is not yet pinned down — `tryAct` rejects
+silently, and it is not yet established whether extra Hit Dice are legal at all, or how the real sheets
+legitimately have them. **This is the substantive item.**
+
+**3. A silent fallback builds a level-9 character on any budget.** Without `apLevel` in scope,
+`_lvlCap` falls back to `9` and the roll produces Hit Dice 8-9 and 27-57 hit points at 79 AP. It
+degrades quietly rather than failing, which is the dangerous kind.
+
+**Also worth considering while in here:** the roller's output has **no variance in Hit Dice at a given
+budget** (min = max at every rung), which is a poor sign for a randomiser generally; and the roll records
+did not report Vigor or Grit at all until 2026-09-07, which is why fault 1 went unnoticed for so long.
+
+**Done when:** rolled characters at a given budget show a spread of Hit Dice and hit points that covers
+what real players actually build; the level-9 fallback fails loudly or cannot happen; and
+`testing/scripts/random-quality-ci.mjs` still passes its legality, level-tracking, coherence, theme and
+diversity gates. Evidence lives in the campaign repo at
+`cm-pact-campaign/analysis/2026-09-07-real-party/` — `gen_random_spread.mjs` drives the real
+`randomizeRoll` by extracting its source, so it measures the tool rather than a copy of it.
+
+
 ## Find where `~/.claude/skills/` syncs from, and confirm the close-session patch survived — TODO
 Branch `docs/skills-sync-provenance`. `close-session-logging-core.md` — shared by `close-code-session-jc`
 and `close-chat-jc`, so it governs every session close in this project — was patched on 2026-08-30 to fix
