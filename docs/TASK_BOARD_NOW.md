@@ -27,6 +27,48 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
+## Random roller: two build shapes it still cannot produce — TODO
+Branch `feat/roller-build-shapes-2`. Follow-on from the Grit and Hit-Dice fixes closed in #525. Evidence is
+**3,264 characters rolled through `testing/scripts/roll-headless.mjs`** — the real tool in a real browser,
+eight themes across thirty-four AP rungs — compared against **six real player sheets** at 75-98 AP. Both
+faults are the same kind: the roller produces characters that are **legal but not what a player would
+build**, and both are places where the rolled spread still fails to cover a real party.
+
+**1. The attack floor — no roll can come out below +4 to hit.** Steps 2 and 2c of `randomizeRoll()`
+unconditionally prime the casting stat to 14 and the primary favoured ability to 16 before anything else is
+bought, so with prof +2 the minimum attack is +4. Measured across 96 rolls at 85 AP: **minimum +4, and only
+9 rolls even reach it.** The real party contains a wizard at **+3**, which the roller cannot produce at any
+budget. **Real players leave a stat mediocre; the roller cannot.** This is now the ONLY axis on which the
+rolled spread fails to bracket the real party — hit points, AC, attack count and spell slots all bracket it
+since #525. Loosening the priming has a wide blast radius (caster slot caps key off the casting stat), which
+is why it was left alone during the Hit-Dice work rather than bundled into it.
+
+**2. Half of all rolls wear nothing, and cannot fix it with money.** At 85 AP, **46 of 96 rolls have AC
+exactly 10 + DEX**. Of those 46, **one has light armour proficiency and none has shield proficiency** — so a
+25 GP armour allowance and a 25 GP shield allowance between them buy two characters a single point of AC.
+Armour and shield proficiency come out of the `kit` bucket and compete with weapons, Vigor and Grit; when the
+bucket does not buy them, the character is unarmoured **and untrainable**. Concentrated by theme: `face` 9,
+`zealot` 7, `battlecaster` 6, `scholar` 6, `trickster` 6, against `bruiser` 3. A character with no armour
+proficiency at all is an odd thing to produce at 85 AP, and it happens about half the time.
+
+**Worth a deliberate look while in here: silent fallback instead of a loud failure has now appeared twice in
+this tool chain.** The level-9 `_lvlCap` fallback fixed in #525 built a plausible-but-wrong character rather
+than failing; and the campaign's own `gen_random_spread.mjs` silently ignored `--budgets`, so a run asking
+for one rung rolled all thirty-four and the caller compared an empty bin (fixed campaign-side 2026-09-07).
+Two instances suggests looking for a third rather than waiting for it.
+
+**Not faults, but worth recording since a single-theme pool hides both:** theme matters more than anything
+else measured — at 85 AP a `bruiser` runs 8-31 hit points against a `scholar`'s 6-18, nearly twice apart at
+the same budget. And `bruiser` and `zealot` carry the **lowest** median Hit Dice while holding the most hit
+points, buying survivability through armour and Grit instead.
+
+**Done when:** a rolled character can come out below +4 to hit where the build justifies it; a character that
+buys no armour proficiency is either rare or a deliberate theme choice; and
+`testing/scripts/random-quality-ci.mjs` still passes its legality, level-tracking, coherence, theme and
+diversity gates. Evidence and the comparison harness live in the campaign repo at
+`cm-pact-campaign/analysis/2026-09-07-real-party/` — `adapt_headless.mjs` reshapes roll-headless output into
+the row form that analysis reads, and reshapes only.
+
 ## Find where `~/.claude/skills/` syncs from, and confirm the close-session patch survived — TODO
 Branch `docs/skills-sync-provenance`. `close-session-logging-core.md` — shared by `close-code-session-jc`
 and `close-chat-jc`, so it governs every session close in this project — was patched on 2026-08-30 to fix
