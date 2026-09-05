@@ -47,6 +47,13 @@ Everything else must **match** that value:
    unless you've been explicitly told this release bumps the major.
 3. Push one commit to that same PR setting `BUILD` in `js/engine.js` to `v<major>.<PR#>`, then sync
    the four tool labels above to match (see the one-line prompt below).
+
+   > **From a cloud/web session this step cannot be done literally** (added 2026-09-05, after doing it
+   > the long way round for `v1.520`). "That same PR" is `preview`→`main`, so its branch **is**
+   > `preview` — and a cloud session can push only its own working branch (see `AGENTS.md`'s Shell
+   > environment notes). Route the sync commit through a normal PR into `preview` instead; the promotion
+   > PR picks it up as soon as it merges. Same result, one extra hop, and the promotion PR's number is
+   > already known because step 1 opened it first. A local terminal can still follow the step as written.
 4. Leave `DATA.version` alone — it's the separate rules-version axis, bumped only when mechanics
    change, and is untouched by this procedure regardless of which feature PRs are in the promotion.
 5. **Merge the promotion PR with a regular merge commit — never squash.** Squashing a `preview`→`main`

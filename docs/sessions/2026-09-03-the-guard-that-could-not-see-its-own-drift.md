@@ -154,8 +154,45 @@ Given how much of this note is about claims asserted from one signal, converting
 from inference to production evidence *before* acting on it is the one habit from this session worth
 generalising.
 
+### The fifth act: chasing a bug that was not there
+
+The owner then asked for the CharGen protected-events finding to be explained plainly, and explaining it
+forced me to state its severity properly — which contradicted my own earlier framing twice over in one
+day. Then they asked for it to be settled.
+
+**The predicted failure does not exist.** Reproduced in headless Chromium (three local runs, then CI):
+loading a character carrying `sessionSeal` and `dmRemoveBoon` through the real load path preserves both
+— protected projection **5 → 5** — because `_cgApplyEnvelope` rebuilds and then reinstates the saved log
+verbatim, and `_cgBlockedBySeal()` refuses the genuinely destructive paths with a readable message. The
+review that raised it found one guard and missed the other.
+
+**The hazard underneath is real, and is now pinned rather than argued about.** Calling
+`replaceWholeLogFromBuild()` directly destroys both events, **5 → 2**. Safety is caller discipline across
+four call sites, not construction. That became `testing/scripts/protected-events-roundtrip-ci.mjs` and
+its own workflow, with one assertion deliberately inverted — it asserts the rebuild *still* breaks, so
+the fragility cannot be mistaken for design, and its failure message says to delete it if that is ever
+fixed.
+
+**The near-miss is the part worth keeping.** The first run reported all three load assertions failing —
+apparently confirming the bug. The fault was my probe reading `window.LOG`, when `LOG` is declared with
+`let` and never attaches to `window`. What caught it was `_cgSealedFloor()` returning **6** in the same
+output that claimed zero events: an impossible pair. Reported as written, that would have been the
+session's fourth false claim and by far the worst kind — not a wrong denial but a **fabricated
+confirmation**, of a bug that does not exist, in code I would then have "fixed". The whole note above is
+about claims made from a single signal; this is what it looks like when the single signal is a test you
+wrote yourself.
+
 **And the collision count reached three.** Asked to promote `preview` to `main` at the end, there was
 nothing to promote: another session's PR #513 had merged minutes after #515 and swept both my commits in.
-Same shape as the #506 collision — opened before mine merged, merged after, no loss. Three races, three
-times free. The honest reading is that the append-at-top `CHANGELOG` and GitHub's own refusals have
-absorbed all of it so far, not that concurrent promotion is safe by design.
+Same shape as the #506 collision — opened before mine merged, merged after, no loss.
+
+> **Ran to five by the end of the day** (2026-09-05). A fourth: another session's #518 merged into
+> `preview` while my promotion PR #520 was open, taking it from four commits to six — I corrected the PR
+> body rather than leave it claiming four. A fifth, and the one that makes the point: **#518 is itself a
+> session log about the first three collisions.** Two sessions independently documenting the same
+> phenomenon is the phenomenon.
+>
+> Five races, five times free. The honest reading is unchanged and now better evidenced: the
+> append-at-top `CHANGELOG`, and GitHub's own refusals to open or merge a conflicting PR, have absorbed
+> every one of them. That is not the same as concurrent promotion being safe by design, and the cost of
+> the luck running out is a duplicated or half-applied release.
