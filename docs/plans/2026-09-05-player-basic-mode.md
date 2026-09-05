@@ -45,13 +45,15 @@ turning that one-off fix into a real feature so a human doesn't have to interven
   under a dozen distinct owners and a handful of campaigns. Small, but real, live user data — treat as a
   snapshot to re-check at implementation time, not a permanent fact.
 
-**Assumed / open — needs a decision, not just an implementation:**
-- WHO can set the flag. There is no admin role. A campaign DM's authority doesn't naturally extend to a
-  player who isn't in their campaign (the case that motivated this — an unbound, un-campaigned extra
-  character — is exactly that situation). Two real options: (a) any DM who shares at least one campaign
-  with the player can flag them, or (b) this stays a manual database operation until/unless the app
-  grows a real admin concept. Defaulting to (a) in this draft, but flagging it as the single biggest
-  open question.
+**Resolved by decision record** (`decisions/2026/D-GH-2026-09-05-player-basic-mode.md`, written after the
+first review round below): a DM sharing a campaign with the player may turn the flag ON. The flagged
+player can always turn it OFF themselves, independent of whether any DM still shares a campaign with
+them — a DM sharing a campaign may also turn it off, as a convenience, but that path is never the only
+one. Who set it and when is recorded and visible to the player. This replaces the earlier "any DM sets
+AND unsets, re-checked against current membership" default, which both review rounds below found could
+permanently strand a flagged player once the qualifying DM relationship ended.
+
+**Still open — needs a decision, not just an implementation:**
 - Whether the one-character limit should be configurable (a number) or a plain on/off switch. Drafting
   as a plain boolean for simplicity; a number is a trivial extension later if wanted.
 - Whether a character that's currently *local-only* (never cloud-saved) counts toward the limit. The
@@ -59,36 +61,69 @@ turning that one-off fix into a real feature so a human doesn't have to interven
   characters on their own device. Treating that as acceptable / out of scope, not a bypass worth closing.
 
 ## Proposed approach
-1. Add a nullable boolean column to the player-accounts table (e.g. `basic_mode`), default off/null —
-   existing players are entirely unaffected until someone deliberately flags one.
-2. Add a `BEFORE INSERT` trigger on the character table (same pattern as the existing locked-history
-   trigger) that: looks up the inserting owner's `basic_mode` flag; if set, counts that owner's existing
-   non-archived character rows; if the count is already ≥ 1, raises a distinctive, prefixed error
-   message rather than silently failing. This is enforced independently of the existing INSERT policy
-   (belt-and-suspenders, matching how the ap/campaign_id guards are layered today) and cannot be
-   bypassed by calling the insert endpoint directly, since it fires for any INSERT regardless of caller.
-3. Add a way for an authorized DM to flip the flag — a database function (matching the existing pattern
-   for DM actions that must bypass a player's own row-level policy, e.g. how a DM currently
-   awards points or removes a character from their campaign) that checks the caller shares a campaign
-   with the target player before allowing the write. (Depends on resolving the "who can set this" open
-   question above.)
+1. Add three columns to the player-accounts table: `basic_mode` (nullable boolean, default null/off —
+   existing players entirely unaffected until deliberately flagged), `basic_mode_set_by` (the setting
+   DM's account id), `basic_mode_set_at` (timestamp). The latter two exist purely so the flagged player
+   can see who restricted them and when, per the decision record above — not used in enforcement logic.
+2. **Enforcement mechanism — revised from the original draft.** The first draft proposed a `BEFORE
+   INSERT` trigger that counts existing active rows. Both cold-review rounds below found this doesn't
+   actually achieve "cannot be bypassed": restoring a character from archived back to active
+   (`archived_at` → null) is an UPDATE, not an INSERT, so the trigger never fires on that path — a
+   flagged player can archive one character, create a second (passes at zero), then un-archive the
+   first, ending at two active characters. It's also a plain check-then-act race under concurrent
+   inserts.
+
+   The reviewers' own suggested fix — a partial unique index — turns out to have a real wrinkle worth
+   naming rather than silently assuming away: Postgres partial-index predicates are expected to depend
+   only on the indexed table's own columns via immutable expressions, and `basic_mode` lives on a
+   different table, one whose value is expected to change over time independent of the character rows
+   it would need to gate. A literal `unique index on characters(owner_id) where archived_at is null and
+   <owner's basic_mode>` isn't a straightforward, safe construction under that constraint. Two ways to
+   still get the reviewers' actual point (an atomic, race-proof check that covers both insert AND
+   un-archive) without that wrinkle:
+   - **(a) Broaden the trigger** to fire `BEFORE INSERT OR UPDATE OF archived_at` (covering un-archive,
+     not just creation), and close the race by taking an explicit lock on the owner's existing rows
+     (`SELECT ... FOR UPDATE`) or a Postgres advisory lock keyed on `owner_id` before counting, so two
+     concurrent attempts serialize instead of both reading count=0. This is the smaller diff — same
+     trigger pattern this codebase already has, just broadened and lock-guarded — and is the
+     recommended first cut.
+   - **(b) Denormalize:** copy `basic_mode` onto the character row itself at write time (kept in sync by
+     a trigger on the accounts table cascading down whenever the flag changes), then a genuine partial
+     unique index on `characters(owner_id) where archived_at is null and basic_mode` becomes valid,
+     since it now only depends on this table's own columns. More moving parts (a second, cross-table
+     sync trigger) for a table this small; worth it only if (a)'s per-write lock is later found to be a
+     real contention problem, which is unlikely at this table's current size.
+
+   Either way, the check is enforced independently of the existing INSERT policy (belt-and-suspenders,
+   matching how the `ap`/`campaign_id` guards are layered today) and cannot be bypassed by calling the
+   database directly, since it fires regardless of caller.
+3. Two database functions for flipping the flag, both matching the decision record's authority model:
+   one callable by a DM sharing a campaign with the target player (sets it on; also usable by that DM to
+   set it off, as the decision's convenience path) and one callable by the player themselves on their
+   own account (always available to turn it off, regardless of any DM's current standing — this is the
+   path that actually closes the reversibility gap, not the DM path).
 4. Client-side: catch the new trigger's distinctive error message at the one shared insert call site
    (see Verified above) and surface a plain-language message ("this account is limited to one
    character") instead of a raw database error, in both character-editing tools since they share that
    code path.
-5. Add a small UI affordance wherever a DM already manages their campaign's roster, to set/unset the
-   flag on a player and see it's currently on.
+5. UI: a small affordance wherever a DM already manages their campaign's roster, to set/unset the flag
+   on a player and see it's currently on; and a small affordance in each player-facing tool's own
+   account/settings area showing "basic mode is on, set by <DM> on <date>" with an unset control — the
+   player's own escape hatch has to be visible somewhere a DM-only tool can't be the only place it lives.
 6. A database migration file, then run this project's own advisor/security-lint tooling before treating
    the change as done — this project has been bitten before by access-control drift that only that
    tooling caught.
 
 ## Files / areas involved (names, not line numbers — they'll drift)
-- The RLS policy file (character table's INSERT policy and column-grant section).
+- The RLS policy file (character table's INSERT policy and column-grant section, plus the new/broadened
+  trigger and its lock-acquisition logic).
 - A new migration file alongside the project's existing dated migration files.
 - The shared sync module's single insert call site and its public save-entry-point wrapper (both
-  character-editing tools already route through this one module for cloud saves).
-- Whichever DM-facing tool file already has campaign roster management, for the new toggle UI.
-- The player-accounts table's own migration/schema definition, for the new column.
+  character-editing tools already route through this one module for cloud saves) — also wherever that
+  module handles un-archiving, now that the trigger covers that path too.
+- Whichever DM-facing tool file already has campaign roster management, for the DM-side toggle UI.
+- Each player-facing tool's own account/settings surface, for the player's own self-unset control.
+- The player-accounts table's own migration/schema definition, for the three new columns.
 
 ## Out of scope
 - Any change to how *local-only* (never cloud-saved) characters work — basic mode is a cloud-sync-time
@@ -107,26 +142,42 @@ turning that one-off fix into a real feature so a human doesn't have to interven
 - **Enforce only in the RLS policy's own `WITH CHECK` clause, no trigger.** Rejected as the primary
   mechanism: a bare policy rejection surfaces to the client as a generic, non-specific permission error
   with no clean way to distinguish "you hit the character limit" from any other policy failure, so the
-  UI could not give a useful message. The trigger approach is barely more code and this codebase already
-  has the exact pattern to copy.
+  UI could not give a useful message.
 - **Client-side-only enforcement (hide/disable the "new character" button).** Rejected outright per the
   task's own requirement — trivially bypassed by calling the database directly, which does not meet
   "enforced server-side."
 - **A numeric per-player limit instead of a flat one-character switch.** Not rejected, just deferred —
   a plain boolean is the smaller, safer first cut, and the schema choice (a nullable value rather than a
   bare boolean) leaves room to make it numeric later without another migration.
+- **A literal partial unique index keyed directly on the accounts table's live `basic_mode` value, with
+  no denormalization.** This was the two cold reviewers' own proposed fix for the original trigger's
+  bypass and race. Not rejected as a direction — it's the right instinct — but rejected in this exact
+  form: Postgres partial-index predicates are meant to depend only on the indexed table's own columns
+  via immutable expressions, and a cross-table reference to a value that's expected to change
+  independently doesn't fit that safely. Reshaped into the two options in step 2 above (a lock-guarded
+  broadened trigger, or a denormalized same-table flag that makes a real partial unique index valid)
+  instead of asserting the naive cross-table version would just work.
+- **A `SECURITY DEFINER` wrapper function returning a structured/typed result, instead of client-side
+  substring-matching a raised error message.** Flagged by one reviewer as more robust than the existing
+  locked-history precedent's own known fragility (a future message-wording change silently breaks
+  detection). Not adopted in this revision — staying consistent with the existing precedent keeps this
+  feature's error-handling shape unsurprising next to the code it's modeled on — but worth reconsidering
+  if that fragility ever actually bites in practice.
 
 ## Risks
 - **Schema + RLS + trigger change on a live table with real user rows.** Wrong logic here either locks
   a player out of creating any character at all (support burden) or fails to block anything (feature
   doesn't work) — this class of bug is exactly why this plan exists instead of an ad-hoc patch.
-- **The authority question above, if resolved wrong,** either lets any DM restrict a player they have no
-  real standing over, or leaves the feature unusable for the exact case (an unbound player) that
-  motivated it.
 - **Trigger ordering.** This project's existing triggers on the same table are documented as firing in a
   specific alphabetical order relative to each other because more than one can fire on the same
   statement; a new trigger needs to be checked against that existing ordering rather than assumed
-  independent.
+  independent — now more load-bearing than in the original draft, since the trigger is broadened to
+  also fire on the `archived_at` UPDATE path, which other existing triggers may also touch.
+- **Lock contention/deadlock, if approach (a) from step 2 is built carelessly.** An explicit row or
+  advisory lock taken inside a trigger needs a consistent lock-ordering discipline (always lock by
+  `owner_id`, always released at transaction end) to avoid a deadlock between two concurrent writers for
+  the same owner — low likelihood at this table's current size, but worth a specific test rather than
+  assumed away given it's new to this codebase's trigger patterns.
 
 ## Verification
 - This project's own automated rules-parity test suite must still show zero failures after the change
@@ -137,17 +188,26 @@ turning that one-off fix into a real feature so a human doesn't have to interven
   concretely been bitten before by access-control drift that only that tooling caught.
 - Manually verify: flag a test player, confirm a second character creation is refused with the new
   friendly message (not a raw database error) in both tools; confirm an unflagged player is completely
-  unaffected; confirm turning the flag off again immediately un-blocks creation; confirm archiving one
-  of an already-over-the-limit player's characters does NOT itself get auto-deleted or touched by this
-  feature.
+  unaffected; confirm the player's own self-unset control immediately un-blocks creation with no DM
+  involvement required; confirm archiving one of an already-over-the-limit player's characters does NOT
+  itself get auto-deleted or touched by this feature.
+- **New, added in this revision — the two gaps the cold reviews found:** confirm un-archiving a second
+  character while flagged and already at the limit is refused with the same message (closes the
+  archive/create/un-archive bypass); confirm two near-simultaneous creation attempts for the same
+  flagged owner cannot both succeed (closes the count-then-act race) — a scripted concurrent-request
+  test, not just manual sequential clicking, since the race is exactly the kind of thing sequential
+  manual testing cannot exercise.
+- Confirm a DM who no longer shares a campaign with the player can neither set nor unset the flag, and
+  confirm the player retains their own unset control regardless.
 
 ## Done when
-A DM sharing a campaign with a player can flag that player's account; a flagged player is refused (with
-a clear message, in both tools) when trying to create a second active character; an unflagged player is
-unaffected; turning the flag off unblocks creation immediately; the project's own regression suite and
-security-advisor tooling are clean; the change is documented per this project's own decision-record
-convention (a non-obvious trust-boundary/authority decision like this is exactly what that convention
-exists for).
+A DM sharing a campaign with a player can flag that player's account; the flagged player can always
+unset it themselves, independent of that DM's continued standing; a flagged player is refused (with a
+clear, app-styled message, in both tools) when trying to create a second active character OR to
+un-archive a second one while already at the limit; two concurrent creation attempts cannot both
+succeed; an unflagged player is unaffected; the project's own regression suite and security-advisor
+tooling are clean; the authority/reversibility decision and this implementation are both documented per
+this project's own decision-record convention.
 
 ---
 
