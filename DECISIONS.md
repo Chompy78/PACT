@@ -10,6 +10,25 @@
 
 ## Index
 
+## D-GH-2026-09-05-branch-cleanup-incident — a merged-PR branch sweep deleted `main`, and why `preview` survived
+- A repo-wide branch cleanup (91 branches) found `git branch --merged` useless here — this repo squash-
+  merges, so a squashed PR's commits are never ancestors of `preview`, and the check reported zero
+  branches merged including ones provably shipped. Switched to "does this branch have a merged PR"
+  instead — the GitHub MCP tool's bulk PR list has an unreliable `merged` field (always false, verified
+  against a per-PR `get` call reporting `true` for the same PR), so the accurate check moved to a local
+  `gh pr list --state merged --json headRefName` run. That check is correct about merge status but the
+  resulting delete never excluded the repo's own protected branch names — two historical PRs had
+  `head.ref: "main"` (a PR opened from `main`, unusual but real and merged), so `main` landed in the
+  delete list alongside 84 genuinely stale branches and was removed. `preview` carried the identical
+  exposure (many real promotion PRs have `head.ref: "preview"`) and survived only because GitHub refuses
+  to delete a repository's *configured default branch* server-side, unconditionally — `preview` has that
+  status, `main` does not. Recovered by pushing `main`'s last known commit SHA back onto
+  `refs/heads/main` from a local terminal (verified the commit object was still live on GitHub first);
+  confirmed byte-exact via two independent tools afterward. Branch protection ("Restrict deletions",
+  "Restrict force pushes") on `main` is recommended but not yet applied — no GitHub tool available here
+  exposes branch-protection settings; it's an owner action. Full record:
+  `decisions/2026/D-GH-2026-09-05-branch-cleanup-incident.md`
+
 ## D-GH-2026-09-05-roller-headless-access — a real-browser headless roller, not source-extraction
 - `cm-pact-campaign` was getting roller output for party-spread analysis by regex-extracting
   `randomizeRoll()`'s source and `eval`-ing it in a bare vm — the same technique that caused fault #3 of

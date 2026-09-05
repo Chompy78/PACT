@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-05 · chore: repo branch cleanup — 91 → 3 branches, one accidental `main` deletion and full
+  recovery** — a merged-PR-based sweep (git ancestry checks don't work here; this repo squash-merges)
+  correctly identified 85 stale branches, but the delete list wasn't filtered against the repo's own
+  protected branch names first: two historical PRs had `head.ref: "main"`, so `main` — the live GitHub
+  Pages source — was deleted along with the real stale ones. Recovered immediately: the commit was still
+  live on GitHub, restored `main` to its exact prior SHA, verified byte-exact via two independent tools.
+  `preview` carried the identical exposure and was never actually at risk — GitHub refuses to delete a
+  repo's configured default branch, unconditionally, and `preview` holds that status. Branch protection
+  on `main` ("Restrict deletions"/"Restrict force pushes") is recommended and still outstanding — no
+  GitHub tool available here exposes that setting; it's an owner action. Two further orphaned branches
+  (`claude/amble-character-dms-awards-igww1s`, `claude/tools-review-issues-y00cx8`) were individually
+  content-checked and confirmed to carry no unique unmerged work, pending deletion. Full record:
+  `D-GH-2026-09-05-branch-cleanup-incident`.
 - **2026-09-05 · feat: a real-browser headless roller for other projects** —
   `testing/scripts/roll-headless.mjs`, so `cm-pact-campaign` (and similar) can get 🎲 roller output by
   driving the actual tool in headless Chromium instead of regex-extracting `randomizeRoll()`'s source into
