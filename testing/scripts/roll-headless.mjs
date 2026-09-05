@@ -1,0 +1,261 @@
+/**
+ * PACT — headless 🎲 roller for OTHER projects (campaign analysis, party-spread tooling, etc).
+ * ---------------------------------------------------------------------------------------------
+ * WHY THIS EXISTS. `cm-pact-campaign`'s `analysis/2026-09-07-real-party/gen_random_spread.mjs` drove
+ * the real `randomizeRoll()` by regex-extracting its source out of the tool file and `eval`-ing it in a
+ * bare vm — which is exactly how the Hit-Dice bug (D-GH-2026-09-05-roller-build-shapes) went unnoticed:
+ * lifting the function out of the file it's declared in put `apLevel` out of scope, and the old code
+ * silently built a level-9 character rather than failing. Source-extraction measures a DECONTEXTUALIZED
+ * COPY of the roller, not the roller — the same class of drift AGENTS.md warns about for rules code, just
+ * applied to a UI function instead of `engine.js`.
+ *
+ * This script instead drives the REAL tool in a REAL (headless) browser — the same
+ * zero-dependency Chrome DevTools Protocol technique `random-quality-ci.mjs` and `tool-pricing-ci.mjs`
+ * already use for CI — so every roll goes through the actual `randomizeRoll()`, in its own scope, with
+ * every global it expects (`apLevel`, `DATA`, `compute`, `tryAct`, …) present exactly as a browser
+ * provides them. If `randomizeRoll()` changes shape, this script sees the new behaviour automatically;
+ * it never drifts, because it never re-implements anything.
+ *
+ * NOT FULLY STANDALONE — READ THIS BEFORE COPYING THE FILE. This script has no npm dependencies of its
+ * own (Node built-ins only), but it works by SERVING PACT's real tool files over HTTP from --repo (default:
+ * this script's own repo checkout) and driving them in Chromium — so it needs a full PACT checkout
+ * present somewhere reachable, not just this one file. From another project, the simplest path is to
+ * clone PACT itself (it's the same public repo GitHub Pages serves from) and point --repo at that clone —
+ * see "Quick start" in the companion `roll-headless.md` in this directory for the exact command. Copying
+ * just this .mjs file only works if you also vendor tools/PACT-CharGen-Webtool.html and the js/ directory
+ * it imports alongside it, at the same relative paths --repo expects.
+ *
+ * The local HTTP server this script starts binds to 127.0.0.1 only and serves nothing outside --repo.
+ *
+ * USAGE
+ *   node testing/scripts/roll-headless.mjs --help              # this text
+ *   node testing/scripts/roll-headless.mjs --list-themes        # theme metadata + AP/level table, no rolling
+ *   node testing/scripts/roll-headless.mjs --theme=bruiser --budget=295 --count=50
+ *   node testing/scripts/roll-headless.mjs --theme=bruiser,scholar --budget=79,295,535 --count=20
+ *   node testing/scripts/roll-headless.mjs --theme=bruiser --budget=295 --count=10 --class=Fighter
+ *   node testing/scripts/roll-headless.mjs --theme=scholar --budget=295 --count=200 --out=rolls.json
+ *   node testing/scripts/roll-headless.mjs --repo=/path/to/PACT --theme=bruiser --budget=295 --count=50
+ *
+ * FLAGS
+ *   --theme=<key[,key...]>   Required (unless --list-themes). Theme key(s) from --list-themes' output.
+ *                            No default — omitting it is an error, not "roll every theme".
+ *   --budget=<AP[,AP...]>    Required (unless --list-themes). AP budget(s) to roll at.
+ *   --count=<N>              Rolls per theme x budget combination. Default 1.
+ *   --class=<ClassName>      Force this origin class on every roll (e.g. "Fighter"), instead of letting
+ *                            the theme pick its own preferred classes.
+ *   --out=<path>             Write JSON to this file instead of stdout.
+ *   --list-themes            Print theme metadata + DATA.levelAP (AP-per-level) as JSON. No rolling.
+ *   --repo=<path>            PACT repo root to serve the tool from. Default: this script's own repo.
+ *   --help / -h              Print this usage text and exit 0 — no browser is launched.
+ *   CHROME_BIN=<path>        Env var. Override Chromium discovery.
+ *
+ * OUTPUT   A JSON array on stdout (or written to --out), one entry per roll — either
+ *   { themeKey, budget, forcedClass, build, result }   on a real roll, or
+ *   { themeKey, budget, forcedClass, error }           when the character had no AP to spend at that
+ *                                                       budget (randomizeRoll() itself refuses this —
+ *                                                       correct tool behaviour, not a script bug).
+ *   `build` is the tool's own readBuild() object (species, class, stats, hd, skills, boons, arts,
+ *   racialTraits, drawbacks, armour, weaponProf, traditions, tools, hardy, tough, …) — everything a
+ *   character sheet has. `result` is the matching compute() output (hp, ac, spent, spendable, warnings,
+ *   init, speed, saveDC, …) — everything a character sheet DERIVES. Nothing here is invented or
+ *   summarized; it's exactly what the real tool would show if a person clicked 🎲 in a browser. A row
+ *   NEVER carries both `build`/`result` and `error` — check for `error` before reading the others.
+ *
+ * EXIT CODES   0 success · 1 page-side error (bad flags, tool threw, OR any roll came back with `error` —
+ * check stderr and the output for which) · 2 no Chromium found (set CHROME_BIN or install one) · 3
+ * Chromium found but never opened its DevTools port.
+ */
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+function parseArgs(argv) {
+  const out = {};
+  for (const a of argv) {
+    const m = /^--([^=]+)(?:=(.*))?$/.exec(a);
+    if (m) out[m[1]] = m[2] === undefined ? true : m[2];
+  }
+  return out;
+}
+const args = parseArgs(process.argv.slice(2));
+
+// --help / -h: print the header doc-comment verbatim and exit BEFORE touching the repo path or Chrome —
+// this has to work with zero setup (no --repo, no Chromium installed) since it's how an agent with no
+// prior context on this script is expected to learn what it does.
+if (args.help || process.argv.slice(2).includes('-h')) {
+  const src = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  const m = /^\/\*\*([\s\S]*?)\*\//.exec(src);
+  console.log((m ? m[1] : '').split('\n').map(l => l.replace(/^\s*\* ?/, '')).join('\n').trim());
+  process.exit(0);
+}
+
+const REPO = path.resolve(args.repo || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'));
+const PORT = 8737, CDP_PORT = 9339;   // distinct from the CI gates' ports so this can run alongside them
+const csv = v => (v == null ? [] : String(v).split(',').map(s => s.trim()).filter(Boolean));
+
+function findChrome() {
+  if (process.env.CHROME_BIN && fs.existsSync(process.env.CHROME_BIN)) return process.env.CHROME_BIN;
+  const root = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers';
+  if (fs.existsSync(root)) {
+    for (const d of fs.readdirSync(root).filter(x => x.startsWith('chromium')).sort().reverse()) {
+      for (const rel of ['chrome-linux/chrome', 'chrome-mac/Chromium.app/Contents/MacOS/Chromium']) {
+        const p = path.join(root, d, rel);
+        if (fs.existsSync(p)) return p;
+      }
+    }
+    const flat = path.join(root, 'chromium');
+    if (fs.existsSync(flat) && fs.statSync(flat).isFile()) return flat;
+  }
+  for (const q of ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome',
+                   '/usr/bin/google-chrome-stable',
+                   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']) {
+    if (fs.existsSync(q)) return q;
+  }
+  return null;
+}
+
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json',
+               '.css': 'text/css', '.webp': 'image/webp', '.png': 'image/png', '.svg': 'image/svg+xml' };
+function serve() {
+  return new Promise(resolve => {
+    const s = http.createServer((req, res) => {
+      const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/PACT\//, '');
+      const f = path.join(REPO, rel);
+      // A plain string-prefix check (f.startsWith(REPO)) is bypassed by any sibling directory whose name
+      // happens to share REPO as a prefix (REPO=/home/user/PACT, sibling=/home/user/PACT-secrets) — the
+      // sibling path also starts with REPO as a string even though it's outside the served tree. Require
+      // an exact match or a path separator right after REPO, which a sibling directory name can never have.
+      const inRepo = f === REPO || f.startsWith(REPO + path.sep);
+      if (!inRepo || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end(); }
+      res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' });
+      res.end(fs.readFileSync(f));
+    });
+    // Loopback only — this server has no auth and this script is documented (roll-headless.md) as
+    // something other projects/agents run on their own machines, unlike the CI-only gates this pattern
+    // was copied from, so it must not accept connections from other hosts on the network.
+    s.listen(PORT, '127.0.0.1', () => resolve(s));
+  });
+}
+
+async function connect(url) {
+  const t = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' })).json();
+  const ws = new WebSocket(t.webSocketDebuggerUrl);
+  let id = 0; const pending = new Map();
+  ws.onmessage = e => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } };
+  await new Promise(r => (ws.onopen = r));
+  const send = (method, params = {}) => { const i = ++id; ws.send(JSON.stringify({ id: i, method, params })); return new Promise(r => pending.set(i, r)); };
+  await send('Page.enable'); await send('Runtime.enable');
+  return {
+    close: async () => { ws.close(); await fetch(`http://127.0.0.1:${CDP_PORT}/json/close/${t.id}`); },
+    async evaluate(expr) {
+      const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
+      const ex = r.result?.exceptionDetails;
+      if (ex) throw new Error('page threw: ' + (ex.exception?.description || ex.text || 'unknown') + `\n    while evaluating: ${expr.slice(0, 200)}`);
+      return r.result?.result?.value;
+    }
+  };
+}
+const READY = (probe) => `(async()=>{for(let i=0;i<300;i++){if(${probe})return true;await new Promise(r=>setTimeout(r,100));}return false;})()`;
+
+const chrome = findChrome();
+if (!chrome) {
+  console.error('No Chromium found. Set CHROME_BIN, or install one where PLAYWRIGHT_BROWSERS_PATH points.');
+  process.exit(2);
+}
+const server = await serve();
+const proc = spawn(chrome, ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
+  `--remote-debugging-port=${CDP_PORT}`, `--user-data-dir=${fs.mkdtempSync('/tmp/pact-roll-headless-')}`, 'about:blank'],
+  { stdio: ['ignore', 'ignore', 'pipe'] });
+let chromeErr = '', chromeExit = null;
+proc.stderr.on('data', d => { chromeErr += d.toString().slice(0, 4000); });
+proc.on('exit', c => { chromeExit = c; });
+proc.on('error', e => { chromeErr += `spawn error: ${e.message}\n`; });
+
+let cdpUp = false;
+for (let i = 0; i < 300; i++) {
+  try { await fetch(`http://127.0.0.1:${CDP_PORT}/json/version`); cdpUp = true; break; }
+  catch { await new Promise(r => setTimeout(r, 100)); }
+}
+if (!cdpUp) {
+  console.error(`No Chromium DevTools port after 30s. binary=${chrome} exit=${chromeExit} stderr=${chromeErr.trim() || '(nothing)'}`);
+  try { proc.kill(); } catch {}
+  server.close();
+  process.exit(3);
+}
+
+// Page-side roll function. Test-only, defined here rather than in the tool — same contract as
+// random-quality-ci.mjs's `_qaRoll`, but returning the FULL build + compute() result rather than a
+// summary, since a consuming project (party-spread analysis, say) needs the actual character, not a gate.
+const ROLL_FN = `
+window._headlessRoll=function(themeKey,budget,forceClass){
+  if(typeof resetBuild==='function'){try{resetBuild();}catch(e){}}
+  var bi=document.getElementById('budget'); bi.value=String(budget);
+  if(typeof _cgSyncAward==='function')_cgSyncAward();
+  if(forceClass){var oc=document.getElementById('oclass'); if(oc){oc.value=forceClass; oc.dispatchEvent(new Event('change',{bubbles:true}));}}
+  var _dmO=(typeof _cgDmOpts==='function')?_cgDmOpts():{dmAp:0,ignorePlayerAp:false};
+  // randomizeRoll() itself refuses — flash a message and a bare 'return', no thrown error — when this
+  // character has no AP to spend yet (spendable<=0, e.g. a DM-AP-only character with no grant, or simply
+  // --budget=0). That refusal is correct tool behaviour, not a bug. But calling readBuild()/compute() on
+  // the untouched reset build afterward and returning it as {build,result} would hand back a blank
+  // character (hd:1, stats all 10, no warnings) INDISTINGUISHABLE from a real roll — exactly the
+  // 'silently plausible-but-wrong' failure mode D-GH-2026-09-05-roller-build-shapes replaced with a loud
+  // throw elsewhere in this same function. Check the same precondition before calling it, so a caller
+  // gets an explicit error field instead of a fake character.
+  var _pre=compute(readBuild(),_dmO).spendable;
+  if(!(_pre>0)){
+    return {themeKey:themeKey,budget:budget,forcedClass:forceClass||null,
+      error:'no AP to spend at this budget (spendable='+_pre+') — randomizeRoll() refuses; no roll attempted'};
+  }
+  randomizeRoll(themeKey,0);
+  var b=readBuild(), r=compute(b,_dmO);
+  return {themeKey:themeKey,budget:budget,forcedClass:forceClass||null,build:b,result:r};
+};true`;
+
+let exitCode = 0;
+try {
+  const cg = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`);
+  if (!(await cg.evaluate(READY(`window.DATA&&typeof compute==='function'&&typeof randomizeRoll==='function'&&typeof readBuild==='function'`))))
+    throw new Error('CharGen never became ready (engine-ready did not fire?)');
+
+  if (args['list-themes']) {
+    const themes = await cg.evaluate(`RTHEMES.map(function(t){return {key:t.key,label:t.label,hint:t.hint,armour:t.armour,shield:!!t.shield,weapons:t.weapons,cats:t.cats,shape:t.shape};})`);
+    const budgets = await cg.evaluate(`Object.keys(DATA.levelAP||{}).map(function(l){return {level:+l,ap:DATA.levelAP[l]};})`);
+    process.stdout.write(JSON.stringify({ themes, budgets }, null, 2) + '\n');
+  } else {
+    await cg.evaluate(ROLL_FN);
+    const themeKeys = csv(args.theme);
+    const budgets = csv(args.budget).map(Number).filter(Number.isFinite);
+    const count = Math.max(1, +(args.count || 1));
+    const forceClass = typeof args.class === 'string' ? args.class : null;
+    // Both required explicitly — no "omitted --theme means every theme" convenience fallback. --help and
+    // roll-headless.md both document --theme as required; a silent all-themes default previously
+    // contradicted that and could turn a typo'd command into an 8x-larger, much slower run with no warning.
+    if (!themeKeys.length) throw new Error('--theme=<key[,key...]> is required (see --list-themes for available keys)');
+    if (!budgets.length) throw new Error('--budget=<AP[,AP...]> is required (see --list-themes for DATA.levelAP)');
+
+    const rows = [];
+    for (const themeKey of themeKeys) for (const budget of budgets) for (let i = 0; i < count; i++) {
+      rows.push(await cg.evaluate(`_headlessRoll(${JSON.stringify(themeKey)},${budget},${JSON.stringify(forceClass)})`));
+    }
+    const json = JSON.stringify(rows, null, 2);
+    if (args.out) { fs.writeFileSync(args.out, json); console.error(`wrote ${rows.length} rolls to ${args.out}`); }
+    else process.stdout.write(json + '\n');
+    // Surface no-AP refusals loudly rather than letting them pass as ordinary rows a caller might not
+    // think to check for — same principle as the roller's own loud throw for its analogous failure mode.
+    const errs = rows.filter(r => r.error);
+    if (errs.length) {
+      console.error(`\n${errs.length}/${rows.length} rolls refused (no AP to spend), e.g. budget=${errs[0].budget} theme=${errs[0].themeKey}: ${errs[0].error}`);
+      exitCode = 1;
+    }
+  }
+  await cg.close();
+} catch (e) {
+  console.error('roll-headless failed: ' + (e && e.message || e));
+  exitCode = 1;
+} finally {
+  try { proc.kill(); } catch {}
+  server.close();
+}
+process.exit(exitCode);

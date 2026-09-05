@@ -20,6 +20,53 @@ prune, PWA stale-version reload-prompt fix, Live Sheet mobile density/collapse) 
 to `CHANGELOG.md`.
 
 
+## Extract randomizeRoll() into a DOM-free js/randomizer.js module — TODO
+Branch `feat/randomizer-module`. Option B from `D-GH-2026-09-05-roller-headless-access`, deferred rather
+than rejected: `testing/scripts/roll-headless.mjs` (Option A, shipped) gives other projects headless 🎲
+roller access today by driving the real tool in real headless Chromium, which works but needs a Chromium
+binary and a served copy of the HTML for every call. This task is the durable version — pull
+`randomizeRoll()` out of `tools/PACT-CharGen-Webtool.html` into a standalone module, importable directly
+from Node with no browser at all, the same way `js/engine.js` already exports `compute()` to everyone.
+
+**Effort:** large · **Risk:** medium — ambiguity medium-high (the function is currently ~30 mutator
+closures reading and writing ~50 tool-local names — `b`, `LOG`, `tryAct`, `applyBuild`, `flash`,
+`_histSuspended`, live DOM elements for the class/species selects — and some of that coupling is load-
+bearing, not incidental: the creation-lock/lock-config carry-over logic and the undo-frame suspension
+around the whole roll both depend on exactly where in the tool's flow `randomizeRoll()` runs); damage
+scale medium (one tool, revertable, but touches the same function three sessions have now each found a
+real bug in); damage likelihood low if a cold plan review precedes implementation, high if it doesn't —
+this is exactly the shape of change `AGENTS.md`'s own cold-plan-review trigger describes (multi-file,
+architectural, a wrong approach costs more than one implementation cycle to undo).
+
+```text
+1. COLD PLAN REVIEW FIRST — do not implement straight from this entry. Draft the plan
+   (/make-code-cold-plan-review or the cold-plan-review-universal-jc skill) covering at minimum: which of
+   randomizeRoll()'s ~50 tool-local dependencies are pure inputs (DATA, compute, budget, themeKey — easy
+   to pass as arguments) versus which are host-tool STATE the module cannot own (LOG/undo history, the
+   creation-lock carry-over, DOM-driven appearance/name resync) and therefore must either take as an
+   injected interface or leave for the CALLER (the tool) to apply after the module returns a plain build.
+2. The module's contract should mirror compute()'s: pure function in, plain data out. Something like
+   `randomize(DATA, compute, {themeKey, budget, forceClass}) -> {build, result}` — no DOM, no LOG, no
+   global mutation. The tool's own 🎲 button then does what it does today (applyBuild, LOG resync,
+   creation-lock carry-over) as a thin wrapper AROUND the module's pure output, not inside it.
+3. Re-verify random-quality-ci.mjs's full assertion set against the extracted module, not just the
+   wrapped tool call — every invariant it checks (legality, HD variance, coherence, theme signal,
+   diversity, caster slot sanity, Grit reachability) needs to hold on the pure function directly, since
+   that's now the thing other projects will actually call.
+4. Once the module exists, retire testing/scripts/roll-headless.mjs's Chromium dependency: it can import
+   js/randomizer.js directly instead of driving a browser, which is most of the point — same for any
+   sibling project that vendored the CDP script under D-GH-2026-09-05-roller-headless-access.
+5. Display/generation logic only — no compute() change expected, so do NOT bump DATA.version; confirm
+   rather than assume.
+```
+
+**Done when:** `js/randomizer.js` exports a pure `randomize()` (or equivalent) callable from Node with no
+browser and no DOM; the tool's 🎲 button is a thin wrapper around it with unchanged UI behaviour;
+`random-quality-ci.mjs`'s full gate passes against the extracted module; `engine-parity` is unchanged; and
+the cold plan review's dependency classification (pure input vs. host-tool state) is recorded in the
+decision file before implementation starts, not reconstructed afterward.
+
+
 ## Merge concurrent character edits instead of refusing them — TODO
 Branch `feat/character-log-merge`. The deep fix behind `fix/optimistic-character-save` (NOW), which only
 *refuses* a stale write. Do that one first; this supersedes its behaviour rather than conflicting with it.
