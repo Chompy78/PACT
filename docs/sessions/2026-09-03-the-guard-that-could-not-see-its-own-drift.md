@@ -67,6 +67,12 @@ check that would have caught it directly: assert every checked function *has* a 
 That check is deliberately absent from this branch, because adding it before the fix would put CI red on
 `preview` for a defect this branch does not own.
 
+> **Overtaken by events, 2026-09-05 — kept because the reasoning was still right at the time.** The
+> handover never happened: the owner asked for the fix in this session instead, and it shipped as #512
+> and #515. The deferral logic held exactly as written — the positive assertion landed *with* the fix
+> rather than before it, so `preview` was never red for a defect the guard branch did not own. What
+> changed was who did it, not whether the sequencing was correct.
+
 Same reasoning for the two missing `DECISIONS.md` records on `cb323ca` and `f2418a9`: their author knows
 the *why*. Writing it from outside would be reconstruction, which is the thing that rule exists to
 prevent.
@@ -126,3 +132,30 @@ Also confirmed from a fourth angle, while running `/close-code-session-jc`: the 
 procedures to a sibling `close-session-logging-core.md`, and that file does not exist —
 `close-code-session-jc/` contains only `SKILL.md`. This is the open NOW task, now observed by the skill
 itself failing to find its own dependency rather than by inspecting the tree.
+
+### Then the coda grew a fourth act
+
+The session did not end there. Asked to explain the regression in plain English, I had to state its
+severity properly for the first time — and doing so **contradicted my own earlier framing**. I had called
+it "a real security regression" and left it at that. It is a real *regression*; it was not a live hole.
+`pact_ap_ledger_protected` is **not** `security definer`, so it runs as its caller and hijacking its name
+resolution gains an attacker nothing; and it is reached from `pact_enforce_locked_history()`, which *is*
+and *does* pin. Asked to fix it, I did — #512 (the fix plus the positive assertion) and #515 (production
+application and graduation).
+
+**The part worth keeping is the order of operations.** Before touching production I read live `pg_proc`,
+and it returned the severity claim as *evidence* rather than inference: `pact_ap_ledger_protected` was the
+**only** unpinned function of the seven checked, and the only one with `prosecdef = false`. I also captured
+the live function body first and compared it after — normalised hash `9971cf21…` unchanged — which proved
+`create or replace` had moved the SET clause and nothing else. The advisor then stopped reporting
+`function_search_path_mutable` entirely.
+
+Given how much of this note is about claims asserted from one signal, converting that particular claim
+from inference to production evidence *before* acting on it is the one habit from this session worth
+generalising.
+
+**And the collision count reached three.** Asked to promote `preview` to `main` at the end, there was
+nothing to promote: another session's PR #513 had merged minutes after #515 and swept both my commits in.
+Same shape as the #506 collision — opened before mine merged, merged after, no loss. Three races, three
+times free. The honest reading is that the append-at-top `CHANGELOG` and GitHub's own refusals have
+absorbed all of it so far, not that concurrent promotion is safe by design.
