@@ -20,6 +20,50 @@
   `stamp_guide_rules.mjs`, which this session could not run (file read/write access to `pact-guide` via
   the home-server connector, but no script-execution capability there). `DATA.version` unchanged by this
   commit (docs-only).
+- **2026-09-03 · feat(dm): a DM can zero a character's self-declared Player AP, and once a campaign
+  ignores it, it can no longer creep back up** — live-data audit for the Amble campaign found three
+  characters (Archer, Anders Pipeleaf, Caspian) carrying a non-zero "Player AP" (CharGen's own
+  self-editable "Budget" field, an `award`-type LOG total structurally separate from DM-awarded
+  `characters.ap`) — 127/79/27 AP respectively — despite Amble already having `ignore_player_ap` on.
+  Root cause: that campaign flag only ever gated what compute()/the UI *read*, never what could be
+  *written* — "Copy to CharGen" (feat/chargen-dm-view) is a documented, deliberate exception that never
+  re-fetches it, so a DM inspecting a copy saw the raw, uncapped figure. Fixed at both ends: a new
+  `dm_zero_player_ap` RPC (purpose-built, same reasoning as `dm_set_creation_ceiling` — not a
+  `dm_edit_character_log` allowlist widening) appends a dmEdit-stamped compensating award computed from
+  the log itself, exposed in DM Console's "DM tools" panel as a one-click **Zero Player AP** button; and
+  a new trigger, `pact_enforce_player_ap_ceiling`, makes the DB itself refuse any further rise in a
+  character's own (non-dmEdit) award total once its campaign has `ignore_player_ap` on — so the number
+  cannot grow back regardless of which tool or path writes it. All three live characters zeroed via the
+  new RPC. See `D-GH-2026-09-03-dm-zero-player-ap`.
+- **2026-09-03 · fix(chargen): "Copy to CharGen" now shows the same Player AP figure as every live
+  view** — same-day follow-up to the entry above. The sandbox's `_cgDmOpts()` hardcoded
+  `ignorePlayerAp:false`, so a DM's copy of a character in a campaign that ignores player-entered AP
+  still counted it in full, disagreeing with Live Sheet/DM Console/a live CharGen session. Fixed by
+  freezing the source campaign's `ignore_player_ap` at copy-open time, the same way DM AP is already
+  frozen. Display-only — the new DB trigger already meant the stored figure could never really have
+  grown, only been shown wrong.
+- **2026-09-03 · fix(chargen): "Copy to CharGen" now shows the same drawback-AP cap as every live
+  view** — same-day follow-up, identical shape to the entry above. `_cgDmOpts()` hardcoded
+  `drawbackCap:undefined` for the copy sandbox, so a copy of a character in a campaign that caps
+  drawback AP showed the FULL, uncapped grant instead of the capped figure DM Console/Live Sheet/a live
+  CharGen session all show. Fixed by freezing the source campaign's `rules` in the same fetch that
+  already freezes `ignore_player_ap` (no second network call — `drawbackCapFromRules()` is a pure
+  function of that blob), and giving `_cgDrawbackCap()` an optional rules-override parameter.
+- **2026-09-03 · fix: two real bugs found by `/code-review ultra` on the three entries above, before
+  opening the PR** — (1) `dm_zero_player_ap` summed ALL award events including `dmEdit:true` ones, so
+  zeroing a character with a DM-granted boon would silently cancel that legitimate grant too, leaving
+  its paired cost stranded; fixed to exclude `dmEdit:true`, matching what the ceiling trigger already
+  protects and what the DM Console button's own tooltip already promised. (2) The Copy-to-CharGen fixes
+  were gated on `_cgCopySourceAp>0` rather than "is this actually a copy", so a character with 0 DM AP
+  (an ordinary case, not an edge case) lost both fixes — and the AP-source label had the identical
+  conflation, telling the DM a bound character "isn't bound to a cloud campaign at all". Both fixed with
+  a genuine `_cgCopySourceIsCopy` flag. See the Addendum on `D-GH-2026-09-03-dm-zero-player-ap`.
+- **2026-09-03 · fix(chargen): the `_cgCopySourceIsCopy` fix replaced a condition instead of adding to
+  it, breaking two existing tests** — caught by CI on PR #508 (`tool-pricing-ci.mjs`, 187/2 failed).
+  Two pre-existing tests simulate a "Copy to CharGen" copy by setting `window._cgCopySourceAp` directly,
+  without the newer flag. Fixed by OR-ing the two conditions (`_cgCopySourceIsCopy ||
+  _cgCopySourceAp>0`) instead of swapping one for the other — both signals stay valid for what each
+  actually covers. Verified locally with the real CDP test harness: 189 passed / 0 failed.
 - **2026-09-03 · feat(engine): re-price the proficiency bonus ladder (`DATA.version` v0.364 → v0.365)**
   — `DATA.profCum` (+2→+6) was `4/7/10/13` per step (cumulative 34), priced as if it were a narrow
   purchase; `prof` actually feeds every proficient skill (doubled again under Expertise), every

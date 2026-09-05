@@ -10,6 +10,17 @@
 
 ## Index
 
+## D-GH-2026-09-03-dm-zero-player-ap — a DM can zero Player AP, and once ignored it can't creep back up
+- Live audit found three Amble characters (Archer 127, Anders Pipeleaf 79, Caspian 27) carrying non-zero
+  **Player AP** — CharGen's own self-editable "Budget" field, structurally separate from DM-granted
+  `characters.ap` — despite Amble already having `ignore_player_ap` on: that flag only ever gated what
+  got *read*, never what could be *written* (and "Copy to CharGen" doesn't even apply it on read, by
+  documented design). Fixed with a purpose-built `dm_zero_player_ap` RPC (append a computed compensating
+  award, same pattern as `dm_set_creation_ceiling`) exposed as a DM Console button, plus a new
+  `pact_enforce_player_ap_ceiling` trigger that refuses any further rise in a character's own award
+  total once its campaign ignores it — a genuine database-level guarantee, not just a display filter.
+  All three live characters zeroed and verified; the new block was proven live against a simulated
+  self-increase, not just reasoned about. Full record: `decisions/2026/D-GH-2026-09-03-dm-zero-player-ap.md`
 ## D-GH-2026-09-03-proficiency-bonus-pricing — proficiency bonus re-priced to the Premium feature benchmark
 - `DATA.profCum` (`+2→+6`) was `4/7/10/13` per step (cum `34`) — priced as a narrow purchase when `prof`
   actually touches every proficient skill/save, spell DC/attack, and (via the tools' manual field) every

@@ -411,3 +411,25 @@ export async function reopenCreation(characterId, note) {
   if (error) throw error;
   return data;
 }
+
+/**
+ * feat/dm-zero-player-ap: zero out a campaign character's self-declared "Player AP" — the
+ * award-event total CharGen's own "Budget" field writes into the character's log, a pool
+ * entirely separate from this campaign's DM-awarded AP (characters.ap / award_ap()).
+ *
+ * Appends one compensating, dmEdit-stamped `award` event computed server-side from the
+ * character's own log (never trusts a client-supplied figure) — never rewrites history. Once
+ * this campaign has ignore_player_ap on, the DB additionally refuses to let that total rise
+ * again by anything other than a DM (see pact_enforce_player_ap_ceiling,
+ * sql/migrations/2026-09-03-dm-zero-player-ap.sql) — this call is the sanctioned way past that.
+ *
+ * @returns {Promise<object>} the appended event, as stored (server-stamped seq/ts/dmEdit/dmId)
+ * @throws if Player AP is already 0, or the caller is not a DM of the character's campaign
+ */
+export async function zeroPlayerAp(characterId) {
+  const { data, error } = await supabase.rpc('dm_zero_player_ap', {
+    p_character: characterId,
+  });
+  if (error) throw error;
+  return data;
+}
