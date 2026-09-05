@@ -4,6 +4,26 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-05 · fix(sql): `pact_ap_ledger_protected` gets its pinned `search_path` back — and the
+  property is now asserted, not just agreement** — three consecutive definitions of this function
+  declared `set search_path = public, pg_temp`; `2026-09-02-widen-protected-projection.sql` dropped the
+  clause while retyping the signature to widen the projection, and `cb323ca` copied that weaker form
+  into `sql/rls-policies.sql`, the fresh-install path. Restored in both, via a new dated migration —
+  body, projection and grants untouched. **Severity, stated plainly rather than inflated:** this
+  function is **not** `security definer` (it runs as its caller) and is reached from
+  `pact_enforce_locked_history()`, which is and does pin — so there was **no known live escalation
+  path**. Fixed because the safety was a property of today's call graph rather than of the function,
+  because `2026-07-16-harden-search-path-pg-temp.sql` made pinning unconditional, and because a
+  permanently-ignored advisor warning is how the dangerous one gets missed. The **more durable half**
+  is the new check: #505's hardened drift guard asserts the baseline and the migrations say the *same*
+  thing, and is satisfied when both are wrong in the same way — which is exactly how this shipped.
+  `rls-baseline-test.sql` now asserts the property itself across all **seven** functions, with a count
+  guard so a rename fails rather than silently shrinking coverage. Proven on a real PostgreSQL 16:
+  recreating the original bug (**both** sides unpinned, and therefore agreeing) now fails
+  `UNPINNED: pact_ap_ledger_protected`, where the old guard passed. 32 → **34 assertions**;
+  `session-seal-test.sql` still 43/43, and the migration path confirmed to end pinned via `pg_proc`.
+  **Not yet applied to the live database** — that step is deliberately left explicit. `DATA.version` and
+  `BUILD` untouched. See `D-GH-2026-09-05-protected-projection-search-path`.
 - **2026-09-03 · feat(dm): a DM can zero a character's self-declared Player AP, and once a campaign
   ignores it, it can no longer creep back up** — live-data audit for the Amble campaign found three
   characters (Archer, Anders Pipeleaf, Caspian) carrying a non-zero "Player AP" (CharGen's own
