@@ -74,6 +74,12 @@ Each element of the output JSON array looks like:
   warnings about illegal combinations (there should never be any — see "What 'no warnings' means" below).
 - Nothing in either object is invented by this script. It is the tool's own internal state, copied out
   after a real roll.
+- **A row can instead carry `error` in place of `build`/`result`** — `{themeKey, budget, forcedClass,
+  error}` — when that character had no AP to spend at that budget (a DM-AP-only character with no grant
+  yet, or a `--budget` of 0). That's PACT's roller correctly refusing to build anything, not a script bug
+  — but it means the row has no character in it. **Always check for `error` before reading `build`/
+  `result`** — a row never carries both. The script itself treats any `error` row as a failure (exits 1
+  and prints a summary to stderr) rather than letting it pass silently as an ordinary result.
 
 ## What "no warnings" means
 

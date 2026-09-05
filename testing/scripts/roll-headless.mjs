@@ -21,9 +21,11 @@
  * this script's own repo checkout) and driving them in Chromium — so it needs a full PACT checkout
  * present somewhere reachable, not just this one file. From another project, the simplest path is to
  * clone PACT itself (it's the same public repo GitHub Pages serves from) and point --repo at that clone —
- * see the "FOR A SIBLING PROJECT" section in the companion `roll-headless.md` in this directory for the
- * exact command. Copying just this .mjs file only works if you also vendor tools/PACT-CharGen-Webtool.html
- * and the js/ directory it imports alongside it, at the same relative paths --repo expects.
+ * see "Quick start" in the companion `roll-headless.md` in this directory for the exact command. Copying
+ * just this .mjs file only works if you also vendor tools/PACT-CharGen-Webtool.html and the js/ directory
+ * it imports alongside it, at the same relative paths --repo expects.
+ *
+ * The local HTTP server this script starts binds to 127.0.0.1 only and serves nothing outside --repo.
  *
  * USAGE
  *   node testing/scripts/roll-headless.mjs --help              # this text
@@ -36,6 +38,7 @@
  *
  * FLAGS
  *   --theme=<key[,key...]>   Required (unless --list-themes). Theme key(s) from --list-themes' output.
+ *                            No default — omitting it is an error, not "roll every theme".
  *   --budget=<AP[,AP...]>    Required (unless --list-themes). AP budget(s) to roll at.
  *   --count=<N>              Rolls per theme x budget combination. Default 1.
  *   --class=<ClassName>      Force this origin class on every roll (e.g. "Fighter"), instead of letting
@@ -46,16 +49,21 @@
  *   --help / -h              Print this usage text and exit 0 — no browser is launched.
  *   CHROME_BIN=<path>        Env var. Override Chromium discovery.
  *
- * OUTPUT   A JSON array on stdout (or written to --out), one entry per roll:
- *   { themeKey, budget, forcedClass, build, result }
+ * OUTPUT   A JSON array on stdout (or written to --out), one entry per roll — either
+ *   { themeKey, budget, forcedClass, build, result }   on a real roll, or
+ *   { themeKey, budget, forcedClass, error }           when the character had no AP to spend at that
+ *                                                       budget (randomizeRoll() itself refuses this —
+ *                                                       correct tool behaviour, not a script bug).
  *   `build` is the tool's own readBuild() object (species, class, stats, hd, skills, boons, arts,
  *   racialTraits, drawbacks, armour, weaponProf, traditions, tools, hardy, tough, …) — everything a
  *   character sheet has. `result` is the matching compute() output (hp, ac, spent, spendable, warnings,
  *   init, speed, saveDC, …) — everything a character sheet DERIVES. Nothing here is invented or
- *   summarized; it's exactly what the real tool would show if a person clicked 🎲 in a browser.
+ *   summarized; it's exactly what the real tool would show if a person clicked 🎲 in a browser. A row
+ *   NEVER carries both `build`/`result` and `error` — check for `error` before reading the others.
  *
- * EXIT CODES   0 success · 1 page-side error (bad --theme key, bad flags, tool threw) · 2 no Chromium
- * found (set CHROME_BIN or install one) · 3 Chromium found but never opened its DevTools port.
+ * EXIT CODES   0 success · 1 page-side error (bad flags, tool threw, OR any roll came back with `error` —
+ * check stderr and the output for which) · 2 no Chromium found (set CHROME_BIN or install one) · 3
+ * Chromium found but never opened its DevTools port.
  */
 import http from 'node:http';
 import fs from 'node:fs';
@@ -115,11 +123,19 @@ function serve() {
     const s = http.createServer((req, res) => {
       const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/PACT\//, '');
       const f = path.join(REPO, rel);
-      if (!f.startsWith(REPO) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end(); }
+      // A plain string-prefix check (f.startsWith(REPO)) is bypassed by any sibling directory whose name
+      // happens to share REPO as a prefix (REPO=/home/user/PACT, sibling=/home/user/PACT-secrets) — the
+      // sibling path also starts with REPO as a string even though it's outside the served tree. Require
+      // an exact match or a path separator right after REPO, which a sibling directory name can never have.
+      const inRepo = f === REPO || f.startsWith(REPO + path.sep);
+      if (!inRepo || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end(); }
       res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' });
       res.end(fs.readFileSync(f));
     });
-    s.listen(PORT, () => resolve(s));
+    // Loopback only — this server has no auth and this script is documented (roll-headless.md) as
+    // something other projects/agents run on their own machines, unlike the CI-only gates this pattern
+    // was copied from, so it must not accept connections from other hosts on the network.
+    s.listen(PORT, '127.0.0.1', () => resolve(s));
   });
 }
 
@@ -178,8 +194,22 @@ window._headlessRoll=function(themeKey,budget,forceClass){
   var bi=document.getElementById('budget'); bi.value=String(budget);
   if(typeof _cgSyncAward==='function')_cgSyncAward();
   if(forceClass){var oc=document.getElementById('oclass'); if(oc){oc.value=forceClass; oc.dispatchEvent(new Event('change',{bubbles:true}));}}
+  var _dmO=(typeof _cgDmOpts==='function')?_cgDmOpts():{dmAp:0,ignorePlayerAp:false};
+  // randomizeRoll() itself refuses — flash a message and a bare 'return', no thrown error — when this
+  // character has no AP to spend yet (spendable<=0, e.g. a DM-AP-only character with no grant, or simply
+  // --budget=0). That refusal is correct tool behaviour, not a bug. But calling readBuild()/compute() on
+  // the untouched reset build afterward and returning it as {build,result} would hand back a blank
+  // character (hd:1, stats all 10, no warnings) INDISTINGUISHABLE from a real roll — exactly the
+  // 'silently plausible-but-wrong' failure mode D-GH-2026-09-05-roller-build-shapes replaced with a loud
+  // throw elsewhere in this same function. Check the same precondition before calling it, so a caller
+  // gets an explicit error field instead of a fake character.
+  var _pre=compute(readBuild(),_dmO).spendable;
+  if(!(_pre>0)){
+    return {themeKey:themeKey,budget:budget,forcedClass:forceClass||null,
+      error:'no AP to spend at this budget (spendable='+_pre+') — randomizeRoll() refuses; no roll attempted'};
+  }
   randomizeRoll(themeKey,0);
-  var b=readBuild(), r=compute(b,(typeof _cgDmOpts==='function')?_cgDmOpts():{dmAp:0,ignorePlayerAp:false});
+  var b=readBuild(), r=compute(b,_dmO);
   return {themeKey:themeKey,budget:budget,forcedClass:forceClass||null,build:b,result:r};
 };true`;
 
@@ -195,11 +225,14 @@ try {
     process.stdout.write(JSON.stringify({ themes, budgets }, null, 2) + '\n');
   } else {
     await cg.evaluate(ROLL_FN);
-    const themeKeys = csv(args.theme).length ? csv(args.theme)
-      : await cg.evaluate(`RTHEMES.map(function(t){return t.key;})`);
+    const themeKeys = csv(args.theme);
     const budgets = csv(args.budget).map(Number).filter(Number.isFinite);
     const count = Math.max(1, +(args.count || 1));
     const forceClass = typeof args.class === 'string' ? args.class : null;
+    // Both required explicitly — no "omitted --theme means every theme" convenience fallback. --help and
+    // roll-headless.md both document --theme as required; a silent all-themes default previously
+    // contradicted that and could turn a typo'd command into an 8x-larger, much slower run with no warning.
+    if (!themeKeys.length) throw new Error('--theme=<key[,key...]> is required (see --list-themes for available keys)');
     if (!budgets.length) throw new Error('--budget=<AP[,AP...]> is required (see --list-themes for DATA.levelAP)');
 
     const rows = [];
@@ -209,6 +242,13 @@ try {
     const json = JSON.stringify(rows, null, 2);
     if (args.out) { fs.writeFileSync(args.out, json); console.error(`wrote ${rows.length} rolls to ${args.out}`); }
     else process.stdout.write(json + '\n');
+    // Surface no-AP refusals loudly rather than letting them pass as ordinary rows a caller might not
+    // think to check for — same principle as the roller's own loud throw for its analogous failure mode.
+    const errs = rows.filter(r => r.error);
+    if (errs.length) {
+      console.error(`\n${errs.length}/${rows.length} rolls refused (no AP to spend), e.g. budget=${errs[0].budget} theme=${errs[0].themeKey}: ${errs[0].error}`);
+      exitCode = 1;
+    }
   }
   await cg.close();
 } catch (e) {
