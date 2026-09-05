@@ -647,6 +647,13 @@
   `testing/expected/` change). `DATA.version` v0.343 → v0.344.
   Full record: `decisions/2026/D-GH-2026-08-16-heritage-pack-pricing.md`.
 
+- **D-GH-2026-09-05-protected-events-roundtrip** — the protected-event failure `/code-review ultra`
+  predicted for CharGen does **not** occur (reproduced headless, 3 runs): the load path reinstates the
+  saved log verbatim and `_cgBlockedBySeal()` refuses the destructive paths. The hazard behind it is real
+  though — the rebuild genuinely destroys those events, and safety is caller discipline across four call
+  sites. A regression gate now pins the invariant, with one assertion deliberately shaped as a tripwire on
+  the fragile mechanism. Full record:
+  `decisions/2026/D-GH-2026-09-05-protected-events-roundtrip.md`
 - **D-GH-2026-09-05-protected-projection-search-path** — `pact_ap_ledger_protected` lost its pinned
   `search_path` when the 2026-09-02 projection widening was typed, and the weaker form reached the
   fresh-install baseline. Restored in a new dated migration and in `sql/rls-policies.sql`. No known live

@@ -937,53 +937,6 @@ online" message, and the clear-on-load; the recorded error body is checked in wi
 captured from the live trigger rather than written by hand; and the suite runs in CI without credentials.
 
 
-## `replaceWholeLogFromBuild()` destroys protected events; only caller discipline stops it — TODO
-Branch `fix/chargen-regenerates-protected-events`. **Rewritten 2026-09-05 — the original entry described a
-symptom that a close code read says does not occur. What is left is smaller, real, and different in kind.**
-
-CharGen's `replaceWholeLogFromBuild()` re-synthesises the **entire** event log from the DOM. CharGen cannot
-emit `dmRemoveBoon` at all (`grep -c` → **0**) and `sessionSeal` only outside that path, so the rebuild
-drops both — and both sit inside `pact_ap_ledger_protected()`'s projection, which
-`trg_pact_locked_history` refuses to let shrink.
-
-**It does not currently break, for two reasons the original entry missed.** Every cloud load goes through
-`_cgApplyEnvelope`, which calls the rebuilding path and then reinstates the saved log verbatim
-(`LOG=JSON.parse(JSON.stringify(d.LOG))`) — the events are dropped and immediately restored. And
-`_cgBlockedBySeal()` refuses the genuinely destructive entry points (file-load-over-a-character, both
-randomize paths) with a player-readable message. Ordinary edits never reach the rebuild at all; they go
-through `emit()` / `replacePatchSlot` / `_cgSyncSingletonEvent`, which append or coalesce and carry their
-own seal guards.
-
-**So the defect is not a live bug — it is a fragile invariant.** The function is unsafe in itself; safety
-comes from all four of its call sites individually either restoring afterwards or refusing first. A fifth
-caller that forgets both conventions reintroduces the failure, and the failure mode is a raw Postgres
-error shown to a player. Same shape as `D-GH-2026-09-05-protected-projection-search-path`: safe by many
-guards rather than safe by construction.
-
-**Not reproduced.** The above is a reading of the code, not an execution of it. Step 1 exists to settle
-that before anything is changed.
-**Effort:** small to reproduce · medium to fix · **Risk:** low for step 1, moderate for step 3 — the
-rebuild path is on every load, reset and randomize.
-
-```text
-1. REPRODUCE FIRST, and be willing to close this as "no bug". Build a character whose log contains a
-   sessionSeal and a dmRemoveBoon, open it in CharGen headlessly (testing/scripts/ has the CDP harness
-   pattern), save, and record what actually happens. If _cgApplyEnvelope's verbatim reinstatement holds,
-   say so with the evidence and close the task — that is a valid outcome, not a failure.
-2. Whatever step 1 shows, add a regression test that fails if a protected event is lost across a
-   load/save round trip. That is the durable artefact here, and it is worth having even if step 1 finds
-   nothing: it converts caller discipline into something CI enforces.
-3. ONLY IF step 1 reproduces a real failure, or the test in step 2 proves the invariant can be broken:
-   make replaceWholeLogFromBuild() carry unreproducible protected events across the rebuild by
-   construction, so no future caller has to remember. Do NOT attempt this before step 2 exists — it is
-   the core rebuild path for every load, reset and randomize.
-```
-
-**Done when:** step 1's result is recorded with evidence either way, and a test exists that fails if a
-protected event is lost across a load/save round trip. The migration header's over-broad
-"Nothing rewrites or relocates one" claim was already corrected on 2026-09-05 (comments only), so it is
-no longer part of this task.
-
 ## The SQL drift guard's migration list is hardcoded, so it falls behind by design — TODO
 Branch `test/sql-drift-guard-auto-discovery`. `testing/sql/rls-baseline-test.sql` loads exactly four
 migrations by name (the `2026-09-01`/`2026-09-02` set) and checks exactly five function names.
