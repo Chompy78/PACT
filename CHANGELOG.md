@@ -42,6 +42,22 @@
   (an ordinary case, not an edge case) lost both fixes — and the AP-source label had the identical
   conflation, telling the DM a bound character "isn't bound to a cloud campaign at all". Both fixed with
   a genuine `_cgCopySourceIsCopy` flag. See the Addendum on `D-GH-2026-09-03-dm-zero-player-ap`.
+- **2026-09-03 · feat(engine): re-price the proficiency bonus ladder (`DATA.version` v0.364 → v0.365)**
+  — `DATA.profCum` (+2→+6) was `4/7/10/13` per step (cumulative 34), priced as if it were a narrow
+  purchase; `prof` actually feeds every proficient skill (doubled again under Expertise), every
+  proficient save, spell save DC/attack, cantrip/pact-slot/arcane caps, and every weapon attack a
+  character is proficient with. Measured against `js/ap-by-level.js`'s budget curve, the old steps cost
+  4%–18% of the AP a character earns in the tier window each unlocks in — cheaper than a single
+  Premium-band class feature at the same tier despite touching far more of the sheet. Re-priced to
+  `18/38/62/90`, matching `DATA.MASTER`'s Premium-band (raw) price at each of the four HD-gated tiers —
+  an anchored number, not an invented curve. HD-gates (`DATA.profGate`) unchanged. No fixture pins
+  `profBonus` above the free default of 2, so `testing/tests/engine-parity.html` is unaffected by
+  construction (73 passed / 0 failed, before and after) — flagged as a coverage gap for a follow-up
+  fixture, not treated as proof of safety. **The Players Guide is not updated in this change** — the
+  served copy (`docs/PACT-Players-Guide.html`) and the `pact-guide` master still show the old numbers and
+  the "dearest climb" framing; queued as a follow-up task per the owner's request rather than landed
+  alongside the engine change, so per `AGENTS.md` this is not yet fully done. See
+  `D-GH-2026-09-03-proficiency-bonus-pricing`.
 - **2026-09-03 · fix(testing): the anti-drift guard could not see the drift it was built for**
   — `/code-review ultra` on PR #503 returned 13 findings; this lands the test/doc half of them.
   `testing/sql/rls-baseline-test.sql` hashed only `prosrc`, so the `search_path` regression that shipped

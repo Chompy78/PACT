@@ -21,6 +21,17 @@
   total once its campaign ignores it — a genuine database-level guarantee, not just a display filter.
   All three live characters zeroed and verified; the new block was proven live against a simulated
   self-increase, not just reasoned about. Full record: `decisions/2026/D-GH-2026-09-03-dm-zero-player-ap.md`
+## D-GH-2026-09-03-proficiency-bonus-pricing — proficiency bonus re-priced to the Premium feature benchmark
+- `DATA.profCum` (`+2→+6`) was `4/7/10/13` per step (cum `34`) — priced as a narrow purchase when `prof`
+  actually touches every proficient skill/save, spell DC/attack, and (via the tools' manual field) every
+  weapon attack. Measured against tier income (`js/ap-by-level.js`): old steps cost only 4%–18% of a
+  tier's earnings, cheaper than a single Premium-band class feature at the same tier. Re-priced to
+  `18/38/62/90` — exactly `DATA.MASTER`'s Premium-band (raw) price at each unlock tier, so the number is
+  anchored to an existing in-game price rather than invented. HD-gates unchanged; no fixture exercises
+  `profBonus > 2` so `engine-parity` is unaffected (73/0 before and after) — a coverage gap, not a safety
+  net. **The Players Guide (served copy + `pact-guide` master) is not yet updated** — tracked as a
+  follow-up task rather than landed in the same change, at the owner's explicit direction. Full record:
+  `decisions/2026/D-GH-2026-09-03-proficiency-bonus-pricing.md`
 
 ## D-GH-2026-09-02-file-protocol-support-or-drop-the-claim — `file://` is not a supported way to run the tools
 - CharGen and Live Sheet both carried `Must run by opening the file directly (file://).` inside a block
