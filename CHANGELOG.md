@@ -22,8 +22,12 @@
   recreating the original bug (**both** sides unpinned, and therefore agreeing) now fails
   `UNPINNED: pact_ap_ledger_protected`, where the old guard passed. 32 → **34 assertions**;
   `session-seal-test.sql` still 43/43, and the migration path confirmed to end pinned via `pg_proc`.
-  **Not yet applied to the live database** — that step is deliberately left explicit. `DATA.version` and
-  `BUILD` untouched. See `D-GH-2026-09-05-protected-projection-search-path`.
+  **Applied to production** the same day, with the live body hash captured before and after to prove
+  only the `SET` clause moved (`9971cf21…` unchanged), and grants re-verified still revoked for
+  `anon` and `authenticated`. The Supabase advisor no longer reports `function_search_path_mutable`
+  at all. Live `pg_proc` before the fix confirmed the diagnosis and the severity call: this was the
+  **only** unpinned function of the seven checked, and the only one that is not `security definer`.
+  `DATA.version` and `BUILD` untouched. See `D-GH-2026-09-05-protected-projection-search-path`.
 - **2026-09-05 · docs(guide): sync Proficiency Bonus prose/table to `DATA.version` v0.365** — follow-up to
   the 2026-09-03 engine re-price below. Updated both copies to `18/20/24/28` per step (cumulative `90`):
   this repo's served `docs/PACT-Players-Guide.html`, and the `pact-guide` master (patched directly via

@@ -76,10 +76,20 @@ Status: Active
   dated migration file is a historical record of one change, not the current definition of anything.
   Editing an applied file is separately filed as `docs/migration-record-dm-remove-boon`.
 
-- **Status:** Active. Repo-side complete and verified.
+- **Status:** Active. **Complete — repo and production both.**
 
-  **Not yet applied to the live database.** The migration is committed but production still carries the
-  unpinned function until it is run there, and the advisor will keep reporting
-  `function_search_path_mutable` until then. Deliberately left as an explicit owner-approved step rather
-  than done silently, because it is a write to the live database — even though its blast radius is nil
-  (no body change, no projection change, no grant change, identical output for identical input).
+  Applied to the live database on 2026-09-05 (`restore_protected_search_path`). Verified rather than
+  assumed, in this order:
+  * **Before:** live `pg_proc` showed `pact_ap_ledger_protected` as the **only** unpinned function of the
+    seven checked, and `prosecdef = false` — production evidence for both the diagnosis and the severity
+    call above, not just for the bug.
+  * **Body captured before applying** and compared after: normalised hash `9971cf21…` **unchanged**, so
+    `create or replace` moved the `SET` clause and nothing else.
+  * **After:** `proconfig = search_path=public, pg_temp`; `has_function_privilege` still `false` for both
+    `anon` and `authenticated`, so the revoke survived.
+  * **Advisor:** `function_search_path_mutable` no longer appears at all. The warnings that remain are
+    pre-existing and unrelated — the intentional RPC surface, an INFO on `character_backups`, and a
+    dashboard auth setting. `pact_ap_ledger_protected` is absent from the executable-RPC list, which is
+    the revoke holding.
+
+  Graduated off `docs/TASK_BOARD_NEXT.md` in the same change.
