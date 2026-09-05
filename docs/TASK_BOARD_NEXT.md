@@ -937,40 +937,52 @@ online" message, and the clear-on-load; the recorded error body is checked in wi
 captured from the live trigger rather than written by hand; and the suite runs in CI without credentials.
 
 
-## CharGen regenerates the whole LOG, so it cannot reproduce two protected event types — TODO
-Branch `fix/chargen-regenerates-protected-events`. `sql/migrations/2026-09-02-widen-protected-projection.sql:43`
-justifies protecting `dmRemoveBoon` positionally on the grounds that it "is created in exactly one place
-… and every other reference merely READS it. Nothing rewrites or relocates one." That is not true of
-CharGen. `tools/PACT-CharGen-Webtool.html`'s `applyBuild` ends with
-`replaceWholeLogFromBuild(_domReadBuild())`, and `buildToEventLog(b,opts)` is
-`return _buildEventBurst(b)` — the whole LOG is re-synthesised from the DOM. `grep -c dmRemoveBoon
-tools/PACT-CharGen-Webtool.html` returns **0**; `sessionSeal` appears twice but not on that path. Both
-types are inside `pact_ap_ledger_protected()`'s projection.
+## `replaceWholeLogFromBuild()` destroys protected events; only caller discipline stops it — TODO
+Branch `fix/chargen-regenerates-protected-events`. **Rewritten 2026-09-05 — the original entry described a
+symptom that a close code read says does not occur. What is left is smaller, real, and different in kind.**
 
-Predicted symptom, **not yet reproduced against a live character**: open a sealed or DM-edited cloud
-character in CharGen, press Cloud → Save, and the protected array shrinks, so
-`trg_pact_locked_history` raises `PACT: locked character history cannot shrink`. There is no client-side
-guard on this path — `_cgSealPatchRefusal` is wired only into `replacePatchSlot` — so the player would
-see a raw Postgres error, which is the "refuse ordinary editing with no explanation" outcome the
-migration header said it was avoiding. Blast radius today is plausibly zero (0 of 35 live characters had
-a non-empty protected prefix on 2026-09-02) — **re-measure, do not quote that.**
-**Effort:** medium · **Risk:** moderate — the fix is a design call, not a patch.
+CharGen's `replaceWholeLogFromBuild()` re-synthesises the **entire** event log from the DOM. CharGen cannot
+emit `dmRemoveBoon` at all (`grep -c` → **0**) and `sessionSeal` only outside that path, so the rebuild
+drops both — and both sit inside `pact_ap_ledger_protected()`'s projection, which
+`trg_pact_locked_history` refuses to let shrink.
+
+**It does not currently break, for two reasons the original entry missed.** Every cloud load goes through
+`_cgApplyEnvelope`, which calls the rebuilding path and then reinstates the saved log verbatim
+(`LOG=JSON.parse(JSON.stringify(d.LOG))`) — the events are dropped and immediately restored. And
+`_cgBlockedBySeal()` refuses the genuinely destructive entry points (file-load-over-a-character, both
+randomize paths) with a player-readable message. Ordinary edits never reach the rebuild at all; they go
+through `emit()` / `replacePatchSlot` / `_cgSyncSingletonEvent`, which append or coalesce and carry their
+own seal guards.
+
+**So the defect is not a live bug — it is a fragile invariant.** The function is unsafe in itself; safety
+comes from all four of its call sites individually either restoring afterwards or refusing first. A fifth
+caller that forgets both conventions reintroduces the failure, and the failure mode is a raw Postgres
+error shown to a player. Same shape as `D-GH-2026-09-05-protected-projection-search-path`: safe by many
+guards rather than safe by construction.
+
+**Not reproduced.** The above is a reading of the code, not an execution of it. Step 1 exists to settle
+that before anything is changed.
+**Effort:** small to reproduce · medium to fix · **Risk:** low for step 1, moderate for step 3 — the
+rebuild path is on every load, reset and randomize.
 
 ```text
-1. REPRODUCE FIRST. Build a character with a sessionSeal and a dmRemoveBoon in its LOG, open it in
-   CharGen, save, and record the actual error. If it does not reproduce, say so and stop — the
-   migration header's claim would then be right for a reason worth writing down.
-2. Then decide between: (a) CharGen preserves unreproducible protected events verbatim when it
-   regenerates (carry them across _buildEventBurst rather than dropping them); (b) CharGen refuses to
-   open a character with a non-empty protected prefix, with an explanation, and points at the Live
-   Sheet; (c) the two types leave the positional projection and are protected by derived value the way
-   'patch' buys already are. Present the options with tradeoffs before implementing.
-3. Whichever is chosen, the failure must never surface as a raw Postgres string.
+1. REPRODUCE FIRST, and be willing to close this as "no bug". Build a character whose log contains a
+   sessionSeal and a dmRemoveBoon, open it in CharGen headlessly (testing/scripts/ has the CDP harness
+   pattern), save, and record what actually happens. If _cgApplyEnvelope's verbatim reinstatement holds,
+   say so with the evidence and close the task — that is a valid outcome, not a failure.
+2. Whatever step 1 shows, add a regression test that fails if a protected event is lost across a
+   load/save round trip. That is the durable artefact here, and it is worth having even if step 1 finds
+   nothing: it converts caller discipline into something CI enforces.
+3. ONLY IF step 1 reproduces a real failure, or the test in step 2 proves the invariant can be broken:
+   make replaceWholeLogFromBuild() carry unreproducible protected events across the rebuild by
+   construction, so no future caller has to remember. Do NOT attempt this before step 2 exists — it is
+   the core rebuild path for every load, reset and randomize.
 ```
 
-**Done when:** the scenario is reproduced (or proven impossible, with evidence), the chosen fix is
-implemented, a test covers it, and the migration header's "Nothing rewrites or relocates one" claim is
-corrected in place.
+**Done when:** step 1's result is recorded with evidence either way, and a test exists that fails if a
+protected event is lost across a load/save round trip. The migration header's over-broad
+"Nothing rewrites or relocates one" claim was already corrected on 2026-09-05 (comments only), so it is
+no longer part of this task.
 
 ## The SQL drift guard's migration list is hardcoded, so it falls behind by design — TODO
 Branch `test/sql-drift-guard-auto-discovery`. `testing/sql/rls-baseline-test.sql` loads exactly four
