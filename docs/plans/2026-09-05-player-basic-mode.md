@@ -171,4 +171,48 @@ Answer explicitly:
 Output your review as a file named `player-basic-mode-review-<your-model-name>.md`.
 
 ## Review outcome
-*(filled in after review feedback is triaged)*
+
+Two Claude Code sub agents reviewed this plan independently and cold (plan text only, no repo access):
+`docs/plans/cold-reviews/2026-09-05-claude-subagent-general-player-basic-mode.md` and
+`…-claude-subagent-architect-player-basic-mode.md`. Both converged on the same critical gap without
+seeing each other's review — treated as high-confidence, not a single reviewer's opinion.
+
+**Accept — plan needs revision before implementation, not ready to build as drafted:**
+- **Critical: the proposed `BEFORE INSERT` trigger does not achieve "cannot be bypassed."** Both
+  reviewers independently found the same hole: `archived_at` going back to null (un-archiving) is an
+  UPDATE, not an INSERT, so a flagged player can archive character A, create character B (passes the
+  check, 0 active), then un-archive A via a plain update — ending with two active characters and no
+  trigger ever firing. This is the single most important finding; it goes directly to the plan's own
+  stated goal.
+- **Race condition:** a count-then-insert trigger is a classic check-then-act pattern — two concurrent
+  inserts for the same flagged owner can each see count=0 and both pass before either commits.
+- **Better alternative, proposed independently by both reviewers:** a partial unique index / uniqueness
+  constraint (one active row per owner when the flag is set) instead of a counting trigger. This is
+  race-proof by construction (Postgres checks uniqueness atomically) AND closes the archive/unarchive
+  bypass for free, since restoring a second row to active would itself violate the constraint. Adopt
+  this in the revised approach in place of (or alongside) the trigger.
+- **Flag-reversibility gap:** if unflag authority is "any DM currently sharing a campaign with the
+  player" (the plan's own default), a player flagged by a DM they later part ways with (leave the
+  campaign, DM removes them) can end up with **no one left able to unflag them** — recreating exactly
+  the "needs manual DB intervention" problem this feature exists to eliminate. Needs an explicit answer
+  before this is safe to build (persist unflag authority independent of current membership; record the
+  original flag-setter permanently; a self-service path; or something else) — not a follow-on note.
+- **Split the plan**, per both reviewers and the plan's own flagged open question: resolve "who may set
+  *and unset* the flag, including what happens when the authorizing relationship ends" as its own
+  decision record first; revise this plan's implementation against that resolved answer, closing the
+  two enforcement-surface gaps above.
+
+**Noted, lower-priority — fold into the revision but not blocking:**
+- The "exactly ONE insert path in the whole app" Verified claim is stronger than its own cited evidence
+  (only checked the two player-facing tools, not DM Console) — re-verify before relying on it, or soften
+  the claim.
+- Consider a `SECURITY DEFINER` wrapper function returning a structured/typed result instead of
+  client-side substring-matching a raised error message — more robust than the existing precedent's own
+  known fragility, which this plan would otherwise just inherit unexamined.
+- No mention of notifying the affected player that they've been flagged, by whom, or why — worth a
+  requirement given this grants one DM unilateral, silent authority over another user's account.
+- Interaction with the separate, already-flagged per-campaign character-limit task isn't addressed if
+  both end up active for the same player.
+
+**Next step:** write the authority/reversibility decision record, then revise this plan's "Proposed
+approach" to the uniqueness-constraint design before any implementation branch is opened.
