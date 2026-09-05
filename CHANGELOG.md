@@ -4,6 +4,24 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-05 · test: reproduce the predicted protected-event failure — it does not occur, and the gate
+  stays anyway** — `/code-review ultra` predicted that opening a sealed character in CharGen and saving
+  would drop `sessionSeal`/`dmRemoveBoon` and be refused with `PACT: locked character history cannot
+  shrink`. **Reproduced in headless Chromium, three consecutive runs: it does not happen.** The load path
+  (`_cgApplyEnvelope`) rebuilds and then reinstates the saved log **verbatim** — protected projection
+  **5 → 5** — and `_cgBlockedBySeal()` refuses the destructive entry points with a readable message.
+  **The hazard behind it is real and now demonstrated rather than argued:** calling
+  `replaceWholeLogFromBuild()` directly drops both events, **5 → 2**. Safety is caller discipline across
+  four call sites, not construction. New gate `testing/scripts/protected-events-roundtrip-ci.mjs`
+  (**8 assertions**) + `.github/workflows/protected-events-roundtrip.yml` pins the invariant, mirroring
+  `pact_ap_ledger_protected()`'s projection client-side so it needs no Supabase and no credentials. One
+  assertion deliberately checks that the rebuild **still** breaks — a tripwire on a known-fragile
+  mechanism, which should be deleted if the rebuild is ever made safe by construction; its own message
+  says so. `fix/chargen-regenerates-protected-events` graduated. **A near-miss recorded in the decision:**
+  the first run reported the bug as confirmed, and the fault was the probe reading `window.LOG` when `LOG`
+  is a `let` and never attaches to `window` — `_cgSealedFloor()` returning 6 beside "zero events" is what
+  exposed it. No app code changed. `DATA.version` and `BUILD` untouched. See
+  `D-GH-2026-09-05-protected-events-roundtrip`.
 - **2026-09-05 · docs: correct an over-broad claim about protected events, and rewrite the task built on
   it** — `/code-review ultra` flagged that `dmRemoveBoon` is protected *positionally* on the stated
   grounds that "Nothing rewrites or relocates one", and that CharGen regenerates its whole log from the

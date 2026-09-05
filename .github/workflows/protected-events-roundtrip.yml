@@ -1,0 +1,74 @@
+name: Protected-event round trip
+
+# Asserts ONE invariant: a character's protected events survive a CharGen load unchanged.
+#
+# Protected events are what pact_ap_ledger_protected() projects and trg_pact_locked_history refuses to
+# let shrink. Drop one and the next cloud save is rejected with "locked character history cannot
+# shrink", which reaches the player as a raw Postgres error.
+#
+# WHY IT IS ITS OWN GATE. sql-guards proves the TRIGGER behaves; it drives Postgres directly and never
+# loads a tool. chargen-flows and cloud-e2e drive the tools but assert nothing about the protected
+# projection. Neither would notice a client silently dropping a sealed event — which is precisely the
+# failure /code-review ultra predicted on PR #503.
+#
+# That prediction was reproduced on 2026-09-05 and did NOT occur: _cgApplyEnvelope reinstates the saved
+# log verbatim, and _cgBlockedBySeal() refuses the destructive paths. The gate exists anyway because the
+# rebuild genuinely does destroy those events, and safety rests on all four call sites remembering to
+# restore or refuse. This turns that discipline into something CI enforces instead of something a future
+# author has to know. See D-GH-2026-09-05-protected-events-roundtrip.
+#
+# Same zero-npm-dependency shape as the other browser gates: Chromium over the DevTools protocol with
+# Node built-ins, serving the repo on a loopback port. Chromium is installed and its search path pinned
+# for the reason tool-pricing.yml records — a gate whose result depends on the runner image is not a gate.
+
+on:
+  pull_request:
+    paths:
+      - "js/engine.js"
+      - "js/engine-data.js"
+      - "js/character-store.js"
+      - "tools/PACT-CharGen-Webtool.html"
+      - "sql/rls-policies.sql"
+      - "sql/migrations/**"
+      - "testing/scripts/protected-events-roundtrip-ci.mjs"
+      - ".github/workflows/protected-events-roundtrip.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: protected-events-roundtrip-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  protected-events-roundtrip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: /opt/pw-browsers
+          key: ${{ runner.os }}-playwright-${{ hashFiles('testing/package-lock.json') }}-pw-browsers
+
+      - name: Install Chromium
+        working-directory: testing
+        timeout-minutes: 5
+        run: npx playwright install --with-deps chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
+
+      - name: Run the protected-event round-trip gate
+        run: node testing/scripts/protected-events-roundtrip-ci.mjs
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
