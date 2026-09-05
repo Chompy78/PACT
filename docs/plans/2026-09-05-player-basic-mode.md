@@ -169,6 +169,12 @@ permanently strand a flagged player once the qualifying DM relationship ended.
   detection). Not adopted in this revision — staying consistent with the existing precedent keeps this
   feature's error-handling shape unsurprising next to the code it's modeled on — but worth reconsidering
   if that fragility ever actually bites in practice.
+- **A lighter-weight version of the above, raised by a Groq-hosted reviewer:** keep the trigger, but have
+  it `RAISE EXCEPTION ... USING ERRCODE = '<custom code>'` instead of relying purely on a message
+  substring — the client can then match on the typed SQLSTATE, which survives a future wording change
+  that would silently break substring matching, without the larger redesign a full RPC wrapper needs.
+  Worth adopting alongside the existing substring-match fallback (belt-and-suspenders, same spirit as the
+  rest of this plan's enforcement layering) rather than instead of it.
 
 ## Risks
 - **Schema + RLS + trigger change on a live table with real user rows.** Wrong logic here either locks
@@ -333,3 +339,26 @@ re-litigate what they already found. It did:
 - **Not adopted:** re-litigating the SECURITY-DEFINER-RPC-vs-error-string-matching alternative — already
   considered and deliberately deferred in "Alternatives considered" above; this round's restatement of
   it didn't add a new reason to revisit that call.
+
+**Update 2026-09-05 — fourth review round, Groq API (`openai/gpt-oss-120b`, free tier).** See
+`docs/plans/cold-reviews/2026-09-05-groq-player-basic-mode.md`. This round is a clear illustration of why
+Step 7.1's "verify every claim, don't take the reviewer's word" exists — several of its central claims
+did not hold up once actually checked against this document:
+- **Rejected, factually wrong:** its top recommendation — a denormalized flag plus a partial unique
+  index — presented as an alternative "the plan didn't consider." This document's own "Proposed
+  approach" step 2(b) already proposes exactly that design, including the same immutable-predicate
+  reasoning. The reviewer appears to have generated a generic critique without registering content
+  already in the document it was reviewing.
+- **Rejected, already resolved:** re-raised the DM-authority-lapsing case as an open gap needing
+  verification; this document's own Verification section already states that exact check.
+- **Rejected, doesn't apply:** a table-lock/migration-downtime concern for the new columns — moot given
+  the columns are specified as nullable with a null default, a metadata-only change in Postgres.
+- **Accepted, one genuine addition:** a lighter-weight alternative to the already-deferred RPC-wrapper
+  idea — `RAISE EXCEPTION ... USING ERRCODE`, giving the client a typed error to match on instead of
+  only a message substring, without the bigger redesign a full RPC would need. Folded into
+  "Alternatives considered" above.
+- **Second data point on reviewer self-ID unreliability:** this model claimed to be "gpt-4o (ChatGPT)"
+  — simply false; the call went to Groq's `openai/gpt-oss-120b`. Combined with the Gemini round's
+  mismatch, this is now two independent cases in one session of a model getting its own identity wrong
+  when asked — logged in `cold-review-api-universal-jc` (the new skill built this session for API-based
+  cold reviews) as an established pattern, not a one-off.
