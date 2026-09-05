@@ -744,7 +744,7 @@ $$;
 
 create or replace function public.pact_ap_ledger_protected(p_log jsonb)
 returns jsonb
-language sql immutable as $$
+language sql immutable set search_path = public, pg_temp as $$
   select coalesce(jsonb_agg((ev - 'seq' - 'ts' - 'rules' - 'label') order by ord), '[]'::jsonb)
   from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
   where (ev->>'type') in ('buyoff','names','award','sessionSeal','dmRemoveBoon')

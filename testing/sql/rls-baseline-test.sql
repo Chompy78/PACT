@@ -222,6 +222,42 @@ select pg_temp.rejects('...and the protections still fire after a re-run',
      where id = '00000000-0000-0000-0000-0000000000f1'$$);
 
 \echo ''
+\echo 'Every checked function pins its search_path — the check that agreement cannot make'
+-- THE DRIFT GUARD BELOW CANNOT CATCH THIS, BY CONSTRUCTION. It asserts the baseline and the migrations
+-- say the SAME thing; it is satisfied when both are wrong in the same way. That is exactly what
+-- happened on 2026-09-02: `set search_path = public, pg_temp` was dropped from
+-- pact_ap_ledger_protected in the migration and then copied, weakened, into the baseline — so both
+-- sources agreed, and both were wrong. Agreement is not correctness, so this asserts the property
+-- itself, against the fresh-install build, before the migrations are loaded over the top.
+--
+-- WHY IT MATTERS EVEN THOUGH ONE OF THESE IS NOT security definer. An unpinned function resolves
+-- unqualified names using whatever search_path its CALLER had set. For a security-definer function
+-- that is a privilege-escalation path outright. For an invoker-rights one it is not — but its safety
+-- then depends on how it happens to be called, which is a fact about today's call graph rather than
+-- about the function. 2026-07-16-harden-search-path-pg-temp.sql made pinning unconditional precisely
+-- so nobody has to re-derive that distinction per function, and this keeps it unconditional.
+do $$
+declare r record; v_bad text := ''; v_n int := 0;
+begin
+  for r in
+    select proname, coalesce(array_to_string(proconfig, ','), '') as cfg
+    from pg_proc
+    where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_history',
+                      'pact_ap_ledger_protected','pact_enforce_locked_history',
+                      'pact_ap_ledger_spend','pact_enforce_ap_budget_consistency')
+  loop
+    v_n := v_n + 1;
+    if r.cfg not like '%search_path=%' then v_bad := v_bad || r.proname || ' '; end if;
+  end loop;
+  -- Same missing-match guard as the drift check: a renamed or typo'd function must fail, never
+  -- silently shrink coverage. version-label-ci.mjs states the rule — "A missing match is a FAILURE,
+  -- not a skip."
+  perform pg_temp.ok('all 7 search_path-checked functions exist (saw ' || v_n || ')', v_n = 7);
+  perform pg_temp.ok('every checked function pins its search_path'
+    || case when v_bad = '' then '' else ' — UNPINNED: ' || v_bad end, v_bad = '');
+end $$;
+
+\echo ''
 \echo 'The baseline and the MIGRATIONS agree — the anti-drift guard'
 -- This is the check that makes the whole file un-rottable, and it needs no access to production.
 -- Snapshot every function body as built from the BASELINE, then load the forward migrations over the
@@ -270,6 +306,7 @@ end $$;
 \ir ../../sql/migrations/2026-09-02-restore-dm-edit-guards.sql
 \ir ../../sql/migrations/2026-09-02-widen-protected-projection.sql
 \ir ../../sql/migrations/2026-09-02-seal-freezes-species-and-ratchets-stats.sql
+\ir ../../sql/migrations/2026-09-05-restore-protected-search-path.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;
