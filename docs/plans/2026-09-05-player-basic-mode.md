@@ -196,6 +196,12 @@ permanently strand a flagged player once the qualifying DM relationship ended.
   feature, whatever trigger enforces this limit must also fire on that path (not just `archived_at`) —
   confirmed above that no such transfer path exists today, so this isn't a gap to close now, just a trap
   for whoever adds that feature later to not reopen this exact class of bypass.
+- **Account-deletion edge case, raised by an OpenRouter-hosted reviewer:** undecided what happens to
+  `basic_mode`/`basic_mode_set_by`/`basic_mode_set_at` if a flagged player's account is ever deleted —
+  depends on the new columns' foreign-key `ON DELETE` behavior (`CASCADE` silently drops the metadata,
+  `RESTRICT` could block the deletion outright). Doesn't affect the core goal (a deleted account has no
+  characters left to restrict), but is worth deciding at migration time rather than discovering via a
+  failed deletion later.
 
 ## Verification
 - This project's own automated rules-parity test suite must still show zero failures after the change
@@ -362,3 +368,18 @@ did not hold up once actually checked against this document:
   mismatch, this is now two independent cases in one session of a model getting its own identity wrong
   when asked — logged in `cold-review-api-universal-jc` (the new skill built this session for API-based
   cold reviews) as an established pattern, not a one-off.
+
+**Update 2026-09-05 — fifth review round, OpenRouter API (`nvidia/nemotron-3-super-120b-a12b:free`, free
+tier).** See `docs/plans/cold-reviews/2026-09-05-openrouter-nemotron-player-basic-mode.md`. The most
+accurate round yet — unlike Groq, it correctly recognized the plan's current, already-revised state
+rather than critiquing a version that no longer exists.
+- **Accepted, genuinely new:** raised what happens to the `basic_mode` flag/metadata if a flagged
+  player's account is ever deleted, depending on foreign-key `ON DELETE` behavior. Folded into Risks
+  above.
+- **Confirmed accurate (not new, but correctly recognized as already-logged rather than re-presented as
+  undiscovered):** the "exactly ONE insert path" claim being stronger than its cited evidence — this
+  reviewer noticed the plan's own Review-outcome section already flags this.
+- **Third data point on reviewer instruction-following, a different failure mode this time:** this model
+  skipped the self-identification instruction entirely rather than reporting a wrong identity — no self-
+  ID line at all. Worth the same "verify it actually followed the reviewer instructions" discipline as
+  the wrong-identity cases, just a different way to fail at the same thing.
