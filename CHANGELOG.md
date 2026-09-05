@@ -26,6 +26,13 @@
   freezing the source campaign's `ignore_player_ap` at copy-open time, the same way DM AP is already
   frozen. Display-only — the new DB trigger already meant the stored figure could never really have
   grown, only been shown wrong.
+- **2026-09-03 · fix(chargen): "Copy to CharGen" now shows the same drawback-AP cap as every live
+  view** — same-day follow-up, identical shape to the entry above. `_cgDmOpts()` hardcoded
+  `drawbackCap:undefined` for the copy sandbox, so a copy of a character in a campaign that caps
+  drawback AP showed the FULL, uncapped grant instead of the capped figure DM Console/Live Sheet/a live
+  CharGen session all show. Fixed by freezing the source campaign's `rules` in the same fetch that
+  already freezes `ignore_player_ap` (no second network call — `drawbackCapFromRules()` is a pure
+  function of that blob), and giving `_cgDrawbackCap()` an optional rules-override parameter.
 - **2026-09-03 · fix(testing): the anti-drift guard could not see the drift it was built for**
   — `/code-review ultra` on PR #503 returned 13 findings; this lands the test/doc half of them.
   `testing/sql/rls-baseline-test.sql` hashed only `prosrc`, so the `search_path` regression that shipped

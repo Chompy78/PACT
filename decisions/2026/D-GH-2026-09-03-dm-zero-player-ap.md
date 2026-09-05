@@ -123,5 +123,9 @@ Pipeleaf and Caspian all confirmed at Player AP 0. `js/engine.js` untouched — 
   (follow-up, still this decision): `_cgConsumeViewChar()` now freezes the source campaign's
   `ignore_player_ap` at copy-open time, the same way it already freezes DM AP, and `_cgDmOpts()` reads
   that instead of a hardcoded `false`. Display-only — the database-level ceiling above already meant
-  the stored figure could never really have grown, only been shown wrong. `drawbackCap` has the
-  identical shape of gap in the same function and is NOT yet frozen the same way — left open.
+  the stored figure could never really have grown, only been shown wrong. `drawbackCap` had the
+  identical shape of gap in the same function (a capped campaign's copy showed the FULL, uncapped
+  drawback grant) — closed in the same follow-up, same fetch: `rules` is frozen alongside
+  `ignore_player_ap` (one call, no second network round-trip, since `drawbackCapFromRules()` is a pure
+  function of the rules blob), and `_cgDrawbackCap()` now takes an optional rules override instead of
+  always reading the copy's unset `window._cloudCampaign`.

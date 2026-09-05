@@ -763,6 +763,7 @@ async function _cgResolveDmApStatus(ap, campaignId){
   // this field, so a copy opened earlier in the same tab silently outlived its own load into a totally
   // unrelated cloud/local character loaded afterward, inflating that character's budget.
   window._cgCopySourceAp = 0; window._cgCopySourceName = ''; window._cgCopySourceIgnorePlayerAp = false;
+  window._cgCopySourceRules = null;
   window._dmAp = ap || 0;
   window._ignorePlayerAp = false;
   // feat/campaign-ap-budget-enforce: cached alongside _ignorePlayerAp, same lifecycle (resolved here
@@ -1455,13 +1456,17 @@ document.addEventListener('sync-ready', function () {
       // ignore_player_ap on — _cgDmOpts() hardcoded false here rather than reading it. One extra fetch
       // of the source campaign, at copy-open time only (same one-shot freeze as _cgCopySourceAp itself),
       // so the copy's math agrees with what the DM's live views already show. Best-effort: if this fails
-      // (offline, campaign deleted), fall back to the prior behaviour (player AP counted) rather than
-      // blocking the copy from opening at all — a DM can always cross-check with "👁 View" instead.
+      // (offline, campaign deleted), fall back to the prior behaviour (player AP counted, no drawback
+      // cap) rather than blocking the copy from opening at all — a DM can always cross-check with
+      // "👁 View" instead. `rules` is frozen the same way and in the same call, for _cgDrawbackCap()
+      // below — drawbackCapFromRules() is a pure function of the campaign's rules blob, so no second
+      // fetch is needed to close that gap too.
       if(rec.campaign_id && window._campaignBridge && window._campaignBridge.getCampaign){
         try{
           var srcCamp = await window._campaignBridge.getCampaign(rec.campaign_id);
           window._cgCopySourceIgnorePlayerAp = !!(srcCamp && srcCamp.ignore_player_ap);
-        }catch(e){ window._cgCopySourceIgnorePlayerAp = false; }
+          window._cgCopySourceRules = (srcCamp && srcCamp.rules) || null;
+        }catch(e){ window._cgCopySourceIgnorePlayerAp = false; window._cgCopySourceRules = null; }
       }
       _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:rec.stats.rules||DATA.version,name:copyName,
         LOG:rec.stats.LOG,SEQ:rec.stats.SEQ||(rec.stats.LOG.length+1),id:copyId},{clearHistory:true});
@@ -1540,9 +1545,16 @@ window._dmApStatus = window._dmApStatus || 'none';
 // drawback grant here while their DM saw the capped figure — two people reading one character and
 // getting different AP, with nothing on screen saying which was right. undefined (no campaign, or the
 // cap switched off) keeps compute() on its advisory path, which is the correct local-character rule.
-function _cgDrawbackCap(){
+// `rulesOverride` (fix/chargen-dm-view-drawback-cap, same follow-up as ignorePlayerAp above): omit it
+// for the live, cloud-connected path (reads window._cloudCampaign.rules, unchanged behaviour); pass
+// window._cgCopySourceRules explicitly for the "Copy to CharGen" sandbox, which has no live
+// _cloudCampaign of its own. drawbackCapFromRules() is a pure function of a rules object, so freezing
+// that object at copy-open time (done alongside _cgCopySourceIgnorePlayerAp, in the same fetch) is
+// enough — no separate network call needed here.
+function _cgDrawbackCap(rulesOverride){
   var b=window._campaignBridge, c=window._cloudCampaign;
-  return (b&&b.drawbackCapFromRules) ? b.drawbackCapFromRules(c&&c.rules) : undefined;
+  var rules = (rulesOverride!==undefined) ? rulesOverride : (c&&c.rules);
+  return (b&&b.drawbackCapFromRules) ? b.drawbackCapFromRules(rules) : undefined;
 }
 // A disconnected "Copy to CharGen" sandbox (feat/chargen-dm-view, D-GH-2026-08-10-chargen-dm-view)
 // leaves _dmApStatus at 'none' by design (_cgResetCloudApState()) so nothing here can bind back to the
@@ -1562,11 +1574,14 @@ function _cgDrawbackCap(){
 // still worth closing so a DM inspecting a copy sees the same number their other views already agree
 // on. Both frozen numbers share the same staleness trade-off: neither re-fetches if the campaign's
 // settings change after the copy was made; "👁 View" (genuinely live, read-only) is the route for an
-// always-accurate total. drawbackCap is NOT frozen the same way yet — a smaller, separate gap of the
-// identical shape, left open.
+// always-accurate total. drawbackCap is frozen the identical way (fix/chargen-dm-view-drawback-cap,
+// same follow-up): a copy of a character whose campaign caps drawback AP used to show the FULL,
+// uncapped grant (drawbackCap:undefined put compute() on its "no campaign" advisory path), disagreeing
+// with every live view the same way ignorePlayerAp did. _cgDrawbackCap() takes the frozen
+// window._cgCopySourceRules instead of reading the (unset, for a copy) window._cloudCampaign.
 function _cgDmOpts(){
   if(window._dmApStatus==='active') return {dmAp:(window._dmAp||0),ignorePlayerAp:!!window._ignorePlayerAp,drawbackCap:_cgDrawbackCap()};
-  if(window._cgCopySourceAp>0) return {dmAp:window._cgCopySourceAp,ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,drawbackCap:undefined};
+  if(window._cgCopySourceAp>0) return {dmAp:window._cgCopySourceAp,ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,drawbackCap:_cgDrawbackCap(window._cgCopySourceRules)};
   return {dmAp:0,ignorePlayerAp:false,drawbackCap:undefined};
 }
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on,
@@ -1587,7 +1602,7 @@ function _cgOverApBudget(){
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;
+function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;
   // Cleared with the rest of the cloud state so a pending binding cannot outlive its character. Guarded
   // because this function is also called from _cgBoot() paths that run before the declaration is reached.
   try{ _cgPendingCampaignId=null; }catch(e){}
