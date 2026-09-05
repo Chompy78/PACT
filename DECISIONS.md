@@ -18,9 +18,11 @@
   `18/38/62/90` — exactly `DATA.MASTER`'s Premium-band (raw) price at each unlock tier, so the number is
   anchored to an existing in-game price rather than invented. HD-gates unchanged; no fixture exercises
   `profBonus > 2` so `engine-parity` is unaffected (73/0 before and after) — a coverage gap, not a safety
-  net. **The Players Guide (served copy + `pact-guide` master) is not yet updated** — tracked as a
-  follow-up task rather than landed in the same change, at the owner's explicit direction. Full record:
-  `decisions/2026/D-GH-2026-09-03-proficiency-bonus-pricing.md`
+  net. **The Players Guide (served copy + `pact-guide` master) is now synced** to the new numbers and
+  reworded prose, verified with `guide-price-check.mjs`/`verify-guide.mjs`. Still outstanding: the
+  `documents-rules:` reconciliation stamp, which requires running `pact-guide`'s own
+  `stamp_guide_rules.mjs` — not reachable from this session (file access only, no script execution on
+  that project). Full record: `decisions/2026/D-GH-2026-09-03-proficiency-bonus-pricing.md`
 
 ## D-GH-2026-09-02-file-protocol-support-or-drop-the-claim — `file://` is not a supported way to run the tools
 - CharGen and Live Sheet both carried `Must run by opening the file directly (file://).` inside a block
